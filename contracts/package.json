@@ -5,11 +5,15 @@
     "compile:hardhat": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat compile",
     "test:hardhat": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat test",
     "test:forge": "forge test",
-    "test": "bun run test:forge && bun run test:hardhat"
+    "test": "bun run test:forge && bun run test:hardhat",
+    "deploy": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat run scripts/deploy.ts",
+    "console": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat console",
+    "watch-events": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat run scripts/watch-events.ts"
   },
   "devDependencies": {
     "@ensdomains/hardhat-chai-matchers-viem": "^0.0.7",
     "@nomicfoundation/hardhat-foundry": "^1.1.1",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
     "@nomicfoundation/hardhat-viem": "^2.0.0",
     "@types/bun": "latest",
@@ -21,5 +25,8 @@
   },
   "peerDependencies": {
     "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7"
   }
 }

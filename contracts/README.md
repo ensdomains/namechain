@@ -58,3 +58,70 @@ $ forge snapshot
 ### Miscellaneous
 
 Foundry also comes with cast, anvil, and chisel, all of which are useful for local development ([docs](https://book.getfoundry.sh/))
+
+## Usage Examples
+
+### Register a name using ETHRegistry
+
+You can use the Hardhat console to interact with the deployed contracts:
+
+```typescript
+// Start the Hardhat console
+$ bun run console --network local
+
+// Import utility functions
+const utils = await import('./test/utils/utils.ts')
+const { labelhashUint256 } = utils
+
+// Get contract instance
+const ETHRegistry = await ethers.getContractFactory("ETHRegistry")
+const ethRegistry = await ETHRegistry.attach("YOUR_DEPLOYED_ETH_REGISTRY_ADDRESS")
+
+// Get signer's address
+const signer = await ethers.provider.getSigner()
+const signerAddress = signer.address
+
+// First, ensure the signer has the REGISTRAR_ROLE
+const REGISTRAR_ROLE = await ethRegistry.REGISTRAR_ROLE()
+await ethRegistry.grantRole(REGISTRAR_ROLE, signerAddress)
+
+// Register the name
+// register(string label, address owner, IRegistry registry, uint96 flags, uint64 expires)
+const name = 'test'
+const expires = Math.floor(Date.now() / 1000) + 31536000 // 1 year from now
+const tx = await ethRegistry.register(
+    name,                // label
+    signerAddress,       // owner
+    ethRegistry.target,  // registry (using ETHRegistry itself as subregistry)
+    0,                   // flags
+    expires             // expiration timestamp
+)
+await tx.wait()
+
+// Verify the registration
+const labelHash = labelhashUint256(name)
+const owner = await ethRegistry.ownerOf(labelHash)
+console.log(`Owner of '${name}.eth': ${owner}`)
+
+// Optional: Set a resolver
+const tx2 = await ethRegistry.setResolver(labelHash, "RESOLVER_ADDRESS")
+await tx2.wait()
+
+// If using PublicResolver, you can set records:
+const PublicResolver = await ethers.getContractFactory("PublicResolver")
+const resolver = await PublicResolver.attach("RESOLVER_ADDRESS")
+
+// Set an address record
+const tx3 = await resolver.setAddr(labelHash, signerAddress)
+await tx3.wait()
+
+// Set a text record
+const tx4 = await resolver.setText(labelHash, "email", "your@email.com")
+await tx4.wait()
+```
+
+Common labelhashes for reference:
+```typescript
+labelhashUint256('eth')    // 35894389512221139346028120028875095598761990588366713962827482865185691260912n
+labelhashUint256('test')   // 70622639689279718371527342103894932928233838121221666359043189029713682937432n
+```
