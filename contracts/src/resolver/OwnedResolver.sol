@@ -7,4 +7,4 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * @title OwnedResolver
  * @dev A basic resolver contract with ownership functionality
  */
-contract OwnedResolver  {} 
+contract OwnedResolver is Ownable(msg.sender) {} 
