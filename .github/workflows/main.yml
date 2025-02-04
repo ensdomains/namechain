@@ -24,15 +24,18 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - name: Run tests
-        run: bun --filter contracts test
+      - name: Run tests with coverage
+        run: bun --filter contracts coverage
 
-      - run: bunx @lcov-viewer/cli lcov -o ./contracts/coverage ./contracts/lcov.info
-      - name: Upload coverage
+      - name: Generate coverage report
+        run: bunx @lcov-viewer/cli lcov -o ./contracts/coverage ./contracts/lcov.info
+
+      - name: Upload coverage report to artifacts
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: contracts/coverage/
+
       - name: Upload coverage report to Coveralls
         uses: coverallsapp/github-action@v2        
         with:
