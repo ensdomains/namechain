@@ -72,6 +72,17 @@ contract ETHRegistry is LockableRegistry, AccessControl {
         datastore.setSubregistry(tokenId, subregistry, (flags & FLAGS_MASK) | (uint96(expires) << 32));
     }
 
+    /**
+     * @dev Relinquish a name.
+     *      This will destroy the name and remove it from the registry.
+     *
+     * @param tokenId The token ID of the name to relinquish.
+     */
+    function relinquish(uint256 tokenId) external onlyTokenOwner(tokenId) {
+        _burn(ownerOf(tokenId), tokenId, 1);
+        datastore.setSubregistry(tokenId, address(0), 0);
+    }
+
     function nameData(uint256 tokenId) external view returns (uint64 expiry, uint32 flags) {
         (, uint96 _flags) = datastore.getSubregistry(tokenId);
         return (uint64(_flags >> 32), uint32(_flags));
