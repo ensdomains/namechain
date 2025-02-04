@@ -26,3 +26,16 @@ jobs:
 
       - name: Run tests
         run: bun --filter contracts test
+
+      - run: bunx @lcov-viewer/cli lcov -o ./contracts/coverage ./contracts/lcov.info
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: contracts/coverage/
+      - name: Upload coverage report to Coveralls
+        uses: coverallsapp/github-action@v2        
+        with:
+          file: contracts/lcov.info
+          github-token: ${{ secrets.GITHUB_TOKEN }}        
+
