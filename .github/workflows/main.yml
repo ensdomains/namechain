@@ -28,7 +28,7 @@ jobs:
         run: bun --filter contracts coverage
 
       - name: Generate coverage report
-        run: bunx @lcov-viewer/cli lcov -o ./contracts/coverage ./contracts/lcov.info
+        run: bun i -g @lcov-viewer/cli && lcov-viewer lcov -o ./contracts/coverage ./contracts/lcov.info
 
       - name: Upload coverage report to artifacts
         uses: actions/upload-artifact@v4
