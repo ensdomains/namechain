@@ -1,3 +1,6 @@
+![Build status](https://github.com/ensdomains/enschain/actions/workflows/main.yml/badge.svg?branch=main)
+[![Coverage Status](https://coveralls.io/repos/github/ensdomains/enschain/badge.svg?branch=main)](https://coveralls.io/github/ensdomains/enschain?branch=main)
+
 # ENSv2 Contracts
 
 Currently this repository hosts Proof-of-Concept contracts for ENSv2. See the [ENSv2 design doc](http://go.ens.xyz/ensv2) for details of the system architecture.
