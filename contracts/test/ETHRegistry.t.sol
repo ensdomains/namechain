@@ -100,4 +100,19 @@ contract TestETHRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", address(this), registry, flags, uint64(block.timestamp) + 86400);
         registry.lock(tokenId, registry.FLAG_RESOLVER_LOCKED());
     }
+
+    function test_relinquish() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 86400);
+        registry.relinquish(tokenId);
+        vm.assertEq(registry.ownerOf(tokenId), address(0));
+        vm.assertEq(address(registry.getSubregistry("test2")), address(0));
+    }
+
+    function testFail_cannot_relinquish_if_not_owner() public {
+        uint256 tokenId = registry.register("test2", address(1), registry, 0, uint64(block.timestamp) + 86400);
+        vm.prank(address(2));
+        registry.relinquish(tokenId);
+        vm.assertEq(registry.ownerOf(tokenId), address(1));
+        vm.assertEq(address(registry.getSubregistry("test2")), address(registry));
+    }
 }
