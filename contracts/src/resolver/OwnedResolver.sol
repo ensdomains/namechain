@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {console} from "forge-std/console.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {AddrResolver} from "@ens/contracts/resolvers/profiles/AddrResolver.sol";
 import {ABIResolver} from "@ens/contracts/resolvers/profiles/ABIResolver.sol";
@@ -37,6 +36,7 @@ contract OwnedResolver is
     function isAuthorised(bytes32) internal view override returns (bool) {
         return msg.sender == owner();
     }
+
     function supportsInterface(
         bytes4 interfaceID
     )
@@ -57,5 +57,4 @@ contract OwnedResolver is
     {
         return super.supportsInterface(interfaceID);
     }
-
 } 

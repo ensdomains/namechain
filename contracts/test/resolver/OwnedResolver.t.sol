@@ -6,7 +6,7 @@ import {OwnedResolver} from "../../src/resolver/OwnedResolver.sol";
 import {VerifiableFactory} from "../../lib/verifiable-factory/src/VerifiableFactory.sol";
 import {TransparentVerifiableProxy} from "../../lib/verifiable-factory/src/TransparentVerifiableProxy.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {console} from "forge-std/console.sol";
+
 contract OwnedResolverTest is Test {
     VerifiableFactory factory;
     uint256 constant SALT = 12345;
@@ -21,7 +21,6 @@ contract OwnedResolverTest is Test {
         
         address implementation = address(new OwnedResolver());
         bytes memory initData = abi.encodeWithSelector(OwnedResolver.initialize.selector, owner);
-
         vm.startPrank(owner);
         address deployed = factory.deployProxy(implementation, SALT, initData);
         vm.stopPrank();
@@ -39,15 +38,11 @@ contract OwnedResolverTest is Test {
     function testSetAndGetAddr() public {
         bytes memory ethAddress = abi.encodePacked(address(0x123));
         
-        console.log("Before startPrank - owner:", owner);
-        
         vm.startPrank(owner);
         resolver.setAddr(TEST_NODE, ETH_COIN_TYPE, ethAddress);
         vm.stopPrank();
+
         bytes memory retrievedAddr = resolver.addr(TEST_NODE, ETH_COIN_TYPE);
-        
-        console.log("retrievedAddr:");
-        console.logBytes(retrievedAddr);
         assertEq(retrievedAddr, ethAddress);
     }
 
