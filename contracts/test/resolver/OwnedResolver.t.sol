@@ -28,14 +28,14 @@ contract OwnedResolverTest is Test {
         resolver = OwnedResolver(deployed);
     }
 
-    function testDeploy() public {
+    function test_deploy() public {
         TransparentVerifiableProxy proxy = TransparentVerifiableProxy(payable(address(resolver)));
         assertEq(proxy.getVerifiableProxySalt(), SALT);
         assertEq(proxy.getVerifiableProxyOwner(), owner);
         assertEq(resolver.owner(), owner);
     }
 
-    function testSetAndGetAddr() public {
+    function test_set_and_get_addr() public {
         bytes memory ethAddress = abi.encodePacked(address(0x123));
         
         vm.startPrank(owner);
@@ -46,7 +46,7 @@ contract OwnedResolverTest is Test {
         assertEq(retrievedAddr, ethAddress);
     }
 
-    function testCannotSetAddrIfNotOwner() public {
+    function test_cannot_set_addr_if_not_owner() public {
         bytes memory ethAddress = abi.encodePacked(address(0x123));
         
         vm.startPrank(makeAddr("notOwner"));
@@ -55,7 +55,7 @@ contract OwnedResolverTest is Test {
         vm.stopPrank();
     }
 
-    function testVersionableAddresses() public {
+    function test_versionable_addresses() public {
         bytes memory addr1 = abi.encodePacked(address(0x123));
         bytes memory addr2 = abi.encodePacked(address(0x456));
         
