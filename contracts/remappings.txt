@@ -1,4 +1,5 @@
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
 @openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
 @ens/contracts/=lib/ens-contracts/contracts/
+@ensdomains/buffer/=lib/buffer/
 forge-std/=lib/forge-std/src/
