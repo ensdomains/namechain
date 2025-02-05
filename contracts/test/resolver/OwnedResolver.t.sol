@@ -20,8 +20,10 @@ contract OwnedResolverTest is Test {
         factory = new VerifiableFactory();
         
         address implementation = address(new OwnedResolver());
+        bytes memory initData = abi.encodeWithSelector(OwnedResolver.initialize.selector, owner);
+
         vm.startPrank(owner);
-        address deployed = factory.deployProxy(implementation, SALT, "");
+        address deployed = factory.deployProxy(implementation, SALT, initData);
         vm.stopPrank();
         
         resolver = OwnedResolver(deployed);
@@ -29,8 +31,8 @@ contract OwnedResolverTest is Test {
 
     function testDeploy() public {
         TransparentVerifiableProxy proxy = TransparentVerifiableProxy(payable(address(resolver)));
-        assertEq(proxy.salt(), SALT);
-        assertEq(proxy.owner(), owner);
+        assertEq(proxy.getVerifiableProxySalt(), SALT);
+        assertEq(proxy.getVerifiableProxyOwner(), owner);
         assertEq(resolver.owner(), owner);
     }
 
@@ -40,16 +42,13 @@ contract OwnedResolverTest is Test {
         console.log("Before startPrank - owner:", owner);
         
         vm.startPrank(owner);
-        // address msgSender = resolver.msgSender();
-        // console.log("Returned msgSender:", msgSender);
         resolver.setAddr(TEST_NODE, ETH_COIN_TYPE, ethAddress);
         vm.stopPrank();
-        // assertEq(msgSender, owner, "msgSender = owner");
         bytes memory retrievedAddr = resolver.addr(TEST_NODE, ETH_COIN_TYPE);
         
         console.log("retrievedAddr:");
         console.logBytes(retrievedAddr);
-        // assertEq(retrievedAddr, ethAddress);
+        assertEq(retrievedAddr, ethAddress);
     }
 
     function testCannotSetAddrIfNotOwner() public {
