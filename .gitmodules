@@ -17,3 +17,6 @@
 [submodule "contracts/lib/ens-contracts"]
 	path = contracts/lib/ens-contracts
 	url = https://github.com/ensdomains/ens-contracts
+[submodule "contracts/lib/buffer"]
+	path = contracts/lib/buffer
+	url = https://github.com/ensdomains/buffer
