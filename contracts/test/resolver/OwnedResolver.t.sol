@@ -3,8 +3,8 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {OwnedResolver} from "../../src/resolver/OwnedResolver.sol";
-import {VerifiableFactory} from "../../lib/verifiable-factory/src/VerifiableFactory.sol";
-import {TransparentVerifiableProxy} from "../../lib/verifiable-factory/src/TransparentVerifiableProxy.sol";
+import {VerifiableFactory} from "verifiable-factory/VerifiableFactory.sol";
+import {TransparentVerifiableProxy} from "verifiable-factory/TransparentVerifiableProxy.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract OwnedResolverTest is Test {
