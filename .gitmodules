@@ -8,9 +8,6 @@
 	path = lib/verifiable-factory
 	url = https://github.com/ensdomains/verifiable-factory
 	branch = deploy-proxy-data-param
-[submodule "contracts/lib/verifiable-factory"]
-	path = contracts/lib/verifiable-factory
-	url = https://github.com/ensdomains/verifiable-factory
 [submodule "contracts/lib/openzeppelin-contracts-upgradeable"]
 	path = contracts/lib/openzeppelin-contracts-upgradeable
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
