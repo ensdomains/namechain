@@ -14,3 +14,6 @@
 [submodule "contracts/lib/verifiable-factory"]
 	path = contracts/lib/verifiable-factory
 	url = https://github.com/ensdomains/verifiable-factory
+[submodule "contracts/lib/ens-contracts"]
+	path = contracts/lib/ens-contracts
+	url = https://github.com/ensdomains/ens-contracts
