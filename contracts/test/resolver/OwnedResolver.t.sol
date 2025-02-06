@@ -70,4 +70,23 @@ contract OwnedResolverTest is Test {
         assertEq(resolver.addr(TEST_NODE, ETH_COIN_TYPE), addr2);
         vm.stopPrank();
     }
+
+    function test_supports_interface() public {
+        // Test for implemented interfaces
+        assertTrue(resolver.supportsInterface(type(AddrResolver).interfaceId), "Should support AddrResolver");
+        assertTrue(resolver.supportsInterface(type(ABIResolver).interfaceId), "Should support ABIResolver");
+        assertTrue(resolver.supportsInterface(type(ContentHashResolver).interfaceId), "Should support ContentHashResolver");
+        assertTrue(resolver.supportsInterface(type(DNSResolver).interfaceId), "Should support DNSResolver");
+        assertTrue(resolver.supportsInterface(type(InterfaceResolver).interfaceId), "Should support InterfaceResolver");
+        assertTrue(resolver.supportsInterface(type(NameResolver).interfaceId), "Should support NameResolver");
+        assertTrue(resolver.supportsInterface(type(PubkeyResolver).interfaceId), "Should support PubkeyResolver");
+        assertTrue(resolver.supportsInterface(type(TextResolver).interfaceId), "Should support TextResolver");
+        assertTrue(resolver.supportsInterface(type(ExtendedResolver).interfaceId), "Should support ExtendedResolver");
+        
+        // Test for ERC165 interface
+        assertTrue(resolver.supportsInterface(0x01ffc9a7), "Should support ERC165");
+        
+        // Test for unsupported interface
+        assertFalse(resolver.supportsInterface(0xffffffff), "Should not support random interface");
+    }
 } 
