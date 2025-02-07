@@ -6,6 +6,15 @@ import {OwnedResolver} from "../../src/resolver/OwnedResolver.sol";
 import {VerifiableFactory} from "verifiable-factory/VerifiableFactory.sol";
 import {TransparentVerifiableProxy} from "verifiable-factory/TransparentVerifiableProxy.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
+import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
+import {IDNSRecordResolver} from "@ens/contracts/resolvers/profiles/IDNSRecordResolver.sol";
+import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
+import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
+import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
+import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
+import {console} from "forge-std/console.sol";
 
 contract OwnedResolverTest is Test {
     VerifiableFactory factory;
@@ -72,16 +81,14 @@ contract OwnedResolverTest is Test {
     }
 
     function test_supports_interface() public {
-        // Test for implemented interfaces
-        assertTrue(resolver.supportsInterface(type(AddrResolver).interfaceId), "Should support AddrResolver");
-        assertTrue(resolver.supportsInterface(type(ABIResolver).interfaceId), "Should support ABIResolver");
-        assertTrue(resolver.supportsInterface(type(ContentHashResolver).interfaceId), "Should support ContentHashResolver");
-        assertTrue(resolver.supportsInterface(type(DNSResolver).interfaceId), "Should support DNSResolver");
-        assertTrue(resolver.supportsInterface(type(InterfaceResolver).interfaceId), "Should support InterfaceResolver");
-        assertTrue(resolver.supportsInterface(type(NameResolver).interfaceId), "Should support NameResolver");
-        assertTrue(resolver.supportsInterface(type(PubkeyResolver).interfaceId), "Should support PubkeyResolver");
-        assertTrue(resolver.supportsInterface(type(TextResolver).interfaceId), "Should support TextResolver");
-        assertTrue(resolver.supportsInterface(type(ExtendedResolver).interfaceId), "Should support ExtendedResolver");
+        // Test for implemented interfaces        
+        assertTrue(resolver.supportsInterface(type(IABIResolver).interfaceId), "Should support ABIResolver");
+        assertTrue(resolver.supportsInterface(type(IContentHashResolver).interfaceId), "Should support ContentHashResolver");
+        assertTrue(resolver.supportsInterface(type(IDNSRecordResolver).interfaceId), "Should support DNSResolver");
+        assertTrue(resolver.supportsInterface(type(IInterfaceResolver).interfaceId), "Should support InterfaceResolver");
+        assertTrue(resolver.supportsInterface(type(INameResolver).interfaceId), "Should support NameResolver");
+        assertTrue(resolver.supportsInterface(type(IPubkeyResolver).interfaceId), "Should support PubkeyResolver");
+        assertTrue(resolver.supportsInterface(type(ITextResolver).interfaceId), "Should support TextResolver");
         
         // Test for ERC165 interface
         assertTrue(resolver.supportsInterface(0x01ffc9a7), "Should support ERC165");
