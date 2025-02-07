@@ -35,7 +35,7 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     modifier withSubregistryFlags(uint256 tokenId, uint96 mask, uint96 expected) {
         (, uint96 flags) = datastore.getSubregistry(tokenId);
         if (flags & mask != expected) {
-            revert InvalidSubregistryFlags(tokenId, flags & mask, expected);
+            revert InvalidSubregistryFlags(tokenId, flags & mask, expected);    
         }
         _;
     }
