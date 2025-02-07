@@ -32,8 +32,8 @@ contract ETHRegistry is LockableRegistry, AccessControl {
         override(ERC1155Singleton, IERC1155Singleton)
         returns (address)
     {
-        (, uint96 flags) = datastore.getSubregistry(tokenId);
-        uint64 expires = uint64(flags);
+        (, uint96 oldFlags) = datastore.getSubregistry(tokenId);
+        uint64 expires = _extractExpiry(oldFlags);
         if (expires < block.timestamp) {
             return address(0);
         }
@@ -49,9 +49,15 @@ contract ETHRegistry is LockableRegistry, AccessControl {
         flags = (flags & FLAGS_MASK) | (uint96(expires) << 32);
 
         (, uint96 oldFlags) = datastore.getSubregistry(tokenId);
-        uint64 oldExpiry = uint64(oldFlags >> 32);
+        uint64 oldExpiry = _extractExpiry(oldFlags);
         if (oldExpiry >= block.timestamp) {
             revert NameAlreadyRegistered(label);
+        }
+
+        // if there is a previous owner, burn the token
+        address previousOwner = super.ownerOf(tokenId);
+        if (previousOwner != address(0)) {
+            _burn(previousOwner, tokenId, 1);
         }
 
         _mint(owner, tokenId, 1, "");
@@ -62,7 +68,7 @@ contract ETHRegistry is LockableRegistry, AccessControl {
 
     function renew(uint256 tokenId, uint64 expires) public onlyRole(REGISTRAR_ROLE) {
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
-        uint64 oldExpiration = uint64(flags >> 32);
+        uint64 oldExpiration = _extractExpiry(flags);
         if (oldExpiration < block.timestamp) {
             revert NameExpired(tokenId);
         }
@@ -85,7 +91,7 @@ contract ETHRegistry is LockableRegistry, AccessControl {
 
     function nameData(uint256 tokenId) external view returns (uint64 expiry, uint32 flags) {
         (, uint96 _flags) = datastore.getSubregistry(tokenId);
-        return (uint64(_flags >> 32), uint32(_flags));
+        return (_extractExpiry(_flags), uint32(_flags));
     }
 
     function lock(uint256 tokenId, uint96 flags)
@@ -108,7 +114,7 @@ contract ETHRegistry is LockableRegistry, AccessControl {
 
     function getSubregistry(string calldata label) external view virtual override returns (IRegistry) {
         (address subregistry, uint96 flags) = datastore.getSubregistry(uint256(keccak256(bytes(label))));
-        uint64 expires = uint64(flags);
+        uint64 expires = _extractExpiry(flags);
         if (expires <= block.timestamp) {
             return IRegistry(address(0));
         }
@@ -116,13 +122,21 @@ contract ETHRegistry is LockableRegistry, AccessControl {
     }
 
     function getResolver(string calldata label) external view virtual override returns (address) {
-        (address subregistry, uint96 flags) = datastore.getSubregistry(uint256(keccak256(bytes(label))));
-        uint64 expires = uint64(flags);
+        uint256 tokenId = uint256(keccak256(bytes(label)));
+        (, uint96 flags) = datastore.getSubregistry(tokenId);
+        uint64 expires = _extractExpiry(flags);
         if (expires <= block.timestamp) {
             return address(0);
         }
 
-        (address resolver, ) = datastore.getResolver(uint256(keccak256(bytes(label))));
+        (address resolver, ) = datastore.getResolver(tokenId);
         return resolver;
+    }
+
+
+    // Private methods
+
+    function _extractExpiry(uint96 flags) private pure returns (uint64) {
+        return uint64(flags >> 32);
     }
 }
