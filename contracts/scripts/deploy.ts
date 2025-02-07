@@ -2,9 +2,15 @@ import { HardhatRuntimeEnvironment } from "hardhat/types";
 import "@nomicfoundation/hardhat-viem";
 import { keccak256, stringToHex } from "viem";
 import fs from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
+import { ethers } from "hardhat";
+import { encodeFunctionData } from "viem";
 
 // @ts-ignore - Hardhat runtime environment will be injected
 const hre: HardhatRuntimeEnvironment = global.hre;
+
+const __filename = fileURLToPath(import.meta.url);
 
 async function updateEnvFile(newVars: Record<string, string>) {
   try {
@@ -75,6 +81,38 @@ async function main() {
   ]);
   console.log("UniversalResolver deployed to:", universalResolver.address);
 
+  // Deploy OwnedResolver implementation
+  console.log("\nDeploying OwnedResolver...");
+  const resolverImplementation = await hre.viem.deployContract("OwnedResolver", []);
+  console.log("OwnedResolver implementation deployed to:", resolverImplementation.address);
+
+  // Deploy VerifiableFactory
+  console.log("\nDeploying VerifiableFactory...");
+  const verifiableFactory = await hre.viem.deployContract("VerifiableFactory")
+  console.log("VerifiableFactory deployed to:", verifiableFactory.address);
+  // Deploy resolver proxy
+  const initData = encodeFunctionData({
+    abi:resolverImplementation.abi,
+    functionName:"initialize",
+    args:[deployer.account.address]
+  });
+  console.log(2, initData);
+  const SALT = 12345n;
+  console.log("\nDeploying OwnedResolver proxy...");
+  const deployTx = await verifiableFactory.write.deployProxy([
+    resolverImplementation.address,
+    SALT,
+    initData
+  ]);
+  const events = await verifiableFactory.getEvents.ProxyDeployed();
+
+  // Get proxy address from event
+  const publicClient = await hre.viem.getPublicClient();
+  await publicClient.waitForTransactionReceipt({ hash: deployTx });
+  
+  const resolverAddress = events[0].args.proxyAddress;
+  console.log("OwnedResolver proxy deployed to:", resolverAddress);
+
   // Setup roles
   console.log("\nSetting up roles...");
   await rootRegistry.write.grantRole([
@@ -100,12 +138,43 @@ async function main() {
   ]);
   console.log(".eth TLD minted");
 
+
+  // Register test.eth
+  console.log("\nRegistering test.eth...");
+  const testName = "test";
+  const expires = BigInt(Math.floor(Date.now() / 1000) + 31536000); // 1 year from now
+  console.log(31, testName, deployer.account.address, ethRegistry.address, expires);
+  await ethRegistry.write.register([
+    testName,
+    deployer.account.address,
+    ethRegistry.address,
+    0n,
+    expires
+  ]);
+  console.log("test.eth registered");
+
+  // Set resolver for test.eth
+  const testLabelHash = keccak256(stringToHex(testName));
+  await ethRegistry.write.setResolver([testLabelHash, resolverAddress]);
+  console.log("Resolver set for test.eth");
+
+  // Set ETH address for test.eth
+  const resolver = await hre.viem.getContractAt("OwnedResolver", resolverAddress);
+  await resolver.write.setAddr([
+    testLabelHash,
+    60n, // ETH coin type
+    deployer.account.address
+  ]);
+  console.log("ETH address set for test.eth");
+
+
   // Save addresses to .env file
   await updateEnvFile({
     DATASTORE_ADDRESS: datastore.address,
     ROOT_REGISTRY_ADDRESS: rootRegistry.address,
     ETH_REGISTRY_ADDRESS: ethRegistry.address,
     UNIVERSAL_RESOLVER_ADDRESS: universalResolver.address,
+    OWNED_RESOLVER_ADDRESS: resolverAddress,
   });
 
   console.log("\nDeployment complete! Contract addresses:");
@@ -113,6 +182,7 @@ async function main() {
   console.log("RootRegistry:", rootRegistry.address);
   console.log("ETHRegistry:", ethRegistry.address);
   console.log("UniversalResolver:", universalResolver.address);
+  console.log("OwnedResolver:", resolverAddress);
 }
 
 main()
