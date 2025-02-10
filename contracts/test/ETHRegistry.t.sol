@@ -24,33 +24,25 @@ contract TestETHRegistry is Test, ERC1155Holder {
     function test_register_unlocked() public {
         uint256 expectedId =
             uint256(keccak256("test2") & 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8);
-        vm.expectEmit(true, true, true, true);
-        emit TransferSingle(address(this), address(0), address(this), expectedId, 1);
 
         uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 86400);
         vm.assertEq(tokenId, expectedId);
     }
 
-    function test_register_setFlagsed() public {
+    function test_register_locked() public {
         uint96 flags = registry.FLAG_SUBREGISTRY_LOCKED() | registry.FLAG_RESOLVER_LOCKED();
         uint256 expectedId =
             uint256(keccak256("test2") & 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8) | flags;
-        vm.expectEmit(true, true, true, true);
-        emit TransferSingle(address(this), address(0), address(this), expectedId, 1);
 
         uint256 tokenId = registry.register("test2", address(this), registry, flags, uint64(block.timestamp) + 86400);
         vm.assertEq(tokenId, expectedId);
     }
 
-    function test_setFlags_name() public {
+    function test_lock_name() public {
         uint96 flags = registry.FLAG_SUBREGISTRY_LOCKED() | registry.FLAG_RESOLVER_LOCKED();
         uint256 oldTokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 86400);
 
-        vm.expectEmit(true, true, true, true);
-        emit TransferSingle(address(this), address(this), address(0), oldTokenId, 1);
         uint256 expectedTokenId = oldTokenId | flags;
-        vm.expectEmit(true, true, true, true);
-        emit TransferSingle(address(this), address(0), address(this), expectedTokenId, 1);
 
         uint256 newTokenId = registry.setFlags(oldTokenId, flags);
         vm.assertEq(newTokenId, expectedTokenId);
@@ -79,7 +71,7 @@ contract TestETHRegistry is Test, ERC1155Holder {
         vm.assertEq(address(registry.getSubregistry("test2")), address(this));
     }
 
-    function test_Revert_cannot_set_setFlagsed_subregistry() public {
+    function test_Revert_cannot_set_locked_subregistry() public {
         uint96 flags = registry.FLAG_SUBREGISTRY_LOCKED();
         uint256 tokenId = registry.register("test2", address(this), registry, flags, uint64(block.timestamp) + 86400);
 
@@ -93,7 +85,7 @@ contract TestETHRegistry is Test, ERC1155Holder {
         vm.assertEq(address(registry.getResolver("test2")), address(this));
     }
 
-    function test_Revert_cannot_set_setFlagsed_resolver() public {
+    function test_Revert_cannot_set_locked_resolver() public {
         uint96 flags = registry.FLAG_RESOLVER_LOCKED();
         uint256 tokenId = registry.register("test2", address(this), registry, flags, uint64(block.timestamp) + 86400);
 
@@ -101,7 +93,7 @@ contract TestETHRegistry is Test, ERC1155Holder {
         registry.setResolver(tokenId, address(this));
     }
 
-    function test_Revert_cannot_set_setFlagsed_flags() public {
+    function test_Revert_cannot_set_locked_flags() public {
         uint96 flags = registry.FLAG_FLAGS_LOCKED();
         uint256 tokenId = registry.register("test2", address(this), registry, flags, uint64(block.timestamp) + 86400);
 

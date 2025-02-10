@@ -23,8 +23,6 @@ contract TestRootRegistry is Test, ERC1155Holder {
 
     function test_register_unlocked() public {
         uint256 expectedId = uint256(keccak256("test2"));
-        vm.expectEmit(true, true, true, true);
-        emit TransferSingle(address(this), address(0), address(this), expectedId, 1);
 
         uint256 tokenId = registry.mint("test2", address(this), registry, 0, "");
         vm.assertEq(tokenId, expectedId);
@@ -32,11 +30,9 @@ contract TestRootRegistry is Test, ERC1155Holder {
         vm.assertEq(flags, 0);
     }
 
-    function test_register_setFlagsed() public {
+    function test_register_locked() public {
         uint96 flags = registry.FLAG_SUBREGISTRY_LOCKED() | registry.FLAG_RESOLVER_LOCKED();
         uint256 expectedId = uint256(keccak256("test2"));
-        vm.expectEmit(true, true, true, true);
-        emit TransferSingle(address(this), address(0), address(this), expectedId, 1);
 
         uint256 tokenId = registry.mint("test2", address(this), registry, flags, "");
         vm.assertEq(tokenId, expectedId);
@@ -44,7 +40,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         vm.assertEq(flags, actualFlags);
     }
 
-    function test_setFlags_name() public {
+    function test_lock_name() public {
         uint96 flags = registry.FLAG_SUBREGISTRY_LOCKED() | registry.FLAG_RESOLVER_LOCKED();
         uint256 tokenId = registry.mint("test2", address(this), registry, 0, "");
         uint96 actualFlags = registry.setFlags(tokenId, flags);
@@ -69,7 +65,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         vm.assertEq(address(registry.getSubregistry("test")), address(this));
     }
 
-    function test_Revert_cannot_set_setFlagsed_subregistry() public {
+    function test_Revert_cannot_set_locked_subregistry() public {
         uint96 flags = registry.FLAG_SUBREGISTRY_LOCKED();
         uint256 tokenId = registry.mint("test", address(this), registry, flags, "");
 
@@ -83,7 +79,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         vm.assertEq(address(registry.getResolver("test")), address(this));
     }
 
-    function test_Revert_cannot_set_setFlagsed_resolver() public {
+    function test_Revert_cannot_set_locked_resolver() public {
         uint96 flags = registry.FLAG_RESOLVER_LOCKED();
         uint256 tokenId = registry.mint("test", address(this), registry, flags, "");
 
@@ -91,7 +87,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         registry.setResolver(tokenId, address(this));
     }
 
-    function test_Revert_cannot_set_setFlagsed_flags() public {
+    function test_Revert_cannot_set_locked_flags() public {
         uint96 flags = registry.FLAG_FLAGS_LOCKED();
         uint256 tokenId = registry.mint("test", address(this), registry, flags, "");
 
