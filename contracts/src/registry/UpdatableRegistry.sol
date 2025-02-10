@@ -9,7 +9,7 @@ import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 
-abstract contract LockableRegistry is BaseRegistry {
+abstract contract UpdatableRegistry is BaseRegistry {
     uint96 public constant FLAGS_MASK = 0x7;
     uint96 public constant FLAG_SUBREGISTRY_LOCKED = 0x1;
     uint96 public constant FLAG_RESOLVER_LOCKED = 0x2;
@@ -18,7 +18,7 @@ abstract contract LockableRegistry is BaseRegistry {
     constructor(IRegistryDatastore _datastore) BaseRegistry(_datastore) {
     }
 
-    function _lock(uint256 tokenId, uint96 _flags)
+    function _setFlags(uint256 tokenId, uint96 _flags)
         internal
         withSubregistryFlags(tokenId, FLAG_FLAGS_LOCKED, 0)
         returns(uint96 newFlags)

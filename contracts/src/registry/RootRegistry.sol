@@ -7,15 +7,15 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
-import {LockableRegistry} from "./LockableRegistry.sol";
+import {UpdatableRegistry} from "./UpdatableRegistry.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 
-contract RootRegistry is LockableRegistry, AccessControl {
+contract RootRegistry is UpdatableRegistry, AccessControl {
     bytes32 public constant TLD_ISSUER_ROLE = keccak256("TLD_ISSUER_ROLE");
 
     mapping(uint256 tokenId=>string) uris;
 
-    constructor(IRegistryDatastore _datastore) LockableRegistry(_datastore) {
+    constructor(IRegistryDatastore _datastore) UpdatableRegistry(_datastore) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
@@ -59,12 +59,12 @@ contract RootRegistry is LockableRegistry, AccessControl {
         datastore.setSubregistry(tokenId, address(0), 0);
     }
 
-    function lock(uint256 tokenId, uint96 flags)
+    function setFlags(uint256 tokenId, uint96 flags)
         external
         onlyTokenOwner(tokenId)
         returns(uint96)
     {
-        return _lock(tokenId, flags);
+        return _setFlags(tokenId, flags);
     }
 
     function setUri(uint256 tokenId, string memory _uri) 
