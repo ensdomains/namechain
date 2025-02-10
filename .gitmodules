@@ -7,7 +7,7 @@
 [submodule "lib/verifiable-factory"]
 	path = lib/verifiable-factory
 	url = https://github.com/ensdomains/verifiable-factory
-	branch = deploy-proxy-data-param
+	branch = refactor-transparent-to-uups
 [submodule "contracts/lib/openzeppelin-contracts-upgradeable"]
 	path = contracts/lib/openzeppelin-contracts-upgradeable
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
@@ -17,3 +17,6 @@
 [submodule "contracts/lib/buffer"]
 	path = contracts/lib/buffer
 	url = https://github.com/ensdomains/buffer
+[submodule "contracts/lib/verifiable-factory"]
+	path = contracts/lib/verifiable-factory
+	url = https://github.com/ensdomains/verifiable-factory
