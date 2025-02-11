@@ -69,7 +69,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
         return tokenId;
     }
 
-    function setRenewalObserver(uint256 tokenId, address _observer) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setRenewalObserver(uint256 tokenId, address _observer) external onlyTokenOwner(tokenId) {
         renewalObserver[tokenId] = _observer;
     }
 
