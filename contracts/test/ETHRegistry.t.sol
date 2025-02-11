@@ -6,19 +6,24 @@ import "forge-std/console.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import "src/registry/ETHRegistry.sol";
-import "src/registry/RegistryDatastore.sol";
+import "../src/registry/ETHRegistry.sol";
+import "../src/registry/RegistryDatastore.sol";
+
 
 contract TestETHRegistry is Test, ERC1155Holder {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
 
     RegistryDatastore datastore;
     ETHRegistry registry;
+    MockTokenObserver observer;
+    RevertingTokenObserver revertingObserver;
 
     function setUp() public {
         datastore = new RegistryDatastore();
         registry = new ETHRegistry(datastore);
         registry.grantRole(registry.REGISTRAR_ROLE(), address(this));
+        observer = new MockTokenObserver();
+        revertingObserver = new RevertingTokenObserver();
     }
 
     function test_register_unlocked() public {
@@ -170,5 +175,94 @@ contract TestETHRegistry is Test, ERC1155Holder {
         
         vm.expectRevert(abi.encodeWithSelector(ETHRegistry.CannotReduceExpiration.selector, uint64(block.timestamp) + 200, newExpiry));
         registry.renew(tokenId, newExpiry);
+    }
+
+    // Token observers
+
+    function test_token_observer_renew() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
+        registry.setTokenObserver(tokenId, address(observer));
+        
+        uint64 newExpiry = uint64(block.timestamp) + 200;
+        registry.renew(tokenId, newExpiry);
+        
+        assertEq(observer.lastTokenId(), tokenId);
+        assertEq(observer.lastExpiry(), newExpiry);
+        assertEq(observer.lastCaller(), address(this));
+        assertEq(observer.wasRelinquished(), false);
+    }
+
+    function test_token_observer_relinquish() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
+        registry.setTokenObserver(tokenId, address(observer));
+        
+        registry.relinquish(tokenId);
+        
+        assertEq(observer.lastTokenId(), tokenId);
+        assertEq(observer.lastCaller(), address(this));
+        assertEq(observer.wasRelinquished(), true);
+    }
+
+    function test_Revert_set_token_observer_if_not_owner() public {
+        uint256 tokenId = registry.register("test2", address(1), registry, 0, uint64(block.timestamp) + 100);
+        
+        vm.prank(address(2));
+        vm.expectRevert(abi.encodeWithSelector(BaseRegistry.AccessDenied.selector, tokenId, address(1), address(2)));
+        registry.setTokenObserver(tokenId, address(observer));
+    }
+
+    function test_Revert_renew_when_token_observer_reverts() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
+        registry.setTokenObserver(tokenId, address(revertingObserver));
+        
+        uint64 newExpiry = uint64(block.timestamp) + 200;
+        vm.expectRevert(RevertingTokenObserver.ObserverReverted.selector);
+        registry.renew(tokenId, newExpiry);
+        
+        (uint64 expiry,) = registry.nameData(tokenId);
+        assertEq(expiry, uint64(block.timestamp) + 100);
+    }
+
+    function test_Revert_relinquish_when_token_observer_reverts() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
+        registry.setTokenObserver(tokenId, address(revertingObserver));
+        
+        vm.expectRevert(RevertingTokenObserver.ObserverReverted.selector);
+        registry.relinquish(tokenId);
+        
+        assertEq(registry.ownerOf(tokenId), address(this));
+    }
+}
+
+
+contract MockTokenObserver is ETHRegistryTokenObserver {
+    uint256 public lastTokenId;
+    uint64 public lastExpiry;
+    address public lastCaller;
+    bool public wasRelinquished;
+
+    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external {
+        lastTokenId = tokenId;
+        lastExpiry = expires;
+        lastCaller = renewedBy;
+        wasRelinquished = false;
+    }
+
+    function onRelinquish(uint256 tokenId, address relinquishedBy) external {
+        lastTokenId = tokenId;
+        lastCaller = relinquishedBy;
+        wasRelinquished = true;
+    }
+}
+
+contract RevertingTokenObserver is ETHRegistryTokenObserver {
+    error ObserverReverted();
+
+    function onRenew(uint256, uint64, address) external pure {
+        revert ObserverReverted();
+    }
+
+    function onRelinquish(uint256, address) external pure {
+        revert ObserverReverted();
     }
 }
