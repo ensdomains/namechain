@@ -37,9 +37,10 @@ contract OwnedResolverTest is Test {
         resolver = OwnedResolver(deployed);
     }
 
-    function test_deploy() public {
+    function test_deploy() public view {
         UUPSProxy proxy = UUPSProxy(payable(address(resolver)));
-        assertEq(proxy.getVerifiableProxySalt(), SALT);
+        bytes32 outerSalt = keccak256(abi.encode(owner, SALT));
+        assertEq(proxy.getVerifiableProxySalt(), outerSalt);
         assertEq(resolver.owner(), owner);
     }
 
