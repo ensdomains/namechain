@@ -7,6 +7,7 @@ import "forge-std/console.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import "src/registry/ETHRegistry.sol";
+import "src/registry/IETHRegistry.sol";
 import "src/registry/RegistryDatastore.sol";
 
 contract TestETHRegistry is Test, ERC1155Holder {
@@ -69,7 +70,7 @@ contract TestETHRegistry is Test, ERC1155Holder {
 
         registry.register("test2", address(this), registry, flags, uint64(block.timestamp) + 86400);
 
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistry.NameAlreadyRegistered.selector, "test2"));
+        vm.expectRevert(abi.encodeWithSelector(IETHRegistry.NameAlreadyRegistered.selector, "test2"));
         registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 86400);
     }
 
@@ -168,7 +169,7 @@ contract TestETHRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
         vm.warp(block.timestamp + 101);
         
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistry.NameExpired.selector, tokenId));
+        vm.expectRevert(abi.encodeWithSelector(IETHRegistry.NameExpired.selector, tokenId));
         registry.renew(tokenId, uint64(block.timestamp) + 200);
     }
 
@@ -176,7 +177,13 @@ contract TestETHRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 200);
         uint64 newExpiry = uint64(block.timestamp) + 100;
         
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistry.CannotReduceExpiration.selector, uint64(block.timestamp) + 200, newExpiry));
+        vm.expectRevert(abi.encodeWithSelector(IETHRegistry.CannotReduceExpiration.selector, uint64(block.timestamp) + 200, newExpiry));
         registry.renew(tokenId, newExpiry);
+    }
+
+    function test_Revert_cannot_register_with_past_expiry() public {
+        uint64 pastExpiry = uint64(block.timestamp) - 1;
+        vm.expectRevert(abi.encodeWithSelector(IETHRegistry.CannotSetPastExpiration.selector, pastExpiry));
+        registry.register("test2", address(this), registry, 0, pastExpiry);
     }
 }
