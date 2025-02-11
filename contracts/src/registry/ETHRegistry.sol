@@ -18,7 +18,7 @@ contract ETHRegistry is LockableRegistry, AccessControl {
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
 
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
-    address public renewalObserver;
+    mapping(uint256 => address) public renewalObserver;
     
     constructor(IRegistryDatastore _datastore) LockableRegistry(_datastore) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -69,8 +69,8 @@ contract ETHRegistry is LockableRegistry, AccessControl {
         return tokenId;
     }
 
-    function setRenewalObserver(address _observer) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        renewalObserver = _observer;
+    function setRenewalObserver(uint256 tokenId, address _observer) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        renewalObserver[tokenId] = _observer;
     }
 
     function renew(uint256 tokenId, uint64 expires) public onlyRole(REGISTRAR_ROLE) {
@@ -84,15 +84,12 @@ contract ETHRegistry is LockableRegistry, AccessControl {
         }
         datastore.setSubregistry(tokenId, subregistry, (flags & FLAGS_MASK) | (uint96(expires) << 32));
 
-        emit NameRenewed(tokenId, expires, msg.sender);
-        
-        if (renewalObserver != address(0)) {
-            try ETHRegistryRenewalObserver(renewalObserver).onRenewal(tokenId, expires, msg.sender) {
-                // Callback succeeded
-            } catch {
-                // Swallow all errors to prevent blocking renewals
-            }
+        address observer = renewalObserver[tokenId];
+        if (observer != address(0)) {
+            ETHRegistryRenewalObserver(observer).onRenewal(tokenId, expires, msg.sender);
         }
+
+        emit NameRenewed(tokenId, expires, msg.sender);
     }
 
     /**
