@@ -9,7 +9,7 @@ import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 
-abstract contract UpdatableRegistry is BaseRegistry {
+abstract contract PermissionedRegistry is BaseRegistry {
     uint96 public constant FLAGS_MASK = 0x7;
     uint96 public constant FLAG_SUBREGISTRY_LOCKED = 0x1;
     uint96 public constant FLAG_RESOLVER_LOCKED = 0x2;

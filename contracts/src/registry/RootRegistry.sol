@@ -7,15 +7,15 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
-import {UpdatableRegistry} from "./UpdatableRegistry.sol";
+import {PermissionedRegistry} from "./PermissionedRegistry.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 
-contract RootRegistry is UpdatableRegistry, AccessControl {
+contract RootRegistry is PermissionedRegistry, AccessControl {
     bytes32 public constant TLD_ISSUER_ROLE = keccak256("TLD_ISSUER_ROLE");
 
     mapping(uint256 tokenId=>string) uris;
 
-    constructor(IRegistryDatastore _datastore) UpdatableRegistry(_datastore) {
+    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 

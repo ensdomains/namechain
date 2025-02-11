@@ -8,16 +8,16 @@ import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
-import {UpdatableRegistry} from "./UpdatableRegistry.sol";
+import {PermissionedRegistry} from "./PermissionedRegistry.sol";
 
-contract ETHRegistry is UpdatableRegistry, AccessControl {
+contract ETHRegistry is PermissionedRegistry, AccessControl {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
 
     error NameAlreadyRegistered(string label);
     error NameExpired(uint256 tokenId);
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
 
-    constructor(IRegistryDatastore _datastore) UpdatableRegistry(_datastore) {
+    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
