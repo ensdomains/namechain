@@ -8,16 +8,16 @@ import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
-import {LockableRegistry} from "./LockableRegistry.sol";
+import {PermissionedRegistry} from "./PermissionedRegistry.sol";
 
-contract ETHRegistry is LockableRegistry, AccessControl {
+contract ETHRegistry is PermissionedRegistry, AccessControl {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
 
     error NameAlreadyRegistered(string label);
     error NameExpired(uint256 tokenId);
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
 
-    constructor(IRegistryDatastore _datastore) LockableRegistry(_datastore) {
+    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
@@ -94,12 +94,12 @@ contract ETHRegistry is LockableRegistry, AccessControl {
         return (_extractExpiry(_flags), uint32(_flags));
     }
 
-    function lock(uint256 tokenId, uint96 flags)
+    function setFlags(uint256 tokenId, uint96 flags)
         external
         onlyTokenOwner(tokenId)
         returns (uint256 newTokenId)
     {
-        uint96 newFlags = _lock(tokenId, flags);
+        uint96 newFlags = _setFlags(tokenId, flags);
         newTokenId = (tokenId & ~uint256(FLAGS_MASK)) | (newFlags & FLAGS_MASK);
         if (tokenId != newTokenId) {
             address owner = ownerOf(tokenId);
