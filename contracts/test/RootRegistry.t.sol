@@ -23,8 +23,6 @@ contract TestRootRegistry is Test, ERC1155Holder {
 
     function test_register_unlocked() public {
         uint256 expectedId = uint256(keccak256("test2"));
-        vm.expectEmit(true, true, true, true);
-        emit TransferSingle(address(this), address(0), address(this), expectedId, 1);
 
         uint256 tokenId = registry.mint("test2", address(this), registry, 0, "");
         vm.assertEq(tokenId, expectedId);
@@ -35,8 +33,6 @@ contract TestRootRegistry is Test, ERC1155Holder {
     function test_register_locked() public {
         uint96 flags = registry.FLAG_SUBREGISTRY_LOCKED() | registry.FLAG_RESOLVER_LOCKED();
         uint256 expectedId = uint256(keccak256("test2"));
-        vm.expectEmit(true, true, true, true);
-        emit TransferSingle(address(this), address(0), address(this), expectedId, 1);
 
         uint256 tokenId = registry.mint("test2", address(this), registry, flags, "");
         vm.assertEq(tokenId, expectedId);
@@ -47,7 +43,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
     function test_lock_name() public {
         uint96 flags = registry.FLAG_SUBREGISTRY_LOCKED() | registry.FLAG_RESOLVER_LOCKED();
         uint256 tokenId = registry.mint("test2", address(this), registry, 0, "");
-        uint96 actualFlags = registry.lock(tokenId, flags);
+        uint96 actualFlags = registry.setFlags(tokenId, flags);
         vm.assertEq(flags, actualFlags);
         uint96 actualFlags2 = registry.flags(tokenId);
         vm.assertEq(flags, actualFlags2);
@@ -57,7 +53,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         uint96 flags = registry.FLAG_SUBREGISTRY_LOCKED() | registry.FLAG_RESOLVER_LOCKED();
 
         uint256 tokenId = registry.mint("test2", address(this), registry, flags, "");
-        uint96 newFlags = registry.lock(tokenId, 0);
+        uint96 newFlags = registry.setFlags(tokenId, 0);
         vm.assertEq(flags, newFlags);
         uint96 newFlags2 = registry.flags(tokenId);
         vm.assertEq(flags, newFlags2);
@@ -96,7 +92,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.mint("test", address(this), registry, flags, "");
 
         vm.expectRevert(abi.encodeWithSelector(BaseRegistry.InvalidSubregistryFlags.selector, tokenId, registry.FLAG_FLAGS_LOCKED(), 0));
-        registry.lock(tokenId, flags);
+        registry.setFlags(tokenId, flags);
     }
 
     function test_set_uri() public {

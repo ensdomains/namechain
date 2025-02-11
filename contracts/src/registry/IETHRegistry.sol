@@ -10,11 +10,6 @@ interface IETHRegistry is IRegistry {
     error CannotSetPastExpiration(uint64 expiry);
 
     /**
-     * @dev Returns the registrar role.
-     */
-    function REGISTRAR_ROLE() external view returns (bytes32);
-
-    /**
      * @dev Registers a name.
      * @param label The label of the name to register.
      * @param owner The owner of the name.
