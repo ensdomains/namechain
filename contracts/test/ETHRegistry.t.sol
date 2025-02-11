@@ -106,11 +106,66 @@ contract TestETHRegistry is Test, ERC1155Holder {
         registry.setFlags(tokenId, flags);
     }
 
+    function test_renew_extends_expiry() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint64 newExpiry = uint64(block.timestamp) + 200;
+        registry.renew(tokenId, newExpiry);
+        
+        (uint64 expiry,) = registry.nameData(tokenId);
+        assertEq(expiry, newExpiry);
+    }
+
+    function test_renew_emits_event() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint64 newExpiry = uint64(block.timestamp) + 200;
+        
+        vm.recordLogs();
+        registry.renew(tokenId, newExpiry);
+        
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 2);
+        assertEq(entries[1].topics[0], keccak256("NameRenewed(uint256,uint64,address)"));
+        assertEq(entries[1].topics[1], bytes32(tokenId));   
+        (uint64 expiry, address renewedBy) = abi.decode(entries[1].data, (uint64, address));
+        assertEq(expiry, newExpiry);
+        assertEq(renewedBy, address(this));
+    }
+
+    function test_Revert_renew_expired_name() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
+        vm.warp(block.timestamp + 101);
+        
+        vm.expectRevert(abi.encodeWithSelector(ETHRegistry.NameExpired.selector, tokenId));
+        registry.renew(tokenId, uint64(block.timestamp) + 200);
+    }
+
+    function test_Revert_renew_reduce_expiry() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 200);
+        uint64 newExpiry = uint64(block.timestamp) + 100;
+        
+        vm.expectRevert(abi.encodeWithSelector(ETHRegistry.CannotReduceExpiration.selector, uint64(block.timestamp) + 200, newExpiry));
+        registry.renew(tokenId, newExpiry);
+    }
+
     function test_relinquish() public {
         uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 86400);
         registry.relinquish(tokenId);
         vm.assertEq(registry.ownerOf(tokenId), address(0));
         vm.assertEq(address(registry.getSubregistry("test2")), address(0));
+    }
+
+    function test_relinquish_emits_event() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
+        
+        vm.recordLogs();
+        registry.relinquish(tokenId);
+        
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 3);
+        assertEq(entries[2].topics[0], keccak256("NameRelinquished(uint256,address)"));
+        assertEq(entries[2].topics[1], bytes32(tokenId));
+        (address relinquishedBy) = abi.decode(entries[2].data, (address));
+        assertEq(relinquishedBy, address(this));
     }
 
     function test_Revert_cannot_relinquish_if_not_owner() public {
@@ -150,31 +205,6 @@ contract TestETHRegistry is Test, ERC1155Holder {
         registry.setResolver(tokenId, address(1));
         vm.warp(block.timestamp + 101);
         assertEq(registry.getResolver("test2"), address(0));
-    }
-
-    function test_renew_extends_expiry() public {
-        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
-        uint64 newExpiry = uint64(block.timestamp) + 200;
-        registry.renew(tokenId, newExpiry);
-        
-        (uint64 expiry,) = registry.nameData(tokenId);
-        assertEq(expiry, newExpiry);
-    }
-
-    function test_Revert_renew_expired_name() public {
-        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
-        vm.warp(block.timestamp + 101);
-        
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistry.NameExpired.selector, tokenId));
-        registry.renew(tokenId, uint64(block.timestamp) + 200);
-    }
-
-    function test_Revert_renew_reduce_expiry() public {
-        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 200);
-        uint64 newExpiry = uint64(block.timestamp) + 100;
-        
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistry.CannotReduceExpiration.selector, uint64(block.timestamp) + 200, newExpiry));
-        registry.renew(tokenId, newExpiry);
     }
 
     // Token observers

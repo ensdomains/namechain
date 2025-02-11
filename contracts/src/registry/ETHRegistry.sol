@@ -18,6 +18,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
 
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
+    event NameRelinquished(uint256 indexed tokenId, address relinquishedBy);
 
     mapping(uint256 => address) public tokenObservers;
     
@@ -107,6 +108,8 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
         if (observer != address(0)) {
             ETHRegistryTokenObserver(observer).onRelinquish(tokenId, msg.sender);
         }
+
+        emit NameRelinquished(tokenId, msg.sender);
     }
 
     function nameData(uint256 tokenId) external view returns (uint64 expiry, uint32 flags) {
