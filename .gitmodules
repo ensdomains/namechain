@@ -17,3 +17,6 @@
 [submodule "contracts/lib/buffer"]
 	path = contracts/lib/buffer
 	url = https://github.com/ensdomains/buffer
+[submodule "contracts/lib/verifiable-factory"]
+	path = contracts/lib/verifiable-factory
+	url = https://github.com/ensdomains/verifiable-factory
