@@ -14,7 +14,8 @@ import {ExtendedResolver} from "@ens/contracts/resolvers/profiles/ExtendedResolv
 
 /**
  * @title OwnedResolver
- * @dev A basic resolver contract with ownership functionality
+ * @dev A simple resolver anyone can use; only allows the owner of a node to set its
+ * address.
  */
 contract OwnedResolver is
     OwnableUpgradeable,
