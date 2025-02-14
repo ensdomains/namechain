@@ -6,11 +6,17 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { ethers } from "hardhat";
 import { encodeFunctionData } from "viem";
-
+import { readFileSync } from "fs";
+import { join } from "path";
+console.log(1);
 // @ts-ignore - Hardhat runtime environment will be injected
 const hre: HardhatRuntimeEnvironment = global.hre;
-
+console.log(1);
 const __filename = fileURLToPath(import.meta.url);
+
+const verifiableFactoryArtifact = JSON.parse(
+  readFileSync(join(__dirname, "../out/VerifiableFactory.sol/VerifiableFactory.json"), "utf8")
+);
 
 async function updateEnvFile(newVars: Record<string, string>) {
   try {
@@ -88,7 +94,10 @@ async function main() {
 
   // Deploy VerifiableFactory
   console.log("\nDeploying VerifiableFactory...");
-  const verifiableFactory = await hre.viem.deployContract("VerifiableFactory")
+  const verifiableFactory = await hre.viem.deployContract({
+    abi: verifiableFactoryArtifact.abi,
+    bytecode: verifiableFactoryArtifact.bytecode
+  });
   console.log("VerifiableFactory deployed to:", verifiableFactory.address);
   // Deploy resolver proxy
   const initData = encodeFunctionData({

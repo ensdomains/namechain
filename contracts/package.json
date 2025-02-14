@@ -7,6 +7,7 @@
     "test:forge": "forge test",
     "test": "bun run test:forge && bun run test:hardhat",
     "deploy": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat run scripts/deploy.ts",
+    "register": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat run scripts/register.ts",
     "console": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat console",
     "watch-events": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat run scripts/watch-events.ts"
   },

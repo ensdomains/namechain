@@ -1,0 +1,1 @@
+import "verifiable-factory/VerifiableFactory.sol";
