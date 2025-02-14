@@ -74,13 +74,13 @@ contract OwnedResolverTest is Test {
         assertEq(resolver.addr(TEST_NODE, ETH_COIN_TYPE), addr1);
         
         // Get current version and verify new address is stored under new version
-        uint64 version = resolver.recordVersions(TEST_NODE);
+        resolver.recordVersions(TEST_NODE);
         resolver.setAddr(TEST_NODE, ETH_COIN_TYPE, addr2);
         assertEq(resolver.addr(TEST_NODE, ETH_COIN_TYPE), addr2);
         vm.stopPrank();
     }
 
-    function test_supports_interface() public {
+    function test_supports_interface() view public {
         // Test for implemented interfaces        
         assertTrue(resolver.supportsInterface(type(IABIResolver).interfaceId), "Should support ABIResolver");
         assertTrue(resolver.supportsInterface(type(IContentHashResolver).interfaceId), "Should support ContentHashResolver");
