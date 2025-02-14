@@ -2,6 +2,8 @@
 pragma solidity ^0.8.13;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
 import {AddrResolver} from "@ens/contracts/resolvers/profiles/AddrResolver.sol";
 import {ABIResolver} from "@ens/contracts/resolvers/profiles/ABIResolver.sol";
 import {ContentHashResolver} from "@ens/contracts/resolvers/profiles/ContentHashResolver.sol";
@@ -19,6 +21,7 @@ import {ExtendedResolver} from "@ens/contracts/resolvers/profiles/ExtendedResolv
  */
 contract OwnedResolver is
     OwnableUpgradeable,
+    UUPSUpgradeable,
     ABIResolver,
     AddrResolver,
     ContentHashResolver,
@@ -32,11 +35,14 @@ contract OwnedResolver is
 
     function initialize(address _owner) public initializer {
         __Ownable_init(_owner); // Initialize Ownable
+        __UUPSUpgradeable_init();
     }
 
     function isAuthorised(bytes32) internal view override returns (bool) {
         return msg.sender == owner();
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function supportsInterface(
         bytes4 interfaceID
