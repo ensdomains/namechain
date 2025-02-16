@@ -262,6 +262,20 @@ contract TestETHRegistry is Test, ERC1155Holder {
         
         assertEq(registry.ownerOf(tokenId), address(this));
     }
+
+    function test_set_token_observer_emits_event() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
+        
+        vm.recordLogs();
+        registry.setTokenObserver(tokenId, address(observer));
+        
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        assertEq(entries[0].topics[0], keccak256("TokenObserverSet(uint256,address)"));
+        assertEq(entries[0].topics[1], bytes32(tokenId));
+        address observerAddress = abi.decode(entries[0].data, (address));
+        assertEq(observerAddress, address(observer));
+    }
 }
 
 

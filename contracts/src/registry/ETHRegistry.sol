@@ -19,6 +19,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
 
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
     event NameRelinquished(uint256 indexed tokenId, address relinquishedBy);
+    event TokenObserverSet(uint256 indexed tokenId, address observer);
 
     mapping(uint256 => address) public tokenObservers;
     
@@ -73,6 +74,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
 
     function setTokenObserver(uint256 tokenId, address _observer) external onlyTokenOwner(tokenId) {
         tokenObservers[tokenId] = _observer;
+        emit TokenObserverSet(tokenId, _observer);
     }
 
     function renew(uint256 tokenId, uint64 expires) public onlyRole(REGISTRAR_ROLE) {
