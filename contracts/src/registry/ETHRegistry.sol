@@ -17,6 +17,12 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
     error NameExpired(uint256 tokenId);
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
 
+    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
+    event NameRelinquished(uint256 indexed tokenId, address relinquishedBy);
+    event TokenObserverSet(uint256 indexed tokenId, address observer);
+
+    mapping(uint256 => address) public tokenObservers;
+    
     constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -66,6 +72,11 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
         return tokenId;
     }
 
+    function setTokenObserver(uint256 tokenId, address _observer) external onlyTokenOwner(tokenId) {
+        tokenObservers[tokenId] = _observer;
+        emit TokenObserverSet(tokenId, _observer);
+    }
+
     function renew(uint256 tokenId, uint64 expires) public onlyRole(REGISTRAR_ROLE) {
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
         uint64 oldExpiration = _extractExpiry(flags);
@@ -76,6 +87,13 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
             revert CannotReduceExpiration(oldExpiration, expires);
         }
         datastore.setSubregistry(tokenId, subregistry, (flags & FLAGS_MASK) | (uint96(expires) << 32));
+
+        address observer = tokenObservers[tokenId];
+        if (observer != address(0)) {
+            ETHRegistryTokenObserver(observer).onRenew(tokenId, expires, msg.sender);
+        }
+
+        emit NameRenewed(tokenId, expires, msg.sender);
     }
 
     /**
@@ -87,6 +105,13 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
     function relinquish(uint256 tokenId) external onlyTokenOwner(tokenId) {
         _burn(ownerOf(tokenId), tokenId, 1);
         datastore.setSubregistry(tokenId, address(0), 0);
+
+        address observer = tokenObservers[tokenId];
+        if (observer != address(0)) {
+            ETHRegistryTokenObserver(observer).onRelinquish(tokenId, msg.sender);
+        }
+
+        emit NameRelinquished(tokenId, msg.sender);
     }
 
     function nameData(uint256 tokenId) external view returns (uint64 expiry, uint32 flags) {
@@ -139,4 +164,12 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
     function _extractExpiry(uint96 flags) private pure returns (uint64) {
         return uint64(flags >> 32);
     }
+}
+
+/**
+ * @dev Observer pattern for events on existing tokens.
+ */
+interface ETHRegistryTokenObserver {
+    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external;
+    function onRelinquish(uint256 tokenId, address relinquishedBy) external;
 }
