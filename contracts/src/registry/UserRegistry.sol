@@ -8,6 +8,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 
 contract UserRegistry is BaseRegistry {
@@ -17,7 +18,7 @@ contract UserRegistry is BaseRegistry {
     IRegistry public parent;
     string public label;
 
-    constructor(IRegistry _parent, string memory _label, IRegistryDatastore _datastore) BaseRegistry(_datastore) {
+    constructor(IRegistry _parent, string memory _label, IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore, _metadata) {
         parent = _parent;
         label = _label;
     }
@@ -28,10 +29,6 @@ contract UserRegistry is BaseRegistry {
             revert AccessDenied(0, owner, msg.sender);
         }
         _;
-    }
-
-    function uri(uint256 /*id*/ ) public pure override returns (string memory) {
-        return "";
     }
 
     function mint(string calldata _label, address owner, IRegistry registry, uint96 flags) external onlyNameOwner {

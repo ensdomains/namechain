@@ -9,7 +9,7 @@ import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
-
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 contract ETHRegistry is PermissionedRegistry, AccessControl {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
 
@@ -23,12 +23,8 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
 
     mapping(uint256 => address) public tokenObservers;
     
-    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
+    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore, IRegistryMetadata(address(0))) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
-
-    function uri(uint256 /*tokenId*/ ) public pure override returns (string memory) {
-        return "";
     }
 
     function ownerOf(uint256 tokenId)

@@ -12,16 +12,18 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {IRegistry} from "./IRegistry.sol";
-
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     error AccessDenied(uint256 tokenId, address owner, address caller);
     error InvalidSubregistryFlags(uint256 tokenId, uint96 flags, uint96 expected);
     error InvalidResolverFlags(uint256 tokenId, uint96 flags, uint96 expected);
 
     IRegistryDatastore public datastore;
+    IRegistryMetadata public metadata;
 
-    constructor(IRegistryDatastore _datastore) {
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) {
         datastore = _datastore;
+        metadata = _metadata;
     }
 
     modifier onlyTokenOwner(uint256 tokenId) {
@@ -85,5 +87,17 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
      */
     function getResolver(string calldata label) external view virtual returns (address resolver) {
         (resolver,) = datastore.getResolver(uint256(keccak256(bytes(label))));
+    }
+
+    /**
+     * @dev Fetches the token URI for a node.
+     * @param tokenId The ID of the node to fetch a URI for.
+     * @return The token URI for the node.
+     */
+    function uri(uint256 tokenId) public view virtual override returns (string memory) {
+        if (metadata == IRegistryMetadata(address(0))) {
+            return "";
+        }
+        return metadata.tokenUri(tokenId);
     }
 }
