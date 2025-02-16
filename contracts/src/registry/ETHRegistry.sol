@@ -14,14 +14,6 @@ import {IETHRegistry} from "./IETHRegistry.sol";
 contract ETHRegistry is PermissionedRegistry, AccessControl, IETHRegistry {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
 
-    error NameAlreadyRegistered(string label);
-    error NameExpired(uint256 tokenId);
-    error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
-
-    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
-    event NameRelinquished(uint256 indexed tokenId, address relinquishedBy);
-    event TokenObserverSet(uint256 indexed tokenId, address observer);
-
     mapping(uint256 => address) public tokenObservers;
     
     constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {

@@ -138,7 +138,7 @@ contract TestETHRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 100);
         vm.warp(block.timestamp + 101);
         
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistry.NameExpired.selector, tokenId));
+        vm.expectRevert(abi.encodeWithSelector(IETHRegistry.NameExpired.selector, tokenId));
         registry.renew(tokenId, uint64(block.timestamp) + 200);
     }
 
@@ -146,7 +146,7 @@ contract TestETHRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", address(this), registry, 0, uint64(block.timestamp) + 200);
         uint64 newExpiry = uint64(block.timestamp) + 100;
         
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistry.CannotReduceExpiration.selector, uint64(block.timestamp) + 200, newExpiry));
+        vm.expectRevert(abi.encodeWithSelector(IETHRegistry.CannotReduceExpiration.selector, uint64(block.timestamp) + 200, newExpiry));
         registry.renew(tokenId, newExpiry);
     }
 

@@ -9,6 +9,10 @@ interface IETHRegistry is IRegistry {
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
     error CannotSetPastExpiration(uint64 expiry);
 
+    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
+    event NameRelinquished(uint256 indexed tokenId, address relinquishedBy);
+    event TokenObserverSet(uint256 indexed tokenId, address observer);
+
     /**
      * @dev Registers a name.
      * @param label The label of the name to register.
