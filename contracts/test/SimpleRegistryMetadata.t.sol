@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Test} from "forge-std/Test.sol";
 import {UserRegistry} from "../src/registry/UserRegistry.sol";
 import {ETHRegistry} from "../src/registry/ETHRegistry.sol";
@@ -8,20 +9,20 @@ import {IRegistry} from "../src/registry/IRegistry.sol";
 import {RegistryDatastore} from "../src/registry/RegistryDatastore.sol";
 import {IRegistryMetadata} from "../src/registry/IRegistryMetadata.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {SimpleRegistryMetadata} from "../src/registry/SimpleRegistryMetadata.sol";
 
-contract RegistryMetadataTest is Test, ERC1155Holder {
+contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
     UserRegistry registry;
     ETHRegistry parentRegistry;
-    MockRegistryMetadata metadata;
+    SimpleRegistryMetadata metadata;
 
     function setUp() public {
         datastore = new RegistryDatastore();
+        metadata = new SimpleRegistryMetadata();
         
-        parentRegistry = new ETHRegistry(datastore);
+        parentRegistry = new ETHRegistry(datastore, metadata);
         parentRegistry.grantRole(parentRegistry.REGISTRAR_ROLE(), address(this));
-
-        metadata = new MockRegistryMetadata();
         
         registry = new UserRegistry(
             parentRegistry,
@@ -41,20 +42,18 @@ contract RegistryMetadataTest is Test, ERC1155Holder {
 
         assertEq(registry.uri(tokenId), "");
         
+        metadata.grantRole(metadata.UPDATE_ROLE(), address(this));
         metadata.setTokenUri(tokenId, expectedUri);
+
         assertEq(metadata.tokenUri(tokenId), expectedUri);
         assertEq(registry.uri(tokenId), expectedUri);
     }
-} 
 
-contract MockRegistryMetadata is IRegistryMetadata {
-    mapping(uint256 => string) private _tokenUris;
+    function test_registry_metadata_unauthorized() public {
+        uint256 tokenId = uint256(keccak256(bytes("sub")));
+        string memory expectedUri = "ipfs://test";
 
-    function setTokenUri(uint256 tokenId, string calldata uri) external {
-        _tokenUris[tokenId] = uri;
-    }
-
-    function tokenUri(uint256 tokenId) external view returns (string memory) {
-        return _tokenUris[tokenId];
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), metadata.UPDATE_ROLE()));
+        metadata.setTokenUri(tokenId, expectedUri);
     }
 } 
