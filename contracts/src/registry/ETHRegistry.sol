@@ -2,24 +2,17 @@
 pragma solidity >=0.8.13;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
+import {IETHRegistry} from "./IETHRegistry.sol";
 
-contract ETHRegistry is PermissionedRegistry, AccessControl {
+contract ETHRegistry is PermissionedRegistry, AccessControl, IETHRegistry {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
-
-    error NameAlreadyRegistered(string label);
-    error NameExpired(uint256 tokenId);
-    error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
-
-    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
-    event NameRelinquished(uint256 indexed tokenId, address relinquishedBy);
-    event TokenObserverSet(uint256 indexed tokenId, address observer);
 
     mapping(uint256 => address) public tokenObservers;
     
@@ -58,6 +51,10 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
         uint64 oldExpiry = _extractExpiry(oldFlags);
         if (oldExpiry >= block.timestamp) {
             revert NameAlreadyRegistered(label);
+        }
+
+        if (expires < block.timestamp) {
+            revert CannotSetPastExpiration(expires);
         }
 
         // if there is a previous owner, burn the token
@@ -133,11 +130,11 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
         }
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(BaseRegistry, AccessControl) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(BaseRegistry, AccessControl, IERC165) returns (bool) {
         return interfaceId == type(IRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    function getSubregistry(string calldata label) external view virtual override returns (IRegistry) {
+    function getSubregistry(string calldata label) external view virtual override(BaseRegistry, IRegistry) returns (IRegistry) {
         (address subregistry, uint96 flags) = datastore.getSubregistry(uint256(keccak256(bytes(label))));
         uint64 expires = _extractExpiry(flags);
         if (expires <= block.timestamp) {
@@ -146,7 +143,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
         return IRegistry(subregistry);
     }
 
-    function getResolver(string calldata label) external view virtual override returns (address) {
+    function getResolver(string calldata label) external view virtual override(BaseRegistry, IRegistry) returns (address) {
         uint256 tokenId = uint256(keccak256(bytes(label)));
         (, uint96 flags) = datastore.getSubregistry(tokenId);
         uint64 expires = _extractExpiry(flags);
