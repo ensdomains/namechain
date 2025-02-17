@@ -20,4 +20,8 @@ contract SimpleRegistryMetadata is AccessControl, IRegistryMetadata {
     function tokenUri(uint256 tokenId) external view returns (string memory) {
         return _tokenUris[tokenId];
     }
+
+    function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
+        return interfaceId == type(IRegistryMetadata).interfaceId || super.supportsInterface(interfaceId);
+    }
 } 
