@@ -49,7 +49,7 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
         onlyRole(ROOT_CONTEXT, REGISTRAR_ROLE)
         returns (uint256 tokenId)
     {
-        tokenId = (uint256(keccak256(bytes(label))) & ~uint256(FLAGS_MASK)) | flags;
+        tokenId = _canonicalTokenId(uint256(keccak256(bytes(label))), flags);
         flags = (flags & FLAGS_MASK) | (uint96(expires) << 32);
 
         (, uint96 oldFlags) = datastore.getSubregistry(tokenId);
@@ -68,15 +68,16 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
         datastore.setSubregistry(tokenId, address(registry), flags);
 
         // registrar has some permissions by default
-        _grantRole(tokenId, RENEW_ROLE, msg.sender);
-        _grantRole(tokenId, EMANCIPATOR_ROLE, msg.sender);
-        _grantRole(tokenId, TRANSFER_ROLE, owner); // allow the owner to transfer the name
+        bytes32 tokenIdContext = _tokenIdContext(tokenId);
+        _grantRole(tokenIdContext, RENEW_ROLE, msg.sender);
+        _grantRole(tokenIdContext, EMANCIPATOR_ROLE, msg.sender);
+        _grantRole(tokenIdContext, TRANSFER_ROLE, owner); // allow the owner to transfer the name
 
         emit NewSubname(label);
         return tokenId;
     }
 
-    function renew(uint256 tokenId, uint64 expires) public onlyRole(tokenId, RENEW_ROLE) {
+    function renew(uint256 tokenId, uint64 expires) public onlyRole(_tokenIdContext(tokenId), RENEW_ROLE) {
         address sender = _msgSender();
 
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
@@ -97,9 +98,10 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
      * 
      * See v1 fuse: PARENT_CANNOT_CONTROL
      */
-    function emancipate(uint256 tokenId) public onlyRole(tokenId, EMANCIPATOR_ROLE) {
-        _grantRole(tokenId, EMANCIPATED_OWNER_ROLE, ownerOf(tokenId));
-        renounceRole(tokenId, EMANCIPATOR_ROLE, msg.sender); // remove the emancipator role since we can only do this once.
+    function emancipate(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATOR_ROLE) {
+        bytes32 tokenIdContext = _tokenIdContext(tokenId);
+        _grantRole(tokenIdContext, EMANCIPATED_OWNER_ROLE, ownerOf(tokenId));
+        renounceRole(tokenIdContext, EMANCIPATOR_ROLE, msg.sender); // remove the emancipator role since we can only do this once.
     }
     
     /**
@@ -107,28 +109,30 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
      * 
      * See v1 fuse: CAN_EXTEND_EXPIRY
      */
-    function allowOwnerToRenew(uint256 tokenId) public onlyRole(tokenId, EMANCIPATED_OWNER_ROLE) {
-        _grantRole(tokenId, RENEW_ROLE, ownerOf(tokenId));
+    function allowOwnerToRenew(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATED_OWNER_ROLE) {
+        bytes32 tokenIdContext = _tokenIdContext(tokenId);
+        _grantRole(tokenIdContext, RENEW_ROLE, ownerOf(tokenId));
     }
 
 
-
     /**
-     * @dev Prevent anyone from renewing the name.
+     * @dev Prevent the name from being renewed.
      * 
      * See v1 fuse: CANNOT_SET_TTL
      */
-    function lockRenewals(uint256 tokenId) public onlyRole(tokenId, EMANCIPATED_OWNER_ROLE) {
-        _revokeRoleAssignments(tokenId, RENEW_ROLE);
+    function lockRenewals(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATED_OWNER_ROLE) {
+        bytes32 tokenIdContext = _tokenIdContext(tokenId);
+        _revokeRoleAssignments(tokenIdContext, RENEW_ROLE);
     }
 
     /**
-     * @dev Prevent anyone from transferring the name.
+     * @dev Prevent the name from being transferred.
      * 
      * See v1 fuse: CANNOT_TRANSFER
      */
-    function lockTransfers(uint256 tokenId) public onlyRole(tokenId, EMANCIPATED_OWNER_ROLE) {
-        _revokeRoleAssignments(tokenId, TRANSFER_ROLE);
+    function lockTransfers(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATED_OWNER_ROLE) {
+        bytes32 tokenIdContext = _tokenIdContext(tokenId);
+        _revokeRoleAssignments(tokenIdContext, TRANSFER_ROLE);
     }
 
     /**
@@ -136,8 +140,9 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
      * 
      * See v1 fuse: CANNOT_BURN_FUSES
      */
-    function renounceEmancipatedOwnerRole(uint256 tokenId) public onlyRole(tokenId, EMANCIPATED_OWNER_ROLE) {
-        renounceRole(tokenId, EMANCIPATED_OWNER_ROLE, msg.sender);
+    function renounceEmancipatedOwnerRole(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATED_OWNER_ROLE) {
+        bytes32 tokenIdContext = _tokenIdContext(tokenId);
+        renounceRole(tokenIdContext, EMANCIPATED_OWNER_ROLE, msg.sender);
     }
 
 
@@ -157,6 +162,10 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
             address owner = ownerOf(tokenId);
             _burn(owner, tokenId, 1);
             _mint(owner, newTokenId, 1, "");
+
+            // NOTE: the role assignments can stay as they are since the 
+            // token's role assignment context value remains unchanged.
+            // @see _tokenIdContext
         }
     }
 
@@ -198,7 +207,11 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
         // if it's not a mint or burn, check that transfer is possible
         if (to != address(0) && from != address(0)) {
             for (uint256 i = 0; i < ids.length; i++) {  
-                _checkRole(ids[i], TRANSFER_ROLE, operator);
+                _checkRole(_tokenIdContext(ids[i]), TRANSFER_ROLE, operator);
+                
+                // TODO: transfer all roles to the new owner if operator is current owner
+                // we probably need to do this at the ERC1155 base class level since we also need to do this for 
+                // batch approvals etc.
             }
         }
 
@@ -209,6 +222,14 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
 
     function _extractExpiry(uint96 flags) private pure returns (uint64) {
         return uint64(flags >> 32);
+    }
+
+    function _tokenIdContext(uint256 tokenId) private pure returns (bytes32) {
+        return bytes32(tokenId & ~uint256(FLAGS_MASK));
+    }
+
+    function _canonicalTokenId(uint256 tokenId, uint96 flags) private pure returns (uint256) {
+        return (tokenId & ~uint256(FLAGS_MASK)) | (flags & FLAGS_MASK);
     }
 }
 

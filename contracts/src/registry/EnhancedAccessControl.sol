@@ -14,12 +14,12 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
  * - Removing all assignments of a given role from a context.
  */
 abstract contract EnhancedAccessControl is Context, ERC165 {
-    error EnhancedAccessControlUnauthorizedAccount(uint256 context, bytes32 role, address account);
+    error EnhancedAccessControlUnauthorizedAccount(bytes32 context, bytes32 role, address account);
     error EnhancedAccessControlBadConfirmation();
 
     event EnhancedAccessControlRoleAdminChanged(bytes32 role, bytes32 previousAdminRole, bytes32 newAdminRole);
-    event EnhancedAccessControlRoleGranted(uint256 context, bytes32 role, address account, address sender);
-    event EnhancedAccessControlRoleRevoked(uint256 context, bytes32 role, address account, address sender);
+    event EnhancedAccessControlRoleGranted(bytes32 context, bytes32 role, address account, address sender);
+    event EnhancedAccessControlRoleRevoked(bytes32 context, bytes32 role, address account, address sender);
 
     /** @dev user role within a context. */
     struct RoleAssignment {
@@ -37,18 +37,18 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev user role within a context.
      * Context -> Role -> User -> RoleAssignment
      */
-    mapping(uint256 context => mapping(bytes32 role => mapping(address account => RoleAssignment roleAssignment))) private _roles;
+    mapping(bytes32 context => mapping(bytes32 role => mapping(address account => RoleAssignment roleAssignment))) private _roles;
 
     /**
      * @dev We use a version number to track the changes to the role assignments.
      * This means we can easily remove all assignments of a given role without needing a loop.
      */
-    mapping(uint256 context => mapping(bytes32 role => uint256 version)) private _roleVersion;
+    mapping(bytes32 context => mapping(bytes32 role => uint256 version)) private _roleVersion;
 
     /**
      * @dev The root context.
      */
-    uint256 public constant ROOT_CONTEXT = 0;
+    bytes32 public constant ROOT_CONTEXT = bytes32(0);
 
     /**
      * @dev The default admin role.
@@ -59,7 +59,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Modifier that checks that sender has a specific role within the given context. 
      * Reverts with an {AccessControlUnauthorizedAccount} error including the required role.
      */
-    modifier onlyRole(uint256 context, bytes32 role) {
+    modifier onlyRole(bytes32 context, bytes32 role) {
         _checkRole(context, role);
         _;
     }
@@ -74,7 +74,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev Returns `true` if `account` has been granted `role`.
      */
-    function hasRole(uint256 context, bytes32 role, address account) public view virtual returns (bool) {
+    function hasRole(bytes32 context, bytes32 role, address account) public view virtual returns (bool) {
         uint256 roleVersion = _roleVersion[context][role];
         uint256 roleVersionInRoot = _roleVersion[ROOT_CONTEXT][role];
 
@@ -86,7 +86,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Reverts with an {AccessControlUnauthorizedAccount} error if `_msgSender()`
      * is missing `role`. Overriding this function changes the behavior of the {onlyRole} modifier.
      */
-    function _checkRole(uint256 context, bytes32 role) internal view virtual {
+    function _checkRole(bytes32 context, bytes32 role) internal view virtual {
         _checkRole(context, role, _msgSender());
     }
 
@@ -94,7 +94,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Reverts with an {AccessControlUnauthorizedAccount} error if `account`
      * is missing `role`.
      */
-    function _checkRole(uint256 context, bytes32 role, address account) internal view virtual {
+    function _checkRole(bytes32 context, bytes32 role, address account) internal view virtual {
         if (!hasRole(context, role, account)) {
             revert EnhancedAccessControlUnauthorizedAccount(context, role, account);
         }
@@ -122,7 +122,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleGranted} event.
      */
-    function grantRole(uint256 context, bytes32 role, address account) public virtual onlyRole(context, getRoleAdmin(role)) {
+    function grantRole(bytes32 context, bytes32 role, address account) public virtual onlyRole(context, getRoleAdmin(role)) {
         _grantRole(context, role, account);
     }
 
@@ -137,7 +137,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleRevoked} event.
      */
-    function revokeRole(uint256 context, bytes32 role, address account) public virtual onlyRole(context, getRoleAdmin(role)) {
+    function revokeRole(bytes32 context, bytes32 role, address account) public virtual onlyRole(context, getRoleAdmin(role)) {
         _revokeRole(context, role, account);
     }
 
@@ -157,7 +157,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleRevoked} event.
      */
-    function renounceRole(uint256 context, bytes32 role, address callerConfirmation) public virtual {
+    function renounceRole(bytes32 context, bytes32 role, address callerConfirmation) public virtual {
         if (callerConfirmation != _msgSender()) {
             revert EnhancedAccessControlBadConfirmation();
         }
@@ -179,7 +179,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev Revoke all assignments of a given role in a given context.
      */
-    function _revokeRoleAssignments(uint256 context, bytes32 role) internal virtual {
+    function _revokeRoleAssignments(bytes32 context, bytes32 role) internal virtual {
         _roleVersion[context][role]++;
     }
 
@@ -190,7 +190,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleGranted} event.
      */
-    function _grantRole(uint256 context, bytes32 role, address account) internal virtual returns (bool) {
+    function _grantRole(bytes32 context, bytes32 role, address account) internal virtual returns (bool) {
         if (!hasRole(context, role, account)) {
             _roles[context][role][account].hasRole = true;
             _roles[context][role][account].version = _roleVersion[context][role];
@@ -208,7 +208,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleRevoked} event.
      */
-    function _revokeRole(uint256 context, bytes32 role, address account) internal virtual returns (bool) {
+    function _revokeRole(bytes32 context, bytes32 role, address account) internal virtual returns (bool) {
         if (hasRole(context, role, account)) {
             _roles[context][role][account].hasRole = false;
             emit EnhancedAccessControlRoleRevoked(context, role, account, _msgSender());

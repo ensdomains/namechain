@@ -14,7 +14,7 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
         _setRoleAdmin(role, adminRole);
     }
 
-    function revokeRoleAssignments(uint256 context, bytes32 role) external {
+    function revokeRoleAssignments(bytes32 context, bytes32 role) external {
         _revokeRoleAssignments(context, role);
     }
 }
@@ -22,8 +22,8 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
 contract EnhancedAccessControlTest is Test {
     bytes32 public constant ROLE_A = keccak256("ROLE_A");
     bytes32 public constant ROLE_B = keccak256("ROLE_B");
-    uint256 public constant CONTEXT_1 = uint256(keccak256("CONTEXT_1"));
-    uint256 public constant CONTEXT_2 = uint256(keccak256("CONTEXT_2"));
+    bytes32 public constant CONTEXT_1 = bytes32(keccak256("CONTEXT_1"));
+    bytes32 public constant CONTEXT_2 = bytes32(keccak256("CONTEXT_2"));
 
     MockEnhancedAccessControl access;
     address admin;
@@ -52,8 +52,8 @@ contract EnhancedAccessControlTest is Test {
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleGranted(uint256,bytes32,address,address)"));
-        (uint256 context, bytes32 role, address account, address sender) = abi.decode(entries[0].data, (uint256, bytes32, address, address));
+        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleGranted(bytes32,bytes32,address,address)"));
+        (bytes32 context, bytes32 role, address account, address sender) = abi.decode(entries[0].data, (bytes32, bytes32, address, address));
         assertEq(context, CONTEXT_1);
         assertEq(role, ROLE_A);
         assertEq(account, user1);
@@ -70,8 +70,8 @@ contract EnhancedAccessControlTest is Test {
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleRevoked(uint256,bytes32,address,address)"));
-        (uint256 context, bytes32 role, address account, address sender) = abi.decode(entries[0].data, (uint256, bytes32, address, address));
+        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleRevoked(bytes32,bytes32,address,address)"));
+        (bytes32 context, bytes32 role, address account, address sender) = abi.decode(entries[0].data, (bytes32, bytes32, address, address));
         assertEq(context, CONTEXT_1);
         assertEq(role, ROLE_A);
         assertEq(account, user1);
@@ -157,6 +157,6 @@ contract EnhancedAccessControlTest is Test {
         
         assertTrue(access.hasRole(CONTEXT_1, ROLE_A, user1));
         assertTrue(access.hasRole(CONTEXT_2, ROLE_A, user1));
-        assertTrue(access.hasRole(uint256(keccak256("ANY_OTHER_CONTEXT")), ROLE_A, user1));
+        assertTrue(access.hasRole(bytes32(keccak256("ANY_OTHER_CONTEXT")), ROLE_A, user1));
     }
 } 
