@@ -4,18 +4,24 @@ pragma solidity >=0.8.13;
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 
 contract RegistryDatastore is IRegistryDatastore {
+    struct LabelData{
+        uint96 flags;
+        address subregistry;
+        address resolver;
+    }
+
     uint256 LABEL_HASH_MASK = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000;
-    mapping(address registry => mapping(uint256 labelHash => uint256)) internal subregistries;
-    mapping(address registry => mapping(uint256 labelHash => uint256)) internal resolvers;
+
+    mapping(address registry => mapping(uint256 labelHash => LabelData)) internal data;
 
     function getSubregistry(address registry, uint256 labelHash)
         public
         view
         returns (address subregistry, uint96 flags)
     {
-        uint256 data = subregistries[registry][labelHash & LABEL_HASH_MASK];
-        subregistry = address(uint160(data));
-        flags = uint96(data >> 160);
+        LabelData storage labelData = data[registry][labelHash & LABEL_HASH_MASK];
+        subregistry = labelData.subregistry;
+        flags = labelData.flags;
     }
 
     function getSubregistry(uint256 labelHash) external view returns (address subregistry, uint96 flags) {
@@ -23,9 +29,9 @@ contract RegistryDatastore is IRegistryDatastore {
     }
 
     function getResolver(address registry, uint256 labelHash) public view returns (address resolver, uint96 flags) {
-        uint256 data = resolvers[registry][labelHash & LABEL_HASH_MASK];
-        resolver = address(uint160(data));
-        flags = uint96(data >> 160);
+        LabelData storage labelData = data[registry][labelHash & LABEL_HASH_MASK];
+        resolver = labelData.resolver;
+        flags = labelData.flags;
     }
 
     function getResolver(uint256 labelHash) external view returns (address resolver, uint96 flags) {
@@ -33,12 +39,16 @@ contract RegistryDatastore is IRegistryDatastore {
     }
 
     function setSubregistry(uint256 labelHash, address subregistry, uint96 flags) external {
-        subregistries[msg.sender][labelHash & LABEL_HASH_MASK] = (uint256(flags) << 160) | uint256(uint160(subregistry));
-        emit SubregistryUpdate(msg.sender, labelHash & LABEL_HASH_MASK, subregistry, flags);
+        uint256 labelHashWithMask = labelHash & LABEL_HASH_MASK;
+        data[msg.sender][labelHashWithMask].subregistry = subregistry;
+        data[msg.sender][labelHashWithMask].flags = flags;
+        emit SubregistryUpdate(msg.sender, labelHashWithMask, subregistry, flags);
     }
 
     function setResolver(uint256 labelHash, address resolver, uint96 flags) external {
-        resolvers[msg.sender][labelHash & LABEL_HASH_MASK] = (uint256(flags) << 160) | uint256(uint160(resolver));
-        emit ResolverUpdate(msg.sender, labelHash & LABEL_HASH_MASK, resolver, flags);
+        uint256 labelHashWithMask = labelHash & LABEL_HASH_MASK;
+        data[msg.sender][labelHashWithMask].resolver = resolver;
+        data[msg.sender][labelHashWithMask].flags = flags;
+        emit ResolverUpdate(msg.sender, labelHashWithMask, resolver, flags);
     }
 }
