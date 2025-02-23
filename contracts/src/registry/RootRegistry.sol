@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
@@ -9,14 +8,15 @@ import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
+import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 
-contract RootRegistry is PermissionedRegistry, AccessControl {
+contract RootRegistry is PermissionedRegistry, EnhancedAccessControl {
     bytes32 public constant TLD_ISSUER_ROLE = keccak256("TLD_ISSUER_ROLE");
 
     mapping(uint256 tokenId=>string) uris;
 
     constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ROOT_CONTEXT, DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function uri(uint256 tokenId ) public view override returns (string memory) {
@@ -33,7 +33,7 @@ contract RootRegistry is PermissionedRegistry, AccessControl {
      */
     function mint(string calldata label, address owner, IRegistry registry, uint96 flags, string memory _uri)
         external
-        onlyRole(TLD_ISSUER_ROLE)
+        onlyRole(ROOT_CONTEXT, TLD_ISSUER_ROLE)
         returns(uint256 tokenId)
     {
         tokenId = uint256(keccak256(bytes(label)));
@@ -75,7 +75,7 @@ contract RootRegistry is PermissionedRegistry, AccessControl {
         uris[tokenId] = _uri;
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(BaseRegistry, AccessControl) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(BaseRegistry, EnhancedAccessControl) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }
