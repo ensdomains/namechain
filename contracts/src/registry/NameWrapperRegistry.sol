@@ -107,9 +107,10 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
      * 
      * See v1 fuse: CAN_EXTEND_EXPIRY
      */
-    function allowOwnerRenewal(uint256 tokenId) public onlyRole(tokenId, EMANCIPATED_OWNER_ROLE) {
+    function allowOwnerToRenew(uint256 tokenId) public onlyRole(tokenId, EMANCIPATED_OWNER_ROLE) {
         _grantRole(tokenId, RENEW_ROLE, ownerOf(tokenId));
     }
+
 
 
     /**
@@ -117,7 +118,7 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
      * 
      * See v1 fuse: CANNOT_SET_TTL
      */
-    function preventRenewals(uint256 tokenId) public onlyRole(tokenId, EMANCIPATED_OWNER_ROLE) {
+    function lockRenewals(uint256 tokenId) public onlyRole(tokenId, EMANCIPATED_OWNER_ROLE) {
         _revokeRoleAssignments(tokenId, RENEW_ROLE);
     }
 
@@ -126,7 +127,7 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
      * 
      * See v1 fuse: CANNOT_TRANSFER
      */
-    function preventTransfers(uint256 tokenId) public onlyRole(tokenId, EMANCIPATED_OWNER_ROLE) {
+    function lockTransfers(uint256 tokenId) public onlyRole(tokenId, EMANCIPATED_OWNER_ROLE) {
         _revokeRoleAssignments(tokenId, TRANSFER_ROLE);
     }
 
