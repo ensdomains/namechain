@@ -13,13 +13,21 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
     bytes32 public constant EMANCIPATOR_ROLE = keccak256("EMANCIPATOR_ROLE");
     bytes32 public constant EMANCIPATED_OWNER_ROLE = keccak256("EMANCIPATED_OWNER_ROLE");
-    bytes32 public constant TRANSFER_ROLE = keccak256("TRANSFER_ROLE");
     bytes32 public constant RENEW_ROLE = keccak256("RENEW_ROLE");
 
     error NameAlreadyRegistered(string label);
     error NameExpired(uint256 tokenId);
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
+    error NameTransferLocked(uint256 tokenId);
+
+    /**
+     * @dev Prevents a name from being transferred.
+     *
+     * We use a boolean for this instead of roles due to the added complexity of dealing with 
+     * ERC1155 approved operators if we were to use roles instead.
+     */
+    mapping(bytes32 tokenIdContext => bool locked) private transferLock;
 
     constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
         _grantRole(ROOT_CONTEXT, DEFAULT_ADMIN_ROLE, msg.sender);
@@ -71,7 +79,6 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
         bytes32 tokenIdContext = _tokenIdContext(tokenId);
         _grantRole(tokenIdContext, RENEW_ROLE, msg.sender);
         _grantRole(tokenIdContext, EMANCIPATOR_ROLE, msg.sender);
-        _grantRole(tokenIdContext, TRANSFER_ROLE, owner); // allow the owner to transfer the name
 
         emit NewSubname(label);
         return tokenId;
@@ -132,7 +139,7 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
      */
     function lockTransfers(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATED_OWNER_ROLE) {
         bytes32 tokenIdContext = _tokenIdContext(tokenId);
-        _revokeRoleAssignments(tokenIdContext, TRANSFER_ROLE);
+        transferLock[tokenIdContext] = true;
     }
 
     /**
@@ -207,11 +214,9 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
         // if it's not a mint or burn, check that transfer is possible
         if (to != address(0) && from != address(0)) {
             for (uint256 i = 0; i < ids.length; i++) {  
-                _checkRole(_tokenIdContext(ids[i]), TRANSFER_ROLE, operator);
-                
-                // TODO: transfer all roles to the new owner if operator is current owner
-                // we probably need to do this at the ERC1155 base class level since we also need to do this for 
-                // batch approvals etc.
+              if (transferLock[_tokenIdContext(ids[i])]) {
+                revert NameTransferLocked(ids[i]);
+              }
             }
         }
 
