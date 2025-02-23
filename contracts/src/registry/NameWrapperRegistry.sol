@@ -116,7 +116,7 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
      * 
      * See v1 fuse: CAN_EXTEND_EXPIRY
      */
-    function allowOwnerToRenew(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATED_OWNER_ROLE) {
+    function allowOwnerToRenew(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATOR_ROLE) {
         bytes32 tokenIdContext = _tokenIdContext(tokenId);
         _grantRole(tokenIdContext, RENEW_ROLE, ownerOf(tokenId));
     }
