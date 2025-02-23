@@ -122,8 +122,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleGranted} event.
      */
-    function grantRole(bytes32 context, bytes32 role, address account) public virtual onlyRole(context, getRoleAdmin(role)) {
-        _grantRole(context, role, account);
+    function grantRole(bytes32 context, bytes32 role, address account) public virtual onlyRole(context, getRoleAdmin(role)) returns (bool) {
+        return _grantRole(context, role, account);
     }
 
     /**

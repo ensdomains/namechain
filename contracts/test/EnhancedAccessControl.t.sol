@@ -60,6 +60,16 @@ contract EnhancedAccessControlTest is Test {
         assertEq(sender, address(this));
     }
 
+    function test_grant_role_return_value() public {
+        bool success = access.grantRole(CONTEXT_1, ROLE_A, user1);
+        assertTrue(success);
+
+        // Granting an already granted role should return false
+        success = access.grantRole(CONTEXT_1, ROLE_A, user1);
+        assertFalse(success);
+        assertTrue(access.hasRole(CONTEXT_1, ROLE_A, user1));
+    }
+
     function test_revoke_role() public {
         access.grantRole(CONTEXT_1, ROLE_A, user1);
         
