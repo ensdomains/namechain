@@ -21,14 +21,6 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
     error NameTransferLocked(uint256 tokenId);
 
-    /**
-     * @dev Prevents a name from being transferred.
-     *
-     * We use a boolean for this instead of roles due to the added complexity of dealing with 
-     * ERC1155 approved operators if we were to use roles instead.
-     */
-    mapping(bytes32 tokenIdContext => bool locked) private transferLock;
-
     constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
         _grantRole(ROOT_CONTEXT, DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -44,9 +36,8 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
         override(ERC1155Singleton, IERC1155Singleton)
         returns (address)
     {
-        (, uint96 oldFlags) = datastore.getSubregistry(tokenId);
-        uint64 expires = _extractExpiry(oldFlags);
-        if (expires < block.timestamp) {
+        (bool isExpired, , ,) = _getStatus(tokenId);
+        if (isExpired) {
             return address(0);
         }
         return super.ownerOf(tokenId);
@@ -57,12 +48,11 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
         onlyRole(ROOT_CONTEXT, REGISTRAR_ROLE)
         returns (uint256 tokenId)
     {
-        tokenId = _canonicalTokenId(uint256(keccak256(bytes(label))), flags);
+        tokenId = _canonicalTokenId(_labelToTokenId(label), flags);
         flags = (flags & FLAGS_MASK) | (uint96(expires) << 32);
 
-        (, uint96 oldFlags) = datastore.getSubregistry(tokenId);
-        uint64 oldExpiry = _extractExpiry(oldFlags);
-        if (oldExpiry >= block.timestamp) {
+        (bool isExpired, , ,) = _getStatus(tokenId);
+        if (isExpired) {
             revert NameAlreadyRegistered(label);
         }
 
@@ -87,9 +77,8 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
     function renew(uint256 tokenId, uint64 expires) public onlyRole(_tokenIdContext(tokenId), RENEW_ROLE) {
         address sender = _msgSender();
 
-        (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
-        uint64 oldExpiration = _extractExpiry(flags);
-        if (oldExpiration < block.timestamp) {
+        (bool isExpired, uint64 oldExpiration, address subregistry, uint96 flags) = _getStatus(tokenId);
+        if (isExpired) {
             revert NameExpired(tokenId);
         }
         if (expires < oldExpiration) {
@@ -122,40 +111,9 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
     }
 
 
-    /**
-     * @dev Prevent the name from being renewed.
-     * 
-     * See v1 fuse: CANNOT_SET_TTL
-     */
-    function lockRenewals(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATED_OWNER_ROLE) {
-        bytes32 tokenIdContext = _tokenIdContext(tokenId);
-        _revokeRoleAssignments(tokenIdContext, RENEW_ROLE);
-    }
-
-    /**
-     * @dev Prevent the name from being transferred.
-     * 
-     * See v1 fuse: CANNOT_TRANSFER
-     */
-    function lockTransfers(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATED_OWNER_ROLE) {
-        bytes32 tokenIdContext = _tokenIdContext(tokenId);
-        transferLock[tokenIdContext] = true;
-    }
-
-    /**
-     * @dev Renounce the emancipated owner role.
-     * 
-     * See v1 fuse: CANNOT_BURN_FUSES
-     */
-    function renounceEmancipatedOwnerRole(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATED_OWNER_ROLE) {
-        bytes32 tokenIdContext = _tokenIdContext(tokenId);
-        renounceRole(tokenIdContext, EMANCIPATED_OWNER_ROLE, msg.sender);
-    }
-
-
     function nameData(uint256 tokenId) external view returns (uint64 expiry, uint32 flags) {
-        (, uint96 _flags) = datastore.getSubregistry(tokenId);
-        return (_extractExpiry(_flags), uint32(_flags));
+        (bool isExpired, uint64 _expiry, address subregistry, uint32 _flags) = _getStatus(tokenId);
+        return (_expiry, _flags);
     }
 
     function setFlags(uint256 tokenId, uint96 flags)
@@ -180,53 +138,32 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
         return interfaceId == type(IRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    function getSubregistry(string calldata label) external view virtual override returns (IRegistry) {
-        (address subregistry, uint96 flags) = datastore.getSubregistry(uint256(keccak256(bytes(label))));
-        uint64 expires = _extractExpiry(flags);
-        if (expires <= block.timestamp) {
+    function getSubregistry(string calldata label) external view virtual override returns (IRegistry subregistry) {
+        (bool isExpired, , address subregistryAddress, ) = _getStatus(_labelToTokenId(label));
+        if (isExpired) {
             return IRegistry(address(0));
         }
-        return IRegistry(subregistry);
+        return IRegistry(subregistryAddress);
     }
 
     function getResolver(string calldata label) external view virtual override returns (address) {
-        uint256 tokenId = uint256(keccak256(bytes(label)));
-        (, uint96 flags) = datastore.getSubregistry(tokenId);
-        uint64 expires = _extractExpiry(flags);
-        if (expires <= block.timestamp) {
+        uint256 tokenId = _labelToTokenId(label);
+        (bool isExpired, , , ) = _getStatus(tokenId);
+        if (isExpired) {
             return address(0);
         }
-
         (address resolver, ) = datastore.getResolver(tokenId);
         return resolver;
     }
     
-    // override the _updateWithAcceptanceCheck to check if the transfer lock setting has been set
-    function _updateWithAcceptanceCheck(
-        address from,
-        address to,
-        uint256[] memory ids,
-        uint256[] memory values,
-        bytes memory data
-    ) internal virtual override {
-        address operator = _msgSender();
-
-        // if it's not a mint or burn, check that transfer is possible
-        if (to != address(0) && from != address(0)) {
-            for (uint256 i = 0; i < ids.length; i++) {  
-              if (transferLock[_tokenIdContext(ids[i])]) {
-                revert NameTransferLocked(ids[i]);
-              }
-            }
-        }
-
-        super._updateWithAcceptanceCheck(from, to, ids, values, data);
-    }
-
     // Private methods
 
-    function _extractExpiry(uint96 flags) private pure returns (uint64) {
-        return uint64(flags >> 32);
+    function _getStatus(uint256 tokenId) private view returns (bool isExpired, uint64 expires, address subregistryAddress, uint32 flags) {
+        uint96 _flags;
+        (subregistryAddress, _flags) = datastore.getSubregistry(tokenId);
+        expires = uint64(flags >> 32);
+        flags = uint32(_flags);
+        isExpired = expires <= block.timestamp;
     }
 
     function _tokenIdContext(uint256 tokenId) private pure returns (bytes32) {
