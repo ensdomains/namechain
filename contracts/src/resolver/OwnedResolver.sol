@@ -38,8 +38,8 @@ contract OwnedResolver is
         __UUPSUpgradeable_init();
     }
 
-    function isAuthorised(bytes32) internal view override onlyOwner returns (bool){
-        return true;
+    function isAuthorised(bytes32) internal view override returns (bool) {
+        return msg.sender == owner();
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
