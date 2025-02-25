@@ -45,7 +45,7 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
 
     function register(string calldata label, address owner, IRegistry registry, uint96 flags, uint64 expires)
         public
-        onlyRole(ROOT_CONTEXT, REGISTRAR_ROLE)
+        onlyRootRole(REGISTRAR_ROLE)
         returns (uint256 tokenId)
     {
         tokenId = _canonicalTokenId(_labelToTokenId(label), flags);
@@ -112,7 +112,7 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
 
 
     function nameData(uint256 tokenId) external view returns (uint64 expiry, uint32 flags) {
-        (bool isExpired, uint64 _expiry, address subregistry, uint32 _flags) = _getStatus(tokenId);
+        (, uint64 _expiry, , uint32 _flags) = _getStatus(tokenId);
         return (_expiry, _flags);
     }
 

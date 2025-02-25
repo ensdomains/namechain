@@ -33,7 +33,7 @@ contract RootRegistry is PermissionedRegistry, EnhancedAccessControl {
      */
     function mint(string calldata label, address owner, IRegistry registry, uint96 flags, string memory _uri)
         external
-        onlyRole(ROOT_CONTEXT, TLD_ISSUER_ROLE)
+        onlyRootRole(TLD_ISSUER_ROLE)
         returns(uint256 tokenId)
     {
         tokenId = uint256(keccak256(bytes(label)));

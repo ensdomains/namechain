@@ -17,6 +17,10 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
     function revokeRoleAssignments(bytes32 context, bytes32 role) external {
         _revokeRoleAssignments(context, role);
     }
+    
+    function callOnlyRootRole(bytes32 role) external onlyRootRole(role) {
+        // Function that will revert if caller doesn't have the role in root context
+    }
 }
 
 contract EnhancedAccessControlTest is Test {
@@ -58,6 +62,46 @@ contract EnhancedAccessControlTest is Test {
         assertEq(role, ROLE_A);
         assertEq(account, user1);
         assertEq(sender, address(this));
+    }
+
+    function test_has_root_role() public {
+        // Initially user1 doesn't have the role in root context
+        assertFalse(access.hasRootRole(ROLE_A, user1));
+        
+        // Grant role in root context
+        access.grantRole(access.ROOT_CONTEXT(), ROLE_A, user1);
+        
+        // Now user1 should have the role in root context
+        assertTrue(access.hasRootRole(ROLE_A, user1));
+        
+        // Revoking the role should remove it
+        access.revokeRole(access.ROOT_CONTEXT(), ROLE_A, user1);
+        assertFalse(access.hasRootRole(ROLE_A, user1));
+        
+        // Having a role in a specific context doesn't mean having it in root context
+        access.grantRole(CONTEXT_1, ROLE_A, user1);
+        assertFalse(access.hasRootRole(ROLE_A, user1));
+    }
+
+    function test_only_root_role() public {
+        // Grant role in root context to user1
+        access.grantRole(access.ROOT_CONTEXT(), ROLE_A, user1);
+        
+        // User1 should be able to call function with onlyRootRole modifier
+        vm.prank(user1);
+        access.callOnlyRootRole(ROLE_A);
+        
+        // User2 doesn't have the role, should revert
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccount.selector, access.ROOT_CONTEXT(), ROLE_A, user2));
+        vm.prank(user2);
+        access.callOnlyRootRole(ROLE_A);
+        
+        // Having the role in a specific context doesn't satisfy onlyRootRole
+        access.grantRole(CONTEXT_1, ROLE_A, user2);
+        
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccount.selector, access.ROOT_CONTEXT(), ROLE_A, user2));
+        vm.prank(user2);
+        access.callOnlyRootRole(ROLE_A);
     }
 
     function test_grant_role_return_value() public {

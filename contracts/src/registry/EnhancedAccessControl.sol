@@ -23,8 +23,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
 
     /** @dev user role within a context. */
     struct RoleAssignment {
-        bool hasRole;      // Indicates if the user has the role
         uint256 version;   // Version tying this assignment to the current role version - see _roleVersion below
+        bool hasRole;      // Indicates if the user has the role
     }
 
     /** 
@@ -65,6 +65,15 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
+     * @dev Modifier that checks that sender has a specific role within the root context. 
+     * Reverts with an {AccessControlUnauthorizedAccount} error including the required role.
+     */
+    modifier onlyRootRole(bytes32 role) {
+        _checkRole(ROOT_CONTEXT, role);
+        _;
+    }
+
+    /**
      * @dev See {IERC165-supportsInterface}.
      */
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
@@ -72,14 +81,25 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
+     * @dev Returns `true` if `account` has been granted `role` in the root context.
+     */
+    function hasRootRole(bytes32 role, address account) public view virtual returns (bool) {
+        if (_roles[ROOT_CONTEXT][role][account].hasRole && _roles[ROOT_CONTEXT][role][account].version == _roleVersion[ROOT_CONTEXT][role]) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
      * @dev Returns `true` if `account` has been granted `role`.
      */
     function hasRole(bytes32 context, bytes32 role, address account) public view virtual returns (bool) {
-        uint256 roleVersion = _roleVersion[context][role];
-        uint256 roleVersionInRoot = _roleVersion[ROOT_CONTEXT][role];
-
-        return (_roles[context][role][account].hasRole && _roles[context][role][account].version == roleVersion) ||
-               (_roles[ROOT_CONTEXT][role][account].hasRole && _roles[ROOT_CONTEXT][role][account].version == roleVersionInRoot);
+        if (_roles[context][role][account].hasRole && _roles[context][role][account].version == _roleVersion[context][role]) {
+            return true;
+        } else {
+            return hasRootRole(role, account);
+        }
     }
 
     /**
@@ -192,8 +212,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      */
     function _grantRole(bytes32 context, bytes32 role, address account) internal virtual returns (bool) {
         if (!hasRole(context, role, account)) {
-            _roles[context][role][account].hasRole = true;
-            _roles[context][role][account].version = _roleVersion[context][role];
+            _roles[context][role][account] = RoleAssignment(_roleVersion[context][role], true);
             emit EnhancedAccessControlRoleGranted(context, role, account, _msgSender());
             return true;
         } else {
@@ -210,7 +229,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      */
     function _revokeRole(bytes32 context, bytes32 role, address account) internal virtual returns (bool) {
         if (hasRole(context, role, account)) {
-            _roles[context][role][account].hasRole = false;
+            _roles[context][role][account] = RoleAssignment(_roleVersion[context][role], false);
             emit EnhancedAccessControlRoleRevoked(context, role, account, _msgSender());
             return true;
         } else {
