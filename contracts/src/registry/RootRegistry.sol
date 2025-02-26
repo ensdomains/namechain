@@ -9,13 +9,14 @@ import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 
 contract RootRegistry is PermissionedRegistry, AccessControl {
     bytes32 public constant TLD_ISSUER_ROLE = keccak256("TLD_ISSUER_ROLE");
 
     mapping(uint256 tokenId=>string) uris;
 
-    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
+    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore, IRegistryMetadata(address(0))) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 

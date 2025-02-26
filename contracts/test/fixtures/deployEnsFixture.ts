@@ -1,5 +1,5 @@
 import hre from "hardhat";
-import { Address, bytesToHex, keccak256, stringToHex } from "viem";
+import { type Address, bytesToHex, keccak256, stringToHex, zeroAddress } from "viem";
 import { packetToBytes } from "../utils/utils.js";
 
 export async function deployEnsFixture() {
@@ -12,8 +12,10 @@ export async function deployEnsFixture() {
   const rootRegistry = await hre.viem.deployContract("RootRegistry", [
     datastore.address,
   ]);
+  const metadata = await hre.viem.deployContract("SimpleRegistryMetadata", []);
   const ethRegistry = await hre.viem.deployContract("ETHRegistry", [
     datastore.address,
+    metadata.address,
   ]);
   const universalResolver = await hre.viem.deployContract("UniversalResolver", [
     rootRegistry.address,
@@ -50,17 +52,19 @@ export const deployUserRegistry = async ({
   name,
   parentRegistryAddress,
   datastoreAddress,
+  metadataAddress,
   ownerIndex = 0,
 }: {
   name: string;
   parentRegistryAddress: Address;
   datastoreAddress: Address;
+  metadataAddress?: Address;
   ownerIndex?: number;
 }) => {
   const wallet = (await hre.viem.getWalletClients())[ownerIndex];
   return await hre.viem.deployContract(
     "UserRegistry",
-    [parentRegistryAddress, bytesToHex(packetToBytes(name)), datastoreAddress],
+    [parentRegistryAddress, bytesToHex(packetToBytes(name)), datastoreAddress, metadataAddress ?? zeroAddress],
     {
       client: { wallet },
     }

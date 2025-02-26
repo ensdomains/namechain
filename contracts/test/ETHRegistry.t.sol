@@ -8,7 +8,8 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 
 import "../src/registry/ETHRegistry.sol";
 import "../src/registry/RegistryDatastore.sol";
-
+import "../src/registry/IRegistryMetadata.sol";
+import "../src/registry/SimpleRegistryMetadata.sol";
 
 contract TestETHRegistry is Test, ERC1155Holder {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
@@ -17,10 +18,12 @@ contract TestETHRegistry is Test, ERC1155Holder {
     ETHRegistry registry;
     MockTokenObserver observer;
     RevertingTokenObserver revertingObserver;
+    IRegistryMetadata metadata;
 
     function setUp() public {
         datastore = new RegistryDatastore();
-        registry = new ETHRegistry(datastore);
+        metadata = new SimpleRegistryMetadata();
+        registry = new ETHRegistry(datastore, metadata);
         registry.grantRole(registry.REGISTRAR_ROLE(), address(this));
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
