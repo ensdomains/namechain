@@ -21,6 +21,14 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
     function callOnlyRootRole(bytes32 role) external onlyRootRole(role) {
         // Function that will revert if caller doesn't have the role in root context
     }
+
+    function setRoleGroup(bytes32 roleGroup, bytes32[] memory roles) external {
+        _setRoleGroup(roleGroup, roles);
+    }
+
+    function callOnlyRoleGroup(bytes32 context, bytes32 roleGroup) external onlyRoleGroup(context, roleGroup) {
+        // Function that will revert if caller doesn't have any role in the role group for the context
+    }
 }
 
 contract EnhancedAccessControlTest is Test {
@@ -92,14 +100,14 @@ contract EnhancedAccessControlTest is Test {
         access.callOnlyRootRole(ROLE_A);
         
         // User2 doesn't have the role, should revert
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccount.selector, access.ROOT_CONTEXT(), ROLE_A, user2));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRole.selector, access.ROOT_CONTEXT(), ROLE_A, user2));
         vm.prank(user2);
         access.callOnlyRootRole(ROLE_A);
         
         // Having the role in a specific context doesn't satisfy onlyRootRole
         access.grantRole(CONTEXT_1, ROLE_A, user2);
         
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccount.selector, access.ROOT_CONTEXT(), ROLE_A, user2));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRole.selector, access.ROOT_CONTEXT(), ROLE_A, user2));
         vm.prank(user2);
         access.callOnlyRootRole(ROLE_A);
     }
@@ -165,7 +173,7 @@ contract EnhancedAccessControlTest is Test {
     }
 
     function test_Revert_unauthorized_grant() public {
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccount.selector, CONTEXT_1, access.DEFAULT_ADMIN_ROLE(), user1));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRole.selector, CONTEXT_1, access.DEFAULT_ADMIN_ROLE(), user1));
         vm.prank(user1);
         access.grantRole(CONTEXT_1, ROLE_A, user2);
     }
@@ -173,7 +181,7 @@ contract EnhancedAccessControlTest is Test {
     function test_Revert_unauthorized_revoke() public {
         access.grantRole(CONTEXT_1, ROLE_A, user2);
         
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccount.selector, CONTEXT_1, access.DEFAULT_ADMIN_ROLE(), user1));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRole.selector, CONTEXT_1, access.DEFAULT_ADMIN_ROLE(), user1));
         vm.prank(user1);
         access.revokeRole(CONTEXT_1, ROLE_A, user2);
     }
@@ -212,5 +220,139 @@ contract EnhancedAccessControlTest is Test {
         assertTrue(access.hasRole(CONTEXT_1, ROLE_A, user1));
         assertTrue(access.hasRole(CONTEXT_2, ROLE_A, user1));
         assertTrue(access.hasRole(bytes32(keccak256("ANY_OTHER_CONTEXT")), ROLE_A, user1));
+    }
+
+    bytes32 public constant ROLE_GROUP_1 = keccak256("ROLE_GROUP_1");
+
+    function test_set_role_group() public {
+        bytes32[] memory roles = new bytes32[](2);
+        roles[0] = ROLE_A;
+        roles[1] = ROLE_B;
+
+        vm.recordLogs();
+        access.setRoleGroup(ROLE_GROUP_1, roles);
+
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleGroupChanged(bytes32,bytes32[],bytes32[])"));
+        
+        // Verify event data
+        (bytes32 roleGroup, bytes32[] memory previousRoles, bytes32[] memory newRoles) = abi.decode(
+            entries[0].data, 
+            (bytes32, bytes32[], bytes32[])
+        );
+        
+        assertEq(roleGroup, ROLE_GROUP_1);
+        assertEq(previousRoles.length, 0);
+        assertEq(newRoles.length, 2);
+        assertEq(newRoles[0], ROLE_A);
+        assertEq(newRoles[1], ROLE_B);
+    }
+
+    function test_only_role_group() public {
+        // Setup role group with ROLE_A and ROLE_B
+        bytes32[] memory roles = new bytes32[](2);
+        roles[0] = ROLE_A;
+        roles[1] = ROLE_B;
+        access.setRoleGroup(ROLE_GROUP_1, roles);
+
+        // Grant ROLE_A to user1
+        access.grantRole(CONTEXT_1, ROLE_A, user1);
+        
+        // User1 should be able to call function with onlyRoleGroup modifier
+        vm.prank(user1);
+        access.callOnlyRoleGroup(CONTEXT_1, ROLE_GROUP_1);
+        
+        // Grant ROLE_B to user2
+        access.grantRole(CONTEXT_1, ROLE_B, user2);
+        
+        // User2 should also be able to call the function
+        vm.prank(user2);
+        access.callOnlyRoleGroup(CONTEXT_1, ROLE_GROUP_1);
+        
+        // User without any role in the group should not be able to call the function
+        address user3 = makeAddr("user3");
+        vm.expectRevert(abi.encodeWithSelector(
+            EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRoleGroup.selector, 
+            CONTEXT_1, 
+            ROLE_GROUP_1, 
+            user3
+        ));
+        vm.prank(user3);
+        access.callOnlyRoleGroup(CONTEXT_1, ROLE_GROUP_1);
+    }
+
+    function test_modify_role_group() public {
+        // Setup initial role group with ROLE_A
+        bytes32[] memory roles = new bytes32[](1);
+        roles[0] = ROLE_A;
+        access.setRoleGroup(ROLE_GROUP_1, roles);
+        
+        // Grant ROLE_A to user1
+        access.grantRole(CONTEXT_1, ROLE_A, user1);
+        
+        // User1 should be able to call function with onlyRoleGroup modifier
+        vm.prank(user1);
+        access.callOnlyRoleGroup(CONTEXT_1, ROLE_GROUP_1);
+        
+        // Modify role group to only contain ROLE_B
+        bytes32[] memory newRoles = new bytes32[](1);
+        newRoles[0] = ROLE_B;
+        
+        vm.recordLogs();
+        access.setRoleGroup(ROLE_GROUP_1, newRoles);
+        
+        // User1 should no longer be able to call the function
+        vm.expectRevert(abi.encodeWithSelector(
+            EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRoleGroup.selector, 
+            CONTEXT_1, 
+            ROLE_GROUP_1, 
+            user1
+        ));
+        vm.prank(user1);
+        access.callOnlyRoleGroup(CONTEXT_1, ROLE_GROUP_1);
+        
+        // Grant ROLE_B to user1
+        access.grantRole(CONTEXT_1, ROLE_B, user1);
+        
+        // Now user1 should be able to call the function again
+        vm.prank(user1);
+        access.callOnlyRoleGroup(CONTEXT_1, ROLE_GROUP_1);
+    }
+
+    function test_root_role_in_role_group() public {
+        // Setup role group with ROLE_A
+        bytes32[] memory roles = new bytes32[](1);
+        roles[0] = ROLE_A;
+        access.setRoleGroup(ROLE_GROUP_1, roles);
+        
+        // Grant ROLE_A in root context to user1
+        access.grantRole(access.ROOT_CONTEXT(), ROLE_A, user1);
+        
+        // User1 should be able to call function with onlyRoleGroup modifier for any context
+        vm.prank(user1);
+        access.callOnlyRoleGroup(CONTEXT_1, ROLE_GROUP_1);
+        
+        vm.prank(user1);
+        access.callOnlyRoleGroup(CONTEXT_2, ROLE_GROUP_1);
+        
+        vm.prank(user1);
+        access.callOnlyRoleGroup(bytes32(keccak256("ANY_OTHER_CONTEXT")), ROLE_GROUP_1);
+    }
+
+    function test_empty_role_group() public {
+        // Setup empty role group
+        bytes32[] memory roles = new bytes32[](0);
+        access.setRoleGroup(ROLE_GROUP_1, roles);
+        
+        // User should not be able to call the function with empty role group
+        vm.expectRevert(abi.encodeWithSelector(
+            EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRoleGroup.selector, 
+            CONTEXT_1, 
+            ROLE_GROUP_1, 
+            user1
+        ));
+        vm.prank(user1);
+        access.callOnlyRoleGroup(CONTEXT_1, ROLE_GROUP_1);
     }
 } 

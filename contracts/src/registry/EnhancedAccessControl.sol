@@ -14,10 +14,12 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
  * - Removing all assignments of a given role from a context.
  */
 abstract contract EnhancedAccessControl is Context, ERC165 {
-    error EnhancedAccessControlUnauthorizedAccount(bytes32 context, bytes32 role, address account);
+    error EnhancedAccessControlUnauthorizedAccountRole(bytes32 context, bytes32 role, address account);
+    error EnhancedAccessControlUnauthorizedAccountRoleGroup(bytes32 context, bytes32 roleGroup, address account);
     error EnhancedAccessControlBadConfirmation();
 
     event EnhancedAccessControlRoleAdminChanged(bytes32 role, bytes32 previousAdminRole, bytes32 newAdminRole);
+    event EnhancedAccessControlRoleGroupChanged(bytes32 roleGroup, bytes32[] previousRoles, bytes32[] newRoles);
     event EnhancedAccessControlRoleGranted(bytes32 context, bytes32 role, address account, address sender);
     event EnhancedAccessControlRoleRevoked(bytes32 context, bytes32 role, address account, address sender);
 
@@ -32,6 +34,12 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * Role -> AdminRole
      */
     mapping(bytes32 role => bytes32 adminRole) private _adminRoles;
+
+    /** 
+     * @dev Role groupings.
+     * RoleGroup -> Roles
+     */
+    mapping(bytes32 roleGroup => bytes32[] roles) private _roleGroups;
 
     /**
      * @dev user role within a context.
@@ -60,7 +68,17 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * Reverts with an {AccessControlUnauthorizedAccount} error including the required role.
      */
     modifier onlyRole(bytes32 context, bytes32 role) {
-        _checkRole(context, role);
+        _checkRole(context, role, _msgSender());
+        _;
+    }
+
+
+    /**
+     * @dev Modifier that checks that sender has a specific role within the given context. 
+     * Reverts with an {AccessControlUnauthorizedAccount} error including the required role.
+     */
+    modifier onlyRoleGroup(bytes32 context, bytes32 roleGroup) {
+        _checkRoleGroup(context, roleGroup, _msgSender());
         _;
     }
 
@@ -69,7 +87,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * Reverts with an {AccessControlUnauthorizedAccount} error including the required role.
      */
     modifier onlyRootRole(bytes32 role) {
-        _checkRole(ROOT_CONTEXT, role);
+        _checkRole(ROOT_CONTEXT, role, _msgSender());
         _;
     }
 
@@ -103,20 +121,29 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Reverts with an {AccessControlUnauthorizedAccount} error if `_msgSender()`
-     * is missing `role`. Overriding this function changes the behavior of the {onlyRole} modifier.
+     * @dev Reverts with an {AccessControlUnauthorizedAccount} error if `account`
+     * is missing `role`.
      */
-    function _checkRole(bytes32 context, bytes32 role) internal view virtual {
-        _checkRole(context, role, _msgSender());
+    function _checkRole(bytes32 context, bytes32 role, address account) internal view virtual {
+        if (!hasRole(context, role, account)) {
+            revert EnhancedAccessControlUnauthorizedAccountRole(context, role, account);
+        }
     }
 
     /**
      * @dev Reverts with an {AccessControlUnauthorizedAccount} error if `account`
      * is missing `role`.
      */
-    function _checkRole(bytes32 context, bytes32 role, address account) internal view virtual {
-        if (!hasRole(context, role, account)) {
-            revert EnhancedAccessControlUnauthorizedAccount(context, role, account);
+    function _checkRoleGroup(bytes32 context, bytes32 roleGroup, address account) internal view virtual {
+        bool hasAnyRole = false;
+        bytes32[] memory roles = _roleGroups[roleGroup];
+        for (uint256 i = 0; i < roles.length; i++) {
+            if (hasRole(context, roles[i], account)) {
+                hasAnyRole = true;
+            }
+        }
+        if (!hasAnyRole) {
+            revert EnhancedAccessControlUnauthorizedAccountRoleGroup(context, roleGroup, account);
         }
     }
 
@@ -188,13 +215,25 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev Sets `adminRole` as ``role``'s admin role.
      *
-     * Emits a {RoleAdminChanged} event.
+     * Emits a {EnhancedAccessControlRoleAdminChanged} event.
      */
     function _setRoleAdmin(bytes32 role, bytes32 adminRole) internal virtual {
         bytes32 previousAdminRole = getRoleAdmin(role);
         _adminRoles[role] = adminRole;
         emit EnhancedAccessControlRoleAdminChanged(role, previousAdminRole, adminRole);
     }
+
+    /**
+     * @dev Sets `roles` as ``roleGroup``'s roles.
+     *
+     * Emits a {EnhancedAccessControlRoleGroupChanged} event.
+     */
+    function _setRoleGroup(bytes32 roleGroup, bytes32[] memory roles) internal virtual {
+        bytes32[] memory previousRoles = _roleGroups[roleGroup];
+        _roleGroups[roleGroup] = roles;     
+        emit EnhancedAccessControlRoleGroupChanged(roleGroup, previousRoles, roles);
+    }
+
 
     /**
      * @dev Revoke all assignments of a given role in a given context.

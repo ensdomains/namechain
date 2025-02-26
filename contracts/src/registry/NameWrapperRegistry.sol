@@ -11,18 +11,23 @@ import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 
 contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
-    bytes32 public constant EMANCIPATOR_ROLE = keccak256("EMANCIPATOR_ROLE");
-    bytes32 public constant EMANCIPATED_OWNER_ROLE = keccak256("EMANCIPATED_OWNER_ROLE");
     bytes32 public constant RENEW_ROLE = keccak256("RENEW_ROLE");
+    
+    bytes32 public constant RENEWER_ROLE_GROUP = keccak256("RENEWER_ROLE_GROUP");
 
     error NameAlreadyRegistered(string label);
     error NameExpired(uint256 tokenId);
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
     error NameTransferLocked(uint256 tokenId);
+    error RegistrarRoleOnlyInRootContext();
 
     constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
         _grantRole(ROOT_CONTEXT, DEFAULT_ADMIN_ROLE, msg.sender);
+        bytes32[] memory roles = new bytes32[](2);
+        roles[0] = REGISTRAR_ROLE;
+        roles[1] = RENEW_ROLE;
+        _setRoleGroup(RENEWER_ROLE_GROUP, roles);
     }
 
     function uri(uint256 /*tokenId*/ ) public pure override returns (string memory) {
@@ -65,16 +70,11 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
         _mint(owner, tokenId, 1, "");
         datastore.setSubregistry(tokenId, address(registry), flags);
 
-        // registrar has some permissions by default
-        bytes32 tokenIdContext = _tokenIdContext(tokenId);
-        _grantRole(tokenIdContext, RENEW_ROLE, msg.sender);
-        _grantRole(tokenIdContext, EMANCIPATOR_ROLE, msg.sender);
-
         emit NewSubname(label);
         return tokenId;
     }
 
-    function renew(uint256 tokenId, uint64 expires) public onlyRole(_tokenIdContext(tokenId), RENEW_ROLE) {
+    function renew(uint256 tokenId, uint64 expires) public onlyRoleGroup(_tokenIdContext(tokenId), RENEWER_ROLE_GROUP) {
         address sender = _msgSender();
 
         (bool isExpired, uint64 oldExpiration, address subregistry, uint96 flags) = _getStatus(tokenId);
@@ -89,23 +89,12 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
         emit NameRenewed(tokenId, expires, sender);
     }
 
-    /** 
-     * @dev Emancipate the owner of the token. 
-     * 
-     * See v1 fuse: PARENT_CANNOT_CONTROL
-     */
-    function emancipate(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATOR_ROLE) {
-        bytes32 tokenIdContext = _tokenIdContext(tokenId);
-        _grantRole(tokenIdContext, EMANCIPATED_OWNER_ROLE, ownerOf(tokenId));
-        renounceRole(tokenIdContext, EMANCIPATOR_ROLE, msg.sender); // remove the emancipator role since we can only do this once.
-    }
-    
     /**
      * @dev Allow the owner to renew the name.
      * 
      * See v1 fuse: CAN_EXTEND_EXPIRY
      */
-    function allowOwnerToRenew(uint256 tokenId) public onlyRole(_tokenIdContext(tokenId), EMANCIPATOR_ROLE) {
+    function allowOwnerToRenew(uint256 tokenId) public onlyRootRole(REGISTRAR_ROLE) {
         bytes32 tokenIdContext = _tokenIdContext(tokenId);
         _grantRole(tokenIdContext, RENEW_ROLE, ownerOf(tokenId));
     }
