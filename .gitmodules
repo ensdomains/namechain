@@ -4,6 +4,20 @@
 [submodule "contracts/lib/openzeppelin-contracts"]
 	path = contracts/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
-[submodule "lib/openzeppelin-contracts"]
-	path = lib/openzeppelin-contracts
-	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+
+[submodule "lib/verifiable-factory"]
+	path = lib/verifiable-factory
+	url = https://github.com/ensdomains/verifiable-factory
+	branch = refactor-transparent-to-uups
+[submodule "contracts/lib/openzeppelin-contracts-upgradeable"]
+	path = contracts/lib/openzeppelin-contracts-upgradeable
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
+[submodule "contracts/lib/ens-contracts"]
+	path = contracts/lib/ens-contracts
+	url = https://github.com/ensdomains/ens-contracts
+[submodule "contracts/lib/buffer"]
+	path = contracts/lib/buffer
+	url = https://github.com/ensdomains/buffer
+[submodule "contracts/lib/verifiable-factory"]
+	path = contracts/lib/verifiable-factory
+	url = https://github.com/ensdomains/verifiable-factory
