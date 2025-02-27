@@ -68,7 +68,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
 
         _mint(owner, tokenId, 1, "");
         datastore.setSubregistry(tokenId, address(registry), flags);
-        emit NewSubname(label);
+        emit NewSubname(tokenId, label);
         return tokenId;
     }
 
