@@ -18,14 +18,21 @@ export async function deployEnsFixture() {
   const universalResolver = await hre.viem.deployContract("UniversalResolver", [
     rootRegistry.address,
   ]);
+
+  const rootResource = await rootRegistry.read.ROOT_RESOURCE();
+
   await rootRegistry.write.grantRole([
+    rootResource,
     keccak256(stringToHex("TLD_ISSUER_ROLE")),
     accounts[0].address,
   ]);
+
   await ethRegistry.write.grantRole([
+    rootResource,
     keccak256(stringToHex("REGISTRAR_ROLE")),
     accounts[0].address,
   ]);
+  
   await rootRegistry.write.mint([
     "eth",
     accounts[0].address,

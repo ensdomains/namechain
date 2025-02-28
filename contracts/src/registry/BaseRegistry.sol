@@ -74,7 +74,7 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
      * @return The address of the registry for this subdomain, or `address(0)` if none exists.
      */
     function getSubregistry(string calldata label) external view virtual returns (IRegistry) {
-        (address subregistry,) = datastore.getSubregistry(uint256(keccak256(bytes(label))));
+        (address subregistry,) = datastore.getSubregistry(_labelToTokenId(label));
         return IRegistry(subregistry);
     }
 
@@ -84,6 +84,15 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
      * @return resolver The address of a resolver responsible for this name, or `address(0)` if none exists.
      */
     function getResolver(string calldata label) external view virtual returns (address resolver) {
-        (resolver,) = datastore.getResolver(uint256(keccak256(bytes(label))));
+        (resolver,) = datastore.getResolver(_labelToTokenId(label));
+    }
+
+    /**
+     * @dev Converts a label to a token ID.
+     * @param label The label to convert.
+     * @return tokenId The token ID corresponding to this label.
+     */
+    function _labelToTokenId(string calldata label) internal pure returns (uint256) {
+        return uint256(keccak256(bytes(label)));
     }
 }
