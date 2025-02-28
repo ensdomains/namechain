@@ -10,6 +10,7 @@ import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
 import {IETHRegistry} from "./IETHRegistry.sol";
+import {NameUtils} from "../utils/NameUtils.sol";
 
 contract ETHRegistry is PermissionedRegistry, AccessControl, IETHRegistry {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
@@ -44,7 +45,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, IETHRegistry {
         onlyRole(REGISTRAR_ROLE)
         returns (uint256 tokenId)
     {
-        tokenId = (uint256(keccak256(bytes(label))) & ~uint256(FLAGS_MASK)) | flags;
+        tokenId = (NameUtils.labelToTokenId(label) & ~uint256(FLAGS_MASK)) | flags;
         flags = (flags & FLAGS_MASK) | (uint96(expires) << 32);
 
         (, uint96 oldFlags) = datastore.getSubregistry(tokenId);
