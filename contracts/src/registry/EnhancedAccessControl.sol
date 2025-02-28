@@ -9,21 +9,19 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 /**
  * @dev An enhanced version of OpenZeppelin's AccessControl that allows for:
  * 
- * - Context-based roles.
- * - Root context override (0x0) - role assignments in the root context auto-apply to all contexts.
- * - Removing all assignments of a given role from a context.
+ * - Resource-based roles.
+ * - Root resource override (0x0) - role assignments in the root resource auto-apply to all resources.
+ * - Removing all assignments of a given role from a resource.
  */
 abstract contract EnhancedAccessControl is Context, ERC165 {
-    error EnhancedAccessControlUnauthorizedAccountRole(bytes32 context, bytes32 role, address account);
-    error EnhancedAccessControlUnauthorizedAccountRoleGroup(bytes32 context, bytes32 roleGroup, address account);
+    error EnhancedAccessControlUnauthorizedAccountRole(bytes32 resource, bytes32 role, address account);
     error EnhancedAccessControlBadConfirmation();
 
     event EnhancedAccessControlRoleAdminChanged(bytes32 role, bytes32 previousAdminRole, bytes32 newAdminRole);
-    event EnhancedAccessControlRoleGroupChanged(bytes32 roleGroup, bytes32[] previousRoles, bytes32[] newRoles);
-    event EnhancedAccessControlRoleGranted(bytes32 context, bytes32 role, address account, address sender);
-    event EnhancedAccessControlRoleRevoked(bytes32 context, bytes32 role, address account, address sender);
+    event EnhancedAccessControlRoleGranted(bytes32 resource, bytes32 role, address account, address sender);
+    event EnhancedAccessControlRoleRevoked(bytes32 resource, bytes32 role, address account, address sender);
 
-    /** @dev user role within a context. */
+    /** @dev user role within a resource. */
     struct RoleAssignment {
         uint256 version;   // Version tying this assignment to the current role version - see _roleVersion below
         bool hasRole;      // Indicates if the user has the role
@@ -35,28 +33,22 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      */
     mapping(bytes32 role => bytes32 adminRole) private _adminRoles;
 
-    /** 
-     * @dev Role groupings.
-     * RoleGroup -> Roles
-     */
-    mapping(bytes32 roleGroup => bytes32[] roles) private _roleGroups;
-
     /**
-     * @dev user role within a context.
-     * Context -> Role -> User -> RoleAssignment
+     * @dev user role within a resource.
+     * Resource -> Role -> User -> RoleAssignment
      */
-    mapping(bytes32 context => mapping(bytes32 role => mapping(address account => RoleAssignment roleAssignment))) private _roles;
+    mapping(bytes32 resource => mapping(bytes32 role => mapping(address account => RoleAssignment roleAssignment))) private _roles;
 
     /**
      * @dev We use a version number to track the changes to the role assignments.
      * This means we can easily remove all assignments of a given role without needing a loop.
      */
-    mapping(bytes32 context => mapping(bytes32 role => uint256 version)) private _roleVersion;
+    mapping(bytes32 resource => mapping(bytes32 role => uint256 version)) private _roleVersion;
 
     /**
-     * @dev The root context.
+     * @dev The root resource.
      */
-    bytes32 public constant ROOT_CONTEXT = bytes32(0);
+    bytes32 public constant ROOT_RESOURCE = bytes32(0);
 
     /**
      * @dev The default admin role.
@@ -64,30 +56,20 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
     /**
-     * @dev Modifier that checks that sender has a specific role within the given context. 
+     * @dev Modifier that checks that sender has a specific role within the given resource. 
      * Reverts with an {AccessControlUnauthorizedAccount} error including the required role.
      */
-    modifier onlyRole(bytes32 context, bytes32 role) {
-        _checkRole(context, role, _msgSender());
-        _;
-    }
-
-
-    /**
-     * @dev Modifier that checks that sender has a specific role within the given context. 
-     * Reverts with an {AccessControlUnauthorizedAccount} error including the required role.
-     */
-    modifier onlyRoleGroup(bytes32 context, bytes32 roleGroup) {
-        _checkRoleGroup(context, roleGroup, _msgSender());
+    modifier onlyRole(bytes32 resource, bytes32 role) {
+        _checkRole(resource, role, _msgSender());
         _;
     }
 
     /**
-     * @dev Modifier that checks that sender has a specific role within the root context. 
+     * @dev Modifier that checks that sender has a specific role within the root resource. 
      * Reverts with an {AccessControlUnauthorizedAccount} error including the required role.
      */
     modifier onlyRootRole(bytes32 role) {
-        _checkRole(ROOT_CONTEXT, role, _msgSender());
+        _checkRole(ROOT_RESOURCE, role, _msgSender());
         _;
     }
 
@@ -99,10 +81,10 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Returns `true` if `account` has been granted `role` in the root context.
+     * @dev Returns `true` if `account` has been granted `role` in the root resource.
      */
     function hasRootRole(bytes32 role, address account) public view virtual returns (bool) {
-        if (_roles[ROOT_CONTEXT][role][account].hasRole && _roles[ROOT_CONTEXT][role][account].version == _roleVersion[ROOT_CONTEXT][role]) {
+        if (_roles[ROOT_RESOURCE][role][account].hasRole && _roles[ROOT_RESOURCE][role][account].version == _roleVersion[ROOT_RESOURCE][role]) {
             return true;
         } else {
             return false;
@@ -112,8 +94,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev Returns `true` if `account` has been granted `role`.
      */
-    function hasRole(bytes32 context, bytes32 role, address account) public view virtual returns (bool) {
-        if (_roles[context][role][account].hasRole && _roles[context][role][account].version == _roleVersion[context][role]) {
+    function hasRole(bytes32 resource, bytes32 role, address account) public view virtual returns (bool) {
+        if (_roles[resource][role][account].hasRole && _roles[resource][role][account].version == _roleVersion[resource][role]) {
             return true;
         } else {
             return hasRootRole(role, account);
@@ -124,26 +106,9 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Reverts with an {AccessControlUnauthorizedAccount} error if `account`
      * is missing `role`.
      */
-    function _checkRole(bytes32 context, bytes32 role, address account) internal view virtual {
-        if (!hasRole(context, role, account)) {
-            revert EnhancedAccessControlUnauthorizedAccountRole(context, role, account);
-        }
-    }
-
-    /**
-     * @dev Reverts with an {AccessControlUnauthorizedAccount} error if `account`
-     * is missing `role`.
-     */
-    function _checkRoleGroup(bytes32 context, bytes32 roleGroup, address account) internal view virtual {
-        bool hasAnyRole = false;
-        bytes32[] memory roles = _roleGroups[roleGroup];
-        for (uint256 i = 0; i < roles.length; i++) {
-            if (hasRole(context, roles[i], account)) {
-                hasAnyRole = true;
-            }
-        }
-        if (!hasAnyRole) {
-            revert EnhancedAccessControlUnauthorizedAccountRoleGroup(context, roleGroup, account);
+    function _checkRole(bytes32 resource, bytes32 role, address account) internal view virtual {
+        if (!hasRole(resource, role, account)) {
+            revert EnhancedAccessControlUnauthorizedAccountRole(resource, role, account);
         }
     }
 
@@ -169,8 +134,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleGranted} event.
      */
-    function grantRole(bytes32 context, bytes32 role, address account) public virtual onlyRole(context, getRoleAdmin(role)) returns (bool) {
-        return _grantRole(context, role, account);
+    function grantRole(bytes32 resource, bytes32 role, address account) public virtual onlyRole(resource, getRoleAdmin(role)) returns (bool) {
+        return _grantRole(resource, role, account);
     }
 
     /**
@@ -184,8 +149,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleRevoked} event.
      */
-    function revokeRole(bytes32 context, bytes32 role, address account) public virtual onlyRole(context, getRoleAdmin(role)) {
-        _revokeRole(context, role, account);
+    function revokeRole(bytes32 resource, bytes32 role, address account) public virtual onlyRole(resource, getRoleAdmin(role)) {
+        _revokeRole(resource, role, account);
     }
 
     /**
@@ -204,13 +169,20 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleRevoked} event.
      */
-    function renounceRole(bytes32 context, bytes32 role, address callerConfirmation) public virtual {
+    function renounceRole(bytes32 resource, bytes32 role, address callerConfirmation) public virtual {
         if (callerConfirmation != _msgSender()) {
             revert EnhancedAccessControlBadConfirmation();
         }
 
-        _revokeRole(context, role, callerConfirmation);
+        _revokeRole(resource, role, callerConfirmation);
     }
+
+
+    function _transferRole(bytes32 resource, bytes32 role, address previousAccount, address newAccount) internal virtual {
+        _revokeRole(resource, role, previousAccount);
+        _grantRole(resource, role, newAccount);
+    }
+
 
     /**
      * @dev Sets `adminRole` as ``role``'s admin role.
@@ -224,22 +196,10 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Sets `roles` as ``roleGroup``'s roles.
-     *
-     * Emits a {EnhancedAccessControlRoleGroupChanged} event.
+     * @dev Revoke all assignments of a given role in a given resource.
      */
-    function _setRoleGroup(bytes32 roleGroup, bytes32[] memory roles) internal virtual {
-        bytes32[] memory previousRoles = _roleGroups[roleGroup];
-        _roleGroups[roleGroup] = roles;     
-        emit EnhancedAccessControlRoleGroupChanged(roleGroup, previousRoles, roles);
-    }
-
-
-    /**
-     * @dev Revoke all assignments of a given role in a given context.
-     */
-    function _revokeRoleAssignments(bytes32 context, bytes32 role) internal virtual {
-        _roleVersion[context][role]++;
+    function _revokeRoleAssignments(bytes32 resource, bytes32 role) internal virtual {
+        _roleVersion[resource][role]++;
     }
 
     /**
@@ -249,10 +209,10 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleGranted} event.
      */
-    function _grantRole(bytes32 context, bytes32 role, address account) internal virtual returns (bool) {
-        if (!hasRole(context, role, account)) {
-            _roles[context][role][account] = RoleAssignment(_roleVersion[context][role], true);
-            emit EnhancedAccessControlRoleGranted(context, role, account, _msgSender());
+    function _grantRole(bytes32 resource, bytes32 role, address account) internal virtual returns (bool) {
+        if (!hasRole(resource, role, account)) {
+            _roles[resource][role][account] = RoleAssignment(_roleVersion[resource][role], true);
+            emit EnhancedAccessControlRoleGranted(resource, role, account, _msgSender());
             return true;
         } else {
             return false;
@@ -266,10 +226,10 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleRevoked} event.
      */
-    function _revokeRole(bytes32 context, bytes32 role, address account) internal virtual returns (bool) {
-        if (hasRole(context, role, account)) {
-            _roles[context][role][account] = RoleAssignment(_roleVersion[context][role], false);
-            emit EnhancedAccessControlRoleRevoked(context, role, account, _msgSender());
+    function _revokeRole(bytes32 resource, bytes32 role, address account) internal virtual returns (bool) {
+        if (hasRole(resource, role, account)) {
+            _roles[resource][role][account] = RoleAssignment(_roleVersion[resource][role], false);
+            emit EnhancedAccessControlRoleRevoked(resource, role, account, _msgSender());
             return true;
         } else {
             return false;

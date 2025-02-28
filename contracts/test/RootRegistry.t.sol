@@ -18,7 +18,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
     function setUp() public {
         datastore = new RegistryDatastore();
         registry = new RootRegistry(datastore);
-        registry.grantRole(registry.ROOT_CONTEXT(), registry.TLD_ISSUER_ROLE(), address(this));
+        registry.grantRole(registry.ROOT_RESOURCE(), registry.TLD_ISSUER_ROLE(), address(this));
     }
 
     function test_register_unlocked() public {

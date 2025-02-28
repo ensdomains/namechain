@@ -12,8 +12,6 @@ import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
     bytes32 public constant RENEW_ROLE = keccak256("RENEW_ROLE");
-    
-    bytes32 public constant RENEWER_ROLE_GROUP = keccak256("RENEWER_ROLE_GROUP");
 
     error NameAlreadyRegistered(string label);
     error NameExpired(uint256 tokenId);
@@ -22,12 +20,22 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
     error NameTransferLocked(uint256 tokenId);
     error RegistrarRoleOnlyInRootContext();
 
-    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
-        _grantRole(ROOT_CONTEXT, DEFAULT_ADMIN_ROLE, msg.sender);
-        bytes32[] memory roles = new bytes32[](2);
-        roles[0] = REGISTRAR_ROLE;
-        roles[1] = RENEW_ROLE;
-        _setRoleGroup(RENEWER_ROLE_GROUP, roles);
+    event RegistrarRoleTransferred(address indexed previousRegistrar, address indexed newRegistrar);
+
+    address public registrar;
+
+    constructor(IRegistryDatastore _datastore, address _registrar) PermissionedRegistry(_datastore) {
+        _grantRole(ROOT_RESOURCE, DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ROOT_RESOURCE, REGISTRAR_ROLE, _registrar);
+        _grantRole(ROOT_RESOURCE, RENEW_ROLE, _registrar);
+        registrar = _registrar;
+    }
+
+    function transferRegistrar(address newRegistrar) public onlyRootRole(REGISTRAR_ROLE) {
+        _transferRole(ROOT_RESOURCE, REGISTRAR_ROLE, registrar, newRegistrar);
+        _transferRole(ROOT_RESOURCE, RENEW_ROLE, registrar, newRegistrar);
+        registrar = newRegistrar;
+        emit RegistrarRoleTransferred(registrar, newRegistrar);
     }
 
     function uri(uint256 /*tokenId*/ ) public pure override returns (string memory) {
@@ -74,7 +82,7 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
         return tokenId;
     }
 
-    function renew(uint256 tokenId, uint64 expires) public onlyRoleGroup(_tokenIdContext(tokenId), RENEWER_ROLE_GROUP) {
+    function renew(uint256 tokenId, uint64 expires) public onlyRole(_tokenIdContext(tokenId), RENEW_ROLE) {
         address sender = _msgSender();
 
         (bool isExpired, uint64 oldExpiration, address subregistry, uint96 flags) = _getStatus(tokenId);

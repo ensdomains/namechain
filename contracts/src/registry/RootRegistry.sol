@@ -16,7 +16,7 @@ contract RootRegistry is PermissionedRegistry, EnhancedAccessControl {
     mapping(uint256 tokenId=>string) uris;
 
     constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
-        _grantRole(ROOT_CONTEXT, DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ROOT_RESOURCE, DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function uri(uint256 tokenId ) public view override returns (string memory) {

@@ -19,16 +19,16 @@ export async function deployEnsFixture() {
     rootRegistry.address,
   ]);
 
-  const rootContext = await rootRegistry.read.ROOT_CONTEXT();
+  const rootResource = await rootRegistry.read.ROOT_RESOURCE();
 
   await rootRegistry.write.grantRole([
-    rootContext,
+    rootResource,
     keccak256(stringToHex("TLD_ISSUER_ROLE")),
     accounts[0].address,
   ]);
 
   await ethRegistry.write.grantRole([
-    rootContext,
+    rootResource,
     keccak256(stringToHex("REGISTRAR_ROLE")),
     accounts[0].address,
   ]);

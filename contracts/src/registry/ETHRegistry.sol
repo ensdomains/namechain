@@ -23,7 +23,7 @@ contract ETHRegistry is PermissionedRegistry, EnhancedAccessControl {
     mapping(uint256 => address) public tokenObservers;
     
     constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
-        _grantRole(ROOT_CONTEXT, DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ROOT_RESOURCE, DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function uri(uint256 /*tokenId*/ ) public pure override returns (string memory) {
