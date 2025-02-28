@@ -20,7 +20,6 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     bytes32 public constant EJECTION_CONTROLLER_ROLE = keccak256("EJECTION_CONTROLLER_ROLE");
     bytes32 public constant RENEWAL_CONTROLLER_ROLE = keccak256("RENEWAL_CONTROLLER_ROLE");
 
-    error NameNotEjected(string label);
     error NameExpired(uint256 tokenId);
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
 
