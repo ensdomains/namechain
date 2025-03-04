@@ -16,7 +16,6 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
     uint64 private constant MAX_EXPIRY = type(uint64).max;
 
     error MaxCommitmentAgeTooLow();
-    error MaxCommitmentAgeTooHigh();
     error UnexpiredCommitmentExists(bytes32 commitment);
     error DurationTooShort(uint64 duration);
     error CommitmentTooNew(bytes32 commitment);
@@ -37,10 +36,6 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
 
         if (_maxCommitmentAge <= _minCommitmentAge) {
             revert MaxCommitmentAgeTooLow();
-        }
-
-        if (_maxCommitmentAge > block.timestamp) {
-            revert MaxCommitmentAgeTooHigh();
         }
 
         prices = _prices;
