@@ -76,6 +76,21 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         assertFalse(registrar.valid(""));
     }
 
+    function test_Revert_maxCommitmentAgeTooLow() public {
+        // Try to create a registrar with maxCommitmentAge <= minCommitmentAge
+        uint256 invalidMinAge = 100;
+        uint256 invalidMaxAge = 100; // Equal to minAge, should revert
+        
+        vm.expectRevert(ETHRegistrar.MaxCommitmentAgeTooLow.selector);
+        new ETHRegistrar(address(registry), priceOracle, invalidMinAge, invalidMaxAge);
+        
+        // Try with max age less than min age
+        invalidMaxAge = 99; // Less than minAge, should revert
+        
+        vm.expectRevert(ETHRegistrar.MaxCommitmentAgeTooLow.selector);
+        new ETHRegistrar(address(registry), priceOracle, invalidMinAge, invalidMaxAge);
+    }
+
     function test_available() public {
         string memory name = "testname";
         assertTrue(registrar.available(name));
@@ -537,6 +552,44 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             flags, 
             duration
         );
+        
+        // Verify refund
+        assertEq(address(this).balance, initialBalance - (BASE_PRICE + PREMIUM_PRICE));
+    }
+
+    function test_refund_excess_payment_renew() public {
+        string memory name = "testname";
+        address owner = address(this);
+        uint96 flags = 0;
+        uint64 duration = REGISTRATION_DURATION;
+        
+        // Register the name first
+        bytes32 commitment = registrar.makeCommitment(
+            name, 
+            owner, 
+            bytes32(0), 
+            address(registry), 
+            flags, 
+            duration
+        );
+        registrar.commit(commitment);
+        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
+        registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
+            name, 
+            owner, 
+            registry, 
+            flags, 
+            duration
+        );
+        
+        // Get initial balance
+        uint256 initialBalance = address(this).balance;
+        
+        // Renew with excess payment
+        uint256 excessAmount = 0.5 ether;
+        uint64 renewalDuration = 180 days;
+        
+        registrar.renew{value: BASE_PRICE + PREMIUM_PRICE + excessAmount}(name, renewalDuration);
         
         // Verify refund
         assertEq(address(this).balance, initialBalance - (BASE_PRICE + PREMIUM_PRICE));
