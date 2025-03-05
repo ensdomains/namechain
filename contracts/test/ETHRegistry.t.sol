@@ -11,6 +11,8 @@ import "src/registry/IETHRegistry.sol";
 import "src/registry/RegistryDatastore.sol";
 import "../src/registry/ETHRegistry.sol";
 import "../src/registry/RegistryDatastore.sol";
+import "../src/registry/ETHRegistrar.sol";
+import "../src/registry/IPriceOracle.sol";
 
 
 contract TestETHRegistry is Test, ERC1155Holder {
@@ -18,8 +20,10 @@ contract TestETHRegistry is Test, ERC1155Holder {
 
     RegistryDatastore datastore;
     ETHRegistry registry;
+    ETHRegistrar registrar;
     MockTokenObserver observer;
     RevertingTokenObserver revertingObserver;
+    MockPriceOracle priceOracle;
 
     function setUp() public {
         datastore = new RegistryDatastore();
@@ -27,6 +31,8 @@ contract TestETHRegistry is Test, ERC1155Holder {
         registry.grantRole(registry.REGISTRAR_ROLE(), address(this));
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
+        priceOracle = new MockPriceOracle();
+        registrar = new ETHRegistrar(address(registry), priceOracle, 60, 86400);
     }
 
     function test_register_unlocked() public {
@@ -218,6 +224,30 @@ contract TestETHRegistry is Test, ERC1155Holder {
         assertEq(registry.getResolver("test2"), address(0));
     }
 
+    function test_available_returns_true_for_expired_name() public {
+        string memory name = "test2";
+        registry.register(name, address(this), registry, address(0), 0, uint64(block.timestamp) + 100);
+        vm.warp(block.timestamp + 101);
+        
+        bool isAvailable = registrar.available(name);
+        assertTrue(isAvailable);
+    }
+
+    function test_available_returns_false_for_unexpired_name() public {
+        string memory name = "test2";
+        registry.register(name, address(this), registry, address(0), 0, uint64(block.timestamp) + 100);
+        
+        bool isAvailable = registrar.available(name);
+        assertFalse(isAvailable);
+    }
+
+    function test_available_returns_true_for_unregistered_name() public view {
+        string memory name = "unregistered";
+        
+        bool isAvailable = registrar.available(name);
+        assertTrue(isAvailable);
+    }
+
     // Token observers
 
     function test_token_observer_renew() public {
@@ -319,5 +349,14 @@ contract RevertingTokenObserver is ETHRegistryTokenObserver {
 
     function onRelinquish(uint256, address) external pure {
         revert ObserverReverted();
+    }
+}
+
+contract MockPriceOracle is IPriceOracle {
+    function price(string memory, uint256, uint256) external pure override returns (Price memory) {
+        return Price({
+            base: 0.01 ether,
+            premium: 0
+        });
     }
 }

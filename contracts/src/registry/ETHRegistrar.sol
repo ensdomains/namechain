@@ -58,8 +58,9 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
      * @return True if the name is available, false otherwise.
      */
     function available(string calldata name) external view returns (bool) {
-        address subregistry = address(registry.getSubregistry(name));
-        return subregistry == address(0);
+        uint256 tokenId = NameUtils.labelToTokenId(name);
+        (uint64 expiry, ) = registry.nameData(tokenId);
+        return expiry < block.timestamp;
     }
 
 
