@@ -21,15 +21,18 @@ export async function deployEnsFixture() {
 
   const rootResource = await rootRegistry.read.ROOT_RESOURCE();
 
+  const TLD_ISSUER_ROLE = await rootRegistry.read.TLD_ISSUER_ROLE();
+  const REGISTRAR_ROLE = await rootRegistry.read.REGISTRAR_ROLE();
+
   await rootRegistry.write.grantRole([
     rootResource,
-    keccak256(stringToHex("TLD_ISSUER_ROLE")),
+    TLD_ISSUER_ROLE,
     accounts[0].address,
   ]);
 
   await ethRegistry.write.grantRole([
     rootResource,
-    keccak256(stringToHex("REGISTRAR_ROLE")),
+    REGISTRAR_ROLE,
     accounts[0].address,
   ]);
   

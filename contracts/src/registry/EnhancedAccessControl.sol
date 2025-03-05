@@ -11,39 +11,27 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
  * 
  * - Resource-based roles.
  * - Root resource override (0x0) - role assignments in the root resource auto-apply to all resources.
- * - Removing all assignments of a given role from a resource.
+ * - Max 256 roles stored as a bitmap in uint256.
  */
 abstract contract EnhancedAccessControl is Context, ERC165 {
-    error EnhancedAccessControlUnauthorizedAccountRole(bytes32 resource, bytes32 role, address account);
+    error EnhancedAccessControlUnauthorizedAccountRole(bytes32 resource, uint8 roleId, address account);
     error EnhancedAccessControlBadConfirmation();
 
-    event EnhancedAccessControlRoleAdminChanged(bytes32 role, bytes32 previousAdminRole, bytes32 newAdminRole);
-    event EnhancedAccessControlRoleGranted(bytes32 resource, bytes32 role, address account, address sender);
-    event EnhancedAccessControlRoleRevoked(bytes32 resource, bytes32 role, address account, address sender);
-
-    /** @dev user role within a resource. */
-    struct RoleAssignment {
-        uint256 version;   // Version tying this assignment to the current role version - see _roleVersion below
-        bool hasRole;      // Indicates if the user has the role
-    }
+    event EnhancedAccessControlRoleAdminChanged(uint8 roleId, uint8 previousAdminRoleId, uint8 newAdminRoleId);
+    event EnhancedAccessControlRoleGranted(bytes32 resource, uint8 roleId, address account, address sender);
+    event EnhancedAccessControlRoleRevoked(bytes32 resource, uint8 roleId, address account, address sender);
 
     /** 
      * @dev admin role that controls a given role. 
-     * Role -> AdminRole
+     * RoleId -> AdminRoleId
      */
-    mapping(bytes32 role => bytes32 adminRole) private _adminRoles;
+    mapping(uint8 roleId => uint8 adminRoleId) private _adminRoles;
 
     /**
-     * @dev user role within a resource.
-     * Resource -> Role -> User -> RoleAssignment
+     * @dev user roles within a resource stored as a bitmap.
+     * Resource -> User -> RoleBitmap
      */
-    mapping(bytes32 resource => mapping(bytes32 role => mapping(address account => RoleAssignment roleAssignment))) private _roles;
-
-    /**
-     * @dev We use a version number to track the changes to the role assignments.
-     * This means we can easily remove all assignments of a given role without needing a loop.
-     */
-    mapping(bytes32 resource => mapping(bytes32 role => uint256 version)) private _roleVersion;
+    mapping(bytes32 resource => mapping(address account => uint256 roleBitmap)) private _roles;
 
     /**
      * @dev The root resource.
@@ -53,14 +41,14 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev The default admin role.
      */
-    bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
+    uint8 public constant DEFAULT_ADMIN_ROLE = 0;
 
     /**
      * @dev Modifier that checks that sender has a specific role within the given resource. 
      * Reverts with an {AccessControlUnauthorizedAccount} error including the required role.
      */
-    modifier onlyRole(bytes32 resource, bytes32 role) {
-        _checkRole(resource, role, _msgSender());
+    modifier onlyRole(bytes32 resource, uint8 roleId) {
+        _checkRole(resource, roleId, _msgSender());
         _;
     }
 
@@ -68,8 +56,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Modifier that checks that sender has a specific role within the root resource. 
      * Reverts with an {AccessControlUnauthorizedAccount} error including the required role.
      */
-    modifier onlyRootRole(bytes32 role) {
-        _checkRole(ROOT_RESOURCE, role, _msgSender());
+    modifier onlyRootRole(uint8 roleId) {
+        _checkRole(ROOT_RESOURCE, roleId, _msgSender());
         _;
     }
 
@@ -81,86 +69,78 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Returns `true` if `account` has been granted `role` in the root resource.
+     * @dev Returns `true` if `account` has been granted `roleId` in the root resource.
      */
-    function hasRootRole(bytes32 role, address account) public view virtual returns (bool) {
-        if (_roles[ROOT_RESOURCE][role][account].hasRole && _roles[ROOT_RESOURCE][role][account].version == _roleVersion[ROOT_RESOURCE][role]) {
-            return true;
-        } else {
-            return false;
-        }
+    function hasRootRole(uint8 roleId, address account) public view virtual returns (bool) {
+        return (_roles[ROOT_RESOURCE][account] & (1 << roleId)) != 0;
     }
 
     /**
-     * @dev Returns `true` if `account` has been granted `role`.
+     * @dev Returns `true` if `account` has been granted `roleId`.
      */
-    function hasRole(bytes32 resource, bytes32 role, address account) public view virtual returns (bool) {
-        if (_roles[resource][role][account].hasRole && _roles[resource][role][account].version == _roleVersion[resource][role]) {
-            return true;
-        } else {
-            return hasRootRole(role, account);
-        }
+    function hasRole(bytes32 resource, uint8 roleId, address account) public view virtual returns (bool) {
+        return ((_roles[resource][account] & (1 << roleId)) != 0) || hasRootRole(roleId, account);
     }
 
     /**
      * @dev Reverts with an {AccessControlUnauthorizedAccount} error if `account`
-     * is missing `role`.
+     * is missing `roleId`.
      */
-    function _checkRole(bytes32 resource, bytes32 role, address account) internal view virtual {
-        if (!hasRole(resource, role, account)) {
-            revert EnhancedAccessControlUnauthorizedAccountRole(resource, role, account);
+    function _checkRole(bytes32 resource, uint8 roleId, address account) internal view virtual {
+        if (!hasRole(resource, roleId, account)) {
+            revert EnhancedAccessControlUnauthorizedAccountRole(resource, roleId, account);
         }
     }
 
     /**
-     * @dev Returns the admin role that controls `role`. See {grantRole} and
+     * @dev Returns the admin role that controls `roleId`. See {grantRole} and
      * {revokeRole}.
      *
      * To change a role's admin, use {_setRoleAdmin}.
      */
-    function getRoleAdmin(bytes32 role) public view virtual returns (bytes32) {
-        return _adminRoles[role];
+    function getRoleAdmin(uint8 roleId) public view virtual returns (uint8) {
+        return _adminRoles[roleId];
     }
 
     /**
-     * @dev Grants `role` to `account`.
+     * @dev Grants `roleId` to `account`.
      *
-     * If `account` had not been already granted `role`, emits a {RoleGranted}
+     * If `account` had not been already granted `roleId`, emits a {RoleGranted}
      * event.
      *
      * Requirements:
      *
-     * - the caller must have ``role``'s admin role.
+     * - the caller must have ``roleId``'s admin role.
      *
      * May emit a {RoleGranted} event.
      */
-    function grantRole(bytes32 resource, bytes32 role, address account) public virtual onlyRole(resource, getRoleAdmin(role)) returns (bool) {
-        return _grantRole(resource, role, account);
+    function grantRole(bytes32 resource, uint8 roleId, address account) public virtual onlyRole(resource, getRoleAdmin(roleId)) returns (bool) {
+        return _grantRole(resource, roleId, account);
     }
 
     /**
-     * @dev Revokes `role` from `account`.
+     * @dev Revokes `roleId` from `account`.
      *
-     * If `account` had been granted `role`, emits a {RoleRevoked} event.
+     * If `account` had been granted `roleId`, emits a {RoleRevoked} event.
      *
      * Requirements:
      *
-     * - the caller must have ``role``'s admin role.
+     * - the caller must have ``roleId``'s admin role.
      *
      * May emit a {RoleRevoked} event.
      */
-    function revokeRole(bytes32 resource, bytes32 role, address account) public virtual onlyRole(resource, getRoleAdmin(role)) {
-        _revokeRole(resource, role, account);
+    function revokeRole(bytes32 resource, uint8 roleId, address account) public virtual onlyRole(resource, getRoleAdmin(roleId)) {
+        _revokeRole(resource, roleId, account);
     }
 
     /**
-     * @dev Revokes `role` from the calling account.
+     * @dev Revokes `roleId` from the calling account.
      *
      * Roles are often managed via {grantRole} and {revokeRole}: this function's
      * purpose is to provide a mechanism for accounts to lose their privileges
      * if they are compromised (such as when a trusted device is misplaced).
      *
-     * If the calling account had been revoked `role`, emits a {RoleRevoked}
+     * If the calling account had been revoked `roleId`, emits a {RoleRevoked}
      * event.
      *
      * Requirements:
@@ -169,50 +149,44 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleRevoked} event.
      */
-    function renounceRole(bytes32 resource, bytes32 role, address callerConfirmation) public virtual {
+    function renounceRole(bytes32 resource, uint8 roleId, address callerConfirmation) public virtual {
         if (callerConfirmation != _msgSender()) {
             revert EnhancedAccessControlBadConfirmation();
         }
 
-        _revokeRole(resource, role, callerConfirmation);
+        _revokeRole(resource, roleId, callerConfirmation);
     }
 
-
-    function _transferRole(bytes32 resource, bytes32 role, address previousAccount, address newAccount) internal virtual {
-        _revokeRole(resource, role, previousAccount);
-        _grantRole(resource, role, newAccount);
+    function _transferRole(bytes32 resource, uint8 roleId, address previousAccount, address newAccount) internal virtual {
+        _revokeRole(resource, roleId, previousAccount);
+        _grantRole(resource, roleId, newAccount);
     }
-
 
     /**
-     * @dev Sets `adminRole` as ``role``'s admin role.
+     * @dev Sets `adminRoleId` as ``roleId``'s admin role.
      *
      * Emits a {EnhancedAccessControlRoleAdminChanged} event.
      */
-    function _setRoleAdmin(bytes32 role, bytes32 adminRole) internal virtual {
-        bytes32 previousAdminRole = getRoleAdmin(role);
-        _adminRoles[role] = adminRole;
-        emit EnhancedAccessControlRoleAdminChanged(role, previousAdminRole, adminRole);
+    function _setRoleAdmin(uint8 roleId, uint8 adminRoleId) internal virtual {
+        uint8 previousAdminRoleId = getRoleAdmin(roleId);
+        _adminRoles[roleId] = adminRoleId;
+        emit EnhancedAccessControlRoleAdminChanged(roleId, previousAdminRoleId, adminRoleId);
     }
 
     /**
-     * @dev Revoke all assignments of a given role in a given resource.
-     */
-    function _revokeRoleAssignments(bytes32 resource, bytes32 role) internal virtual {
-        _roleVersion[resource][role]++;
-    }
-
-    /**
-     * @dev Attempts to grant `role` to `account` and returns a boolean indicating if `role` was granted.
+     * @dev Attempts to grant `roleId` to `account` and returns a boolean indicating if `roleId` was granted.
      *
      * Internal function without access restriction.
      *
      * May emit a {RoleGranted} event.
      */
-    function _grantRole(bytes32 resource, bytes32 role, address account) internal virtual returns (bool) {
-        if (!hasRole(resource, role, account)) {
-            _roles[resource][role][account] = RoleAssignment(_roleVersion[resource][role], true);
-            emit EnhancedAccessControlRoleGranted(resource, role, account, _msgSender());
+    function _grantRole(bytes32 resource, uint8 roleId, address account) internal virtual returns (bool) {
+        uint256 currentRoles = _roles[resource][account];
+        uint256 updatedRoles = currentRoles | (1 << roleId);
+        
+        if (currentRoles != updatedRoles) {
+            _roles[resource][account] = updatedRoles;
+            emit EnhancedAccessControlRoleGranted(resource, roleId, account, _msgSender());
             return true;
         } else {
             return false;
@@ -220,16 +194,19 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Attempts to revoke `role` to `account` and returns a boolean indicating if `role` was revoked.
+     * @dev Attempts to revoke `roleId` to `account` and returns a boolean indicating if `roleId` was revoked.
      *
      * Internal function without access restriction.
      *
      * May emit a {RoleRevoked} event.
      */
-    function _revokeRole(bytes32 resource, bytes32 role, address account) internal virtual returns (bool) {
-        if (hasRole(resource, role, account)) {
-            _roles[resource][role][account] = RoleAssignment(_roleVersion[resource][role], false);
-            emit EnhancedAccessControlRoleRevoked(resource, role, account, _msgSender());
+    function _revokeRole(bytes32 resource, uint8 roleId, address account) internal virtual returns (bool) {
+        uint256 currentRoles = _roles[resource][account];
+        uint256 updatedRoles = currentRoles & ~(1 << roleId);
+        
+        if (currentRoles != updatedRoles) {
+            _roles[resource][account] = updatedRoles;
+            emit EnhancedAccessControlRoleRevoked(resource, roleId, account, _msgSender());
             return true;
         } else {
             return false;

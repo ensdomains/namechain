@@ -9,11 +9,10 @@ import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
+import {Roles} from "./Roles.sol";
 
-contract RootRegistry is PermissionedRegistry, EnhancedAccessControl {
-    bytes32 public constant TLD_ISSUER_ROLE = keccak256("TLD_ISSUER_ROLE");
-
-    mapping(uint256 tokenId=>string) uris;
+contract RootRegistry is PermissionedRegistry, EnhancedAccessControl, Roles {
+    mapping(uint256 tokenId => string) uris;
 
     constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
         _grantRole(ROOT_RESOURCE, DEFAULT_ADMIN_ROLE, msg.sender);

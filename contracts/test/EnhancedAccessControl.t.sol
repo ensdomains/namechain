@@ -10,22 +10,18 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
         _grantRole(ROOT_RESOURCE, DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function setRoleAdmin(bytes32 role, bytes32 adminRole) external {
-        _setRoleAdmin(role, adminRole);
-    }
-
-    function revokeRoleAssignments(bytes32 resource, bytes32 role) external {
-        _revokeRoleAssignments(resource, role);
+    function setRoleAdmin(uint8 roleId, uint8 adminRoleId) external {
+        _setRoleAdmin(roleId, adminRoleId);
     }
     
-    function callOnlyRootRole(bytes32 role) external onlyRootRole(role) {
+    function callOnlyRootRole(uint8 roleId) external onlyRootRole(roleId) {
         // Function that will revert if caller doesn't have the role in root resource
     }
 }
 
 contract EnhancedAccessControlTest is Test {
-    bytes32 public constant ROLE_A = keccak256("ROLE_A");
-    bytes32 public constant ROLE_B = keccak256("ROLE_B");
+    uint8 public constant ROLE_A = 1;
+    uint8 public constant ROLE_B = 2;
     bytes32 public constant RESOURCE_1 = bytes32(keccak256("RESOURCE_1"));
     bytes32 public constant RESOURCE_2 = bytes32(keccak256("RESOURCE_2"));
 
@@ -56,10 +52,10 @@ contract EnhancedAccessControlTest is Test {
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleGranted(bytes32,bytes32,address,address)"));
-        (bytes32 resource, bytes32 role, address account, address sender) = abi.decode(entries[0].data, (bytes32, bytes32, address, address));
+        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleGranted(bytes32,uint8,address,address)"));
+        (bytes32 resource, uint8 roleId, address account, address sender) = abi.decode(entries[0].data, (bytes32, uint8, address, address));
         assertEq(resource, RESOURCE_1);
-        assertEq(role, ROLE_A);
+        assertEq(roleId, ROLE_A);
         assertEq(account, user1);
         assertEq(sender, address(this));
     }
@@ -124,10 +120,10 @@ contract EnhancedAccessControlTest is Test {
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleRevoked(bytes32,bytes32,address,address)"));
-        (bytes32 resource, bytes32 role, address account, address sender) = abi.decode(entries[0].data, (bytes32, bytes32, address, address));
+        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleRevoked(bytes32,uint8,address,address)"));
+        (bytes32 resource, uint8 roleId, address account, address sender) = abi.decode(entries[0].data, (bytes32, uint8, address, address));
         assertEq(resource, RESOURCE_1);
-        assertEq(role, ROLE_A);
+        assertEq(roleId, ROLE_A);
         assertEq(account, user1);
         assertEq(sender, address(this));
     }
@@ -147,10 +143,10 @@ contract EnhancedAccessControlTest is Test {
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleAdminChanged(bytes32,bytes32,bytes32)"));
-        (bytes32 role, bytes32 previousAdmin, bytes32 newAdmin) = abi.decode(entries[0].data, (bytes32, bytes32, bytes32));
-        assertEq(role, ROLE_A);
-        assertEq(previousAdmin, bytes32(0));
+        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleAdminChanged(uint8,uint8,uint8)"));
+        (uint8 roleId, uint8 previousAdmin, uint8 newAdmin) = abi.decode(entries[0].data, (uint8, uint8, uint8));
+        assertEq(roleId, ROLE_A);
+        assertEq(previousAdmin, 0);
         assertEq(newAdmin, ROLE_B);
 
         access.grantRole(RESOURCE_1, ROLE_B, user1);
@@ -192,18 +188,6 @@ contract EnhancedAccessControlTest is Test {
 
     function test_supports_interface() public view {
         assertTrue(access.supportsInterface(type(EnhancedAccessControl).interfaceId));
-    }
-
-    function test_revoke_role_assignments() public {
-        access.grantRole(RESOURCE_1, ROLE_A, user1);
-        access.grantRole(RESOURCE_1, ROLE_A, user2);
-        access.grantRole(RESOURCE_1, ROLE_B, user1);
-        
-        access.revokeRoleAssignments(RESOURCE_1, ROLE_A);
-        
-        assertFalse(access.hasRole(RESOURCE_1, ROLE_A, user1));
-        assertFalse(access.hasRole(RESOURCE_1, ROLE_A, user2));
-        assertTrue(access.hasRole(RESOURCE_1, ROLE_B, user1));
     }
 
     function test_root_resource_role_applies_to_all_resources() public {

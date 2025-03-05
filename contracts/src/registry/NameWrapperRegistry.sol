@@ -8,11 +8,9 @@ import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
 import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
+import {Roles} from "./Roles.sol";
 
-contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl {
-    bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
-    bytes32 public constant RENEW_ROLE = keccak256("RENEW_ROLE");
-
+contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl, Roles {
     error NameAlreadyRegistered(string label);
     error NameExpired(uint256 tokenId);
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
