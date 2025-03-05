@@ -21,6 +21,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     bytes32 public constant RENEWAL_CONTROLLER_ROLE = keccak256("RENEWAL_CONTROLLER_ROLE");
 
     error NameExpired(uint256 tokenId);
+    error NameNotExpired(uint256 tokenId, uint64 expires);
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
 
     event NameEjected(uint256 indexed tokenId, address owner, uint64 expires);
@@ -41,6 +42,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     }
 
     function uri(uint256 /*tokenId*/ ) public pure override returns (string memory) {
+        // TODO: implement metadata uri
         return "";
     }
 
@@ -61,30 +63,35 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
 
     /**
      * @dev Receive an ejected name from L2.
-     * @param label The label of the name
+     * @param labelHash The keccak256 hash of the label
      * @param owner The owner of the name
      * @param registry The registry to use for the name
-     * @param flags Additional flags for the name
+     * @param flags The base flags
      * @param expires Expiration timestamp
      * @return tokenId The token ID of the ejected name
      */
-    function ejectFromL2(string calldata label, address owner, IRegistry registry, uint96 flags, uint64 expires)
+    function ejectFromL2(uint256 labelHash, address owner, IRegistry registry, uint32 flags, uint64 expires)
         public
         onlyRole(EJECTION_CONTROLLER_ROLE)
         returns (uint256 tokenId)
     {
-        tokenId = (uint256(keccak256(bytes(label))) & ~uint256(FLAGS_MASK)) | flags;
-        flags = (flags & FLAGS_MASK) | (uint96(expires) << 32);
+        tokenId = (labelHash & ~uint256(FLAGS_MASK)) | flags;
+        uint96 fullFlags = (uint96(flags) & FLAGS_MASK) | (uint96(expires) << 32);
 
-        // If there is a previous owner, burn the token
+        // Check if there is a previous owner and verify the name is expired
+        // to prevent malicious ejection controllers from overriding valid L1 names
         address previousOwner = super.ownerOf(tokenId);
         if (previousOwner != address(0)) {
+            (, uint96 oldFlags) = datastore.getSubregistry(tokenId);
+            uint64 oldExpires = _extractExpiry(oldFlags);
+            if (oldExpires >= block.timestamp) {
+                revert NameNotExpired(tokenId, oldExpires);
+            }
             _burn(previousOwner, tokenId, 1);
         }
 
         _mint(owner, tokenId, 1, "");
-        datastore.setSubregistry(tokenId, address(registry), flags);
-        emit NewSubname(label);
+        datastore.setSubregistry(tokenId, address(registry), fullFlags);
         emit NameEjected(tokenId, owner, expires);
         return tokenId;
     }
@@ -124,7 +131,8 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     }
 
     /**
-     * @dev Relinquish an ejected name
+     * @dev Relinquish an ejected name. This completely abandons the name,
+     * allowing it to be registered by anyone once it becomes available.
      * @param tokenId The token ID of the name to relinquish
      */
     function relinquish(uint256 tokenId) external onlyTokenOwner(tokenId) {
@@ -140,7 +148,9 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     }
 
     /**
-     * @dev Migrate a name back to L2
+     * @dev Migrate a name back to L2, preserving ownership on L2.
+     * According to section 4.5.6 of the design doc, this process requires
+     * the ejection controller to facilitate cross-chain communication.
      * @param tokenId The token ID of the name to migrate
      * @param sendTo The address to send the name to on L2
      */
@@ -152,6 +162,8 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
         address owner = ownerOf(tokenId);
         _burn(owner, tokenId, 1);
         datastore.setSubregistry(tokenId, address(0), 0);
+
+        // TODO: Notify ejection controller
 
         emit NameMigratedToL2(tokenId, sendTo);
     }
