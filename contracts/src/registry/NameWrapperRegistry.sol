@@ -29,13 +29,6 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl, Rol
         registrar = _registrar;
     }
 
-    function transferRegistrar(address newRegistrar) public onlyRootRole(REGISTRAR_ROLE) {
-        _transferRole(ROOT_RESOURCE, REGISTRAR_ROLE, registrar, newRegistrar);
-        _transferRole(ROOT_RESOURCE, RENEW_ROLE, registrar, newRegistrar);
-        registrar = newRegistrar;
-        emit RegistrarRoleTransferred(registrar, newRegistrar);
-    }
-
     function uri(uint256 /*tokenId*/ ) public pure override returns (string memory) {
         return "";
     }

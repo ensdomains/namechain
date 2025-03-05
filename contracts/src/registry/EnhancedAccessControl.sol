@@ -20,6 +20,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     event EnhancedAccessControlRoleAdminChanged(uint8 roleId, uint8 previousAdminRoleId, uint8 newAdminRoleId);
     event EnhancedAccessControlRoleGranted(bytes32 resource, uint8 roleId, address account, address sender);
     event EnhancedAccessControlRoleRevoked(bytes32 resource, uint8 roleId, address account, address sender);
+    event EnhancedAccessControlAllRolesRevoked(bytes32 resource, address account, address sender);
 
     /** 
      * @dev admin role that controls a given role. 
@@ -157,10 +158,21 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         _revokeRole(resource, roleId, callerConfirmation);
     }
 
-    function _transferRole(bytes32 resource, uint8 roleId, address previousAccount, address newAccount) internal virtual {
-        _revokeRole(resource, roleId, previousAccount);
-        _grantRole(resource, roleId, newAccount);
+    // Internal functions
+
+    /**
+     * @dev Copies all roles from `srcAccount` to `dstAccount`.
+     *
+     * @param resource The resource this applies to.
+     * @param srcAccount The account to copy roles from.
+     * @param dstAccount The account to copy roles to.
+     */
+    function _copyRoles(bytes32 resource, address srcAccount, address dstAccount) internal virtual {
+        uint256 srcRoles = _roles[resource][srcAccount];
+        _roles[resource][dstAccount] = srcRoles;
     }
+
+
 
     /**
      * @dev Sets `adminRoleId` as ``roleId``'s admin role.
@@ -211,5 +223,14 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         } else {
             return false;
         }
+    }
+
+
+    /**
+     * @dev Revoke all roles for account within resource.
+     */
+    function _revokeAllRoles(bytes32 resource, address account) internal virtual {
+        _roles[resource][account] = 0;
+        emit EnhancedAccessControlAllRolesRevoked(resource, account, _msgSender());
     }
 }

@@ -17,6 +17,14 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
     function callOnlyRootRole(uint8 roleId) external onlyRootRole(roleId) {
         // Function that will revert if caller doesn't have the role in root resource
     }
+
+    function copyRoles(bytes32 resource, address srcAccount, address dstAccount) external {
+        _copyRoles(resource, srcAccount, dstAccount);
+    }
+
+    function revokeAllRoles(bytes32 resource, address account) external {
+        _revokeAllRoles(resource, account);
+    }
 }
 
 contract EnhancedAccessControlTest is Test {
@@ -196,5 +204,70 @@ contract EnhancedAccessControlTest is Test {
         assertTrue(access.hasRole(RESOURCE_1, ROLE_A, user1));
         assertTrue(access.hasRole(RESOURCE_2, ROLE_A, user1));
         assertTrue(access.hasRole(bytes32(keccak256("ANY_OTHER_RESOURCE")), ROLE_A, user1));
+    }
+
+    function test_copy_roles() public {
+        // Setup: Grant multiple roles to user1
+        access.grantRole(RESOURCE_1, ROLE_A, user1);
+        access.grantRole(RESOURCE_1, ROLE_B, user1);
+        access.grantRole(RESOURCE_2, ROLE_A, user1);
+        
+        // Verify initial state
+        assertTrue(access.hasRole(RESOURCE_1, ROLE_A, user1));
+        assertTrue(access.hasRole(RESOURCE_1, ROLE_B, user1));
+        assertTrue(access.hasRole(RESOURCE_2, ROLE_A, user1));
+        
+        assertFalse(access.hasRole(RESOURCE_1, ROLE_A, user2));
+        assertFalse(access.hasRole(RESOURCE_1, ROLE_B, user2));
+        assertFalse(access.hasRole(RESOURCE_2, ROLE_A, user2));
+        
+        // Copy roles from user1 to user2 for RESOURCE_1
+        access.copyRoles(RESOURCE_1, user1, user2);
+        
+        // Verify roles were copied correctly for RESOURCE_1
+        assertTrue(access.hasRole(RESOURCE_1, ROLE_A, user2));
+        assertTrue(access.hasRole(RESOURCE_1, ROLE_B, user2));
+        
+        // Verify roles for RESOURCE_2 were not copied
+        assertFalse(access.hasRole(RESOURCE_2, ROLE_A, user2));
+        
+        // Verify user1 still has all original roles
+        assertTrue(access.hasRole(RESOURCE_1, ROLE_A, user1));
+        assertTrue(access.hasRole(RESOURCE_1, ROLE_B, user1));
+        assertTrue(access.hasRole(RESOURCE_2, ROLE_A, user1));
+    }
+
+    function test_revoke_all_roles() public {
+        // Setup: Grant multiple roles to user1
+        access.grantRole(RESOURCE_1, ROLE_A, user1);
+        access.grantRole(RESOURCE_1, ROLE_B, user1);
+        access.grantRole(RESOURCE_2, ROLE_A, user1);
+        
+        // Verify initial state
+        assertTrue(access.hasRole(RESOURCE_1, ROLE_A, user1));
+        assertTrue(access.hasRole(RESOURCE_1, ROLE_B, user1));
+        assertTrue(access.hasRole(RESOURCE_2, ROLE_A, user1));
+        
+        // Record logs to verify event emission
+        vm.recordLogs();
+        
+        // Revoke all roles for RESOURCE_1
+        access.revokeAllRoles(RESOURCE_1, user1);
+        
+        // Verify all roles for RESOURCE_1 were revoked
+        assertFalse(access.hasRole(RESOURCE_1, ROLE_A, user1));
+        assertFalse(access.hasRole(RESOURCE_1, ROLE_B, user1));
+        
+        // Verify roles for RESOURCE_2 were not affected
+        assertTrue(access.hasRole(RESOURCE_2, ROLE_A, user1));
+        
+        // Verify event was emitted correctly
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlAllRolesRevoked(bytes32,address,address)"));
+        (bytes32 resource, address account, address sender) = abi.decode(entries[0].data, (bytes32, address, address));
+        assertEq(resource, RESOURCE_1);
+        assertEq(account, user1);
+        assertEq(sender, address(this));
     }
 } 
