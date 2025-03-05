@@ -9,7 +9,8 @@
     "deploy": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat run scripts/deploy.ts",
     "register": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat run scripts/register.ts",
     "console": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat console",
-    "watch-events": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat run scripts/watch-events.ts"
+    "watch-events": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat run scripts/watch-events.ts",
+    "coverage": "forge coverage --report lcov && bun run test:hardhat"
   },
   "devDependencies": {
     "@ensdomains/hardhat-chai-matchers-viem": "^0.0.7",

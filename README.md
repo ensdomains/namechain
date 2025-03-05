@@ -1,4 +1,4 @@
-# enschain
+# namechain
 
 ## Monorepo for ENSv2 contracts + chain
 
