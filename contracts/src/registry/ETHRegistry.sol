@@ -40,7 +40,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, IETHRegistry {
         return super.ownerOf(tokenId);
     }
 
-    function register(string calldata label, address owner, IRegistry registry, uint96 flags, uint64 expires)
+    function register(string calldata label, address owner, IRegistry registry, address resolver, uint96 flags, uint64 expires)
         public
         onlyRole(REGISTRAR_ROLE)
         returns (uint256 tokenId)
@@ -66,6 +66,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, IETHRegistry {
 
         _mint(owner, tokenId, 1, "");
         datastore.setSubregistry(tokenId, address(registry), flags);
+        datastore.setResolver(tokenId, resolver, flags);
         emit NewSubname(label);
         return tokenId;
     }

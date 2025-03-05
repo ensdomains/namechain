@@ -14,11 +14,12 @@ interface IETHRegistrar {
      * @param name The name that was registered.
      * @param owner The address of the owner of the name.
      * @param subregistry The registry used for the registration.
+     * @param resolver The resolver used for the registration.
      * @param flags The flags used for the registration.
      * @param duration The duration of the registration.
      * @param tokenId The ID of the newly registered name.
      */
-    event NameRegistered(string name, address owner, IRegistry subregistry, uint96 flags, uint64 duration, uint256 tokenId);
+    event NameRegistered(string name, address owner, IRegistry subregistry, address resolver, uint96 flags, uint64 duration, uint256 tokenId);
 
     /**
      * @dev Emitted when a name is renewed.
@@ -26,8 +27,16 @@ interface IETHRegistrar {
      * @param name The name that was renewed.
      * @param duration The duration of the renewal.
      * @param tokenId The ID of the renewed name.
+     * @param newExpiry The new expiry of the name.
      */
-    event NameRenewed(string name, uint64 duration, uint256 tokenId);
+    event NameRenewed(string name, uint64 duration, uint256 tokenId, uint64 newExpiry);
+
+    /**
+     * @dev Emitted when a commitment is made.
+     *
+     * @param commitment The commitment that was made.
+     */
+    event CommitmentMade(bytes32 commitment);
 
     /**
      * @dev Returns true if the specified name is available for registration.
@@ -63,6 +72,7 @@ interface IETHRegistrar {
      * @param owner The address of the owner of the name.
      * @param secret The secret of the name.
      * @param subregistry The registry to use for the commitment.
+     * @param resolver The resolver to use for the commitment.
      * @param flags The flags to use for the commitment.
      * @param expires The expiration timestamp of the commitment.
      * @return The commitment.
@@ -72,6 +82,7 @@ interface IETHRegistrar {
         address owner,
         bytes32 secret,
         address subregistry,
+        address resolver,
         uint96 flags,
         uint64 expires
     ) external pure returns (bytes32);
@@ -90,6 +101,7 @@ interface IETHRegistrar {
      * @param name The name to register.
      * @param owner The address of the owner of the name.
      * @param subregistry The registry to use for the registration.
+     * @param resolver The resolver to use for the registration.
      * @param flags The flags to use for the registration.
      * @param expires The expiration timestamp of the registration.
      *
@@ -99,6 +111,7 @@ interface IETHRegistrar {
         string calldata name,
         address owner,
         IRegistry subregistry,
+        address resolver,
         uint96 flags,
         uint64 expires
     ) external payable returns (uint256);

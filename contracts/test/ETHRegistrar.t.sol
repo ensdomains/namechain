@@ -81,13 +81,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         uint256 invalidMinAge = 100;
         uint256 invalidMaxAge = 100; // Equal to minAge, should revert
         
-        vm.expectRevert(ETHRegistrar.MaxCommitmentAgeTooLow.selector);
+        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.MaxCommitmentAgeTooLow.selector));
         new ETHRegistrar(address(registry), priceOracle, invalidMinAge, invalidMaxAge);
         
         // Try with max age less than min age
         invalidMaxAge = 99; // Less than minAge, should revert
         
-        vm.expectRevert(ETHRegistrar.MaxCommitmentAgeTooLow.selector);
+        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.MaxCommitmentAgeTooLow.selector));
         new ETHRegistrar(address(registry), priceOracle, invalidMinAge, invalidMaxAge);
     }
 
@@ -100,7 +100,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             address(this), 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            address(0), // resolver
             0, 
             REGISTRATION_DURATION
         );
@@ -111,7 +112,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             address(this), 
-            registry, 
+            registry,
+            address(0), // resolver
             0, 
             REGISTRATION_DURATION
         );
@@ -133,10 +135,11 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         address owner = address(this);
         bytes32 secret = bytes32(uint256(1));
         address subregistry = address(registry);
+        address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         
-        bytes32 commitment = registrar.makeCommitment(name, owner, secret, subregistry, flags, duration);
+        bytes32 commitment = registrar.makeCommitment(name, owner, secret, subregistry, resolver, flags, duration);
         
         bytes32 expectedCommitment = keccak256(
             abi.encode(
@@ -144,6 +147,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
                 owner,
                 secret,
                 subregistry,
+                resolver,
                 flags,
                 duration
             )
@@ -158,15 +162,28 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             address(this), 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            address(0), // resolver
             0, 
             REGISTRATION_DURATION
         );
+        
+        // Record logs to check for events
+        vm.recordLogs();
         
         registrar.commit(commitment);
         
         // Check that the commitment was stored
         assertEq(registrar.commitments(commitment), block.timestamp);
+        
+        // Check for CommitmentMade event
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        bool foundEvent = EventUtils.checkEvent(
+            entries,
+            keccak256("CommitmentMade(bytes32)")
+        );
+        
+        assertTrue(foundEvent, "CommitmentMade event not emitted");
     }
 
     function test_Revert_unexpiredCommitment() public {
@@ -175,7 +192,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             address(this), 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            address(0), // resolver
             0, 
             REGISTRATION_DURATION
         );
@@ -190,6 +208,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_register() public {
         string memory name = "testname";
         address owner = address(this);
+        address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         
@@ -198,7 +217,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             owner, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
@@ -214,7 +234,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         uint256 tokenId = registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
-            registry, 
+            registry,
+            resolver,
             flags, 
             duration
         );
@@ -230,7 +251,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundEvent = EventUtils.checkEvent(
             entries,
-            keccak256("NameRegistered(string,address,address,uint96,uint64,uint256)")
+            keccak256("NameRegistered(string,address,address,address,uint96,uint64,uint256)")
         );
         
         assertTrue(foundEvent, "NameRegistered event not emitted");
@@ -239,6 +260,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_Revert_insufficientValue() public {
         string memory name = "testname";
         address owner = address(this);
+        address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         
@@ -247,7 +269,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             owner, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
@@ -257,11 +280,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
         
         // Try to register with insufficient value
-        vm.expectRevert(ETHRegistrar.InsufficientValue.selector);
+        uint256 totalPrice = BASE_PRICE + PREMIUM_PRICE;
+        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.InsufficientValue.selector, totalPrice, BASE_PRICE));
         registrar.register{value: BASE_PRICE}(
             name, 
             owner, 
-            registry, 
+            registry,
+            resolver,
             flags, 
             duration
         );
@@ -270,6 +295,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_Revert_commitmentTooNew() public {
         string memory name = "testname";
         address owner = address(this);
+        address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         
@@ -278,7 +304,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             owner, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
@@ -289,15 +316,17 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             owner, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.CommitmentTooNew.selector, expectedCommitment));
+        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.CommitmentTooNew.selector, expectedCommitment, block.timestamp + MIN_COMMITMENT_AGE, block.timestamp));
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
-            registry, 
+            registry,
+            resolver,
             flags, 
             duration
         );
@@ -306,6 +335,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_Revert_commitmentTooOld() public {
         string memory name = "testname";
         address owner = address(this);
+        address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         
@@ -314,7 +344,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             owner, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
@@ -328,15 +359,17 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             owner, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.CommitmentTooOld.selector, expectedCommitment));
+        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.CommitmentTooOld.selector, expectedCommitment, block.timestamp - 1, block.timestamp));
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
-            registry, 
+            registry,
+            resolver,
             flags, 
             duration
         );
@@ -345,6 +378,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_Revert_nameNotAvailable() public {
         string memory name = "testname";
         address owner = address(this);
+        address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         
@@ -353,7 +387,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             owner, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
@@ -362,7 +397,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
-            registry, 
+            registry,
+            resolver,
             flags, 
             duration
         );
@@ -379,7 +415,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             user1, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
@@ -392,7 +429,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             user1, 
-            registry, 
+            registry,
+            resolver,
             flags, 
             duration
         );
@@ -402,6 +440,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_Revert_durationTooShort() public {
         string memory name = "testname";
         address owner = address(this);
+        address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = 1 days; // Too short
         
@@ -410,7 +449,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             owner, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
@@ -420,11 +460,12 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
         
         // Try to register with duration too short
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.DurationTooShort.selector, duration));
+        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.DurationTooShort.selector, duration, 28 days));
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
-            registry, 
+            registry,
+            resolver,
             flags, 
             duration
         );
@@ -433,6 +474,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_renew() public {
         string memory name = "testname";
         address owner = address(this);
+        address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         
@@ -441,7 +483,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             owner, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
@@ -450,7 +493,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         uint256 tokenId = registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
-            registry, 
+            registry,
+            resolver,
             flags, 
             duration
         );
@@ -474,7 +518,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundEvent = EventUtils.checkEvent(
             entries,
-            keccak256("NameRenewed(string,uint64,uint256)")
+            keccak256("NameRenewed(string,uint64,uint256,uint64)")
         );
         
         assertTrue(foundEvent, "NameRenewed event not emitted");
@@ -483,6 +527,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_Revert_renewInsufficientValue() public {
         string memory name = "testname";
         address owner = address(this);
+        address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         
@@ -491,7 +536,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             owner, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
@@ -500,14 +546,16 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
-            registry, 
+            registry,
+            resolver,
             flags, 
             duration
         );
         
         // Try to renew with insufficient value
         uint64 renewalDuration = 180 days;
-        vm.expectRevert(ETHRegistrar.InsufficientValue.selector);
+        uint256 totalPrice = BASE_PRICE + PREMIUM_PRICE;
+        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.InsufficientValue.selector, totalPrice, BASE_PRICE));
         registrar.renew{value: BASE_PRICE}(name, renewalDuration);
     }
 
@@ -523,6 +571,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_refund_excess_payment() public {
         string memory name = "testname";
         address owner = address(this);
+        address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         
@@ -531,7 +580,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             owner, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
@@ -548,7 +598,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE + excessAmount}(
             name, 
             owner, 
-            registry, 
+            registry,
+            resolver,
             flags, 
             duration
         );
@@ -560,6 +611,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_refund_excess_payment_renew() public {
         string memory name = "testname";
         address owner = address(this);
+        address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         
@@ -568,7 +620,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             name, 
             owner, 
             bytes32(0), 
-            address(registry), 
+            address(registry),
+            resolver,
             flags, 
             duration
         );
@@ -577,7 +630,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
-            registry, 
+            registry,
+            resolver,
             flags, 
             duration
         );

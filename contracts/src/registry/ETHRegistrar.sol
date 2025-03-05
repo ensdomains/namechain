@@ -17,11 +17,11 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
 
     error MaxCommitmentAgeTooLow();
     error UnexpiredCommitmentExists(bytes32 commitment);
-    error DurationTooShort(uint64 duration);
-    error CommitmentTooNew(bytes32 commitment);
-    error CommitmentTooOld(bytes32 commitment);
+    error DurationTooShort(uint64 duration, uint256 minDuration);
+    error CommitmentTooNew(bytes32 commitment, uint256 validFrom, uint256 blockTimestamp);
+    error CommitmentTooOld(bytes32 commitment, uint256 validTo, uint256 blockTimestamp);
     error NameNotAvailable(string name);
-    error InsufficientValue();
+    error InsufficientValue(uint256 required, uint256 provided);
 
     IETHRegistry public immutable registry;
     IPriceOracle public immutable prices;
@@ -81,6 +81,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
      * @param owner The address of the owner of the name.
      * @param secret The secret of the name.
      * @param subregistry The registry to use for the commitment.
+     * @param resolver The resolver to use for the commitment.
      * @param flags The flags to use for the commitment.
      * @param duration The duration of the commitment.
      * @return The commitment.
@@ -90,6 +91,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
         address owner,
         bytes32 secret,
         address subregistry,
+        address resolver,
         uint96 flags,
         uint64 duration
     ) public pure override returns (bytes32) {        
@@ -100,6 +102,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
                     owner,
                     secret,
                     subregistry,
+                    resolver,
                     flags,
                     duration
                 )
@@ -116,6 +119,8 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
             revert UnexpiredCommitmentExists(commitment);
         }
         commitments[commitment] = block.timestamp;
+
+        emit CommitmentMade(commitment);
     }
 
 
@@ -125,6 +130,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
      * @param name The name to register.
      * @param owner The owner of the name.
      * @param subregistry The subregistry to register the name in.
+     * @param resolver The resolver to use for the registration.
      * @param flags The flags to set on the name.   
      * @param duration The duration of the registration.
      * @return tokenId The token ID of the registered name.
@@ -133,24 +139,25 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
         string calldata name,
         address owner,
         IRegistry subregistry,
+        address resolver,
         uint96 flags,
         uint64 duration
     ) external payable onlyRole(CONTROLLER_ROLE) returns (uint256 tokenId) {
         IPriceOracle.Price memory price = rentPrice(name, duration);
         uint256 totalPrice = price.base + price.premium;
         if (msg.value < totalPrice) {
-            revert InsufficientValue();
+            revert InsufficientValue(totalPrice, msg.value);
         }
 
-        _consumeCommitment(name, duration, makeCommitment(name, owner, bytes32(0), address(subregistry), flags, duration));
+        _consumeCommitment(name, duration, makeCommitment(name, owner, bytes32(0), address(subregistry), resolver, flags, duration));
 
-        tokenId = registry.register(name, owner, subregistry, flags, uint64(block.timestamp) + duration);
+        tokenId = registry.register(name, owner, subregistry, resolver, flags, uint64(block.timestamp) + duration);
 
         if (msg.value > totalPrice) {
             payable(msg.sender).transfer(msg.value - totalPrice);
         }
 
-        emit NameRegistered(name, owner, subregistry, flags, duration, tokenId);
+        emit NameRegistered(name, owner, subregistry, resolver, flags, duration, tokenId);
     }
 
     /**
@@ -162,7 +169,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
         IPriceOracle.Price memory price = rentPrice(name, duration);
         uint256 totalPrice = price.base + price.premium;
         if (msg.value < totalPrice) {
-            revert InsufficientValue();
+            revert InsufficientValue(totalPrice, msg.value);
         }
 
         uint256 tokenId = NameUtils.labelToTokenId(name);
@@ -175,7 +182,9 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
             payable(msg.sender).transfer(msg.value - totalPrice);
         }
 
-        emit NameRenewed(name, duration, tokenId);
+        (uint64 newExpiry, ) = registry.nameData(tokenId);
+
+        emit NameRenewed(name, duration, tokenId, newExpiry);
     }
 
 
@@ -191,13 +200,15 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
         bytes32 commitment
     ) internal {
         // Require an old enough commitment.
-        if (commitments[commitment] + minCommitmentAge > block.timestamp) {
-            revert CommitmentTooNew(commitment);
+        uint256 thisCommitmentValidFrom = commitments[commitment] + minCommitmentAge;
+        if (thisCommitmentValidFrom > block.timestamp) {
+            revert CommitmentTooNew(commitment, thisCommitmentValidFrom, block.timestamp);
         }
 
         // Commit must not be too old
-        if (commitments[commitment] + maxCommitmentAge <= block.timestamp) {
-            revert CommitmentTooOld(commitment);
+        uint256 thisCommitmentValidTo = commitments[commitment] + maxCommitmentAge;
+        if (thisCommitmentValidTo <= block.timestamp) {
+            revert CommitmentTooOld(commitment, thisCommitmentValidTo, block.timestamp);
         }
 
         // Name must be available
@@ -206,7 +217,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
         }
 
         if (duration < MIN_REGISTRATION_DURATION) {
-            revert DurationTooShort(duration);
+            revert DurationTooShort(duration, MIN_REGISTRATION_DURATION);
         }
 
         delete (commitments[commitment]);

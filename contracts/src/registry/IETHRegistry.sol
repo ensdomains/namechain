@@ -18,10 +18,11 @@ interface IETHRegistry is IRegistry {
      * @param label The label of the name to register.
      * @param owner The owner of the name.
      * @param registry The registry to register the name in.
+     * @param resolver The resolver to use for the registration.
      * @param flags The flags to set for the name.
      * @param expires The expiration date of the name.
      */
-    function register(string calldata label, address owner, IRegistry registry, uint96 flags, uint64 expires)
+    function register(string calldata label, address owner, IRegistry registry, address resolver, uint96 flags, uint64 expires)
         external
         returns (uint256 tokenId);
 
