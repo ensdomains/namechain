@@ -254,7 +254,7 @@ abstract contract ERC1155Singleton is Context, ERC165, IERC1155Singleton, IERC11
      * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155Received} and return the
      * acceptance magic value.
      */
-    function _mint(address to, uint256 id, uint256 value, bytes memory data) internal {
+    function _mint(address to, uint256 id, uint256 value, bytes memory data) virtual internal {
         if (to == address(0)) {
             revert ERC1155InvalidReceiver(address(0));
         }
@@ -291,7 +291,7 @@ abstract contract ERC1155Singleton is Context, ERC165, IERC1155Singleton, IERC11
      * - `from` cannot be the zero address.
      * - `from` must have at least `value` amount of tokens of type `id`.
      */
-    function _burn(address from, uint256 id, uint256 value) internal {
+    function _burn(address from, uint256 id, uint256 value) virtual internal {
         if (from == address(0)) {
             revert ERC1155InvalidSender(address(0));
         }

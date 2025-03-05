@@ -15,10 +15,12 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
  */
 abstract contract EnhancedAccessControl is Context, ERC165 {
     error EnhancedAccessControlUnauthorizedAccountRole(bytes32 resource, uint8 roleId, address account);
+    error EnhancedAccessControlUnauthorizedAccountAdminRole(bytes32 resource, uint8 roleId, address account);
     error EnhancedAccessControlBadConfirmation();
 
     event EnhancedAccessControlRoleAdminChanged(uint8 roleId, uint8 previousAdminRoleId, uint8 newAdminRoleId);
     event EnhancedAccessControlRoleGranted(bytes32 resource, uint8 roleId, address account, address sender);
+    event EnhancedAccessControlRolesGranted(bytes32 resource, uint256 roleBitmap, address account, address sender);
     event EnhancedAccessControlRoleRevoked(bytes32 resource, uint8 roleId, address account, address sender);
     event EnhancedAccessControlAllRolesRevoked(bytes32 resource, address account, address sender);
 
@@ -42,7 +44,16 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev The default admin role.
      */
-    uint8 public constant DEFAULT_ADMIN_ROLE = 0;
+    uint8 public constant DEFAULT_ADMIN_ROLE = 1;
+
+    /**
+     * @dev Modifier that checks that sender has the admin role for the given role. 
+     * If the sender does not have the admin role, it checks that the sender has the DEFAULT_ADMIN_ROLE.
+     */
+    modifier canGrantRole(bytes32 resource, uint8 roleId) {
+        _checkCanGrantRole(resource, roleId, _msgSender());
+        _;
+    }
 
     /**
      * @dev Modifier that checks that sender has a specific role within the given resource. 
@@ -60,6 +71,15 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     modifier onlyRootRole(uint8 roleId) {
         _checkRole(ROOT_RESOURCE, roleId, _msgSender());
         _;
+    }
+
+    /**
+     * @dev Constructor.
+     *
+     * @param initialAdmin The address to grant the DEFAULT_ADMIN_ROLE to.
+     */
+    constructor(address initialAdmin) {
+        _grantRole(ROOT_RESOURCE, DEFAULT_ADMIN_ROLE, initialAdmin);
     }
 
     /**
@@ -83,15 +103,6 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         return ((_roles[resource][account] & (1 << roleId)) != 0) || hasRootRole(roleId, account);
     }
 
-    /**
-     * @dev Reverts with an {AccessControlUnauthorizedAccount} error if `account`
-     * is missing `roleId`.
-     */
-    function _checkRole(bytes32 resource, uint8 roleId, address account) internal view virtual {
-        if (!hasRole(resource, roleId, account)) {
-            revert EnhancedAccessControlUnauthorizedAccountRole(resource, roleId, account);
-        }
-    }
 
     /**
      * @dev Returns the admin role that controls `roleId`. See {grantRole} and
@@ -104,7 +115,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Grants `roleId` to `account`.
+     * @dev Grants role to `account`.
      *
      * If `account` had not been already granted `roleId`, emits a {RoleGranted}
      * event.
@@ -115,9 +126,11 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleGranted} event.
      */
-    function grantRole(bytes32 resource, uint8 roleId, address account) public virtual onlyRole(resource, getRoleAdmin(roleId)) returns (bool) {
+    function grantRole(bytes32 resource, uint8 roleId, address account) public virtual canGrantRole(resource, roleId) returns (bool) {
         return _grantRole(resource, roleId, account);
     }
+
+
 
     /**
      * @dev Revokes `roleId` from `account`.
@@ -130,7 +143,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      *
      * May emit a {RoleRevoked} event.
      */
-    function revokeRole(bytes32 resource, uint8 roleId, address account) public virtual onlyRole(resource, getRoleAdmin(roleId)) {
+    function revokeRole(bytes32 resource, uint8 roleId, address account) public virtual canGrantRole(resource, roleId) {
         _revokeRole(resource, roleId, account);
     }
 
@@ -161,6 +174,28 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     // Internal functions
 
     /**
+     * @dev Reverts with an {AccessControlUnauthorizedAccount} error if `account`
+     * is missing `roleId`.
+     */
+    function _checkRole(bytes32 resource, uint8 roleId, address account) internal view virtual {
+        if (!hasRole(resource, roleId, account)) {
+            revert EnhancedAccessControlUnauthorizedAccountRole(resource, roleId, account);
+        }
+    }
+
+    /**
+     * @dev Reverts with an {AccessControlUnauthorizedAccount} error if account does not have the admin role for the given role.
+     */
+    function _checkCanGrantRole(bytes32 resource, uint8 roleId, address account) internal view virtual {
+        uint8 theAdminRole = getRoleAdmin(roleId);
+        if (!hasRole(resource, theAdminRole, account)) {
+            if (!hasRole(resource, DEFAULT_ADMIN_ROLE, account)) {
+                revert EnhancedAccessControlUnauthorizedAccountAdminRole(resource, roleId, account);
+            }
+        }
+    }
+
+    /**
      * @dev Copies all roles from `srcAccount` to `dstAccount`.
      *
      * @param resource The resource this applies to.
@@ -184,6 +219,21 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         _adminRoles[roleId] = adminRoleId;
         emit EnhancedAccessControlRoleAdminChanged(roleId, previousAdminRoleId, adminRoleId);
     }
+
+
+
+    /**
+     * @dev Grants multiple roles to `account`.
+     */
+    function _grantRoles(bytes32 resource, uint256 roleBitmap, address account) internal {
+        uint256 currentRoles = _roles[resource][account];
+        uint256 updatedRoles = currentRoles | roleBitmap;
+        if (currentRoles != updatedRoles) {
+            _roles[resource][account] = updatedRoles;
+            emit EnhancedAccessControlRolesGranted(resource, roleBitmap, account, _msgSender());
+        }
+    }
+
 
     /**
      * @dev Attempts to grant `roleId` to `account` and returns a boolean indicating if `roleId` was granted.

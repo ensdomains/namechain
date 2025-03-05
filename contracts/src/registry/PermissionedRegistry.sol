@@ -8,14 +8,14 @@ import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
+import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
+import {Roles} from "./Roles.sol";
 
-abstract contract PermissionedRegistry is BaseRegistry {
-    uint96 public constant FLAGS_MASK = 0x7;
-    uint96 public constant FLAG_SUBREGISTRY_LOCKED = 0x1;
-    uint96 public constant FLAG_RESOLVER_LOCKED = 0x2;
-    uint96 public constant FLAG_FLAGS_LOCKED = 0x4;
+abstract contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, Roles {
+    uint96 public constant FLAGS_MASK = (2 << 32) - 1;
+    uint96 public constant FLAG_FLAGS_LOCKED = 0x1;
 
-    constructor(IRegistryDatastore _datastore) BaseRegistry(_datastore) {
+    constructor(IRegistryDatastore _datastore, address initialAdmin) BaseRegistry(_datastore) EnhancedAccessControl(initialAdmin) {
     }
 
     function _setFlags(uint256 tokenId, uint96 _flags)
@@ -32,8 +32,7 @@ abstract contract PermissionedRegistry is BaseRegistry {
 
     function setSubregistry(uint256 tokenId, IRegistry registry)
         external
-        onlyTokenOwner(tokenId)
-        withSubregistryFlags(tokenId, FLAG_SUBREGISTRY_LOCKED, 0)
+        onlyRole(tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY)
     {
         (, uint96 _flags) = datastore.getSubregistry(tokenId);
         datastore.setSubregistry(tokenId, address(registry), _flags);
@@ -41,8 +40,7 @@ abstract contract PermissionedRegistry is BaseRegistry {
 
     function setResolver(uint256 tokenId, address resolver)
         external
-        onlyTokenOwner(tokenId)
-        withSubregistryFlags(tokenId, FLAG_RESOLVER_LOCKED, 0)
+        onlyRole(tokenIdResource(tokenId), ROLE_SET_RESOLVER)
     {
         (, uint96 _flags) = datastore.getResolver(tokenId);
         datastore.setResolver(tokenId, resolver, _flags);
@@ -52,4 +50,15 @@ abstract contract PermissionedRegistry is BaseRegistry {
         (, uint96 _flags) = datastore.getSubregistry(tokenId);
         return _flags;
     }
+
+    function supportsInterface(bytes4 interfaceId) public view override(BaseRegistry, EnhancedAccessControl) returns (bool) {
+        return BaseRegistry.supportsInterface(interfaceId) || EnhancedAccessControl.supportsInterface(interfaceId);
+    }
+
+    function tokenIdResource(uint256 tokenId) public pure returns(bytes32) {
+        return bytes32(tokenId & ~uint256(FLAGS_MASK));
+    }
+    
+    // Internal functions
+
 }

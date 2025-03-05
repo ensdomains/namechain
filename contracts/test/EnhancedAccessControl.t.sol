@@ -6,8 +6,7 @@ import {Vm} from "forge-std/Vm.sol";
 import {EnhancedAccessControl} from "../src/registry/EnhancedAccessControl.sol";
 
 contract MockEnhancedAccessControl is EnhancedAccessControl {
-    constructor() {
-        _grantRole(ROOT_RESOURCE, DEFAULT_ADMIN_ROLE, msg.sender);
+    constructor() EnhancedAccessControl(msg.sender) {
     }
 
     function setRoleAdmin(uint8 roleId, uint8 adminRoleId) external {
@@ -25,11 +24,16 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
     function revokeAllRoles(bytes32 resource, address account) external {
         _revokeAllRoles(resource, account);
     }
+    
+    function grantRoles(bytes32 resource, uint256 roleBitmap, address account) external {
+        _grantRoles(resource, roleBitmap, account);
+    }
 }
 
 contract EnhancedAccessControlTest is Test {
-    uint8 public constant ROLE_A = 1;
-    uint8 public constant ROLE_B = 2;
+    uint8 public constant ROLE_A = 2;
+    uint8 public constant ROLE_B = 3;
+    uint8 public constant ROLE_C = 4;
     bytes32 public constant RESOURCE_1 = bytes32(keccak256("RESOURCE_1"));
     bytes32 public constant RESOURCE_2 = bytes32(keccak256("RESOURCE_2"));
 
@@ -66,6 +70,56 @@ contract EnhancedAccessControlTest is Test {
         assertEq(roleId, ROLE_A);
         assertEq(account, user1);
         assertEq(sender, address(this));
+    }
+
+    function test_grant_roles() public {
+        vm.recordLogs();
+        
+        // Create a bitmap with roles ROLE_A, ROLE_B, and ROLE_C
+        uint256 roleBitmap = (1 << ROLE_A) | (1 << ROLE_B) | (1 << ROLE_C);
+        
+        access.grantRoles(RESOURCE_1, roleBitmap, user1);
+        
+        // Verify all roles were granted
+        assertTrue(access.hasRole(RESOURCE_1, ROLE_A, user1));
+        assertTrue(access.hasRole(RESOURCE_1, ROLE_B, user1));
+        assertTrue(access.hasRole(RESOURCE_1, ROLE_C, user1));
+        
+        // Verify roles were not granted for other resources
+        assertFalse(access.hasRole(RESOURCE_2, ROLE_A, user1));
+        assertFalse(access.hasRole(RESOURCE_2, ROLE_B, user1));
+        assertFalse(access.hasRole(RESOURCE_2, ROLE_C, user1));
+
+        // Verify events were emitted
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        
+        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesGranted(bytes32,uint256,address,address)"));
+        (bytes32 resource, uint256 emittedRoleBitmap, address account, address sender) = abi.decode(entries[0].data, (bytes32, uint256, address, address));
+        assertEq(resource, RESOURCE_1);
+        assertEq(emittedRoleBitmap, roleBitmap);
+        assertEq(account, user1);
+        assertEq(sender, address(this));
+        
+        // Test granting roles that are already granted (should not emit events)
+        vm.recordLogs();
+        access.grantRoles(RESOURCE_1, roleBitmap, user1);
+        entries = vm.getRecordedLogs();
+        assertEq(entries.length, 0);
+        
+        // Test granting a mix of new and existing roles
+        vm.recordLogs();
+        uint256 mixedRoleBitmap = (1 << ROLE_A) | (1 << 4); // ROLE_A already granted, role 4 is new
+        
+        access.grantRoles(RESOURCE_1, mixedRoleBitmap, user1);
+        
+        entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        (bytes32 resource2, uint256 emittedRoleBitmap2, address account2, address sender2) = abi.decode(entries[0].data, (bytes32, uint256, address, address));
+        assertEq(resource2, RESOURCE_1);
+        assertEq(emittedRoleBitmap2, mixedRoleBitmap);
+        assertEq(account2, user1);
+        assertEq(sender2, address(this));
     }
 
     function test_has_root_role() public {
