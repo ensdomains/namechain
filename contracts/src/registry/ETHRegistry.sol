@@ -21,8 +21,7 @@ contract ETHRegistry is PermissionedRegistry {
 
     mapping(uint256 => address) public tokenObservers;
     
-    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
-        _grantRole(ROOT_RESOURCE, DEFAULT_ADMIN_ROLE, msg.sender);
+    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore, msg.sender) {
     }
 
     function uri(uint256 /*tokenId*/ ) public pure override returns (string memory) {
@@ -44,7 +43,7 @@ contract ETHRegistry is PermissionedRegistry {
         return super.ownerOf(tokenId);
     }
 
-    function register(string calldata label, address owner, IRegistry registry, uint96 flags, uint64 expires)
+    function register(string calldata label, address owner, IRegistry registry, uint96 flags, uint256 roleBitmap, uint64 expires)
         public
         onlyRootRole(ROLE_REGISTRAR_ROLE)
         returns (uint256 tokenId)
@@ -65,7 +64,7 @@ contract ETHRegistry is PermissionedRegistry {
         }
 
         _mint(owner, tokenId, 1, "");
-        _grantRoles(_tokenIdResource(tokenId), DEFAULT_OWNER_ROLES, owner);
+        _grantRoles(tokenIdResource(tokenId), roleBitmap, owner);
 
         datastore.setSubregistry(tokenId, address(registry), flags);
         emit NewSubname(label);
@@ -103,7 +102,7 @@ contract ETHRegistry is PermissionedRegistry {
      * @param tokenId The token ID of the name to relinquish.
      */
     function relinquish(uint256 tokenId) external onlyTokenOwner(tokenId) {
-        _revokeAllRoles(_tokenIdResource(tokenId), ownerOf(tokenId));
+        _revokeAllRoles(tokenIdResource(tokenId), ownerOf(tokenId));
         _burn(ownerOf(tokenId), tokenId, 1);
 
         datastore.setSubregistry(tokenId, address(0), 0);
@@ -131,10 +130,10 @@ contract ETHRegistry is PermissionedRegistry {
         newTokenId = (tokenId & ~uint256(FLAGS_MASK)) | (newFlags & FLAGS_MASK);
         if (tokenId != newTokenId) {
             address owner = ownerOf(tokenId);
-            _revokeAllRoles(_tokenIdResource(tokenId), owner);
             _burn(owner, tokenId, 1);
             _mint(owner, newTokenId, 1, "");
-            _grantRoles(_tokenIdResource(newTokenId), DEFAULT_OWNER_ROLES, owner);
+            _copyRoles(tokenIdResource(tokenId), owner, tokenIdResource(newTokenId), owner);
+            _revokeAllRoles(tokenIdResource(tokenId), owner);
         }
     }
 

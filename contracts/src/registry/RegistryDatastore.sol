@@ -4,7 +4,7 @@ pragma solidity >=0.8.13;
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 
 contract RegistryDatastore is IRegistryDatastore {
-    uint256 LABEL_HASH_MASK = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000;
+    uint256 constant LABEL_HASH_MASK = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000;
     mapping(address registry => mapping(uint256 labelHash => uint256)) internal subregistries;
     mapping(address registry => mapping(uint256 labelHash => uint256)) internal resolvers;
 

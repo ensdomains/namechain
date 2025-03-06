@@ -8,14 +8,14 @@ pragma solidity >=0.8.13;
  */
 abstract contract Roles {
     /*
-    NOTE: DEFAULT_ADMIN_ROLE is 1, so all other roles are > 1
+    NOTE: DEFAULT_ADMIN_ROLE is 1, so all other roles are a bit positions 2 to 256
     */
-    uint8 public constant ROLE_SET_SUBREGISTRY = 2;
-    uint8 public constant ROLE_SET_RESOLVER = 3;
-    uint8 public constant ROLE_TLD_ISSUER = 4;
-    uint8 public constant ROLE_REGISTRAR_ROLE = 5;
-    uint8 public constant ROLE_RENEW = 6;
+    uint256 public constant ROLE_SET_SUBREGISTRY = 1 << 1;
+    uint256 public constant ROLE_SET_RESOLVER = 1 << 2;
+    uint256 public constant ROLE_TLD_ISSUER = 1 << 3;
+    uint256 public constant ROLE_REGISTRAR_ROLE = 1 << 4;
+    uint256 public constant ROLE_RENEW = 1 << 5;
     
     // default roles which are granted to the owner of a token
-    uint256 public ROLE_BITMAP_TOKEN_OWNER_DEFAULT = (1 << ROLE_SET_SUBREGISTRY) | (1 << ROLE_SET_RESOLVER);
+    uint256 public ROLE_BITMAP_TOKEN_OWNER_DEFAULT = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
 }

@@ -12,7 +12,7 @@ import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 import {Roles} from "./Roles.sol";
 
 abstract contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, Roles {
-    uint96 public constant FLAGS_MASK = (2 << 32) - 1;
+    uint96 public constant FLAGS_MASK = 0xffffffff; // 32 bits
     uint96 public constant FLAG_FLAGS_LOCKED = 0x1;
 
     constructor(IRegistryDatastore _datastore, address initialAdmin) BaseRegistry(_datastore) EnhancedAccessControl(initialAdmin) {
