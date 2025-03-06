@@ -34,16 +34,13 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
 
     address public ejectionController;
 
-    constructor(
-        IRegistryDatastore _datastore,
-        address _ejectionController
-    ) PermissionedRegistry(_datastore) {
+    constructor(IRegistryDatastore _datastore, address _ejectionController) PermissionedRegistry(_datastore) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        
-        // Grant roles to the controllers
+
+        // Grant role to the ejection controller
         require(_ejectionController != address(0), "Ejection controller cannot be empty");
 
-        _ejectionController = ejectionController;
+        ejectionController = _ejectionController;
         _grantRole(EJECTION_CONTROLLER_ROLE, _ejectionController);
     }
 
@@ -105,7 +102,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     /**
      * @dev Renew an ejected name.
      * After renewal, the ejection controller should be notified to sync the update to L2.
-     * 
+     *
      * @param tokenId The token ID of the name to renew
      * @param expires New expiration timestamp
      */
@@ -149,25 +146,14 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
      * @param l2Owner The address to send the name to on L2
      * @param l2Subregistry The subregistry to use on L2 (optional)
      */
-    function migrateToL2(
-        uint256 tokenId,
-        address l2Owner,
-        address l2Subregistry
-    )
-        external
-        onlyTokenOwner(tokenId)
-    {
+    function migrateToL2(uint256 tokenId, address l2Owner, address l2Subregistry) external onlyTokenOwner(tokenId) {
         address owner = ownerOf(tokenId);
         _burn(owner, tokenId, 1);
         datastore.setSubregistry(tokenId, address(0), 0);
-        
+
         // Notify the ejection controller to handle cross-chain messaging
-        IL1EjectionController(ejectionController).initiateL1ToL2Migration(
-            tokenId,
-            l2Owner,
-            l2Subregistry
-        );
-        
+        IL1EjectionController(ejectionController).initiateL1ToL2Migration(tokenId, l2Owner, l2Subregistry);
+
         emit NameMigratedToL2(tokenId, l2Owner);
     }
 

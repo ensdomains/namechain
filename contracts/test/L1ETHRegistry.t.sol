@@ -9,6 +9,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import "../src/registry/L1ETHRegistry.sol";
 import "../src/registry/RegistryDatastore.sol";
 import "../src/registry/IRegistry.sol";
+import "../src/controller/IL1EjectionController.sol";
 
 contract TestL1ETHRegistry is Test, ERC1155Holder {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
@@ -17,20 +18,20 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     L1ETHRegistry registry;
     MockL1TokenObserver observer;
     RevertingL1TokenObserver revertingObserver;
+    MockEjectionController ejectionController;
 
     uint256 labelHash = uint256(keccak256("test"));
 
     function setUp() public {
         datastore = new RegistryDatastore();
-        registry = new L1ETHRegistry(datastore);
+        ejectionController = new MockEjectionController();
+        registry = new L1ETHRegistry(datastore, address(ejectionController));
         registry.grantRole(registry.EJECTION_CONTROLLER_ROLE(), address(this));
-        registry.grantRole(registry.RENEWAL_CONTROLLER_ROLE(), address(this));
         observer = new MockL1TokenObserver();
         revertingObserver = new RevertingL1TokenObserver();
     }
 
     function test_eject_from_l2_unlocked() public {
-        
         uint256 expectedId = (labelHash & 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8);
 
         uint256 tokenId = registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 86400);
@@ -39,7 +40,6 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     }
 
     function test_eject_from_l2_locked() public {
-        
         uint32 flags = uint32(registry.FLAG_SUBREGISTRY_LOCKED() | registry.FLAG_RESOLVER_LOCKED());
         uint256 expectedId = (labelHash & 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8) | flags;
 
@@ -49,7 +49,6 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     }
 
     function test_eject_from_l2_emits_events() public {
-        
         vm.recordLogs();
         registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 86400);
 
@@ -121,55 +120,11 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         registry.renew(tokenId, newExpiry);
     }
 
-    function test_Revert_renew_if_not_controller() public {
-        uint256 tokenId = registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
-
-        address nonController = address(0x1234);
-        // Just directly test with non-controller without revoking our own role
-        vm.prank(nonController);
-        vm.expectRevert();
-        registry.renew(tokenId, uint64(block.timestamp) + 200);
-    }
-
-    function test_relinquish() public {
-        uint256 tokenId = registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 86400);
-        registry.relinquish(tokenId);
-        vm.assertEq(registry.ownerOf(tokenId), address(0));
-        vm.assertEq(address(registry.getSubregistry("test")), address(0));
-    }
-
-    function test_relinquish_emits_event() public {
-        uint256 tokenId = registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
-
-        vm.recordLogs();
-        registry.relinquish(tokenId);
-
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundNameRelinquished = false;
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == keccak256("NameRelinquished(uint256,address)")) {
-                foundNameRelinquished = true;
-                break;
-            }
-        }
-        assertTrue(foundNameRelinquished, "NameRelinquished event not found");
-    }
-
-    function test_Revert_cannot_relinquish_if_not_owner() public {
-        uint256 tokenId = registry.ejectFromL2(labelHash, address(1), registry, 0, uint64(block.timestamp) + 86400);
-
-        vm.prank(address(2));
-        vm.expectRevert(abi.encodeWithSelector(BaseRegistry.AccessDenied.selector, tokenId, address(1), address(2)));
-        registry.relinquish(tokenId);
-
-        vm.assertEq(registry.ownerOf(tokenId), address(1));
-    }
-
     function test_migrateToL2() public {
         uint256 tokenId = registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 86400);
 
         vm.recordLogs();
-        registry.migrateToL2(tokenId, address(1));
+        registry.migrateToL2(tokenId, address(1), address(0));
 
         vm.assertEq(registry.ownerOf(tokenId), address(0));
 
@@ -189,66 +144,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
 
         vm.prank(address(2));
         vm.expectRevert(abi.encodeWithSelector(BaseRegistry.AccessDenied.selector, tokenId, address(1), address(2)));
-        registry.migrateToL2(tokenId, address(3));
-    }
-
-    function test_Revert_migrateToL2_if_not_controller() public {
-        uint256 tokenId = registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 86400);
-
-        address nonController = address(0x1234);
-        // Just directly test with non-controller without revoking our own role
-        vm.prank(nonController);
-        vm.expectRevert();
-        registry.migrateToL2(tokenId, address(1));
-    }
-
-    function test_setFallbackResolver() public {
-        address resolver = address(0x1234);
-
-        vm.recordLogs();
-        registry.setFallbackResolver(resolver);
-
-        assertEq(registry.fallbackResolver(), resolver);
-
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundResolverSet = false;
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == keccak256("FallbackResolverSet(address)")) {
-                foundResolverSet = true;
-                break;
-            }
-        }
-        assertTrue(foundResolverSet, "FallbackResolverSet event not found");
-    }
-
-    function test_Revert_setFallbackResolver_if_not_admin() public {
-        address nonAdmin = address(0x1234);
-
-        // Instead of revoking our own admin role, just test with the non-admin address
-        vm.prank(nonAdmin);
-        vm.expectRevert();
-        registry.setFallbackResolver(address(0x5678));
-    }
-
-    function test_fallbackResolver_when_name_expired() public {
-        address resolver = address(0x1234);
-        registry.setFallbackResolver(resolver);
-
-        uint256 tokenId = registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
-        registry.setResolver(tokenId, address(0x5678));
-
-        vm.warp(block.timestamp + 101);
-        assertEq(registry.getResolver("test"), resolver);
-    }
-
-    function test_fallbackResolver_when_resolver_not_set() public {
-        address resolver = address(0x1234);
-        registry.setFallbackResolver(resolver);
-
-        registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
-        // Don't set a resolver
-
-        assertEq(registry.getResolver("test"), resolver);
+        registry.migrateToL2(tokenId, address(3), address(0));
     }
 
     function test_expired_name_has_no_owner() public {
@@ -272,6 +168,18 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         assertEq(address(registry.getSubregistry("test")), address(0));
     }
 
+    function test_expired_name_returns_zero_resolver() public {
+        uint256 tokenId = registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        registry.setResolver(tokenId, address(0x5678));
+
+        // Before expiry, returns the set resolver
+        assertEq(registry.getResolver("test"), address(0x5678));
+
+        // After expiry, returns address(0)
+        vm.warp(block.timestamp + 101);
+        assertEq(registry.getResolver("test"), address(0));
+    }
+
     // Token observers
 
     function test_token_observer_renew() public {
@@ -284,18 +192,6 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         assertEq(observer.lastTokenId(), tokenId);
         assertEq(observer.lastExpiry(), newExpiry);
         assertEq(observer.lastCaller(), address(this));
-        assertEq(observer.wasRelinquished(), false);
-    }
-
-    function test_token_observer_relinquish() public {
-        uint256 tokenId = registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
-        registry.setTokenObserver(tokenId, address(observer));
-
-        registry.relinquish(tokenId);
-
-        assertEq(observer.lastTokenId(), tokenId);
-        assertEq(observer.lastCaller(), address(this));
-        assertEq(observer.wasRelinquished(), true);
     }
 
     function test_Revert_set_token_observer_if_not_owner() public {
@@ -316,16 +212,6 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
 
         (uint64 expiry,) = registry.nameData(tokenId);
         assertEq(expiry, uint64(block.timestamp) + 100);
-    }
-
-    function test_Revert_relinquish_when_token_observer_reverts() public {
-        uint256 tokenId = registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
-        registry.setTokenObserver(tokenId, address(revertingObserver));
-
-        vm.expectRevert(RevertingL1TokenObserver.ObserverReverted.selector);
-        registry.relinquish(tokenId);
-
-        assertEq(registry.ownerOf(tokenId), address(this));
     }
 
     function test_set_token_observer_emits_event() public {
@@ -516,34 +402,6 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         registry.setSubregistry(newTokenId, IRegistry(address(0x1234)));
     }
 
-    function test_fallback_resolver_in_getResolver() public {
-        address fallbackAddr = address(0x1234);
-        registry.setFallbackResolver(fallbackAddr);
-
-        // Call getResolver on non-existent name
-        assertEq(registry.getResolver("nonexistent"), fallbackAddr);
-
-        // Create a name but don't set resolver
-        registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
-
-        // Should return fallback
-        assertEq(registry.getResolver("test"), fallbackAddr);
-
-        // Set a resolver
-        uint256 tokenId = uint256(keccak256(bytes("test")));
-        address resolverAddr = address(0x5678);
-        registry.setResolver(tokenId, resolverAddr);
-
-        // Should return the set resolver
-        assertEq(registry.getResolver("test"), resolverAddr);
-
-        // Expire the name
-        vm.warp(block.timestamp + 101);
-
-        // Should return fallback again
-        assertEq(registry.getResolver("test"), fallbackAddr);
-    }
-
     function test_ejected_name_details() public {
         // Create details for ejected name
         uint256 labelHash = uint256(keccak256("ejected"));
@@ -561,9 +419,6 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         assertEq(storedExpiry, expires);
         assertEq(storedFlags, flags);
         assertEq(address(registry.getSubregistry("ejected")), registryAddr);
-
-        // Check resolver behavior
-        assertEq(registry.getResolver("ejected"), registry.fallbackResolver());
 
         // Set up a different test case without flags to test setting resolver
         uint256 label2Hash = uint256(keccak256("unlocked"));
@@ -587,7 +442,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.ejectFromL2(labelHash, address(this), registry, flags, uint64(block.timestamp) + 100);
 
         // Migrate back to L2
-        registry.migrateToL2(tokenId, address(1));
+        registry.migrateToL2(tokenId, address(1), address(0));
 
         // Name should no longer exist on L1
         assertEq(registry.ownerOf(tokenId), address(0));
@@ -668,7 +523,6 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     }
 
     function test_Revert_eject_active_name() public {
-        
         uint256 tokenId = registry.ejectFromL2(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
 
         // Try to eject the same name again before it expires
@@ -686,19 +540,11 @@ contract MockL1TokenObserver is L1ETHRegistryTokenObserver {
     uint256 public lastTokenId;
     uint64 public lastExpiry;
     address public lastCaller;
-    bool public wasRelinquished;
 
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external {
         lastTokenId = tokenId;
         lastExpiry = expires;
         lastCaller = renewedBy;
-        wasRelinquished = false;
-    }
-
-    function onRelinquish(uint256 tokenId, address relinquishedBy) external {
-        lastTokenId = tokenId;
-        lastCaller = relinquishedBy;
-        wasRelinquished = true;
     }
 }
 
@@ -708,8 +554,19 @@ contract RevertingL1TokenObserver is L1ETHRegistryTokenObserver {
     function onRenew(uint256, uint64, address) external pure {
         revert ObserverReverted();
     }
+}
 
-    function onRelinquish(uint256, address) external pure {
-        revert ObserverReverted();
+contract MockEjectionController is IL1EjectionController {
+    event SyncRenewalToL2Called(uint256 tokenId, uint64 newExpiry);
+    event InitiateL1ToL2MigrationCalled(uint256 tokenId, address l2Owner, address l2Subregistry);
+
+    function syncRenewalToL2(uint256 tokenId, uint64 newExpiry) external override {
+        emit SyncRenewalToL2Called(tokenId, newExpiry);
     }
+
+    function initiateL1ToL2Migration(uint256 tokenId, address l2Owner, address l2Subregistry) external override {
+        emit InitiateL1ToL2MigrationCalled(tokenId, l2Owner, l2Subregistry);
+    }
+
+    function completeL2ToL1Ejection(uint256, address, address, uint32, uint64) external override {}
 }
