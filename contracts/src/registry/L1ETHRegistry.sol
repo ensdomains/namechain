@@ -3,6 +3,7 @@ pragma solidity >=0.8.13;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
+import {IL1EjectionController} from "../controller/IL1EjectionController.sol";
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
@@ -18,7 +19,6 @@ import {PermissionedRegistry} from "./PermissionedRegistry.sol";
  */
 contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     bytes32 public constant EJECTION_CONTROLLER_ROLE = keccak256("EJECTION_CONTROLLER_ROLE");
-    bytes32 public constant RENEWAL_CONTROLLER_ROLE = keccak256("RENEWAL_CONTROLLER_ROLE");
 
     error NameExpired(uint256 tokenId);
     error NameNotExpired(uint256 tokenId, uint64 expires);
@@ -26,19 +26,25 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
 
     event NameEjected(uint256 indexed tokenId, address owner, uint64 expires);
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
-    event NameRelinquished(uint256 indexed tokenId, address relinquishedBy);
     event NameMigratedToL2(uint256 indexed tokenId, address sendTo);
-    event FallbackResolverSet(address resolver);
     event TokenObserverSet(uint256 indexed tokenId, address observer);
 
-    // Address of the fallback resolver for names not found in this registry
-    address public fallbackResolver;
-
-    // Map to track token observers for notification of renewal/ejection events
+    // Map to track token observers for notification of renewal events
     mapping(uint256 => address) public tokenObservers;
 
-    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
+    address public ejectionController;
+
+    constructor(
+        IRegistryDatastore _datastore,
+        address _ejectionController
+    ) PermissionedRegistry(_datastore) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        
+        // Grant roles to the controllers
+        require(_ejectionController != address(0), "Ejection controller cannot be empty");
+
+        _ejectionController = ejectionController;
+        _grantRole(EJECTION_CONTROLLER_ROLE, _ejectionController);
     }
 
     function uri(uint256 /*tokenId*/ ) public pure override returns (string memory) {
@@ -97,11 +103,13 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     }
 
     /**
-     * @dev Renew an ejected name
+     * @dev Renew an ejected name.
+     * After renewal, the ejection controller should be notified to sync the update to L2.
+     * 
      * @param tokenId The token ID of the name to renew
      * @param expires New expiration timestamp
      */
-    function renew(uint256 tokenId, uint64 expires) public onlyRole(RENEWAL_CONTROLLER_ROLE) {
+    function renew(uint256 tokenId, uint64 expires) public {
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
         uint64 oldExpiration = _extractExpiry(flags);
         if (oldExpiration < block.timestamp) {
@@ -117,6 +125,9 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
             L1ETHRegistryTokenObserver(observer).onRenew(tokenId, expires, msg.sender);
         }
 
+        // Notify the ejection controller to sync the renewal to L2
+        IL1EjectionController(ejectionController).syncRenewalToL2(tokenId, expires);
+
         emit NameRenewed(tokenId, expires, msg.sender);
     }
 
@@ -131,50 +142,33 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     }
 
     /**
-     * @dev Relinquish an ejected name. This completely abandons the name,
-     * allowing it to be registered by anyone once it becomes available.
-     * @param tokenId The token ID of the name to relinquish
-     */
-    function relinquish(uint256 tokenId) external onlyTokenOwner(tokenId) {
-        _burn(ownerOf(tokenId), tokenId, 1);
-        datastore.setSubregistry(tokenId, address(0), 0);
-
-        address observer = tokenObservers[tokenId];
-        if (observer != address(0)) {
-            L1ETHRegistryTokenObserver(observer).onRelinquish(tokenId, msg.sender);
-        }
-
-        emit NameRelinquished(tokenId, msg.sender);
-    }
-
-    /**
      * @dev Migrate a name back to L2, preserving ownership on L2.
      * According to section 4.5.6 of the design doc, this process requires
      * the ejection controller to facilitate cross-chain communication.
      * @param tokenId The token ID of the name to migrate
-     * @param sendTo The address to send the name to on L2
+     * @param l2Owner The address to send the name to on L2
+     * @param l2Subregistry The subregistry to use on L2 (optional)
      */
-    function migrateToL2(uint256 tokenId, address sendTo)
+    function migrateToL2(
+        uint256 tokenId,
+        address l2Owner,
+        address l2Subregistry
+    )
         external
         onlyTokenOwner(tokenId)
-        onlyRole(EJECTION_CONTROLLER_ROLE)
     {
         address owner = ownerOf(tokenId);
         _burn(owner, tokenId, 1);
         datastore.setSubregistry(tokenId, address(0), 0);
-
-        // TODO: Notify ejection controller
-
-        emit NameMigratedToL2(tokenId, sendTo);
-    }
-
-    /**
-     * @dev Set the fallback resolver for names not found in this registry
-     * @param _fallbackResolver The address of the fallback resolver
-     */
-    function setFallbackResolver(address _fallbackResolver) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        fallbackResolver = _fallbackResolver;
-        emit FallbackResolverSet(_fallbackResolver);
+        
+        // Notify the ejection controller to handle cross-chain messaging
+        IL1EjectionController(ejectionController).initiateL1ToL2Migration(
+            tokenId,
+            l2Owner,
+            l2Subregistry
+        );
+        
+        emit NameMigratedToL2(tokenId, l2Owner);
     }
 
     /**
@@ -225,7 +219,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     /**
      * @dev Get the resolver for a label
      * @param label The label to query
-     * @return The resolver for the label, or the fallback resolver if not found or expired
+     * @return The resolver for the label or address(0) if not found or expired
      */
     function getResolver(string calldata label) external view virtual override returns (address) {
         uint256 tokenId = uint256(keccak256(bytes(label)));
@@ -233,11 +227,11 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
         uint64 expires = _extractExpiry(flags);
 
         if (expires <= block.timestamp) {
-            return fallbackResolver;
+            return address(0);
         }
 
         (address resolver,) = datastore.getResolver(tokenId);
-        return resolver != address(0) ? resolver : fallbackResolver;
+        return resolver;
     }
 
     // Private methods
@@ -252,5 +246,4 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
  */
 interface L1ETHRegistryTokenObserver {
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external;
-    function onRelinquish(uint256 tokenId, address relinquishedBy) external;
 }
