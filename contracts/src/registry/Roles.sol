@@ -7,6 +7,9 @@ pragma solidity >=0.8.13;
  * We define everything here so that we can (a) avoid accidental clashes, and (b) define globally unique roles.
  */
 abstract contract Roles {
+    /*
+    NOTE: DEFAULT_ADMIN_ROLE is 1, so all other roles are > 1
+    */
     uint8 public constant ROLE_SET_SUBREGISTRY = 2;
     uint8 public constant ROLE_SET_RESOLVER = 3;
     uint8 public constant ROLE_TLD_ISSUER = 4;

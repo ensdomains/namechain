@@ -34,6 +34,7 @@ contract EnhancedAccessControlTest is Test {
     uint8 public constant ROLE_A = 2;
     uint8 public constant ROLE_B = 3;
     uint8 public constant ROLE_C = 4;
+    uint8 public constant ROLE_D = 5;
     bytes32 public constant RESOURCE_1 = bytes32(keccak256("RESOURCE_1"));
     bytes32 public constant RESOURCE_2 = bytes32(keccak256("RESOURCE_2"));
 
@@ -109,7 +110,7 @@ contract EnhancedAccessControlTest is Test {
         
         // Test granting a mix of new and existing roles
         vm.recordLogs();
-        uint256 mixedRoleBitmap = (1 << ROLE_A) | (1 << 4); // ROLE_A already granted, role 4 is new
+        uint256 mixedRoleBitmap = (1 << ROLE_A) | (1 << ROLE_D); // ROLE_A already granted, ROLE_D is new
         
         access.grantRoles(RESOURCE_1, mixedRoleBitmap, user1);
         
@@ -223,7 +224,7 @@ contract EnhancedAccessControlTest is Test {
     }
 
     function test_Revert_unauthorized_grant() public {
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRole.selector, RESOURCE_1, access.DEFAULT_ADMIN_ROLE(), user1));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountAdminRole.selector, RESOURCE_1, ROLE_A, user1));
         vm.prank(user1);
         access.grantRole(RESOURCE_1, ROLE_A, user2);
     }
@@ -231,7 +232,7 @@ contract EnhancedAccessControlTest is Test {
     function test_Revert_unauthorized_revoke() public {
         access.grantRole(RESOURCE_1, ROLE_A, user2);
         
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRole.selector, RESOURCE_1, access.DEFAULT_ADMIN_ROLE(), user1));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountAdminRole.selector, RESOURCE_1, ROLE_A, user1));
         vm.prank(user1);
         access.revokeRole(RESOURCE_1, ROLE_A, user2);
     }

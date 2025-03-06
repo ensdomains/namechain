@@ -37,7 +37,7 @@ contract TestRootRegistry is Test, ERC1155Holder, Roles {
 
     function test_register_locked_resolver_and_subregistry() public {
         uint256 expectedId = uint256(keccak256("test2"));
-        uint256 tokenId = registry.mint("test2", address(this), registry, 0, lockedResolverRoleBitmap | lockedSubregistryRoleBitmap, "");
+        uint256 tokenId = registry.mint("test2", address(this), registry, 0, 0, "");
         vm.assertEq(tokenId, expectedId);
         assertEq(registry.hasRole(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, address(this)), false);
         assertEq(registry.hasRole(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, address(this)), false);
