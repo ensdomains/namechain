@@ -1,11 +1,11 @@
 import {
-  Hex,
+  type ByteArray,
+  type Hex,
   bytesToHex,
   hexToBigInt,
   labelhash as labelhashBytes32,
   namehash,
   stringToBytes,
-  type ByteArray,
 } from "viem";
 
 export function packetToBytes(packet: string): ByteArray {
