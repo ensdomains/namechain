@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 /**
- * @dev Interface for the ENSv2 registry metadata, which stores the token URI for each registry.
+ * @dev Interface for providing metadata URIs for ENSv2 registry contracts.
  */
 interface IRegistryMetadata {
     /**
