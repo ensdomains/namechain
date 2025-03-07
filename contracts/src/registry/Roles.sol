@@ -13,9 +13,12 @@ abstract contract Roles {
     uint256 public constant ROLE_SET_SUBREGISTRY = 1 << 1;
     uint256 public constant ROLE_SET_RESOLVER = 1 << 2;
     uint256 public constant ROLE_TLD_ISSUER = 1 << 3;
-    uint256 public constant ROLE_REGISTRAR_ROLE = 1 << 4;
+    uint256 public constant ROLE_REGISTRAR = 1 << 4;
     uint256 public constant ROLE_RENEW = 1 << 5;
+    uint256 public constant ROLE_RENEWER_ADMIN = 1 << 6;
+    uint256 public constant ROLE_PARENT = 1 << 7;
     
     // default roles which are granted to the owner of a token
     uint256 public ROLE_BITMAP_TOKEN_OWNER_DEFAULT = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
+    uint256 public ROLE_BITMAP_REGISTRAR_DEFAULT = ROLE_REGISTRAR | ROLE_RENEW;
 }

@@ -45,7 +45,7 @@ contract ETHRegistry is PermissionedRegistry {
 
     function register(string calldata label, address owner, IRegistry registry, uint96 flags, uint256 roleBitmap, uint64 expires)
         public
-        onlyRootRole(ROLE_REGISTRAR_ROLE)
+        onlyRootRole(ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
         tokenId = (uint256(keccak256(bytes(label))) & ~uint256(FLAGS_MASK)) | flags;
@@ -76,7 +76,7 @@ contract ETHRegistry is PermissionedRegistry {
         emit TokenObserverSet(tokenId, _observer);
     }
 
-    function renew(uint256 tokenId, uint64 expires) public onlyRootRole(ROLE_REGISTRAR_ROLE) {
+    function renew(uint256 tokenId, uint64 expires) public onlyRootRole(ROLE_REGISTRAR) {
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
         uint64 oldExpiration = _extractExpiry(flags);
         if (oldExpiration < block.timestamp) {

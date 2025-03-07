@@ -7,10 +7,8 @@ import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
-import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
-import {Roles} from "./Roles.sol";
 
-contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl, Roles {
+contract NameWrapperRegistry is PermissionedRegistry{
     error NameAlreadyRegistered(string label);
     error NameExpired(uint256 tokenId);
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
@@ -20,14 +18,79 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl, Rol
 
     event RegistrarRoleTransferred(address indexed previousRegistrar, address indexed newRegistrar);
 
-    address public registrar;
-
-    constructor(IRegistryDatastore _datastore, address _registrar) PermissionedRegistry(_datastore) {
-        _grantRole(ROOT_RESOURCE, DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(ROOT_RESOURCE, ROLE_REGISTRAR_ROLE, _registrar);
-        _grantRole(ROOT_RESOURCE, ROLE_RENEW, _registrar);
-        registrar = _registrar;
+    /* NOTE: no default admin is set, meaning there is no superuser with forever permissions */
+    constructor(IRegistryDatastore _datastore, address _registrar) PermissionedRegistry(_datastore, address(0)) {
+        _setRoleAdmin(ROLE_RENEW, ROLE_RENEWER_ADMIN);
+        _setRoleAdmin(ROLE_RENEWER_ADMIN, ROLE_PARENT);
+        _grantRoles(ROOT_RESOURCE, ROLE_PARENT | ROLE_RENEWER_ADMIN, _msgSender());
+        _grantRoles(ROOT_RESOURCE, ROLE_BITMAP_REGISTRAR_DEFAULT, _registrar);
     }
+
+
+    // ------------------------------------------------------------------------------------------------
+    // BEGIN: Override role management functions to ensure registrar roles are managed correctly
+    // ------------------------------------------------------------------------------------------------
+
+
+    /**
+     * @dev Grants a role to an account.
+     * If the role is the registrar role, it will also grant the registrar default roles to the account.
+     */
+    function grantRole(bytes32 resource, uint256 role, address account) public override returns (bool) {
+        if (super.grantRole(resource, role, account)) {
+            if (resource == ROOT_RESOURCE && role == ROLE_REGISTRAR) {
+                _grantRoles(ROOT_RESOURCE, ROLE_BITMAP_REGISTRAR_DEFAULT, account);
+            }
+            return true;
+        }
+        return false;
+    }
+    
+
+    /**
+     * @dev Revokes a role from an account.
+     * If the role is the registrar role, it will also revoke the registrar default roles from the account.
+     */
+    function revokeRole(bytes32 resource, uint256 role, address account) public override returns (bool) {
+        if (super.revokeRole(resource, role, account)) {
+            if (resource == ROOT_RESOURCE && role == ROLE_REGISTRAR) {
+                _revokeRoles(ROOT_RESOURCE, ROLE_BITMAP_REGISTRAR_DEFAULT, account);
+            }
+            return true;
+        }
+        return false;
+    }
+
+
+    /**
+     * @dev Renounces a role.
+     * If the role is the registrar role, it will also revoke the registrar default roles from the caller.
+     */
+    function renounceRole(bytes32 resource, uint256 role, address callerConfirmation) public override returns (bool) {
+        if (super.renounceRole(resource, role, msg.sender)) {
+            _revokeRoles(ROOT_RESOURCE, ROLE_BITMAP_REGISTRAR_DEFAULT, _msgSender());
+            return true;
+        }
+        return false;
+    }
+
+
+    // ------------------------------------------------------------------------------------------------
+    // END: Override role management functions to ensure registrar roles are managed correctly
+    // ------------------------------------------------------------------------------------------------
+    
+
+    /**
+     * @dev Disables the ability to grant/revoke the renewer role to/from anyone.
+     *
+     * NOTE: this essentially freezes the existing renewer role assignments.
+     *
+     * Can only be called by the parent role.
+     */
+    function freezeRenewerRole() public onlyRootRole(ROLE_PARENT) {
+        _setRoleAdmin(ROLE_RENEW, 0);
+    }
+
 
     function uri(uint256 /*tokenId*/ ) public pure override returns (string memory) {
         return "";
@@ -49,7 +112,7 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl, Rol
 
     function register(string calldata label, address owner, IRegistry registry, uint96 flags, uint64 expires)
         public
-        onlyRootRole(ROLE_REGISTRAR_ROLE)
+        onlyRootRole(ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
         tokenId = _canonicalTokenId(_labelToTokenId(label), flags);
@@ -73,7 +136,7 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl, Rol
         return tokenId;
     }
 
-    function renew(uint256 tokenId, uint64 expires) public onlyRole(_tokenIdContext(tokenId), ROLE_RENEW) {
+    function renew(uint256 tokenId, uint64 expires) public onlyRole(tokenIdResource(tokenId), ROLE_RENEW) {
         address sender = _msgSender();
 
         (bool isExpired, uint64 oldExpiration, address subregistry, uint96 flags) = _getStatus(tokenId);
@@ -86,16 +149,6 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl, Rol
         datastore.setSubregistry(tokenId, subregistry, (flags & FLAGS_MASK) | (uint96(expires) << 32));
 
         emit NameRenewed(tokenId, expires, sender);
-    }
-
-    /**
-     * @dev Allow the owner to renew the name.
-     * 
-     * See v1 fuse: CAN_EXTEND_EXPIRY
-     */
-    function allowOwnerToRenew(uint256 tokenId) public onlyRootRole(ROLE_REGISTRAR_ROLE) {
-        bytes32 tokenIdContext = _tokenIdContext(tokenId);
-        _grantRole(tokenIdContext, ROLE_RENEW, ownerOf(tokenId));
     }
 
 
@@ -120,10 +173,6 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl, Rol
             // token's role assignment context value remains unchanged.
             // @see _tokenIdContext
         }
-    }
-
-    function supportsInterface(bytes4 interfaceId) public view override(BaseRegistry, EnhancedAccessControl) returns (bool) {
-        return interfaceId == type(IRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
     function getSubregistry(string calldata label) external view virtual override returns (IRegistry subregistry) {
@@ -152,10 +201,6 @@ contract NameWrapperRegistry is PermissionedRegistry, EnhancedAccessControl, Rol
         expires = uint64(flags >> 32);
         flags = uint32(_flags);
         isExpired = expires <= block.timestamp;
-    }
-
-    function _tokenIdContext(uint256 tokenId) private pure returns (bytes32) {
-        return bytes32(tokenId & ~uint256(FLAGS_MASK));
     }
 
     function _canonicalTokenId(uint256 tokenId, uint96 flags) private pure returns (uint256) {

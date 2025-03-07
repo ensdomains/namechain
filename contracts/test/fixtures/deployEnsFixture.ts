@@ -21,7 +21,7 @@ export async function deployEnsFixture() {
 
   const rootResource = await rootRegistry.read.ROOT_RESOURCE();
   const ROLE_TLD_ISSUER = await rootRegistry.read.ROLE_TLD_ISSUER();
-  const ROLE_REGISTRAR_ROLE = await rootRegistry.read.ROLE_REGISTRAR_ROLE();
+  const ROLE_REGISTRAR = await rootRegistry.read.ROLE_REGISTRAR();
   const ROLE_BITMAP_TOKEN_OWNER_DEFAULT = await rootRegistry.read.ROLE_BITMAP_TOKEN_OWNER_DEFAULT();
 
   await rootRegistry.write.grantRole([
@@ -32,7 +32,7 @@ export async function deployEnsFixture() {
 
   await ethRegistry.write.grantRole([
     rootResource,
-    ROLE_REGISTRAR_ROLE,
+    ROLE_REGISTRAR,
     accounts[0].address,
   ]);
   

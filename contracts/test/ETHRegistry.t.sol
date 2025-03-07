@@ -30,7 +30,7 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
     function setUp() public {
         datastore = new RegistryDatastore();
         registry = new ETHRegistry(datastore);
-        registry.grantRole(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR_ROLE(), address(this));
+        registry.grantRole(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR(), address(this));
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
     }
