@@ -3,7 +3,8 @@ pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-
+import "@openzeppelin/contracts/utils/Strings.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import "../src/registry/ETHRegistrar.sol";
@@ -11,7 +12,6 @@ import "../src/registry/ETHRegistry.sol";
 import "../src/registry/RegistryDatastore.sol";
 import "../src/registry/IPriceOracle.sol";
 import "../src/utils/NameUtils.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Vm} from "forge-std/Vm.sol";
 
 
@@ -59,7 +59,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE);
         
         registry.grantRole(registry.REGISTRAR_ROLE(), address(registrar));
-        registrar.grantRole(registrar.CONTROLLER_ROLE(), address(this));
         
         vm.deal(address(this), 100 ether);
         vm.deal(user1, 100 ether);
@@ -406,11 +405,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // Try to register again with user1
         vm.startPrank(user1);
         
-        // First grant CONTROLLER_ROLE to user1
-        vm.stopPrank();
-        registrar.grantRole(registrar.CONTROLLER_ROLE(), user1);
-        vm.startPrank(user1);
-        
         bytes32 commitment2 = registrar.makeCommitment(
             name, 
             user1, 
@@ -647,6 +641,46 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         
         // Verify refund
         assertEq(address(this).balance, initialBalance - (BASE_PRICE + PREMIUM_PRICE));
+    }
+
+    function test_setPriceOracle() public {
+        MockPriceOracle newPriceOracle = new MockPriceOracle(0.02 ether, 0.01 ether);
+        registrar.setPriceOracle(newPriceOracle);
+        assertEq(address(registrar.prices()), address(newPriceOracle));
+    }
+
+    function test_setCommitmentAges() public {
+        uint256 newMinAge = 120;
+        uint256 newMaxAge = 172800;
+        registrar.setCommitmentAges(newMinAge, newMaxAge);
+        assertEq(registrar.minCommitmentAge(), newMinAge);
+        assertEq(registrar.maxCommitmentAge(), newMaxAge);
+    }
+
+    function test_Revert_setCommitmentAges_maxTooLow() public {
+        uint256 newMinAge = 120;
+        uint256 newMaxAge = 119;
+        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.MaxCommitmentAgeTooLow.selector));
+        registrar.setCommitmentAges(newMinAge, newMaxAge);
+    }
+
+    function test_Revert_setPriceOracle_notAdmin() public {
+        vm.startPrank(user1);
+        MockPriceOracle newPriceOracle = new MockPriceOracle(0.02 ether, 0.01 ether);
+        vm.expectRevert(accessControlError(user1, registrar.DEFAULT_ADMIN_ROLE()));
+        registrar.setPriceOracle(newPriceOracle);
+        vm.stopPrank();
+    }
+
+    function test_Revert_setCommitmentAges_notAdmin() public {
+        vm.startPrank(user1);
+        vm.expectRevert(accessControlError(user1, registrar.DEFAULT_ADMIN_ROLE()));
+        registrar.setCommitmentAges(120, 172800);
+        vm.stopPrank();
+    }
+
+    function accessControlError(address account, bytes32 role) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, account, role);
     }
 
     receive() external payable {}

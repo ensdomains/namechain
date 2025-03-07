@@ -11,7 +11,6 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 
 contract ETHRegistrar is IETHRegistrar, AccessControl {
-    bytes32 public constant CONTROLLER_ROLE = keccak256("CONTROLLER_ROLE");
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
     uint64 private constant MAX_EXPIRY = type(uint64).max;
 
@@ -24,9 +23,9 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
     error InsufficientValue(uint256 required, uint256 provided);
 
     IETHRegistry public immutable registry;
-    IPriceOracle public immutable prices;
-    uint256 public immutable minCommitmentAge;
-    uint256 public immutable maxCommitmentAge;
+    IPriceOracle public prices;
+    uint256 public minCommitmentAge;
+    uint256 public maxCommitmentAge;
 
     mapping(bytes32 => uint256) public commitments;    
 
@@ -143,7 +142,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
         address resolver,
         uint96 flags,
         uint64 duration
-    ) external payable onlyRole(CONTROLLER_ROLE) returns (uint256 tokenId) {
+    ) external payable returns (uint256 tokenId) {
         IPriceOracle.Price memory price = rentPrice(name, duration);
         uint256 totalPrice = price.base + price.premium;
         if (msg.value < totalPrice) {
@@ -166,7 +165,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
      * @param name The name to renew.
      * @param duration The duration of the renewal.
      */
-    function renew(string calldata name, uint64 duration) external payable onlyRole(CONTROLLER_ROLE) {
+    function renew(string calldata name, uint64 duration) external payable {
         IPriceOracle.Price memory price = rentPrice(name, duration);
         uint256 totalPrice = price.base + price.premium;
         if (msg.value < totalPrice) {
@@ -191,6 +190,18 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
 
     function supportsInterface(bytes4 interfaceID) public view override(AccessControl) returns (bool) {
         return interfaceID == type(IETHRegistrar).interfaceId || AccessControl.supportsInterface(interfaceID);
+    }
+
+    function setPriceOracle(IPriceOracle _prices) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        prices = _prices;
+    }
+
+    function setCommitmentAges(uint256 _minCommitmentAge, uint256 _maxCommitmentAge) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_maxCommitmentAge <= _minCommitmentAge) {
+            revert MaxCommitmentAgeTooLow();
+        }
+        minCommitmentAge = _minCommitmentAge;
+        maxCommitmentAge = _maxCommitmentAge;
     }
 
     /* Internal functions */

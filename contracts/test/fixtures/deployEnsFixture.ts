@@ -1,5 +1,5 @@
 import hre from "hardhat";
-import { Address, bytesToHex, keccak256, stringToHex } from "viem";
+import { type Address, bytesToHex, keccak256, stringToHex } from "viem";
 import { packetToBytes } from "../utils/utils.js";
 
 export async function deployEnsFixture() {
