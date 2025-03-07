@@ -7,6 +7,7 @@ import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 
 abstract contract PermissionedRegistry is BaseRegistry {
@@ -15,7 +16,7 @@ abstract contract PermissionedRegistry is BaseRegistry {
     uint96 public constant FLAG_RESOLVER_LOCKED = 0x2;
     uint96 public constant FLAG_FLAGS_LOCKED = 0x4;
 
-    constructor(IRegistryDatastore _datastore) BaseRegistry(_datastore) {
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore, _metadata) {
     }
 
     function _setFlags(uint256 tokenId, uint96 _flags)
