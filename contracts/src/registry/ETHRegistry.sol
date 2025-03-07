@@ -130,10 +130,8 @@ contract ETHRegistry is PermissionedRegistry {
         newTokenId = (tokenId & ~uint256(FLAGS_MASK)) | (newFlags & FLAGS_MASK);
         if (tokenId != newTokenId) {
             address owner = ownerOf(tokenId);
-            _burn(owner, tokenId, 1);
             _mint(owner, newTokenId, 1, "");
-            _copyRoles(tokenIdResource(tokenId), owner, tokenIdResource(newTokenId), owner);
-            _revokeAllRoles(tokenIdResource(tokenId), owner);
+            _burn(owner, tokenId, 1);
         }
     }
 

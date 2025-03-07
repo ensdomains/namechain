@@ -206,7 +206,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      */
     function _copyRoles(bytes32 srcResource, address srcAccount, bytes32 dstResource, address dstAccount) internal virtual {
         uint256 srcRoles = _roles[srcResource][srcAccount];
-        _roles[dstResource][dstAccount] = srcRoles;
+        _roles[dstResource][dstAccount] |= srcRoles;
         emit EnhancedAccessControlRolesCopied(srcResource, dstResource, srcAccount, dstAccount, srcRoles);
     }
 
@@ -261,8 +261,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev Revoke all roles for account within resource.
      */
-    function _revokeAllRoles(bytes32 resource, address account) internal virtual {
-        _roles[resource][account] = 0;
-        emit EnhancedAccessControlAllRolesRevoked(resource, account, _msgSender());
+    function _revokeAllRoles(bytes32 resource, address account) internal virtual returns (bool) {
+        return _revokeRoles(resource, _roles[resource][account], account);
     }
 }

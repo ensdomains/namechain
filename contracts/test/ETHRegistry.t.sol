@@ -87,11 +87,10 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
     }
 
     function test_lock_name() public {
-        uint96 flags = registry.FLAG_FLAGS_LOCKED();
         uint256 oldTokenId = registry.register("test2", address(this), registry, 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
 
+        uint96 flags = registry.FLAG_FLAGS_LOCKED();
         uint256 expectedTokenId = (oldTokenId & ~uint256(registry.FLAGS_MASK())) | (flags & registry.FLAGS_MASK());
-
         uint256 newTokenId = registry.setFlags(oldTokenId, flags);
         vm.assertNotEq(newTokenId, oldTokenId);
         vm.assertEq(newTokenId, expectedTokenId);
@@ -103,10 +102,10 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
 
     function test_cannot_unlock_name() public {
         uint96 flags = registry.FLAG_FLAGS_LOCKED();
-
         uint256 oldTokenId = registry.register("test2", address(this), registry, flags, defaultRoleBitmap, uint64(block.timestamp) + 86400);
-        uint256 newTokenId = registry.setFlags(oldTokenId, 0);
-        vm.assertEq(oldTokenId, newTokenId);
+
+        vm.expectRevert(abi.encodeWithSelector(BaseRegistry.InvalidSubregistryFlags.selector, oldTokenId, flags, 0));
+        registry.setFlags(oldTokenId, 0);
     }
 
     function test_Revert_cannot_mint_duplicates() public {
@@ -265,7 +264,7 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
         assertEq(registry.getResolver("test2"), address(0));
     }
 
-    function test_setFlags_copies_roles_to_new_token_id() public {
+    function test_setFlags_moves_roles_to_new_token_id_context() public {
         // Register with default roles
         uint256 tokenId = registry.register("test2", user1, registry, 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
 
@@ -278,9 +277,11 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
         
         // Set a flag that changes the token ID
         uint96 flags = 0x4; // Some arbitrary flag that's not FLAG_FLAGS_LOCKED
+        vm.prank(user1);
         uint256 newTokenId = registry.setFlags(tokenId, flags);
+        assertNotEq(newTokenId, tokenId);
         
-        // Verify roles are preserved after flag change
+        // Verify roles are copied after flag change
         assertEq(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_SET_SUBREGISTRY, user1), true);
         assertEq(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_SET_RESOLVER, user1), true);
         assertEq(registry.hasRoles(registry.tokenIdResource(newTokenId), 109, user1), true);

@@ -9,11 +9,11 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
     constructor() EnhancedAccessControl(msg.sender) {
     }
 
-    function setRoleAdmin(uint256 roleId, uint256 adminRoleId) external {
-        _setRoleAdmin(roleId, adminRoleId);
+    function setRoleAdmin(uint256 roles, uint256 adminRoleId) external {
+        _setRoleAdmin(roles, adminRoleId);
     }
     
-    function callOnlyRootRole(uint256 roleId) external onlyRootRole(roleId) {
+    function callOnlyRootRole(uint256 roles) external onlyRootRole(roles) {
         // Function that will revert if caller doesn't have the role in root resource
     }
 
@@ -21,12 +21,12 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
         _copyRoles(srcResource, srcAccount, dstResource, dstAccount);
     }
 
-    function revokeAllRoles(bytes32 resource, address account) external {
-        _revokeAllRoles(resource, account);
+    function revokeAllRoles(bytes32 resource, address account) external returns (bool) {
+        return _revokeAllRoles(resource, account);
     }
     
-    function grantRoles(bytes32 resource, uint256 roleBitmap, address account) external {
-        _grantRoles(resource, roleBitmap, account);
+    function grantRoles(bytes32 resource, uint256 roleBitmap, address account) external returns (bool) {
+        return _grantRoles(resource, roleBitmap, account);
     }
 }
 
@@ -166,9 +166,9 @@ contract EnhancedAccessControlTest is Test {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
         assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesRevoked(bytes32,uint256,address,address)"));
-        (bytes32 resource, uint256 roleId, address account, address sender) = abi.decode(entries[0].data, (bytes32, uint256, address, address));
+        (bytes32 resource, uint256 roles, address account, address sender) = abi.decode(entries[0].data, (bytes32, uint256, address, address));
         assertEq(resource, RESOURCE_1);
-        assertEq(roleId, ROLE_A);
+        assertEq(roles, ROLE_A);
         assertEq(account, user1);
         assertEq(sender, address(this));
     }
@@ -189,8 +189,8 @@ contract EnhancedAccessControlTest is Test {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
         assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleAdminChanged(uint256,uint256,uint256)"));
-        (uint256 roleId, uint256 previousAdmin, uint256 newAdmin) = abi.decode(entries[0].data, (uint256, uint256, uint256));
-        assertEq(roleId, ROLE_A);
+        (uint256 roles, uint256 previousAdmin, uint256 newAdmin) = abi.decode(entries[0].data, (uint256, uint256, uint256));
+        assertEq(roles, ROLE_A);
         assertEq(previousAdmin, 0);
         assertEq(newAdmin, ROLE_B);
 
@@ -366,7 +366,10 @@ contract EnhancedAccessControlTest is Test {
         vm.recordLogs();
         
         // Revoke all roles for RESOURCE_1
-        access.revokeAllRoles(RESOURCE_1, user1);
+        bool success = access.revokeAllRoles(RESOURCE_1, user1);
+        
+        // Verify the operation was successful
+        assertTrue(success);
         
         // Verify all roles for RESOURCE_1 were revoked
         assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user1));
@@ -378,10 +381,65 @@ contract EnhancedAccessControlTest is Test {
         // Verify event was emitted correctly
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlAllRolesRevoked(bytes32,address,address)"));
-        (bytes32 resource, address account, address sender) = abi.decode(entries[0].data, (bytes32, address, address));
+        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesRevoked(bytes32,uint256,address,address)"));
+        (bytes32 resource, uint256 roles, address account, address sender) = abi.decode(entries[0].data, (bytes32, uint256, address, address));
         assertEq(resource, RESOURCE_1);
+        assertEq(roles, ROLE_A | ROLE_B);
         assertEq(account, user1);
         assertEq(sender, address(this));
+        
+        // Test revoking all roles when there are no roles to revoke
+        vm.recordLogs();
+        success = access.revokeAllRoles(RESOURCE_1, user1);
+        
+        // Verify the operation was not successful (no roles to revoke)
+        assertFalse(success);
+        
+        // Verify no event was emitted
+        entries = vm.getRecordedLogs();
+        assertEq(entries.length, 0);
+    }
+
+    function test_copy_roles_bitwise_or() public {
+        // Setup: Grant different roles to user1 and user2
+        access.grantRole(RESOURCE_1, ROLE_A, user1);
+        access.grantRole(RESOURCE_1, ROLE_B, user1);
+        access.grantRole(RESOURCE_1, ROLE_C, user2);
+        access.grantRole(RESOURCE_1, ROLE_D, user2);
+        
+        // Verify initial state
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_B, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_C, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_D, user1));
+        
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_C, user2));
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_D, user2));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user2));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_B, user2));
+        
+        // Record logs to verify event emission
+        vm.recordLogs();
+
+        // Copy roles from user1 to user2 for RESOURCE_1
+        // This should OR the roles, not overwrite them
+        access.copyRoles(RESOURCE_1, user1, RESOURCE_1, user2);
+        
+        // Verify user2 now has all roles (original + copied)
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user2));
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_B, user2));
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_C, user2));
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_D, user2));
+        
+        // Verify event was emitted correctly with the correct bitmap
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesCopied(bytes32,bytes32,address,address,uint256)"));
+        (bytes32 srcResource, bytes32 dstResource, address srcAccount, address dstAccount, uint256 roleBitmap) = abi.decode(entries[0].data, (bytes32, bytes32, address, address, uint256));
+        assertEq(srcResource, RESOURCE_1);
+        assertEq(dstResource, RESOURCE_1);
+        assertEq(srcAccount, user1);
+        assertEq(dstAccount, user2);
+        assertEq(roleBitmap, ROLE_A | ROLE_B);
     }
 } 
