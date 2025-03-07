@@ -10,13 +10,4 @@ library NameUtils {
             pop(staticcall(gas(), 4, add(add(name, 33), idx), len, add(label, 32), len))
         }
     }
-
-    /**
-     * @dev Converts a label to a token ID.
-     * @param label The label to convert.
-     * @return tokenId The token ID corresponding to this label.
-     */
-    function labelToTokenId(string memory label) internal pure returns (uint256) {
-        return uint256(keccak256(bytes(label)));
-    }    
 }
