@@ -1,5 +1,5 @@
 import hre from "hardhat";
-import { Address, bytesToHex, keccak256, stringToHex } from "viem";
+import { Address, bytesToHex } from "viem";
 import { packetToBytes } from "../utils/utils.js";
 
 export async function deployEnsFixture() {
@@ -18,19 +18,30 @@ export async function deployEnsFixture() {
   const universalResolver = await hre.viem.deployContract("UniversalResolver", [
     rootRegistry.address,
   ]);
+
+  const rootResource = await rootRegistry.read.ROOT_RESOURCE();
+  const ROLE_TLD_ISSUER = await rootRegistry.read.ROLE_TLD_ISSUER();
+  const ROLE_REGISTRAR = await rootRegistry.read.ROLE_REGISTRAR();
+  const ROLE_BITMAP_TOKEN_OWNER_DEFAULT = await rootRegistry.read.ROLE_BITMAP_TOKEN_OWNER_DEFAULT();
+
   await rootRegistry.write.grantRole([
-    keccak256(stringToHex("TLD_ISSUER_ROLE")),
+    rootResource,
+    ROLE_TLD_ISSUER,
     accounts[0].address,
   ]);
+
   await ethRegistry.write.grantRole([
-    keccak256(stringToHex("REGISTRAR_ROLE")),
+    rootResource,
+    ROLE_REGISTRAR,
     accounts[0].address,
   ]);
+  
   await rootRegistry.write.mint([
     "eth",
     accounts[0].address,
     ethRegistry.address,
     1n,
+    ROLE_BITMAP_TOKEN_OWNER_DEFAULT,
     "https://example.com/"
   ]);
 
@@ -83,8 +94,9 @@ export const registerName = async ({
   subregistryLocked?: boolean;
   resolverLocked?: boolean;
 }) => {
+  const DEFAULT_ROLE_BITMAP = await ethRegistry.read.ROLE_BITMAP_TOKEN_OWNER_DEFAULT();
   const owner =
     owner_ ?? (await hre.viem.getWalletClients())[0].account.address;
   const flags = (subregistryLocked ? 1n : 0n) | (resolverLocked ? 2n : 0n);
-  return ethRegistry.write.register([label, owner, subregistry, flags, expiry]);
+  return ethRegistry.write.register([label, owner, subregistry, flags, DEFAULT_ROLE_BITMAP, expiry]);
 };
