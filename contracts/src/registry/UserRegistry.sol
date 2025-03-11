@@ -69,7 +69,7 @@ contract UserRegistry is
     
     modifier withSubregistryFlags(uint256 tokenId, uint96 mask, uint96 expected) {
         (, uint96 flags) = datastore.getSubregistry(tokenId);
-        if ((flags & mask) != expected) {  // Note the parentheses
+        if ((flags & mask) != expected) {
             revert InvalidSubregistryFlags(tokenId, flags & mask, expected);
         }
         _;
@@ -194,7 +194,7 @@ contract UserRegistry is
     }
     
     // =================== Flag Operations ===================
-    
+
     /**
      * @dev Set flags for a token
      */
@@ -209,7 +209,7 @@ contract UserRegistry is
         datastore.setSubregistry(tokenId, subregistry, updatedFlags);
         return updatedFlags;
     }
-    
+
     /**
      * @dev Lock a subname's subregistry
      */

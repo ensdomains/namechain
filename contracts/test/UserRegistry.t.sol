@@ -41,11 +41,12 @@ contract TestUserRegistry is Test, ERC1155Holder {
 
     function setUp() public {
         // Deploy base contracts
+        vm.startPrank(owner);
         datastore = new RegistryDatastore();
         parentRegistry = new ETHRegistry(datastore);
         parentRegistry.grantRole(
             parentRegistry.REGISTRAR_ROLE(),
-            address(this)
+            owner
         );
 
         // Register parent name - make sure the owner is correctly set
@@ -82,6 +83,7 @@ contract TestUserRegistry is Test, ERC1155Holder {
 
         // Cast proxy to UserRegistry type
         proxy = UserRegistry(proxyAddress);
+        vm.stopPrank();
     }
 
     // =================== Basic Functionality Tests ===================
@@ -206,6 +208,7 @@ contract TestUserRegistry is Test, ERC1155Holder {
     }
 
     function test_Revert_burn_locked_subname() public {
+        vm.startPrank(owner);
         // Mock the correct tokenId for the parent registry's ownerOf call
         vm.mockCall(
             address(parentRegistry),
@@ -217,7 +220,6 @@ contract TestUserRegistry is Test, ERC1155Holder {
         );
 
         // Mint a subname with locked subregistry
-        vm.prank(owner);
         uint256 tokenId = proxy.mint(
             TEST_LABEL,
             owner,
@@ -225,17 +227,31 @@ contract TestUserRegistry is Test, ERC1155Holder {
             proxy.FLAG_SUBREGISTRY_LOCKED()
         );
 
-        // Try to burn it
-        vm.prank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                UserRegistry.InvalidSubregistryFlags.selector,
-                tokenId,
-                proxy.FLAG_SUBREGISTRY_LOCKED(),
-                0
-            )
+        // Verify the flag is set
+        (, uint96 flags) = datastore.getSubregistry(address(proxy), tokenId);
+        assertEq(
+            flags & proxy.FLAG_SUBREGISTRY_LOCKED(),
+            proxy.FLAG_SUBREGISTRY_LOCKED()
         );
-        proxy.burn(tokenId);
+        vm.stopPrank();
+
+        // Prepare the call data for burn
+        bytes memory callData = abi.encodeWithSelector(
+            UserRegistry.burn.selector,
+            tokenId
+        );
+
+        // Expected error parameters
+        bytes memory expectedParams = abi.encode(tokenId, uint96(proxy.FLAG_SUBREGISTRY_LOCKED()), uint96(0));
+        
+        // Verify the custom error
+        expectCustomRevert(
+            address(proxy),
+            callData,
+            owner,
+            UserRegistry.InvalidSubregistryFlags.selector,
+            expectedParams
+        );
     }
 
     // =================== Lock Tests ===================
@@ -265,8 +281,22 @@ contract TestUserRegistry is Test, ERC1155Holder {
         proxy.lockSubregistry(tokenId);
 
         // Get flags to verify it's locked
-        (, uint96 flags) = datastore.getSubregistry(tokenId);
+        (, uint96 flags) = datastore.getSubregistry(address(proxy), tokenId);
         assertTrue(flags & proxy.FLAG_SUBREGISTRY_LOCKED() != 0);
+
+        // Now try to change the subregistry - should fail
+        bytes memory callData = abi.encodeWithSelector(
+            UserRegistry.setSubregistry.selector,
+            tokenId,
+            IRegistry(address(1)) // Try to set to a new registry
+        );
+
+        // Make a direct low-level call
+        vm.prank(user);
+        (bool success, ) = address(proxy).call(callData);
+
+        // This should fail because subregistry is locked
+        assertFalse(success, "Call should have reverted");
     }
 
     function test_lockResolver_subname() public {
@@ -297,17 +327,31 @@ contract TestUserRegistry is Test, ERC1155Holder {
         vm.prank(user);
         proxy.lockResolver(tokenId);
 
-        // Try to change resolver
-        vm.prank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                UserRegistry.InvalidSubregistryFlags.selector,
-                tokenId,
-                proxy.FLAG_RESOLVER_LOCKED(),
-                0
-            )
+        // Verify the flag is set
+        (, uint96 flags) = datastore.getSubregistry(address(proxy), tokenId);
+        assertEq(
+            flags & proxy.FLAG_RESOLVER_LOCKED(),
+            proxy.FLAG_RESOLVER_LOCKED()
         );
-        proxy.setResolver(tokenId, address(2));
+
+        // Prepare the call data for setResolver
+        bytes memory callData = abi.encodeWithSelector(
+            UserRegistry.setResolver.selector,
+            tokenId,
+            address(2)
+        );
+
+        // Expected error parameters
+        bytes memory expectedParams = abi.encode(tokenId, proxy.FLAG_RESOLVER_LOCKED(), uint96(0));
+        
+        // Verify the custom error
+        expectCustomRevert(
+            address(proxy),
+            callData,
+            user,
+            UserRegistry.InvalidSubregistryFlags.selector,
+            expectedParams
+        );
     }
 
     function test_lockFlags_subname() public {
@@ -334,12 +378,32 @@ contract TestUserRegistry is Test, ERC1155Holder {
         vm.prank(user);
         proxy.lockFlags(tokenId);
 
-        // Try to set flags - Fixed order of operations
-        vm.expectRevert(
-            abi.encodeWithSelector(UserRegistry.InvalidSubregistryFlags.selector, tokenId, proxy.FLAG_FLAGS_LOCKED(), 0)
+        // Verify the flags are actually set
+        (, uint96 flags) = datastore.getSubregistry(address(proxy), tokenId);
+        assertEq(
+            flags & proxy.FLAG_FLAGS_LOCKED(),
+            proxy.FLAG_FLAGS_LOCKED(),
+            "Flag should be set"
         );
-        vm.prank(user);
-        proxy.setFlags(tokenId, proxy.FLAG_SUBREGISTRY_LOCKED());
+
+        // Prepare the call data for setFlags
+        bytes memory callData = abi.encodeWithSelector(
+            UserRegistry.setFlags.selector,
+            tokenId,
+            uint96(1) // FLAG_SUBREGISTRY_LOCKED value
+        );
+
+        // Expected error parameters (tokenId, flags & mask, expected)
+        bytes memory expectedParams = abi.encode(tokenId, uint96(proxy.FLAG_FLAGS_LOCKED()), uint96(0));
+        
+        // Verify the custom error with parameters
+        expectCustomRevert(
+            address(proxy),
+            callData,
+            user,
+            UserRegistry.InvalidSubregistryFlags.selector,
+            expectedParams
+        );
     }
 
     // =================== Upgrade Tests ===================
@@ -395,10 +459,11 @@ contract TestUserRegistry is Test, ERC1155Holder {
 
     function test_Revert_upgrade_not_authorized() public {
         // Deploy the upgrade implementation
+        vm.prank(owner);
         upgradeImplementation = new UserRegistryV2();
 
         // Attempt unauthorized upgrade
-        vm.prank(user); // Not the owner
+        vm.startPrank(user); // Not the owner
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector,
@@ -407,9 +472,11 @@ contract TestUserRegistry is Test, ERC1155Holder {
             )
         );
         proxy.upgradeToAndCall(address(upgradeImplementation), "");
+        vm.stopPrank();
     }
 
     function test_storage_integrity_after_upgrade() public {
+        vm.startPrank(owner);
         // Make sure parent registry will return owner when queried
         vm.mockCall(
             address(parentRegistry),
@@ -420,20 +487,20 @@ contract TestUserRegistry is Test, ERC1155Holder {
             abi.encode(owner)
         );
 
+        uint96 flag = proxy.FLAG_SUBREGISTRY_LOCKED();
+
         // First mint a subname
-        vm.prank(owner);
         uint256 tokenId = proxy.mint(
             TEST_LABEL,
             user,
             IRegistry(address(0)),
-            proxy.FLAG_SUBREGISTRY_LOCKED()
+            flag
         );
 
         // Deploy the upgrade implementation
         upgradeImplementation = new UserRegistryV2();
 
         // Upgrade the proxy
-        vm.prank(owner);
         proxy.upgradeToAndCall(address(upgradeImplementation), "");
 
         // Cast to the new version
@@ -446,11 +513,10 @@ contract TestUserRegistry is Test, ERC1155Holder {
         // Verify tokens are preserved
         assertEq(upgradedProxy.ownerOf(tokenId), user);
         // Check if it's locked by directly querying datastore
-        (, uint96 flags) = datastore.getSubregistry(tokenId);
+        (, uint96 flags) = datastore.getSubregistry(address(proxy), tokenId);
         assertTrue((flags & proxy.FLAG_SUBREGISTRY_LOCKED()) != 0);
 
         // Set version and create a new token with the new contract
-        vm.prank(owner);
         upgradedProxy.upgradeToVersion(2);
 
         // Make sure parent registry will return owner when queried for mint
@@ -463,7 +529,6 @@ contract TestUserRegistry is Test, ERC1155Holder {
             abi.encode(owner)
         );
 
-        vm.prank(owner);
         uint256 newTokenId = upgradedProxy.mint(
             "upgraded",
             user,
@@ -477,6 +542,68 @@ contract TestUserRegistry is Test, ERC1155Holder {
         // Ensure new function works
         assertEq(upgradedProxy.getTokenVersion(newTokenId), 2);
         assertEq(upgradedProxy.getTokenVersion(tokenId), 0); // Old token has version 0
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Helper function to verify that a call to a proxy reverts with a specific custom error
+     * @param proxy_ The proxy contract address
+     * @param callData The encoded function call data
+     * @param caller The address that should make the call
+     * @param expectedErrorSelector The expected error selector (e.g., UserRegistry.InvalidSubregistryFlags.selector)
+     * @param expectedErrorParams Optional expected parameters for the custom error
+     */
+    function expectCustomRevert(
+        address proxy_,
+        bytes memory callData,
+        address caller,
+        bytes4 expectedErrorSelector,
+        bytes memory expectedErrorParams
+    ) internal {
+        // Make the call as the specified caller
+        vm.prank(caller);
+        (bool success, bytes memory returnData) = proxy_.call(callData);
+
+        // Verify that the call reverted
+        assertFalse(success, "Call should have reverted");
+
+        // Extract the error selector (first 4 bytes)
+        bytes4 errorSelector;
+        assembly {
+            // Skip length prefix (32 bytes) and load the first 4 bytes
+            errorSelector := mload(add(returnData, 0x20))
+        }
+
+        // Check that it's the expected error
+        assertEq(errorSelector, expectedErrorSelector, "Wrong error selector");
+
+        // If we have expected error parameters, verify them
+        if (expectedErrorParams.length > 0 && returnData.length > 4) {
+            // Skip the first 4 bytes (error selector)
+            bytes memory actualParams = new bytes(returnData.length - 4);
+            for (uint i = 0; i < actualParams.length; i++) {
+                actualParams[i] = returnData[i + 4];
+            }
+
+            // Compare the actual params with expected params
+            assertEq(
+                keccak256(actualParams),
+                keccak256(expectedErrorParams),
+                "Error parameters do not match expected"
+            );
+        }
+    }
+
+    /**
+     * @dev Simplified version for common cases where you don't need to check specific error parameters
+     */
+    function expectCustomRevert(
+        address proxy_,
+        bytes memory callData,
+        address caller,
+        bytes4 expectedErrorSelector
+    ) internal {
+        expectCustomRevert(proxy_, callData, caller, expectedErrorSelector, "");
     }
 }
 
