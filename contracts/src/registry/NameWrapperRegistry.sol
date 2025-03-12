@@ -7,6 +7,7 @@ import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
+import {NameUtils} from "../utils/NameUtils.sol";
 
 contract NameWrapperRegistry is PermissionedRegistry{
     error NameAlreadyRegistered(string label);
@@ -115,7 +116,7 @@ contract NameWrapperRegistry is PermissionedRegistry{
         onlyRootRole(ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
-        tokenId = _canonicalTokenId(_labelToTokenId(label), flags);
+        tokenId = _canonicalTokenId(NameUtils.labelToTokenId(label), flags);
         flags = (flags & FLAGS_MASK) | (uint96(expires) << 32);
 
         (bool isExpired, , ,) = _getStatus(tokenId);
@@ -176,7 +177,7 @@ contract NameWrapperRegistry is PermissionedRegistry{
     }
 
     function getSubregistry(string calldata label) external view virtual override returns (IRegistry subregistry) {
-        (bool isExpired, , address subregistryAddress, ) = _getStatus(_labelToTokenId(label));
+        (bool isExpired, , address subregistryAddress, ) = _getStatus(NameUtils.labelToTokenId(label));
         if (isExpired) {
             return IRegistry(address(0));
         }
@@ -184,7 +185,7 @@ contract NameWrapperRegistry is PermissionedRegistry{
     }
 
     function getResolver(string calldata label) external view virtual override returns (address) {
-        uint256 tokenId = _labelToTokenId(label);
+        uint256 tokenId = NameUtils.labelToTokenId(label);
         (bool isExpired, , , ) = _getStatus(tokenId);
         if (isExpired) {
             return address(0);

@@ -12,6 +12,7 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {IRegistry} from "./IRegistry.sol";
+import {NameUtils} from "../utils/NameUtils.sol";
 
 abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     error AccessDenied(uint256 tokenId, address owner, address caller);
@@ -74,7 +75,7 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
      * @return The address of the registry for this subdomain, or `address(0)` if none exists.
      */
     function getSubregistry(string calldata label) external view virtual returns (IRegistry) {
-        (address subregistry,) = datastore.getSubregistry(_labelToTokenId(label));
+        (address subregistry,) = datastore.getSubregistry(NameUtils.labelToTokenId(label));
         return IRegistry(subregistry);
     }
 
@@ -84,15 +85,6 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
      * @return resolver The address of a resolver responsible for this name, or `address(0)` if none exists.
      */
     function getResolver(string calldata label) external view virtual returns (address resolver) {
-        (resolver,) = datastore.getResolver(_labelToTokenId(label));
-    }
-
-    /**
-     * @dev Converts a label to a token ID.
-     * @param label The label to convert.
-     * @return tokenId The token ID corresponding to this label.
-     */
-    function _labelToTokenId(string calldata label) internal pure returns (uint256) {
-        return uint256(keccak256(bytes(label)));
+        (resolver,) = datastore.getResolver(NameUtils.labelToTokenId(label));
     }
 }
