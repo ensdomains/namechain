@@ -17,8 +17,8 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
         // Function that will revert if caller doesn't have the role in root resource
     }
 
-    function copyRoles(bytes32 srcResource, address srcAccount, bytes32 dstResource, address dstAccount) external {
-        _copyRoles(srcResource, srcAccount, dstResource, dstAccount);
+    function copyRoles(bytes32 resource, address srcAccount, address dstAccount) external {
+        _copyRoles(resource, srcAccount, dstAccount);
     }
 
     function revokeAllRoles(bytes32 resource, address account) external returns (bool) {
@@ -289,7 +289,7 @@ contract EnhancedAccessControlTest is Test {
         vm.recordLogs();
         
         // Copy roles from user1 to user2 for RESOURCE_1
-        access.copyRoles(RESOURCE_1, user1, RESOURCE_1, user2);
+        access.copyRoles(RESOURCE_1, user1, user2);
         
         // Verify roles were copied correctly for RESOURCE_1
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user2));
@@ -316,67 +316,6 @@ contract EnhancedAccessControlTest is Test {
         assertEq(roleBitmap, ROLE_A | ROLE_B);
     }
 
-    function test_copy_roles_between_resources() public {
-        // Setup: Grant multiple roles to user1
-        access.grantRole(RESOURCE_1, ROLE_A, user1);
-        access.grantRole(RESOURCE_1, ROLE_B, user1);
-        
-        // Verify initial state
-        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
-        assertTrue(access.hasRoles(RESOURCE_1, ROLE_B, user1));
-        assertFalse(access.hasRoles(RESOURCE_2, ROLE_A, user1));
-        assertFalse(access.hasRoles(RESOURCE_2, ROLE_B, user1));
-        
-        // Record logs to verify event emission
-        vm.recordLogs();
-        
-        // Copy roles from RESOURCE_1 to RESOURCE_2 for user1
-        access.copyRoles(RESOURCE_1, user1, RESOURCE_2, user1);
-        
-        // Verify roles were copied correctly to RESOURCE_2
-        assertTrue(access.hasRoles(RESOURCE_2, ROLE_A, user1));
-        assertTrue(access.hasRoles(RESOURCE_2, ROLE_B, user1));
-        
-        // Verify original roles in RESOURCE_1 are still intact
-        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
-        assertTrue(access.hasRoles(RESOURCE_1, ROLE_B, user1));
-        
-        // Verify event was emitted correctly
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EACRolesCopied(bytes32,bytes32,address,address,uint256)"));
-        (bytes32 srcResource, bytes32 dstResource, address srcAccount, address dstAccount, uint256 roleBitmap) = abi.decode(entries[0].data, (bytes32, bytes32, address, address, uint256));
-        assertEq(srcResource, RESOURCE_1);
-        assertEq(dstResource, RESOURCE_2);
-        assertEq(srcAccount, user1);
-        assertEq(dstAccount, user1);
-        assertEq(roleBitmap, ROLE_A | ROLE_B);
-        
-        // Record logs for the second copy operation
-        vm.recordLogs();
-        
-        // Copy roles from user1 to user2 across different resources
-        access.copyRoles(RESOURCE_1, user1, RESOURCE_2, user2);
-        
-        // Verify roles were copied correctly from RESOURCE_1 to RESOURCE_2 for user2
-        assertTrue(access.hasRoles(RESOURCE_2, ROLE_A, user2));
-        assertTrue(access.hasRoles(RESOURCE_2, ROLE_B, user2));
-        
-        // Verify user2 doesn't have roles in RESOURCE_1
-        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user2));
-        assertFalse(access.hasRoles(RESOURCE_1, ROLE_B, user2));
-        
-        // Verify event was emitted correctly for the second copy
-        entries = vm.getRecordedLogs();
-        assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EACRolesCopied(bytes32,bytes32,address,address,uint256)"));
-        (srcResource, dstResource, srcAccount, dstAccount, roleBitmap) = abi.decode(entries[0].data, (bytes32, bytes32, address, address, uint256));
-        assertEq(srcResource, RESOURCE_1);
-        assertEq(dstResource, RESOURCE_2);
-        assertEq(srcAccount, user1);
-        assertEq(dstAccount, user2);
-        assertEq(roleBitmap, ROLE_A | ROLE_B);
-    }
 
     function test_revoke_all_roles() public {
         // Setup: Grant multiple roles to user1
@@ -450,7 +389,7 @@ contract EnhancedAccessControlTest is Test {
 
         // Copy roles from user1 to user2 for RESOURCE_1
         // This should OR the roles, not overwrite them
-        access.copyRoles(RESOURCE_1, user1, RESOURCE_1, user2);
+        access.copyRoles(RESOURCE_1, user1, user2);
         
         // Verify user2 now has all roles (original + copied)
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user2));

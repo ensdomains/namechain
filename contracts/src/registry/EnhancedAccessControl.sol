@@ -226,17 +226,16 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Copies all roles from `srcAccount` in `srcResource` to `dstAccount` in `dstResource`.
+     * @dev Copies all roles from `srcAccount` to `dstAccount` within the same resource.
      *
-     * @param srcResource The resource to copy roles from.
+     * @param resource The resource to copy roles within.
      * @param srcAccount The account to copy roles from.
-     * @param dstResource The resource to copy roles to.
      * @param dstAccount The account to copy roles to.
      */
-    function _copyRoles(bytes32 srcResource, address srcAccount, bytes32 dstResource, address dstAccount) internal virtual {
-        uint256 srcRoles = _roles[srcResource][srcAccount];
-        _roles[dstResource][dstAccount] |= srcRoles;
-        emit EACRolesCopied(srcResource, dstResource, srcAccount, dstAccount, srcRoles);
+    function _copyRoles(bytes32 resource, address srcAccount, address dstAccount) internal virtual {
+        uint256 srcRoles = _roles[resource][srcAccount];
+        _roles[resource][dstAccount] |= srcRoles;
+        emit EACRolesCopied(resource, resource, srcAccount, dstAccount, srcRoles);
     }
 
 
