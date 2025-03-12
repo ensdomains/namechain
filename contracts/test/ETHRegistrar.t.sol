@@ -47,6 +47,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     uint256 constant BASE_PRICE = 0.01 ether;
     uint256 constant PREMIUM_PRICE = 0.005 ether;
     uint64 constant REGISTRATION_DURATION = 365 days;
+    bytes32 constant SECRET = bytes32(uint256(1234567890));
 
     function setUp() public {
         // Set the timestamp to a future date to avoid timestamp related issues
@@ -98,7 +99,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         bytes32 commitment = registrar.makeCommitment(
             name, 
             address(this), 
-            bytes32(0), 
+            SECRET, 
             address(registry),
             address(0), // resolver
             0, 
@@ -111,6 +112,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             address(this), 
+            SECRET,
             registry,
             address(0), // resolver
             0, 
@@ -210,12 +212,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
         
         // Make commitment
         bytes32 commitment = registrar.makeCommitment(
             name, 
             owner, 
-            bytes32(0), 
+            secret, 
             address(registry),
             resolver,
             flags, 
@@ -233,6 +236,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         uint256 tokenId = registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
+            secret,
             registry,
             resolver,
             flags, 
@@ -262,12 +266,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
         
         // Make commitment
         bytes32 commitment = registrar.makeCommitment(
             name, 
             owner, 
-            bytes32(0), 
+            secret, 
             address(registry),
             resolver,
             flags, 
@@ -284,6 +289,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE}(
             name, 
             owner, 
+            secret,
             registry,
             resolver,
             flags, 
@@ -297,12 +303,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
         
         // Make commitment
         bytes32 commitment = registrar.makeCommitment(
             name, 
             owner, 
-            bytes32(0), 
+            secret, 
             address(registry),
             resolver,
             flags, 
@@ -314,7 +321,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         bytes32 expectedCommitment = registrar.makeCommitment(
             name, 
             owner, 
-            bytes32(0), 
+            secret, 
             address(registry),
             resolver,
             flags, 
@@ -324,6 +331,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
+            secret,
             registry,
             resolver,
             flags, 
@@ -337,12 +345,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
         
         // Make commitment
         bytes32 commitment = registrar.makeCommitment(
             name, 
             owner, 
-            bytes32(0), 
+            secret, 
             address(registry),
             resolver,
             flags, 
@@ -357,7 +366,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         bytes32 expectedCommitment = registrar.makeCommitment(
             name, 
             owner, 
-            bytes32(0), 
+            secret, 
             address(registry),
             resolver,
             flags, 
@@ -367,6 +376,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
+            secret,
             registry,
             resolver,
             flags, 
@@ -380,12 +390,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
         
         // Register the name first
         bytes32 commitment = registrar.makeCommitment(
             name, 
             owner, 
-            bytes32(0), 
+            secret, 
             address(registry),
             resolver,
             flags, 
@@ -396,6 +407,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
+            secret,
             registry,
             resolver,
             flags, 
@@ -404,11 +416,12 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         
         // Try to register again with user1
         vm.startPrank(user1);
+        bytes32 secret2 = SECRET;
         
         bytes32 commitment2 = registrar.makeCommitment(
             name, 
             user1, 
-            bytes32(0), 
+            secret2, 
             address(registry),
             resolver,
             flags, 
@@ -423,6 +436,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             user1, 
+            secret2,
             registry,
             resolver,
             flags, 
@@ -437,12 +451,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = 1 days; // Too short
+        bytes32 secret = SECRET;
         
         // Make commitment
         bytes32 commitment = registrar.makeCommitment(
             name, 
             owner, 
-            bytes32(0), 
+            secret, 
             address(registry),
             resolver,
             flags, 
@@ -458,6 +473,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
+            secret,
             registry,
             resolver,
             flags, 
@@ -471,12 +487,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
         
         // Register the name first
         bytes32 commitment = registrar.makeCommitment(
             name, 
             owner, 
-            bytes32(0), 
+            secret, 
             address(registry),
             resolver,
             flags, 
@@ -487,6 +504,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         uint256 tokenId = registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
+            secret,
             registry,
             resolver,
             flags, 
@@ -524,12 +542,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
         
         // Register the name first
         bytes32 commitment = registrar.makeCommitment(
             name, 
             owner, 
-            bytes32(0), 
+            secret, 
             address(registry),
             resolver,
             flags, 
@@ -540,6 +559,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
+            secret,
             registry,
             resolver,
             flags, 
@@ -568,12 +588,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
         
         // Make commitment
         bytes32 commitment = registrar.makeCommitment(
             name, 
             owner, 
-            bytes32(0), 
+            secret, 
             address(registry),
             resolver,
             flags, 
@@ -592,6 +613,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE + excessAmount}(
             name, 
             owner, 
+            secret,
             registry,
             resolver,
             flags, 
@@ -608,12 +630,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
         
         // Register the name first
         bytes32 commitment = registrar.makeCommitment(
             name, 
             owner, 
-            bytes32(0), 
+            secret, 
             address(registry),
             resolver,
             flags, 
@@ -624,6 +647,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
             owner, 
+            secret,
             registry,
             resolver,
             flags, 

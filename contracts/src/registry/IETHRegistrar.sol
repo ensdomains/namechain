@@ -100,6 +100,7 @@ interface IETHRegistrar {
      *
      * @param name The name to register.
      * @param owner The address of the owner of the name.
+     * @param secret The secret of the name.
      * @param subregistry The registry to use for the registration.
      * @param resolver The resolver to use for the registration.
      * @param flags The flags to use for the registration.
@@ -110,6 +111,7 @@ interface IETHRegistrar {
     function register(
         string calldata name,
         address owner,
+        bytes32 secret,
         IRegistry subregistry,
         address resolver,
         uint96 flags,

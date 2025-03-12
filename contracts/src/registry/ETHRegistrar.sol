@@ -129,6 +129,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
      * @dev Register a name.
      * @param name The name to register.
      * @param owner The owner of the name.
+     * @param secret The secret of the name.
      * @param subregistry The subregistry to register the name in.
      * @param resolver The resolver to use for the registration.
      * @param flags The flags to set on the name.   
@@ -138,6 +139,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
     function register(
         string calldata name,
         address owner,
+        bytes32 secret,
         IRegistry subregistry,
         address resolver,
         uint96 flags,
@@ -149,7 +151,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
             revert InsufficientValue(totalPrice, msg.value);
         }
 
-        _consumeCommitment(name, duration, makeCommitment(name, owner, bytes32(0), address(subregistry), resolver, flags, duration));
+        _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, flags, duration));
 
         tokenId = registry.register(name, owner, subregistry, resolver, flags, uint64(block.timestamp) + duration);
 
