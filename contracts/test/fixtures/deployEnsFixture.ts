@@ -1,5 +1,5 @@
 import hre from "hardhat";
-import { Address, bytesToHex, keccak256, stringToHex } from "viem";
+import { type Address, bytesToHex, keccak256, stringToHex } from "viem";
 import { packetToBytes } from "../utils/utils.js";
 
 export async function deployEnsFixture() {
@@ -73,6 +73,7 @@ export const registerName = async ({
   expiry = BigInt(Math.floor(Date.now() / 1000) + 1000000),
   owner: owner_,
   subregistry = "0x0000000000000000000000000000000000000000",
+  resolver = "0x0000000000000000000000000000000000000000",
   subregistryLocked = false,
   resolverLocked = false,
 }: Pick<EnsFixture, "ethRegistry"> & {
@@ -80,11 +81,12 @@ export const registerName = async ({
   expiry?: bigint;
   owner?: Address;
   subregistry?: Address;
+  resolver?: Address;
   subregistryLocked?: boolean;
   resolverLocked?: boolean;
 }) => {
   const owner =
     owner_ ?? (await hre.viem.getWalletClients())[0].account.address;
   const flags = (subregistryLocked ? 1n : 0n) | (resolverLocked ? 2n : 0n);
-  return ethRegistry.write.register([label, owner, subregistry, flags, expiry]);
+  return ethRegistry.write.register([label, owner, subregistry, resolver, flags, expiry]);
 };
