@@ -16,7 +16,7 @@ abstract contract PermissionedRegistry is BaseRegistry {
     uint96 public constant FLAG_RESOLVER_LOCKED = 0x2;
     uint96 public constant FLAG_FLAGS_LOCKED = 0x4;
 
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore, _metadata) {
+    constructor(IRegistryDatastore _datastore) BaseRegistry(_datastore) {
     }
 
     function _setFlags(uint256 tokenId, uint96 _flags)

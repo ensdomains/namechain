@@ -16,7 +16,7 @@ contract RootRegistry is PermissionedRegistry, AccessControl {
 
     mapping(uint256 tokenId=>string) uris;
 
-    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore, IRegistryMetadata(address(0))) {
+    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 

@@ -10,15 +10,16 @@ import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
+import {MetadataMixin} from "./MetadataMixin.sol";
 
-contract UserRegistry is BaseRegistry {
+contract UserRegistry is BaseRegistry, MetadataMixin {
     uint96 public constant SUBREGISTRY_FLAGS_MASK = 0x1;
     uint96 public constant SUBREGISTRY_FLAG_LOCKED = 0x1;
 
     IRegistry public parent;
     string public label;
 
-    constructor(IRegistry _parent, string memory _label, IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore, _metadata) {
+    constructor(IRegistry _parent, string memory _label, IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
         parent = _parent;
         label = _label;
     }
@@ -61,6 +62,15 @@ contract UserRegistry is BaseRegistry {
     {
         (, uint96 flags) = datastore.getSubregistry(tokenId);
         datastore.setSubregistry(tokenId, address(registry), flags);
+    }
+
+    /**
+     * @dev Fetches the token URI for a node.
+     * @param tokenId The ID of the node to fetch a URI for.
+     * @return The token URI for the node.
+     */
+    function uri(uint256 tokenId) public view virtual override returns (string memory) {
+        return tokenURI(tokenId);
     }
 
     function supportsInterface(bytes4 interfaceId) public view override returns (bool) {

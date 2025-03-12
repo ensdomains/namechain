@@ -10,8 +10,9 @@ import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
 import {IRegistryMetadata} from "./IRegistryMetadata.sol";
+import {MetadataMixin} from "./MetadataMixin.sol";
 
-contract ETHRegistry is PermissionedRegistry, AccessControl {
+contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
 
     error NameAlreadyRegistered(string label);
@@ -24,8 +25,17 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
 
     mapping(uint256 => address) public tokenObservers;
     
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) PermissionedRegistry(_datastore, _metadata) {
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) PermissionedRegistry(_datastore) MetadataMixin(_metadata) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    /**
+     * @dev Fetches the token URI for a node.
+     * @param tokenId The ID of the node to fetch a URI for.
+     * @return The token URI for the node.
+     */
+    function uri(uint256 tokenId) public view virtual override returns (string memory) {
+        return tokenURI(tokenId);
     }
 
     function ownerOf(uint256 tokenId)
