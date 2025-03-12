@@ -109,7 +109,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Returns `true` if `account` has been granted all roles in `resource`.
      */
     function hasRoles(bytes32 resource, uint256 rolesBitmap, address account) public view virtual returns (bool) {
-        return ((_roles[resource][account] & rolesBitmap) != 0) || hasRootRoles(rolesBitmap, account);
+        return ((_roles[resource][account] | _roles[ROOT_RESOURCE][account]) & rolesBitmap) == rolesBitmap;
     }
 
 
