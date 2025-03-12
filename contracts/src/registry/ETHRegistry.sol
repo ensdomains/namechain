@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
+import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
+import {Roles} from "./Roles.sol";  
 
-contract ETHRegistry is PermissionedRegistry, AccessControl {
-    bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
-
+contract ETHRegistry is PermissionedRegistry {
     error NameAlreadyRegistered(string label);
     error NameExpired(uint256 tokenId);
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
@@ -23,8 +21,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
 
     mapping(uint256 => address) public tokenObservers;
     
-    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore, msg.sender) {
     }
 
     function uri(uint256 /*tokenId*/ ) public pure override returns (string memory) {
@@ -46,9 +43,9 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
         return super.ownerOf(tokenId);
     }
 
-    function register(string calldata label, address owner, IRegistry registry, uint96 flags, uint64 expires)
+    function register(string calldata label, address owner, IRegistry registry, uint96 flags, uint256 roleBitmap, uint64 expires)
         public
-        onlyRole(REGISTRAR_ROLE)
+        onlyRootRole(ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
         tokenId = (uint256(keccak256(bytes(label))) & ~uint256(FLAGS_MASK)) | flags;
@@ -67,6 +64,8 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
         }
 
         _mint(owner, tokenId, 1, "");
+        _grantRoles(tokenIdResource(tokenId), roleBitmap, owner);
+
         datastore.setSubregistry(tokenId, address(registry), flags);
         emit NewSubname(label);
         return tokenId;
@@ -77,7 +76,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
         emit TokenObserverSet(tokenId, _observer);
     }
 
-    function renew(uint256 tokenId, uint64 expires) public onlyRole(REGISTRAR_ROLE) {
+    function renew(uint256 tokenId, uint64 expires) public onlyRootRole(ROLE_REGISTRAR) {
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
         uint64 oldExpiration = _extractExpiry(flags);
         if (oldExpiration < block.timestamp) {
@@ -103,9 +102,12 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
      * @param tokenId The token ID of the name to relinquish.
      */
     function relinquish(uint256 tokenId) external onlyTokenOwner(tokenId) {
+        _revokeAllRoles(tokenIdResource(tokenId), ownerOf(tokenId));
         _burn(ownerOf(tokenId), tokenId, 1);
-        datastore.setSubregistry(tokenId, address(0), 0);
 
+        datastore.setSubregistry(tokenId, address(0), 0);
+        datastore.setResolver(tokenId, address(0), 0);
+        
         address observer = tokenObservers[tokenId];
         if (observer != address(0)) {
             ETHRegistryTokenObserver(observer).onRelinquish(tokenId, msg.sender);
@@ -128,13 +130,9 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
         newTokenId = (tokenId & ~uint256(FLAGS_MASK)) | (newFlags & FLAGS_MASK);
         if (tokenId != newTokenId) {
             address owner = ownerOf(tokenId);
-            _burn(owner, tokenId, 1);
             _mint(owner, newTokenId, 1, "");
+            _burn(owner, tokenId, 1);
         }
-    }
-
-    function supportsInterface(bytes4 interfaceId) public view override(BaseRegistry, AccessControl) returns (bool) {
-        return interfaceId == type(IRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
     function getSubregistry(string calldata label) external view virtual override returns (IRegistry) {
@@ -159,7 +157,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl {
     }
 
 
-    // Private methods
+    // Internal/private methods
 
     function _extractExpiry(uint96 flags) private pure returns (uint64) {
         return uint64(flags >> 32);
