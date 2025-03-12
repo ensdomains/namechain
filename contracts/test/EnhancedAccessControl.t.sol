@@ -81,7 +81,7 @@ contract EnhancedAccessControlTest is Test {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
         
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesGranted(bytes32,uint256,address,address)"));
+        assertEq(entries[0].topics[0], keccak256("EACRolesGranted(bytes32,uint256,address,address)"));
         (bytes32 resource, uint256 emittedRoleBitmap, address account, address sender) = abi.decode(entries[0].data, (bytes32, uint256, address, address));
         assertEq(resource, RESOURCE_1);
         assertEq(emittedRoleBitmap, roleBitmap);
@@ -137,14 +137,14 @@ contract EnhancedAccessControlTest is Test {
         access.callOnlyRootRole(ROLE_A);
         
         // User2 doesn't have the role, should revert
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRole.selector, access.ROOT_RESOURCE(), ROLE_A, user2));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRole.selector, access.ROOT_RESOURCE(), ROLE_A, user2));
         vm.prank(user2);
         access.callOnlyRootRole(ROLE_A);
         
         // Having the role in a specific resource doesn't satisfy onlyRootRole
         access.grantRole(RESOURCE_1, ROLE_A, user2);
         
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRole.selector, access.ROOT_RESOURCE(), ROLE_A, user2));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRole.selector, access.ROOT_RESOURCE(), ROLE_A, user2));
         vm.prank(user2);
         access.callOnlyRootRole(ROLE_A);
     }
@@ -169,7 +169,7 @@ contract EnhancedAccessControlTest is Test {
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesRevoked(bytes32,uint256,address,address)"));
+        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(bytes32,uint256,address,address)"));
         (bytes32 resource, uint256 roles, address account, address sender) = abi.decode(entries[0].data, (bytes32, uint256, address, address));
         assertEq(resource, RESOURCE_1);
         assertEq(roles, ROLE_A);
@@ -207,7 +207,7 @@ contract EnhancedAccessControlTest is Test {
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRoleAdminChanged(uint256,uint256,uint256)"));
+        assertEq(entries[0].topics[0], keccak256("EACRoleAdminChanged(uint256,uint256,uint256)"));
         (uint256 roles, uint256 previousAdmin, uint256 newAdmin) = abi.decode(entries[0].data, (uint256, uint256, uint256));
         assertEq(roles, ROLE_A);
         assertEq(previousAdmin, 0);
@@ -225,7 +225,7 @@ contract EnhancedAccessControlTest is Test {
     }
 
     function test_Revert_unauthorized_grant() public {
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountAdminRole.selector, RESOURCE_1, ROLE_A, user1));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountAdminRole.selector, RESOURCE_1, ROLE_A, user1));
         vm.prank(user1);
         access.grantRole(RESOURCE_1, ROLE_A, user2);
     }
@@ -233,13 +233,13 @@ contract EnhancedAccessControlTest is Test {
     function test_Revert_unauthorized_revoke() public {
         access.grantRole(RESOURCE_1, ROLE_A, user2);
         
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountAdminRole.selector, RESOURCE_1, ROLE_A, user1));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountAdminRole.selector, RESOURCE_1, ROLE_A, user1));
         vm.prank(user1);
         access.revokeRole(RESOURCE_1, ROLE_A, user2);
     }
 
     function test_Revert_bad_renounce_confirmation() public {
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlBadConfirmation.selector));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACBadConfirmation.selector));
         vm.prank(user1);
         access.renounceRole(RESOURCE_1, ROLE_A, user2);
     }
@@ -298,7 +298,7 @@ contract EnhancedAccessControlTest is Test {
         // Verify event was emitted correctly
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesCopied(bytes32,bytes32,address,address,uint256)"));
+        assertEq(entries[0].topics[0], keccak256("EACRolesCopied(bytes32,bytes32,address,address,uint256)"));
         (bytes32 srcResource, bytes32 dstResource, address srcAccount, address dstAccount, uint256 roleBitmap) = abi.decode(entries[0].data, (bytes32, bytes32, address, address, uint256));
         assertEq(srcResource, RESOURCE_1);
         assertEq(dstResource, RESOURCE_1);
@@ -336,7 +336,7 @@ contract EnhancedAccessControlTest is Test {
         // Verify event was emitted correctly
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesCopied(bytes32,bytes32,address,address,uint256)"));
+        assertEq(entries[0].topics[0], keccak256("EACRolesCopied(bytes32,bytes32,address,address,uint256)"));
         (bytes32 srcResource, bytes32 dstResource, address srcAccount, address dstAccount, uint256 roleBitmap) = abi.decode(entries[0].data, (bytes32, bytes32, address, address, uint256));
         assertEq(srcResource, RESOURCE_1);
         assertEq(dstResource, RESOURCE_2);
@@ -361,7 +361,7 @@ contract EnhancedAccessControlTest is Test {
         // Verify event was emitted correctly for the second copy
         entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesCopied(bytes32,bytes32,address,address,uint256)"));
+        assertEq(entries[0].topics[0], keccak256("EACRolesCopied(bytes32,bytes32,address,address,uint256)"));
         (srcResource, dstResource, srcAccount, dstAccount, roleBitmap) = abi.decode(entries[0].data, (bytes32, bytes32, address, address, uint256));
         assertEq(srcResource, RESOURCE_1);
         assertEq(dstResource, RESOURCE_2);
@@ -400,7 +400,7 @@ contract EnhancedAccessControlTest is Test {
         // Verify event was emitted correctly
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesRevoked(bytes32,uint256,address,address)"));
+        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(bytes32,uint256,address,address)"));
         (bytes32 resource, uint256 roles, address account, address sender) = abi.decode(entries[0].data, (bytes32, uint256, address, address));
         assertEq(resource, RESOURCE_1);
         assertEq(roles, ROLE_A | ROLE_B);
@@ -453,7 +453,7 @@ contract EnhancedAccessControlTest is Test {
         // Verify event was emitted correctly with the correct bitmap
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesCopied(bytes32,bytes32,address,address,uint256)"));
+        assertEq(entries[0].topics[0], keccak256("EACRolesCopied(bytes32,bytes32,address,address,uint256)"));
         (bytes32 srcResource, bytes32 dstResource, address srcAccount, address dstAccount, uint256 roleBitmap) = abi.decode(entries[0].data, (bytes32, bytes32, address, address, uint256));
         assertEq(srcResource, RESOURCE_1);
         assertEq(dstResource, RESOURCE_1);
@@ -478,7 +478,7 @@ contract EnhancedAccessControlTest is Test {
         // Verify event was emitted correctly
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesLocked(bytes32,uint256)"));
+        assertEq(entries[0].topics[0], keccak256("EACRolesLocked(bytes32,uint256)"));
         (bytes32 resource, uint256 roleBitmap) = abi.decode(entries[0].data, (bytes32, uint256));
         assertEq(resource, RESOURCE_1);
         assertEq(roleBitmap, ROLE_A);
@@ -493,7 +493,7 @@ contract EnhancedAccessControlTest is Test {
         // Verify event was emitted correctly for the additional locks
         entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EnhancedAccessControlRolesLocked(bytes32,uint256)"));
+        assertEq(entries[0].topics[0], keccak256("EACRolesLocked(bytes32,uint256)"));
         (resource, roleBitmap) = abi.decode(entries[0].data, (bytes32, uint256));
         assertEq(resource, RESOURCE_1);
         assertEq(roleBitmap, ROLE_B | ROLE_C);
@@ -515,7 +515,7 @@ contract EnhancedAccessControlTest is Test {
         access.lockRoles(RESOURCE_1, ROLE_A);
         
         // Attempt to revoke the locked role should revert
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlLockedRole.selector, RESOURCE_1, ROLE_A));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACLockedRole.selector, RESOURCE_1, ROLE_A));
         access.revokeRole(RESOURCE_1, ROLE_A, user1);
         
         // Verify role was not revoked
@@ -539,7 +539,7 @@ contract EnhancedAccessControlTest is Test {
         
         // Attempt to renounce the locked role should revert
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlLockedRole.selector, RESOURCE_1, ROLE_A));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACLockedRole.selector, RESOURCE_1, ROLE_A));
         access.renounceRole(RESOURCE_1, ROLE_A, user1);
         
         // Verify role was not renounced
@@ -555,7 +555,7 @@ contract EnhancedAccessControlTest is Test {
         access.lockRoles(RESOURCE_1, ROLE_A);
         
         // Attempt to revoke all roles should revert because one is locked
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlLockedRole.selector, RESOURCE_1, ROLE_A));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACLockedRole.selector, RESOURCE_1, ROLE_A));
         access.revokeAllRoles(RESOURCE_1, user1);
         
         // Verify no roles were revoked
@@ -599,7 +599,7 @@ contract EnhancedAccessControlTest is Test {
         assertFalse(access.hasRoles(RESOURCE_1, ROLE_C, user1));
         
         // Attempt to revoke multiple roles including a locked one should revert
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlLockedRole.selector, RESOURCE_1, ROLE_B));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACLockedRole.selector, RESOURCE_1, ROLE_B));
         access.revokeRole(RESOURCE_1, ROLE_A | ROLE_B, user1);
     }
 } 

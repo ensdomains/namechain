@@ -7,25 +7,25 @@ import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 /**
- * @dev An enhanced version of OpenZeppelin's AccessControl that allows for:
+ * @dev Access control system that allows for:
  * 
  * - Resource-based roles.
  * - Root resource override (0x0) - role assignments in the root resource auto-apply to all resources.
  * - Max 256 roles - stored as a bitmap in uint256.
  */
 abstract contract EnhancedAccessControl is Context, ERC165 {
-    error EnhancedAccessControlUnauthorizedAccountRole(bytes32 resource, uint256 role, address account);
-    error EnhancedAccessControlUnauthorizedAccountAdminRole(bytes32 resource, uint256 role, address account);
-    error EnhancedAccessControlBadConfirmation();
-    error EnhancedAccessControlLockedRole(bytes32 resource, uint256 role);
+    error EACUnauthorizedAccountRole(bytes32 resource, uint256 role, address account);
+    error EACUnauthorizedAccountAdminRole(bytes32 resource, uint256 role, address account);
+    error EACBadConfirmation();
+    error EACLockedRole(bytes32 resource, uint256 role);
 
-    event EnhancedAccessControlRoleAdminChanged(uint256 role, uint256 previousAdminRole, uint256 newAdminRole);
-    event EnhancedAccessControlRoleGranted(bytes32 resource, uint256 role, address account, address sender);
-    event EnhancedAccessControlRolesGranted(bytes32 resource, uint256 roleBitmap, address account, address sender);
-    event EnhancedAccessControlRolesCopied(bytes32 srcResource, bytes32 dstResource, address account, address sender, uint256 roleBitmap);
-    event EnhancedAccessControlRolesRevoked(bytes32 resource, uint256 role, address account, address sender);
-    event EnhancedAccessControlAllRolesRevoked(bytes32 resource, address account, address sender);
-    event EnhancedAccessControlRolesLocked(bytes32 resource, uint256 roleBitmap);
+    event EACRoleAdminChanged(uint256 role, uint256 previousAdminRole, uint256 newAdminRole);
+    event EACRoleGranted(bytes32 resource, uint256 role, address account, address sender);
+    event EACRolesGranted(bytes32 resource, uint256 roleBitmap, address account, address sender);
+    event EACRolesCopied(bytes32 srcResource, bytes32 dstResource, address account, address sender, uint256 roleBitmap);
+    event EACRolesRevoked(bytes32 resource, uint256 role, address account, address sender);
+    event EACAllRolesRevoked(bytes32 resource, address account, address sender);
+    event EACRolesLocked(bytes32 resource, uint256 roleBitmap);
 
     /** 
      * @dev admin role that controls a given role. 
@@ -183,7 +183,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      */
     function renounceRole(bytes32 resource, uint256 role, address callerConfirmation) public virtual returns (bool) {
         if (callerConfirmation != _msgSender()) {
-            revert EnhancedAccessControlBadConfirmation();
+            revert EACBadConfirmation();
         }
 
         return _revokeRoles(resource, role, callerConfirmation);
@@ -197,7 +197,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      */
     function _checkRole(bytes32 resource, uint256 role, address account) internal view virtual {
         if (!hasRoles(resource, role, account)) {
-            revert EnhancedAccessControlUnauthorizedAccountRole(resource, role, account);
+            revert EACUnauthorizedAccountRole(resource, role, account);
         }
     }
 
@@ -208,7 +208,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         uint256 theAdminRole = getRoleAdmin(role);
         if (!hasRoles(resource, theAdminRole, account)) {
             if (!hasRoles(resource, DEFAULT_ADMIN_ROLE, account)) {
-                revert EnhancedAccessControlUnauthorizedAccountAdminRole(resource, role, account);
+                revert EACUnauthorizedAccountAdminRole(resource, role, account);
             }
         }
     }
@@ -222,7 +222,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      */
     function _lockRoles(bytes32 resource, uint256 roleBitmap) internal virtual {
         _lockedRoles[resource] |= roleBitmap;
-        emit EnhancedAccessControlRolesLocked(resource, roleBitmap);
+        emit EACRolesLocked(resource, roleBitmap);
     }
 
     /**
@@ -236,7 +236,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     function _copyRoles(bytes32 srcResource, address srcAccount, bytes32 dstResource, address dstAccount) internal virtual {
         uint256 srcRoles = _roles[srcResource][srcAccount];
         _roles[dstResource][dstAccount] |= srcRoles;
-        emit EnhancedAccessControlRolesCopied(srcResource, dstResource, srcAccount, dstAccount, srcRoles);
+        emit EACRolesCopied(srcResource, dstResource, srcAccount, dstAccount, srcRoles);
     }
 
 
@@ -244,12 +244,12 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev Sets `adminRole` as ``role``'s admin role.
      *
-     * Emits a {EnhancedAccessControlRoleAdminChanged} event.
+     * Emits a {EACRoleAdminChanged} event.
      */
     function _setRoleAdmin(uint256 role, uint256 adminRole) internal virtual {
         uint256 previousAdminRoleId = getRoleAdmin(role);
         _adminRoles[role] = adminRole;
-        emit EnhancedAccessControlRoleAdminChanged(role, previousAdminRoleId, adminRole);
+        emit EACRoleAdminChanged(role, previousAdminRoleId, adminRole);
     }
 
 
@@ -262,7 +262,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         uint256 updatedRoles = currentRoles | roleBitmap;
         if (currentRoles != updatedRoles) {
             _roles[resource][account] = updatedRoles;
-            emit EnhancedAccessControlRolesGranted(resource, roleBitmap, account, _msgSender());
+            emit EACRolesGranted(resource, roleBitmap, account, _msgSender());
             return true;
         } else {
             return false;
@@ -277,7 +277,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         // Check if any of the roles being revoked are locked
         uint256 lockedRoleBitmap = _lockedRoles[resource];
         if ((roleBitmap & lockedRoleBitmap) != 0) {
-            revert EnhancedAccessControlLockedRole(resource, roleBitmap & lockedRoleBitmap);
+            revert EACLockedRole(resource, roleBitmap & lockedRoleBitmap);
         }
         
         uint256 currentRoles = _roles[resource][account];
@@ -285,7 +285,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         
         if (currentRoles != updatedRoles) {
             _roles[resource][account] = updatedRoles;
-            emit EnhancedAccessControlRolesRevoked(resource, roleBitmap, account, _msgSender());
+            emit EACRolesRevoked(resource, roleBitmap, account, _msgSender());
             return true;
         } else {
             return false;

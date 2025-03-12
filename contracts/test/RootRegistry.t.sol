@@ -68,7 +68,7 @@ contract TestRootRegistry is Test, ERC1155Holder, Roles {
     function test_Revert_cannot_set_locked_subregistry() public {
         uint256 tokenId = registry.mint("test", address(this), registry, 0, lockedSubregistryRoleBitmap, "");
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRole.selector, registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRole.selector, registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, address(this)));
         registry.setSubregistry(tokenId, IRegistry(address(this)));
     }
 
@@ -81,7 +81,7 @@ contract TestRootRegistry is Test, ERC1155Holder, Roles {
     function test_Revert_cannot_set_locked_resolver() public {
         uint256 tokenId = registry.mint("test", address(this), registry, 0, lockedResolverRoleBitmap, "");
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EnhancedAccessControlUnauthorizedAccountRole.selector, registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRole.selector, registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, address(this)));
         registry.setResolver(tokenId, address(this));
     }
 
