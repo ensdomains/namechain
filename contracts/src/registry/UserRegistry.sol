@@ -31,8 +31,6 @@ contract UserRegistry is
     uint96 public constant FLAG_RESOLVER_LOCKED = 0x2;
     uint96 public constant FLAG_FLAGS_LOCKED = 0x4;
     
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    
     // =================== Storage Variables ===================
     
     IRegistryDatastore public datastore;
@@ -102,7 +100,6 @@ contract UserRegistry is
         label = _label;
         
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
-        _grantRole(ADMIN_ROLE, _admin);
     }
     
     // =================== IRegistry Implementation ===================

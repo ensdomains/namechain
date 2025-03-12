@@ -8,12 +8,13 @@ import {IAccessControl} from "@openzeppelin/contracts-upgradeable/access/AccessC
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 
+import "verifiable-factory/VerifiableFactory.sol";
+
 import "../src/registry/RegistryDatastore.sol";
 import "../src/registry/ETHRegistry.sol";
 import "../src/registry/UserRegistry.sol";
 import "../src/registry/IRegistry.sol";
 import "../src/registry/ERC1155SingletonUpgradable.sol";
-import "verifiable-factory/VerifiableFactory.sol";
 
 contract TestUserRegistry is Test, ERC1155Holder {
     event TransferSingle(
