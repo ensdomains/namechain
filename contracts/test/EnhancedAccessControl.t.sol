@@ -225,14 +225,22 @@ contract EnhancedAccessControlTest is Test {
     }
 
     function test_Revert_unauthorized_grant() public {
+        // Set ROLE_B as the admin role for ROLE_A
+        access.setRoleAdmin(ROLE_A, ROLE_B);
+        
+        // Now user1 doesn't have ROLE_B, so this should revert
         vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountAdminRole.selector, RESOURCE_1, ROLE_A, user1));
         vm.prank(user1);
         access.grantRole(RESOURCE_1, ROLE_A, user2);
     }
 
     function test_Revert_unauthorized_revoke() public {
+        // Set ROLE_B as the admin role for ROLE_A
+        access.setRoleAdmin(ROLE_A, ROLE_B);
+        
         access.grantRole(RESOURCE_1, ROLE_A, user2);
         
+        // Now user1 doesn't have ROLE_B, so this should revert
         vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountAdminRole.selector, RESOURCE_1, ROLE_A, user1));
         vm.prank(user1);
         access.revokeRole(RESOURCE_1, ROLE_A, user2);
@@ -601,5 +609,59 @@ contract EnhancedAccessControlTest is Test {
         // Attempt to revoke multiple roles including a locked one should revert
         vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACLockedRole.selector, RESOURCE_1, ROLE_B));
         access.revokeRole(RESOURCE_1, ROLE_A | ROLE_B, user1);
+    }
+    
+    function test_has_roles_requires_all_roles() public {
+        // Grant only ROLE_A and ROLE_B to user1
+        access.grantRole(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        
+        // Verify individual roles work
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_B, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_C, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_D, user1));
+        
+        // Verify combinations with only granted roles work
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
+        
+        // Verify combinations with at least one missing role fail
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_C, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_B | ROLE_D, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B | ROLE_C, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B | ROLE_C | ROLE_D, user1));
+        
+        // Grant one more role and test again
+        access.grantRole(RESOURCE_1, ROLE_C, user1);
+        
+        // Now combinations with A, B, C should work, but not with D
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B | ROLE_C, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B | ROLE_C | ROLE_D, user1));
+    }
+    
+    function test_has_root_roles_requires_all_roles() public {
+        // Grant only ROLE_A and ROLE_B to user1 in root resource
+        access.grantRole(access.ROOT_RESOURCE(), ROLE_A | ROLE_B, user1);
+        
+        // Verify individual roles work
+        assertTrue(access.hasRootRoles(ROLE_A, user1));
+        assertTrue(access.hasRootRoles(ROLE_B, user1));
+        assertFalse(access.hasRootRoles(ROLE_C, user1));
+        assertFalse(access.hasRootRoles(ROLE_D, user1));
+        
+        // Verify combinations with only granted roles work
+        assertTrue(access.hasRootRoles(ROLE_A | ROLE_B, user1));
+        
+        // Verify combinations with at least one missing role fail
+        assertFalse(access.hasRootRoles(ROLE_A | ROLE_C, user1));
+        assertFalse(access.hasRootRoles(ROLE_B | ROLE_D, user1));
+        assertFalse(access.hasRootRoles(ROLE_A | ROLE_B | ROLE_C, user1));
+        assertFalse(access.hasRootRoles(ROLE_A | ROLE_B | ROLE_C | ROLE_D, user1));
+        
+        // Grant one more role and test again
+        access.grantRole(access.ROOT_RESOURCE(), ROLE_C, user1);
+        
+        // Now combinations with A, B, C should work, but not with D
+        assertTrue(access.hasRootRoles(ROLE_A | ROLE_B | ROLE_C, user1));
+        assertFalse(access.hasRootRoles(ROLE_A | ROLE_B | ROLE_C | ROLE_D, user1));
     }
 } 
