@@ -32,7 +32,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
             metadata
         );
 
-        parentRegistry.register("test", address(this), registry, 0, uint64(block.timestamp + 1000));
+        parentRegistry.register("test", address(this), registry, address(0), 0, uint64(block.timestamp + 1000));
     }
 
     function test_registry_metadata_base_uri() public {
