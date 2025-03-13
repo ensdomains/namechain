@@ -32,7 +32,7 @@ abstract contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, R
 
     function setSubregistry(uint256 tokenId, IRegistry registry)
         external
-        onlyRole(tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY)
+        onlyRoles(tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY)
     {
         (, uint96 _flags) = datastore.getSubregistry(tokenId);
         datastore.setSubregistry(tokenId, address(registry), _flags);
@@ -40,7 +40,7 @@ abstract contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, R
 
     function setResolver(uint256 tokenId, address resolver)
         external
-        onlyRole(tokenIdResource(tokenId), ROLE_SET_RESOLVER)
+        onlyRoles(tokenIdResource(tokenId), ROLE_SET_RESOLVER)
     {
         (, uint96 _flags) = datastore.getResolver(tokenId);
         datastore.setResolver(tokenId, resolver, _flags);

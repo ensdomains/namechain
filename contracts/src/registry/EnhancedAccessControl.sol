@@ -14,14 +14,16 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
  * - Upto 128 roles - stored as a bitmap in uint256 (see below).
  * 
  * A role is represented by a uint256:
- * - The least significant 128 bits represent the role.
- * - The most significant 128 bits represent the admin role shifted left by 128 bits.
+ * - The bit that is set in the least significant 128 bits represent the role.
+ * - The bit that is set in the most significant 128 bits represent the admin role.
  *
  * For the methods which take a `roleBitmap`, ensure that:
  * - The least significant bit represents the roles.
- * - The most significant bit represents the corresponding admin roles shifted left by 128 bits.
- * 
- * NOTE: Extending contracts must initialize their own default roles as this contract does not do so.
+ * - The most significant bit represents the corresponding admin roles.
+ *
+ * NOTE:
+ * - Extending contracts must initialize their own default roles as this contract does not do so.
+ * - If two or more roles share the same admin role then these roles must ALWAYS be granted/revoked together.
  */
 abstract contract EnhancedAccessControl is Context, ERC165 {
     error EACUnauthorizedAccountRoles(bytes32 resource, uint256 roleBitmap, address account);
@@ -83,7 +85,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`, `false` otherwise.
      */
     function hasRootRoles(uint256 rolesBitmap, address account) public view virtual returns (bool) {
-        return (_roleBits(_roles[ROOT_RESOURCE][account]) & rolesBitmap) == rolesBitmap;
+        return _roles[ROOT_RESOURCE][account] & rolesBitmap == rolesBitmap;
     }
 
     /**
@@ -95,7 +97,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if `account` has been granted all the given roles in either `resource` or the `ROOT_RESOURCE`, `false` otherwise.
      */
     function hasRoles(bytes32 resource, uint256 rolesBitmap, address account) public view virtual returns (bool) {
-        return (_roleBits(_roles[resource][account] | _roles[ROOT_RESOURCE][account]) & rolesBitmap) == rolesBitmap;
+        return ((_roles[resource][account] | _roles[ROOT_RESOURCE][account]) & rolesBitmap) == rolesBitmap;
     }
 
 
@@ -143,7 +145,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Reverts if `account` does not have the admin roles for all the given roles.
      */
     function _checkCanGrantRoles(bytes32 resource, uint256 roleBitmap, address account) internal view virtual {
-        uint256 adminRoles = _adminBits(roleBitmap);
+        uint256 adminRoles = roleBitmap & 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;
         if (adminRoles == 0 || !hasRoles(resource, adminRoles, account)) {
             revert EACUnauthorizedAccountAdminRoles(resource, roleBitmap, account);
         }
@@ -199,30 +201,5 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      */
     function _revokeAllRoles(bytes32 resource, address account) internal virtual returns (bool) {
         return _revokeRoles(resource, _roles[resource][account], account);
-    }
-
-    /**
-     * @dev Combines a role and an admin role into a single uint256.
-     *
-     * @param role The role to combine.
-     * @param adminRole The admin role to combine.
-     * @return The combined role and admin role.
-     */
-    function _roleWithAdmin(uint256 role, uint256 adminRole) internal pure returns (uint256) {
-        return role | (adminRole << 128);
-    }
-
-    /**
-     * @dev Returns the role bits from a role bitmap, excluding their assigning admin roles.
-     */
-    function _roleBits(uint256 roleBitmap) internal pure returns (uint256) {
-        return roleBitmap & 0xffffffffffffffffffffffffffffffff;
-    }
-
-    /**
-     * @dev Returns the admin role bits from a role bitmap, excludable their assignable roles.
-     */
-    function _adminBits(uint256 roleBitmap) internal pure returns (uint256) {
-        return roleBitmap >> 128;
     }
 }

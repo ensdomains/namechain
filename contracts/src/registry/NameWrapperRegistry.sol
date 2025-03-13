@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+OES// SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
@@ -16,15 +16,19 @@ contract NameWrapperRegistry is PermissionedRegistry{
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
     error NameTransferLocked(uint256 tokenId);
     error RegistrarRoleOnlyInRootContext();
+    error RenewAdminRoleFrozen();
 
     event RegistrarRoleTransferred(address indexed previousRegistrar, address indexed newRegistrar);
 
+    /**
+     * @dev Whether to prevent the renew admin role from being assigned to anyone.
+     */
+    bool freezeRenewAdminRole;
+
     /* NOTE: no default admin is set, meaning there is no superuser with forever permissions */
-    constructor(IRegistryDatastore _datastore, address _registrar) PermissionedRegistry(_datastore, address(0)) {
-        _setRoleAdmin(ROLE_RENEW, ROLE_RENEWER_ADMIN);
-        _setRoleAdmin(ROLE_RENEWER_ADMIN, ROLE_PARENT);
-        _grantRoles(ROOT_RESOURCE, ROLE_PARENT | ROLE_RENEWER_ADMIN, _msgSender());
-        _grantRoles(ROOT_RESOURCE, ROLE_BITMAP_REGISTRAR_DEFAULT, _registrar);
+    constructor(IRegistryDatastore _datastore, address _registrar) PermissionedRegistry(_datastore) {
+        _grantRoles(ROOT_RESOURCE, ROLE_RENEW_ADMIN_ADMIN, _msgSender());
+        _grantRoles(ROOT_RESOURCE, ROLE_REGISTRAR, _registrar);
     }
 
 
@@ -38,6 +42,9 @@ contract NameWrapperRegistry is PermissionedRegistry{
      * If the role is the registrar role, it will also grant the registrar default roles to the account.
      */
     function grantRole(bytes32 resource, uint256 role, address account) public override returns (bool) {
+        if (freezeRenewAdminRole && role == ROLE_RENEW_ADMIN_ADMIN) {
+            revert RenewAdminRoleFrozen();
+        }
         if (super.grantRole(resource, role, account)) {
             if (resource == ROOT_RESOURCE && role == ROLE_REGISTRAR) {
                 _grantRoles(ROOT_RESOURCE, ROLE_BITMAP_REGISTRAR_DEFAULT, account);
@@ -63,19 +70,6 @@ contract NameWrapperRegistry is PermissionedRegistry{
     }
 
 
-    /**
-     * @dev Renounces a role.
-     * If the role is the registrar role, it will also revoke the registrar default roles from the caller.
-     */
-    function renounceRole(bytes32 resource, uint256 role, address callerConfirmation) public override returns (bool) {
-        if (super.renounceRole(resource, role, msg.sender)) {
-            _revokeRoles(ROOT_RESOURCE, ROLE_BITMAP_REGISTRAR_DEFAULT, _msgSender());
-            return true;
-        }
-        return false;
-    }
-
-
     // ------------------------------------------------------------------------------------------------
     // END: Override role management functions to ensure registrar roles are managed correctly
     // ------------------------------------------------------------------------------------------------
@@ -88,8 +82,8 @@ contract NameWrapperRegistry is PermissionedRegistry{
      *
      * Can only be called by the parent role.
      */
-    function freezeRenewerRole() public onlyRootRole(ROLE_PARENT) {
-        _setRoleAdmin(ROLE_RENEW, 0);
+    function freezeRenewerRole() public onlyRootRoles(ROLE_RENEW_ADMIN_ADMIN) {
+        freezeRenewAdminRole = true;
     }
 
 
@@ -113,7 +107,7 @@ contract NameWrapperRegistry is PermissionedRegistry{
 
     function register(string calldata label, address owner, IRegistry registry, uint96 flags, uint64 expires)
         public
-        onlyRootRole(ROLE_REGISTRAR)
+        onlyRootRoles(ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
         tokenId = _canonicalTokenId(NameUtils.labelToTokenId(label), flags);
@@ -137,7 +131,7 @@ contract NameWrapperRegistry is PermissionedRegistry{
         return tokenId;
     }
 
-    function renew(uint256 tokenId, uint64 expires) public onlyRole(tokenIdResource(tokenId), ROLE_RENEW) {
+    function renew(uint256 tokenId, uint64 expires) public onlyRoles(tokenIdResource(tokenId), ROLE_RENEW) {
         address sender = _msgSender();
 
         (bool isExpired, uint64 oldExpiration, address subregistry, uint96 flags) = _getStatus(tokenId);
