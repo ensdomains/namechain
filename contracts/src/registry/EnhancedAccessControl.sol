@@ -17,7 +17,6 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     error EACUnauthorizedAccountRole(bytes32 resource, uint256 role, address account);
     error EACUnauthorizedAccountAdminRole(bytes32 resource, uint256 role, address account);
     error EACBadConfirmation();
-    error EACLockedRole(bytes32 resource, uint256 role);
 
     event EACRoleAdminChanged(uint256 role, uint256 previousAdminRole, uint256 newAdminRole);
     event EACRoleGranted(bytes32 resource, uint256 role, address account, address sender);
@@ -25,7 +24,6 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     event EACRolesCopied(bytes32 srcResource, bytes32 dstResource, address account, address sender, uint256 roleBitmap);
     event EACRolesRevoked(bytes32 resource, uint256 role, address account, address sender);
     event EACAllRolesRevoked(bytes32 resource, address account, address sender);
-    event EACRolesLocked(bytes32 resource, uint256 roleBitmap);
 
     /** 
      * @dev admin role that controls a given role. 
@@ -38,12 +36,6 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * Resource -> User -> RoleBitmap
      */
     mapping(bytes32 resource => mapping(address account => uint256 roleBitmap)) private _roles;
-
-    /**
-     * @dev locked roles within a resource stored as a bitmap.
-     * Resource -> LockedRoleBitmap
-     */
-    mapping(bytes32 resource => uint256 lockedRoleBitmap) private _lockedRoles;
 
     /**
      * @dev The root resource.
@@ -121,13 +113,6 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      */
     function getRoleAdmin(uint256 role) public view virtual returns (uint256) {
         return _adminRoles[role];
-    }
-
-    /**
-     * @dev Returns the locked roles bitmap for a resource.
-     */
-    function getLockedRoles(bytes32 resource) public view virtual returns (uint256) {
-        return _lockedRoles[resource];
     }
 
     /**
@@ -214,18 +199,6 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Locks roles within a resource to prevent their removal.
-     * Adds to any existing locked roles.
-     *
-     * @param resource The resource to lock roles in.
-     * @param roleBitmap The bitmap of roles to lock.
-     */
-    function _lockRoles(bytes32 resource, uint256 roleBitmap) internal virtual {
-        _lockedRoles[resource] |= roleBitmap;
-        emit EACRolesLocked(resource, roleBitmap);
-    }
-
-    /**
      * @dev Copies all roles from `srcAccount` to `dstAccount` within the same resource.
      *
      * @param resource The resource to copy roles within.
@@ -273,12 +246,6 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Attempts to revoke roles from `account` and returns a boolean indicating if roles were revoked.
      */
     function _revokeRoles(bytes32 resource, uint256 roleBitmap, address account) internal virtual returns (bool) {
-        // Check if any of the roles being revoked are locked
-        uint256 lockedRoleBitmap = _lockedRoles[resource];
-        if ((roleBitmap & lockedRoleBitmap) != 0) {
-            revert EACLockedRole(resource, roleBitmap & lockedRoleBitmap);
-        }
-        
         uint256 currentRoles = _roles[resource][account];
         uint256 updatedRoles = currentRoles & ~roleBitmap;
         
