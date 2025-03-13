@@ -11,6 +11,7 @@ import "../src/registry/ETHRegistrar.sol";
 import "../src/registry/ETHRegistry.sol";
 import "../src/registry/RegistryDatastore.sol";
 import "../src/registry/IPriceOracle.sol";
+import "../src/registry/IRegistryMetadata.sol";
 import "../src/utils/NameUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
 
@@ -54,7 +55,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         vm.warp(2_000_000_000);
 
         datastore = new RegistryDatastore();
-        registry = new ETHRegistry(datastore);
+        registry = new ETHRegistry(datastore, IRegistryMetadata(address(0)));
         priceOracle = new MockPriceOracle(BASE_PRICE, PREMIUM_PRICE);
         
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE);

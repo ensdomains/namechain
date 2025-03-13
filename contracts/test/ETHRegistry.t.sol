@@ -6,11 +6,12 @@ import "forge-std/console.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import "src/registry/ETHRegistry.sol";
-import "src/registry/IETHRegistry.sol";
-import "src/registry/RegistryDatastore.sol";
 import "../src/registry/ETHRegistry.sol";
+import "../src/registry/IETHRegistry.sol";
 import "../src/registry/RegistryDatastore.sol";
+import "../src/registry/RegistryDatastore.sol";
+import "../src/registry/IRegistryMetadata.sol";
+import "../src/registry/SimpleRegistryMetadata.sol";
 import "../src/registry/ETHRegistrar.sol";
 import "../src/registry/IPriceOracle.sol";
 
@@ -23,11 +24,13 @@ contract TestETHRegistry is Test, ERC1155Holder {
     ETHRegistrar registrar;
     MockTokenObserver observer;
     RevertingTokenObserver revertingObserver;
+    IRegistryMetadata metadata;
     MockPriceOracle priceOracle;
 
     function setUp() public {
         datastore = new RegistryDatastore();
-        registry = new ETHRegistry(datastore);
+        metadata = new SimpleRegistryMetadata();
+        registry = new ETHRegistry(datastore, metadata);
         registry.grantRole(registry.REGISTRAR_ROLE(), address(this));
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
