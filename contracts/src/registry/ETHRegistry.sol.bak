@@ -21,7 +21,7 @@ contract ETHRegistry is PermissionedRegistry {
 
     mapping(uint256 => address) public tokenObservers;
     
-    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore, msg.sender) {
+    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
     }
 
     function uri(uint256 /*tokenId*/ ) public pure override returns (string memory) {
