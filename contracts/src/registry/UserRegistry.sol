@@ -12,6 +12,10 @@ import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
+import {NameUtils} from "../utils/NameUtils.sol";
+import {MetadataMixin} from "./MetadataMixin.sol";
+
 /**
  * @title UserRegistry
  * @dev Default registry for user names that can be deployed using VerifiableFactory.
@@ -36,7 +40,7 @@ contract UserRegistry is
     IRegistryDatastore public datastore;
     IRegistry public parent;
     string public label;
-    
+
     // Storage gap for future upgrades
     uint256[50] private __gap;
     
@@ -64,7 +68,7 @@ contract UserRegistry is
         }
         _;
     }
-    
+
     modifier withSubregistryFlags(uint256 tokenId, uint96 mask, uint96 expected) {
         (, uint96 flags) = datastore.getSubregistry(tokenId);
         if ((flags & mask) != expected) {
@@ -80,20 +84,16 @@ contract UserRegistry is
         }
         _;
     }
-    
+
     // =================== Initialization ===================
     
     /**
      * @dev Initializes the contract.
      */
-    function initialize(
-        IRegistryDatastore _datastore,
-        IRegistry _parent,
-        string memory _label,
-        address _admin
-    ) public initializer {
+    function initialize( IRegistryDatastore _datastore, IRegistry _parent, string memory _label, IRegistryMetadata _metadata, address _admin) public initializer {
         __UUPSUpgradeable_init();
         __AccessControl_init();
+        MetadataMixin(_metadata);
         
         datastore = _datastore;
         parent = _parent;
@@ -101,7 +101,7 @@ contract UserRegistry is
         
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
-    
+
     // =================== IRegistry Implementation ===================
     
     /**
@@ -129,12 +129,7 @@ contract UserRegistry is
      * @param flags Flags to set on the subname
      * @return tokenId The token ID of the new subname
      */
-    function mint(
-        string calldata sublabel,
-        address owner,
-        IRegistry registry,
-        uint96 flags
-    ) external onlyNameOwner virtual returns (uint256 tokenId) {
+    function mint(string calldata sublabel, address owner, IRegistry registry, uint96 flags) external onlyNameOwner virtual returns (uint256 tokenId) {
         // Calculate the token ID based on the label hash
         tokenId = uint256(keccak256(bytes(sublabel)));
         
@@ -154,11 +149,7 @@ contract UserRegistry is
      * @dev Remove a subname from the registry
      * @param tokenId The token ID to burn
      */
-    function burn(uint256 tokenId) 
-        external 
-        onlyTokenOwner(tokenId) 
-        withSubregistryFlags(tokenId, FLAG_SUBREGISTRY_LOCKED, 0) 
-    {
+    function burn(uint256 tokenId) external onlyTokenOwner(tokenId) withSubregistryFlags(tokenId, FLAG_SUBREGISTRY_LOCKED, 0) {
         address owner = ownerOf(tokenId);
         _burn(owner, tokenId, 1);
         datastore.setSubregistry(tokenId, address(0), 0);
@@ -169,11 +160,7 @@ contract UserRegistry is
     /**
      * @dev Set the subregistry for a token
      */
-    function setSubregistry(uint256 tokenId, IRegistry registry)
-        external
-        onlyTokenOwner(tokenId)
-        withSubregistryFlags(tokenId, FLAG_SUBREGISTRY_LOCKED, 0)
-    {
+    function setSubregistry(uint256 tokenId, IRegistry registry) external onlyTokenOwner(tokenId) withSubregistryFlags(tokenId, FLAG_SUBREGISTRY_LOCKED, 0) {
         (, uint96 flags) = datastore.getSubregistry(tokenId);
         datastore.setSubregistry(tokenId, address(registry), flags);
     }
@@ -181,11 +168,7 @@ contract UserRegistry is
     /**
      * @dev Set the resolver for a token
      */
-    function setResolver(uint256 tokenId, address resolver)
-        external
-        onlyTokenOwner(tokenId)
-        withSubregistryFlags(tokenId, FLAG_RESOLVER_LOCKED, 0)
-    {
+    function setResolver(uint256 tokenId, address resolver) external onlyTokenOwner(tokenId) withSubregistryFlags(tokenId, FLAG_RESOLVER_LOCKED, 0) {
         (, uint96 flags) = datastore.getResolver(tokenId);
         datastore.setResolver(tokenId, resolver, flags);
     }
@@ -193,14 +176,9 @@ contract UserRegistry is
     // =================== Flag Operations ===================
 
     /**
-     * @dev Set flags for a token
+      * @dev Set flags for a token
      */
-    function setFlags(uint256 tokenId, uint96 newFlags)
-        external
-        onlyTokenOwner(tokenId)
-        withSubregistryFlags(tokenId, FLAG_FLAGS_LOCKED, 0)
-        returns (uint96)
-    {
+    function setFlags(uint256 tokenId, uint96 newFlags) external onlyTokenOwner(tokenId) withSubregistryFlags(tokenId, FLAG_FLAGS_LOCKED, 0) returns (uint96) {
         (address subregistry, uint96 oldFlags) = datastore.getSubregistry(tokenId);
         uint96 updatedFlags = oldFlags | (newFlags & FLAGS_MASK);
         datastore.setSubregistry(tokenId, subregistry, updatedFlags);
@@ -210,10 +188,7 @@ contract UserRegistry is
     /**
      * @dev Lock a subname's subregistry
      */
-    function lockSubregistry(uint256 tokenId) 
-        external 
-        onlyTokenOwner(tokenId) 
-    {
+    function lockSubregistry(uint256 tokenId) external onlyTokenOwner(tokenId) {
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
         datastore.setSubregistry(tokenId, subregistry, flags | FLAG_SUBREGISTRY_LOCKED);
     }
@@ -221,10 +196,7 @@ contract UserRegistry is
     /**
      * @dev Lock a subname's resolver
      */
-    function lockResolver(uint256 tokenId) 
-        external 
-        onlyTokenOwner(tokenId) 
-    {
+    function lockResolver(uint256 tokenId) external onlyTokenOwner(tokenId) {
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
         datastore.setSubregistry(tokenId, subregistry, flags | FLAG_RESOLVER_LOCKED);
     }
@@ -232,21 +204,9 @@ contract UserRegistry is
     /**
      * @dev Lock a subname's flags
      */
-    function lockFlags(uint256 tokenId) 
-        external 
-        onlyTokenOwner(tokenId) 
-    {
+    function lockFlags(uint256 tokenId) external onlyTokenOwner(tokenId) {
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
         datastore.setSubregistry(tokenId, subregistry, flags | FLAG_FLAGS_LOCKED);
-    }
-    
-    // =================== URI ===================
-    
-    /**
-     * @dev Override uri function
-     */
-    function uri(uint256) public pure override returns (string memory) {
-        return "";
     }
 
 
@@ -266,18 +226,22 @@ contract UserRegistry is
      * @dev Function that should revert when `msg.sender` is not authorized to upgrade the contract.
      */
     function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // =================== URI ===================
+    
+    /**
+     * @dev Override uri function
+     */
+    function uri(uint256) public pure override returns (string memory) {
+        return "";
+    }
     
     // =================== Interface Support ===================
     
     /**
      * @dev See {IERC165-supportsInterface}.
      */
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(AccessControlUpgradeable, ERC1155SingletonUpgradeable, IERC165)
-        returns (bool)
-    {
+    function supportsInterface(bytes4 interfaceId) public view override(AccessControlUpgradeable, ERC1155SingletonUpgradeable, IERC165) returns (bool) {
         return 
             interfaceId == type(IRegistry).interfaceId || 
             super.supportsInterface(interfaceId);

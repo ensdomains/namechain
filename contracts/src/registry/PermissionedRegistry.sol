@@ -7,6 +7,7 @@ import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 
 abstract contract PermissionedRegistry is BaseRegistry {
