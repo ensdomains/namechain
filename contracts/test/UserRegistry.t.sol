@@ -16,6 +16,8 @@ import "../src/registry/UserRegistry.sol";
 import "../src/registry/IRegistry.sol";
 import "../src/registry/ERC1155SingletonUpgradable.sol";
 
+import "../src/registry/BaseUriRegistryMetadata.sol";
+
 contract TestUserRegistry is Test, ERC1155Holder {
     event TransferSingle(
         address indexed operator,
@@ -32,6 +34,8 @@ contract TestUserRegistry is Test, ERC1155Holder {
     UserRegistry proxy;
     UserRegistryV2 upgradeImplementation;
     VerifiableFactory factory;
+    BaseUriRegistryMetadata metadata;
+
     address owner = address(1);
     address user = address(3);
     uint256 salt = 123456;
@@ -43,8 +47,9 @@ contract TestUserRegistry is Test, ERC1155Holder {
     function setUp() public {
         // Deploy base contracts
         vm.startPrank(owner);
+        metadata = new BaseUriRegistryMetadata();
         datastore = new RegistryDatastore();
-        parentRegistry = new ETHRegistry(datastore);
+        parentRegistry = new ETHRegistry(datastore, metadata);
         parentRegistry.grantRole(
             parentRegistry.REGISTRAR_ROLE(),
             owner
@@ -55,6 +60,7 @@ contract TestUserRegistry is Test, ERC1155Holder {
             PARENT_LABEL,
             owner,
             parentRegistry,
+            address(0),
             0,
             uint64(block.timestamp) + 365 days
         );
@@ -72,6 +78,7 @@ contract TestUserRegistry is Test, ERC1155Holder {
             datastore,
             parentRegistry,
             PARENT_LABEL,
+            metadata,
             owner
         );
 

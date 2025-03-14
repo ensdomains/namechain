@@ -14,7 +14,7 @@ import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 
 import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
-import {MetadataMixin} from "./MetadataMixin.sol";
+import {MetadataMixinUpgradable} from "./MetadataMixinUpgradable.sol";
 
 /**
  * @title UserRegistry
@@ -26,7 +26,8 @@ contract UserRegistry is
     UUPSUpgradeable, 
     AccessControlUpgradeable, 
     ERC1155SingletonUpgradeable,
-    IRegistry // IRegistry extends IERC1155Singleton which has ownerOf
+    IRegistry,
+    MetadataMixinUpgradable
 {
     // =================== Constants ===================
     
@@ -90,10 +91,10 @@ contract UserRegistry is
     /**
      * @dev Initializes the contract.
      */
-    function initialize( IRegistryDatastore _datastore, IRegistry _parent, string memory _label, IRegistryMetadata _metadata, address _admin) public initializer {
+    function initialize(IRegistryDatastore _datastore, IRegistry _parent, string memory _label, IRegistryMetadata _metadata, address _admin) public initializer {
         __UUPSUpgradeable_init();
         __AccessControl_init();
-        MetadataMixin(_metadata);
+        __MetadataMixin_init(_metadata);
         
         datastore = _datastore;
         parent = _parent;
@@ -230,10 +231,12 @@ contract UserRegistry is
     // =================== URI ===================
     
     /**
-     * @dev Override uri function
+     * @dev Fetches the token URI for a node.
+     * @param tokenId The ID of the node to fetch a URI for.
+     * @return The token URI for the node.
      */
-    function uri(uint256) public pure override returns (string memory) {
-        return "";
+    function uri(uint256 tokenId) public view virtual override returns (string memory) {
+        return tokenURI(tokenId);
     }
     
     // =================== Interface Support ===================
