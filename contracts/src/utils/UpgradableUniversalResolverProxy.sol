@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {IUniversalResolver} from "ens-contracts/universalResolver/IUniversalResolver.sol";
+import {IUniversalResolver as IUniversalResolverV2} from "ens-contracts/universalResolver/IUniversalResolver.sol";
 import {OffchainLookup} from "ens-contracts/ccipRead/EIP3668.sol";
 import {CCIPReader} from "ens-contracts/ccipRead/CCIPReader.sol";
+
+import {IUniversalResolver as IUniversalResolverV1, Result} from "./IUniversalResolver.sol";
 
 /**
  * @title UpgradableUniversalResolverProxy
  * @dev A specialized proxy for UniversalResolver that forwards method calls
  * and properly handles CCIP-Read reverts. Admin can upgrade the implementation.
  */
-contract UpgradableUniversalResolverProxy is IUniversalResolver, CCIPReader {
+contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalResolverV2, CCIPReader {
     // Storage slot for implementation address (EIP-1967 compatible)
     bytes32 private constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
@@ -191,17 +193,17 @@ contract UpgradableUniversalResolverProxy is IUniversalResolver, CCIPReader {
         return IERC165(_getImplementation()).supportsInterface(interfaceId);
     }
 
-    // /**
-    //  * @dev Allows admin to set gateway URLs
-    //  */
-    // function setGatewayURLs(string[] memory urls) external onlyAdmin {
-    //     IUniversalResolver(_getImplementation()).setGatewayURLs(urls);
-    // }
+    /**
+     * @dev Allows admin to set gateway URLs
+     */
+    function setGatewayURLs(string[] memory urls) external onlyAdmin {
+        IUniversalResolverV1(_getImplementation()).setGatewayURLs(urls);
+    }
 
     /**
      * @dev IUniversalResolver implementation - with CCIP-Read handling
      */
-    function resolve(bytes calldata name, bytes memory data) external view override returns (bytes memory, address) {
+    function resolve(bytes calldata name, bytes memory data) external view override(IUniversalResolverV1, IUniversalResolverV2) returns (bytes memory, address) {
         bytes memory result =
             _callImplementationWithCCIP(abi.encodeWithSelector(bytes4(keccak256("resolve(bytes,bytes[])")), name, data));
         return abi.decode(result, (bytes, address));
@@ -218,10 +220,31 @@ contract UpgradableUniversalResolverProxy is IUniversalResolver, CCIPReader {
         return abi.decode(result, (bytes, address));
     }
 
-    // function findResolver(bytes calldata name) external view returns (address, bytes32, uint256) {
-    //     // This method doesn't use CCIP-Read, so direct forwarding is fine
-    //     return IUniversalResolver(_getImplementation()).findResolver(name);
-    // }
+    function resolve(bytes calldata name, bytes[] memory data) external view returns (Result[] memory, address) {
+        bytes memory result = _callImplementationWithCCIP(
+            abi.encodeWithSelector(bytes4(keccak256("resolve(bytes,bytes[])")), name, data)
+        );
+        return abi.decode(result, (Result[], address));
+    }
+
+    function resolve(bytes calldata name, bytes[] memory data, string[] memory gateways) external view returns (Result[] memory, address) {
+        bytes memory result = _callImplementationWithCCIP(
+            abi.encodeWithSelector(bytes4(keccak256("resolve(bytes,bytes[],string[])")), name, data, gateways)
+        );
+        return abi.decode(result, (Result[], address));
+    }
+
+    function resolveCallback(bytes calldata response, bytes calldata extraData) external view returns (Result[] memory, address) {
+        bytes memory result = _callImplementationWithCCIP(
+            abi.encodeWithSelector(IUniversalResolverV1.resolveCallback.selector, response, extraData)
+        );
+        return abi.decode(result, (Result[], address));
+    }
+
+    function findResolver(bytes calldata name) external view returns (address, bytes32, uint256) {
+        // This method doesn't use CCIP-Read, so direct forwarding is fine
+        return IUniversalResolverV1(_getImplementation()).findResolver(name);
+    }
 
     function reverse(bytes calldata reverseName) external view returns (string memory, address, address, address) {
         bytes memory result =
@@ -229,15 +252,18 @@ contract UpgradableUniversalResolverProxy is IUniversalResolver, CCIPReader {
         return abi.decode(result, (string, address, address, address));
     }
 
-    function reverse(bytes calldata reverseName, string[] memory gateways)
-        external
-        view
-        returns (string memory, address, address, address)
-    {
+    function reverse(bytes calldata reverseName, string[] memory gateways) external view returns (string memory, address, address, address) {
         bytes memory result = _callImplementationWithCCIP(
             abi.encodeWithSelector(bytes4(keccak256("reverse(bytes,string[])")), reverseName, gateways)
         );
         return abi.decode(result, (string, address, address, address));
+    }
+
+    function reverse(bytes calldata lookupAddress, uint256 coinType) external view returns (string memory primary, address resolver, address reverseResolver) {
+        bytes memory result = _callImplementationWithCCIP(
+            abi.encodeWithSelector(bytes4(keccak256("reverse(bytes,uint256)")), lookupAddress, coinType)
+        );
+        return abi.decode(result, (string, address, address));
     }
 
     function resolveSingleCallback(bytes calldata response, bytes calldata extraData)
@@ -246,7 +272,7 @@ contract UpgradableUniversalResolverProxy is IUniversalResolver, CCIPReader {
         returns (bytes memory, address)
     {
         bytes memory result = _callImplementationWithCCIP(
-            abi.encodeWithSelector(IUniversalResolver.resolveSingleCallback.selector, response, extraData)
+            abi.encodeWithSelector(IUniversalResolverV1.resolveSingleCallback.selector, response, extraData)
         );
         return abi.decode(result, (bytes, address));
     }
@@ -257,7 +283,7 @@ contract UpgradableUniversalResolverProxy is IUniversalResolver, CCIPReader {
         returns (string memory, address, address, address)
     {
         bytes memory result = _callImplementationWithCCIP(
-            abi.encodeWithSelector(IUniversalResolver.reverseCallback.selector, response, extraData)
+            abi.encodeWithSelector(IUniversalResolverV1.reverseCallback.selector, response, extraData)
         );
         return abi.decode(result, (string, address, address, address));
     }

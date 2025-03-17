@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "../../src/utils/UpgradableUniversalResolverProxy.sol";
-import {UniversalResolver as UniversalResolverV1} from "ens-contracts/universalResolver/UniversalResolver.sol";
-import {UniversalResolver2 as UniversalResolverV2} from "ens-contracts/universalResolver/UniversalResolver2.sol";
-import {ForwardResolution} from "ens-contracts/universalResolver/ForwardResolution.sol";
+import {UniversalResolver as UniversalResolverV1} from "./MockUniversalResolver.sol";
+import {UniversalResolver as UniversalResolverV2} from "ens-contracts/universalResolver/UniversalResolver.sol";
+import {ForwardResolutionV1} from "ens-contracts/universalResolver/ForwardResolutionV1.sol";
+
+import {IUniversalResolver as IUniversalResolverV1} from "../../src/utils/IUniversalResolver.sol";
 
 import {ENS} from "ens-contracts/registry/ENS.sol";
 
@@ -27,7 +29,7 @@ contract ProxyTest is Test {
     UniversalResolverV2 urV2;
     MockGateway mockGateway;
 
-    ForwardResolution forwardResolution;
+    ForwardResolutionV1 forwardResolution;
 
     ENS ens = ENS(0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e);
 
@@ -47,7 +49,7 @@ contract ProxyTest is Test {
         gatewayUrls[0] = "http://universal-offchain-resolver.local";
 
         vm.startPrank(ADMIN);
-        forwardResolution = new ForwardResolution(address(ens), gatewayUrls);
+        forwardResolution = new ForwardResolutionV1(address(ens), gatewayUrls);
 
         urV1 = new UniversalResolverV1(address(ens), gatewayUrls);
         urV2 = new UniversalResolverV2(forwardResolution);
@@ -80,7 +82,7 @@ contract ProxyTest is Test {
     function test_SupportsInterface() public view {
         // Test that supportsInterface is properly forwarded
         bool supportsIUR = proxy.supportsInterface(
-            type(IUniversalResolver).interfaceId
+            type(IUniversalResolverV1).interfaceId
         );
         bool supportsERC165 = proxy.supportsInterface(
             type(IERC165).interfaceId
@@ -88,7 +90,7 @@ contract ProxyTest is Test {
 
         // Check against what the implementation would return directly
         bool impl_supportsIUR = urV1.supportsInterface(
-            type(IUniversalResolver).interfaceId
+            type(IUniversalResolverV1).interfaceId
         );
         bool impl_supportsERC165 = urV1.supportsInterface(
             type(IERC165).interfaceId
@@ -379,7 +381,7 @@ contract ProxyTest is Test {
 }
 
 // Base contract with default implementations for all IUniversalResolver methods
-abstract contract MockUniversalResolverBase is IUniversalResolver {
+abstract contract MockUniversalResolverBase is IUniversalResolverV1 {
     // Default implementations that can be overridden by specific mock contracts
     function resolve(
         bytes calldata,

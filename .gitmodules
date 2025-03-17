@@ -17,8 +17,8 @@
 [submodule "contracts/lib/openzeppelin-contracts"]
 	path = contracts/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "lib/ens-contracts"]
+	branch = feature/bet-318-standard-ur
 [submodule "contracts/lib/ens-contracts"]
 	path = contracts/lib/ens-contracts
 	url = https://github.com/ensdomains/ens-contracts
-[submodule "lib/ens-contracts"]
-	branch = feature/bet-318-standard-ur
