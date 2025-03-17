@@ -21,4 +21,4 @@
 	path = contracts/lib/ens-contracts
 	url = https://github.com/ensdomains/ens-contracts
 [submodule "lib/ens-contracts"]
-	branch = feature/bet-193-develop-a-standardized-universalresolver-compatible-with-v1
+	branch = feature/bet-318-standard-ur
