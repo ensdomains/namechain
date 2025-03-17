@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { deployEnsFixture, registerName } from "./fixtures/deployEnsFixture.js";
 import { dnsEncodeName } from "./utils/utils.js";
 
-describe("Ens", function () {
+describe("Ens", () => {
   it("returns eth registry for eth", async () => {
     const { universalResolver, ethRegistry } = await loadFixture(
       deployEnsFixture

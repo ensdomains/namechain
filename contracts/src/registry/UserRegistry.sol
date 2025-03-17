@@ -8,16 +8,18 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
+import {MetadataMixin} from "./MetadataMixin.sol";
 
-contract UserRegistry is BaseRegistry {
+contract UserRegistry is BaseRegistry, MetadataMixin {
     uint96 public constant SUBREGISTRY_FLAGS_MASK = 0x1;
     uint96 public constant SUBREGISTRY_FLAG_LOCKED = 0x1;
 
     IRegistry public parent;
     string public label;
 
-    constructor(IRegistry _parent, string memory _label, IRegistryDatastore _datastore) BaseRegistry(_datastore) {
+    constructor(IRegistry _parent, string memory _label, IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
         parent = _parent;
         label = _label;
     }
@@ -28,10 +30,6 @@ contract UserRegistry is BaseRegistry {
             revert AccessDenied(0, owner, msg.sender);
         }
         _;
-    }
-
-    function uri(uint256 /*id*/ ) public pure override returns (string memory) {
-        return "";
     }
 
     function mint(string calldata _label, address owner, IRegistry registry, uint96 flags) external onlyNameOwner {
@@ -64,6 +62,15 @@ contract UserRegistry is BaseRegistry {
     {
         (, uint96 flags) = datastore.getSubregistry(tokenId);
         datastore.setSubregistry(tokenId, address(registry), flags);
+    }
+
+    /**
+     * @dev Fetches the token URI for a node.
+     * @param tokenId The ID of the node to fetch a URI for.
+     * @return The token URI for the node.
+     */
+    function uri(uint256 tokenId) public view virtual override returns (string memory) {
+        return tokenURI(tokenId);
     }
 
     function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
