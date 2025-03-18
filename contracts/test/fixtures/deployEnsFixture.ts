@@ -21,21 +21,9 @@ export async function deployEnsFixture() {
     rootRegistry.address,
   ]);
 
-  const rootResource = await rootRegistry.read.ROOT_RESOURCE();
-  const ROLE_TLD_ISSUER = await rootRegistry.read.ROLE_TLD_ISSUER();
-  const ROLE_REGISTRAR = await rootRegistry.read.ROLE_REGISTRAR();
-  const ROLE_BITMAP_TOKEN_OWNER_DEFAULT = await rootRegistry.read.ROLE_BITMAP_TOKEN_OWNER_DEFAULT();
-
-  await rootRegistry.write.grantRole([
-    rootResource,
-    ROLE_TLD_ISSUER,
-    accounts[0].address,
-  ]);
-
-  await ethRegistry.write.grantRole([
-    rootResource,
-    ROLE_REGISTRAR,
-    accounts[0].address,
+  const [ROLE_SET_SUBREGISTRY, ROLE_SET_RESOLVER] = await Promise.all([
+    rootRegistry.read.ROLE_SET_SUBREGISTRY(),
+    rootRegistry.read.ROLE_SET_RESOLVER(),
   ]);
   
   await rootRegistry.write.mint([
@@ -43,7 +31,7 @@ export async function deployEnsFixture() {
     accounts[0].address,
     ethRegistry.address,
     1n,
-    ROLE_BITMAP_TOKEN_OWNER_DEFAULT,
+    ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER,
     "https://example.com/"
   ]);
 
@@ -100,9 +88,12 @@ export const registerName = async ({
   subregistryLocked?: boolean;
   resolverLocked?: boolean;
 }) => {
-  const DEFAULT_ROLE_BITMAP = await ethRegistry.read.ROLE_BITMAP_TOKEN_OWNER_DEFAULT();
+  const [ROLE_SET_SUBREGISTRY, ROLE_SET_RESOLVER] = await Promise.all([
+    ethRegistry.read.ROLE_SET_SUBREGISTRY(),
+    ethRegistry.read.ROLE_SET_RESOLVER(),
+  ]);
   const owner =
     owner_ ?? (await hre.viem.getWalletClients())[0].account.address;
   const flags = (subregistryLocked ? 1n : 0n) | (resolverLocked ? 2n : 0n);
-  return ethRegistry.write.register([label, owner, subregistry, resolver, flags, DEFAULT_ROLE_BITMAP, expiry]);
+  return ethRegistry.write.register([label, owner, subregistry, resolver, flags, ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER, expiry]);
 };
