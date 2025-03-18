@@ -1,4 +1,4 @@
-OES// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
@@ -26,9 +26,8 @@ contract NameWrapperRegistry is PermissionedRegistry{
     bool freezeRenewAdminRole;
 
     /* NOTE: no default admin is set, meaning there is no superuser with forever permissions */
-    constructor(IRegistryDatastore _datastore, address _registrar) PermissionedRegistry(_datastore) {
-        _grantRoles(ROOT_RESOURCE, ROLE_RENEW_ADMIN_ADMIN, _msgSender());
-        _grantRoles(ROOT_RESOURCE, ROLE_REGISTRAR, _registrar);
+    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
+        _grantRoles(ROOT_RESOURCE, ROLE_REGISTRAR_ADMIN | ROLE_RENEW_ADMIN, _msgSender());
     }
 
 
@@ -82,7 +81,7 @@ contract NameWrapperRegistry is PermissionedRegistry{
      *
      * Can only be called by the parent role.
      */
-    function freezeRenewerRole() public onlyRootRoles(ROLE_RENEW_ADMIN_ADMIN) {
+    function adminRenewRoleAdmin() public onlyRootRoles(ROLE_RENEW_ADMIN_ADMIN) {
         freezeRenewAdminRole = true;
     }
 
