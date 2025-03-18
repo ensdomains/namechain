@@ -11,7 +11,6 @@ library NameUtils {
         }
     }
 
-
     /**
      * @dev Converts a label to a token ID.
      * @param label The label to convert.
@@ -19,5 +18,5 @@ library NameUtils {
      */
     function labelToTokenId(string memory label) internal pure returns (uint256) {
         return uint256(keccak256(bytes(label)));
-    }       
+    }    
 }
