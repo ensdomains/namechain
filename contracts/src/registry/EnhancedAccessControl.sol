@@ -15,24 +15,21 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
  * 
  * A role is represented by a uint256:
  * - The bit that is set in the least significant 128 bits represent the role.
- * - The bit that is set in the most significant 128 bits represent the admin role.
+ * - The bit that is set AT THE SAME RELATIVE POSITION in the most significant 128 bits represent the admin role.
  *
  * For the methods which take a `roleBitmap`, ensure that:
  * - The least significant bit represents the roles.
  * - The most significant bit represents the corresponding admin roles.
  *
- * NOTE:
- * - Extending contracts must initialize their own default roles as this contract does not do so.
- * - If two or more roles share the same admin role then these roles must ALWAYS be granted/revoked together.
+ * NOTE: There is a 1-to-1 mapping between roles and admin roles. DO NOT overload admin roles.
  */
 abstract contract EnhancedAccessControl is Context, ERC165 {
     error EACUnauthorizedAccountRoles(bytes32 resource, uint256 roleBitmap, address account);
     error EACUnauthorizedAccountAdminRoles(bytes32 resource, uint256 roleBitmap, address account);
 
-    event EACRolesGranted(bytes32 resource, uint256 roleBitmap, address account, address sender);
-    event EACRolesCopied(bytes32 srcResource, bytes32 dstResource, address account, address sender, uint256 roleBitmap);
-    event EACRolesRevoked(bytes32 resource, uint256 roleBitmap, address account, address sender);
-    event EACAllRolesRevoked(bytes32 resource, address account, address sender);
+    event EACRolesGranted(bytes32 resource, uint256 roleBitmap, address account);
+    event EACRolesRevoked(bytes32 resource, uint256 roleBitmap, address account);
+    event EACAllRolesRevoked(bytes32 resource, address account);
 
     /**
      * @dev user roles within a resource stored as a bitmap.
@@ -43,7 +40,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev The `ROOT_RESOURCE`.
      */
-    bytes32 public constant ROOT_RESOURCE = bytes32(0);
+    bytes32 public constant ROOT_RESOURCE = bytes32(uint256(0xdeadbeef));
     
 
     /**
@@ -145,8 +142,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Reverts if `account` does not have the admin roles for all the given roles.
      */
     function _checkCanGrantRoles(bytes32 resource, uint256 roleBitmap, address account) internal view virtual {
-        uint256 adminRoles = roleBitmap & 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;
-        if (adminRoles == 0 || !hasRoles(resource, adminRoles, account)) {
+        uint256 settableRoles = _getSettableRoles(resource, account);
+        if ((roleBitmap & ~settableRoles) != 0) {
             revert EACUnauthorizedAccountAdminRoles(resource, roleBitmap, account);
         }
     }
@@ -161,19 +158,19 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     function _copyRoles(bytes32 resource, address srcAccount, address dstAccount) internal virtual {
         uint256 srcRoles = _roles[resource][srcAccount];
         _roles[resource][dstAccount] |= srcRoles;
-        emit EACRolesCopied(resource, resource, srcAccount, dstAccount, srcRoles);
+        emit EACRolesGranted(resource, srcRoles, dstAccount);
     }
 
     /**
      * @dev Grants multiple roles to `account`.
      */
-    function _grantRoles(bytes32 resource, uint256 roleBitmap, address account) internal virtual returns (bool){
+    function _grantRoles(bytes32 resource, uint256 roleBitmap, address account) internal virtual returns (bool) {
         uint256 currentRoles = _roles[resource][account];
         uint256 updatedRoles = currentRoles | roleBitmap;
 
         if (currentRoles != updatedRoles) {
             _roles[resource][account] = updatedRoles;
-            emit EACRolesGranted(resource, roleBitmap, account, _msgSender());
+            emit EACRolesGranted(resource, roleBitmap, account);
             return true;
         } else {
             return false;
@@ -189,7 +186,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         
         if (currentRoles != updatedRoles) {
             _roles[resource][account] = updatedRoles;
-            emit EACRolesRevoked(resource, roleBitmap, account, _msgSender());
+            emit EACRolesRevoked(resource, roleBitmap, account);
             return true;
         } else {
             return false;
@@ -201,5 +198,19 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      */
     function _revokeAllRoles(bytes32 resource, address account) internal virtual returns (bool) {
         return _revokeRoles(resource, _roles[resource][account], account);
+    }
+
+    /**
+     * @dev Returns the settable roles for `account` within `resource`.
+     * 
+     * The settable roles are the roles that the account can grant/revoke.
+     * 
+     * @param resource The resource to get settable roles for.
+     * @param account The account to get settable roles for.
+     * @return The settable roles for `account` within `resource`.
+     */
+    function _getSettableRoles(bytes32 resource, address account) internal view virtual returns (uint256) {
+        uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) & 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;
+        return adminRoleBitmap | adminRoleBitmap >> 128;
     }
 }

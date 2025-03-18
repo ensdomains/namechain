@@ -27,6 +27,7 @@ abstract contract Roles {
     uint256 public constant ROLEBIT_RENEW_ADMIN = 1 << 132;
     uint256 public constant ROLE_RENEW = ROLEBIT_RENEW | ROLEBIT_RENEW_ADMIN;
 
-    uint256 public constant ROLEBIT_PARENT = 1 << 133;
-    uint256 public constant ROLE_RENEW_ADMIN_ADMIN = ROLEBIT_RENEW_ADMIN | ROLEBIT_PARENT;
+    uint256 public constant ROLEBIT_RENEW_SETTER = 1 << 5;
+    uint256 public constant ROLEBIT_RENEW_SETTER_ADMIN = 1 << 133;
+    uint256 public constant ROLE_RENEW_SETTER = ROLEBIT_RENEW_SETTER | ROLEBIT_RENEW_SETTER_ADMIN;
 }
