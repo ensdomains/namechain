@@ -203,7 +203,7 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
 
     function test_Revert_cannot_set_locked_flags() public {
         uint96 flags = registry.FLAG_FLAGS_LOCKED();
-        uint256 tokenId = registry.register("test2", address(this), registry, address(0), 0, flags, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.register("test2", address(this), registry, address(0), flags, 0, uint64(block.timestamp) + 86400);
 
         vm.expectRevert(abi.encodeWithSelector(BaseRegistry.InvalidSubregistryFlags.selector, tokenId, registry.FLAG_FLAGS_LOCKED(), 0));
         registry.setFlags(tokenId, flags);

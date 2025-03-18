@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 import {IRegistryMetadata} from "./IRegistryMetadata.sol";
+import {Roles} from "./Roles.sol";
 
-contract SimpleRegistryMetadata is AccessControl, IRegistryMetadata {
-    bytes32 public constant UPDATE_ROLE = keccak256("UPDATE_ROLE"); 
-
+contract SimpleRegistryMetadata is EnhancedAccessControl, IRegistryMetadata, Roles {
     mapping(uint256 => string) private _tokenUris;
 
     constructor() {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA, msg.sender);
     }
 
-    function setTokenUri(uint256 tokenId, string calldata uri) external onlyRole(UPDATE_ROLE) {
+    function setTokenUri(uint256 tokenId, string calldata uri) external onlyRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA) {
         _tokenUris[tokenId] = uri;
     }
 

@@ -22,4 +22,7 @@ abstract contract Roles {
 
     uint256 public constant ROLE_RENEW = 1 << 4;
     uint256 public constant ROLE_RENEW_ADMIN = ROLE_RENEW << 128;
+
+    uint256 public constant ROLE_UPDATE_METADATA = 1 << 5;
+    uint256 public constant ROLE_UPDATE_METADATA_ADMIN = ROLE_UPDATE_METADATA << 128;
 }

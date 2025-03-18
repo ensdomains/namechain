@@ -9,8 +9,9 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IPriceOracle} from "./IPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
+import {Roles} from "./Roles.sol";
 
-contract ETHRegistrar is IETHRegistrar, AccessControl {
+contract ETHRegistrar is IETHRegistrar, AccessControl, Roles {
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
     uint64 private constant MAX_EXPIRY = type(uint64).max;
 
@@ -153,7 +154,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
 
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, flags, duration));
 
-        tokenId = registry.register(name, owner, subregistry, resolver, flags, uint64(block.timestamp) + duration);
+        tokenId = registry.register(name, owner, subregistry, resolver, flags, ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER, uint64(block.timestamp) + duration);
 
         if (msg.value > totalPrice) {
             payable(msg.sender).transfer(msg.value - totalPrice);

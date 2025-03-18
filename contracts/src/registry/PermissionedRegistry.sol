@@ -52,7 +52,7 @@ abstract contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, R
         return _flags;
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(BaseRegistry, EnhancedAccessControl) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(BaseRegistry, EnhancedAccessControl) returns (bool) {
         return BaseRegistry.supportsInterface(interfaceId) || EnhancedAccessControl.supportsInterface(interfaceId);
     }
 

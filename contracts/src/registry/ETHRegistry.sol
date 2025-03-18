@@ -17,14 +17,6 @@ import {NameUtils} from "../utils/NameUtils.sol";
 
 
 contract ETHRegistry is PermissionedRegistry, MetadataMixin, IETHRegistry {
-    error NameAlreadyRegistered(string label);
-    error NameExpired(uint256 tokenId);
-    error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
-
-    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
-    event NameRelinquished(uint256 indexed tokenId, address relinquishedBy);
-    event TokenObserverSet(uint256 indexed tokenId, address observer);
-
     mapping(uint256 => address) public tokenObservers;
     
     constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) PermissionedRegistry(_datastore) MetadataMixin(_metadata) {
@@ -152,11 +144,11 @@ contract ETHRegistry is PermissionedRegistry, MetadataMixin, IETHRegistry {
         }
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(BaseRegistry, AccessControl, IERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(PermissionedRegistry, IERC165) returns (bool) {
         return interfaceId == type(IRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    function getSubregistry(string calldata label) external view virtual override(BaseRegistry, IERC165) returns (IRegistry) {
+    function getSubregistry(string calldata label) external view virtual override(BaseRegistry, IRegistry) returns (IRegistry) {
         (address subregistry, uint96 flags) = datastore.getSubregistry(uint256(keccak256(bytes(label))));
         uint64 expires = _extractExpiry(flags);
         if (expires <= block.timestamp) {
