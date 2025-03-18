@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import "../../src/utils/UpgradableUniversalResolverProxy.sol";
 import {UniversalResolver as UniversalResolverV1} from "./MockUniversalResolver.sol";
 import {UniversalResolver as UniversalResolverV2} from "ens-contracts/universalResolver/UniversalResolver.sol";
-import {ForwardResolutionV1} from "ens-contracts/universalResolver/ForwardResolutionV1.sol";
 
 import {IUniversalResolver as IUniversalResolverV1} from "../../src/utils/IUniversalResolver.sol";
 
@@ -29,8 +28,6 @@ contract ProxyTest is Test {
     UniversalResolverV2 urV2;
     MockGateway mockGateway;
 
-    ForwardResolutionV1 forwardResolution;
-
     ENS ens = ENS(0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e);
 
     // Mock data for tests
@@ -49,10 +46,9 @@ contract ProxyTest is Test {
         gatewayUrls[0] = "http://universal-offchain-resolver.local";
 
         vm.startPrank(ADMIN);
-        forwardResolution = new ForwardResolutionV1(address(ens), gatewayUrls);
 
         urV1 = new UniversalResolverV1(address(ens), gatewayUrls);
-        urV2 = new UniversalResolverV2(forwardResolution);
+        urV2 = new UniversalResolverV2(ens, gatewayUrls);
         mockGateway = new MockGateway();
 
         proxy = new UpgradableUniversalResolverProxy(ADMIN, address(urV1));
