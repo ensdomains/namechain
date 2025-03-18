@@ -2,8 +2,11 @@
 pragma solidity >=0.8.13;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
+import {ERC1155SingletonBase} from "./ERC1155SingletonBase.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
@@ -24,6 +27,13 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
     }
 
     /**
+     * @dev Explicitly override _msgSender to resolve ambiguity in inherited contracts
+     */
+    function _msgSender() internal view override(Context, ERC1155Singleton) returns (address) {
+        return Context._msgSender();
+    }
+
+    /**
      * @dev Fetches the token URI for a node.
      * @param tokenId The ID of the node to fetch a URI for.
      * @return The token URI for the node.
@@ -36,7 +46,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
         public
         view
         virtual
-        override(ERC1155Singleton, IERC1155Singleton)
+        override(ERC1155SingletonBase, IERC1155Singleton)
         returns (address)
     {
         (, uint96 oldFlags) = datastore.getSubregistry(tokenId);
@@ -66,7 +76,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
         }
 
         // if there is a previous owner, burn the token
-        address previousOwner = super.ownerOf(tokenId);
+        address previousOwner = ownerOf(tokenId);
         if (previousOwner != address(0)) {
             _burn(previousOwner, tokenId, 1);
         }

@@ -2,12 +2,14 @@
 pragma solidity >=0.8.13;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
+import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 
@@ -18,6 +20,13 @@ contract RootRegistry is PermissionedRegistry, AccessControl {
 
     constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    /**
+     * @dev Explicitly override _msgSender to resolve ambiguity in inherited contracts
+     */
+    function _msgSender() internal view override(Context, ERC1155Singleton) returns (address) {
+        return Context._msgSender();
     }
 
     function uri(uint256 tokenId ) public view override returns (string memory) {
