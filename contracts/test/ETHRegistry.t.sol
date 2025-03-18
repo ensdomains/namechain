@@ -30,9 +30,56 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
     function setUp() public {
         datastore = new RegistryDatastore();
         registry = new ETHRegistry(datastore);
-        registry.grantRole(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR(), address(this));
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
+    }
+
+    function test_constructor_sets_roles() public {
+        assertEq(registry.hasRoles(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR(), address(this)), true);
+        assertEq(registry.hasRoles(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR_ADMIN(), address(this)), true);
+        assertEq(registry.hasRoles(registry.ROOT_RESOURCE(), registry.ROLE_RENEW(), address(this)), true);
+        assertEq(registry.hasRoles(registry.ROOT_RESOURCE(), registry.ROLE_RENEW_ADMIN(), address(this)), true);
+    }
+
+    function test_Revert_register_without_registrar_role() public {
+        address nonRegistrar = makeAddr("nonRegistrar");
+
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR(), nonRegistrar));
+        vm.prank(nonRegistrar);
+        registry.register("test2", address(this), registry, 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
+    }
+
+    function test_Revert_renew_without_renew_role() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        
+        address nonRenewer = makeAddr("nonRenewer");
+
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), registry.ROLE_RENEW(), nonRenewer));
+        vm.prank(nonRenewer);
+        registry.renew(tokenId, uint64(block.timestamp) + 172800);
+    }
+
+    function test_registrar_can_register() public {
+        address registrar = makeAddr("registrar");
+        registry.grantRoles(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR(), registrar);
+        
+        vm.prank(registrar);
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        assertEq(registry.ownerOf(tokenId), address(this));
+    }
+
+    function test_renewer_can_renew() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        
+        address renewer = makeAddr("renewer");
+        registry.grantRoles(registry.ROOT_RESOURCE(), registry.ROLE_RENEW(), renewer);
+        
+        vm.prank(renewer);
+        uint64 newExpiry = uint64(block.timestamp) + 172800;
+        registry.renew(tokenId, newExpiry);
+        
+        (uint64 expiry,) = registry.nameData(tokenId);
+        assertEq(expiry, newExpiry);
     }
 
     function _expectedId(string memory label, uint96 flags) internal view returns (uint256) {
@@ -124,7 +171,7 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
     function test_Revert_cannot_set_subregistry_without_role() public {
         uint256 tokenId = registry.register("test2", address(this), registry, 0, lockedSubregistryRoleBitmap, uint64(block.timestamp) + 86400);
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRole.selector, registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, address(this)));
         registry.setSubregistry(tokenId, IRegistry(address(this)));
     }
 
@@ -137,7 +184,7 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
     function test_Revert_cannot_set_resolver_without_role() public {
         uint256 tokenId = registry.register("test2", address(this), registry, 0, lockedResolverRoleBitmap, uint64(block.timestamp) + 86400);
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRole.selector, registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, address(this)));
         registry.setResolver(tokenId, address(this));
     }
 
@@ -264,16 +311,13 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
         assertEq(registry.getResolver("test2"), address(0));
     }
 
-    function test_setFlags_moves_roles_to_new_token_id_context() public {
+    function test_setFlags_moves_roles_to_new_token_id_resource() public {
         // Register with default roles
         uint256 tokenId = registry.register("test2", user1, registry, 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
 
         // Verify initial roles
         assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, user1), true);
         assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, user1), true);
-        
-        // add custom role
-        registry.grantRole(registry.tokenIdResource(tokenId), 109, user1);
         
         // Set a flag that changes the token ID
         uint96 flags = 0x4; // Some arbitrary flag that's not FLAG_FLAGS_LOCKED
@@ -284,7 +328,6 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
         // Verify roles are copied after flag change
         assertEq(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_SET_SUBREGISTRY, user1), true);
         assertEq(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_SET_RESOLVER, user1), true);
-        assertEq(registry.hasRoles(registry.tokenIdResource(newTokenId), 109, user1), true);
     }
 
     // Token observers

@@ -13,15 +13,9 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
  * - Root resource override (0x0) - role assignments in the `ROOT_RESOURCE` auto-apply to all resources.
  * - Upto 128 roles - stored as a bitmap in uint256 (see below).
  * 
- * A role is represented by a uint256:
- * - The bit that is set in the least significant 128 bits represent the role.
- * - The bit that is set AT THE SAME RELATIVE POSITION in the most significant 128 bits represent the admin role.
- *
- * For the methods which take a `roleBitmap`, ensure that:
- * - The least significant bit represents the roles.
- * - The most significant bit represents the corresponding admin roles.
- *
- * NOTE: There is a 1-to-1 mapping between roles and admin roles. DO NOT overload admin roles.
+ * Role representation:
+ * - A role bitmap is a uint256, where the lower 128 bits represent the roles, and the upper 128 bits represent the admin roles for those roles.
+ * - The admin role for a given role is the role shifted left by 128 bits.
  */
 abstract contract EnhancedAccessControl is Context, ERC165 {
     error EACUnauthorizedAccountRoles(bytes32 resource, uint256 roleBitmap, address account);
