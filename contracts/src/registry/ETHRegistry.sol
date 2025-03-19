@@ -76,7 +76,7 @@ contract ETHRegistry is PermissionedRegistry, MetadataMixin, IETHRegistry {
 
         datastore.setSubregistry(tokenId, address(registry), flags);
         datastore.setResolver(tokenId, resolver, flags);
-        emit NewSubname(label);
+        emit NewSubname(tokenId, label);
         return tokenId;
     }
 

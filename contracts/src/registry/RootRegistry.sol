@@ -41,7 +41,7 @@ contract RootRegistry is PermissionedRegistry {
         datastore.setSubregistry(tokenId, address(registry), flags);
         uris[tokenId] = _uri;
         emit URI(_uri, tokenId);
-        emit NewSubname(label);
+        emit NewSubname(tokenId, label);
     }
 
     /**

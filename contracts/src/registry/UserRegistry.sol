@@ -36,7 +36,7 @@ contract UserRegistry is BaseRegistry, MetadataMixin {
         uint256 tokenId = NameUtils.labelToTokenId(_label);
         _mint(owner, tokenId, 1, "");
         datastore.setSubregistry(tokenId, address(registry), flags);
-        emit NewSubname(_label);
+        emit NewSubname(tokenId, _label);
     }
 
     function burn(uint256 tokenId) external onlyNameOwner withSubregistryFlags(tokenId, SUBREGISTRY_FLAG_LOCKED, 0) {
