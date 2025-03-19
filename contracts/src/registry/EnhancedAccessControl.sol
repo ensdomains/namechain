@@ -205,6 +205,6 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      */
     function _getSettableRoles(bytes32 resource, address account) internal view virtual returns (uint256) {
         uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) & 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;
-        return adminRoleBitmap | adminRoleBitmap >> 128;
+        return adminRoleBitmap | (adminRoleBitmap >> 128);
     }
 }
