@@ -43,10 +43,12 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev The `SUPERUSER` role.
      *
      * This role automatically has all user roles and admin roles.
-     * Note that the admin role bit for this role (128) is unnecessary, but still reserved for clarity purposes.
+     *
+     * Note:
+     * - The admin role bit for this role (128) is unnecessary, but still reserved for clarity purposes.
+     * - The SUPERUSER role is only effective in the `ROOT_RESOURCE`, not in subresources.
      */
     uint256 public constant ROLE_SUPERUSER = 1;
-
 
     /**
      * @dev Modifier that checks that sender has the admin roles for all the given roles. 
