@@ -191,7 +191,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Revoke all roles for account within resource.
      */
     function _revokeAllRoles(bytes32 resource, address account) internal virtual returns (bool) {
-        return _revokeRoles(resource, _roles[resource][account], account);
+        return _revokeRoles(resource, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, account);
     }
 
     /**
