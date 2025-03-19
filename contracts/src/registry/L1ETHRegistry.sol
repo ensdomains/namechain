@@ -27,10 +27,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     event NameEjected(uint256 indexed tokenId, address owner, uint64 expires);
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
     event NameMigratedToL2(uint256 indexed tokenId, address sendTo);
-    event TokenObserverSet(uint256 indexed tokenId, address observer);
-
-    // Map to track token observers for notification of renewal events
-    mapping(uint256 => address) public tokenObservers;
+    event EjectionControllerChanged(address oldController, address newController);
 
     address public ejectionController;
 
@@ -42,6 +39,25 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
 
         ejectionController = _ejectionController;
         _grantRole(EJECTION_CONTROLLER_ROLE, _ejectionController);
+    }
+
+    /**
+     * @dev Set a new ejection controller
+     * @param _newEjectionController The address of the new controller
+     */
+    function setEjectionController(address _newEjectionController) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_newEjectionController != address(0), "Ejection controller cannot be empty");
+        
+        address oldController = ejectionController;
+        
+        // Revoke role from the old controller
+        _revokeRole(EJECTION_CONTROLLER_ROLE, oldController);
+        
+        // Set the new controller and grant role
+        ejectionController = _newEjectionController;
+        _grantRole(EJECTION_CONTROLLER_ROLE, _newEjectionController);
+        
+        emit EjectionControllerChanged(oldController, _newEjectionController);
     }
 
     function uri(uint256 /*tokenId*/ ) public pure override returns (string memory) {
@@ -65,7 +81,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     }
 
     /**
-     * @dev Receive an ejected name from L2.
+     * @dev Receive an ejected name from Namechain.
      * @param labelHash The keccak256 hash of the label
      * @param owner The owner of the name
      * @param registry The registry to use for the name
@@ -73,7 +89,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
      * @param expires Expiration timestamp
      * @return tokenId The token ID of the ejected name
      */
-    function ejectFromL2(uint256 labelHash, address owner, IRegistry registry, uint32 flags, uint64 expires)
+    function ejectFromNamechain(uint256 labelHash, address owner, IRegistry registry, uint32 flags, uint64 expires)
         public
         onlyRole(EJECTION_CONTROLLER_ROLE)
         returns (uint256 tokenId)
@@ -100,59 +116,48 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     }
 
     /**
-     * @dev Renew an ejected name.
-     * After renewal, the ejection controller should be notified to sync the update to L2.
+     * @dev Update expiration date for a name. This can only be called by the ejection controller
+     * when it receives a notification from L2 about a renewal.
      *
-     * @param tokenId The token ID of the name to renew
+     * @param tokenId The token ID of the name to update
      * @param expires New expiration timestamp
      */
-    function renew(uint256 tokenId, uint64 expires) public {
+    function updateExpiration(uint256 tokenId, uint64 expires) 
+        public 
+        onlyRole(EJECTION_CONTROLLER_ROLE)
+    {
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
         uint64 oldExpiration = _extractExpiry(flags);
+        
         if (oldExpiration < block.timestamp) {
             revert NameExpired(tokenId);
         }
+        
         if (expires < oldExpiration) {
             revert CannotReduceExpiration(oldExpiration, expires);
         }
+        
         datastore.setSubregistry(tokenId, subregistry, (flags & FLAGS_MASK) | (uint96(expires) << 32));
-
-        address observer = tokenObservers[tokenId];
-        if (observer != address(0)) {
-            L1ETHRegistryTokenObserver(observer).onRenew(tokenId, expires, msg.sender);
-        }
-
-        // Notify the ejection controller to sync the renewal to L2
-        IL1EjectionController(ejectionController).syncRenewalToL2(tokenId, expires);
-
+        
         emit NameRenewed(tokenId, expires, msg.sender);
     }
 
     /**
-     * @dev Set the token observer for a name
-     * @param tokenId The token ID of the name
-     * @param _observer The observer address
-     */
-    function setTokenObserver(uint256 tokenId, address _observer) external onlyTokenOwner(tokenId) {
-        tokenObservers[tokenId] = _observer;
-        emit TokenObserverSet(tokenId, _observer);
-    }
-
-    /**
-     * @dev Migrate a name back to L2, preserving ownership on L2.
+     * @dev Migrate a name back to Namechain, preserving ownership on Namechain.
      * According to section 4.5.6 of the design doc, this process requires
      * the ejection controller to facilitate cross-chain communication.
      * @param tokenId The token ID of the name to migrate
      * @param l2Owner The address to send the name to on L2
      * @param l2Subregistry The subregistry to use on L2 (optional)
+     * @param data Extra data
      */
-    function migrateToL2(uint256 tokenId, address l2Owner, address l2Subregistry) external onlyTokenOwner(tokenId) {
+    function migrateToNamechain(uint256 tokenId, address l2Owner, address l2Subregistry, bytes memory data) external onlyTokenOwner(tokenId) {
         address owner = ownerOf(tokenId);
         _burn(owner, tokenId, 1);
         datastore.setSubregistry(tokenId, address(0), 0);
 
         // Notify the ejection controller to handle cross-chain messaging
-        IL1EjectionController(ejectionController).initiateL1ToL2Migration(tokenId, l2Owner, l2Subregistry);
+        IL1EjectionController(ejectionController).migrateToNamechain(tokenId, l2Owner, l2Subregistry, data);
 
         emit NameMigratedToL2(tokenId, l2Owner);
     }
@@ -225,11 +230,4 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     function _extractExpiry(uint96 flags) private pure returns (uint64) {
         return uint64(flags >> 32);
     }
-}
-
-/**
- * @dev Observer pattern for events on existing tokens.
- */
-interface L1ETHRegistryTokenObserver {
-    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external;
 }
