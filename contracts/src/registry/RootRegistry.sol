@@ -9,6 +9,7 @@ import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 
 contract RootRegistry is PermissionedRegistry, AccessControl {
     bytes32 public constant TLD_ISSUER_ROLE = keccak256("TLD_ISSUER_ROLE");
@@ -41,7 +42,7 @@ contract RootRegistry is PermissionedRegistry, AccessControl {
         datastore.setSubregistry(tokenId, address(registry), flags);
         uris[tokenId] = _uri;
         emit URI(_uri, tokenId);
-        emit NewSubname(label);
+        emit NewSubname(tokenId, label);
     }
 
     /**
