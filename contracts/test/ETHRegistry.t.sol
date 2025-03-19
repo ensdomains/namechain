@@ -34,6 +34,7 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
     uint256 lockedSubregistryRoleBitmap = ROLE_SET_RESOLVER;
     uint256 noRolesRoleBitmap = 0;
 
+    address owner = makeAddr("owner");
     address user1 = makeAddr("user1");
 
     function setUp() public {
@@ -102,69 +103,71 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
     function test_register_unlocked() public {
         uint256 expectedId = _expectedId("test2", 0);
 
-        uint256 tokenId = registry.register("test2", address(this), registry, address(0), 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.register("test2", owner, registry, address(0), 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
         vm.assertEq(tokenId, expectedId);
         
         // Verify roles
-        assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, address(this)), true);
-        assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, address(this)), true);
+        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
+        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
     }
 
     function test_register_locked() public {
         uint96 flags = 0; // No flags set, just using roleBitmap for locking
         uint256 expectedId = _expectedId("test2", flags);
 
-        uint256 tokenId = registry.register("test2", address(this), registry, address(0), flags, noRolesRoleBitmap, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.register("test2", owner, registry, address(0), flags, noRolesRoleBitmap, uint64(block.timestamp) + 86400);
         vm.assertEq(tokenId, expectedId);
         
         // Verify roles
-        assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, address(this)), false);
-        assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, address(this)), false);
+        assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
+        assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
     }
 
     function test_register_locked_subregistry() public {
         uint96 flags = 0; // No flags set, just using roleBitmap for locking
         uint256 expectedId = _expectedId("test2", flags);
 
-        uint256 tokenId = registry.register("test2", address(this), registry, address(0), flags, lockedSubregistryRoleBitmap, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.register("test2", owner, registry, address(0), flags, lockedSubregistryRoleBitmap, uint64(block.timestamp) + 86400);
         vm.assertEq(tokenId, expectedId);
         
         // Verify roles
-        assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, address(this)), false);
-        assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, address(this)), true);
+        assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
+        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
     }
 
     function test_register_locked_resolver() public {
         uint96 flags = 0; // No flags set, just using roleBitmap for locking
         uint256 expectedId = _expectedId("test2", flags);
 
-        uint256 tokenId = registry.register("test2", address(this), registry, address(0), flags, lockedResolverRoleBitmap, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.register("test2", owner, registry, address(0), flags, lockedResolverRoleBitmap, uint64(block.timestamp) + 86400);
         vm.assertEq(tokenId, expectedId);
         
         // Verify roles
-        assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, address(this)), true);
-        assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, address(this)), false);
+        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
+        assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
     }
 
     function test_lock_name() public {
-        uint256 oldTokenId = registry.register("test2", address(this), registry, address(0), 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        uint256 oldTokenId = registry.register("test2", owner, registry, address(0), 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
 
         uint96 flags = registry.FLAG_FLAGS_LOCKED();
         uint256 expectedTokenId = (oldTokenId & ~uint256(registry.FLAGS_MASK())) | (flags & registry.FLAGS_MASK());
+        vm.prank(owner);
         uint256 newTokenId = registry.setFlags(oldTokenId, flags);
         vm.assertNotEq(newTokenId, oldTokenId);
         vm.assertEq(newTokenId, expectedTokenId);
         
         // Verify roles are preserved after flag change
-        assertEq(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_SET_SUBREGISTRY, address(this)), true);
-        assertEq(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_SET_RESOLVER, address(this)), true);
+        assertTrue(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_SET_SUBREGISTRY, owner));
+        assertTrue(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_SET_RESOLVER, owner));
     }
 
     function test_cannot_unlock_name() public {
         uint96 flags = registry.FLAG_FLAGS_LOCKED();
-        uint256 oldTokenId = registry.register("test2", address(this), registry, address(0), flags, defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        uint256 oldTokenId = registry.register("test2", owner, registry, address(0), flags, defaultRoleBitmap, uint64(block.timestamp) + 86400);
 
         vm.expectRevert(abi.encodeWithSelector(BaseRegistry.InvalidSubregistryFlags.selector, oldTokenId, flags, 0));
+        vm.prank(owner);
         registry.setFlags(oldTokenId, 0);
     }
 
@@ -184,8 +187,9 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
     function test_Revert_cannot_set_subregistry_without_role() public {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), 0, lockedSubregistryRoleBitmap, uint64(block.timestamp) + 86400);
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, address(this)));
-        registry.setSubregistry(tokenId, IRegistry(address(this)));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, user1));
+        vm.prank(user1);
+        registry.setSubregistry(tokenId, IRegistry(user1));
     }
 
     function test_set_resolver() public {
@@ -197,7 +201,8 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
     function test_Revert_cannot_set_resolver_without_role() public {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), 0, lockedResolverRoleBitmap, uint64(block.timestamp) + 86400);
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, user1));
+        vm.prank(user1);
         registry.setResolver(tokenId, address(this));
     }
 
@@ -258,17 +263,18 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
     }
 
     function test_relinquish_revokes_roles() public {
-        uint256 tokenId = registry.register("test2", address(this), registry, address(0), 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.register("test2", owner, registry, address(0), 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
         
         // Verify roles before relinquishing
-        assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, address(this)), true);
-        assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, address(this)), true);
+        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
+        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
         
+        vm.prank(owner);
         registry.relinquish(tokenId);
         
         // Verify roles are revoked after relinquishing
-        assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, address(this)), false);
-        assertEq(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, address(this)), false);
+        assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
+        assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
     }
 
     function test_relinquish_emits_event() public {

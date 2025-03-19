@@ -13,8 +13,7 @@ import {Roles} from "./Roles.sol";
 contract RootRegistry is PermissionedRegistry {
     mapping(uint256 tokenId => string) uris;
 
-    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
-        _grantRoles(ROOT_RESOURCE, ROLE_TLD_ISSUER, _msgSender());
+    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore, _msgSender()) {
     }
 
     function uri(uint256 tokenId ) public view override returns (string memory) {

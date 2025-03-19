@@ -5,13 +5,13 @@ import {IETHRegistrar} from "./IETHRegistrar.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IETHRegistry} from "./IETHRegistry.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IPriceOracle} from "./IPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 import {Roles} from "./Roles.sol";
+import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 
-contract ETHRegistrar is IETHRegistrar, AccessControl, Roles {
+contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, Roles {
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
     uint64 private constant MAX_EXPIRY = type(uint64).max;
 
@@ -30,9 +30,8 @@ contract ETHRegistrar is IETHRegistrar, AccessControl, Roles {
 
     mapping(bytes32 => uint256) public commitments;    
 
-    constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge) {
+    constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge) EnhancedAccessControl(_msgSender()) {
         registry = IETHRegistry(_registry);
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         if (_maxCommitmentAge <= _minCommitmentAge) {
             revert MaxCommitmentAgeTooLow();
@@ -154,7 +153,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl, Roles {
 
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, flags, duration));
 
-        tokenId = registry.register(name, owner, subregistry, resolver, flags, ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER, uint64(block.timestamp) + duration);
+        tokenId = registry.register(name, owner, subregistry, resolver, flags, ALL_ROLES_BITMAP_MASK, uint64(block.timestamp) + duration);
 
         if (msg.value > totalPrice) {
             payable(msg.sender).transfer(msg.value - totalPrice);
@@ -191,15 +190,15 @@ contract ETHRegistrar is IETHRegistrar, AccessControl, Roles {
     }
 
 
-    function supportsInterface(bytes4 interfaceID) public view override(AccessControl) returns (bool) {
-        return interfaceID == type(IETHRegistrar).interfaceId || AccessControl.supportsInterface(interfaceID);
+    function supportsInterface(bytes4 interfaceID) public view override(EnhancedAccessControl) returns (bool) {
+        return interfaceID == type(IETHRegistrar).interfaceId || EnhancedAccessControl.supportsInterface(interfaceID);
     }
 
-    function setPriceOracle(IPriceOracle _prices) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setPriceOracle(IPriceOracle _prices) external onlyRoles(ROOT_RESOURCE, ROLE_SUPERUSER) {
         prices = _prices;
     }
 
-    function setCommitmentAges(uint256 _minCommitmentAge, uint256 _maxCommitmentAge) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setCommitmentAges(uint256 _minCommitmentAge, uint256 _maxCommitmentAge) external onlyRoles(ROOT_RESOURCE, ROLE_SUPERUSER) {
         if (_maxCommitmentAge <= _minCommitmentAge) {
             revert MaxCommitmentAgeTooLow();
         }

@@ -8,8 +8,7 @@ import {Roles} from "./Roles.sol";
 contract BaseUriRegistryMetadata is EnhancedAccessControl, IRegistryMetadata, Roles {
     string tokenBaseUri;
 
-    constructor() {
-        _grantRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA, _msgSender());
+    constructor() EnhancedAccessControl(_msgSender()) {
     }
 
     function setTokenUri(string calldata uri) external onlyRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA) {

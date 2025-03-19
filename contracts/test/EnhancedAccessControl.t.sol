@@ -10,19 +10,18 @@ abstract contract MockRoles {
     bytes32 public constant RESOURCE_1 = bytes32(keccak256("RESOURCE_1"));
     bytes32 public constant RESOURCE_2 = bytes32(keccak256("RESOURCE_2"));
 
-    uint256 public constant ROLE_A = 1 << 0;
-    uint256 public constant ROLE_B = 1 << 1;
-    uint256 public constant ROLE_C = 1 << 2;
-    uint256 public constant ROLE_D = 1 << 3;
-    uint256 public constant ADMIN_ROLE_A = 1 << 128;
-    uint256 public constant ADMIN_ROLE_B = 1 << 129;
-    uint256 public constant ADMIN_ROLE_C = 1 << 130;
-    uint256 public constant ADMIN_ROLE_D = 1 << 131;
+    uint256 public constant ROLE_A = 1 << 1;
+    uint256 public constant ROLE_B = 1 << 2;
+    uint256 public constant ROLE_C = 1 << 3;
+    uint256 public constant ROLE_D = 1 << 4;
+    uint256 public constant ADMIN_ROLE_A = ROLE_A << 128;
+    uint256 public constant ADMIN_ROLE_B = ROLE_B << 128;
+    uint256 public constant ADMIN_ROLE_C = ROLE_C << 128;
+    uint256 public constant ADMIN_ROLE_D = ROLE_D << 128;
 }
 
 contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
-    constructor() {
-        // Self-grant role access in the root resource
+    constructor(address superUser) EnhancedAccessControl(superUser) {
         _grantRoles(ROOT_RESOURCE, ROLE_A | ROLE_B | ROLE_C | ROLE_D | ADMIN_ROLE_A | ADMIN_ROLE_B | ADMIN_ROLE_C | ADMIN_ROLE_D, msg.sender);
     }
     
@@ -44,16 +43,58 @@ contract EnhancedAccessControlTest is Test, MockRoles {
     address admin;
     address user1;
     address user2;
+    address superuser;
 
     function setUp() public {
         admin = address(this);
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
-        access = new MockEnhancedAccessControl();
+        superuser = makeAddr("superuser");
+        access = new MockEnhancedAccessControl(superuser);
     }
 
     function test_initial_roles() public view {
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B | ROLE_C | ADMIN_ROLE_A, admin));
+    }
+
+    function test_superuser_initial_state() public view {
+        // Verify superuser has all roles in root resource
+        assertTrue(access.hasRootRoles(ROLE_A | ROLE_B | ROLE_C | ROLE_D | ADMIN_ROLE_A | ADMIN_ROLE_B | ADMIN_ROLE_C | ADMIN_ROLE_D, superuser));
+        
+        // Verify superuser has all roles in any resource
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B | ROLE_C | ROLE_D | ADMIN_ROLE_A | ADMIN_ROLE_B | ADMIN_ROLE_C | ADMIN_ROLE_D, superuser));
+        assertTrue(access.hasRoles(RESOURCE_2, ROLE_A | ROLE_B | ROLE_C | ROLE_D | ADMIN_ROLE_A | ADMIN_ROLE_B | ADMIN_ROLE_C | ADMIN_ROLE_D, superuser));
+        assertTrue(access.hasRoles(bytes32(keccak256("ANY_RESOURCE")), ROLE_A | ROLE_B | ROLE_C | ROLE_D | ADMIN_ROLE_A | ADMIN_ROLE_B | ADMIN_ROLE_C | ADMIN_ROLE_D, superuser));
+    }
+
+    function test_superuser_can_grant_any_role() public {
+        vm.startPrank(superuser);
+
+        // Grant roles in different resources
+        access.grantRoles(RESOURCE_1, ROLE_A | ADMIN_ROLE_A, user1);
+        access.grantRoles(RESOURCE_2, ROLE_B | ADMIN_ROLE_B, user2);
+        access.grantRoles(bytes32(keccak256("NEW_RESOURCE")), ROLE_C | ADMIN_ROLE_C, user1);
+
+        vm.stopPrank();
+
+        // Verify roles were granted
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ADMIN_ROLE_A, user1));
+        assertTrue(access.hasRoles(RESOURCE_2, ROLE_B | ADMIN_ROLE_B, user2));
+        assertTrue(access.hasRoles(bytes32(keccak256("NEW_RESOURCE")), ROLE_C | ADMIN_ROLE_C, user1));
+    }
+
+    function test_superuser_role_can_be_granted() public {
+        vm.startPrank(superuser);
+        access.grantRoles(access.ROOT_RESOURCE(), access.ROLE_SUPERUSER(), user1);
+        vm.stopPrank();
+        assertTrue(access.hasRootRoles(access.ROLE_SUPERUSER(), user1));
+    }
+
+    function test_superuser_role_can_be_revoked() public {
+        vm.startPrank(superuser);
+        access.revokeRoles(access.ROOT_RESOURCE(), access.ROLE_SUPERUSER(), superuser);
+        vm.stopPrank();
+        assertFalse(access.hasRootRoles(access.ROLE_SUPERUSER(), superuser));
     }
 
     function test_grant_roles() public {
@@ -218,6 +259,12 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B | ROLE_C | ROLE_D, user1));
     }
     
+    function test_has_roles_superuser() public view {
+        assertTrue(access.hasRoles(access.ROOT_RESOURCE(), access.ROLE_SUPERUSER(), superuser));
+        assertTrue(access.hasRoles(access.ROOT_RESOURCE(), ROLE_A | ROLE_B | ROLE_C | ROLE_D, superuser));
+        assertTrue(access.hasRoles(access.ROOT_RESOURCE(), ADMIN_ROLE_A | ADMIN_ROLE_B | ADMIN_ROLE_C | ADMIN_ROLE_D, superuser));
+    }
+
     function test_has_root_roles_requires_all_roles() public {
         // Grant only ROLE_A and ROLE_B to user1 in root resource
         access.grantRoles(access.ROOT_RESOURCE(), ROLE_A | ROLE_B, user1);

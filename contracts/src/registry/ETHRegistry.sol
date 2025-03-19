@@ -19,8 +19,7 @@ import {NameUtils} from "../utils/NameUtils.sol";
 contract ETHRegistry is PermissionedRegistry, MetadataMixin, IETHRegistry {
     mapping(uint256 => address) public tokenObservers;
     
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) PermissionedRegistry(_datastore) MetadataMixin(_metadata) {
-        _grantRoles(ROOT_RESOURCE, ROLE_REGISTRAR | ROLE_REGISTRAR_ADMIN | ROLE_RENEW | ROLE_RENEW_ADMIN, _msgSender());
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) PermissionedRegistry(_datastore, _msgSender()) MetadataMixin(_metadata) {
     }
 
     /**

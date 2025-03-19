@@ -12,6 +12,7 @@ import "../src/registry/ETHRegistry.sol";
 import "../src/registry/RegistryDatastore.sol";
 import "../src/registry/IPriceOracle.sol";
 import "../src/registry/IRegistryMetadata.sol";
+import "../src/registry/EnhancedAccessControl.sol";
 import "../src/utils/NameUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
 
@@ -60,7 +61,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE);
         
-        registry.grantRoles(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR() | registry.ROLE_RENEW(), address(registrar));
+        registry.grantRoles(registry.ROOT_RESOURCE(), registry.ROLE_SUPERUSER(), address(registrar));
         
         vm.deal(address(this), 100 ether);
         vm.deal(user1, 100 ether);
@@ -259,6 +260,41 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         );
         
         assertTrue(foundEvent, "NameRegistered event not emitted");
+    }
+
+    function test_register_sets_all_roles() public {
+        string memory name = "testname";
+        address owner = address(this);
+        address resolver = address(0);
+        uint96 flags = 0;
+        uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
+        
+        bytes32 commitment = registrar.makeCommitment(
+            name, 
+            owner, 
+            secret, 
+            address(registry),
+            resolver,
+            flags, 
+            duration
+        );
+        registrar.commit(commitment);
+        
+        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
+        
+        uint256 tokenId = registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
+            name, 
+            owner, 
+            secret,
+            registry,
+            resolver,
+            flags, 
+            duration
+        );
+
+        bytes32 resource = registry.tokenIdResource(tokenId);
+        assertTrue(registry.hasRoles(resource, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, owner));
     }
 
     function test_Revert_insufficientValue() public {
@@ -577,10 +613,10 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_supportsInterface() public view {
         // Use type(IETHRegistrar).interfaceId directly
         bytes4 ethRegistrarInterfaceId = type(IETHRegistrar).interfaceId;
-        bytes4 accessControlInterfaceId = type(IAccessControl).interfaceId;
+        bytes4 eacInterfaceId = type(EnhancedAccessControl).interfaceId;
         
         assertTrue(registrar.supportsInterface(ethRegistrarInterfaceId));
-        assertTrue(registrar.supportsInterface(accessControlInterfaceId));
+        assertTrue(registrar.supportsInterface(eacInterfaceId));
     }
 
     function test_refund_excess_payment() public {
@@ -692,20 +728,16 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_Revert_setPriceOracle_notAdmin() public {
         vm.startPrank(user1);
         MockPriceOracle newPriceOracle = new MockPriceOracle(0.02 ether, 0.01 ether);
-        vm.expectRevert(accessControlError(user1, registrar.DEFAULT_ADMIN_ROLE()));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registrar.ROOT_RESOURCE(), registrar.ROLE_SUPERUSER(), user1));
         registrar.setPriceOracle(newPriceOracle);
         vm.stopPrank();
     }
 
     function test_Revert_setCommitmentAges_notAdmin() public {
         vm.startPrank(user1);
-        vm.expectRevert(accessControlError(user1, registrar.DEFAULT_ADMIN_ROLE()));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registrar.ROOT_RESOURCE(), registrar.ROLE_SUPERUSER(), user1));
         registrar.setCommitmentAges(120, 172800);
         vm.stopPrank();
-    }
-
-    function accessControlError(address account, bytes32 role) internal pure returns (bytes memory) {
-        return abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, account, role);
     }
 
     receive() external payable {}

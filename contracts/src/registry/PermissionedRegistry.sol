@@ -16,7 +16,7 @@ abstract contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, R
     uint96 public constant FLAGS_MASK = 0xffffffff; // 32 bits
     uint96 public constant FLAG_FLAGS_LOCKED = 0x1;
 
-    constructor(IRegistryDatastore _datastore) BaseRegistry(_datastore) EnhancedAccessControl() {
+    constructor(IRegistryDatastore _datastore, address _superUser) BaseRegistry(_datastore) EnhancedAccessControl(_superUser) {
     }
 
     function _setFlags(uint256 tokenId, uint96 _flags)
