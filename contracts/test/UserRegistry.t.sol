@@ -154,7 +154,7 @@ contract TestUserRegistry is Test, ERC1155Holder {
 
         for (uint256 i = 0; i < entries.length; i++) {
             // Check for NewSubname event
-            if (entries[i].topics[0] == keccak256("NewSubname(string)")) {
+            if (entries[i].topics[0] == keccak256("NewSubname(uint256,string)")) {
                 foundNewSubname = true;
             }
         }
@@ -645,7 +645,7 @@ contract UserRegistryV2 is UserRegistry {
         // Set the token version - this is the new functionality
         tokenVersions[tokenId] = version;
 
-        emit NewSubname(sublabel);
+        emit NewSubname(tokenId, sublabel);
 
         return tokenId;
     }
