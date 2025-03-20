@@ -18,27 +18,31 @@ import {PermissionedRegistry} from "./PermissionedRegistry.sol";
  * but receives names that have been ejected from L2.
  */
 contract L1ETHRegistry is PermissionedRegistry, AccessControl {
-    bytes32 public constant EJECTION_CONTROLLER_ROLE = keccak256("EJECTION_CONTROLLER_ROLE");
-
     error NameExpired(uint256 tokenId);
     error NameNotExpired(uint256 tokenId, uint64 expires);
     error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
+    error OnlyEjectionController();
 
     event NameEjected(uint256 indexed tokenId, address owner, uint64 expires);
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
     event NameMigratedToL2(uint256 indexed tokenId, address sendTo);
     event EjectionControllerChanged(address oldController, address newController);
 
-    address public ejectionController;
+    IL1EjectionController public ejectionController;
 
     constructor(IRegistryDatastore _datastore, address _ejectionController) PermissionedRegistry(_datastore) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
-        // Grant role to the ejection controller
+        // Set the ejection controller
         require(_ejectionController != address(0), "Ejection controller cannot be empty");
+        ejectionController = IL1EjectionController(_ejectionController);
+    }
 
-        ejectionController = _ejectionController;
-        _grantRole(EJECTION_CONTROLLER_ROLE, _ejectionController);
+    modifier onlyEjectionController() {
+        if (msg.sender != address(ejectionController)) {
+            revert OnlyEjectionController();
+        }
+        _;
     }
 
     /**
@@ -48,14 +52,10 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     function setEjectionController(address _newEjectionController) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_newEjectionController != address(0), "Ejection controller cannot be empty");
         
-        address oldController = ejectionController;
+        address oldController = address(ejectionController);
         
-        // Revoke role from the old controller
-        _revokeRole(EJECTION_CONTROLLER_ROLE, oldController);
-        
-        // Set the new controller and grant role
-        ejectionController = _newEjectionController;
-        _grantRole(EJECTION_CONTROLLER_ROLE, _newEjectionController);
+        // Set the new controller
+        ejectionController = IL1EjectionController(_newEjectionController);
         
         emit EjectionControllerChanged(oldController, _newEjectionController);
     }
@@ -91,7 +91,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
      */
     function ejectFromNamechain(uint256 labelHash, address owner, IRegistry registry, uint32 flags, uint64 expires)
         public
-        onlyRole(EJECTION_CONTROLLER_ROLE)
+        onlyEjectionController
         returns (uint256 tokenId)
     {
         tokenId = (labelHash & ~uint256(FLAGS_MASK)) | flags;
@@ -124,7 +124,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
      */
     function updateExpiration(uint256 tokenId, uint64 expires) 
         public 
-        onlyRole(EJECTION_CONTROLLER_ROLE)
+        onlyEjectionController
     {
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
         uint64 oldExpiration = _extractExpiry(flags);
@@ -157,7 +157,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
         datastore.setSubregistry(tokenId, address(0), 0);
 
         // Notify the ejection controller to handle cross-chain messaging
-        IL1EjectionController(ejectionController).migrateToNamechain(tokenId, l2Owner, l2Subregistry, data);
+        ejectionController.migrateToNamechain(tokenId, l2Owner, l2Subregistry, data);
 
         emit NameMigratedToL2(tokenId, l2Owner);
     }
