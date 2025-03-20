@@ -154,7 +154,7 @@ contract UserRegistry is Initializable, UUPSUpgradeable, AccessControlUpgradeabl
         _mint(owner, tokenId, 1, "");
         datastore.setSubregistry(tokenId, address(registry), flags);
         
-        emit NewSubname(sublabel);
+        emit NewSubname(tokenId, sublabel);
         
         return tokenId;
     }

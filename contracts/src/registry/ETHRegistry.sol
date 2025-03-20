@@ -76,7 +76,7 @@ contract ETHRegistry is AccessControl, PermissionedRegistry, MetadataMixin, IETH
         _mint(owner, tokenId, 1, "");
         datastore.setSubregistry(tokenId, address(registry), flags);
         datastore.setResolver(tokenId, resolver, flags);
-        emit NewSubname(label);
+        emit NewSubname(tokenId, label);
         return tokenId;
     }
 
