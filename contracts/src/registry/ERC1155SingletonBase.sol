@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC1155MetadataURI} from "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
@@ -16,7 +17,7 @@ import {IERC1155Singleton} from "./IERC1155Singleton.sol";
  * This contract contains the core logic but leaves storage and initialization 
  * to the derived contracts.
  */
-abstract contract ERC1155SingletonBase is IERC1155Singleton, IERC1155Errors, IERC1155MetadataURI {
+abstract contract ERC1155SingletonBase is Context, IERC1155Singleton, IERC1155Errors, IERC1155MetadataURI {
     using Arrays for uint256[];
     using Arrays for address[];
 
@@ -58,12 +59,6 @@ abstract contract ERC1155SingletonBase is IERC1155Singleton, IERC1155Errors, IER
     function _setOwner(uint256 id, address owner) internal virtual {
         _owners[id] = owner;
     }
-
-    /**
-     * @dev Returns the sender of the current context.
-     * Must be implemented by derived contracts.
-     */
-    function _msgSender() internal view virtual returns (address);
 
     /**
      * @dev See {IERC1155-balanceOf}.

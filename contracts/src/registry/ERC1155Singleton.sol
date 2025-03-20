@@ -6,7 +6,6 @@
 pragma solidity >=0.8.13;
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 import {ERC1155SingletonBase} from "./ERC1155SingletonBase.sol";
@@ -16,7 +15,7 @@ import {ERC1155SingletonBase} from "./ERC1155SingletonBase.sol";
  * @dev Implementation of the ERC1155SingletonBase contract.
  * This provides concrete implementations of the abstract functions defined in the base.
  */
-abstract contract ERC1155Singleton is Context, ERC165, ERC1155SingletonBase {
+abstract contract ERC1155Singleton is ERC165, ERC1155SingletonBase {
     /**
      * @dev See {IERC165-supportsInterface}.
      */
@@ -28,12 +27,5 @@ abstract contract ERC1155Singleton is Context, ERC165, ERC1155SingletonBase {
         returns (bool) 
     {
         return ERC1155SingletonBase.supportsInterface(interfaceId) || ERC165.supportsInterface(interfaceId);
-    }
-
-    /**
-     * @dev Gets the sender of the current context.
-     */
-    function _msgSender() internal view virtual override(Context, ERC1155SingletonBase) returns (address) {
-        return Context._msgSender();
     }
 }

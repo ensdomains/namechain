@@ -5,7 +5,6 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {ERC1155SingletonBase} from "./ERC1155SingletonBase.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
@@ -17,20 +16,13 @@ import {MetadataMixin} from "./MetadataMixin.sol";
 import {IETHRegistry} from "./IETHRegistry.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 
-contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETHRegistry {
+contract ETHRegistry is AccessControl, PermissionedRegistry, MetadataMixin, IETHRegistry {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
 
     mapping(uint256 => address) public tokenObservers;
     
     constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) PermissionedRegistry(_datastore) MetadataMixin(_metadata) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
-
-    /**
-     * @dev Explicitly override _msgSender to resolve ambiguity in inherited contracts
-     */
-    function _msgSender() internal view override(Context, ERC1155Singleton) returns (address) {
-        return Context._msgSender();
     }
 
     /**

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
@@ -8,9 +9,9 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
+import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {ERC1155SingletonBase} from "./ERC1155SingletonBase.sol";
 import {ERC1155SingletonUpgradeable} from "./ERC1155SingletonUpgradable.sol";
-import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
@@ -61,8 +62,22 @@ contract UserRegistry is Initializable, UUPSUpgradeable, AccessControlUpgradeabl
     /**
      * @dev Explicitly override _msgSender to resolve ambiguity in inherited contracts
      */
-    function _msgSender() internal view override(ContextUpgradeable, ERC1155SingletonUpgradeable) returns (address) {
-        return ContextUpgradeable._msgSender();
+    function _msgSender() internal view virtual override(Context, ContextUpgradeable) returns (address) {
+        return msg.sender;
+    }
+
+    /**
+     * @dev Explicitly override _msgData to resolve ambiguity in inherited contracts
+     */
+    function _msgData() internal view virtual override(Context, ContextUpgradeable) returns (bytes calldata) {
+        return msg.data;
+    }
+
+    /**
+     * @dev Explicitly override _contextSuffixLength to resolve ambiguity in inherited contracts
+     */
+    function _contextSuffixLength() internal view virtual override(Context, ContextUpgradeable) returns (uint256) {
+        return 0;
     }
 
     // =================== Modifiers ===================
