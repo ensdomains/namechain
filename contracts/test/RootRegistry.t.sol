@@ -219,7 +219,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         
         // First, revoke the TLD_ISSUER role from the test contract
         // since it was granted in the constructor to the deployer (this test contract)
-        registry.revokeRoles(registry.ROOT_RESOURCE(), registry.ROLE_TLD_ISSUER(), address(this));
+        registry.revokeRootRoles(registry.ROLE_TLD_ISSUER(), address(this));
         
         // Verify the test contract no longer has the role
         assertFalse(registry.hasRoles(registry.ROOT_RESOURCE(), registry.ROLE_TLD_ISSUER(), address(this)));

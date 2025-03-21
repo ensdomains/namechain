@@ -61,7 +61,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE);
         
-        registry.grantRoles(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR() | registry.ROLE_RENEW(), address(registrar));
+        registry.grantRootRoles(registry.ROLE_REGISTRAR() | registry.ROLE_RENEW(), address(registrar));
         
         vm.deal(address(this), 100 ether);
         vm.deal(user1, 100 ether);

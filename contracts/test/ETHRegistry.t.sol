@@ -42,7 +42,7 @@ contract TestETHRegistry is Test, ERC1155Holder {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
         registry = new ETHRegistry(datastore, metadata);
-        registry.grantRoles(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR(), address(this));
+        registry.grantRootRoles(registry.ROLE_REGISTRAR(), address(this));
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
         priceOracle = new MockPriceOracle();
@@ -74,7 +74,7 @@ contract TestETHRegistry is Test, ERC1155Holder {
 
     function test_registrar_can_register() public {
         address registrar2 = makeAddr("registrar");
-        registry.grantRoles(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR(), registrar2);
+        registry.grantRootRoles(registry.ROLE_REGISTRAR(), registrar2);
         
         vm.prank(registrar2);
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
@@ -85,7 +85,7 @@ contract TestETHRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), 0, defaultRoleBitmap, uint64(block.timestamp) + 86400);
         
         address renewer = makeAddr("renewer");
-        registry.grantRoles(registry.ROOT_RESOURCE(), registry.ROLE_RENEW(), renewer);
+        registry.grantRootRoles(registry.ROLE_RENEW(), renewer);
         
         vm.prank(renewer);
         uint64 newExpiry = uint64(block.timestamp) + 172800;

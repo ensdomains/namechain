@@ -36,11 +36,6 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
     function revokeAllRoles(bytes32 resource, address account) external returns (bool) {
         return _revokeAllRoles(resource, account);
     }
-    
-    function revokeRoles(bytes32 resource, uint256 roleBitmap, address account) public override returns (bool) {
-        // Skip the ROOT_RESOURCE check that's in the parent contract
-        return _revokeRoles(resource, roleBitmap, account);
-    }
 }
 
 contract EnhancedAccessControlTest is Test, MockRoles {
@@ -152,12 +147,10 @@ contract EnhancedAccessControlTest is Test, MockRoles {
     
     // Test that grantRoles cannot be called with ROOT_RESOURCE
     function test_grant_roles_with_root_resource_not_allowed() public {
+        bytes32 rootResource = access.ROOT_RESOURCE();
         // Attempt to call grantRoles with ROOT_RESOURCE should revert
-        vm.expectRevert(EnhancedAccessControl.EACRootResourceNotAllowed.selector);
-        
-        // Use EnhancedAccessControl interface via the MockEnhancedAccessControl instance
-        // but cast to EnhancedAccessControl to use the real implementation
-        EnhancedAccessControl(address(access)).grantRoles(access.ROOT_RESOURCE(), ROLE_A, user1);
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACRootResourceNotAllowed.selector));
+        access.grantRoles(rootResource, ROLE_A, user1);
     }
 
     function test_root_resource_role_applies_to_all_resources() public {
@@ -179,7 +172,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasRootRoles(ROLE_A | ROLE_A, user1));
         
         // Revoking the role should remove it
-        access.revokeRoles(access.ROOT_RESOURCE(), ROLE_A, user1);
+        access.revokeRootRoles(ROLE_A, user1);
         assertFalse(access.hasRootRoles(ROLE_A, user1));
         
         // Having a role in a specific resource doesn't mean having it in root resource
@@ -336,9 +329,10 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user2));
         
         // user1 attempts to revoke ROLE_A from user2, but doesn't have ADMIN_ROLE_A admin
-        vm.prank(user1);
+        vm.startPrank(user1);
         vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector, RESOURCE_1, ROLE_A, user1));
-        access.revokeRoles(RESOURCE_1, ROLE_A, user2);
+        EnhancedAccessControl(address(access)).revokeRoles(RESOURCE_1, ROLE_A, user2);
+        vm.stopPrank();
         
         // Verify user2 still has ROLE_A (it wasn't revoked)
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user2));
@@ -364,12 +358,94 @@ contract EnhancedAccessControlTest is Test, MockRoles {
     
     // Test that revokeRoles cannot be called with ROOT_RESOURCE
     function test_revoke_roles_with_root_resource_not_allowed() public {
+        bytes32 rootResource = access.ROOT_RESOURCE();
         // Attempt to call revokeRoles with ROOT_RESOURCE should revert
-        vm.expectRevert(EnhancedAccessControl.EACRootResourceNotAllowed.selector);
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACRootResourceNotAllowed.selector));
+        access.revokeRoles(rootResource, ROLE_A, user1);
+    }
+
+    function test_revoke_root_roles() public {
+        // Grant roles to user1 in the root resource
+        access.grantRootRoles(ROLE_A | ROLE_B, user1);
         
-        // Use EnhancedAccessControl interface via the MockEnhancedAccessControl instance
-        // but cast to EnhancedAccessControl to use the real implementation
-        EnhancedAccessControl(address(access)).revokeRoles(access.ROOT_RESOURCE(), ROLE_A, user1);
+        // Verify initial state
+        assertTrue(access.hasRootRoles(ROLE_A | ROLE_B, user1));
+        
+        // Record logs to verify event emission
+        vm.recordLogs();
+        
+        // Revoke one role from root resource
+        bool success = access.revokeRootRoles(ROLE_A, user1);
+        
+        // Verify success and role was revoked
+        assertTrue(success);
+        assertFalse(access.hasRootRoles(ROLE_A, user1));
+        assertTrue(access.hasRootRoles(ROLE_B, user1)); // Other role shouldn't be affected
+        
+        // Verify event was emitted correctly
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(bytes32,uint256,address)"));
+        (bytes32 resource, uint256 roles, address account) = abi.decode(entries[0].data, (bytes32, uint256, address));
+        assertEq(resource, access.ROOT_RESOURCE());
+        assertEq(roles, ROLE_A);
+        assertEq(account, user1);
+        
+        // Test revoking a non-existent role (should not emit events)
+        vm.recordLogs();
+        success = access.revokeRootRoles(ROLE_C, user1);
+        
+        // Verify no changes and failure return
+        assertFalse(success);
+        entries = vm.getRecordedLogs();
+        assertEq(entries.length, 0);
+        
+        // Test revoking all remaining roles
+        vm.recordLogs();
+        success = access.revokeRootRoles(ROLE_B, user1);
+        
+        // Verify success
+        assertTrue(success);
+        assertFalse(access.hasRootRoles(ROLE_B, user1));
+        
+        // Verify event was emitted correctly
+        entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+    }
+    
+    function test_revoke_root_roles_unauthorized_admin() public {
+        // Grant ROLE_A to user2 in root resource, as the test admin
+        access.grantRootRoles(ROLE_A, user2);
+        
+        // Verify user2 has ROLE_A in root resource
+        assertTrue(access.hasRootRoles(ROLE_A, user2));
+        
+        // user1 attempts to revoke ROLE_A from user2, but doesn't have ADMIN_ROLE_A admin
+        vm.startPrank(user1);
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector, access.ROOT_RESOURCE(), ROLE_A, user1));
+        EnhancedAccessControl(address(access)).revokeRootRoles(ROLE_A, user2);
+        vm.stopPrank();
+        
+        // Verify user2 still has ROLE_A (it wasn't revoked)
+        assertTrue(access.hasRootRoles(ROLE_A, user2));
+    }
+    
+    function test_revoke_root_roles_authorized_admin() public {
+        // Grant ROLE_A to user2 in root resource, as the test admin
+        access.grantRootRoles(ROLE_A, user2);
+        
+        // Verify user2 has ROLE_A in root resource
+        assertTrue(access.hasRootRoles(ROLE_A, user2));
+        
+        // Grant admin role to user1 in root resource
+        access.grantRootRoles(ADMIN_ROLE_A, user1);
+        
+        // user1 attempts to revoke ROLE_A from user2
+        vm.prank(user1);
+        access.revokeRootRoles(ROLE_A, user2);
+        
+        // Verify user2 no longer has ROLE_A in root resource
+        assertFalse(access.hasRootRoles(ROLE_A, user2));
     }
 
     function test_revoke_all_roles() public {

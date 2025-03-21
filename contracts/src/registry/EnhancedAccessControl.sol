@@ -145,6 +145,19 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         return _revokeRoles(resource, roleBitmap, account);
     }
 
+    /**
+     * @dev Revokes roles from `account` in the ROOT_RESOURCE.
+     *
+     * The caller must have all the necessary admin roles for the roles being revoked.
+     *
+     * @param roleBitmap The roles bitmap to revoke.
+     * @param account The account to revoke roles from.
+     * @return `true` if the roles were revoked, `false` otherwise.
+     */
+    function revokeRootRoles(uint256 roleBitmap, address account) public virtual canGrantRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
+        return _revokeRoles(ROOT_RESOURCE, roleBitmap, account);
+    }
+
     // Internal functions
 
     /**
