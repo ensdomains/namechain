@@ -2,9 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
