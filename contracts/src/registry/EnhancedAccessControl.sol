@@ -20,6 +20,7 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 abstract contract EnhancedAccessControl is Context, ERC165 {
     error EACUnauthorizedAccountRoles(bytes32 resource, uint256 roleBitmap, address account);
     error EACUnauthorizedAccountAdminRoles(bytes32 resource, uint256 roleBitmap, address account);
+    error EACRootResourceNotAllowed();
 
     event EACRolesGranted(bytes32 resource, uint256 roleBitmap, address account);
     event EACRolesRevoked(bytes32 resource, uint256 roleBitmap, address account);
@@ -99,6 +100,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Grants roles to `account`.
      *
      * The caller must have all the necessary admin roles for the roles being granted.
+     * Cannot be used with ROOT_RESOURCE directly, use grantRootRoles instead.
      *
      * @param resource The resource to grant roles within.
      * @param roleBitmap The roles bitmap to grant.
@@ -106,14 +108,30 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if the roles were granted, `false` otherwise.
      */
     function grantRoles(bytes32 resource, uint256 roleBitmap, address account) public virtual canGrantRoles(resource, roleBitmap) returns (bool) {
+        if (resource == ROOT_RESOURCE) {
+            revert EACRootResourceNotAllowed();
+        }
         return _grantRoles(resource, roleBitmap, account);
     }
 
+    /**
+     * @dev Grants roles to `account` in the ROOT_RESOURCE.
+     *
+     * The caller must have all the necessary admin roles for the roles being granted.
+     *
+     * @param roleBitmap The roles bitmap to grant.
+     * @param account The account to grant roles to.
+     * @return `true` if the roles were granted, `false` otherwise.
+     */
+    function grantRootRoles(uint256 roleBitmap, address account) public virtual canGrantRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
+        return _grantRoles(ROOT_RESOURCE, roleBitmap, account);
+    }
 
     /**
      * @dev Revokes roles from `account`.
      *
      * The caller must have all the necessary admin roles for the roles being revoked.
+     * Cannot be used with ROOT_RESOURCE directly, use revokeRootRoles instead.
      *
      * @param resource The resource to revoke roles within.
      * @param roleBitmap The roles bitmap to revoke.
@@ -121,6 +139,9 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if the roles were revoked, `false` otherwise.
      */
     function revokeRoles(bytes32 resource, uint256 roleBitmap, address account) public virtual canGrantRoles(resource, roleBitmap) returns (bool) {
+        if (resource == ROOT_RESOURCE) {
+            revert EACRootResourceNotAllowed();
+        }
         return _revokeRoles(resource, roleBitmap, account);
     }
 

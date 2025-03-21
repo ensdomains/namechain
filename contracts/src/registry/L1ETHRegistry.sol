@@ -189,7 +189,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
         }
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(BaseRegistry, AccessControl) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(PermissionedRegistry, AccessControl) returns (bool) {
         return interfaceId == type(IRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
