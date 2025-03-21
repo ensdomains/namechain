@@ -7,10 +7,13 @@ import {UserRegistry} from "../src/registry/UserRegistry.sol";
 import {ETHRegistry} from "../src/registry/ETHRegistry.sol";
 import {IRegistry} from "../src/registry/IRegistry.sol";
 import {RegistryDatastore} from "../src/registry/RegistryDatastore.sol";
-import {IRegistryMetadata} from "../src/registry/IRegistryMetadata.sol";
+import {RegistryMetadata} from "../src/registry/RegistryMetadata.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {SimpleRegistryMetadata} from "../src/registry/SimpleRegistryMetadata.sol";
+import {console} from "forge-std/console.sol";
+import {NameUtils} from "../src/utils/NameUtils.sol";
+import {EnhancedAccessControl} from "../src/registry/EnhancedAccessControl.sol";
 
 contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -23,27 +26,25 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
         metadata = new SimpleRegistryMetadata();
         
         parentRegistry = new ETHRegistry(datastore, metadata);
-        parentRegistry.grantRole(parentRegistry.REGISTRAR_ROLE(), address(this));
+
+        uint256 parentTokenId = parentRegistry.register("test", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
         
         registry = new UserRegistry(
             parentRegistry,
-            "test",
+            parentTokenId,
             datastore,
             metadata
         );
-
-        parentRegistry.register("test", address(this), registry, address(0), 0, uint64(block.timestamp + 1000));
     }
 
     function test_registry_metadata_token_uri() public {
         string memory expectedUri = "ipfs://test";
-        uint256 tokenId = uint256(keccak256(bytes("sub")));
+        uint256 tokenId = NameUtils.labelToTokenId("test");
 
-        registry.mint("sub", address(this), registry, 0);
+        registry.mint("test", address(this), registry, 0);
 
         assertEq(registry.uri(tokenId), "");
         
-        metadata.grantRole(metadata.UPDATE_ROLE(), address(this));
         metadata.setTokenUri(tokenId, expectedUri);
 
         assertEq(metadata.tokenUri(tokenId), expectedUri);
@@ -51,15 +52,16 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     }
 
     function test_registry_metadata_unauthorized() public {
-        uint256 tokenId = uint256(keccak256(bytes("sub")));
+        uint256 tokenId = NameUtils.labelToTokenId("test");
         string memory expectedUri = "ipfs://test";
 
-        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), metadata.UPDATE_ROLE()));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, metadata.ROOT_RESOURCE(), metadata.ROLE_UPDATE_METADATA(), address(1))); 
+        vm.prank(address(1));
         metadata.setTokenUri(tokenId, expectedUri);
     }
 
     function test_registry_metadata_supports_interface() public view {
-        assertEq(metadata.supportsInterface(type(IRegistryMetadata).interfaceId), true);
+        assertEq(metadata.supportsInterface(type(RegistryMetadata).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
 } 

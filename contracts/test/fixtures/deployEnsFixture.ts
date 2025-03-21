@@ -20,19 +20,18 @@ export async function deployEnsFixture() {
   const universalResolver = await hre.viem.deployContract("UniversalResolver", [
     rootRegistry.address,
   ]);
-  await rootRegistry.write.grantRole([
-    keccak256(stringToHex("TLD_ISSUER_ROLE")),
-    accounts[0].address,
+
+  const [ROLE_SET_SUBREGISTRY, ROLE_SET_RESOLVER] = await Promise.all([
+    rootRegistry.read.ROLE_SET_SUBREGISTRY(),
+    rootRegistry.read.ROLE_SET_RESOLVER(),
   ]);
-  await ethRegistry.write.grantRole([
-    keccak256(stringToHex("REGISTRAR_ROLE")),
-    accounts[0].address,
-  ]);
+  
   await rootRegistry.write.mint([
     "eth",
     accounts[0].address,
     ethRegistry.address,
     1n,
+    ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER,
     "https://example.com/"
   ]);
 
@@ -89,8 +88,12 @@ export const registerName = async ({
   subregistryLocked?: boolean;
   resolverLocked?: boolean;
 }) => {
+  const [ROLE_SET_SUBREGISTRY, ROLE_SET_RESOLVER] = await Promise.all([
+    ethRegistry.read.ROLE_SET_SUBREGISTRY(),
+    ethRegistry.read.ROLE_SET_RESOLVER(),
+  ]);
   const owner =
     owner_ ?? (await hre.viem.getWalletClients())[0].account.address;
   const flags = (subregistryLocked ? 1n : 0n) | (resolverLocked ? 2n : 0n);
-  return ethRegistry.write.register([label, owner, subregistry, resolver, flags, expiry]);
+  return ethRegistry.write.register([label, owner, subregistry, resolver, flags, ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER, expiry]);
 };

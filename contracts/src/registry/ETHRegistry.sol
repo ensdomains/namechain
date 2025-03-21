@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
@@ -9,18 +8,24 @@ import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
-import {IRegistryMetadata} from "./IRegistryMetadata.sol";
+import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
+import {RegistryMetadata} from "./RegistryMetadata.sol";
 import {MetadataMixin} from "./MetadataMixin.sol";
 import {IETHRegistry} from "./IETHRegistry.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 
-contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETHRegistry {
-    bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
+
+contract ETHRegistry is PermissionedRegistry, MetadataMixin, IETHRegistry {
+    uint256 public constant ROLE_REGISTRAR = 1 << 2;
+    uint256 public constant ROLE_REGISTRAR_ADMIN = ROLE_REGISTRAR << 128;
+
+    uint256 public constant ROLE_RENEW = 1 << 3;
+    uint256 public constant ROLE_RENEW_ADMIN = ROLE_RENEW << 128;
 
     mapping(uint256 => address) public tokenObservers;
     
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) PermissionedRegistry(_datastore) MetadataMixin(_metadata) {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    constructor(IRegistryDatastore _datastore, RegistryMetadata _metadata) PermissionedRegistry(_datastore) MetadataMixin(_metadata) {
+        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender());
     }
 
     /**
@@ -47,9 +52,9 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
         return super.ownerOf(tokenId);
     }
 
-    function register(string calldata label, address owner, IRegistry registry, address resolver, uint96 flags, uint64 expires)
+    function register(string calldata label, address owner, IRegistry registry, address resolver, uint96 flags, uint256 roleBitmap, uint64 expires)
         public
-        onlyRole(REGISTRAR_ROLE)
+        onlyRootRoles(ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
         tokenId = (NameUtils.labelToTokenId(label) & ~uint256(FLAGS_MASK)) | flags;
@@ -72,6 +77,8 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
         }
 
         _mint(owner, tokenId, 1, "");
+        _grantRoles(tokenIdResource(tokenId), roleBitmap, owner);
+
         datastore.setSubregistry(tokenId, address(registry), flags);
         datastore.setResolver(tokenId, resolver, flags);
         emit NewSubname(tokenId, label);
@@ -83,7 +90,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
         emit TokenObserverSet(tokenId, _observer);
     }
 
-    function renew(uint256 tokenId, uint64 expires) public onlyRole(REGISTRAR_ROLE) {
+    function renew(uint256 tokenId, uint64 expires) public onlyRootRoles(ROLE_RENEW) {
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
         uint64 oldExpiration = _extractExpiry(flags);
         if (oldExpiration < block.timestamp) {
@@ -109,9 +116,12 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
      * @param tokenId The token ID of the name to relinquish.
      */
     function relinquish(uint256 tokenId) external onlyTokenOwner(tokenId) {
+        _revokeAllRoles(tokenIdResource(tokenId), ownerOf(tokenId));
         _burn(ownerOf(tokenId), tokenId, 1);
-        datastore.setSubregistry(tokenId, address(0), 0);
 
+        datastore.setSubregistry(tokenId, address(0), 0);
+        datastore.setResolver(tokenId, address(0), 0);
+        
         address observer = tokenObservers[tokenId];
         if (observer != address(0)) {
             ETHRegistryTokenObserver(observer).onRelinquish(tokenId, msg.sender);
@@ -134,12 +144,12 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
         newTokenId = (tokenId & ~uint256(FLAGS_MASK)) | (newFlags & FLAGS_MASK);
         if (tokenId != newTokenId) {
             address owner = ownerOf(tokenId);
-            _burn(owner, tokenId, 1);
             _mint(owner, newTokenId, 1, "");
+            _burn(owner, tokenId, 1);
         }
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(BaseRegistry, AccessControl, IERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(PermissionedRegistry, IERC165) returns (bool) {
         return interfaceId == type(IRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
@@ -165,7 +175,7 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
     }
 
 
-    // Private methods
+    // Internal/private methods
 
     function _extractExpiry(uint96 flags) private pure returns (uint64) {
         return uint64(flags >> 32);

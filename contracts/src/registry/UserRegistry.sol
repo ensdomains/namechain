@@ -8,7 +8,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
-import {IRegistryMetadata} from "./IRegistryMetadata.sol";
+import {RegistryMetadata} from "./RegistryMetadata.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 import {MetadataMixin} from "./MetadataMixin.sol";
 
@@ -17,15 +17,15 @@ contract UserRegistry is BaseRegistry, MetadataMixin {
     uint96 public constant SUBREGISTRY_FLAG_LOCKED = 0x1;
 
     IRegistry public parent;
-    string public label;
+    uint256 public parentTokenId;
 
-    constructor(IRegistry _parent, string memory _label, IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
+    constructor(IRegistry _parent, uint256 _parentTokenId, IRegistryDatastore _datastore, RegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
         parent = _parent;
-        label = _label;
+        parentTokenId = _parentTokenId;
     }
 
     modifier onlyNameOwner() {
-        address owner = parent.ownerOf(uint256(keccak256(bytes(label))));
+        address owner = parent.ownerOf(parentTokenId);
         if (owner != msg.sender) {
             revert AccessDenied(0, owner, msg.sender);
         }
@@ -33,10 +33,10 @@ contract UserRegistry is BaseRegistry, MetadataMixin {
     }
 
     function mint(string calldata _label, address owner, IRegistry registry, uint96 flags) external onlyNameOwner {
-        uint256 tokenId = uint256(keccak256(bytes(_label)));
+        uint256 tokenId = NameUtils.labelToTokenId(_label);
         _mint(owner, tokenId, 1, "");
         datastore.setSubregistry(tokenId, address(registry), flags);
-        emit NewSubname(tokenId, label);
+        emit NewSubname(tokenId, _label);
     }
 
     function burn(uint256 tokenId) external onlyNameOwner withSubregistryFlags(tokenId, SUBREGISTRY_FLAG_LOCKED, 0) {

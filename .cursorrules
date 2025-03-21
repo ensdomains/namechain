@@ -1,0 +1,1 @@
+When running forge/foundry tests the working directory is always the contracts/ subfolder.
