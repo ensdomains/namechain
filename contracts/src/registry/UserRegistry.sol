@@ -9,8 +9,8 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
+import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
-import {ERC1155SingletonBase} from "./ERC1155SingletonBase.sol";
 import {ERC1155SingletonUpgradeable} from "./ERC1155SingletonUpgradable.sol";
 
 import {IRegistry} from "./IRegistry.sol";
@@ -229,7 +229,7 @@ contract UserRegistry is Initializable, UUPSUpgradeable, AccessControlUpgradeabl
      * @dev Explicitly override ownerOf to resolve inheritance conflict
      * between ERC1155SingletonUpgradeable and IRegistry (via IERC1155Singleton)
      */
-    function ownerOf(uint256 id) public view override(ERC1155SingletonBase, IERC1155Singleton) returns (address) {
+    function ownerOf(uint256 id) public view override(ERC1155Singleton, IERC1155Singleton) returns (address) {
         return super.ownerOf(id);
     }
     

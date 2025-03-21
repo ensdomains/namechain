@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import {ERC1155SingletonBase} from "./ERC1155SingletonBase.sol";
+import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 
 /**
  * @title ERC1155SingletonUpgradeable
@@ -16,8 +15,8 @@ import {ERC1155SingletonBase} from "./ERC1155SingletonBase.sol";
  */
 abstract contract ERC1155SingletonUpgradeable is 
     Initializable, 
-    ERC165Upgradeable, 
-    ERC1155SingletonBase 
+    ERC165Upgradeable,
+    ERC1155Singleton
 {
     // Storage gap for future upgrades
     uint256[49] private __gap;
@@ -36,10 +35,9 @@ abstract contract ERC1155SingletonUpgradeable is
         public 
         view 
         virtual 
-        override(ERC165Upgradeable, ERC1155SingletonBase) 
-        returns (bool) 
+        override(ERC165Upgradeable, ERC1155Singleton) 
+        returns (bool)
     {
-        return ERC1155SingletonBase.supportsInterface(interfaceId) || ERC165Upgradeable.supportsInterface(interfaceId);
+        return ERC1155Singleton.supportsInterface(interfaceId);
     }
-
 }

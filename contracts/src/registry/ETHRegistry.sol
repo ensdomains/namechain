@@ -5,7 +5,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {ERC1155SingletonBase} from "./ERC1155SingletonBase.sol";
+import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
@@ -16,7 +16,7 @@ import {MetadataMixin} from "./MetadataMixin.sol";
 import {IETHRegistry} from "./IETHRegistry.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 
-contract ETHRegistry is AccessControl, PermissionedRegistry, MetadataMixin, IETHRegistry {
+contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETHRegistry {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
 
     mapping(uint256 => address) public tokenObservers;
@@ -38,7 +38,7 @@ contract ETHRegistry is AccessControl, PermissionedRegistry, MetadataMixin, IETH
         public
         view
         virtual
-        override(ERC1155SingletonBase, IERC1155Singleton)
+        override(ERC1155Singleton, IERC1155Singleton)
         returns (address)
     {
         (, uint96 oldFlags) = datastore.getSubregistry(tokenId);
@@ -68,7 +68,7 @@ contract ETHRegistry is AccessControl, PermissionedRegistry, MetadataMixin, IETH
         }
 
         // if there is a previous owner, burn the token
-        address previousOwner = ownerOf(tokenId);
+        address previousOwner = super.ownerOf(tokenId);
         if (previousOwner != address(0)) {
             _burn(previousOwner, tokenId, 1);
         }
