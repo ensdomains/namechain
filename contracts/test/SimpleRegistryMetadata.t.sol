@@ -7,7 +7,7 @@ import {UserRegistry} from "../src/registry/UserRegistry.sol";
 import {ETHRegistry} from "../src/registry/ETHRegistry.sol";
 import {IRegistry} from "../src/registry/IRegistry.sol";
 import {RegistryDatastore} from "../src/registry/RegistryDatastore.sol";
-import {IRegistryMetadata} from "../src/registry/IRegistryMetadata.sol";
+import {RegistryMetadata} from "../src/registry/RegistryMetadata.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {SimpleRegistryMetadata} from "../src/registry/SimpleRegistryMetadata.sol";
@@ -61,7 +61,7 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     }
 
     function test_registry_metadata_supports_interface() public view {
-        assertEq(metadata.supportsInterface(type(IRegistryMetadata).interfaceId), true);
+        assertEq(metadata.supportsInterface(type(RegistryMetadata).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
 } 

@@ -7,16 +7,20 @@ import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
-import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
-import {Roles} from "./Roles.sol";
 
-abstract contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, Roles {
+abstract contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl {
+    uint256 public constant ROLE_SET_SUBREGISTRY = 1 << 0;
+    uint256 public constant ROLE_SET_SUBREGISTRY_ADMIN = ROLE_SET_SUBREGISTRY << 128;
+
+    uint256 public constant ROLE_SET_RESOLVER = 1 << 1;
+    uint256 public constant ROLE_SET_RESOLVER_ADMIN = ROLE_SET_RESOLVER << 128;
+
     uint96 public constant FLAGS_MASK = 0xffffffff; // 32 bits
     uint96 public constant FLAG_FLAGS_LOCKED = 0x1;
 
-    constructor(IRegistryDatastore _datastore, address _superUser) BaseRegistry(_datastore) EnhancedAccessControl(_superUser) {
+    constructor(IRegistryDatastore _datastore) BaseRegistry(_datastore) {
     }
 
     function _setFlags(uint256 tokenId, uint96 _flags)

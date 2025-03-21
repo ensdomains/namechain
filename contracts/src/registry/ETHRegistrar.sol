@@ -8,10 +8,12 @@ import {IETHRegistry} from "./IETHRegistry.sol";
 import {IPriceOracle} from "./IPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
-import {Roles} from "./Roles.sol";
 import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 
-contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, Roles {
+contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
+    uint256 public constant ROLE_ADMIN = 1 << 0;
+    uint256 public constant ROLE_ADMIN_ADMIN = ROLE_ADMIN << 128;
+
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
     uint64 private constant MAX_EXPIRY = type(uint64).max;
 
@@ -30,7 +32,9 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, Roles {
 
     mapping(bytes32 => uint256) public commitments;    
 
-    constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge) EnhancedAccessControl(_msgSender()) {
+    constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge) {
+        _grantRoles(ROOT_RESOURCE, ROLE_ADMIN | ROLE_ADMIN_ADMIN, _msgSender());
+
         registry = IETHRegistry(_registry);
 
         if (_maxCommitmentAge <= _minCommitmentAge) {
@@ -153,7 +157,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, Roles {
 
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, flags, duration));
 
-        tokenId = registry.register(name, owner, subregistry, resolver, flags, ALL_ROLES_BITMAP_MASK, uint64(block.timestamp) + duration);
+        tokenId = registry.register(name, owner, subregistry, resolver, flags, ALL_ROLES, uint64(block.timestamp) + duration);
 
         if (msg.value > totalPrice) {
             payable(msg.sender).transfer(msg.value - totalPrice);
@@ -194,11 +198,11 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, Roles {
         return interfaceID == type(IETHRegistrar).interfaceId || EnhancedAccessControl.supportsInterface(interfaceID);
     }
 
-    function setPriceOracle(IPriceOracle _prices) external onlyRoles(ROOT_RESOURCE, ROLE_SUPERUSER) {
+    function setPriceOracle(IPriceOracle _prices) external onlyRoles(ROOT_RESOURCE, ROLE_ADMIN) {
         prices = _prices;
     }
 
-    function setCommitmentAges(uint256 _minCommitmentAge, uint256 _maxCommitmentAge) external onlyRoles(ROOT_RESOURCE, ROLE_SUPERUSER) {
+    function setCommitmentAges(uint256 _minCommitmentAge, uint256 _maxCommitmentAge) external onlyRoles(ROOT_RESOURCE, ROLE_ADMIN) {
         if (_maxCommitmentAge <= _minCommitmentAge) {
             revert MaxCommitmentAgeTooLow();
         }

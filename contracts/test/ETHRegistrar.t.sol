@@ -11,7 +11,7 @@ import "../src/registry/ETHRegistrar.sol";
 import "../src/registry/ETHRegistry.sol";
 import "../src/registry/RegistryDatastore.sol";
 import "../src/registry/IPriceOracle.sol";
-import "../src/registry/IRegistryMetadata.sol";
+import "../src/registry/SimpleRegistryMetadata.sol";
 import "../src/registry/EnhancedAccessControl.sol";
 import "../src/utils/NameUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
@@ -56,12 +56,12 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         vm.warp(2_000_000_000);
 
         datastore = new RegistryDatastore();
-        registry = new ETHRegistry(datastore, IRegistryMetadata(address(0)));
+        registry = new ETHRegistry(datastore, new SimpleRegistryMetadata());
         priceOracle = new MockPriceOracle(BASE_PRICE, PREMIUM_PRICE);
         
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE);
         
-        registry.grantRoles(registry.ROOT_RESOURCE(), registry.ROLE_SUPERUSER(), address(registrar));
+        registry.grantRoles(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR() | registry.ROLE_RENEW(), address(registrar));
         
         vm.deal(address(this), 100 ether);
         vm.deal(user1, 100 ether);
@@ -728,14 +728,14 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_Revert_setPriceOracle_notAdmin() public {
         vm.startPrank(user1);
         MockPriceOracle newPriceOracle = new MockPriceOracle(0.02 ether, 0.01 ether);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registrar.ROOT_RESOURCE(), registrar.ROLE_SUPERUSER(), user1));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registrar.ROOT_RESOURCE(), registrar.ROLE_ADMIN(), user1));
         registrar.setPriceOracle(newPriceOracle);
         vm.stopPrank();
     }
 
     function test_Revert_setCommitmentAges_notAdmin() public {
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registrar.ROOT_RESOURCE(), registrar.ROLE_SUPERUSER(), user1));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registrar.ROOT_RESOURCE(), registrar.ROLE_ADMIN(), user1));
         registrar.setCommitmentAges(120, 172800);
         vm.stopPrank();
     }

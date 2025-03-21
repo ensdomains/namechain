@@ -8,7 +8,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
-import {IRegistryMetadata} from "./IRegistryMetadata.sol";
+import {RegistryMetadata} from "./RegistryMetadata.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 import {MetadataMixin} from "./MetadataMixin.sol";
 
@@ -19,7 +19,7 @@ contract UserRegistry is BaseRegistry, MetadataMixin {
     IRegistry public parent;
     uint256 public parentTokenId;
 
-    constructor(IRegistry _parent, uint256 _parentTokenId, IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
+    constructor(IRegistry _parent, uint256 _parentTokenId, IRegistryDatastore _datastore, RegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
         parent = _parent;
         parentTokenId = _parentTokenId;
     }

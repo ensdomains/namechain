@@ -9,17 +9,23 @@ import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
 import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
-import {Roles} from "./Roles.sol";  
-import {IRegistryMetadata} from "./IRegistryMetadata.sol";
+import {RegistryMetadata} from "./RegistryMetadata.sol";
 import {MetadataMixin} from "./MetadataMixin.sol";
 import {IETHRegistry} from "./IETHRegistry.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 
 
 contract ETHRegistry is PermissionedRegistry, MetadataMixin, IETHRegistry {
+    uint256 public constant ROLE_REGISTRAR = 1 << 2;
+    uint256 public constant ROLE_REGISTRAR_ADMIN = ROLE_REGISTRAR << 128;
+
+    uint256 public constant ROLE_RENEW = 1 << 3;
+    uint256 public constant ROLE_RENEW_ADMIN = ROLE_RENEW << 128;
+
     mapping(uint256 => address) public tokenObservers;
     
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) PermissionedRegistry(_datastore, _msgSender()) MetadataMixin(_metadata) {
+    constructor(IRegistryDatastore _datastore, RegistryMetadata _metadata) PermissionedRegistry(_datastore) MetadataMixin(_metadata) {
+        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender());
     }
 
     /**

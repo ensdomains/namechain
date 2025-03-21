@@ -25,8 +25,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     event EACRolesRevoked(bytes32 resource, uint256 roleBitmap, address account);
     event EACAllRolesRevoked(bytes32 resource, address account);
 
-    uint256 constant ALL_ROLES_BITMAP_MASK = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
-    uint256 constant ADMIN_ROLES_BITMAP_MASK = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;
+    uint256 constant public ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    uint256 constant public ADMIN_ROLES = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;
 
     /**
      * @dev user roles within a resource stored as a bitmap.
@@ -39,16 +39,6 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      */
     bytes32 public constant ROOT_RESOURCE = bytes32(uint256(0xdeadbeef));
     
-    /**
-     * @dev The `SUPERUSER` role.
-     *
-     * This role automatically has all user roles and admin roles.
-     *
-     * Note:
-     * - The admin role bit for this role (128) is unnecessary, but still reserved for clarity purposes.
-     * - The SUPERUSER role is only effective in the `ROOT_RESOURCE`, not in subresources.
-     */
-    uint256 public constant ROLE_SUPERUSER = 1;
 
     /**
      * @dev Modifier that checks that sender has the admin roles for all the given roles. 
@@ -75,15 +65,6 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Constructor.
-     *
-     * @param _superAdmin The account to grant the `SUPERUSER` roles to.
-     */
-    constructor(address _superAdmin) {
-        _grantRoles(ROOT_RESOURCE, ROLE_SUPERUSER, _superAdmin);
-    }
-
-    /**
      * @dev See {IERC165-supportsInterface}.
      */
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
@@ -98,8 +79,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`, `false` otherwise.
      */
     function hasRootRoles(uint256 rolesBitmap, address account) public view virtual returns (bool) {
-        uint256 r = _roles[ROOT_RESOURCE][account];
-        return (r & ROLE_SUPERUSER == ROLE_SUPERUSER) || (r & rolesBitmap == rolesBitmap);
+        return _roles[ROOT_RESOURCE][account] & rolesBitmap == rolesBitmap;
     }
 
     /**
@@ -111,8 +91,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if `account` has been granted all the given roles in either `resource` or the `ROOT_RESOURCE`, `false` otherwise.
      */
     function hasRoles(bytes32 resource, uint256 rolesBitmap, address account) public view virtual returns (bool) {
-        uint256 r = _roles[ROOT_RESOURCE][account] | _roles[resource][account];
-        return (r & ROLE_SUPERUSER == ROLE_SUPERUSER) || (r & rolesBitmap == rolesBitmap);
+        return (_roles[ROOT_RESOURCE][account] | _roles[resource][account]) & rolesBitmap == rolesBitmap;
     }
 
 
@@ -215,7 +194,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Revoke all roles for account within resource.
      */
     function _revokeAllRoles(bytes32 resource, address account) internal virtual returns (bool) {
-        return _revokeRoles(resource, ALL_ROLES_BITMAP_MASK, account);
+        return _revokeRoles(resource, ALL_ROLES, account);
     }
 
     /**
@@ -228,10 +207,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return The settable roles for `account` within `resource`.
      */
     function _getSettableRoles(bytes32 resource, address account) internal view virtual returns (uint256) {
-        if (_roles[ROOT_RESOURCE][account] & ROLE_SUPERUSER == ROLE_SUPERUSER) {
-            return ALL_ROLES_BITMAP_MASK;
-        }
-        uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) & ADMIN_ROLES_BITMAP_MASK;
+        uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) & ADMIN_ROLES;
         return adminRoleBitmap | (adminRoleBitmap >> 128);
     }
 }

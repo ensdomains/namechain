@@ -9,15 +9,14 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import "../src/registry/ETHRegistry.sol";
 import "../src/registry/IETHRegistry.sol";
 import "../src/registry/RegistryDatastore.sol";
-import "../src/registry/Roles.sol";
 import "../src/registry/RegistryDatastore.sol";
-import "../src/registry/IRegistryMetadata.sol";
+import "../src/registry/RegistryMetadata.sol";
 import "../src/registry/SimpleRegistryMetadata.sol";
 import "../src/registry/ETHRegistrar.sol";
 import "../src/registry/IPriceOracle.sol";
 
 
-contract TestETHRegistry is Test, ERC1155Holder, Roles {
+contract TestETHRegistry is Test, ERC1155Holder {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
 
     RegistryDatastore datastore;
@@ -25,14 +24,16 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
     ETHRegistrar registrar;
     MockTokenObserver observer;
     RevertingTokenObserver revertingObserver;
-    IRegistryMetadata metadata;
+    RegistryMetadata metadata;
     MockPriceOracle priceOracle;
 
     // Role bitmaps for different permission configurations
-    uint256 defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
-    uint256 lockedResolverRoleBitmap = ROLE_SET_SUBREGISTRY;
-    uint256 lockedSubregistryRoleBitmap = ROLE_SET_RESOLVER;
-    uint256 noRolesRoleBitmap = 0;
+    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 0;
+    uint256 constant ROLE_SET_RESOLVER = 1 << 1;
+    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
+    uint256 constant lockedResolverRoleBitmap = ROLE_SET_SUBREGISTRY;
+    uint256 constant lockedSubregistryRoleBitmap = ROLE_SET_RESOLVER;
+    uint256 constant noRolesRoleBitmap = 0;
 
     address owner = makeAddr("owner");
     address user1 = makeAddr("user1");
@@ -48,11 +49,9 @@ contract TestETHRegistry is Test, ERC1155Holder, Roles {
         registrar = new ETHRegistrar(address(registry), priceOracle, 60, 86400);
     }
 
-    function test_constructor_sets_roles() public {
-        assertEq(registry.hasRoles(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR(), address(this)), true);
-        assertEq(registry.hasRoles(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR_ADMIN(), address(this)), true);
-        assertEq(registry.hasRoles(registry.ROOT_RESOURCE(), registry.ROLE_RENEW(), address(this)), true);
-        assertEq(registry.hasRoles(registry.ROOT_RESOURCE(), registry.ROLE_RENEW_ADMIN(), address(this)), true);
+    function test_constructor_sets_roles() public view {
+        uint256 r = registry.ROLE_REGISTRAR() | registry.ROLE_REGISTRAR_ADMIN() | registry.ROLE_RENEW() | registry.ROLE_RENEW_ADMIN();
+        assertTrue(registry.hasRoles(registry.ROOT_RESOURCE(), r, address(this)));
     }
 
     function test_Revert_register_without_registrar_role() public {

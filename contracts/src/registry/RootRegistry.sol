@@ -8,12 +8,15 @@ import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
-import {Roles} from "./Roles.sol";
 
 contract RootRegistry is PermissionedRegistry {
+    uint256 public constant ROLE_TLD_ISSUER = 1 << 2;
+    uint256 public constant ROLE_TLD_ISSUER_ADMIN = ROLE_TLD_ISSUER << 128;
+    
     mapping(uint256 tokenId => string) uris;
 
-    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore, _msgSender()) {
+    constructor(IRegistryDatastore _datastore) PermissionedRegistry(_datastore) {
+        _grantRoles(ROOT_RESOURCE, ROLE_TLD_ISSUER | ROLE_TLD_ISSUER_ADMIN, _msgSender());
     }
 
     function uri(uint256 tokenId ) public view override returns (string memory) {
