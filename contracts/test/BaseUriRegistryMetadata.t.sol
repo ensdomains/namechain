@@ -4,7 +4,7 @@ pragma solidity >=0.8.13;
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Test} from "forge-std/Test.sol";
 import {UserRegistry} from "../src/registry/UserRegistry.sol";
-import {ETHRegistry} from "../src/registry/ETHRegistry.sol";
+import {PermissionedRegistry} from "../src/registry/PermissionedRegistry.sol";
 import {IRegistry} from "../src/registry/IRegistry.sol";
 import {RegistryDatastore} from "../src/registry/RegistryDatastore.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
@@ -16,16 +16,16 @@ import {EnhancedAccessControl} from "../src/registry/EnhancedAccessControl.sol";
 contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
     UserRegistry registry;
-    ETHRegistry parentRegistry;
+    PermissionedRegistry parentRegistry;
     BaseUriRegistryMetadata metadata;
 
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new BaseUriRegistryMetadata();
         
-        parentRegistry = new ETHRegistry(datastore, metadata);
+        parentRegistry = new PermissionedRegistry(datastore, metadata);
 
-        uint256 parentTokenId = parentRegistry.register("test", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
+        uint256 parentTokenId = parentRegistry.register("test", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000), "");
         
         registry = new UserRegistry(
             parentRegistry,
@@ -43,7 +43,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
 
         assertEq(registry.uri(tokenId), "");
         
-        metadata.setTokenUri(expectedUri);
+        metadata.setTokenBaseUri(expectedUri);
 
         assertEq(metadata.tokenUri(tokenId), expectedUri);
         assertEq(registry.uri(tokenId), expectedUri);
@@ -57,7 +57,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         registry.mint("sub1", address(this), registry, 0);
         registry.mint("sub2", address(this), registry, 0);
 
-        metadata.setTokenUri(expectedUri);
+        metadata.setTokenBaseUri(expectedUri);
 
         assertEq(metadata.tokenUri(tokenId1), expectedUri);
         assertEq(metadata.tokenUri(tokenId2), expectedUri);
@@ -72,10 +72,10 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
 
         registry.mint("sub", address(this), registry, 0);
         
-        metadata.setTokenUri(initialUri);
+        metadata.setTokenBaseUri(initialUri);
         assertEq(metadata.tokenUri(tokenId), initialUri);
 
-        metadata.setTokenUri(updatedUri);
+        metadata.setTokenBaseUri(updatedUri);
         assertEq(metadata.tokenUri(tokenId), updatedUri);
     }
 
@@ -84,7 +84,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
 
         vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, metadata.ROOT_RESOURCE(), metadata.ROLE_UPDATE_METADATA(), address(1))); 
         vm.prank(address(1));
-        metadata.setTokenUri(expectedUri);
+        metadata.setTokenBaseUri(expectedUri);
     }
 
     function test_registry_metadata_supports_interface() public view {

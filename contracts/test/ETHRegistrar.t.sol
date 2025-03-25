@@ -8,7 +8,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import "../src/registry/ETHRegistrar.sol";
-import "../src/registry/ETHRegistry.sol";
+import "../src/registry/PermissionedRegistry.sol";
 import "../src/registry/RegistryDatastore.sol";
 import "../src/registry/IPriceOracle.sol";
 import "../src/registry/SimpleRegistryMetadata.sol";
@@ -37,7 +37,7 @@ contract MockPriceOracle is IPriceOracle {
 
 contract TestETHRegistrar is Test, ERC1155Holder {
     RegistryDatastore datastore;
-    ETHRegistry registry;
+    PermissionedRegistry registry;
     ETHRegistrar registrar;
     MockPriceOracle priceOracle;
 
@@ -56,7 +56,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         vm.warp(2_000_000_000);
 
         datastore = new RegistryDatastore();
-        registry = new ETHRegistry(datastore, new SimpleRegistryMetadata());
+        registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata());
         priceOracle = new MockPriceOracle(BASE_PRICE, PREMIUM_PRICE);
         
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE);
@@ -105,7 +105,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             address(0), // resolver
             0, 
-            REGISTRATION_DURATION
+            REGISTRATION_DURATION,
+            "" // uri
         );
         registrar.commit(commitment);
         
@@ -118,7 +119,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             address(0), // resolver
             0, 
-            REGISTRATION_DURATION
+            REGISTRATION_DURATION,
+            "" // uri
         );
         
         // Now the name should not be available
@@ -141,8 +143,9 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         address resolver = address(0);
         uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
+        string memory uri = "";
         
-        bytes32 commitment = registrar.makeCommitment(name, owner, secret, subregistry, resolver, flags, duration);
+        bytes32 commitment = registrar.makeCommitment(name, owner, secret, subregistry, resolver, flags, duration, uri);
         
         bytes32 expectedCommitment = keccak256(
             abi.encode(
@@ -152,7 +155,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
                 subregistry,
                 resolver,
                 flags,
-                duration
+                duration,
+                uri
             )
         );
         
@@ -168,7 +172,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             address(0), // resolver
             0, 
-            REGISTRATION_DURATION
+            REGISTRATION_DURATION,
+            "" // uri
         );
         
         // Record logs to check for events
@@ -198,7 +203,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             address(0), // resolver
             0, 
-            REGISTRATION_DURATION
+            REGISTRATION_DURATION,
+            "" // uri
         );
         
         registrar.commit(commitment);
@@ -224,7 +230,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         registrar.commit(commitment);
         
@@ -242,7 +249,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         
         // Verify ownership
@@ -277,7 +285,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         registrar.commit(commitment);
         
@@ -290,7 +299,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
 
         bytes32 resource = registry.tokenIdResource(tokenId);
@@ -313,7 +323,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         registrar.commit(commitment);
         
@@ -330,7 +341,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
     }
 
@@ -350,7 +362,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         registrar.commit(commitment);
         
@@ -362,7 +375,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.CommitmentTooNew.selector, expectedCommitment, block.timestamp + MIN_COMMITMENT_AGE, block.timestamp));
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
@@ -372,7 +386,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
     }
 
@@ -392,7 +407,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         registrar.commit(commitment);
         
@@ -407,7 +423,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.CommitmentTooOld.selector, expectedCommitment, block.timestamp - 1, block.timestamp));
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
@@ -417,7 +434,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
     }
 
@@ -437,7 +455,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         registrar.commit(commitment);
         vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
@@ -448,13 +467,15 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         
         // Try to register again with user1
         vm.startPrank(user1);
-        bytes32 secret2 = SECRET;
+        bytes32 secret2 = bytes32(uint256(2345678901));
         
+        // Make a commitment
         bytes32 commitment2 = registrar.makeCommitment(
             name, 
             user1, 
@@ -462,13 +483,15 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         registrar.commit(commitment2);
         
-        // Wait for min commitment age
+        // Wait for min commitment age to ensure the commitment is valid
         vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
         
+        // This should now fail with NameNotAvailable instead of CommitmentTooNew
         vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.NameNotAvailable.selector, name));
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
@@ -477,7 +500,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         vm.stopPrank();
     }
@@ -498,7 +522,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         registrar.commit(commitment);
         
@@ -514,7 +539,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
     }
 
@@ -534,7 +560,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         registrar.commit(commitment);
         vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
@@ -545,7 +572,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         
         // Get initial expiry
@@ -589,7 +617,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         registrar.commit(commitment);
         vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
@@ -600,7 +629,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         
         // Try to renew with insufficient value
@@ -635,7 +665,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         registrar.commit(commitment);
         
@@ -654,7 +685,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         
         // Verify refund
@@ -677,7 +709,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(registry),
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         registrar.commit(commitment);
         vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
@@ -688,7 +721,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             registry,
             resolver,
             flags, 
-            duration
+            duration,
+            "" // uri
         );
         
         // Get initial balance

@@ -13,18 +13,9 @@ import {MetadataMixin} from "./MetadataMixin.sol";
 import {RegistryMetadata} from "./RegistryMetadata.sol";
 import {SimpleRegistryMetadata} from "./SimpleRegistryMetadata.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
-import {IRegistry} from "./IRegistry.sol";
+import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 
-contract PermissionedRegistry is IRegistry, BaseRegistry, EnhancedAccessControl, MetadataMixin {
-    error NameAlreadyRegistered(string label);
-    error NameExpired(uint256 tokenId);
-    error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
-    error CannotSetPastExpiration(uint64 expiry);
-
-    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
-    event NameRelinquished(uint256 indexed tokenId, address relinquishedBy);
-    event TokenObserverSet(uint256 indexed tokenId, address observer);
-
+contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAccessControl, MetadataMixin {
     mapping(uint256 => address) public tokenObservers;
 
     uint256 public constant ROLE_REGISTRAR = 1 << 0;
@@ -39,8 +30,10 @@ contract PermissionedRegistry is IRegistry, BaseRegistry, EnhancedAccessControl,
     uint256 public constant ROLE_SET_RESOLVER = 1 << 3;
     uint256 public constant ROLE_SET_RESOLVER_ADMIN = ROLE_SET_RESOLVER << 128;
 
+    uint256 public constant ROLE_SET_FLAGS = 1 << 4;
+    uint256 public constant ROLE_SET_FLAGS_ADMIN = ROLE_SET_FLAGS << 128;
+
     uint96 public constant FLAGS_MASK = 0xffffffff; // 32 bits
-    uint96 public constant FLAG_FLAGS_LOCKED = 0x1;
 
     constructor(IRegistryDatastore _datastore, RegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
         _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender());
@@ -199,6 +192,28 @@ contract PermissionedRegistry is IRegistry, BaseRegistry, EnhancedAccessControl,
         datastore.setResolver(tokenId, resolver, _flags);
     }
 
+    function setFlags(uint256 tokenId, uint96 _flags)
+        external
+        onlyRoles(tokenIdResource(tokenId), ROLE_SET_FLAGS)
+        returns (uint256 newTokenId)
+    {
+        (address subregistry, uint96 oldFlags) = datastore.getSubregistry(tokenId);
+        uint96 newFlags = oldFlags | (_flags & FLAGS_MASK);
+
+        if (newFlags != oldFlags) {
+            datastore.setSubregistry(tokenId, subregistry, newFlags);
+
+            newTokenId = (tokenId & ~uint256(FLAGS_MASK)) | (newFlags & FLAGS_MASK);
+            if (tokenId != newTokenId) {
+                address owner = ownerOf(tokenId);
+                _mint(owner, newTokenId, 1, "");
+                _burn(owner, tokenId, 1);
+            }
+        } else {
+            newTokenId = tokenId;
+        }
+    }
+
     function nameData(uint256 tokenId) external view returns (uint64 expiry, uint32 flags) {
         (, uint96 _flags) = datastore.getSubregistry(tokenId);
         return (_extractExpiry(_flags), uint32(_flags));
@@ -211,22 +226,11 @@ contract PermissionedRegistry is IRegistry, BaseRegistry, EnhancedAccessControl,
     function tokenIdResource(uint256 tokenId) public pure returns(bytes32) {
         return bytes32(tokenId & ~uint256(FLAGS_MASK));
     }
+
     
     // Internal functions
 
-    function _setFlags(uint256 tokenId, uint96 _flags)
-        internal
-        withSubregistryFlags(tokenId, FLAG_FLAGS_LOCKED, 0)
-        returns(uint96 newFlags)
-    {
-        (address subregistry, uint96 oldFlags) = datastore.getSubregistry(tokenId);
-        newFlags = oldFlags | (_flags & FLAGS_MASK);
-        if (newFlags != oldFlags) {
-            datastore.setSubregistry(tokenId, subregistry, newFlags);
-        }
-    }
-
-    function _extractExpiry(uint96 flags) private pure returns (uint64) {
+    function _extractExpiry(uint96 flags) internal pure returns (uint64) {
         return uint64(flags >> 32);
     }
 

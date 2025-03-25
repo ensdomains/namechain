@@ -4,7 +4,7 @@ pragma solidity >=0.8.13;
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Test} from "forge-std/Test.sol";
 import {UserRegistry} from "../src/registry/UserRegistry.sol";
-import {ETHRegistry} from "../src/registry/ETHRegistry.sol";
+import {PermissionedRegistry} from "../src/registry/PermissionedRegistry.sol";
 import {IRegistry} from "../src/registry/IRegistry.sol";
 import {RegistryDatastore} from "../src/registry/RegistryDatastore.sol";
 import {RegistryMetadata} from "../src/registry/RegistryMetadata.sol";
@@ -18,16 +18,16 @@ import {EnhancedAccessControl} from "../src/registry/EnhancedAccessControl.sol";
 contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
     UserRegistry registry;
-    ETHRegistry parentRegistry;
+    PermissionedRegistry parentRegistry;
     SimpleRegistryMetadata metadata;
 
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
         
-        parentRegistry = new ETHRegistry(datastore, metadata);
+        parentRegistry = new PermissionedRegistry(datastore, metadata);
 
-        uint256 parentTokenId = parentRegistry.register("test", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
+        uint256 parentTokenId = parentRegistry.register("test", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000), "");
         
         registry = new UserRegistry(
             parentRegistry,

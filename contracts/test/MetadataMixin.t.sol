@@ -11,7 +11,7 @@ contract MockMetadataProvider is RegistryMetadata {
 
     constructor() RegistryMetadata(_msgSender()) {}
     
-    function setTokenUri(uint256 tokenId, string memory uri) external {
+    function setTokenUri(uint256 tokenId, string memory uri) external override {
         _tokenUris[tokenId] = uri;
     }
     

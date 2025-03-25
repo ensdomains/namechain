@@ -11,7 +11,7 @@ contract BaseUriRegistryMetadata is RegistryMetadata {
     constructor() RegistryMetadata(_msgSender()) {
     }
 
-    function setTokenUri(uint256 /*tokenId*/, string calldata /*uri*/) external override {
+    function setTokenUri(uint256 /*tokenId*/, string calldata /*uri*/) external override pure {
         revert CannotSetSingleTokenUri();
     }
 
