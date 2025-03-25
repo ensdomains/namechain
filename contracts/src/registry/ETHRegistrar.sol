@@ -4,13 +4,16 @@ pragma solidity >=0.8.13;
 import {IETHRegistrar} from "./IETHRegistrar.sol";
 import {IRegistry} from "./IRegistry.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
-import {IETHRegistry} from "./IETHRegistry.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 import {IPriceOracle} from "./IPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
+import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 
-contract ETHRegistrar is IETHRegistrar, AccessControl {
+contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
+    uint256 public constant ROLE_ADMIN = 1 << 0;
+    uint256 public constant ROLE_ADMIN_ADMIN = ROLE_ADMIN << 128;
+
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
     uint64 private constant MAX_EXPIRY = type(uint64).max;
 
@@ -22,7 +25,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
     error NameNotAvailable(string name);
     error InsufficientValue(uint256 required, uint256 provided);
 
-    IETHRegistry public immutable registry;
+    IPermissionedRegistry public immutable registry;
     IPriceOracle public prices;
     uint256 public minCommitmentAge;
     uint256 public maxCommitmentAge;
@@ -30,8 +33,9 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
     mapping(bytes32 => uint256) public commitments;    
 
     constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge) {
-        registry = IETHRegistry(_registry);
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRoles(ROOT_RESOURCE, ROLE_ADMIN | ROLE_ADMIN_ADMIN, _msgSender());
+
+        registry = IPermissionedRegistry(_registry);
 
         if (_maxCommitmentAge <= _minCommitmentAge) {
             revert MaxCommitmentAgeTooLow();
@@ -84,6 +88,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
      * @param resolver The resolver to use for the commitment.
      * @param flags The flags to use for the commitment.
      * @param duration The duration of the commitment.
+     * @param uri The token URI.
      * @return The commitment.
      */
     function makeCommitment(
@@ -93,7 +98,8 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
         address subregistry,
         address resolver,
         uint96 flags,
-        uint64 duration
+        uint64 duration,
+        string memory uri
     ) public pure override returns (bytes32) {        
         return
             keccak256(
@@ -104,7 +110,8 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
                     subregistry,
                     resolver,
                     flags,
-                    duration
+                    duration,
+                    uri
                 )
             );
     }
@@ -124,7 +131,6 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
     }
 
 
-
     /**
      * @dev Register a name.
      * @param name The name to register.
@@ -134,6 +140,7 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
      * @param resolver The resolver to use for the registration.
      * @param flags The flags to set on the name.   
      * @param duration The duration of the registration.
+     * @param uri The token URI.
      * @return tokenId The token ID of the registered name.
      */
     function register(
@@ -143,17 +150,14 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
         IRegistry subregistry,
         address resolver,
         uint96 flags,
-        uint64 duration
+        uint64 duration,
+        string calldata uri
     ) external payable returns (uint256 tokenId) {
-        IPriceOracle.Price memory price = rentPrice(name, duration);
-        uint256 totalPrice = price.base + price.premium;
-        if (msg.value < totalPrice) {
-            revert InsufficientValue(totalPrice, msg.value);
-        }
+        uint256 totalPrice = checkPrice(name, duration);
 
-        _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, flags, duration));
+        _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, flags, duration, uri));
 
-        tokenId = registry.register(name, owner, subregistry, resolver, flags, uint64(block.timestamp) + duration);
+        tokenId = registry.register(name, owner, subregistry, resolver, flags, ALL_ROLES, uint64(block.timestamp) + duration, uri);
 
         if (msg.value > totalPrice) {
             payable(msg.sender).transfer(msg.value - totalPrice);
@@ -190,15 +194,15 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
     }
 
 
-    function supportsInterface(bytes4 interfaceID) public view override(AccessControl) returns (bool) {
-        return interfaceID == type(IETHRegistrar).interfaceId || AccessControl.supportsInterface(interfaceID);
+    function supportsInterface(bytes4 interfaceID) public view override(EnhancedAccessControl) returns (bool) {
+        return interfaceID == type(IETHRegistrar).interfaceId || EnhancedAccessControl.supportsInterface(interfaceID);
     }
 
-    function setPriceOracle(IPriceOracle _prices) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setPriceOracle(IPriceOracle _prices) external onlyRoles(ROOT_RESOURCE, ROLE_ADMIN) {
         prices = _prices;
     }
 
-    function setCommitmentAges(uint256 _minCommitmentAge, uint256 _maxCommitmentAge) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setCommitmentAges(uint256 _minCommitmentAge, uint256 _maxCommitmentAge) external onlyRoles(ROOT_RESOURCE, ROLE_ADMIN) {
         if (_maxCommitmentAge <= _minCommitmentAge) {
             revert MaxCommitmentAgeTooLow();
         }
@@ -236,4 +240,19 @@ contract ETHRegistrar is IETHRegistrar, AccessControl {
 
         delete (commitments[commitment]);
     }
+
+    /**
+     * @dev Check the price of a name and revert if insufficient value is provided.
+     * @param name The name to check the price for.
+     * @param duration The duration of the registration.
+     * @return totalPrice The total price of the registration.
+     */
+    function checkPrice(string memory name, uint64 duration) private view returns (uint256 totalPrice) {
+        IPriceOracle.Price memory price = rentPrice(name, duration);
+        totalPrice = price.base + price.premium;
+        if (msg.value < totalPrice) {
+            revert InsufficientValue(totalPrice, msg.value);
+        }
+    }
+
 }
