@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IUniversalResolver as IUniversalResolverV2} from "ens-contracts/universalResolver/IUniversalResolver.sol";
+import {UniversalResolver as UniversalResolverV2} from "ens-contracts/universalResolver/UniversalResolver.sol";
 import {OffchainLookup} from "ens-contracts/ccipRead/EIP3668.sol";
 import {CCIPReader} from "ens-contracts/ccipRead/CCIPReader.sol";
 
@@ -149,23 +150,7 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
         override(IUniversalResolverV1, IUniversalResolverV2)
         returns (bytes memory, address)
     {
-        // Check which interface we should use based on the implementation
-        address impl = _getImplementation();
-        bool isV2 = IERC165(impl).supportsInterface(type(IUniversalResolverV2).interfaceId);
-
-        if (isV2) {
-            // V2 implementation
-            ccipRead(
-                impl,
-                abi.encodeWithSelector(IUniversalResolverV2.resolve.selector, name, data)
-            );
-        } else {
-            // V1 implementation
-            ccipRead(
-                impl,
-                abi.encodeWithSelector(bytes4(keccak256("resolve(bytes,bytes)")), name, data)
-            );
-        }
+        ccipRead(_getImplementation(), abi.encodeWithSelector(bytes4(keccak256("resolve(bytes,bytes)")), name, data));
     }
 
     function resolve(bytes calldata name, bytes memory data, string[] memory gateways)
@@ -175,28 +160,12 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
     {
         ccipRead(
             _getImplementation(),
-            abi.encodeWithSelector(
-                bytes4(keccak256("resolve(bytes,bytes,string[])")), 
-                name, 
-                data, 
-                gateways
-            )
+            abi.encodeWithSelector(bytes4(keccak256("resolve(bytes,bytes,string[])")), name, data, gateways)
         );
     }
 
-    function resolve(bytes calldata name, bytes[] memory data) 
-        external 
-        view 
-        returns (Result[] memory, address) 
-    {
-        ccipRead(
-            _getImplementation(),
-            abi.encodeWithSelector(
-                bytes4(keccak256("resolve(bytes,bytes[])")), 
-                name, 
-                data
-            )
-        );
+    function resolve(bytes calldata name, bytes[] memory data) external view returns (Result[] memory, address) {
+        ccipRead(_getImplementation(), abi.encodeWithSelector(bytes4(keccak256("resolve(bytes,bytes[])")), name, data));
     }
 
     function resolve(bytes calldata name, bytes[] memory data, string[] memory gateways)
@@ -206,12 +175,7 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
     {
         ccipRead(
             _getImplementation(),
-            abi.encodeWithSelector(
-                bytes4(keccak256("resolve(bytes,bytes[],string[])")), 
-                name, 
-                data, 
-                gateways
-            )
+            abi.encodeWithSelector(bytes4(keccak256("resolve(bytes,bytes[],string[])")), name, data, gateways)
         );
     }
 
@@ -222,11 +186,7 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
     {
         ccipRead(
             _getImplementation(),
-            abi.encodeWithSelector(
-                IUniversalResolverV1.resolveCallback.selector, 
-                response, 
-                extraData
-            )
+            abi.encodeWithSelector(IUniversalResolverV1.resolveCallback.selector, response, extraData)
         );
     }
 
@@ -237,11 +197,7 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
     {
         ccipRead(
             _getImplementation(),
-            abi.encodeWithSelector(
-                IUniversalResolverV1.resolveSingleCallback.selector, 
-                response, 
-                extraData
-            )
+            abi.encodeWithSelector(IUniversalResolverV1.resolveSingleCallback.selector, response, extraData)
         );
     }
 
@@ -250,18 +206,8 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
         return IUniversalResolverV1(_getImplementation()).findResolver(name);
     }
 
-    function reverse(bytes calldata reverseName) 
-        external 
-        view 
-        returns (string memory, address, address, address) 
-    {
-        ccipRead(
-            _getImplementation(),
-            abi.encodeWithSelector(
-                bytes4(keccak256("reverse(bytes)")), 
-                reverseName
-            )
-        );
+    function reverse(bytes calldata reverseName) external view returns (string memory, address, address, address) {
+        ccipRead(_getImplementation(), abi.encodeWithSelector(bytes4(keccak256("reverse(bytes)")), reverseName));
     }
 
     function reverse(bytes calldata reverseName, string[] memory gateways)
@@ -271,11 +217,7 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
     {
         ccipRead(
             _getImplementation(),
-            abi.encodeWithSelector(
-                bytes4(keccak256("reverse(bytes,string[])")), 
-                reverseName, 
-                gateways
-            )
+            abi.encodeWithSelector(bytes4(keccak256("reverse(bytes,string[])")), reverseName, gateways)
         );
     }
 
@@ -286,11 +228,7 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
     {
         ccipRead(
             _getImplementation(),
-            abi.encodeWithSelector(
-                bytes4(keccak256("reverse(bytes,uint256)")), 
-                lookupAddress, 
-                coinType
-            )
+            abi.encodeWithSelector(bytes4(keccak256("reverse(bytes,uint256)")), lookupAddress, coinType)
         );
     }
 
@@ -301,11 +239,27 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
     {
         ccipRead(
             _getImplementation(),
-            abi.encodeWithSelector(
-                IUniversalResolverV1.reverseCallback.selector, 
-                response, 
-                extraData
-            )
+            abi.encodeWithSelector(IUniversalResolverV1.reverseCallback.selector, response, extraData)
+        );
+    }
+
+    function reverseNameCallback(
+        UniversalResolverV2.ResolverInfo calldata infoRev,
+        UniversalResolverV2.Lookup[] calldata lookups,
+        bytes memory extraData
+    ) external view returns (string memory, address, address) {
+        ccipRead(
+            _getImplementation(), abi.encodeWithSelector(this.reverseNameCallback.selector, infoRev, lookups, extraData)
+        );
+    }
+
+    function reverseAddressCallback(
+        UniversalResolverV2.ResolverInfo calldata info,
+        UniversalResolverV2.Lookup[] calldata lookups,
+        bytes calldata extraData
+    ) external view returns (string memory, address, address) {
+        ccipRead(
+            _getImplementation(), abi.encodeWithSelector(this.reverseAddressCallback.selector, info, lookups, extraData)
         );
     }
 
