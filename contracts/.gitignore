@@ -21,6 +21,3 @@ typechain-types/
 # Coverage
 coverage/
 lcov.info
-
-# Submodules
-lib/
