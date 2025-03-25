@@ -38,7 +38,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev The `ROOT_RESOURCE`.
      */
-    bytes32 public constant ROOT_RESOURCE = bytes32(uint256(0xdeadbeef));
+    bytes32 public constant ROOT_RESOURCE = bytes32(0);
     
 
     /**
