@@ -16,7 +16,3 @@
 [submodule "contracts/lib/openzeppelin-contracts"]
 	path = contracts/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
-[submodule "lib/verifiable-factory"]
-	path = lib/verifiable-factory
-	url = https://github.com/ensdomains/verifiable-factory
-	branch = refactor-transparent-to-uups
