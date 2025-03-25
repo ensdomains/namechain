@@ -9,7 +9,7 @@ import {UniversalResolver as UniversalResolverV2} from "ens-contracts/universalR
 import {OffchainLookup} from "ens-contracts/ccipRead/EIP3668.sol";
 import {CCIPReader} from "ens-contracts/ccipRead/CCIPReader.sol";
 
-import {IUniversalResolver as IUniversalResolverV1, Result} from "./IUniversalResolver.sol";
+import {IUniversalResolver as IUniversalResolverV1, Result} from "./IUniversalResolverV1.sol";
 
 /**
  * @title UpgradableUniversalResolverProxy

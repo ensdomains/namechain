@@ -6,7 +6,7 @@ import "../../src/utils/UpgradableUniversalResolverProxy.sol";
 import {UniversalResolver as UniversalResolverV1} from "./MockUniversalResolver.sol";
 import {UniversalResolver as UniversalResolverV2} from "ens-contracts/universalResolver/UniversalResolver.sol";
 
-import {IUniversalResolver as IUniversalResolverV1} from "../../src/utils/IUniversalResolver.sol";
+import {IUniversalResolver as IUniversalResolverV1} from "../../src/utils/IUniversalResolverV1.sol";
 
 import {ENS} from "ens-contracts/registry/ENS.sol";
 
@@ -179,7 +179,6 @@ contract ProxyTest is Test {
         assertEq(resolverAddr, address(mockCallbackImpl));
     }
 
-    // Split the large test into multiple smaller ones
     function test_ResolveMethod() public {
         // Create a controlled implementation to check all methods
         MockCompleteImplementation mockCompleteImpl = new MockCompleteImplementation();
@@ -198,7 +197,7 @@ contract ProxyTest is Test {
             mockData
         );
         assertEq(resolveResult, bytes.concat(dnsEncodedName, mockData));
-        assertEq(resolveAddr, address(mockCompleteImpl));
+        assertEq(resolveAddr, mockResolver);
     }
 
     function test_ResolveWithGatewaysMethod() public {
@@ -217,7 +216,7 @@ contract ProxyTest is Test {
         (bytes memory resolveGWResult, address resolveGWAddr) = methodProxy
             .resolve(dnsEncodedName, mockData, gatewayUrls);
         assertEq(resolveGWResult, bytes.concat(dnsEncodedName, mockData));
-        assertEq(resolveGWAddr, address(mockCompleteImpl));
+        assertEq(resolveGWAddr, mockResolver);
     }
 
     function test_FindResolverMethod() public {
