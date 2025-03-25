@@ -3,7 +3,6 @@ pragma solidity >=0.8.13;
 
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Test} from "forge-std/Test.sol";
-import {UserRegistry} from "../src/registry/UserRegistry.sol";
 import {PermissionedRegistry} from "../src/registry/PermissionedRegistry.sol";
 import {IRegistry} from "../src/registry/IRegistry.sol";
 import {RegistryDatastore} from "../src/registry/RegistryDatastore.sol";
@@ -17,36 +16,25 @@ import {EnhancedAccessControl} from "../src/registry/EnhancedAccessControl.sol";
 
 contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
-    UserRegistry registry;
-    PermissionedRegistry parentRegistry;
+    PermissionedRegistry registry;
     SimpleRegistryMetadata metadata;
 
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
-        
-        parentRegistry = new PermissionedRegistry(datastore, metadata);
-
-        uint256 parentTokenId = parentRegistry.register("test", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000), "");
-        
-        registry = new UserRegistry(
-            parentRegistry,
-            parentTokenId,
+        registry = new PermissionedRegistry(
             datastore,
             metadata
         );
     }
 
     function test_registry_metadata_token_uri() public {
-        string memory expectedUri = "ipfs://test";
-        uint256 tokenId = NameUtils.labelToTokenId("test");
-
-        registry.mint("test", address(this), registry, 0);
+        uint256 tokenId = registry.register("test", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000), "");
 
         assertEq(registry.uri(tokenId), "");
-        
-        metadata.setTokenUri(tokenId, expectedUri);
 
+        string memory expectedUri = "ipfs://test";
+        metadata.setTokenUri(tokenId, expectedUri);
         assertEq(metadata.tokenUri(tokenId), expectedUri);
         assertEq(registry.uri(tokenId), expectedUri);
     }

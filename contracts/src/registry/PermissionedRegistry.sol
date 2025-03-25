@@ -33,12 +33,13 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
     uint256 public constant ROLE_SET_FLAGS = 1 << 4;
     uint256 public constant ROLE_SET_FLAGS_ADMIN = ROLE_SET_FLAGS << 128;
 
+    uint256 public constant MAX_EXPIRY = type(uint64).max;
     uint96 public constant FLAGS_MASK = 0xffffffff; // 32 bits
 
     constructor(IRegistryDatastore _datastore, RegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
         _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender());
 
-        if (address(_metadata) != address(0)) {
+        if (address(_metadata) == address(0)) {
             _updateMetadataProvider(new SimpleRegistryMetadata());
         }
     }

@@ -9,31 +9,31 @@ export async function deployEnsFixture() {
     .then((clients) => clients.map((c) => c.account));
 
   const datastore = await hre.viem.deployContract("RegistryDatastore", []);
-  const rootRegistry = await hre.viem.deployContract("RootRegistry", [
+  const rootRegistry = await hre.viem.deployContract("PermissionedRegistry", [
     datastore.address,
+    zeroAddress,
   ]);
-  const metadata = await hre.viem.deployContract("SimpleRegistryMetadata", []);
-  const ethRegistry = await hre.viem.deployContract("ETHRegistry", [
+  const ethRegistry = await hre.viem.deployContract("PermissionedRegistry", [
     datastore.address,
-    metadata.address,
+    zeroAddress,
   ]);
   const universalResolver = await hre.viem.deployContract("UniversalResolver", [
     rootRegistry.address,
   ]);
 
-  const [ROLE_SET_SUBREGISTRY, ROLE_SET_RESOLVER] = await Promise.all([
-    rootRegistry.read.ROLE_SET_SUBREGISTRY(),
-    rootRegistry.read.ROLE_SET_RESOLVER(),
-  ]);
+  const ALL_ROLES = await rootRegistry.read.ALL_ROLES()
+  const MAX_EXPIRY = await rootRegistry.read.MAX_EXPIRY()
   
-  await rootRegistry.write.mint([
+  await rootRegistry.write.register([
     "eth",
     accounts[0].address,
     ethRegistry.address,
-    1n,
-    ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER,
+    zeroAddress,
+    0n,
+    ALL_ROLES,
+    MAX_EXPIRY,
     "https://example.com/"
-  ]);
+  ])
 
   return {
     publicClient,
@@ -62,8 +62,8 @@ export const deployUserRegistry = async ({
 }) => {
   const wallet = (await hre.viem.getWalletClients())[ownerIndex];
   return await hre.viem.deployContract(
-    "UserRegistry",
-    [parentRegistryAddress, bytesToHex(packetToBytes(name)), datastoreAddress, metadataAddress ?? zeroAddress],
+    "PermissionedRegistry",
+    [datastoreAddress, metadataAddress ?? zeroAddress],
     {
       client: { wallet },
     }
@@ -95,5 +95,5 @@ export const registerName = async ({
   const owner =
     owner_ ?? (await hre.viem.getWalletClients())[0].account.address;
   const flags = (subregistryLocked ? 1n : 0n) | (resolverLocked ? 2n : 0n);
-  return ethRegistry.write.register([label, owner, subregistry, resolver, flags, ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER, expiry]);
+  return ethRegistry.write.register([label, owner, subregistry, resolver, flags, ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER, expiry, ""]);
 };

@@ -36,6 +36,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
         registry = new PermissionedRegistry(datastore, metadata);
+        metadata.grantRootRoles(metadata.ROLE_UPDATE_METADATA(), address(registry));
     }
 
 
