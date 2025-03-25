@@ -9,7 +9,7 @@ contract SimpleRegistryMetadata is RegistryMetadata {
     constructor() RegistryMetadata(_msgSender()) {
     }   
 
-    function setTokenUri(uint256 tokenId, string calldata uri) external onlyRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA) {
+    function setTokenUri(uint256 tokenId, string calldata uri) external override onlyRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA) {
         _tokenUris[tokenId] = uri;
     }
 

@@ -15,6 +15,13 @@ abstract contract RegistryMetadata is EnhancedAccessControl {
     }
 
     /**
+     * @dev Sets the token URI for a token ID.
+     * @param tokenId The ID of the token to set the URI for.
+     * @param uri The URI to set for the token.
+     */
+    function setTokenUri(uint256 tokenId, string calldata uri) external virtual;
+
+    /**
      * @dev Fetches the token URI for a token ID.
      * @param tokenId The ID of the token to fetch a URI for.
      * @return The token URI for the token.

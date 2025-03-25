@@ -4,12 +4,18 @@ pragma solidity >=0.8.13;
 import {RegistryMetadata} from "./RegistryMetadata.sol";
 
 contract BaseUriRegistryMetadata is RegistryMetadata {
+    error CannotSetSingleTokenUri();
+
     string tokenBaseUri;
 
     constructor() RegistryMetadata(_msgSender()) {
     }
 
-    function setTokenUri(string calldata uri) external onlyRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA) {
+    function setTokenUri(uint256 /*tokenId*/, string calldata /*uri*/) external override {
+        revert CannotSetSingleTokenUri();
+    }
+
+    function setTokenBaseUri(string calldata uri) external onlyRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA) {
         tokenBaseUri = uri;
     }
 
