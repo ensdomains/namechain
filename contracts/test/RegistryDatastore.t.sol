@@ -4,7 +4,7 @@ pragma solidity >=0.8.13;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-import "src/registry/RegistryDatastore.sol";
+import "../src/common/RegistryDatastore.sol";
 
 contract TestETHRegistry is Test {
     uint256 LABEL_HASH_MASK = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000;

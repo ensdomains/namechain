@@ -3,14 +3,14 @@ pragma solidity >=0.8.13;
 
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Test} from "forge-std/Test.sol";
-import {UserRegistry} from "../src/registry/UserRegistry.sol";
-import {ETHRegistry} from "../src/registry/ETHRegistry.sol";
-import {IRegistry} from "../src/registry/IRegistry.sol";
-import {RegistryDatastore} from "../src/registry/RegistryDatastore.sol";
-import {IRegistryMetadata} from "../src/registry/IRegistryMetadata.sol";
+import {UserRegistry} from "../src/L2/UserRegistry.sol";
+import {ETHRegistry} from "../src/L2/ETHRegistry.sol";
+import {IRegistry} from "../src/common/IRegistry.sol";
+import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
+import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {SimpleRegistryMetadata} from "../src/registry/SimpleRegistryMetadata.sol";
+import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 
 contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;

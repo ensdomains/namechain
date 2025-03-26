@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {OwnedResolver} from "../../src/resolver/OwnedResolver.sol";
+import {OwnedResolver} from "../../src/common/OwnedResolver.sol";
 import {VerifiableFactory} from "verifiable-factory/VerifiableFactory.sol";
 import {UUPSProxy} from "verifiable-factory/UUPSProxy.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";

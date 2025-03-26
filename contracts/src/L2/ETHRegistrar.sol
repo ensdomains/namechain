@@ -2,13 +2,13 @@
 pragma solidity >=0.8.13;
 
 import {IETHRegistrar} from "./IETHRegistrar.sol";
-import {IRegistry} from "./IRegistry.sol";
-import {IERC1155Singleton} from "./IERC1155Singleton.sol";
+import {IRegistry} from "../common/IRegistry.sol";
+import {IERC1155Singleton} from "../common/IERC1155Singleton.sol";
 import {IETHRegistry} from "./IETHRegistry.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IPriceOracle} from "./IPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {NameUtils} from "../utils/NameUtils.sol";
+import {NameUtils} from "../common/NameUtils.sol";
 
 contract ETHRegistrar is IETHRegistrar, AccessControl {
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
