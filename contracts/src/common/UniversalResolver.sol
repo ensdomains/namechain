@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IRegistry} from "../registry/IRegistry.sol";
+import {IRegistry} from "./IRegistry.sol";
 
 contract UniversalResolver {
     IRegistry public immutable root;

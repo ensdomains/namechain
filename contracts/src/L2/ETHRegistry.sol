@@ -3,16 +3,16 @@ pragma solidity >=0.8.13;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {ERC1155Singleton} from "./ERC1155Singleton.sol";
-import {IERC1155Singleton} from "./IERC1155Singleton.sol";
-import {IRegistry} from "./IRegistry.sol";
-import {IRegistryDatastore} from "./IRegistryDatastore.sol";
-import {BaseRegistry} from "./BaseRegistry.sol";
-import {PermissionedRegistry} from "./PermissionedRegistry.sol";
-import {IRegistryMetadata} from "./IRegistryMetadata.sol";
-import {MetadataMixin} from "./MetadataMixin.sol";
+import {ERC1155Singleton} from "../common/ERC1155Singleton.sol";
+import {IERC1155Singleton} from "../common/IERC1155Singleton.sol";
+import {IRegistry} from "../common/IRegistry.sol";
+import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
+import {BaseRegistry} from "../common/BaseRegistry.sol";
+import {PermissionedRegistry} from "../common/PermissionedRegistry.sol";
+import {IRegistryMetadata} from "../common/IRegistryMetadata.sol";
+import {MetadataMixin} from "../common/MetadataMixin.sol";
 import {IETHRegistry} from "./IETHRegistry.sol";
-import {NameUtils} from "../utils/NameUtils.sol";
+import {NameUtils} from "../common/NameUtils.sol";
 
 contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETHRegistry {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");

@@ -7,12 +7,12 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import "../src/registry/ETHRegistrar.sol";
-import "../src/registry/ETHRegistry.sol";
-import "../src/registry/RegistryDatastore.sol";
-import "../src/registry/IPriceOracle.sol";
-import "../src/registry/IRegistryMetadata.sol";
-import "../src/utils/NameUtils.sol";
+import "../src/L2/ETHRegistrar.sol";
+import "../src/L2/ETHRegistry.sol";
+import "../src/common/RegistryDatastore.sol";
+import "../src/L2/IPriceOracle.sol";
+import "../src/common/IRegistryMetadata.sol";
+import "../src/common/NameUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
 
 
