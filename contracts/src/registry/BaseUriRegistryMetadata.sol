@@ -1,27 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {IRegistryMetadata} from "./IRegistryMetadata.sol";
+import {RegistryMetadata} from "./RegistryMetadata.sol";
 
-contract BaseUriRegistryMetadata is AccessControl, IRegistryMetadata {
-    bytes32 public constant UPDATE_ROLE = keccak256("UPDATE_ROLE"); 
+contract BaseUriRegistryMetadata is RegistryMetadata {
+    error CannotSetSingleTokenUri();
 
     string tokenBaseUri;
 
-    constructor() {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    constructor() RegistryMetadata(_msgSender()) {
     }
 
-    function setTokenUri(string calldata uri) external onlyRole(UPDATE_ROLE) {
+    function setTokenUri(uint256 /*tokenId*/, string calldata /*uri*/) external override pure {
+        revert CannotSetSingleTokenUri();
+    }
+
+    function setTokenBaseUri(string calldata uri) external onlyRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA) {
         tokenBaseUri = uri;
     }
 
-    function tokenUri(uint256 /*tokenId*/) external view returns (string memory) {
+    function tokenUri(uint256 /*tokenId*/) external view override returns (string memory) {
         return tokenBaseUri;
     }
 
     function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
-        return interfaceId == type(IRegistryMetadata).interfaceId || super.supportsInterface(interfaceId);
+        return interfaceId == type(RegistryMetadata).interfaceId || super.supportsInterface(interfaceId);
     }
-} 
+}
