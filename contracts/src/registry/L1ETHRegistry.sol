@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-
 import {IL1EjectionController} from "../controller/IL1EjectionController.sol";
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
@@ -10,7 +8,7 @@ import {IRegistry} from "./IRegistry.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {PermissionedRegistry} from "./PermissionedRegistry.sol";
-import {RegistryMetadata} from "./RegistryMetadata.sol";
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 
 /**
  * @title L1ETHRegistry
@@ -18,7 +16,10 @@ import {RegistryMetadata} from "./RegistryMetadata.sol";
  * Unlike the L2 ETHRegistry, this registry does not handle new registrations directly,
  * but receives names that have been ejected from L2.
  */
-contract L1ETHRegistry is PermissionedRegistry, AccessControl {
+contract L1ETHRegistry is PermissionedRegistry {
+    uint256 public constant ROLE_SET_EJECTION_CONTROLLER = 1 << 5;
+    uint256 public constant ROLE_SET_EJECTION_CONTROLLER_ADMIN = ROLE_SET_EJECTION_CONTROLLER << 128;
+
     error NameNotExpired(uint256 tokenId, uint64 expires);
     error OnlyEjectionController();
 
@@ -28,9 +29,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
 
     IL1EjectionController public ejectionController;
 
-    constructor(IRegistryDatastore _datastore, address _ejectionController) PermissionedRegistry(_datastore, RegistryMetadata(address(0))) {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-
+    constructor(IRegistryDatastore _datastore, address _ejectionController) PermissionedRegistry(_datastore, IRegistryMetadata(address(0))) {
         // Set the ejection controller
         require(_ejectionController != address(0), "Ejection controller cannot be empty");
         ejectionController = IL1EjectionController(_ejectionController);
@@ -47,7 +46,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
      * @dev Set a new ejection controller
      * @param _newEjectionController The address of the new controller
      */
-    function setEjectionController(address _newEjectionController) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setEjectionController(address _newEjectionController) external onlyRoles(ROOT_RESOURCE, ROLE_SET_EJECTION_CONTROLLER) {
         require(_newEjectionController != address(0), "Ejection controller cannot be empty");
         
         address oldController = address(ejectionController);
@@ -142,7 +141,7 @@ contract L1ETHRegistry is PermissionedRegistry, AccessControl {
     }
 
 
-    function supportsInterface(bytes4 interfaceId) public view override(PermissionedRegistry, AccessControl) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(PermissionedRegistry) returns (bool) {
         return interfaceId == type(IRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 }

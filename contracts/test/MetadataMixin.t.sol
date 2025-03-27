@@ -3,15 +3,13 @@ pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
 import "../src/registry/MetadataMixin.sol";
-import "../src/registry/RegistryMetadata.sol";
+import "../src/registry/IRegistryMetadata.sol";
 
 // Mock implementation of IRegistryMetadata for testing
-contract MockMetadataProvider is RegistryMetadata {
+contract MockMetadataProvider is IRegistryMetadata {
     mapping(uint256 => string) private _tokenUris;
 
-    constructor() RegistryMetadata(_msgSender()) {}
-    
-    function setTokenUri(uint256 tokenId, string memory uri) external override {
+    function setTokenUri(uint256 tokenId, string memory uri) external {
         _tokenUris[tokenId] = uri;
     }
     
@@ -22,10 +20,10 @@ contract MockMetadataProvider is RegistryMetadata {
 
 // Concrete implementation of MetadataMixin for testing
 contract MetadataMixinImpl is MetadataMixin {
-    constructor(RegistryMetadata _metadataProvider) MetadataMixin(_metadataProvider) {}
+    constructor(IRegistryMetadata _metadataProvider) MetadataMixin(_metadataProvider) {}
     
     // Expose internal function as public for testing
-    function updateMetadataProvider(RegistryMetadata _metadataProvider) public {
+    function updateMetadataProvider(IRegistryMetadata _metadataProvider) public {
         _updateMetadataProvider(_metadataProvider);
     }
     
@@ -68,7 +66,7 @@ contract MetadataMixinTest is Test {
     
     function testTokenURIWithZeroAddress() public {
         // Create new implementation with zero address
-        MetadataMixinImpl implWithZeroAddr = new MetadataMixinImpl(RegistryMetadata(address(0)));
+        MetadataMixinImpl implWithZeroAddr = new MetadataMixinImpl(IRegistryMetadata(address(0)));
         
         // Should return empty string when metadata provider is zero address
         string memory uri = implWithZeroAddr.getTokenURI(123);

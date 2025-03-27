@@ -9,7 +9,7 @@ import {RegistryDatastore} from "../src/registry/RegistryDatastore.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {BaseUriRegistryMetadata} from "../src/registry/BaseUriRegistryMetadata.sol";
-import {RegistryMetadata} from "../src/registry/RegistryMetadata.sol";
+import {IRegistryMetadata} from "../src/registry/IRegistryMetadata.sol";
 import {EnhancedAccessControl} from "../src/registry/EnhancedAccessControl.sol";
 
 contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
@@ -31,7 +31,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     function test_registry_metadata_base_uri() public {
         uint256 tokenId = uint256(keccak256(bytes("sub")));
 
-        registry.register("sub", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000), "");
+        registry.register("sub", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
 
         assertEq(registry.uri(tokenId), "");
         
@@ -46,8 +46,8 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         uint256 tokenId1 = uint256(keccak256(bytes("sub1")));
         uint256 tokenId2 = uint256(keccak256(bytes("sub2")));
 
-        registry.register("sub1", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000), "");
-        registry.register("sub2", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000), "");
+        registry.register("sub1", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
+        registry.register("sub2", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
 
         metadata.setTokenBaseUri(expectedUri);
 
@@ -62,7 +62,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         string memory updatedUri = "ipfs://updated/{id}";
         uint256 tokenId = uint256(keccak256(bytes("sub")));
 
-        registry.register("sub", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000), "");
+        registry.register("sub", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
         
         metadata.setTokenBaseUri(initialUri);
         assertEq(metadata.tokenUri(tokenId), initialUri);
@@ -80,7 +80,8 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     }
 
     function test_registry_metadata_supports_interface() public view {
-        assertEq(metadata.supportsInterface(type(RegistryMetadata).interfaceId), true);
+        assertEq(metadata.supportsInterface(type(IRegistryMetadata).interfaceId), true);
+        assertEq(metadata.supportsInterface(type(EnhancedAccessControl).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
 } 

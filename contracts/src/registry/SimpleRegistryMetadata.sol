@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {RegistryMetadata} from "./RegistryMetadata.sol";
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
+import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 
-contract SimpleRegistryMetadata is RegistryMetadata {
+contract SimpleRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
+    uint256 public constant ROLE_UPDATE_METADATA = 1 << 0;
+    uint256 public constant ROLE_UPDATE_METADATA_ADMIN = ROLE_UPDATE_METADATA << 128;
+
     mapping(uint256 => string) private _tokenUris;
 
-    constructor() RegistryMetadata(_msgSender()) {
+    constructor() {
+        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender());
     }   
 
-    function setTokenUri(uint256 tokenId, string calldata uri) external override onlyRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA) {
+    function setTokenUri(uint256 tokenId, string calldata uri) external onlyRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA) {
         _tokenUris[tokenId] = uri;
     }
 
@@ -18,6 +23,6 @@ contract SimpleRegistryMetadata is RegistryMetadata {
     }
 
     function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
-        return interfaceId == type(RegistryMetadata).interfaceId || super.supportsInterface(interfaceId);
+        return interfaceId == type(IRegistryMetadata).interfaceId || EnhancedAccessControl.supportsInterface(interfaceId);
     }
-} 
+}

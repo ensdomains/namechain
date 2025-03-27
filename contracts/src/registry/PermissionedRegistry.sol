@@ -10,7 +10,7 @@ import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {BaseRegistry} from "./BaseRegistry.sol";
 import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 import {MetadataMixin} from "./MetadataMixin.sol";
-import {RegistryMetadata} from "./RegistryMetadata.sol";
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 import {SimpleRegistryMetadata} from "./SimpleRegistryMetadata.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
@@ -36,7 +36,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
     uint256 public constant MAX_EXPIRY = type(uint64).max;
     uint96 public constant FLAGS_MASK = 0xffffffff; // 32 bits
 
-    constructor(IRegistryDatastore _datastore, RegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
         _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender());
 
         if (address(_metadata) == address(0)) {
@@ -63,7 +63,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         return super.ownerOf(tokenId);
     }
 
-    function register(string calldata label, address owner, IRegistry registry, address resolver, uint96 flags, uint256 roleBitmap, uint64 expires, string memory _uri)
+    function register(string calldata label, address owner, IRegistry registry, address resolver, uint96 flags, uint256 roleBitmap, uint64 expires)
         public
         onlyRootRoles(ROLE_REGISTRAR)
         returns (uint256 tokenId)
@@ -93,11 +93,6 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         datastore.setSubregistry(tokenId, address(registry), flags);
         datastore.setResolver(tokenId, resolver, flags);
 
-        if (bytes(_uri).length > 0) {
-            metadataProvider.setTokenUri(tokenId, _uri);
-            emit URI(_uri, tokenId);
-        }
-        
         emit NewSubname(tokenId, label);
 
         return tokenId;
@@ -146,14 +141,6 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         }
 
         emit NameRelinquished(tokenId, msg.sender);
-    }
-
-    function setUri(uint256 tokenId, string memory _uri) 
-        external
-        onlyTokenOwner(tokenId)
-    {
-        metadataProvider.setTokenUri(tokenId, _uri);
-        emit URI(_uri, tokenId); 
     }
 
     function getSubregistry(string calldata label) external view virtual override(BaseRegistry, IRegistry) returns (IRegistry) {
@@ -228,7 +215,6 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         return bytes32(tokenId & ~uint256(FLAGS_MASK));
     }
 
-    
     // Internal functions
 
     function _extractExpiry(uint96 flags) internal pure returns (uint64) {

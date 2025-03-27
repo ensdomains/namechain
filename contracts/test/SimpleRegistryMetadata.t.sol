@@ -6,7 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {PermissionedRegistry} from "../src/registry/PermissionedRegistry.sol";
 import {IRegistry} from "../src/registry/IRegistry.sol";
 import {RegistryDatastore} from "../src/registry/RegistryDatastore.sol";
-import {RegistryMetadata} from "../src/registry/RegistryMetadata.sol";
+import {IRegistryMetadata} from "../src/registry/IRegistryMetadata.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {SimpleRegistryMetadata} from "../src/registry/SimpleRegistryMetadata.sol";
@@ -29,7 +29,7 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     }
 
     function test_registry_metadata_token_uri() public {
-        uint256 tokenId = registry.register("test", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000), "");
+        uint256 tokenId = registry.register("test", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
 
         assertEq(registry.uri(tokenId), "");
 
@@ -49,7 +49,8 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     }
 
     function test_registry_metadata_supports_interface() public view {
-        assertEq(metadata.supportsInterface(type(RegistryMetadata).interfaceId), true);
+        assertEq(metadata.supportsInterface(type(IRegistryMetadata).interfaceId), true);
+        assertEq(metadata.supportsInterface(type(EnhancedAccessControl).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
 } 

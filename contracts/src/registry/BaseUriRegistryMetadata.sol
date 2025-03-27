@@ -1,29 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {RegistryMetadata} from "./RegistryMetadata.sol";
+import {IRegistryMetadata} from "./IRegistryMetadata.sol";
+import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 
-contract BaseUriRegistryMetadata is RegistryMetadata {
-    error CannotSetSingleTokenUri();
+contract BaseUriRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
+    uint256 public constant ROLE_UPDATE_METADATA = 1 << 0;
+    uint256 public constant ROLE_UPDATE_METADATA_ADMIN = ROLE_UPDATE_METADATA << 128;
 
     string tokenBaseUri;
 
-    constructor() RegistryMetadata(_msgSender()) {
-    }
-
-    function setTokenUri(uint256 /*tokenId*/, string calldata /*uri*/) external override pure {
-        revert CannotSetSingleTokenUri();
+    constructor() {
+        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender());
     }
 
     function setTokenBaseUri(string calldata uri) external onlyRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA) {
         tokenBaseUri = uri;
     }
 
-    function tokenUri(uint256 /*tokenId*/) external view override returns (string memory) {
+    function tokenUri(uint256 /*tokenId*/) external view returns (string memory) {
         return tokenBaseUri;
     }
 
     function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
-        return interfaceId == type(RegistryMetadata).interfaceId || super.supportsInterface(interfaceId);
+        return interfaceId == type(IRegistryMetadata).interfaceId || EnhancedAccessControl.supportsInterface(interfaceId);
     }
 }

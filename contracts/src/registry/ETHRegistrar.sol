@@ -91,7 +91,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
      * @param resolver The resolver to use for the commitment.
      * @param flags The flags to use for the commitment.
      * @param duration The duration of the commitment.
-     * @param uri The token URI.
      * @return The commitment.
      */
     function makeCommitment(
@@ -101,8 +100,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         address subregistry,
         address resolver,
         uint96 flags,
-        uint64 duration,
-        string memory uri
+        uint64 duration
     ) public pure override returns (bytes32) {        
         return
             keccak256(
@@ -113,8 +111,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
                     subregistry,
                     resolver,
                     flags,
-                    duration,
-                    uri
+                    duration
                 )
             );
     }
@@ -143,7 +140,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
      * @param resolver The resolver to use for the registration.
      * @param flags The flags to set on the name.   
      * @param duration The duration of the registration.
-     * @param uri The token URI.
      * @return tokenId The token ID of the registered name.
      */
     function register(
@@ -153,14 +149,13 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IRegistry subregistry,
         address resolver,
         uint96 flags,
-        uint64 duration,
-        string calldata uri
+        uint64 duration
     ) external payable returns (uint256 tokenId) {
         uint256 totalPrice = checkPrice(name, duration);
 
-        _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, flags, duration, uri));
+        _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, flags, duration));
 
-        tokenId = registry.register(name, owner, subregistry, resolver, flags, ALL_ROLES, uint64(block.timestamp) + duration, uri);
+        tokenId = registry.register(name, owner, subregistry, resolver, flags, ALL_ROLES, uint64(block.timestamp) + duration);
 
         if (msg.value > totalPrice) {
             payable(msg.sender).transfer(msg.value - totalPrice);

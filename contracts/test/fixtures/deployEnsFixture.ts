@@ -95,5 +95,5 @@ export const registerName = async ({
   const owner =
     owner_ ?? (await hre.viem.getWalletClients())[0].account.address;
   const flags = (subregistryLocked ? 1n : 0n) | (resolverLocked ? 2n : 0n);
-  return ethRegistry.write.register([label, owner, subregistry, resolver, flags, ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER, expiry, ""]);
+  return ethRegistry.write.register([label, owner, subregistry, resolver, flags, ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER, expiry]);
 };

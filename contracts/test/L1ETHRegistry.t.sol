@@ -11,6 +11,7 @@ import "../src/registry/RegistryDatastore.sol";
 import "../src/registry/IRegistry.sol";
 import "../src/registry/IPermissionedRegistry.sol";
 import "../src/controller/IL1EjectionController.sol";
+import "../src/registry/EnhancedAccessControl.sol";
 
 contract TestL1ETHRegistry is Test, ERC1155Holder {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
@@ -302,9 +303,9 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         bytes4 erc1155InterfaceId = 0xd9b67a26; // ERC1155 interface ID
         assertTrue(registry.supportsInterface(erc1155InterfaceId));
 
-        // Test AccessControl interface
-        bytes4 accessControlInterfaceId = 0x7965db0b; // AccessControl interface ID
-        assertTrue(registry.supportsInterface(accessControlInterfaceId));
+        // Test EnhancedAccessControl interface
+        bytes4 enhancedAccessControlInterfaceId = type(EnhancedAccessControl).interfaceId; // EnhancedAccessControl interface ID
+        assertTrue(registry.supportsInterface(enhancedAccessControlInterfaceId));
 
         // Test unsupported interface
         bytes4 unsupportedInterfaceId = 0x12345678;

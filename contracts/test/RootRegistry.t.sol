@@ -42,7 +42,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
 
     function test_register_unlocked() public {
         uint256 expectedId = uint256(keccak256("test2"));
-        uint256 tokenId = registry.register("test2", owner, registry, address(0), 0, defaultRoleBitmap, MAX_EXPIRY, "");
+        uint256 tokenId = registry.register("test2", owner, registry, address(0), 0, defaultRoleBitmap, MAX_EXPIRY);
         vm.assertEq(tokenId & ~uint256(registry.FLAGS_MASK()), expectedId & ~uint256(registry.FLAGS_MASK()));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
@@ -51,7 +51,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
 
     function test_register_locked_resolver_and_subregistry() public {
         uint256 expectedId = uint256(keccak256("test2"));
-        uint256 tokenId = registry.register("test2", owner, registry, address(0), 0, lockedFlagsRoleBitmap, MAX_EXPIRY, "");
+        uint256 tokenId = registry.register("test2", owner, registry, address(0), 0, lockedFlagsRoleBitmap, MAX_EXPIRY);
         vm.assertEq(tokenId & ~uint256(registry.FLAGS_MASK()), expectedId & ~uint256(registry.FLAGS_MASK()));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
@@ -60,7 +60,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
 
     function test_register_locked_subregistry() public {
         uint256 expectedId = uint256(keccak256("test2"));
-        uint256 tokenId = registry.register("test2", owner, registry, address(0), 0, lockedSubregistryRoleBitmap, MAX_EXPIRY, "");
+        uint256 tokenId = registry.register("test2", owner, registry, address(0), 0, lockedSubregistryRoleBitmap, MAX_EXPIRY);
         vm.assertEq(tokenId & ~uint256(registry.FLAGS_MASK()), expectedId & ~uint256(registry.FLAGS_MASK()));
         assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
@@ -69,7 +69,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
 
     function test_register_locked_resolver() public {
         uint256 expectedId = uint256(keccak256("test2"));
-        uint256 tokenId = registry.register("test2", owner, registry, address(0), 0, lockedResolverRoleBitmap, MAX_EXPIRY, "");
+        uint256 tokenId = registry.register("test2", owner, registry, address(0), 0, lockedResolverRoleBitmap, MAX_EXPIRY);
         vm.assertEq(tokenId & ~uint256(registry.FLAGS_MASK()), expectedId & ~uint256(registry.FLAGS_MASK()));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
         assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
@@ -77,14 +77,14 @@ contract TestRootRegistry is Test, ERC1155Holder {
     }
 
     function test_set_subregistry() public {
-        uint256 tokenId = registry.register("test", owner, registry, address(0), 0, defaultRoleBitmap, MAX_EXPIRY, "");
+        uint256 tokenId = registry.register("test", owner, registry, address(0), 0, defaultRoleBitmap, MAX_EXPIRY);
         vm.prank(owner);
         registry.setSubregistry(tokenId, IRegistry(address(this)));
         vm.assertEq(address(registry.getSubregistry("test")), address(this));
     }
 
     function test_Revert_cannot_set_locked_subregistry() public {
-        uint256 tokenId = registry.register("test", owner, registry, address(0), 0, lockedSubregistryRoleBitmap, MAX_EXPIRY, "");
+        uint256 tokenId = registry.register("test", owner, registry, address(0), 0, lockedSubregistryRoleBitmap, MAX_EXPIRY);
 
         address unauthorizedCaller = address(0xdead);
         vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, unauthorizedCaller));
@@ -93,14 +93,14 @@ contract TestRootRegistry is Test, ERC1155Holder {
     }
 
     function test_set_resolver() public {
-        uint256 tokenId = registry.register("test", owner, registry, address(0), 0, defaultRoleBitmap, MAX_EXPIRY, "");
+        uint256 tokenId = registry.register("test", owner, registry, address(0), 0, defaultRoleBitmap, MAX_EXPIRY);
         vm.prank(owner);
         registry.setResolver(tokenId, address(this));
         vm.assertEq(address(registry.getResolver("test")), address(this));
     }
 
     function test_Revert_cannot_set_locked_resolver() public {
-        uint256 tokenId = registry.register("test", owner, registry, address(0), 0, lockedResolverRoleBitmap, MAX_EXPIRY, "");
+        uint256 tokenId = registry.register("test", owner, registry, address(0), 0, lockedResolverRoleBitmap, MAX_EXPIRY);
 
         address unauthorizedCaller = address(0xdead);
         vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, unauthorizedCaller));
@@ -109,7 +109,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
     }
     
     function test_set_flags() public {
-        uint256 tokenId = registry.register("test", owner, registry, address(0), 0, defaultRoleBitmap, MAX_EXPIRY, "");
+        uint256 tokenId = registry.register("test", owner, registry, address(0), 0, defaultRoleBitmap, MAX_EXPIRY);
         uint96 flags = 0x42; // Some arbitrary flags
         vm.prank(owner);
         uint256 newTokenId = registry.setFlags(tokenId, flags);
@@ -131,7 +131,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
     function test_set_same_flags() public {
         // First register a token with initial flags
         uint96 initialFlags = 0x42;
-        uint256 tokenId = registry.register("test", owner, registry, address(0), initialFlags, defaultRoleBitmap, MAX_EXPIRY, "");
+        uint256 tokenId = registry.register("test", owner, registry, address(0), initialFlags, defaultRoleBitmap, MAX_EXPIRY);
         
         // Record logs to verify no minting/burning events
         vm.recordLogs();
@@ -159,7 +159,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
     }
 
     function test_Revert_cannot_set_locked_flags() public {
-        uint256 tokenId = registry.register("test", owner, registry, address(0), 0, lockedFlagsRoleBitmap, MAX_EXPIRY, "");
+        uint256 tokenId = registry.register("test", owner, registry, address(0), 0, lockedFlagsRoleBitmap, MAX_EXPIRY);
 
         address unauthorizedCaller = address(0xdead);
         vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), ROLE_SET_FLAGS, unauthorizedCaller));
@@ -167,23 +167,9 @@ contract TestRootRegistry is Test, ERC1155Holder {
         registry.setFlags(tokenId, 0x1);
     }
 
-    function test_set_uri() public {
-        string memory uri = "https://example.com/";
-        uint256 tokenId = registry.register("test2", owner, registry, address(0), 0, defaultRoleBitmap, MAX_EXPIRY, uri);
-        string memory actualUri = registry.uri(tokenId);
-        vm.assertEq(actualUri, uri);
-        
-        uri = "https://ens.domains/";
-        vm.prank(owner);
-        registry.setUri(tokenId, uri);
-        actualUri = registry.uri(tokenId);
-        vm.assertEq(actualUri, uri);
-    }
-
     function test_register() public {
         // Setup test data
         string memory label = "testmint";
-        string memory testUri = "https://example.com/testmint";
         uint96 testFlags = 0;
         
         // Start recording logs
@@ -191,7 +177,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         
         // Call register function
         vm.prank(address(this));
-        uint256 tokenId = registry.register(label, owner, registry, address(0), testFlags, defaultRoleBitmap, MAX_EXPIRY, testUri);
+        uint256 tokenId = registry.register(label, owner, registry, address(0), testFlags, defaultRoleBitmap, MAX_EXPIRY);
         
         // Get recorded logs
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -211,12 +197,8 @@ contract TestRootRegistry is Test, ERC1155Holder {
         // Verify subregistry was set
         vm.assertEq(address(registry.getSubregistry(label)), address(registry));
         
-        // Verify URI was set
-        vm.assertEq(registry.uri(tokenId), testUri);
-        
         // Verify events - check each log
         bool foundTransferEvent = false;
-        bool foundUriEvent = false;
         bool foundNewSubnameEvent = false;
         
         for (uint i = 0; i < logs.length; i++) {
@@ -238,15 +220,6 @@ contract TestRootRegistry is Test, ERC1155Holder {
                 assertEq(id, tokenId);
                 assertEq(value, 1);
             }
-            // URI event
-            else if (topic0 == keccak256("URI(string,uint256)")) {
-                foundUriEvent = true;
-                assertEq(logs[i].topics.length, 2);
-                assertEq(uint256(logs[i].topics[1]), tokenId);
-                
-                string memory value = abi.decode(logs[i].data, (string));
-                assertEq(keccak256(bytes(value)), keccak256(bytes(testUri)));
-            }
             // NewSubname event
             else if (topic0 == keccak256("NewSubname(uint256,string)")) {
                 foundNewSubnameEvent = true;
@@ -259,14 +232,12 @@ contract TestRootRegistry is Test, ERC1155Holder {
         }
         
         assertTrue(foundTransferEvent, "No TransferSingle event found");
-        assertTrue(foundUriEvent, "No URI event found");
         assertTrue(foundNewSubnameEvent, "No NewSubname event found");
     }
 
     function test_Revert_register_without_permission() public {
         // Setup test data
         string memory label = "testmint";
-        string memory testUri = "https://example.com/testmint";
         uint96 testFlags = 0;
         address unauthorizedCaller = makeAddr("unauthorized");
         
@@ -280,6 +251,6 @@ contract TestRootRegistry is Test, ERC1155Holder {
         // The test should now fail since no one has permission
         vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR(), unauthorizedCaller));
         vm.prank(unauthorizedCaller);
-        registry.register(label, owner, registry, address(0), testFlags, defaultRoleBitmap, MAX_EXPIRY, testUri);
+        registry.register(label, owner, registry, address(0), testFlags, defaultRoleBitmap, MAX_EXPIRY);
     }
 }

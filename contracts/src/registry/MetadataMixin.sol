@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "./RegistryMetadata.sol";
+import "./IRegistryMetadata.sol";
 
 /// @title MetadataMixin
 /// @notice Mixin contract for Registry implementations to delegate metadata to an external provider
 /// @dev Inherit this contract to add metadata functionality to Registry contracts
 abstract contract MetadataMixin {
     /// @notice The metadata provider contract
-    RegistryMetadata public metadataProvider;
+    IRegistryMetadata public metadataProvider;
 
     /// @notice Initializes the mixin with a metadata provider
     /// @param _metadataProvider Address of the metadata provider contract
-    constructor(RegistryMetadata _metadataProvider) {
+    constructor(IRegistryMetadata _metadataProvider) {
         metadataProvider = _metadataProvider;
     }
 
     /// @notice Updates the metadata provider
     /// @param _metadataProvider Address of the new metadata provider contract
-    function _updateMetadataProvider(RegistryMetadata _metadataProvider) internal virtual {
+    function _updateMetadataProvider(IRegistryMetadata _metadataProvider) internal virtual {
         metadataProvider = _metadataProvider;
     }
 

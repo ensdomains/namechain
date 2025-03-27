@@ -75,7 +75,6 @@ interface IETHRegistrar {
      * @param resolver The resolver to use for the commitment.
      * @param flags The flags to use for the commitment.
      * @param expires The expiration timestamp of the commitment.
-     * @param uri The token URI.
      * @return The commitment.
      */
     function makeCommitment(
@@ -85,8 +84,7 @@ interface IETHRegistrar {
         address subregistry,
         address resolver,
         uint96 flags,
-        uint64 expires,
-        string calldata uri
+        uint64 expires
     ) external pure returns (bytes32);
 
 
@@ -107,7 +105,6 @@ interface IETHRegistrar {
      * @param resolver The resolver to use for the registration.
      * @param flags The flags to use for the registration.
      * @param expires The expiration timestamp of the registration.
-     * @param uri The token URI.
      *
      * @return The ID of the newly registered name.
      */
@@ -118,8 +115,7 @@ interface IETHRegistrar {
         IRegistry subregistry,
         address resolver,
         uint96 flags,
-        uint64 expires,
-        string calldata uri
+        uint64 expires
     ) external payable returns (uint256);
 
     /**
