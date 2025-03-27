@@ -5,23 +5,20 @@ import "@openzeppelin/contracts/utils/StorageSlot.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-// V2 Imports
-import {IUniversalResolver as IUniversalResolverV2} from "ens-contracts/universalResolver/IUniversalResolver.sol";
-import {UniversalResolver as UniversalResolverV2} from "ens-contracts/universalResolver/UniversalResolver.sol";
-
-// V1 Imports
-import {IUniversalResolver as IUniversalResolverV1, Result} from "./IUniversalResolverV1.sol";
+// UR Imports
+import {IUniversalResolver} from "ens-contracts/universalResolver/IUniversalResolver.sol";
+import {UniversalResolver as UniversalResolverV1} from "ens-contracts/universalResolver/UniversalResolver.sol";
 
 // CCIP-Read Imports
-import {OffchainLookup} from "ens-contracts/ccipRead/EIP3668.sol";
-import {CCIPReader} from "ens-contracts/ccipRead/CCIPReader.sol";
+import {EIP3668, OffchainLookup} from "ens-contracts/ccipRead/EIP3668.sol";
+import {BytesUtils} from "ens-contracts/utils/BytesUtils.sol";
 
 /**
  * @title UpgradableUniversalResolverProxy
  * @dev A specialized proxy for UniversalResolver that forwards method calls
  * and properly handles CCIP-Read reverts. Admin can upgrade the implementation.
  */
-contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalResolverV2, CCIPReader {
+contract UpgradableUniversalResolverProxy is IUniversalResolver {
     // Storage slot for implementation address (EIP-1967 compatible)
     bytes32 private constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
@@ -32,7 +29,6 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
     error CallerNotAdmin();
     error InvalidImplementation();
     error SameImplementation();
-    error FunctionNotSupported(); // For fallback
 
     // Events
     event Upgraded(address indexed implementation);
@@ -91,18 +87,6 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
         return _getAdmin();
     }
 
-    /**
-     * @dev Allows admin to set gateway URLs (V1 specific function).
-     * Makes an external call to the implementation.
-     * @notice This function will likely revert if the current implementation is V2.
-     */
-    function setGatewayURLs(string[] memory urls) external override onlyAdmin {
-        address impl = _getImplementation();
-        require(impl != address(0), "Proxy: No implementation set");
-        // Direct external call - No CCIP read expected for this admin function
-        IUniversalResolverV1(impl).setGatewayURLs(urls);
-    }
-
     // --- Internal Admin/Implementation Logic ---
 
     /**
@@ -115,6 +99,14 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
         if (_getImplementation() == newImplementation) {
             revert SameImplementation();
         }
+        // Check if implementation supports the UniversalResolver interface
+        // try IERC165(newImplementation).supportsInterface(type(IUniversalResolver).interfaceId) returns (bool supported) {
+        //     if (!supported) {
+        //         revert InvalidImplementation();
+        //     }
+        // } catch {
+        //     revert InvalidImplementation();
+        // }
     }
 
     /**
@@ -147,202 +139,86 @@ contract UpgradableUniversalResolverProxy is IUniversalResolverV1, IUniversalRes
         return StorageSlot.getAddressSlot(_ADMIN_SLOT).value;
     }
 
-    // --- Universal Resolver Methods (V1 & V2) ---
-    // Each function makes an external call to the implementation, wrapped by ccipRead.
-
-    // V2 `resolve(bytes, bytes)` signature (also matches V1 simple resolve)
+    // --- Universal Resolver Implementation ---
+    
+    /**
+     * @dev Implementation of IUniversalResolver.resolve
+     */
     function resolve(bytes calldata name, bytes calldata data)
         external
         view
-        override(IUniversalResolverV1, IUniversalResolverV2)
-        returns (bytes memory, address)
+        override
+        returns (bytes memory result, address resolver)
     {
-        ccipRead(_getImplementation(),abi.encodeWithSelector(IUniversalResolverV2.resolve.selector, name, data));
+        bytes memory callData = abi.encodeWithSelector(IUniversalResolver.resolve.selector, name, data);
+        bytes memory returnData = _forwardCall(callData);
+        return abi.decode(returnData, (bytes, address));
     }
 
-    // V1 `resolve(bytes, bytes, string[])` signature
-    function resolve(bytes calldata name, bytes memory data, string[] memory gateways)
-        external
-        view
-        override(IUniversalResolverV1)
-        returns (bytes memory, address)
-    {
-        // Note: This will likely revert if the implementation is V2
-        ccipRead(
-            _getImplementation(),
-            abi.encodeWithSelector(bytes4(keccak256("resolve(bytes,bytes,string[])")), name, data, gateways)
-        );
-    }
-
-    // V1 `resolve(bytes, bytes[])` signature
-    function resolve(bytes calldata name, bytes[] memory data)
-        external
-        view
-        override(IUniversalResolverV1)
-        returns (Result[] memory, address)
-    {
-         ccipRead(
-             _getImplementation(),
-             abi.encodeWithSelector(bytes4(keccak256("resolve(bytes,bytes[])")), name, data)
-         );
-    }
-
-    // V1 `resolve(bytes, bytes[], string[])` signature
-    function resolve(bytes calldata name, bytes[] memory data, string[] memory gateways)
-        external
-        view
-        override(IUniversalResolverV1)
-        returns (Result[] memory, address)
-    {
-        // Note: This will likely revert if the implementation is V2
-         ccipRead(
-            _getImplementation(),
-            abi.encodeWithSelector(bytes4(keccak256("resolve(bytes,bytes[],string[])")), name, data, gateways)
-         );
-    }
-
-    // V2 `reverse(bytes, uint256)` signature
+    /**
+     * @dev Implementation of IUniversalResolver.reverse
+     */
     function reverse(bytes calldata lookupAddress, uint256 coinType)
         external
         view
-        override(IUniversalResolverV2)
-        returns (string memory, address, address)
+        override
+        returns (string memory primary, address resolver, address reverseResolver)
     {
-        // Note: This will likely revert if the implementation is V1
-         ccipRead(
-            _getImplementation(),
-            abi.encodeWithSelector(IUniversalResolverV2.reverse.selector, lookupAddress, coinType)
-         );
+        bytes memory callData = abi.encodeWithSelector(IUniversalResolver.reverse.selector, lookupAddress, coinType);
+        bytes memory returnData = _forwardCall(callData);
+        return abi.decode(returnData, (string, address, address));
     }
-
-    // V1 `reverse(bytes)` signature
-    function reverse(bytes calldata reverseName)
-        external
-        view
-        override(IUniversalResolverV1)
-        returns (string memory, address, address, address)
-    {
-        ccipRead(
-            _getImplementation(),
-            abi.encodeWithSelector(bytes4(keccak256("reverse(bytes)")), reverseName)
-        );
-    }
-
-    // V1 `reverse(bytes, string[])` signature
-    function reverse(bytes calldata reverseName, string[] memory gateways)
-        external
-        view
-        override(IUniversalResolverV1)
-        returns (string memory, address, address, address)
-    {
-        // Note: This will likely revert if the implementation is V2
-        ccipRead(
-            _getImplementation(),
-            abi.encodeWithSelector(bytes4(keccak256("reverse(bytes,string[])")), reverseName, gateways)
-        );
-    }
-
-    // --- Callbacks (Must be implemented on the proxy itself) ---
-    // These are targets for the CCIP-Read process and must also call the implementation, potentially triggering further lookups.
-
-    // V1 `resolveCallback`
-    function resolveCallback(bytes calldata response, bytes calldata extraData)
-        external
-        view
-        override(IUniversalResolverV1)
-        returns (Result[] memory, address)
-    {
-         ccipRead(
-            _getImplementation(),
-            abi.encodeWithSelector(IUniversalResolverV1.resolveCallback.selector, response, extraData)
-         );
-    }
-
-    // V1 `resolveSingleCallback`
-    function resolveSingleCallback(bytes calldata response, bytes calldata extraData)
-        external
-        view
-        override(IUniversalResolverV1)
-        returns (bytes memory, address)
-    {
-        ccipRead(
-            _getImplementation(),
-            abi.encodeWithSelector(IUniversalResolverV1.resolveSingleCallback.selector, response, extraData)
-        );
-    }
-
-    // V1 `reverseCallback`
-    function reverseCallback(bytes calldata response, bytes calldata extraData)
-        external
-        view
-        override(IUniversalResolverV1)
-        returns (string memory, address, address, address)
-    {
-        ccipRead(
-            _getImplementation(),
-            abi.encodeWithSelector(IUniversalResolverV1.reverseCallback.selector, response, extraData)
-        );
-    }
-
-    // V2 `resolveCallback`
-    function resolveCallback(
-        UniversalResolverV2.ResolverInfo calldata info,
-        UniversalResolverV2.Lookup[] calldata lookups,
-        bytes calldata extraData
-    ) external view returns (bytes memory, address) {
-        // Explicit selector recommended due to structs from implementation
-        bytes4 selector = bytes4(keccak256("resolveCallback((bytes,uint256,bytes32,address,bool),(address,uint32,bytes,bytes,bytes)[],bytes)"));
-        ccipRead(_getImplementation(), abi.encodeWithSelector(selector, info, lookups, extraData));
-    }
-
-
-    // V2 `reverseNameCallback`
-    function reverseNameCallback(
-        UniversalResolverV2.ResolverInfo calldata infoRev,
-        UniversalResolverV2.Lookup[] calldata lookups,
-        bytes memory extraData
-    ) external view returns (string memory, address, address) {
-        bytes4 selector = bytes4(keccak256("reverseNameCallback((bytes,uint256,bytes32,address,bool),(address,uint32,bytes,bytes,bytes)[],bytes)"));
-        ccipRead(
-            _getImplementation(),abi.encodeWithSelector(selector, infoRev, lookups, extraData)
-        );
-    }
-
-    // V2 `reverseAddressCallback`
-    function reverseAddressCallback(
-        UniversalResolverV2.ResolverInfo calldata info,
-        UniversalResolverV2.Lookup[] calldata lookups,
-        bytes calldata extraData
-    ) external view returns (string memory, address, address) {
-        bytes4 selector = bytes4(keccak256("reverseAddressCallback((bytes,uint256,bytes32,address,bool),(address,uint32,bytes,bytes,bytes)[],bytes)"));
-        ccipRead(
-            _getImplementation(),abi.encodeWithSelector(selector, info, lookups, extraData)
-        );
-    }
-
-    // --- Other Methods ---
 
     /**
      * @dev Implements supportsInterface - forwards to implementation
      */
     function supportsInterface(bytes4 interfaceId) external view returns (bool) {
-        // Direct forwarding without CCIP-Read handling
         return IERC165(_getImplementation()).supportsInterface(interfaceId);
     }
 
-    function findResolver(bytes calldata name) external view returns (address, bytes32, uint256) {
-        // This method doesn't use CCIP-Read, so direct forwarding is fine
-        return IUniversalResolverV1(_getImplementation()).findResolver(name);
+    /**
+     * @dev Internal utility to forward calls to the implementation
+     * while handling CCIP-Read reverts
+     */
+    function _forwardCall(bytes memory callData) internal view returns (bytes memory) {
+        address impl = _getImplementation();
+        (bool ok, bytes memory v) = impl.staticcall(callData);
+        
+        if (!ok && bytes4(v) == OffchainLookup.selector) {
+            EIP3668.Params memory p = EIP3668.decode(BytesUtils.substring(v, 4, v.length - 4));
+            if (p.sender == impl) {
+                revert OffchainLookup(
+                    address(this),
+                    p.urls,
+                    p.callData,
+                    p.callbackFunction,
+                    p.extraData
+                );
+            }
+        }
+        
+        if (ok) {
+            return v;
+        } else {
+            assembly {
+                revert(add(v, 32), mload(v))
+            }
+        }
     }
 
     // --- Fallback and Receive ---
 
     /**
-     * @dev Fallback function reverts, as forwarding via delegatecall is disallowed
-     * and all supported functions must be explicitly defined.
+     * @dev Fallback function that handles forwarding calls to the implementation
+     * and properly manages CCIP-Read reverts.
      */
-    fallback() external payable {
-        revert FunctionNotSupported();
+    fallback() external {
+        bytes memory returnData = _forwardCall(msg.data);
+        assembly {
+            let returnDataSize := mload(returnData)
+            returndatacopy(0, add(returnData, 32), returnDataSize)
+            return(0, returnDataSize)
+        }
     }
 
     /**
