@@ -71,8 +71,64 @@ contract TestETHRegistry is Test, ERC1155Holder {
         
         address nonRenewer = makeAddr("nonRenewer");
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), registry.ROLE_RENEW(), nonRenewer));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), registry.ROLE_RENEW(), nonRenewer));
         vm.prank(nonRenewer);
+        registry.renew(tokenId, uint64(block.timestamp) + 172800);
+    }
+
+    function test_token_specific_renewer_can_renew() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        
+        address tokenRenewer = makeAddr("tokenRenewer");
+        
+        // Grant the RENEW role specifically for this token
+        registry.grantRoles(registry.tokenIdResource(tokenId), registry.ROLE_RENEW(), tokenRenewer);
+        
+        // Verify the role was granted
+        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), registry.ROLE_RENEW(), tokenRenewer));
+        
+        // This user doesn't have the ROOT_RESOURCE ROLE_RENEW
+        assertFalse(registry.hasRoles(registry.ROOT_RESOURCE(), registry.ROLE_RENEW(), tokenRenewer));
+        
+        // But should still be able to renew this specific token
+        vm.prank(tokenRenewer);
+        uint64 newExpiry = uint64(block.timestamp) + 172800;
+        registry.renew(tokenId, newExpiry);
+        
+        uint64 expiry = registry.nameData(tokenId);
+        assertEq(expiry, newExpiry);
+    }
+
+    function test_token_owner_can_renew_if_granted_role() public {
+        // Register a token with specific roles including ROLE_RENEW
+        uint256 roleBitmap = defaultRoleBitmap | registry.ROLE_RENEW();
+        uint256 tokenId = registry.register("test2", user1, registry, address(0), roleBitmap, uint64(block.timestamp) + 86400);
+        
+        // Verify the owner has the RENEW role for this token
+        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), registry.ROLE_RENEW(), user1));
+        
+        // Owner should be able to renew their own token
+        vm.prank(user1);
+        uint64 newExpiry = uint64(block.timestamp) + 172800;
+        registry.renew(tokenId, newExpiry);
+        
+        uint64 expiry = registry.nameData(tokenId);
+        assertEq(expiry, newExpiry);
+    }
+
+    function test_Revert_owner_cannot_renew_without_role() public {
+        // First create a user without global renew permissions
+        address tokenOwner = makeAddr("tokenOwner");
+        
+        // Register a token with NO roles granted to the owner
+        uint256 tokenId = registry.register("test2", tokenOwner, registry, address(0), noRolesRoleBitmap, uint64(block.timestamp) + 86400);
+        
+        // Verify the owner doesn't have the RENEW role for this token (this is the intent of the test)
+        assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), registry.ROLE_RENEW(), tokenOwner));
+        
+        // Owner should not be able to renew without the role
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), registry.ROLE_RENEW(), tokenOwner));
+        vm.prank(tokenOwner);
         registry.renew(tokenId, uint64(block.timestamp) + 172800);
     }
 

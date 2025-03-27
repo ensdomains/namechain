@@ -96,7 +96,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         emit TokenObserverSet(tokenId, _observer);
     }
 
-    function renew(uint256 tokenId, uint64 expires) public onlyRootRoles(ROLE_RENEW) {
+    function renew(uint256 tokenId, uint64 expires) public onlyRoles(tokenIdResource(tokenId), ROLE_RENEW) {
         (address subregistry, uint64 oldExpiration) = datastore.getSubregistry(tokenId);
         if (oldExpiration < block.timestamp) {
             revert NameExpired(tokenId);
