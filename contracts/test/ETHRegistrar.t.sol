@@ -104,7 +104,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             SECRET, 
             address(registry),
             address(0), // resolver
-            0, 
             REGISTRATION_DURATION
         );
         registrar.commit(commitment);
@@ -117,7 +116,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             SECRET,
             registry,
             address(0), // resolver
-            0, 
             REGISTRATION_DURATION
         );
         
@@ -139,10 +137,9 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         bytes32 secret = bytes32(uint256(1));
         address subregistry = address(registry);
         address resolver = address(0);
-        uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         
-        bytes32 commitment = registrar.makeCommitment(name, owner, secret, subregistry, resolver, flags, duration);
+        bytes32 commitment = registrar.makeCommitment(name, owner, secret, subregistry, resolver, duration);
         
         bytes32 expectedCommitment = keccak256(
             abi.encode(
@@ -151,7 +148,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
                 secret,
                 subregistry,
                 resolver,
-                flags,
                 duration
             )
         );
@@ -167,7 +163,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             bytes32(0), 
             address(registry),
             address(0), // resolver
-            0, 
             REGISTRATION_DURATION
         );
         
@@ -197,7 +192,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             bytes32(0), 
             address(registry),
             address(0), // resolver
-            0, 
             REGISTRATION_DURATION
         );
         
@@ -212,7 +206,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         string memory name = "testname";
         address owner = address(this);
         address resolver = address(0);
-        uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         bytes32 secret = SECRET;
         
@@ -223,7 +216,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         registrar.commit(commitment);
@@ -241,7 +233,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret,
             registry,
             resolver,
-            flags, 
             duration
         );
         
@@ -249,14 +240,14 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         assertEq(registry.ownerOf(tokenId), owner);
         
         // Verify expiry
-        (uint64 expiry, ) = registry.nameData(tokenId);
+        uint64 expiry = registry.nameData(tokenId);
         assertEq(expiry, uint64(block.timestamp) + duration);
         
         // Check for NameRegistered event using the library
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundEvent = EventUtils.checkEvent(
             entries,
-            keccak256("NameRegistered(string,address,address,address,uint96,uint64,uint256)")
+            keccak256("NameRegistered(string,address,address,address,uint64,uint256)")
         );
         
         assertTrue(foundEvent, "NameRegistered event not emitted");
@@ -266,7 +257,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         string memory name = "testname";
         address owner = address(this);
         address resolver = address(0);
-        uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         bytes32 secret = SECRET;
         
@@ -276,7 +266,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         registrar.commit(commitment);
@@ -289,7 +278,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret,
             registry,
             resolver,
-            flags, 
             duration
         );
 
@@ -301,7 +289,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         string memory name = "testname";
         address owner = address(this);
         address resolver = address(0);
-        uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         bytes32 secret = SECRET;
         
@@ -312,7 +299,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         registrar.commit(commitment);
@@ -329,7 +315,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret,
             registry,
             resolver,
-            flags, 
             duration
         );
     }
@@ -338,7 +323,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         string memory name = "testname";
         address owner = address(this);
         address resolver = address(0);
-        uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         bytes32 secret = SECRET;
         
@@ -349,7 +333,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         registrar.commit(commitment);
@@ -361,7 +344,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.CommitmentTooNew.selector, expectedCommitment, block.timestamp + MIN_COMMITMENT_AGE, block.timestamp));
@@ -371,7 +353,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret,
             registry,
             resolver,
-            flags, 
             duration
         );
     }
@@ -380,7 +361,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         string memory name = "testname";
         address owner = address(this);
         address resolver = address(0);
-        uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         bytes32 secret = SECRET;
         
@@ -391,7 +371,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         registrar.commit(commitment);
@@ -406,7 +385,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.CommitmentTooOld.selector, expectedCommitment, block.timestamp - 1, block.timestamp));
@@ -416,7 +394,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret,
             registry,
             resolver,
-            flags, 
             duration
         );
     }
@@ -425,7 +402,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         string memory name = "testname";
         address owner = address(this);
         address resolver = address(0);
-        uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         bytes32 secret = SECRET;
         
@@ -436,7 +412,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         registrar.commit(commitment);
@@ -447,7 +422,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret,
             registry,
             resolver,
-            flags, 
             duration
         );
         
@@ -462,7 +436,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret2, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         registrar.commit(commitment2);
@@ -478,7 +451,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret2,
             registry,
             resolver,
-            flags, 
             duration
         );
         vm.stopPrank();
@@ -488,7 +460,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         string memory name = "testname";
         address owner = address(this);
         address resolver = address(0);
-        uint96 flags = 0;
         uint64 duration = 1 days; // Too short
         bytes32 secret = SECRET;
         
@@ -499,7 +470,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         registrar.commit(commitment);
@@ -515,7 +485,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret,
             registry,
             resolver,
-            flags, 
             duration
         );
     }
@@ -524,7 +493,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         string memory name = "testname";
         address owner = address(this);
         address resolver = address(0);
-        uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         bytes32 secret = SECRET;
         
@@ -535,7 +503,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         registrar.commit(commitment);
@@ -546,12 +513,11 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret,
             registry,
             resolver,
-            flags, 
             duration
         );
         
         // Get initial expiry
-        (uint64 initialExpiry, ) = registry.nameData(tokenId);
+        uint64 initialExpiry = registry.nameData(tokenId);
         
         // Renew the name
         uint64 renewalDuration = 180 days;
@@ -562,7 +528,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.renew{value: BASE_PRICE + PREMIUM_PRICE}(name, renewalDuration);
         
         // Verify new expiry
-        (uint64 newExpiry, ) = registry.nameData(tokenId);
+        uint64 newExpiry = registry.nameData(tokenId);
         assertEq(newExpiry, initialExpiry + renewalDuration);
         
         // Check for NameRenewed event using the library
@@ -579,7 +545,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         string memory name = "testname";
         address owner = address(this);
         address resolver = address(0);
-        uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         bytes32 secret = SECRET;
         
@@ -590,7 +555,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         registrar.commit(commitment);
@@ -601,7 +565,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret,
             registry,
             resolver,
-            flags, 
             duration
         );
         
@@ -625,7 +588,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         string memory name = "testname";
         address owner = address(this);
         address resolver = address(0);
-        uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         bytes32 secret = SECRET;
         
@@ -636,7 +598,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         registrar.commit(commitment);
@@ -655,7 +616,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret,
             registry,
             resolver,
-            flags, 
             duration
         );
         
@@ -667,7 +627,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         string memory name = "testname";
         address owner = address(this);
         address resolver = address(0);
-        uint96 flags = 0;
         uint64 duration = REGISTRATION_DURATION;
         bytes32 secret = SECRET;
         
@@ -678,7 +637,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret, 
             address(registry),
             resolver,
-            flags, 
             duration
         );
         registrar.commit(commitment);
@@ -689,7 +647,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             secret,
             registry,
             resolver,
-            flags, 
             duration
         );
         

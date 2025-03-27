@@ -31,7 +31,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     function test_registry_metadata_base_uri() public {
         uint256 tokenId = uint256(keccak256(bytes("sub")));
 
-        registry.register("sub", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
+        registry.register("sub", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
 
         assertEq(registry.uri(tokenId), "");
         
@@ -46,8 +46,8 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         uint256 tokenId1 = uint256(keccak256(bytes("sub1")));
         uint256 tokenId2 = uint256(keccak256(bytes("sub2")));
 
-        registry.register("sub1", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
-        registry.register("sub2", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
+        registry.register("sub1", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
+        registry.register("sub2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
 
         metadata.setTokenBaseUri(expectedUri);
 
@@ -62,7 +62,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         string memory updatedUri = "ipfs://updated/{id}";
         uint256 tokenId = uint256(keccak256(bytes("sub")));
 
-        registry.register("sub", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
+        registry.register("sub", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
         
         metadata.setTokenBaseUri(initialUri);
         assertEq(metadata.tokenUri(tokenId), initialUri);
@@ -84,4 +84,10 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         assertEq(metadata.supportsInterface(type(EnhancedAccessControl).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
+
+    // Role bitmaps for different permission configurations
+    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
+    uint256 constant ROLE_SET_RESOLVER = 1 << 3;
+    uint256 constant ROLE_SET_FLAGS = 1 << 4;
+    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
 } 

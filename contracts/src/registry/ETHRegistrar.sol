@@ -65,7 +65,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
      */
     function available(string calldata name) external view returns (bool) {
         uint256 tokenId = NameUtils.labelToTokenId(name);
-        (uint64 expiry, ) = registry.nameData(tokenId);
+        uint64 expiry = registry.nameData(tokenId);
         return expiry < block.timestamp;
     }
 
@@ -77,7 +77,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
      * @return price The price to register or renew the name.
      */ 
     function rentPrice(string memory name, uint256 duration) public view override returns (IPriceOracle.Price memory price) {
-        (uint96 expiry, ) = registry.nameData(NameUtils.labelToTokenId(name));
+        uint64 expiry = registry.nameData(NameUtils.labelToTokenId(name));
         price = prices.price(name, uint256(expiry), duration);
     }    
 
@@ -89,7 +89,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
      * @param secret The secret of the name.
      * @param subregistry The registry to use for the commitment.
      * @param resolver The resolver to use for the commitment.
-     * @param flags The flags to use for the commitment.
      * @param duration The duration of the commitment.
      * @return The commitment.
      */
@@ -99,7 +98,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         bytes32 secret,
         address subregistry,
         address resolver,
-        uint96 flags,
         uint64 duration
     ) public pure override returns (bytes32) {        
         return
@@ -110,7 +108,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
                     secret,
                     subregistry,
                     resolver,
-                    flags,
                     duration
                 )
             );
@@ -138,7 +135,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
      * @param secret The secret of the name.
      * @param subregistry The subregistry to register the name in.
      * @param resolver The resolver to use for the registration.
-     * @param flags The flags to set on the name.   
      * @param duration The duration of the registration.
      * @return tokenId The token ID of the registered name.
      */
@@ -148,20 +144,20 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         bytes32 secret,
         IRegistry subregistry,
         address resolver,
-        uint96 flags,
         uint64 duration
     ) external payable returns (uint256 tokenId) {
         uint256 totalPrice = checkPrice(name, duration);
 
-        _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, flags, duration));
+        _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
 
-        tokenId = registry.register(name, owner, subregistry, resolver, flags, ALL_ROLES, uint64(block.timestamp) + duration);
+        uint64 expiry = uint64(block.timestamp) + duration;
+        tokenId = registry.register(name, owner, subregistry, resolver, ALL_ROLES, expiry);
 
         if (msg.value > totalPrice) {
             payable(msg.sender).transfer(msg.value - totalPrice);
         }
 
-        emit NameRegistered(name, owner, subregistry, resolver, flags, duration, tokenId);
+        emit NameRegistered(name, owner, subregistry, resolver, duration, tokenId);
     }
 
     /**
@@ -178,7 +174,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
         uint256 tokenId = NameUtils.labelToTokenId(name);
 
-        (uint64 expiry, ) = registry.nameData(tokenId);
+        uint64 expiry = registry.nameData(tokenId);
 
         registry.renew(tokenId, expiry + duration);
 
@@ -186,7 +182,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             payable(msg.sender).transfer(msg.value - totalPrice);
         }
 
-        (uint64 newExpiry, ) = registry.nameData(tokenId);
+        uint64 newExpiry = registry.nameData(tokenId);
 
         emit NameRenewed(name, duration, tokenId, newExpiry);
     }

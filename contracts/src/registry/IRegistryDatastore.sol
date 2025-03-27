@@ -9,16 +9,16 @@ pragma solidity >=0.8.13;
  *      means that two labelHashes that differ only in the least-significant 32 bits will resolve to the same name.
  */
 interface IRegistryDatastore {
-    event SubregistryUpdate(address indexed registry, uint256 indexed labelHash, address subregistry, uint96 flags);
-    event ResolverUpdate(address indexed registry, uint256 indexed labelHash, address resolver, uint96 flags);
+    event SubregistryUpdate(address indexed registry, uint256 indexed labelHash, address subregistry, uint64 expiry);
+    event ResolverUpdate(address indexed registry, uint256 indexed labelHash, address resolver, uint64 expiry);
 
     function getSubregistry(address registry, uint256 labelHash)
         external
         view
-        returns (address subregistry, uint96 flags);
-    function getSubregistry(uint256 labelHash) external view returns (address subregistry, uint96 flags);
-    function getResolver(address registry, uint256 labelHash) external view returns (address resolver, uint96 flags);
-    function getResolver(uint256 labelHash) external view returns (address resolver, uint96 flags);
-    function setSubregistry(uint256 labelHash, address subregistry, uint96 flags) external;
-    function setResolver(uint256 labelHash, address resolver, uint96 flags) external;
+        returns (address subregistry, uint64 expiry);
+    function getSubregistry(uint256 labelHash) external view returns (address subregistry, uint64 expiry);
+    function getResolver(address registry, uint256 labelHash) external view returns (address resolver, uint64 expiry);
+    function getResolver(uint256 labelHash) external view returns (address resolver, uint64 expiry);
+    function setSubregistry(uint256 labelHash, address subregistry, uint64 expiry) external;
+    function setResolver(uint256 labelHash, address resolver, uint64 expiry) external;
 }

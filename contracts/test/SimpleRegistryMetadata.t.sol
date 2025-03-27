@@ -19,6 +19,11 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     PermissionedRegistry registry;
     SimpleRegistryMetadata metadata;
 
+    // Role bitmaps for different permission configurations
+    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
+    uint256 constant ROLE_SET_RESOLVER = 1 << 3;
+    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
+
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
@@ -29,7 +34,7 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     }
 
     function test_registry_metadata_token_uri() public {
-        uint256 tokenId = registry.register("test", address(this), registry, address(0), 0, 0, uint64(block.timestamp + 1000));
+        uint256 tokenId = registry.register("test", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
 
         assertEq(registry.uri(tokenId), "");
 

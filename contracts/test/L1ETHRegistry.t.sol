@@ -30,7 +30,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
 
     function test_eject_from_namechain_unlocked() public {
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 86400);
         
         // Check that we received a valid token
         assertEq(registry.ownerOf(tokenId), address(this));
@@ -38,7 +38,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
 
     function test_eject_from_namechain_basic() public {
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 86400);
         
         // Verify owner is set correctly
         assertEq(registry.ownerOf(tokenId), address(this));
@@ -51,7 +51,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         vm.recordLogs();
         
         vm.prank(address(ejectionController));
-        registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 86400);
+        registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 86400);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         // There are 3 events: TransferSingle, onERC1155Received callback, SubregistryUpdate, NameEjected
@@ -70,14 +70,14 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         address nonController = address(0x1234);
         vm.startPrank(nonController);
         vm.expectRevert(L1ETHRegistry.OnlyEjectionController.selector);
-        registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 86400);
+        registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 86400);
         vm.stopPrank();
     }
 
     function test_updateExpiration() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
         
@@ -85,14 +85,14 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         vm.prank(address(ejectionController));
         registry.updateExpiration(tokenId, newExpiry);
 
-        (uint64 expiry,) = registry.nameData(tokenId);
+        uint64 expiry = registry.nameData(tokenId);
         assertEq(expiry, newExpiry);
     }
 
     function test_updateExpiration_emits_event() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
 
@@ -116,7 +116,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_Revert_updateExpiration_expired_name() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
         
         vm.warp(block.timestamp + 101);
 
@@ -128,7 +128,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_Revert_updateExpiration_reduce_expiry() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 200);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 200);
         
         uint64 newExpiry = uint64(block.timestamp) + 100;
 
@@ -144,7 +144,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_Revert_updateExpiration_if_not_controller() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
         
@@ -158,7 +158,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_migrateToNamechain() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 86400);
 
         vm.recordLogs();
         registry.migrateToNamechain(tokenId, address(1), address(0), "");
@@ -179,7 +179,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_Revert_migrateToNamechain_if_not_owner() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(1), registry, 0, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(1), registry, uint64(block.timestamp) + 86400);
 
         vm.prank(address(2));
         vm.expectRevert(abi.encodeWithSelector(BaseRegistry.AccessDenied.selector, tokenId, address(1), address(2)));
@@ -189,7 +189,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_expired_name_has_no_owner() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
         
         vm.warp(block.timestamp + 101);
         assertEq(registry.ownerOf(tokenId), address(0));
@@ -198,7 +198,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_expired_name_can_be_reejected() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
         
         // Warp past expiration
         vm.warp(block.timestamp + 101);
@@ -214,7 +214,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         
         // Re-eject the name with a new owner
         vm.prank(address(ejectionController));
-        uint256 newTokenId = registry.ejectFromNamechain(labelHash, address(1), registry, 0, uint64(block.timestamp) + 100);
+        uint256 newTokenId = registry.ejectFromNamechain(labelHash, address(1), registry, uint64(block.timestamp) + 100);
         
         // Verify token IDs match
         assertEq(newTokenId, tokenId);
@@ -237,7 +237,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_expired_name_returns_zero_subregistry() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
         
         vm.warp(block.timestamp + 101);
         assertEq(address(registry.getSubregistry("test")), address(0));
@@ -246,7 +246,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_expired_name_returns_zero_resolver() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
         registry.setResolver(tokenId, address(0x5678));
 
         // Before expiry, returns the set resolver
@@ -321,7 +321,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_migrateToNamechain_basic() public {
         // Eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
 
         // Migrate back to Namechain
         registry.migrateToNamechain(tokenId, address(1), address(0), "");
@@ -333,14 +333,14 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
 
     function test_Revert_eject_active_name() public {
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
 
         // Try to eject the same name again before it expires
         vm.prank(address(ejectionController));
         vm.expectRevert(
             abi.encodeWithSelector(L1ETHRegistry.NameNotExpired.selector, tokenId, uint64(block.timestamp) + 100)
         );
-        registry.ejectFromNamechain(labelHash, address(1), registry, 0, uint64(block.timestamp) + 200);
+        registry.ejectFromNamechain(labelHash, address(1), registry, uint64(block.timestamp) + 200);
 
         // Original owner should still own the name
         assertEq(registry.ownerOf(tokenId), address(this));
@@ -349,7 +349,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_migrateToNamechain_calls_controller() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
         address l2Owner = address(0x1234);
         address l2Subregistry = address(0x5678);
         bytes memory data = hex"deadbeef";
@@ -374,7 +374,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_ejection_controller_sync_renewal() public {
         // First eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
         
         // Create a new controller to specifically test the syncRenewalFromL2 flow
         MockEjectionController newController = new MockEjectionController();
@@ -389,7 +389,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         newController.triggerSyncRenewalFromL2(registry, tokenId, newExpiry);
         
         // Verify expiry was updated
-        (uint64 expiry,) = registry.nameData(tokenId);
+        uint64 expiry = registry.nameData(tokenId);
         assertEq(expiry, newExpiry);
     }
 
@@ -407,13 +407,12 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
 
         // Eject the name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash_, owner, IRegistry(registryAddr), 0, expires);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash_, owner, IRegistry(registryAddr), expires);
 
         // Verify all details
         assertEq(registry.ownerOf(tokenId), owner);
-        (uint64 storedExpiry, uint32 storedFlags) = registry.nameData(tokenId);
+        uint64 storedExpiry = registry.nameData(tokenId);
         assertEq(storedExpiry, expires);
-        assertEq(storedFlags, 0);
         assertEq(address(registry.getSubregistry("ejected")), registryAddr);
 
         // Give owner the ability to set resolver
@@ -440,7 +439,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_set_resolver() public {
         // Eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
 
         // Grant ourselves the resolver-setting privileges
         uint256 ROLE_SET_RESOLVER = 1 << 3;           // Regular role
@@ -463,7 +462,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_set_subregistry() public {
         // Eject a name
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, 0, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 100);
 
         // Grant ourselves the subregistry-setting privileges
         uint256 ROLE_SET_SUBREGISTRY = 1 << 2;           // Regular role

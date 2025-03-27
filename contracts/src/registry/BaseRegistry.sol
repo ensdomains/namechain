@@ -16,8 +16,6 @@ import {NameUtils} from "../utils/NameUtils.sol";
 
 abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     error AccessDenied(uint256 tokenId, address owner, address caller);
-    error InvalidSubregistryFlags(uint256 tokenId, uint96 flags, uint96 expected);
-    error InvalidResolverFlags(uint256 tokenId, uint96 flags, uint96 expected);
 
     IRegistryDatastore public datastore;
 
@@ -29,22 +27,6 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
         address owner = ownerOf(tokenId);
         if (owner != msg.sender) {
             revert AccessDenied(tokenId, owner, msg.sender);
-        }
-        _;
-    }
-
-    modifier withSubregistryFlags(uint256 tokenId, uint96 mask, uint96 expected) {
-        (, uint96 flags) = datastore.getSubregistry(tokenId);
-        if (flags & mask != expected) {
-            revert InvalidSubregistryFlags(tokenId, flags & mask, expected);
-        }
-        _;
-    }
-
-    modifier withResolverFlags(uint256 tokenId, uint96 mask, uint96 expected) {
-        (, uint96 flags) = datastore.getResolver(tokenId);
-        if (flags & mask != expected) {
-            revert InvalidResolverFlags(tokenId, flags & mask, expected);
         }
         _;
     }

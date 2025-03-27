@@ -62,20 +62,16 @@ contract L1ETHRegistry is PermissionedRegistry {
      * @param tokenId The token ID of the name
      * @param owner The owner of the name
      * @param registry The registry to use for the name
-     * @param flags The base flags
      * @param expires Expiration timestamp
      * @return tokenId The token ID of the ejected name
      */
-    function ejectFromNamechain(uint256 tokenId, address owner, IRegistry registry, uint32 flags, uint64 expires)
+    function ejectFromNamechain(uint256 tokenId, address owner, IRegistry registry, uint64 expires)
         public
         onlyEjectionController
         returns (uint256)
     {
-        uint96 fullFlags = _computeFlags(uint96(flags), expires);
-
         // Check if the name is active (not expired)
-        (, uint96 oldFlags) = datastore.getSubregistry(tokenId);
-        uint64 oldExpires = _extractExpiry(oldFlags);
+        (, uint64 oldExpires) = datastore.getSubregistry(tokenId);
         if (oldExpires >= block.timestamp) {
             revert NameNotExpired(tokenId, oldExpires);
         }
@@ -88,7 +84,7 @@ contract L1ETHRegistry is PermissionedRegistry {
         }
 
         _mint(owner, tokenId, 1, "");
-        datastore.setSubregistry(tokenId, address(registry), fullFlags);
+        datastore.setSubregistry(tokenId, address(registry), expires);
         emit NameEjected(tokenId, owner, expires);
         return tokenId;
     }
@@ -104,8 +100,7 @@ contract L1ETHRegistry is PermissionedRegistry {
         public 
         onlyEjectionController
     {
-        (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
-        uint64 oldExpiration = _extractExpiry(flags);
+        (address subregistry, uint64 oldExpiration) = datastore.getSubregistry(tokenId);
         
         if (oldExpiration < block.timestamp) {
             revert NameExpired(tokenId);
@@ -115,7 +110,7 @@ contract L1ETHRegistry is PermissionedRegistry {
             revert CannotReduceExpiration(oldExpiration, expires);
         }
         
-        datastore.setSubregistry(tokenId, subregistry, _computeFlags(flags & FLAGS_MASK, expires));
+        datastore.setSubregistry(tokenId, subregistry, expires);
         
         emit NameRenewed(tokenId, expires, msg.sender);
     }
