@@ -29,10 +29,8 @@ export async function deployEnsFixture() {
     accounts[0].address,
     ethRegistry.address,
     zeroAddress,
-    0n,
     ALL_ROLES,
-    MAX_EXPIRY,
-    "https://example.com/"
+    MAX_EXPIRY
   ])
 
   return {
@@ -94,6 +92,6 @@ export const registerName = async ({
   ]);
   const owner =
     owner_ ?? (await hre.viem.getWalletClients())[0].account.address;
-  const flags = (subregistryLocked ? 1n : 0n) | (resolverLocked ? 2n : 0n);
-  return ethRegistry.write.register([label, owner, subregistry, resolver, flags, ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER, expiry]);
+  const roles = (subregistryLocked ? 0n : ROLE_SET_RESOLVER) | (resolverLocked ? 0n : ROLE_SET_RESOLVER);
+  return ethRegistry.write.register([label, owner, subregistry, resolver, roles, expiry]);
 };
