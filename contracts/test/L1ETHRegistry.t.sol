@@ -12,6 +12,13 @@ import "../src/registry/IRegistry.sol";
 import "../src/registry/IPermissionedRegistry.sol";
 import "../src/controller/IL1EjectionController.sol";
 import "../src/registry/EnhancedAccessControl.sol";
+import "../src/registry/IRegistryMetadata.sol";
+
+contract MockRegistryMetadata is IRegistryMetadata {
+    function tokenUri(uint256) external pure override returns (string memory) {
+        return "";
+    }
+}
 
 contract TestL1ETHRegistry is Test, ERC1155Holder {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
@@ -19,13 +26,15 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     RegistryDatastore datastore;
     L1ETHRegistry registry;
     MockEjectionController ejectionController;
+    MockRegistryMetadata registryMetadata;
 
     uint256 labelHash = uint256(keccak256("test"));
 
     function setUp() public {
         datastore = new RegistryDatastore();
         ejectionController = new MockEjectionController();
-        registry = new L1ETHRegistry(datastore, address(ejectionController));
+        registryMetadata = new MockRegistryMetadata();
+        registry = new L1ETHRegistry(datastore, address(ejectionController), registryMetadata);
     }
 
     function test_eject_from_namechain_unlocked() public {
