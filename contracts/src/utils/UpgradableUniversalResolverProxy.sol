@@ -5,9 +5,6 @@ import "@openzeppelin/contracts/utils/StorageSlot.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-// UR Imports
-import {UniversalResolver as UniversalResolverV1} from "ens-contracts/universalResolver/UniversalResolver.sol";
-
 // CCIP-Read Imports
 import {EIP3668, OffchainLookup} from "ens-contracts/ccipRead/EIP3668.sol";
 import {BytesUtils} from "ens-contracts/utils/BytesUtils.sol";

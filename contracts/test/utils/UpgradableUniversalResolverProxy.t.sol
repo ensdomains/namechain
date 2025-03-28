@@ -10,7 +10,7 @@ import {ENS} from "ens-contracts/registry/ENS.sol";
 import {EIP3668, OffchainLookup} from "ens-contracts/ccipRead/EIP3668.sol";
 
 import {IUniversalResolver as IUniversalResolverV1} from "ens-contracts/universalResolver/IUniversalResolver.sol";
-import {UniversalResolver as UniversalResolverV1} from "ens-contracts/universalResolver/UniversalResolver.sol";
+import {UniversalResolver as UniversalResolverV1} from "./mocks/MockUniversalResolverV1.sol";
 import {UniversalResolver as UniversalResolverV2} from "../../src/utils/UniversalResolver.sol";
 import {IRegistry} from "../../src/registry/IRegistry.sol";
 
