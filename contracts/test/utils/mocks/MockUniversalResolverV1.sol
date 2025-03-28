@@ -4,17 +4,17 @@ pragma solidity ^0.8.17;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import {IUniversalResolver} from "ens-contracts/universalResolver/IUniversalResolver.sol";
-import {CCIPBatcher} from "ens-contracts/ccipRead/CCIPBatcher.sol";
-import {ENS} from "ens-contracts/registry/ENS.sol";
-import {IExtendedResolver} from "ens-contracts/resolvers/profiles/IExtendedResolver.sol";
-import {INameResolver} from "ens-contracts/resolvers/profiles/INameResolver.sol";
-import {IAddrResolver} from "ens-contracts/resolvers/profiles/IAddrResolver.sol";
-import {IAddressResolver} from "ens-contracts/resolvers/profiles/IAddressResolver.sol";
-import {IMulticallable} from "ens-contracts/resolvers/IMulticallable.sol";
-import {NameCoder} from "ens-contracts/utils/NameCoder.sol";
-import {BytesUtils} from "ens-contracts/utils/BytesUtils.sol";
-import {ENSIP19, COIN_TYPE_ETH} from "ens-contracts/utils/ENSIP19.sol";
+import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
+import {CCIPBatcher} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
+import {ENS} from "@ens/contracts/registry/ENS.sol";
+import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
+import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
+import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
+import {ENSIP19, COIN_TYPE_ETH} from "@ens/contracts/utils/ENSIP19.sol";
 
 contract UniversalResolver is IUniversalResolver, CCIPBatcher, Ownable, ERC165 {
     ENS public immutable registry;

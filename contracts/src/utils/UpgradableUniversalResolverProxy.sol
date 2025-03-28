@@ -6,8 +6,8 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 // CCIP-Read Imports
-import {EIP3668, OffchainLookup} from "ens-contracts/ccipRead/EIP3668.sol";
-import {BytesUtils} from "ens-contracts/utils/BytesUtils.sol";
+import {EIP3668, OffchainLookup} from "@ens/contracts/ccipRead/EIP3668.sol";
+import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
 /**
  * @title UpgradableUniversalResolverProxy
