@@ -30,6 +30,9 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
     uint256 public constant ROLE_SET_RESOLVER = 1 << 3;
     uint256 public constant ROLE_SET_RESOLVER_ADMIN = ROLE_SET_RESOLVER << 128;
 
+    uint256 public constant ROLE_SET_TOKEN_OBSERVER = 1 << 4;
+    uint256 public constant ROLE_SET_TOKEN_OBSERVER_ADMIN = ROLE_SET_TOKEN_OBSERVER << 128;
+
     uint256 public constant MAX_EXPIRY = type(uint64).max;
 
     constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
@@ -91,7 +94,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         return tokenId;
     }
 
-    function setTokenObserver(uint256 tokenId, address _observer) external onlyTokenOwner(tokenId) {
+    function setTokenObserver(uint256 tokenId, address _observer) external onlyRoles(tokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER) {
         tokenObservers[tokenId] = _observer;
         emit TokenObserverSet(tokenId, _observer);
     }

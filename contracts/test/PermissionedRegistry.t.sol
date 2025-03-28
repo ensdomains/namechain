@@ -16,7 +16,7 @@ import "../src/registry/ETHRegistrar.sol";
 import "../src/registry/IPriceOracle.sol";
 
 
-contract TestETHRegistry is Test, ERC1155Holder {
+contract TestPermissionedRegistry is Test, ERC1155Holder {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
 
     RegistryDatastore datastore;
@@ -30,10 +30,10 @@ contract TestETHRegistry is Test, ERC1155Holder {
     // Role bitmaps for different permission configurations
     uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
     uint256 constant ROLE_SET_RESOLVER = 1 << 3;
-    uint256 constant ROLE_SET_FLAGS = 1 << 4;
-    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER | ROLE_SET_FLAGS;
-    uint256 constant lockedResolverRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_FLAGS;
-    uint256 constant lockedSubregistryRoleBitmap = ROLE_SET_RESOLVER | ROLE_SET_FLAGS;
+    uint256 constant ROLE_SET_TOKEN_OBSERVER = 1 << 4;
+    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER | ROLE_SET_TOKEN_OBSERVER;
+    uint256 constant lockedResolverRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_TOKEN_OBSERVER;
+    uint256 constant lockedSubregistryRoleBitmap = ROLE_SET_RESOLVER | ROLE_SET_TOKEN_OBSERVER;
     uint256 constant noRolesRoleBitmap = 0;
     
     // Flag constants - remove since flags were removed
@@ -380,12 +380,62 @@ contract TestETHRegistry is Test, ERC1155Holder {
         assertEq(observer.wasRelinquished(), true);
     }
 
-    function test_Revert_set_token_observer_if_not_owner() public {
-        uint256 tokenId = registry.register("test2", address(1), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
+    function test_Revert_set_token_observer_if_not_owner_with_role() public {
+        // Register a token with a specific owner
+        address tokenOwner = address(1);
+        uint256 tokenId = registry.register("test2", tokenOwner, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
         
-        vm.prank(address(2));
-        vm.expectRevert(abi.encodeWithSelector(BaseRegistry.AccessDenied.selector, tokenId, address(1), address(2)));
+        // Create a user who is not the owner and has no roles
+        address randomUser = address(2);
+        assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, randomUser));
+        assertNotEq(registry.ownerOf(tokenId), randomUser);
+        
+        // When this user tries to set the token observer, it should revert
+        vm.startPrank(randomUser);
+        vm.expectRevert(abi.encodeWithSelector(
+            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            registry.tokenIdResource(tokenId),
+            ROLE_SET_TOKEN_OBSERVER,
+            randomUser
+        ));
         registry.setTokenObserver(tokenId, address(observer));
+        vm.stopPrank();
+    }
+
+    function test_token_owner_without_role_cannot_set_observer() public {
+        // Register a token with NO token observer role
+        uint256 roleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER; // Explicitly exclude ROLE_SET_TOKEN_OBSERVER
+        uint256 tokenId = registry.register("test2", user1, registry, address(0), roleBitmap, uint64(block.timestamp) + 86400);
+        
+        // Verify the owner doesn't have the SET_TOKEN_OBSERVER role
+        assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, user1));
+        
+        // Owner should not be able to set token observer without the role
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, user1));
+        vm.prank(user1);
+        registry.setTokenObserver(tokenId, address(observer));
+    }
+
+    function test_non_owner_with_role_can_set_observer() public {
+        uint256 tokenId = registry.register("test2", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        
+        address tokenObserverSetter = makeAddr("tokenObserverSetter");
+        
+        // Grant the SET_TOKEN_OBSERVER role specifically for this token to a non-owner
+        registry.grantRoles(registry.tokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, tokenObserverSetter);
+        
+        // Verify the role was granted
+        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, tokenObserverSetter));
+        
+        // The non-owner with role should be able to set the token observer
+        vm.prank(tokenObserverSetter);
+        registry.setTokenObserver(tokenId, address(observer));
+        
+        // Verify observer was set
+        vm.prank(user1);
+        registry.relinquish(tokenId);
+        assertEq(observer.lastTokenId(), tokenId);
+        assertEq(observer.wasRelinquished(), true);
     }
 
     function test_Revert_renew_when_token_observer_reverts() public {
