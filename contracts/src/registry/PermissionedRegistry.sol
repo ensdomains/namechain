@@ -86,7 +86,6 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         address previousOwner = super.ownerOf(tokenId);
         if (previousOwner != address(0)) {
             _burn(previousOwner, tokenId, 1);
-            _resetTokenAccessControl(tokenId);
         }
 
         _mint(owner, tokenId, 1, "");
@@ -203,18 +202,8 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         super._update(from, to, ids, values);
         // invalidate access control resources for the transferred tokens
         for (uint256 i = 0; i < ids.length; i++) {
-            _resetTokenAccessControl(ids[i]);
+            tokenIdResourceVersion[ids[i]]++;
         }
-    }
-
-    /**
-     * @dev Resets the access control resource version for a given token ID.
-     *      This will invalidate all previous access control resources for a given token ID.
-     *
-     * @param tokenId The token ID of the name.
-     */
-    function _resetTokenAccessControl(uint256 tokenId) internal {
-        tokenIdResourceVersion[tokenId]++;
     }
 }
 
