@@ -19,6 +19,10 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     PermissionedRegistry registry;
     SimpleRegistryMetadata metadata;
 
+    // Hardcoded role constants
+    uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
+    bytes32 constant ROOT_RESOURCE = 0;
+
     // Role bitmaps for different permission configurations
     uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
     uint256 constant ROLE_SET_RESOLVER = 1 << 3;
@@ -48,7 +52,7 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
         uint256 tokenId = NameUtils.labelToTokenId("test");
         string memory expectedUri = "ipfs://test";
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, metadata.ROOT_RESOURCE(), metadata.ROLE_UPDATE_METADATA(), address(1))); 
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_UPDATE_METADATA, address(1))); 
         vm.prank(address(1));
         metadata.setTokenUri(tokenId, expectedUri);
     }

@@ -18,6 +18,10 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     PermissionedRegistry parentRegistry;
     BaseUriRegistryMetadata metadata;
 
+    // Hardcoded role constants
+    uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
+    bytes32 constant ROOT_RESOURCE = 0;
+
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new BaseUriRegistryMetadata();
@@ -74,7 +78,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     function test_registry_metadata_unauthorized() public {
         string memory expectedUri = "ipfs://test/";
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, metadata.ROOT_RESOURCE(), metadata.ROLE_UPDATE_METADATA(), address(1))); 
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_UPDATE_METADATA, address(1))); 
         vm.prank(address(1));
         metadata.setTokenBaseUri(expectedUri);
     }

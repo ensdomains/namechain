@@ -11,14 +11,13 @@ import {NameUtils} from "../utils/NameUtils.sol";
 import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 
 contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
-    uint256 public constant ROLE_SET_PRICE_ORACLE = 1 << 0;
-    uint256 public constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
+    uint256 private constant ROLE_SET_PRICE_ORACLE = 1 << 0;
+    uint256 private constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
     
-    uint256 public constant ROLE_SET_COMMITMENT_AGES = 1 << 1;
-    uint256 public constant ROLE_SET_COMMITMENT_AGES_ADMIN = ROLE_SET_COMMITMENT_AGES << 128;
+    uint256 private constant ROLE_SET_COMMITMENT_AGES = 1 << 1;
+    uint256 private constant ROLE_SET_COMMITMENT_AGES_ADMIN = ROLE_SET_COMMITMENT_AGES << 128;
 
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
-    uint64 private constant MAX_EXPIRY = type(uint64).max;
 
     error MaxCommitmentAgeTooLow();
     error UnexpiredCommitmentExists(bytes32 commitment);

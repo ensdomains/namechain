@@ -21,6 +21,10 @@ contract TestRootRegistry is Test, ERC1155Holder {
     PermissionedRegistry registry;
     SimpleRegistryMetadata metadata;
 
+    // Hardcoded role constants
+    uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
+    uint256 constant ROLE_REGISTRAR = 1 << 0;
+    
     uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
     uint256 constant ROLE_SET_RESOLVER = 1 << 3;
     uint256 constant ROLE_SET_FLAGS = 1 << 4;
@@ -36,7 +40,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
         registry = new PermissionedRegistry(datastore, metadata);
-        metadata.grantRootRoles(metadata.ROLE_UPDATE_METADATA(), address(registry));
+        metadata.grantRootRoles(ROLE_UPDATE_METADATA, address(registry));
     }
 
 
@@ -182,13 +186,13 @@ contract TestRootRegistry is Test, ERC1155Holder {
         
         // First, revoke the REGISTRAR role from the test contract
         // since it was granted in the constructor to the deployer (this test contract)
-        registry.revokeRootRoles(registry.ROLE_REGISTRAR(), address(this));
+        registry.revokeRootRoles(ROLE_REGISTRAR, address(this));
         
         // Verify the test contract no longer has the role
-        assertFalse(registry.hasRoles(registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR(), address(this)));
+        assertFalse(registry.hasRoles(registry.ROOT_RESOURCE(), ROLE_REGISTRAR, address(this)));
         
         // The test should now fail since no one has permission
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR(), unauthorizedCaller));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), ROLE_REGISTRAR, unauthorizedCaller));
         vm.prank(unauthorizedCaller);
         registry.register(label, owner, registry, address(0), defaultRoleBitmap, MAX_EXPIRY);
     }

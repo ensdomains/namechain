@@ -51,6 +51,17 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     uint64 constant REGISTRATION_DURATION = 365 days;
     bytes32 constant SECRET = bytes32(uint256(1234567890));
 
+    // Hardcoded role constants
+    uint256 constant ROLE_REGISTRAR = 1 << 0;
+    uint256 constant ROLE_RENEW = 1 << 1;
+    
+    uint256 constant ROLE_SET_PRICE_ORACLE = 1 << 0;
+    uint256 constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
+    uint256 constant ROLE_SET_COMMITMENT_AGES = 1 << 1;
+    uint256 constant ROLE_SET_COMMITMENT_AGES_ADMIN = ROLE_SET_COMMITMENT_AGES << 128;
+    
+    bytes32 constant ROOT_RESOURCE = 0;
+
     function setUp() public {
         // Set the timestamp to a future date to avoid timestamp related issues
         vm.warp(2_000_000_000);
@@ -61,7 +72,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE);
         
-        registry.grantRootRoles(registry.ROLE_REGISTRAR() | registry.ROLE_RENEW(), address(registrar));
+        registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(registrar));
         
         vm.deal(address(this), 100 ether);
         vm.deal(user1, 100 ether);
@@ -687,14 +698,14 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_Revert_setPriceOracle_notAdmin() public {
         vm.startPrank(user1);
         MockPriceOracle newPriceOracle = new MockPriceOracle(0.02 ether, 0.01 ether);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registrar.ROOT_RESOURCE(), registrar.ROLE_SET_PRICE_ORACLE(), user1));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_PRICE_ORACLE, user1));
         registrar.setPriceOracle(newPriceOracle);
         vm.stopPrank();
     }
 
     function test_Revert_setCommitmentAges_notAdmin() public {
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registrar.ROOT_RESOURCE(), registrar.ROLE_SET_COMMITMENT_AGES(), user1));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES, user1));
         registrar.setCommitmentAges(120, 172800);
         vm.stopPrank();
     }
@@ -702,7 +713,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_roleGranting_priceOracle() public {
         // Grant the price oracle role to user1
         vm.startPrank(address(this));
-        registrar.grantRootRoles(registrar.ROLE_SET_PRICE_ORACLE(), user1);
+        registrar.grantRootRoles(ROLE_SET_PRICE_ORACLE, user1);
         vm.stopPrank();
         
         // Check that user1 can now set the price oracle
@@ -716,7 +727,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_roleGranting_commitmentAges() public {
         // Grant the commitment ages role to user1
         vm.startPrank(address(this));
-        registrar.grantRootRoles(registrar.ROLE_SET_COMMITMENT_AGES(), user1);
+        registrar.grantRootRoles(ROLE_SET_COMMITMENT_AGES, user1);
         vm.stopPrank();
         
         // Check that user1 can now set the commitment ages
@@ -732,12 +743,12 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_roleAdminFunctionality_priceOracle() public {
         // Grant the price oracle admin role to user1
         vm.startPrank(address(this));
-        registrar.grantRootRoles(registrar.ROLE_SET_PRICE_ORACLE_ADMIN(), user1);
+        registrar.grantRootRoles(ROLE_SET_PRICE_ORACLE_ADMIN, user1);
         vm.stopPrank();
         
         // User1 can now grant the price oracle role to user2
         vm.startPrank(user1);
-        registrar.grantRootRoles(registrar.ROLE_SET_PRICE_ORACLE(), user2);
+        registrar.grantRootRoles(ROLE_SET_PRICE_ORACLE, user2);
         vm.stopPrank();
         
         // Check that user2 can now set the price oracle
@@ -751,12 +762,12 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_roleAdminFunctionality_commitmentAges() public {
         // Grant the commitment ages admin role to user1
         vm.startPrank(address(this));
-        registrar.grantRootRoles(registrar.ROLE_SET_COMMITMENT_AGES_ADMIN(), user1);
+        registrar.grantRootRoles(ROLE_SET_COMMITMENT_AGES_ADMIN, user1);
         vm.stopPrank();
         
         // User1 can now grant the commitment ages role to user2
         vm.startPrank(user1);
-        registrar.grantRootRoles(registrar.ROLE_SET_COMMITMENT_AGES(), user2);
+        registrar.grantRootRoles(ROLE_SET_COMMITMENT_AGES, user2);
         vm.stopPrank();
         
         // Check that user2 can now set the commitment ages
@@ -772,12 +783,12 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_roleAdminSeparation_priceOracleAdmin_cannotChangeCommitmentAges() public {
         // First, grant the price oracle admin role to user1 
         vm.startPrank(address(this));
-        registrar.grantRootRoles(registrar.ROLE_SET_PRICE_ORACLE_ADMIN(), user1);
+        registrar.grantRootRoles(ROLE_SET_PRICE_ORACLE_ADMIN, user1);
         vm.stopPrank();
         
         // User1 should not be able to set commitment ages
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registrar.ROOT_RESOURCE(), registrar.ROLE_SET_COMMITMENT_AGES(), user1));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES, user1));
         registrar.setCommitmentAges(120, 172800);
         vm.stopPrank();
     }
@@ -785,13 +796,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_roleAdminSeparation_commitmentAgesAdmin_cannotChangePriceOracle() public {
         // First, grant the commitment ages admin role to user1
         vm.startPrank(address(this));
-        registrar.grantRootRoles(registrar.ROLE_SET_COMMITMENT_AGES_ADMIN(), user1);
+        registrar.grantRootRoles(ROLE_SET_COMMITMENT_AGES_ADMIN, user1);
         vm.stopPrank();
         
         // User1 should not be able to set price oracle
         vm.startPrank(user1);
         MockPriceOracle newPriceOracle = new MockPriceOracle(0.02 ether, 0.01 ether);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registrar.ROOT_RESOURCE(), registrar.ROLE_SET_PRICE_ORACLE(), user1));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_PRICE_ORACLE, user1));
         registrar.setPriceOracle(newPriceOracle);
         vm.stopPrank();
     }

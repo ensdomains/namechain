@@ -28,6 +28,10 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     MockPriceOracle priceOracle;
 
     // Role bitmaps for different permission configurations
+    uint256 constant ROLE_REGISTRAR = 1 << 0;
+    uint256 constant ROLE_REGISTRAR_ADMIN = ROLE_REGISTRAR << 128;
+    uint256 constant ROLE_RENEW = 1 << 1;
+    uint256 constant ROLE_RENEW_ADMIN = ROLE_RENEW << 128;
     uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
     uint256 constant ROLE_SET_RESOLVER = 1 << 3;
     uint256 constant ROLE_SET_TOKEN_OBSERVER = 1 << 4;
@@ -36,9 +40,6 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     uint256 constant lockedSubregistryRoleBitmap = ROLE_SET_RESOLVER | ROLE_SET_TOKEN_OBSERVER;
     uint256 constant noRolesRoleBitmap = 0;
     
-    // Flag constants - remove since flags were removed
-    // uint96 constant FLAG_TEST_TOKEN_ID_CHANGE = 1 << 1;
-
     address owner = makeAddr("owner");
     address user1 = makeAddr("user1");
 
@@ -46,7 +47,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
         registry = new PermissionedRegistry(datastore, metadata);
-        registry.grantRootRoles(registry.ROLE_REGISTRAR(), address(this));
+        registry.grantRootRoles(ROLE_REGISTRAR, address(this));
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
         priceOracle = new MockPriceOracle();
@@ -54,14 +55,14 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     }
 
     function test_constructor_sets_roles() public view {
-        uint256 r = registry.ROLE_REGISTRAR() | registry.ROLE_REGISTRAR_ADMIN() | registry.ROLE_RENEW() | registry.ROLE_RENEW_ADMIN();
+        uint256 r = ROLE_REGISTRAR | ROLE_REGISTRAR_ADMIN | ROLE_RENEW | ROLE_RENEW_ADMIN;
         assertTrue(registry.hasRoles(registry.ROOT_RESOURCE(), r, address(this)));
     }
 
     function test_Revert_register_without_registrar_role() public {
         address nonRegistrar = makeAddr("nonRegistrar");
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), registry.ROLE_REGISTRAR(), nonRegistrar));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), ROLE_REGISTRAR, nonRegistrar));
         vm.prank(nonRegistrar);
         registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
     }
@@ -71,7 +72,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         
         address nonRenewer = makeAddr("nonRenewer");
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), registry.ROLE_RENEW(), nonRenewer));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), ROLE_RENEW, nonRenewer));
         vm.prank(nonRenewer);
         registry.renew(tokenId, uint64(block.timestamp) + 172800);
     }
@@ -82,13 +83,13 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         address tokenRenewer = makeAddr("tokenRenewer");
         
         // Grant the RENEW role specifically for this token
-        registry.grantRoles(registry.tokenIdResource(tokenId), registry.ROLE_RENEW(), tokenRenewer);
+        registry.grantRoles(registry.tokenIdResource(tokenId), ROLE_RENEW, tokenRenewer);
         
         // Verify the role was granted
-        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), registry.ROLE_RENEW(), tokenRenewer));
+        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_RENEW, tokenRenewer));
         
         // This user doesn't have the ROOT_RESOURCE ROLE_RENEW
-        assertFalse(registry.hasRoles(registry.ROOT_RESOURCE(), registry.ROLE_RENEW(), tokenRenewer));
+        assertFalse(registry.hasRoles(registry.ROOT_RESOURCE(), ROLE_RENEW, tokenRenewer));
         
         // But should still be able to renew this specific token
         vm.prank(tokenRenewer);
@@ -101,11 +102,11 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
 
     function test_token_owner_can_renew_if_granted_role() public {
         // Register a token with specific roles including ROLE_RENEW
-        uint256 roleBitmap = defaultRoleBitmap | registry.ROLE_RENEW();
+        uint256 roleBitmap = defaultRoleBitmap | ROLE_RENEW;
         uint256 tokenId = registry.register("test2", user1, registry, address(0), roleBitmap, uint64(block.timestamp) + 86400);
         
         // Verify the owner has the RENEW role for this token
-        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), registry.ROLE_RENEW(), user1));
+        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_RENEW, user1));
         
         // Owner should be able to renew their own token
         vm.prank(user1);
@@ -124,17 +125,17 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", tokenOwner, registry, address(0), noRolesRoleBitmap, uint64(block.timestamp) + 86400);
         
         // Verify the owner doesn't have the RENEW role for this token (this is the intent of the test)
-        assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), registry.ROLE_RENEW(), tokenOwner));
+        assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_RENEW, tokenOwner));
         
         // Owner should not be able to renew without the role
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), registry.ROLE_RENEW(), tokenOwner));
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.tokenIdResource(tokenId), ROLE_RENEW, tokenOwner));
         vm.prank(tokenOwner);
         registry.renew(tokenId, uint64(block.timestamp) + 172800);
     }
 
     function test_registrar_can_register() public {
         address registrar2 = makeAddr("registrar");
-        registry.grantRootRoles(registry.ROLE_REGISTRAR(), registrar2);
+        registry.grantRootRoles(ROLE_REGISTRAR, registrar2);
         
         vm.prank(registrar2);
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
@@ -145,7 +146,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
         
         address renewer = makeAddr("renewer");
-        registry.grantRootRoles(registry.ROLE_RENEW(), renewer);
+        registry.grantRootRoles(ROLE_RENEW, renewer);
         
         vm.prank(renewer);
         uint64 newExpiry = uint64(block.timestamp) + 172800;

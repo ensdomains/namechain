@@ -17,8 +17,8 @@ import {IRegistryMetadata} from "./IRegistryMetadata.sol";
  * but receives names that have been ejected from L2.
  */
 contract L1ETHRegistry is PermissionedRegistry {
-    uint256 public constant ROLE_SET_EJECTION_CONTROLLER = 1 << 5;
-    uint256 public constant ROLE_SET_EJECTION_CONTROLLER_ADMIN = ROLE_SET_EJECTION_CONTROLLER << 128;
+    uint256 private constant ROLE_SET_EJECTION_CONTROLLER = 1 << 5;
+    uint256 private constant ROLE_SET_EJECTION_CONTROLLER_ADMIN = ROLE_SET_EJECTION_CONTROLLER << 128;
 
     error NameNotExpired(uint256 tokenId, uint64 expires);
     error OnlyEjectionController();
