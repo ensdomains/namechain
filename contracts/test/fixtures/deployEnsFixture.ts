@@ -22,7 +22,7 @@ export async function deployEnsFixture() {
   ]);
 
   const ALL_ROLES = await rootRegistry.read.ALL_ROLES()
-  const MAX_EXPIRY = await rootRegistry.read.MAX_EXPIRY()
+  const MAX_EXPIRY = 18446744073709551615n // type(uint64).max
   
   await rootRegistry.write.register([
     "eth",
@@ -86,12 +86,10 @@ export const registerName = async ({
   subregistryLocked?: boolean;
   resolverLocked?: boolean;
 }) => {
-  const [ROLE_SET_SUBREGISTRY, ROLE_SET_RESOLVER] = await Promise.all([
-    ethRegistry.read.ROLE_SET_SUBREGISTRY(),
-    ethRegistry.read.ROLE_SET_RESOLVER(),
-  ]);
+  const ROLE_SET_SUBREGISTRY = 1n << 2n
+  const ROLE_SET_RESOLVER = 1n << 3n
   const owner =
     owner_ ?? (await hre.viem.getWalletClients())[0].account.address;
-  const roles = (subregistryLocked ? 0n : ROLE_SET_RESOLVER) | (resolverLocked ? 0n : ROLE_SET_RESOLVER);
+  const roles = (subregistryLocked ? 0n : ROLE_SET_SUBREGISTRY) | (resolverLocked ? 0n : ROLE_SET_RESOLVER);
   return ethRegistry.write.register([label, owner, subregistry, resolver, roles, expiry]);
 };
