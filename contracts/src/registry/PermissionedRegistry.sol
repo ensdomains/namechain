@@ -86,10 +86,10 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         address previousOwner = super.ownerOf(tokenId);
         if (previousOwner != address(0)) {
             _burn(previousOwner, tokenId, 1);
+            _resetTokenAccessControl(tokenId);
         }
 
         _mint(owner, tokenId, 1, "");
-        _resetTokenAccessControl(tokenId);
         _grantRoles(tokenIdResource(tokenId), roleBitmap, owner);
 
         datastore.setSubregistry(tokenId, address(registry), expires);
