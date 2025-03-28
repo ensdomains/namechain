@@ -93,7 +93,7 @@ contract UpgradableUniversalResolverProxy {
      */
     function _validateImplementation(address newImplementation) internal view {
         if (newImplementation == address(0) || newImplementation.code.length == 0) {
-             revert InvalidImplementation();
+            revert InvalidImplementation();
         }
         if (_getImplementation() == newImplementation) {
             revert SameImplementation();
@@ -149,13 +149,7 @@ contract UpgradableUniversalResolverProxy {
         if (!ok && bytes4(v) == OffchainLookup.selector) {
             EIP3668.Params memory p = EIP3668.decode(BytesUtils.substring(v, 4, v.length - 4));
             if (p.sender == _getImplementation()) {
-                revert OffchainLookup(
-                    address(this),
-                    p.urls,
-                    p.callData,
-                    p.callbackFunction,
-                    p.extraData
-                );
+                revert OffchainLookup(address(this), p.urls, p.callData, p.callbackFunction, p.extraData);
             }
         }
 
@@ -169,9 +163,4 @@ contract UpgradableUniversalResolverProxy {
             }
         }
     }
-
-    /**
-     * @dev Receive function for plain Ether transfers
-     */
-    receive() external payable {}
 }
