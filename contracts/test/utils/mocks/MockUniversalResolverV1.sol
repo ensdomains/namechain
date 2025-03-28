@@ -16,6 +16,12 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH} from "@ens/contracts/utils/ENSIP19.sol";
 
+// TODO: HardhatFoundryPlugin does not allow remapping subdependencies for now.
+// Until that problem is solved, we are keeping the mock copy of the UniversalResolverV1 here.
+// The reason to have a mock here is, to be able to use the ens-contracts library instead of mock, we need openzeppelin 4.0.0 >= x < 4.5.0 remapped to make it work correctly,
+// but in main project we are using OZ 5.2.0, which requires us to have changes in the used dependency contract.
+// ref: https://github.com/NomicFoundation/hardhat/issues/4812
+
 contract UniversalResolver is IUniversalResolver, CCIPBatcher, Ownable, ERC165 {
     ENS public immutable registry;
     string[] public batchGateways;
