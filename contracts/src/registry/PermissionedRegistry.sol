@@ -18,6 +18,13 @@ import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAccessControl, MetadataMixin {
     mapping(uint256 => address) public tokenObservers;
 
+    /**
+     * @dev The version of the access control resource for a given token ID.
+     * 
+     * By incrementing this value, we can invalidate all previous access control resources for a given token ID.
+     */
+    mapping(uint256 => uint256) internal tokenIdResourceVersion;
+
     uint256 private constant ROLE_REGISTRAR = 1 << 0;
     uint256 private constant ROLE_REGISTRAR_ADMIN = ROLE_REGISTRAR << 128;
 
@@ -82,6 +89,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         }
 
         _mint(owner, tokenId, 1, "");
+        _resetTokenAccessControl(tokenId);
         _grantRoles(tokenIdResource(tokenId), roleBitmap, owner);
 
         datastore.setSubregistry(tokenId, address(registry), expires);
@@ -179,8 +187,34 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         return BaseRegistry.supportsInterface(interfaceId) || EnhancedAccessControl.supportsInterface(interfaceId);
     }
 
-    function tokenIdResource(uint256 tokenId) public pure returns(bytes32) {
-        return bytes32(tokenId);
+    /**
+     * @dev Returns the access control resource id for a given token ID.
+     *
+     * @param tokenId The token ID of the name.
+     * @return The access control resource id for the given token ID.
+     */
+    function tokenIdResource(uint256 tokenId) public view returns(bytes32) {
+        return keccak256(abi.encodePacked(tokenId, tokenIdResourceVersion[tokenId]));
+    }
+
+    // Internal/private methods
+
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal virtual override {
+        super._update(from, to, ids, values);
+        // invalidate access control resources for the transferred tokens
+        for (uint256 i = 0; i < ids.length; i++) {
+            _resetTokenAccessControl(ids[i]);
+        }
+    }
+
+    /**
+     * @dev Resets the access control resource version for a given token ID.
+     *      This will invalidate all previous access control resources for a given token ID.
+     *
+     * @param tokenId The token ID of the name.
+     */
+    function _resetTokenAccessControl(uint256 tokenId) internal {
+        tokenIdResourceVersion[tokenId]++;
     }
 }
 
