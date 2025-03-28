@@ -13,9 +13,6 @@ import {IUniversalResolver as IUniversalResolverV1} from "ens-contracts/universa
 import {UniversalResolver as UniversalResolverV1} from "ens-contracts/universalResolver/UniversalResolver.sol";
 import {UniversalResolver as UniversalResolverV2} from "../../src/utils/UniversalResolver.sol";
 import {IRegistry} from "../../src/registry/IRegistry.sol";
-import {BaseRegistry} from "../../src/registry/BaseRegistry.sol";
-
-
 
 contract ProxyTest is Test {
     address constant ADMIN = address(0x123);
@@ -62,21 +59,6 @@ contract ProxyTest is Test {
         assertEq(proxy.admin(), ADMIN);
         assertEq(proxy.implementation(), address(urV1));
     }
-
-    // function test_SupportsInterface() public view {
-    //     // Test that supportsInterface is properly forwarded
-    //     bool supportsIUR = proxy.supportsInterface(
-    //         type(IUniversalResolverV1).interfaceId
-    //     );
-    //     bool supportsERC165 = proxy.supportsInterface(
-    //         type(IERC165).interfaceId
-    //     );
-
-    //     // Verify that the proxy returns the expected results
-    //     // assuming V1 implementation supports these interfaces
-    //     assertTrue(supportsIUR);
-    //     assertTrue(supportsERC165);
-    // }
 
     /////// Admin Tests ///////
     
@@ -127,16 +109,6 @@ contract ProxyTest is Test {
         proxy.upgradeTo(address(urV1));
     }
 
-    // function test_UpgradeToNonUniversalResolver() public {
-    //     // Deploy a contract that doesn't implement IUniversalResolver
-    //     MockNonUniversalResolver nonUR = new MockNonUniversalResolver();
-
-    //     // Try to upgrade to that contract
-    //     vm.prank(ADMIN);
-    //     vm.expectRevert(UpgradableUniversalResolverProxy.InvalidImplementation.selector);
-    //     proxy.upgradeTo(address(nonUR));
-    // }
-
     /////// Forwarding Tests ///////
     
     function test_ForwardingSingleCall() public {
@@ -150,15 +122,23 @@ contract ProxyTest is Test {
             address(mockImpl)
         );
         
-        // Call resolve method
-        (bytes memory result, address resolverAddr) = testProxy.resolve(
+        // Create calldata for resolve method
+        bytes memory callData = abi.encodeWithSignature(
+            "resolve(bytes,bytes)",
             dnsEncodedName,
             mockData
         );
         
-        // Verify the correct values were returned
-        assertEq(result, bytes.concat(dnsEncodedName, mockData));
-        assertEq(resolverAddr, mockResolver);
+        // Make the call through the proxy
+        (bool success, bytes memory result) = address(testProxy).call(callData);
+        
+        // Verify the call was successful
+        assertTrue(success);
+        
+        // Decode the result to verify it matches expectations
+        (bytes memory returnedData, address returnedResolver) = abi.decode(result, (bytes, address));
+        assertEq(returnedData, bytes.concat(dnsEncodedName, mockData));
+        assertEq(returnedResolver, mockResolver);
     }
 
     function test_ForwardingReverseCall() public {
@@ -172,14 +152,21 @@ contract ProxyTest is Test {
             address(mockImpl)
         );
         
-        // Call reverse method
-        (
-            string memory name,
-            address resolver,
-            address reverseResolver
-        ) = testProxy.reverse(dnsEncodedName, 60);
+        // Create calldata for reverse method
+        bytes memory callData = abi.encodeWithSignature(
+            "reverse(bytes,uint256)",
+            dnsEncodedName,
+            uint256(60)
+        );
         
-        // Verify the correct values were returned
+        // Make the call through the proxy
+        (bool success, bytes memory result) = address(testProxy).call(callData);
+        
+        // Verify the call was successful
+        assertTrue(success);
+        
+        // Decode the result to verify it matches expectations
+        (string memory name, address resolver, address reverseResolver) = abi.decode(result, (string, address, address));
         assertEq(name, "test.eth");
         assertEq(resolver, mockResolver);
         assertEq(reverseResolver, address(mockImpl));
@@ -198,37 +185,73 @@ contract ProxyTest is Test {
             address(mockCCIPImpl)
         );
         
-        // Expect the OffchainLookup revert with adjusted sender
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                OffchainLookup.selector,
-                address(ccipProxy),  // Sender should be the proxy, not the implementation
-                mockCCIPImpl.getUrls(),
-                mockCCIPImpl.getCallData(),
-                mockCCIPImpl.getCallbackFunction(),
-                mockCCIPImpl.getExtraData()
-            )
+        // Create calldata for resolve method
+        bytes memory callData = abi.encodeWithSignature(
+            "resolve(bytes,bytes)",
+            dnsEncodedName,
+            mockData
         );
         
-        // Call resolve which should trigger the CCIP-Read revert
-        ccipProxy.resolve(dnsEncodedName, mockData);
+        // Make the call and catch the revert data
+        (bool success, bytes memory returnData) = address(ccipProxy).call(callData);
+        
+        // First assertion: the call should revert
+        assertFalse(success);
+        
+        // Second assertion: the revert should be an OffchainLookup error
+        assertEq(bytes4(returnData), OffchainLookup.selector);
+        
+        // Parse the OffchainLookup parameters
+        bytes memory errorData = BytesUtils.substring(returnData, 4, returnData.length - 4);
+        (address sender, string[] memory urls, bytes memory ccipCallData, bytes4 callbackFunction, bytes memory extraData) = 
+            abi.decode(errorData, (address, string[], bytes, bytes4, bytes));
+        
+        // Third assertion: the sender should be the proxy address, not the implementation
+        assertEq(sender, address(ccipProxy));
+        
+        // Fourth assertion: other parameters should match the original
+        assertEq(urls.length, mockCCIPImpl.getUrls().length);
+        assertEq(urls[0], mockCCIPImpl.getUrls()[0]);
+        assertEq(ccipCallData, mockCCIPImpl.getCallData());
+        assertEq(callbackFunction, mockCCIPImpl.getCallbackFunction());
+        assertEq(extraData, mockCCIPImpl.getExtraData());
     }
 
     function test_CCIPReadWithDifferentSender() public {
-        // Create a mock implementation that reverts with OffchainLookup but with a different sender
-        MockCCIPReadWithDifferentSender mockDiffSenderImpl = new MockCCIPReadWithDifferentSender();
+    // Create a mock implementation that reverts with OffchainLookup but with a different sender
+    MockCCIPReadWithDifferentSender mockDiffSenderImpl = new MockCCIPReadWithDifferentSender();
+    
+    // Create a new proxy using the mock implementation
+    vm.prank(ADMIN);
+    UpgradableUniversalResolverProxy senderProxy = new UpgradableUniversalResolverProxy(
+        ADMIN,
+        address(mockDiffSenderImpl)
+    );
+    
+    // Create calldata for resolve method
+    bytes memory callData = abi.encodeWithSignature(
+        "resolve(bytes,bytes)",
+        dnsEncodedName,
+        mockData
+    );
+    
+    // Make the call
+    (bool success, bytes memory result) = address(senderProxy).call(callData);
+    
+    // Verify the call failed
+    assertFalse(success);
+    
+    // Check that it failed with OffchainLookup
+    assertEq(bytes4(result), OffchainLookup.selector);
+    
+    // Decode the OffchainLookup error to verify sender was NOT replaced
+    // Skip the selector (first 4 bytes)
+        bytes memory errorData = BytesUtils.substring(result, 4, result.length - 4);
+        (address sender, , , , ) = abi.decode(errorData, (address, string[], bytes, bytes4, bytes));
         
-        // Create a new proxy using the mock implementation
-        vm.prank(ADMIN);
-        UpgradableUniversalResolverProxy senderProxy = new UpgradableUniversalResolverProxy(
-            ADMIN,
-            address(mockDiffSenderImpl)
-        );
-        
-        // The call should revert with the original error, not a modified one
-        // Since the implementation's OffchainLookup doesn't use itself as sender
-        vm.expectRevert();
-        senderProxy.resolve(dnsEncodedName, mockData);
+        // Verify the sender is the different sender (not modified by proxy)
+        address differentSender = address(0xbeef);
+        assertEq(sender, differentSender);
     }
 
     function test_NonCCIPReadErrorForwarding() public {
@@ -242,9 +265,24 @@ contract ProxyTest is Test {
             address(mockRevertImpl)
         );
         
-        // Verify the custom error is forwarded properly
-        vm.expectRevert(MockRevertingImplementation.CustomError.selector);
-        revertProxy.resolve(dnsEncodedName, mockData);
+        // Create calldata for resolve method
+        bytes memory callData = abi.encodeWithSignature(
+            "resolve(bytes,bytes)",
+            dnsEncodedName,
+            mockData
+        );
+        
+        // Make the call and capture the result
+        (bool success, bytes memory result) = address(revertProxy).call(callData);
+        
+        // Verify that the call reverted
+        assertFalse(success);
+        
+        // Verify that the revert was due to our custom error
+        assertEq(
+            bytes4(result),
+            MockRevertingImplementation.CustomError.selector
+        );
     }
 
     /////// Fallback Tests ///////
@@ -261,7 +299,6 @@ contract ProxyTest is Test {
         );
         
         // Create calldata for a method that is properly implemented in mock
-        // Using resolve instead of resolveCallback
         bytes memory callData = abi.encodeWithSignature(
             "resolve(bytes,bytes)",
             dnsEncodedName,
@@ -284,14 +321,6 @@ contract ProxyTest is Test {
         // The call should fail
         (bool success, ) = address(proxy).call(callData);
         assertFalse(success);
-    }
-}
-
-contract MockNonUniversalResolver {
-    // This contract doesn't implement IUniversalResolver
-    
-    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return interfaceId == type(IERC165).interfaceId;
     }
 }
 

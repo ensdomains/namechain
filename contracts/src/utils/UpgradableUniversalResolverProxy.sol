@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 // UR Imports
-import {IUniversalResolver} from "ens-contracts/universalResolver/IUniversalResolver.sol";
 import {UniversalResolver as UniversalResolverV1} from "ens-contracts/universalResolver/UniversalResolver.sol";
 
 // CCIP-Read Imports
@@ -18,7 +17,7 @@ import {BytesUtils} from "ens-contracts/utils/BytesUtils.sol";
  * @dev A specialized proxy for UniversalResolver that forwards method calls
  * and properly handles CCIP-Read reverts. Admin can upgrade the implementation.
  */
-contract UpgradableUniversalResolverProxy is IUniversalResolver {
+contract UpgradableUniversalResolverProxy {
     // Storage slot for implementation address (EIP-1967 compatible)
     bytes32 private constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
@@ -139,54 +138,17 @@ contract UpgradableUniversalResolverProxy is IUniversalResolver {
         return StorageSlot.getAddressSlot(_ADMIN_SLOT).value;
     }
 
-    // --- Universal Resolver Implementation ---
-    
-    /**
-     * @dev Implementation of IUniversalResolver.resolve
-     */
-    function resolve(bytes calldata name, bytes calldata data)
-        external
-        view
-        override
-        returns (bytes memory result, address resolver)
-    {
-        bytes memory callData = abi.encodeWithSelector(IUniversalResolver.resolve.selector, name, data);
-        bytes memory returnData = _forwardCall(callData);
-        return abi.decode(returnData, (bytes, address));
-    }
+    // --- Fallback and Receive ---
 
     /**
-     * @dev Implementation of IUniversalResolver.reverse
+     * @dev Fallback function that handles forwarding calls to the implementation
+     * and properly manages CCIP-Read reverts.
      */
-    function reverse(bytes calldata lookupAddress, uint256 coinType)
-        external
-        view
-        override
-        returns (string memory primary, address resolver, address reverseResolver)
-    {
-        bytes memory callData = abi.encodeWithSelector(IUniversalResolver.reverse.selector, lookupAddress, coinType);
-        bytes memory returnData = _forwardCall(callData);
-        return abi.decode(returnData, (string, address, address));
-    }
-
-    /**
-     * @dev Implements supportsInterface - forwards to implementation
-     */
-    function supportsInterface(bytes4 interfaceId) external view returns (bool) {
-        return IERC165(_getImplementation()).supportsInterface(interfaceId);
-    }
-
-    /**
-     * @dev Internal utility to forward calls to the implementation
-     * while handling CCIP-Read reverts
-     */
-    function _forwardCall(bytes memory callData) internal view returns (bytes memory) {
-        address impl = _getImplementation();
-        (bool ok, bytes memory v) = impl.staticcall(callData);
-        
+    fallback() external {
+        (bool ok, bytes memory v) = _getImplementation().staticcall(msg.data);
         if (!ok && bytes4(v) == OffchainLookup.selector) {
             EIP3668.Params memory p = EIP3668.decode(BytesUtils.substring(v, 4, v.length - 4));
-            if (p.sender == impl) {
+            if (p.sender == _getImplementation()) {
                 revert OffchainLookup(
                     address(this),
                     p.urls,
@@ -196,28 +158,15 @@ contract UpgradableUniversalResolverProxy is IUniversalResolver {
                 );
             }
         }
-        
+
         if (ok) {
-            return v;
+            assembly {
+                return(add(v, 32), mload(v))
+            }
         } else {
             assembly {
                 revert(add(v, 32), mload(v))
             }
-        }
-    }
-
-    // --- Fallback and Receive ---
-
-    /**
-     * @dev Fallback function that handles forwarding calls to the implementation
-     * and properly manages CCIP-Read reverts.
-     */
-    fallback() external {
-        bytes memory returnData = _forwardCall(msg.data);
-        assembly {
-            let returnDataSize := mload(returnData)
-            returndatacopy(0, add(returnData, 32), returnDataSize)
-            return(0, returnDataSize)
         }
     }
 
