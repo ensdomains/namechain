@@ -16,7 +16,7 @@ import {NameUtils} from "../utils/NameUtils.sol";
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 
 contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAccessControl, MetadataMixin {
-    mapping(uint256 => address) public tokenObservers;
+    mapping(uint256 => PermissionedRegistryTokenObserver) public tokenObservers;
 
     /**
      * @dev The version of the access control resource for a given token ID.
