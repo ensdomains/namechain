@@ -23,15 +23,11 @@ contract ProxyTest is Test {
     UniversalResolverV1 urV1;
     UniversalResolverV2 urV2;
 
-    ENS ens = ENS(0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e);
-
     // Mock data for tests
     bytes dnsEncodedName = hex"0365746800"; // "eth"
     bytes mockData = hex"12345678";
     string[] gatewayUrls;
-    bytes32 mockNamehash = bytes32(uint256(0x1));
     address mockResolver = address(0xabc);
-    uint256 mockOffset = 0;
 
     event Upgraded(address indexed implementation);
     event AdminChanged(address indexed previousAdmin, address indexed newAdmin);
@@ -44,8 +40,8 @@ contract ProxyTest is Test {
         vm.startPrank(ADMIN);
 
         // Deploy the implementations
-        urV1 = new UniversalResolverV1(ens, gatewayUrls);
-        urV2 = new UniversalResolverV2(IRegistry(address(ens)));
+        urV1 = new UniversalResolverV1(ENS(address(0x0)), gatewayUrls);
+        urV2 = new UniversalResolverV2(IRegistry(address(0x0)));
 
         // Deploy the proxy with V1 implementation
         proxy = new UpgradableUniversalResolverProxy(ADMIN, address(urV1));

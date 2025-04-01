@@ -95,14 +95,6 @@ contract UpgradableUniversalResolverProxy {
         if (_getImplementation() == newImplementation) {
             revert SameImplementation();
         }
-        // Check if implementation supports the UniversalResolver interface
-        // try IERC165(newImplementation).supportsInterface(type(IUniversalResolver).interfaceId) returns (bool supported) {
-        //     if (!supported) {
-        //         revert InvalidImplementation();
-        //     }
-        // } catch {
-        //     revert InvalidImplementation();
-        // }
     }
 
     /**
@@ -135,7 +127,7 @@ contract UpgradableUniversalResolverProxy {
         return StorageSlot.getAddressSlot(_ADMIN_SLOT).value;
     }
 
-    // --- Fallback and Receive ---
+    // --- Fallback ---
 
     /**
      * @dev Fallback function that handles forwarding calls to the implementation
