@@ -202,7 +202,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
 
         if (currentRoles != updatedRoles) {
             _roles[resource][account] = updatedRoles;
-            _onRolesGranted(resource, roleBitmap, updatedRoles, account);
+            _onRolesGranted(resource, account, currentRoles, updatedRoles, roleBitmap);
             emit EACRolesGranted(resource, roleBitmap, account);
 
             return true;
@@ -220,7 +220,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         
         if (currentRoles != updatedRoles) {
             _roles[resource][account] = updatedRoles;
-            _onRolesRevoked(resource, roleBitmap, updatedRoles, account);
+            _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
             emit EACRolesRevoked(resource, roleBitmap, account);
             return true;
         } else {
@@ -253,19 +253,21 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Callback for when roles are granted.
      *
      * @param resource The resource that the roles were granted within.
-     * @param roleBitmap The roles that were granted.ㅌ
-     * @param updatedRoles The updated roles for the account.
      * @param account The account that the roles were granted to.
+     * @param oldRoles The old roles for the account.
+     * @param newRoles The new roles for the account.
+     * @param roleBitmap The roles that were granted.
      */
-    function _onRolesGranted(bytes32 resource, uint256 roleBitmap, uint256 updatedRoles, address account) internal virtual {}
+    function _onRolesGranted(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal virtual {}
 
     /**
      * @dev Callback for when roles are revoked.
      *
      * @param resource The resource that the roles were revoked within.
-     * @param roleBitmap The roles that were revoked.
-     * @param updatedRoles The updated roles for the account.
      * @param account The account that the roles were revoked from.
+     * @param oldRoles The old roles for the account.
+     * @param newRoles The new roles for the account.
+     * @param roleBitmap The roles that were revoked.
      */
-    function _onRolesRevoked(bytes32 resource, uint256 roleBitmap, uint256 updatedRoles, address account) internal virtual {}
+    function _onRolesRevoked(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal virtual {}
 }

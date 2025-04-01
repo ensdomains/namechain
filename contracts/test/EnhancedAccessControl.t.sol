@@ -24,12 +24,16 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
     uint256 public lastGrantedCount;
     uint256 public lastGrantedRoleBitmap;
     uint256 public lastGrantedUpdatedRoles;
+    uint256 public lastGrantedOldRoles;
+    uint256 public lastGrantedNewRoles;
     address public lastGrantedAccount;
     bytes32 public lastGrantedResource;
     
     uint256 public lastRevokedCount;
     uint256 public lastRevokedRoleBitmap;
     uint256 public lastRevokedUpdatedRoles;
+    uint256 public lastRevokedOldRoles;
+    uint256 public lastRevokedNewRoles;
     address public lastRevokedAccount;
     bytes32 public lastRevokedResource;
 
@@ -43,6 +47,10 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
         lastRevokedRoleBitmap = 0;
         lastGrantedUpdatedRoles = 0;
         lastRevokedUpdatedRoles = 0;
+        lastGrantedOldRoles = 0;
+        lastGrantedNewRoles = 0;
+        lastRevokedOldRoles = 0;
+        lastRevokedNewRoles = 0;
         lastGrantedAccount = address(0);
     }
     
@@ -58,19 +66,23 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
         return _revokeAllRoles(resource, account);
     }
 
-    function _onRolesGranted(bytes32 resource, uint256 roleBitmap, uint256 updatedRoles, address account) internal override {
+    function _onRolesGranted(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal override {
         lastGrantedCount++;
         lastGrantedResource = resource;
         lastGrantedRoleBitmap = roleBitmap;
-        lastGrantedUpdatedRoles = updatedRoles;
+        lastGrantedOldRoles = oldRoles;
+        lastGrantedNewRoles = newRoles;
+        lastGrantedUpdatedRoles = newRoles;
         lastGrantedAccount = account;
     }
 
-    function _onRolesRevoked(bytes32 resource, uint256 roleBitmap, uint256 updatedRoles, address account) internal override {
+    function _onRolesRevoked(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal override {
         lastRevokedCount++;
         lastRevokedResource = resource;
         lastRevokedRoleBitmap = roleBitmap;
-        lastRevokedUpdatedRoles = updatedRoles;
+        lastRevokedOldRoles = oldRoles;
+        lastRevokedNewRoles = newRoles;
+        lastRevokedUpdatedRoles = newRoles;
         lastRevokedAccount = account;
     }
 }
@@ -621,6 +633,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Verify grant callback was called with correct parameters
         assertEq(access.lastGrantedResource(), RESOURCE_1);
         assertEq(access.lastGrantedRoleBitmap(), roleBitmap);
+        assertEq(access.lastGrantedOldRoles(), 0);
+        assertEq(access.lastGrantedNewRoles(), roleBitmap);
         assertEq(access.lastGrantedUpdatedRoles(), roleBitmap);
         assertEq(access.lastGrantedAccount(), user1);
         assertEq(access.lastGrantedCount(), 1);
@@ -631,6 +645,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Verify revoke callback was called with correct parameters
         assertEq(access.lastRevokedResource(), RESOURCE_1);
         assertEq(access.lastRevokedRoleBitmap(), ROLE_A);
+        assertEq(access.lastRevokedOldRoles(), roleBitmap);
+        assertEq(access.lastRevokedNewRoles(), ROLE_B);
         assertEq(access.lastRevokedUpdatedRoles(), ROLE_B); // Only ROLE_B remains
         assertEq(access.lastRevokedAccount(), user1);
         assertEq(access.lastRevokedCount(), 1);
@@ -638,13 +654,14 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Test granting roles that already exist (should not trigger callback)
         bytes32 prevGrantedResource = access.lastGrantedResource();
         uint256 prevGrantedRoleBitmap = access.lastGrantedRoleBitmap();
+        uint256 prevGrantedCount = access.lastGrantedCount();
         
         access.grantRoles(RESOURCE_1, ROLE_B, user1);
         
         // Verify callback was not called (values remain unchanged)
         assertEq(access.lastGrantedResource(), prevGrantedResource);
         assertEq(access.lastGrantedRoleBitmap(), prevGrantedRoleBitmap);
-        assertEq(access.lastGrantedCount(), 1);
+        assertEq(access.lastGrantedCount(), prevGrantedCount);
 
         // Test revoking all roles
         access.revokeAllRoles(RESOURCE_1, user1);
@@ -652,6 +669,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Verify revoke callback was called with correct parameters
         assertEq(access.lastRevokedResource(), RESOURCE_1);
         assertEq(access.lastRevokedRoleBitmap(), access.ALL_ROLES());
+        assertEq(access.lastRevokedOldRoles(), ROLE_B);
+        assertEq(access.lastRevokedNewRoles(), 0);
         assertEq(access.lastRevokedUpdatedRoles(), 0); // No roles remain
         assertEq(access.lastRevokedAccount(), user1);
         assertEq(access.lastRevokedCount(), 2);
@@ -663,6 +682,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Verify grant callback was called for the copy operation
         assertEq(access.lastGrantedResource(), RESOURCE_1);
         assertEq(access.lastGrantedRoleBitmap(), ROLE_A | ROLE_B);
+        assertEq(access.lastGrantedOldRoles(), 0);
+        assertEq(access.lastGrantedNewRoles(), ROLE_A | ROLE_B);
         assertEq(access.lastGrantedUpdatedRoles(), ROLE_A | ROLE_B);
         assertEq(access.lastGrantedAccount(), user2);
         assertEq(access.lastGrantedCount(), 3);
