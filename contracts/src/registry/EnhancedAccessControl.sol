@@ -6,6 +6,8 @@ pragma solidity ^0.8.20;
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
+
+
 /**
  * @dev Access control system that allows for:
  * 
@@ -201,7 +203,9 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
 
         if (currentRoles != updatedRoles) {
             _roles[resource][account] = updatedRoles;
+            _onRolesGranted(resource, roleBitmap, updatedRoles, account);
             emit EACRolesGranted(resource, roleBitmap, account);
+
             return true;
         } else {
             return false;
@@ -217,6 +221,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         
         if (currentRoles != updatedRoles) {
             _roles[resource][account] = updatedRoles;
+            _onRolesRevoked(resource, roleBitmap, updatedRoles, account);
             emit EACRolesRevoked(resource, roleBitmap, account);
             return true;
         } else {
@@ -244,4 +249,24 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) & ADMIN_ROLES;
         return adminRoleBitmap | (adminRoleBitmap >> 128);
     }
+
+    /**
+     * @dev Callback for when roles are granted.
+     *
+     * @param resource The resource that the roles were granted within.
+     * @param roleBitmap The roles that were granted.ㅌ
+     * @param updatedRoles The updated roles for the account.
+     * @param account The account that the roles were granted to.
+     */
+    function _onRolesGranted(bytes32 resource, uint256 roleBitmap, uint256 updatedRoles, address account) internal virtual {}
+
+    /**
+     * @dev Callback for when roles are revoked.
+     *
+     * @param resource The resource that the roles were revoked within.
+     * @param roleBitmap The roles that were revoked.
+     * @param updatedRoles The updated roles for the account.
+     * @param account The account that the roles were revoked from.
+     */
+    function _onRolesRevoked(bytes32 resource, uint256 roleBitmap, uint256 updatedRoles, address account) internal virtual {}
 }

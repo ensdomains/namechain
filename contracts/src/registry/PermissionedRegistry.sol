@@ -18,12 +18,8 @@ import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAccessControl, MetadataMixin {
     mapping(uint256 => TokenObserver) public tokenObservers;
 
-    /**
-     * @dev The version of the access control resource for a given token ID.
-     * 
-     * By incrementing this value, we can invalidate all previous access control resources for a given token ID.
-     */
-    mapping(uint256 => uint256) internal tokenIdResourceVersion;
+    mapping(uint256 tokenId => bytes32 resource) public tokenIdResource;
+    mapping(bytes32 resource => uint256 tokenId) public resourceTokenId;
 
     uint256 private constant ROLE_REGISTRAR = 1 << 0;
     uint256 private constant ROLE_REGISTRAR_ADMIN = ROLE_REGISTRAR << 128;
@@ -40,9 +36,8 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
     uint256 private constant ROLE_SET_TOKEN_OBSERVER = 1 << 4;
     uint256 private constant ROLE_SET_TOKEN_OBSERVER_ADMIN = ROLE_SET_TOKEN_OBSERVER << 128;
 
-
     modifier onlyNonExpiredTokenRoles(uint256 tokenId, uint256 roleBitmap) {
-        _checkRoles(tokenIdResource(tokenId), roleBitmap, _msgSender());
+        _checkRoles(tokenIdResource[tokenId], roleBitmap, _msgSender());
         (, uint64 expires) = datastore.getSubregistry(tokenId);
         if (expires < block.timestamp) {
             revert NameExpired(tokenId);
@@ -81,7 +76,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         onlyRootRoles(ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
-        tokenId = NameUtils.labelToTokenId(label);
+        tokenId = _generateTokenId(label, roleBitmap);
 
         (, uint64 oldExpiry) = datastore.getSubregistry(tokenId);
         if (oldExpiry >= block.timestamp) {
@@ -99,7 +94,8 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         }
 
         _mint(owner, tokenId, 1, "");
-        _grantRoles(tokenIdResource(tokenId), roleBitmap, owner);
+        _grantRoles(tokenIdResource[tokenId], roleBitmap, owner);
+        _setCallback(tokenIdResource[tokenId], IEnhancedAccessControlCallback(address(this)));
 
         datastore.setSubregistry(tokenId, address(registry), expires);
         datastore.setResolver(tokenId, resolver, 0);
@@ -136,7 +132,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
      * @param tokenId The token ID of the name to relinquish.
      */
     function relinquish(uint256 tokenId) external onlyTokenOwner(tokenId) {
-        _revokeAllRoles(tokenIdResource(tokenId), ownerOf(tokenId));
+        _revokeAllRoles(tokenIdResource[tokenId], ownerOf(tokenId));
         _burn(ownerOf(tokenId), tokenId, 1);
 
         datastore.setSubregistry(tokenId, address(0), 0);
@@ -189,29 +185,57 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         return expires;
     }
 
-    /**
-     * @dev Returns the access control resource id for a given token ID.
-     *
-     * @param tokenId The token ID of the name.
-     * @return The access control resource id for the given token ID.
-     */
-    function tokenIdResource(uint256 tokenId) public view returns(bytes32) {
-        return keccak256(abi.encodePacked(tokenId, tokenIdResourceVersion[tokenId]));
-    }
-
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(BaseRegistry, EnhancedAccessControl, IERC165) returns (bool) {
         return interfaceId == type(IPermissionedRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
+    function onRolesGranted(bytes32 resource, uint256 roleBitmap, address account) public override {
+        tokenIdResource[resourceTokenId[resource]] = resource;
+        resourceTokenId[resource] = resourceTokenId[resource];
+    }
+
+    function onRolesRevoked(bytes32 resource, uint256 roleBitmap, address account) public override {
+        tokenIdResource[resourceTokenId[resource]] = bytes32(0);
+        resourceTokenId[resource] = 0;
+    }
+
     // Internal/private methods
 
-    function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal virtual override {
-        super._update(from, to, ids, values);
-        // invalidate access control resources for the transferred tokens
-        for (uint256 i = 0; i < ids.length; i++) {
-            tokenIdResourceVersion[ids[i]]++;
+    function _mint(address to, uint256 tokenId, uint256 amount, bytes memory data) internal virtual override {
+        super._mint(to, tokenId, amount, data);
+        tokenIdResource[tokenId] = bytes32(tokenId);
+        resourceTokenId[tokenIdResource[tokenId]] = tokenId;
+    }
+
+    function _burn(address from, uint256 tokenId, uint256 amount) internal virtual override {
+        super._burn(from, tokenId, amount);
+        delete tokenIdResource[tokenId];
+        delete resourceTokenId[tokenIdResource[tokenId]];
+    }
+    
+    function _onRolesGranted(bytes32 resource, uint256 roleBitmap, uint256 updatedRoles, address account) internal override {
+        uint256 tokenId = resourceTokenId[resource];
+        if (tokenId > 0) {
+            _regenerateToken(tokenId, updatedRoles);
         }
+    }
+
+    function _onRolesRevoked(bytes32 resource, uint256 roleBitmap, uint256 updatedRoles, address account) internal override {
+        tokenIdResource[resourceTokenId[resource]] = bytes32(0);
+        resourceTokenId[resource] = 0;
+    }
+
+    function _regenerateToken(uint256 tokenId) internal returns (uint256) {
+        _burn(ownerOf(tokenId), tokenId, 1);
+        _mint(ownerOf(tokenId), tokenId, 1, "");
+    }
+
+
+    function _generateTokenId(string calldata label, uint256 roleBitmap) internal returns (uint256 tokenId) {
+        tokenId = NameUtils.labelToTokenId(label);
+        tokenIdVersion++;
+        tokenId = tokenId & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000 | tokenIdVersion;
     }
 }
 

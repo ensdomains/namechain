@@ -21,6 +21,16 @@ abstract contract MockRoles {
 }
 
 contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
+    uint256 public lastGrantedRoleBitmap;
+    uint256 public lastGrantedUpdatedRoles;
+    address public lastGrantedAccount;
+    bytes32 public lastGrantedResource;
+    
+    uint256 public lastRevokedRoleBitmap;
+    uint256 public lastRevokedUpdatedRoles;
+    address public lastRevokedAccount;
+    bytes32 public lastRevokedResource;
+
     constructor() EnhancedAccessControl() {
         _grantRoles(ROOT_RESOURCE, ROLE_A | ROLE_B | ROLE_C | ROLE_D | ADMIN_ROLE_A | ADMIN_ROLE_B | ADMIN_ROLE_C | ADMIN_ROLE_D, msg.sender);
     }
@@ -35,6 +45,20 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
 
     function revokeAllRoles(bytes32 resource, address account) external returns (bool) {
         return _revokeAllRoles(resource, account);
+    }
+
+    function _onRolesGranted(bytes32 resource, uint256 roleBitmap, uint256 updatedRoles, address account) internal override {
+        lastGrantedResource = resource;
+        lastGrantedRoleBitmap = roleBitmap;
+        lastGrantedUpdatedRoles = updatedRoles;
+        lastGrantedAccount = account;
+    }
+
+    function _onRolesRevoked(bytes32 resource, uint256 roleBitmap, uint256 updatedRoles, address account) internal override {
+        lastRevokedResource = resource;
+        lastRevokedRoleBitmap = roleBitmap;
+        lastRevokedUpdatedRoles = updatedRoles;
+        lastRevokedAccount = account;
     }
 }
 
@@ -574,5 +598,55 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // The bitmap should include ROLE_A and ROLE_B (and admin bits)
         assertTrue((roleBitmap & ROLE_A) == ROLE_A);
         assertTrue((roleBitmap & ROLE_B) == ROLE_B);
+    }
+
+    function test_role_callback_hooks() public {
+        // Test granting roles
+        uint256 roleBitmap = ROLE_A | ROLE_B;
+        access.grantRoles(RESOURCE_1, roleBitmap, user1);
+        
+        // Verify grant callback was called with correct parameters
+        assertEq(access.lastGrantedResource(), RESOURCE_1);
+        assertEq(access.lastGrantedRoleBitmap(), roleBitmap);
+        assertEq(access.lastGrantedUpdatedRoles(), roleBitmap);
+        assertEq(access.lastGrantedAccount(), user1);
+        
+        // Test revoking roles
+        access.revokeRoles(RESOURCE_1, ROLE_A, user1);
+        
+        // Verify revoke callback was called with correct parameters
+        assertEq(access.lastRevokedResource(), RESOURCE_1);
+        assertEq(access.lastRevokedRoleBitmap(), ROLE_A);
+        assertEq(access.lastRevokedUpdatedRoles(), ROLE_B); // Only ROLE_B remains
+        assertEq(access.lastRevokedAccount(), user1);
+        
+        // Test granting roles that already exist (should not trigger callback)
+        bytes32 prevGrantedResource = access.lastGrantedResource();
+        uint256 prevGrantedRoleBitmap = access.lastGrantedRoleBitmap();
+        
+        access.grantRoles(RESOURCE_1, ROLE_B, user1);
+        
+        // Verify callback was not called (values remain unchanged)
+        assertEq(access.lastGrantedResource(), prevGrantedResource);
+        assertEq(access.lastGrantedRoleBitmap(), prevGrantedRoleBitmap);
+        
+        // Test revoking all roles
+        access.revokeAllRoles(RESOURCE_1, user1);
+        
+        // Verify revoke callback was called with correct parameters
+        assertEq(access.lastRevokedResource(), RESOURCE_1);
+        assertEq(access.lastRevokedRoleBitmap(), ROLE_B);
+        assertEq(access.lastRevokedUpdatedRoles(), 0); // No roles remain
+        assertEq(access.lastRevokedAccount(), user1);
+        
+        // Test copying roles
+        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        access.copyRoles(RESOURCE_1, user1, user2);
+        
+        // Verify grant callback was called for the copy operation
+        assertEq(access.lastGrantedResource(), RESOURCE_1);
+        assertEq(access.lastGrantedRoleBitmap(), ROLE_A | ROLE_B);
+        assertEq(access.lastGrantedUpdatedRoles(), ROLE_A | ROLE_B);
+        assertEq(access.lastGrantedAccount(), user2);
     }
 }
