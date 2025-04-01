@@ -639,7 +639,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         vm.prank(user1);
         registry.setTokenObserver(tokenId, address(observer));
         
-        assertEq(registry.tokenObservers(tokenId), address(observer));
+        assertEq(address(registry.tokenObservers(tokenId)), address(observer));
     }
 
     function test_setSubregistry_with_role_when_not_expired() public {

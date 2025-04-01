@@ -16,7 +16,7 @@ import {NameUtils} from "../utils/NameUtils.sol";
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 
 contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAccessControl, MetadataMixin {
-    mapping(uint256 => PermissionedRegistryTokenObserver) public tokenObservers;
+    mapping(uint256 => TokenObserver) public tokenObservers;
 
     /**
      * @dev The version of the access control resource for a given token ID.
@@ -110,7 +110,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
     }
 
     function setTokenObserver(uint256 tokenId, address _observer) external onlyNonExpiredTokenRoles(tokenId, ROLE_SET_TOKEN_OBSERVER) {
-        tokenObservers[tokenId] = _observer;
+        tokenObservers[tokenId] = TokenObserver(_observer);
         emit TokenObserverSet(tokenId, _observer);
     }
 
@@ -121,9 +121,9 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         }
         datastore.setSubregistry(tokenId, subregistry, expires);
 
-        address observer = tokenObservers[tokenId];
-        if (observer != address(0)) {
-            TokenObserver(observer).onRenew(tokenId, expires, msg.sender);
+        TokenObserver observer = tokenObservers[tokenId];
+        if (address(observer) != address(0)) {
+            observer.onRenew(tokenId, expires, msg.sender);
         }
 
         emit NameRenewed(tokenId, expires, msg.sender);
@@ -142,9 +142,9 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         datastore.setSubregistry(tokenId, address(0), 0);
         datastore.setResolver(tokenId, address(0), 0);
         
-        address observer = tokenObservers[tokenId];
-        if (observer != address(0)) {
-            TokenObserver(observer).onRelinquish(tokenId, msg.sender);
+        TokenObserver observer = tokenObservers[tokenId];
+        if (address(observer) != address(0)) {
+            observer.onRelinquish(tokenId, msg.sender);
         }
 
         emit NameRelinquished(tokenId, msg.sender);
