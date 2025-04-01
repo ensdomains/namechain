@@ -560,10 +560,148 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertFalse(registry.hasRoles(newResourceId, ROLE_SET_RESOLVER, owner2));
         assertFalse(registry.hasRoles(newResourceId, ROLE_SET_TOKEN_OBSERVER, owner2));
     }
+
+    function test_Revert_setTokenObserver_when_token_expired() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
+        
+        vm.warp(block.timestamp + 101);
+        
+        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameExpired.selector, tokenId));
+        registry.setTokenObserver(tokenId, address(observer));
+    }
+
+    function test_Revert_setSubregistry_when_token_expired() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
+        
+        vm.warp(block.timestamp + 101);
+        
+        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameExpired.selector, tokenId));
+        registry.setSubregistry(tokenId, IRegistry(address(this)));
+    }
+
+    function test_Revert_setResolver_when_token_expired() public {
+        uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
+        
+        vm.warp(block.timestamp + 101);
+        
+        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameExpired.selector, tokenId));
+        registry.setResolver(tokenId, address(this));
+    }
+
+    function test_Revert_setTokenObserver_without_role_when_expired() public {
+        uint256 tokenId = registry.register("test2", user1, registry, address(0), noRolesRoleBitmap, uint64(block.timestamp) + 100);
+        
+        vm.warp(block.timestamp + 101);
+        
+        vm.expectRevert(abi.encodeWithSelector(
+            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            registry.tokenIdResource(tokenId),
+            ROLE_SET_TOKEN_OBSERVER,
+            user1
+        ));
+        vm.prank(user1);
+        registry.setTokenObserver(tokenId, address(observer));
+    }
+
+    function test_Revert_setSubregistry_without_role_when_expired() public {
+        uint256 tokenId = registry.register("test2", user1, registry, address(0), noRolesRoleBitmap, uint64(block.timestamp) + 100);
+        
+        vm.warp(block.timestamp + 101);
+        
+        vm.expectRevert(abi.encodeWithSelector(
+            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            registry.tokenIdResource(tokenId),
+            ROLE_SET_SUBREGISTRY,
+            user1
+        ));
+        vm.prank(user1);
+        registry.setSubregistry(tokenId, IRegistry(address(this)));
+    }
+
+    function test_Revert_setResolver_without_role_when_expired() public {
+        uint256 tokenId = registry.register("test2", user1, registry, address(0), noRolesRoleBitmap, uint64(block.timestamp) + 100);
+        
+        vm.warp(block.timestamp + 101);
+        
+        vm.expectRevert(abi.encodeWithSelector(
+            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            registry.tokenIdResource(tokenId),
+            ROLE_SET_RESOLVER,
+            user1
+        ));
+        vm.prank(user1);
+        registry.setResolver(tokenId, address(this));
+    }
+
+    function test_setTokenObserver_with_role_when_not_expired() public {
+        uint256 tokenId = registry.register("test2", user1, registry, address(0), ROLE_SET_TOKEN_OBSERVER, uint64(block.timestamp) + 100);
+        
+        vm.prank(user1);
+        registry.setTokenObserver(tokenId, address(observer));
+        
+        assertEq(registry.tokenObservers(tokenId), address(observer));
+    }
+
+    function test_setSubregistry_with_role_when_not_expired() public {
+        uint256 tokenId = registry.register("test2", user1, registry, address(0), ROLE_SET_SUBREGISTRY, uint64(block.timestamp) + 100);
+        
+        vm.prank(user1);
+        registry.setSubregistry(tokenId, IRegistry(address(this)));
+        
+        assertEq(address(registry.getSubregistry("test2")), address(this));
+    }
+
+    function test_setResolver_with_role_when_not_expired() public {
+        uint256 tokenId = registry.register("test2", user1, registry, address(0), ROLE_SET_RESOLVER, uint64(block.timestamp) + 100);
+        
+        vm.prank(user1);
+        registry.setResolver(tokenId, address(this));
+        
+        assertEq(registry.getResolver("test2"), address(this));
+    }
+
+    function test_Revert_setTokenObserver_without_role_when_not_expired() public {
+        uint256 tokenId = registry.register("test2", user1, registry, address(0), noRolesRoleBitmap, uint64(block.timestamp) + 100);
+        
+        vm.expectRevert(abi.encodeWithSelector(
+            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            registry.tokenIdResource(tokenId),
+            ROLE_SET_TOKEN_OBSERVER,
+            user1
+        ));
+        vm.prank(user1);
+        registry.setTokenObserver(tokenId, address(observer));
+    }
+
+    function test_Revert_setSubregistry_without_role_when_not_expired() public {
+        uint256 tokenId = registry.register("test2", user1, registry, address(0), noRolesRoleBitmap, uint64(block.timestamp) + 100);
+        
+        vm.expectRevert(abi.encodeWithSelector(
+            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            registry.tokenIdResource(tokenId),
+            ROLE_SET_SUBREGISTRY,
+            user1
+        ));
+        vm.prank(user1);
+        registry.setSubregistry(tokenId, IRegistry(address(this)));
+    }
+
+    function test_Revert_setResolver_without_role_when_not_expired() public {
+        uint256 tokenId = registry.register("test2", user1, registry, address(0), noRolesRoleBitmap, uint64(block.timestamp) + 100);
+        
+        vm.expectRevert(abi.encodeWithSelector(
+            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            registry.tokenIdResource(tokenId),
+            ROLE_SET_RESOLVER,
+            user1
+        ));
+        vm.prank(user1);
+        registry.setResolver(tokenId, address(this));
+    }
 }
 
 
-contract MockTokenObserver is PermissionedRegistryTokenObserver {
+contract MockTokenObserver is TokenObserver {
     uint256 public lastTokenId;
     uint64 public lastExpiry;
     address public lastCaller;
@@ -583,7 +721,7 @@ contract MockTokenObserver is PermissionedRegistryTokenObserver {
     }
 }
 
-contract RevertingTokenObserver is PermissionedRegistryTokenObserver {
+contract RevertingTokenObserver is TokenObserver {
     error ObserverReverted();
 
     function onRenew(uint256, uint64, address) external pure {

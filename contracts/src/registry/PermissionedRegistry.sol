@@ -40,6 +40,16 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
     uint256 private constant ROLE_SET_TOKEN_OBSERVER = 1 << 4;
     uint256 private constant ROLE_SET_TOKEN_OBSERVER_ADMIN = ROLE_SET_TOKEN_OBSERVER << 128;
 
+
+    modifier onlyNonExpiredTokenRoles(uint256 tokenId, uint256 roleBitmap) {
+        _checkRoles(tokenIdResource(tokenId), roleBitmap, _msgSender());
+        (, uint64 expires) = datastore.getSubregistry(tokenId);
+        if (expires < block.timestamp) {
+            revert NameExpired(tokenId);
+        }
+        _;
+    }
+
     constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
         _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender());
 
@@ -99,16 +109,13 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         return tokenId;
     }
 
-    function setTokenObserver(uint256 tokenId, address _observer) external onlyRoles(tokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER) {
+    function setTokenObserver(uint256 tokenId, address _observer) external onlyNonExpiredTokenRoles(tokenId, ROLE_SET_TOKEN_OBSERVER) {
         tokenObservers[tokenId] = _observer;
         emit TokenObserverSet(tokenId, _observer);
     }
 
-    function renew(uint256 tokenId, uint64 expires) public onlyRoles(tokenIdResource(tokenId), ROLE_RENEW) {
+    function renew(uint256 tokenId, uint64 expires) public onlyNonExpiredTokenRoles(tokenId, ROLE_RENEW) {
         (address subregistry, uint64 oldExpiration) = datastore.getSubregistry(tokenId);
-        if (oldExpiration < block.timestamp) {
-            revert NameExpired(tokenId);
-        }
         if (expires < oldExpiration) {
             revert CannotReduceExpiration(oldExpiration, expires);
         }
@@ -116,7 +123,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
 
         address observer = tokenObservers[tokenId];
         if (observer != address(0)) {
-            PermissionedRegistryTokenObserver(observer).onRenew(tokenId, expires, msg.sender);
+            TokenObserver(observer).onRenew(tokenId, expires, msg.sender);
         }
 
         emit NameRenewed(tokenId, expires, msg.sender);
@@ -137,7 +144,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         
         address observer = tokenObservers[tokenId];
         if (observer != address(0)) {
-            PermissionedRegistryTokenObserver(observer).onRelinquish(tokenId, msg.sender);
+            TokenObserver(observer).onRelinquish(tokenId, msg.sender);
         }
 
         emit NameRelinquished(tokenId, msg.sender);
@@ -164,7 +171,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
 
     function setSubregistry(uint256 tokenId, IRegistry registry)
         external
-        onlyRoles(tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY)
+        onlyNonExpiredTokenRoles(tokenId, ROLE_SET_SUBREGISTRY)
     {
         (, uint64 expires) = datastore.getSubregistry(tokenId);
         datastore.setSubregistry(tokenId, address(registry), expires);
@@ -172,7 +179,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
 
     function setResolver(uint256 tokenId, address resolver)
         external
-        onlyRoles(tokenIdResource(tokenId), ROLE_SET_RESOLVER)
+        onlyNonExpiredTokenRoles(tokenId, ROLE_SET_RESOLVER)
     {
         datastore.setResolver(tokenId, resolver, 0);
     }
@@ -180,10 +187,6 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
     function nameData(uint256 tokenId) external view returns (uint64 expiry) {
         (, uint64 expires) = datastore.getSubregistry(tokenId);
         return expires;
-    }
-
-    function supportsInterface(bytes4 interfaceId) public view virtual override(BaseRegistry, EnhancedAccessControl, IERC165) returns (bool) {
-        return BaseRegistry.supportsInterface(interfaceId) || EnhancedAccessControl.supportsInterface(interfaceId);
     }
 
     /**
@@ -194,6 +197,11 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
      */
     function tokenIdResource(uint256 tokenId) public view returns(bytes32) {
         return keccak256(abi.encodePacked(tokenId, tokenIdResourceVersion[tokenId]));
+    }
+
+
+    function supportsInterface(bytes4 interfaceId) public view virtual override(BaseRegistry, EnhancedAccessControl, IERC165) returns (bool) {
+        return interfaceId == type(IPermissionedRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
     // Internal/private methods
@@ -210,7 +218,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
 /**
  * @dev Observer pattern for events on existing tokens.
  */
-interface PermissionedRegistryTokenObserver {
+interface TokenObserver {
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external;
     function onRelinquish(uint256 tokenId, address relinquishedBy) external;
 }
