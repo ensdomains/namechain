@@ -251,7 +251,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         assertEq(registry.ownerOf(tokenId), owner);
         
         // Verify expiry
-        uint64 expiry = registry.nameData(tokenId);
+        uint64 expiry = registry.getExpiry(tokenId);
         assertEq(expiry, uint64(block.timestamp) + duration);
         
         // Check for NameRegistered event using the library
@@ -528,7 +528,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         );
         
         // Get initial expiry
-        uint64 initialExpiry = registry.nameData(tokenId);
+        uint64 initialExpiry = registry.getExpiry(tokenId);
         
         // Renew the name
         uint64 renewalDuration = 180 days;
@@ -539,7 +539,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.renew{value: BASE_PRICE + PREMIUM_PRICE}(name, renewalDuration);
         
         // Verify new expiry
-        uint64 newExpiry = registry.nameData(tokenId);
+        uint64 newExpiry = registry.getExpiry(tokenId);
         assertEq(newExpiry, initialExpiry + renewalDuration);
         
         // Check for NameRenewed event using the library

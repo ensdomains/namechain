@@ -94,7 +94,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         vm.prank(address(ejectionController));
         registry.updateExpiration(tokenId, newExpiry);
 
-        uint64 expiry = registry.nameData(tokenId);
+        uint64 expiry = registry.getExpiry(tokenId);
         assertEq(expiry, newExpiry);
     }
 
@@ -398,7 +398,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         newController.triggerSyncRenewalFromL2(registry, tokenId, newExpiry);
         
         // Verify expiry was updated
-        uint64 expiry = registry.nameData(tokenId);
+        uint64 expiry = registry.getExpiry(tokenId);
         assertEq(expiry, newExpiry);
     }
 
@@ -420,7 +420,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
 
         // Verify all details
         assertEq(registry.ownerOf(tokenId), owner);
-        uint64 storedExpiry = registry.nameData(tokenId);
+        uint64 storedExpiry = registry.getExpiry(tokenId);
         assertEq(storedExpiry, expires);
         assertEq(address(registry.getSubregistry("ejected")), registryAddr);
 

@@ -187,11 +187,15 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         datastore.setResolver(tokenId, resolver, 0, 0);
     }
 
-    function nameData(string calldata label) external view returns (uint256 tokenId, uint64 expiry) {
+    function getNameData(string calldata label) external view returns (uint256 tokenId, uint64 expiry) {
         tokenId = NameUtils.labelToTokenId(label);
         uint32 tokenIdVersion;
         (, expiry, tokenIdVersion) = datastore.getSubregistry(tokenId);
         tokenId = _constructVersionedTokenId(tokenId, tokenIdVersion);
+    }
+
+    function getExpiry(uint256 tokenId) external view returns (uint64 expires) {
+        (, expires, ) = datastore.getSubregistry(tokenId);
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(BaseRegistry, EnhancedAccessControl, IERC165) returns (bool) {
@@ -216,14 +220,14 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         }
     }
 
-    function _onRolesGranted(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal virtual override {
+    function _onRolesGranted(bytes32 resource, address /*account*/, uint256 oldRoles, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
         // if not just minted then regenerate the token id
         if (oldRoles != 0) {
             _regenerateToken(resourceTokenId[resource]);
         }
     }
 
-    function _onRolesRevoked(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal virtual override {
+    function _onRolesRevoked(bytes32 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
         // if not being burnt then regenerate the token id
         if (ownerOf(resourceTokenId[resource]) != address(0)) {
             _regenerateToken(resourceTokenId[resource]);
@@ -247,7 +251,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
     }
 
 
-    function _constructVersionedTokenId(uint256 tokenId, uint32 tokenIdVersion) internal returns (uint256 newTokenId) {
+    function _constructVersionedTokenId(uint256 tokenId, uint32 tokenIdVersion) internal pure returns (uint256 newTokenId) {
         newTokenId = NameUtils.getCanonicalId(tokenId) | tokenIdVersion;
     }
 }

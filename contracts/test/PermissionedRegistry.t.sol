@@ -96,7 +96,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint64 newExpiry = uint64(block.timestamp) + 172800;
         registry.renew(tokenId, newExpiry);
         
-        uint64 expiry = registry.nameData(tokenId);
+        uint64 expiry = registry.getExpiry(tokenId);    
         assertEq(expiry, newExpiry);
     }
 
@@ -113,7 +113,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint64 newExpiry = uint64(block.timestamp) + 172800;
         registry.renew(tokenId, newExpiry);
         
-        uint64 expiry = registry.nameData(tokenId);
+        uint64 expiry = registry.getExpiry(tokenId);
         assertEq(expiry, newExpiry);
     }
 
@@ -152,7 +152,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint64 newExpiry = uint64(block.timestamp) + 172800;
         registry.renew(tokenId, newExpiry);
         
-        uint64 expiry = registry.nameData(tokenId);
+        uint64 expiry = registry.getExpiry(tokenId);
         assertEq(expiry, newExpiry);
     }
 
@@ -244,7 +244,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint64 newExpiry = uint64(block.timestamp) + 200;
         registry.renew(tokenId, newExpiry);
         
-        uint64 expiry = registry.nameData(tokenId);
+        uint64 expiry = registry.getExpiry(tokenId);
         assertEq(expiry, newExpiry);
     }
 
@@ -447,7 +447,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         vm.expectRevert(RevertingTokenObserver.ObserverReverted.selector);
         registry.renew(tokenId, newExpiry);
         
-        uint64 expiry = registry.nameData(tokenId);
+        uint64 expiry = registry.getExpiry(tokenId);
         assertEq(expiry, uint64(block.timestamp) + 100);
     }
 

@@ -71,7 +71,7 @@ contract L1ETHRegistry is PermissionedRegistry {
         returns (uint256)
     {
         // Check if the name is active (not expired)
-        (, uint64 oldExpires) = datastore.getSubregistry(tokenId);
+        (, uint64 oldExpires, uint32 tokenIdVersion) = datastore.getSubregistry(tokenId);
         if (oldExpires >= block.timestamp) {
             revert NameNotExpired(tokenId, oldExpires);
         }
@@ -84,7 +84,9 @@ contract L1ETHRegistry is PermissionedRegistry {
         }
 
         _mint(owner, tokenId, 1, "");
-        datastore.setSubregistry(tokenId, address(registry), expires);
+
+        datastore.setSubregistry(tokenId, address(registry), expires, tokenIdVersion);
+
         emit NameEjected(tokenId, owner, expires);
         return tokenId;
     }
@@ -100,7 +102,7 @@ contract L1ETHRegistry is PermissionedRegistry {
         public 
         onlyEjectionController
     {
-        (address subregistry, uint64 oldExpiration) = datastore.getSubregistry(tokenId);
+        (address subregistry, uint64 oldExpiration, uint32 tokenIdVersion) = datastore.getSubregistry(tokenId);
         
         if (oldExpiration < block.timestamp) {
             revert NameExpired(tokenId);
@@ -110,7 +112,7 @@ contract L1ETHRegistry is PermissionedRegistry {
             revert CannotReduceExpiration(oldExpiration, expires);
         }
         
-        datastore.setSubregistry(tokenId, subregistry, expires);
+        datastore.setSubregistry(tokenId, subregistry, expires, tokenIdVersion);
         
         emit NameRenewed(tokenId, expires, msg.sender);
     }
@@ -127,7 +129,7 @@ contract L1ETHRegistry is PermissionedRegistry {
     function migrateToNamechain(uint256 tokenId, address l2Owner, address l2Subregistry, bytes memory data) external onlyTokenOwner(tokenId) {
         address owner = ownerOf(tokenId);
         _burn(owner, tokenId, 1);
-        datastore.setSubregistry(tokenId, address(0), 0);
+        datastore.setSubregistry(tokenId, address(0), 0, 0);
 
         // Notify the ejection controller to handle cross-chain messaging
         ejectionController.migrateToNamechain(tokenId, l2Owner, l2Subregistry, data);
