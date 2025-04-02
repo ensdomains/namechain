@@ -334,11 +334,10 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     }
 
     function test_expired_name_can_be_reregistered() public {
-        uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
+        registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
         vm.warp(block.timestamp + 101);
         
         uint256 newTokenId = registry.register("test2", address(1), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
-        assertEq(newTokenId, tokenId);
         assertEq(registry.ownerOf(newTokenId), address(1));
     }
 
@@ -489,7 +488,6 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, owner1));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_RENEW, owner1));
         
-        // Capture the resource ID before expiration
         bytes32 originalResourceId = registry.tokenIdResource(tokenId);
         
         // Move time forward to expire the name
@@ -502,12 +500,12 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         address owner2 = makeAddr("owner2");
         uint256 newTokenId = registry.register("resettest", owner2, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
         
-        // Verify it's the same token ID but has a different resource ID
-        assertEq(newTokenId, tokenId);
-        bytes32 newResourceId = registry.tokenIdResource(tokenId);
-        assertNotEq(newResourceId, originalResourceId, "Resource ID should change after re-registration");
+        // Verify it's a different token ID
+        assertNotEq(newTokenId, tokenId, "Token ID should change after re-registration");
+        bytes32 newResourceId = registry.tokenIdResource(newTokenId);
+        assertEq(newResourceId, originalResourceId, "Resource ID should NOT change after re-registration");
         
-        // Since resource ID changed, owner1 should no longer have roles for this token
+        // owner1 should no longer have roles for this token
         // Test specifically using new resource ID
         assertFalse(registry.hasRoles(newResourceId, ROLE_SET_SUBREGISTRY, owner1));
         assertFalse(registry.hasRoles(newResourceId, ROLE_SET_RESOLVER, owner1));
@@ -524,30 +522,33 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         // Register a name with owner1
         address owner1 = makeAddr("owner1");
         uint256 tokenId = registry.register("transfertest", owner1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
+
+        // Capture the resource ID before transfer
+        bytes32 originalResourceId = registry.tokenIdResource(tokenId);
         
         // Grant additional role to owner1
         registry.grantRoles(registry.tokenIdResource(tokenId), ROLE_RENEW, owner1);
+
+        // get the new token id 
+        uint256 newTokenId = registry.resourceVersionedTokenId(originalResourceId);
         
         // Verify owner1 has roles
-        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner1));
-        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner1));
-        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, owner1));
-        assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_RENEW, owner1));
-        
-        // Capture the resource ID before transfer
-        bytes32 originalResourceId = registry.tokenIdResource(tokenId);
+        assertTrue(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_SET_SUBREGISTRY, owner1));
+        assertTrue(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_SET_RESOLVER, owner1));
+        assertTrue(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_SET_TOKEN_OBSERVER, owner1));
+        assertTrue(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_RENEW, owner1));
         
         // Transfer to owner2
         address owner2 = makeAddr("owner2");
         vm.prank(owner1);
-        registry.safeTransferFrom(owner1, owner2, tokenId, 1, "");
+        registry.safeTransferFrom(owner1, owner2, newTokenId, 1, "");
         
         // Verify token ownership transferred
-        assertEq(registry.ownerOf(tokenId), owner2);
+        assertEq(registry.ownerOf(newTokenId), owner2);
         
         // Verify the resource ID has changed
-        bytes32 newResourceId = registry.tokenIdResource(tokenId);
-        assertNotEq(newResourceId, originalResourceId, "Resource ID should change after transfer");
+        bytes32 newResourceId = registry.tokenIdResource(newTokenId);
+        assertEq(newResourceId, originalResourceId, "Resource ID should be the same");
         
         // Check using the new resource ID that owner1 no longer has roles
         assertFalse(registry.hasRoles(newResourceId, ROLE_SET_SUBREGISTRY, owner1));

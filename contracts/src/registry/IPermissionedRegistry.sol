@@ -22,4 +22,5 @@ interface IPermissionedRegistry is IRegistry {
     function getNameData(string calldata label) external view returns (uint256 tokenId, uint64 expiry);
     function getExpiry(uint256 tokenId) external view returns (uint64 expiry);
     function tokenIdResource(uint256 tokenId) external view returns(bytes32);
+    function resourceVersionedTokenId(bytes32 resource) external view returns (uint256);
 }
