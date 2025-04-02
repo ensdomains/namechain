@@ -19,4 +19,14 @@ library NameUtils {
     function labelToTokenId(string memory label) internal pure returns (uint256) {
         return uint256(keccak256(bytes(label)));
     }    
+
+
+    /**
+     * @dev Gets the canonical version of a token id or label hash.
+     * @param input The token id or label hash to convert to its canonical version.
+     * @return canonicalId The canonical version.
+     */
+    function getCanonicalId(uint256 input) internal pure returns (uint256) {
+        return input & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000;
+    }
 }
