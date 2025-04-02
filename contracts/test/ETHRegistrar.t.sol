@@ -454,7 +454,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // Wait for min commitment age to ensure the commitment is valid
         vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
         
-        // This should now fail with NameNotAvailable instead of CommitmentTooNew
+        // This should now fail with NameNotAvailable
         vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.NameNotAvailable.selector, name));
         registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
             name, 
