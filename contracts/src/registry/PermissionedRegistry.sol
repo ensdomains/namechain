@@ -90,7 +90,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
             revert CannotSetPastExpiration(expires);
         }
 
-        tokenId = NameUtils.getCanonicalId(tokenId) | tokenIdVersion;
+        tokenId = _constructVersionedTokenId(tokenId, tokenIdVersion);
 
         // if there is a previous owner, burn the token
         address previousOwner = super.ownerOf(tokenId);
@@ -187,9 +187,11 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         datastore.setResolver(tokenId, resolver, 0, 0);
     }
 
-    function nameData(uint256 tokenId) external view returns (uint64 expiry) {
-        (, uint64 expires, ) = datastore.getSubregistry(tokenId);
-        return expires;
+    function nameData(string calldata label) external view returns (uint256 tokenId, uint64 expiry) {
+        tokenId = NameUtils.labelToTokenId(label);
+        uint32 tokenIdVersion;
+        (, expiry, tokenIdVersion) = datastore.getSubregistry(tokenId);
+        tokenId = _constructVersionedTokenId(tokenId, tokenIdVersion);
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(BaseRegistry, EnhancedAccessControl, IERC165) returns (bool) {
@@ -198,26 +200,30 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
 
     // Internal/private methods
 
-    function _mint(address to, uint256 tokenId, uint256 amount, bytes memory data) internal virtual override {
-        super._mint(to, tokenId, amount, data);
-        tokenIdResource[tokenId] = bytes32(tokenId);
-        resourceTokenId[tokenIdResource[tokenId]] = tokenId;
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal virtual override {
+        super._update(from, to, ids, values);
+        for (uint256 i = 0; i < ids.length; i++) {
+            // mint
+            if (from == address(0)) {
+                tokenIdResource[ids[i]] = bytes32(ids[i]);
+                resourceTokenId[bytes32(ids[i])] = ids[i];
+            } 
+            // burn
+            else {
+                delete tokenIdResource[ids[i]];
+                delete resourceTokenId[bytes32(ids[i])];
+            }
+        }
     }
 
-    function _burn(address from, uint256 tokenId, uint256 amount) internal virtual override {
-        super._burn(from, tokenId, amount);
-        delete tokenIdResource[tokenId];
-        delete resourceTokenId[tokenIdResource[tokenId]];
-    }
-
-    function _onRolesGranted(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal override {
+    function _onRolesGranted(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal virtual override {
         // if not just minted then regenerate the token id
         if (oldRoles != 0) {
             _regenerateToken(resourceTokenId[resource]);
         }
     }
 
-    function _onRolesRevoked(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal override {
+    function _onRolesRevoked(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal virtual override {
         // if not being burnt then regenerate the token id
         if (ownerOf(resourceTokenId[resource]) != address(0)) {
             _regenerateToken(resourceTokenId[resource]);
@@ -237,6 +243,11 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         (address registry, uint64 expires, uint32 tokenIdVersion) = datastore.getSubregistry(tokenId);
         tokenIdVersion++;
         datastore.setSubregistry(tokenId, registry, expires, tokenIdVersion);
+        newTokenId = _constructVersionedTokenId(tokenId, tokenIdVersion);
+    }
+
+
+    function _constructVersionedTokenId(uint256 tokenId, uint32 tokenIdVersion) internal returns (uint256 newTokenId) {
         newTokenId = NameUtils.getCanonicalId(tokenId) | tokenIdVersion;
     }
 }

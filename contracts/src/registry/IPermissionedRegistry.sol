@@ -19,6 +19,6 @@ interface IPermissionedRegistry is IRegistry {
     function setTokenObserver(uint256 tokenId, address _observer) external;
     function setSubregistry(uint256 tokenId, IRegistry registry) external;
     function setResolver(uint256 tokenId, address resolver) external;
-    function nameData(uint256 tokenId) external view returns (uint64 expiry);
+    function nameData(string calldata label) external view returns (uint256 tokenId, uint64 expiry);
     function tokenIdResource(uint256 tokenId) external view returns(bytes32);
 }
