@@ -6,7 +6,6 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {CCIPBatcher} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
-import {IRegistry} from "../registry/IRegistry.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
@@ -16,12 +15,15 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH} from "@ens/contracts/utils/ENSIP19.sol";
 
-contract UniversalResolver is IUniversalResolver, CCIPBatcher, Ownable, ERC165 {
-    IRegistry public immutable rootRegistry;
+abstract contract AbstractUniversalResolver is
+    IUniversalResolver,
+    CCIPBatcher,
+    Ownable,
+    ERC165
+{
     string[] public batchGateways;
 
-    constructor(IRegistry root, string[] memory gateways) Ownable(msg.sender) {
-        rootRegistry = root;
+    constructor(address owner, string[] memory gateways) Ownable(owner) {
         batchGateways = gateways;
     }
 
@@ -40,53 +42,25 @@ contract UniversalResolver is IUniversalResolver, CCIPBatcher, Ownable, ERC165 {
         batchGateways = gateways;
     }
 
-    /// @dev Finds the registry responsible for a name.
-    ///      If there is no registry for the full name, the registry for the longest
-    ///      extant suffix is returned instead.
-    /// @param name The name to look up.
-    /// @return reg A registry responsible for the name.
-    /// @return exact A boolean that is true if the registry is an exact match for `name`.
-    function getRegistry(
-        bytes memory name
-    ) public view returns (IRegistry reg, bool exact) {
-        uint256 len = uint8(name[0]);
-        if (len == 0) {
-            return (rootRegistry, true);
-        }
-        (reg, exact) = getRegistry(
-            BytesUtils.substring(name, 1 + len, name.length - len - 1)
-        );
-        if (!exact) {
-            return (reg, false);
-        }
-        string memory label = string(BytesUtils.substring(name, 1, len));
-        IRegistry sub = reg.getSubregistry(label);
-        if (sub == IRegistry(address(0))) {
-            return (reg, false);
-        }
-        return (sub, true);
-    }
-
-    /// @dev Finds the resolver responsible for a name, or `address(0)` if none.
-    /// @param name The name to find a resolver for.
-    /// @return reg A registry responsible for the name.
-    /// @return exact A boolean that is true if the registry is an exact match for `name`.
+    /// @dev Find the resolver address for `name`.
+    ///      Does not perform any validity checks.
+    /// @param name The name to search.
     /// @return resolver The resolver responsible for this name, or `address(0)` if none.
-    function getResolver(
+    /// @return node The namehash of name corresponding to the resolver.
+    /// @return offset The byte-offset into `name` of the name corresponding to the resolver.
+    function findResolver(
         bytes memory name
-    ) public view returns (IRegistry reg, bool exact, address resolver) {
-        (reg, exact) = getRegistry(name);
-        uint8 len = uint8(name[0]);
-        string memory label = string(BytesUtils.substring(name, 1, len));
-        resolver = reg.getResolver(label);
-    }
+    )
+        public
+        view
+        virtual
+        returns (address resolver, bytes32 node, uint256 offset);
 
     // @dev A valid resolver and its relevant properties.
     struct ResolverInfo {
         bytes name; // dns-encoded name (safe to decode)
-        bool exact; // uint256 offset; // byte offset into name used for resolver
+        uint256 offset; // byte offset into name used for resolver
         bytes32 node; // namehash(name)
-        IRegistry registry;
         address resolver;
         bool extended; // IExtendedResolver
     }
@@ -98,7 +72,7 @@ contract UniversalResolver is IUniversalResolver, CCIPBatcher, Ownable, ERC165 {
         bytes memory name
     ) public view returns (ResolverInfo memory info) {
         // https://docs.ens.domains/ensip/10
-        (info.registry, info.exact, info.resolver) = getResolver(name);
+        (info.resolver, info.node, info.offset) = findResolver(name);
         if (info.resolver == address(0)) {
             revert ResolverNotFound(name);
         } else if (
@@ -108,13 +82,12 @@ contract UniversalResolver is IUniversalResolver, CCIPBatcher, Ownable, ERC165 {
             )
         ) {
             info.extended = true;
-        } else if (!info.exact) {
+        } else if (info.offset != 0) {
             revert ResolverNotFound(name); // immediate resolver requires exact match
         } else if (info.resolver.code.length == 0) {
             revert ResolverNotContract(name, info.resolver);
         }
         info.name = name;
-        info.node = NameCoder.namehash(name, 0);
     }
 
     /// @notice Same as `resolveWithGateways()` but uses default batch gateways.
