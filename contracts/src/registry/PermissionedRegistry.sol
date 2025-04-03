@@ -140,7 +140,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
 
         datastore.setSubregistry(tokenId, address(0), 0, 0);
         datastore.setResolver(tokenId, address(0), 0, 0);
-        
+
         TokenObserver observer = tokenObservers[tokenId];
         if (address(observer) != address(0)) {
             observer.onRelinquish(tokenId, msg.sender);
@@ -215,20 +215,25 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         super._update(from, to, ids, values);
 
         for (uint256 i = 0; i < ids.length; ++i) {
+            /*
+            in _regenerateToken, we burn the token and then mint a new one. This flow below ensures the roles go from owner => zeroAddr => owner
+            */
             _copyRoles(tokenIdResource(ids[i]), from, to, false);
             _revokeAllRoles(tokenIdResource(ids[i]), from, false);
         }
     }
 
-    function _onRolesGranted(bytes32 resource, address /*account*/, uint256 oldRoles, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
-        // if not just minted then regenerate the token id
-        if (oldRoles != 0) {
-            _regenerateToken(resourceVersionedTokenId(resource));
+    function _onRolesGranted(bytes32 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
+        uint256 tokenId = resourceVersionedTokenId(resource);
+        // skip just-burn/expired tokens
+        if (ownerOf(tokenId) != address(0)) {
+            _regenerateToken(tokenId);
         }
     }
 
     function _onRolesRevoked(bytes32 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
         uint256 tokenId = resourceVersionedTokenId(resource);
+        // skip just-burn/expired tokens
         if (ownerOf(tokenId) != address(0)) {
             _regenerateToken(tokenId);
         }

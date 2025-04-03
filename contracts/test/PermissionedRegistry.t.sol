@@ -410,15 +410,17 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         
         // Verify the role was granted
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, tokenObserverSetter));
+
+        uint256 newTokenId = registry.resourceVersionedTokenId(registry.tokenIdResource(tokenId));  
         
         // The non-owner with role should be able to set the token observer
         vm.prank(tokenObserverSetter);
-        registry.setTokenObserver(tokenId, address(observer));
+        registry.setTokenObserver(newTokenId, address(observer));
         
         // Verify observer was set
         vm.prank(user1);
-        registry.relinquish(tokenId);
-        assertEq(observer.lastTokenId(), tokenId);
+        registry.relinquish(newTokenId);
+        assertEq(observer.lastTokenId(), newTokenId);
         assertEq(observer.wasRelinquished(), true);
     }
 
@@ -683,6 +685,144 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         ));
         vm.prank(user1);
         registry.setResolver(tokenId, address(this));
+    }
+
+    function test_token_regeneration_on_role_grant() public {
+        // Register a token with owner1
+        address owner1 = makeAddr("owner1");
+        uint256 tokenId = registry.register("regenerate1", owner1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
+        
+        // Record the resource ID (should remain stable)
+        bytes32 resourceId = registry.tokenIdResource(tokenId);
+        
+        // Grant a new role to another user
+        address user2 = makeAddr("user2");
+        
+        vm.recordLogs();
+        registry.grantRoles(resourceId, ROLE_RENEW, user2);
+        
+        // Check for the TokenRegenerated event
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        bool foundEvent = false;
+        uint256 newTokenId;
+        
+        for (uint i = 0; i < entries.length; i++) {
+            if (entries[i].topics[0] == keccak256("TokenRegenerated(uint256,uint256)")) {
+                foundEvent = true;
+                uint256 oldTokenIdFromEvent;
+                (oldTokenIdFromEvent, newTokenId) = abi.decode(entries[i].data, (uint256, uint256));
+                assertEq(oldTokenIdFromEvent, tokenId, "Old token ID in event doesn't match");
+                break;
+            }
+        }
+        
+        assertTrue(foundEvent, "TokenRegenerated event not emitted");
+        assertNotEq(newTokenId, tokenId, "Token ID should have changed");
+        
+        // Check that the new token ID has the same resource ID
+        assertEq(registry.tokenIdResource(newTokenId), resourceId, "Resource ID should remain the same");
+        
+        // Verify the owner still owns the token (new token ID)
+        assertEq(registry.ownerOf(newTokenId), owner1);
+        
+        // Verify the owner still has the same permissions
+        assertTrue(registry.hasRoles(resourceId, ROLE_SET_SUBREGISTRY, owner1));
+        assertTrue(registry.hasRoles(resourceId, ROLE_SET_RESOLVER, owner1));
+        assertTrue(registry.hasRoles(resourceId, ROLE_SET_TOKEN_OBSERVER, owner1));
+        
+        // Verify the granted role exists on the resource
+        assertTrue(registry.hasRoles(resourceId, ROLE_RENEW, user2));
+    }
+    
+    function test_token_regeneration_on_role_revoke() public {
+        // Register a token with owner1
+        address owner1 = makeAddr("owner1");
+        uint256 tokenId = registry.register("regenerate2", owner1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
+        
+        // Record the resource ID (should remain stable)
+        bytes32 resourceId = registry.tokenIdResource(tokenId);
+        
+        // Grant a role to another user first
+        address user2 = makeAddr("user2");
+        registry.grantRoles(resourceId, ROLE_RENEW, user2);
+        
+        // Get the new token ID after first regeneration
+        uint256 intermediateTokenId = registry.resourceVersionedTokenId(resourceId);
+        
+        // Now revoke the role and check regeneration again
+        vm.recordLogs();
+        registry.revokeRoles(resourceId, ROLE_RENEW, user2);
+        
+        // Check for the TokenRegenerated event
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        bool foundEvent = false;
+        uint256 newTokenId;
+        
+        for (uint i = 0; i < entries.length; i++) {
+            if (entries[i].topics[0] == keccak256("TokenRegenerated(uint256,uint256)")) {
+                foundEvent = true;
+                uint256 oldTokenIdFromEvent;
+                (oldTokenIdFromEvent, newTokenId) = abi.decode(entries[i].data, (uint256, uint256));
+                assertEq(oldTokenIdFromEvent, intermediateTokenId, "Old token ID in event doesn't match");
+                break;
+            }
+        }
+        
+        assertTrue(foundEvent, "TokenRegenerated event not emitted");
+        assertNotEq(newTokenId, intermediateTokenId, "Token ID should have changed");
+        assertNotEq(newTokenId, tokenId, "Token ID should not revert to original");
+        
+        // Check that the new token ID has the same resource ID
+        assertEq(registry.tokenIdResource(newTokenId), resourceId, "Resource ID should remain the same");
+        
+        // Verify the owner still owns the token (new token ID)
+        assertEq(registry.ownerOf(newTokenId), owner1);
+        
+        // Verify the owner still has the same permissions
+        assertTrue(registry.hasRoles(resourceId, ROLE_SET_SUBREGISTRY, owner1));
+        assertTrue(registry.hasRoles(resourceId, ROLE_SET_RESOLVER, owner1));
+        assertTrue(registry.hasRoles(resourceId, ROLE_SET_TOKEN_OBSERVER, owner1));
+        
+        // Verify the revoked role is gone
+        assertFalse(registry.hasRoles(resourceId, ROLE_RENEW, user2));
+    }
+    
+    function test_maintaining_owner_roles_across_regenerations() public {
+        // Register a token with owner1
+        address owner1 = makeAddr("owner1");
+        uint256 tokenId = registry.register("regenerate3", owner1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
+        
+        // Record the resource ID (should remain stable)
+        bytes32 resourceId = registry.tokenIdResource(tokenId);
+        
+        // Grant an additional role to the owner
+        registry.grantRoles(resourceId, ROLE_RENEW, owner1);
+        
+        // Get the new token ID after regeneration
+        uint256 intermediateTokenId = registry.resourceVersionedTokenId(resourceId);
+        
+        // Now grant a role to another user, triggering another regeneration
+        address user2 = makeAddr("user2");
+        registry.grantRoles(resourceId, ROLE_RENEW, user2);
+        
+        // Get the final token ID
+        uint256 finalTokenId = registry.resourceVersionedTokenId(resourceId);
+        
+        // Verify the token has been regenerated twice
+        assertNotEq(tokenId, intermediateTokenId, "Token should be regenerated first time");
+        assertNotEq(intermediateTokenId, finalTokenId, "Token should be regenerated second time");
+        
+        // Verify the owner still owns the token (new token ID)
+        assertEq(registry.ownerOf(finalTokenId), owner1);
+        
+        // Verify the owner still has ALL the permissions
+        assertTrue(registry.hasRoles(resourceId, ROLE_SET_SUBREGISTRY, owner1));
+        assertTrue(registry.hasRoles(resourceId, ROLE_SET_RESOLVER, owner1));
+        assertTrue(registry.hasRoles(resourceId, ROLE_SET_TOKEN_OBSERVER, owner1));
+        assertTrue(registry.hasRoles(resourceId, ROLE_RENEW, owner1));
+        
+        // Verify the other user has their role
+        assertTrue(registry.hasRoles(resourceId, ROLE_RENEW, user2));
     }
 }
 
