@@ -45,7 +45,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
     }
 
     constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
-        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender());
+        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender(), false);
 
         if (address(_metadata) == address(0)) {
             _updateMetadataProvider(new SimpleRegistryMetadata());
@@ -92,13 +92,12 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         // if there is a previous owner, burn the token
         address previousOwner = super.ownerOf(tokenId);
         if (previousOwner != address(0)) {
-            _revokeAllRoles(tokenIdResource(tokenId), previousOwner);
             _burn(previousOwner, tokenId, 1);
             tokenId = _regenerateTokenId(tokenId); // so we have a fresh acl
         }
 
         _mint(owner, tokenId, 1, "");
-        _grantRoles(tokenIdResource(tokenId), roleBitmap, owner);
+        _grantRoles(tokenIdResource(tokenId), roleBitmap, owner, false);
 
         datastore.setSubregistry(tokenId, address(registry), expires, tokenIdVersion);
         datastore.setResolver(tokenId, resolver, 0, 0);
@@ -138,7 +137,6 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
      */
     function relinquish(uint256 tokenId) external onlyTokenOwner(tokenId) {
         _burn(ownerOf(tokenId), tokenId, 1);
-        _revokeAllRoles(tokenIdResource(tokenId), ownerOf(tokenId));
 
         datastore.setSubregistry(tokenId, address(0), 0, 0);
         datastore.setResolver(tokenId, address(0), 0, 0);
@@ -217,8 +215,8 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         super._update(from, to, ids, values);
 
         for (uint256 i = 0; i < ids.length; ++i) {
-            _copyRoles(tokenIdResource(ids[i]), from, to);
-            _revokeAllRoles(tokenIdResource(ids[i]), from);
+            _copyRoles(tokenIdResource(ids[i]), from, to, false);
+            _revokeAllRoles(tokenIdResource(ids[i]), from, false);
         }
     }
 

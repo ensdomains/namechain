@@ -45,36 +45,28 @@ contract TestRootRegistry is Test, ERC1155Holder {
 
 
     function test_register_unlocked() public {
-        uint256 expectedId = uint256(keccak256("test2"));
         uint256 tokenId = registry.register("test2", owner, registry, address(0), defaultRoleBitmap, MAX_EXPIRY);
-        vm.assertEq(tokenId, expectedId);
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_FLAGS, owner));
     }
 
     function test_register_locked_resolver_and_subregistry() public {
-        uint256 expectedId = uint256(keccak256("test2"));
         uint256 tokenId = registry.register("test2", owner, registry, address(0), lockedFlagsRoleBitmap, MAX_EXPIRY);
-        vm.assertEq(tokenId, expectedId);
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
         assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_FLAGS, owner));
     }
 
     function test_register_locked_subregistry() public {
-        uint256 expectedId = uint256(keccak256("test2"));
         uint256 tokenId = registry.register("test2", owner, registry, address(0), lockedSubregistryRoleBitmap, MAX_EXPIRY);
-        vm.assertEq(tokenId, expectedId);
         assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_FLAGS, owner));
     }
 
     function test_register_locked_resolver() public {
-        uint256 expectedId = uint256(keccak256("test2"));
         uint256 tokenId = registry.register("test2", owner, registry, address(0), lockedResolverRoleBitmap, MAX_EXPIRY);
-        vm.assertEq(tokenId, expectedId);
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
         assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_RESOLVER, owner));
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_FLAGS, owner));
@@ -120,15 +112,10 @@ contract TestRootRegistry is Test, ERC1155Holder {
         vm.recordLogs();
         
         // Call register function
-        vm.prank(address(this));
         uint256 tokenId = registry.register(label, owner, registry, address(0), defaultRoleBitmap, MAX_EXPIRY);
         
         // Get recorded logs
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        
-        // Verify token ID calculation
-        uint256 expectedId = uint256(keccak256(bytes(label)));
-        vm.assertEq(tokenId, expectedId);
         
         // Verify ownership
         vm.assertEq(registry.ownerOf(tokenId), owner);

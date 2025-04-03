@@ -11,7 +11,7 @@ contract BaseUriRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
     string tokenBaseUri;
 
     constructor() {
-        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender());
+        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender(), true);
     }
 
     function setTokenBaseUri(string calldata uri) external onlyRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA) {

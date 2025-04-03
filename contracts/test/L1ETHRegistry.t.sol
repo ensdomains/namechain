@@ -452,13 +452,11 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
 
         // Grant ourselves the resolver-setting privileges
         uint256 ROLE_SET_RESOLVER = 1 << 3;           // Regular role
-        uint256 ROLE_SET_RESOLVER_ADMIN = 1 << 131;   // Admin role (ROLE_SET_RESOLVER << 128)
+        uint256 ROLE_SET_RESOLVER_ADMIN = ROLE_SET_RESOLVER << 128;   // Admin role (ROLE_SET_RESOLVER << 128)
         bytes32 resource = registry.tokenIdResource(tokenId);
         
-        // First ensure we have admin privileges for this resource
-        registry.grantRoles(resource, ROLE_SET_RESOLVER_ADMIN, address(this));
-        // Then grant ourselves the role
-        registry.grantRoles(resource, ROLE_SET_RESOLVER, address(this));
+        // Then grant ourselves the roles
+        registry.grantRoles(resource, ROLE_SET_RESOLVER_ADMIN | ROLE_SET_RESOLVER, address(this));
 
         // Set resolver
         address resolverAddr = address(0x5678);
@@ -478,10 +476,8 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         uint256 ROLE_SET_SUBREGISTRY_ADMIN = 1 << 130;   // Admin role (ROLE_SET_SUBREGISTRY << 128)
         bytes32 resource = registry.tokenIdResource(tokenId);
         
-        // First ensure we have admin privileges for this resource
-        registry.grantRoles(resource, ROLE_SET_SUBREGISTRY_ADMIN, address(this));
-        // Then grant ourselves the role
-        registry.grantRoles(resource, ROLE_SET_SUBREGISTRY, address(this));
+        // Then grant ourselves the roles
+        registry.grantRoles(resource, ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_SUBREGISTRY, address(this));
 
         // Create a new registry to use as a subregistry
         IRegistry newSubregistry = IRegistry(address(0x1234));

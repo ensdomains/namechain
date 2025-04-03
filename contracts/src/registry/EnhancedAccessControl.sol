@@ -113,7 +113,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
-        return _grantRoles(resource, roleBitmap, account);
+        return _grantRoles(resource, roleBitmap, account, true);
     }
 
     /**
@@ -126,7 +126,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if the roles were granted, `false` otherwise.
      */
     function grantRootRoles(uint256 roleBitmap, address account) public virtual canGrantRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
-        return _grantRoles(ROOT_RESOURCE, roleBitmap, account);
+        return _grantRoles(ROOT_RESOURCE, roleBitmap, account, true);
     }
 
     /**
@@ -144,7 +144,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
-        return _revokeRoles(resource, roleBitmap, account);
+        return _revokeRoles(resource, roleBitmap, account, true);
     }
 
     /**
@@ -157,7 +157,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if the roles were revoked, `false` otherwise.
      */
     function revokeRootRoles(uint256 roleBitmap, address account) public virtual canGrantRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
-        return _revokeRoles(ROOT_RESOURCE, roleBitmap, account);
+        return _revokeRoles(ROOT_RESOURCE, roleBitmap, account, true);
     }
 
     // Internal functions
@@ -188,23 +188,24 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @param srcAccount The account to copy roles from.
      * @param dstAccount The account to copy roles to.
      */
-    function _copyRoles(bytes32 resource, address srcAccount, address dstAccount) internal virtual {
+    function _copyRoles(bytes32 resource, address srcAccount, address dstAccount, bool enableCallbacks) internal virtual {
         uint256 srcRoles = _roles[resource][srcAccount];
-        _grantRoles(resource, srcRoles, dstAccount);
+        _grantRoles(resource, srcRoles, dstAccount, enableCallbacks);
     }
 
     /**
      * @dev Grants multiple roles to `account`.
      */
-    function _grantRoles(bytes32 resource, uint256 roleBitmap, address account) internal virtual returns (bool) {
+    function _grantRoles(bytes32 resource, uint256 roleBitmap, address account, bool enableCallbacks) internal virtual returns (bool) {
         uint256 currentRoles = _roles[resource][account];
         uint256 updatedRoles = currentRoles | roleBitmap;
 
         if (currentRoles != updatedRoles) {
             _roles[resource][account] = updatedRoles;
-            _onRolesGranted(resource, account, currentRoles, updatedRoles, roleBitmap);
+            if (enableCallbacks) {
+                _onRolesGranted(resource, account, currentRoles, updatedRoles, roleBitmap);
+            }
             emit EACRolesGranted(resource, roleBitmap, account);
-
             return true;
         } else {
             return false;
@@ -214,13 +215,15 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev Attempts to revoke roles from `account` and returns a boolean indicating if roles were revoked.
      */
-    function _revokeRoles(bytes32 resource, uint256 roleBitmap, address account) internal virtual returns (bool) {
+    function _revokeRoles(bytes32 resource, uint256 roleBitmap, address account, bool enableCallbacks) internal virtual returns (bool) {
         uint256 currentRoles = _roles[resource][account];
         uint256 updatedRoles = currentRoles & ~roleBitmap;
         
         if (currentRoles != updatedRoles) {
             _roles[resource][account] = updatedRoles;
-            _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
+            if (enableCallbacks) {
+                _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
+            }
             emit EACRolesRevoked(resource, roleBitmap, account);
             return true;
         } else {
@@ -231,8 +234,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev Revoke all roles for account within resource.
      */
-    function _revokeAllRoles(bytes32 resource, address account) internal virtual returns (bool) {
-        return _revokeRoles(resource, ALL_ROLES, account);
+    function _revokeAllRoles(bytes32 resource, address account, bool enableCallbacks) internal virtual returns (bool) {
+        return _revokeRoles(resource, ALL_ROLES, account, enableCallbacks);
     }
 
     /**

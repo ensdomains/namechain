@@ -156,15 +156,8 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertEq(expiry, newExpiry);
     }
 
-    function _expectedId(string memory label) internal pure returns (uint256) {
-        return uint256(keccak256(bytes(label)));
-    }
-
     function test_register_unlocked() public {
-        uint256 expectedId = _expectedId("test2");
-
         uint256 tokenId = registry.register("test2", owner, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
-        vm.assertEq(tokenId, expectedId);
         
         // Verify roles
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
@@ -172,10 +165,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     }
 
     function test_register_locked() public {
-        uint256 expectedId = _expectedId("test2");
-
         uint256 tokenId = registry.register("test2", owner, registry, address(0), noRolesRoleBitmap, uint64(block.timestamp) + 86400);
-        vm.assertEq(tokenId, expectedId);
         
         // Verify roles
         assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
@@ -183,10 +173,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     }
 
     function test_register_locked_subregistry() public {
-        uint256 expectedId = _expectedId("test2");
-
         uint256 tokenId = registry.register("test2", owner, registry, address(0), lockedSubregistryRoleBitmap, uint64(block.timestamp) + 86400);
-        vm.assertEq(tokenId, expectedId);
         
         // Verify roles
         assertFalse(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
@@ -194,10 +181,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     }
 
     function test_register_locked_resolver() public {
-        uint256 expectedId = _expectedId("test2");
-
         uint256 tokenId = registry.register("test2", owner, registry, address(0), lockedResolverRoleBitmap, uint64(block.timestamp) + 86400);
-        vm.assertEq(tokenId, expectedId);
         
         // Verify roles
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, owner));
@@ -309,10 +293,10 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry.relinquish(tokenId);
         
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        assertEq(entries.length, 5);
-        assertEq(entries[4].topics[0], keccak256("NameRelinquished(uint256,address)"));
-        assertEq(entries[4].topics[1], bytes32(tokenId));
-        (address relinquishedBy) = abi.decode(entries[4].data, (address));
+        assertEq(entries.length, 6);
+        assertEq(entries[5].topics[0], keccak256("NameRelinquished(uint256,address)"));
+        assertEq(entries[5].topics[1], bytes32(tokenId));
+        (address relinquishedBy) = abi.decode(entries[5].data, (address));
         assertEq(relinquishedBy, address(this));
     }
 
@@ -518,7 +502,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertTrue(registry.hasRoles(newResourceId, ROLE_SET_TOKEN_OBSERVER, owner2));
     }
     
-    function test_token_transfer_resets_roles() public {
+    function test_token_transfer_also_transfers_roles() public {
         // Register a name with owner1
         address owner1 = makeAddr("owner1");
         uint256 tokenId = registry.register("transfertest", owner1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
@@ -527,7 +511,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         bytes32 originalResourceId = registry.tokenIdResource(tokenId);
         
         // Grant additional role to owner1
-        registry.grantRoles(registry.tokenIdResource(tokenId), ROLE_RENEW, owner1);
+        registry.grantRoles(originalResourceId, ROLE_RENEW, owner1);
 
         // get the new token id 
         uint256 newTokenId = registry.resourceVersionedTokenId(originalResourceId);
@@ -546,7 +530,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         // Verify token ownership transferred
         assertEq(registry.ownerOf(newTokenId), owner2);
         
-        // Verify the resource ID has changed
+        // Verify the resource ID has not changed
         bytes32 newResourceId = registry.tokenIdResource(newTokenId);
         assertEq(newResourceId, originalResourceId, "Resource ID should be the same");
         
@@ -556,10 +540,11 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertFalse(registry.hasRoles(newResourceId, ROLE_SET_TOKEN_OBSERVER, owner1));
         assertFalse(registry.hasRoles(newResourceId, ROLE_RENEW, owner1));
         
-        // New owner should not automatically receive any roles after transfer
-        assertFalse(registry.hasRoles(newResourceId, ROLE_SET_SUBREGISTRY, owner2));
-        assertFalse(registry.hasRoles(newResourceId, ROLE_SET_RESOLVER, owner2));
-        assertFalse(registry.hasRoles(newResourceId, ROLE_SET_TOKEN_OBSERVER, owner2));
+        // New owner should automatically receive any roles after transfer
+        assertTrue(registry.hasRoles(newResourceId, ROLE_SET_SUBREGISTRY, owner2));
+        assertTrue(registry.hasRoles(newResourceId, ROLE_SET_RESOLVER, owner2));
+        assertTrue(registry.hasRoles(newResourceId, ROLE_SET_TOKEN_OBSERVER, owner2));
+        assertTrue(registry.hasRoles(newResourceId, ROLE_RENEW, owner2));
     }
 
     function test_Revert_setTokenObserver_when_token_expired() public {

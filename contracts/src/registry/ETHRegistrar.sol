@@ -35,7 +35,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     mapping(bytes32 => uint256) public commitments;    
 
     constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge) {
-        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender());
+        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender(), true);
 
         registry = IPermissionedRegistry(_registry);
 

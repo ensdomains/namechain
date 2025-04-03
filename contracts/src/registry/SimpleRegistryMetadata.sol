@@ -11,7 +11,7 @@ contract SimpleRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
     mapping(uint256 => string) private _tokenUris;
 
     constructor() {
-        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender());
+        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender(), true);
     }   
 
     function setTokenUri(uint256 tokenId, string calldata uri) external onlyRoles(ROOT_RESOURCE, ROLE_UPDATE_METADATA) {
