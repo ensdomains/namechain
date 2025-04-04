@@ -411,7 +411,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         // Verify the role was granted
         assertTrue(registry.hasRoles(registry.tokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, tokenObserverSetter));
 
-        uint256 newTokenId = registry.resourceVersionedTokenId(registry.tokenIdResource(tokenId));  
+        uint256 newTokenId = registry.resourceTokenId(registry.tokenIdResource(tokenId));  
         
         // The non-owner with role should be able to set the token observer
         vm.prank(tokenObserverSetter);
@@ -516,7 +516,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry.grantRoles(originalResourceId, ROLE_RENEW, owner1);
 
         // get the new token id 
-        uint256 newTokenId = registry.resourceVersionedTokenId(originalResourceId);
+        uint256 newTokenId = registry.resourceTokenId(originalResourceId);
         
         // Verify owner1 has roles
         assertTrue(registry.hasRoles(registry.tokenIdResource(newTokenId), ROLE_SET_SUBREGISTRY, owner1));
@@ -747,7 +747,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry.grantRoles(resourceId, ROLE_RENEW, user2);
         
         // Get the new token ID after first regeneration
-        uint256 intermediateTokenId = registry.resourceVersionedTokenId(resourceId);
+        uint256 intermediateTokenId = registry.resourceTokenId(resourceId);
         
         // Now revoke the role and check regeneration again
         vm.recordLogs();
@@ -799,21 +799,21 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry.grantRoles(resourceId, ROLE_RENEW, owner1);
         
         // Get the new token ID after regeneration
-        uint256 intermediateTokenId = registry.resourceVersionedTokenId(resourceId);
+        uint256 intermediateTokenId = registry.resourceTokenId(resourceId);
         
         // Now grant a role to another user, triggering another regeneration
         address user2 = makeAddr("user2");
         registry.grantRoles(resourceId, ROLE_RENEW, user2);
         
         // Get the final token ID
-        uint256 finalTokenId = registry.resourceVersionedTokenId(resourceId);
+        uint256 finalTokenId = registry.resourceTokenId(resourceId);
         
         // Verify the token has been regenerated twice
         assertNotEq(tokenId, intermediateTokenId, "Token should be regenerated first time");
         assertNotEq(intermediateTokenId, finalTokenId, "Token should be regenerated second time");
         
         // Verify the owner still owns the token (new token ID)
-        assertEq(registry.ownerOf(finalTokenId), owner1);
+        assertEq(registry.ownerOf(finalTokenId), owner1, "still owns the token");
         
         // Verify the owner still has ALL the permissions
         assertTrue(registry.hasRoles(resourceId, ROLE_SET_SUBREGISTRY, owner1));

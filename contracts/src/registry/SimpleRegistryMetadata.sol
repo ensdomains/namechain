@@ -23,6 +23,6 @@ contract SimpleRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
     }
 
     function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
-        return interfaceId == type(IRegistryMetadata).interfaceId || EnhancedAccessControl.supportsInterface(interfaceId);
+        return interfaceId == type(IRegistryMetadata).interfaceId || super.supportsInterface(interfaceId);
     }
 }

@@ -86,7 +86,6 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
         lastRevokedAccount = account;
     }
 
-    // Helper methods to test enableCallbacks parameter
     function grantRolesWithoutCallback(bytes32 resource, uint256 roleBitmap, address account) external canGrantRoles(resource, roleBitmap) returns (bool) {
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();

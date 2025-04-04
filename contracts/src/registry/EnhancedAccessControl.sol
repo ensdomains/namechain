@@ -187,22 +187,29 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @param resource The resource to copy roles within.
      * @param srcAccount The account to copy roles from.
      * @param dstAccount The account to copy roles to.
+     * @param executeCallbacks Whether to execute the callbacks.
      */
-    function _copyRoles(bytes32 resource, address srcAccount, address dstAccount, bool enableCallbacks) internal virtual {
+    function _copyRoles(bytes32 resource, address srcAccount, address dstAccount, bool executeCallbacks) internal virtual {
         uint256 srcRoles = _roles[resource][srcAccount];
-        _grantRoles(resource, srcRoles, dstAccount, enableCallbacks);
+        _grantRoles(resource, srcRoles, dstAccount, executeCallbacks);
     }
 
     /**
      * @dev Grants multiple roles to `account`.
+     *
+     * @param resource The resource to grant roles within.
+     * @param roleBitmap The roles bitmap to grant.
+     * @param account The account to grant roles to.
+     * @param executeCallbacks Whether to execute the callbacks.
+     * @return `true` if the roles were granted, `false` otherwise.
      */
-    function _grantRoles(bytes32 resource, uint256 roleBitmap, address account, bool enableCallbacks) internal virtual returns (bool) {
+    function _grantRoles(bytes32 resource, uint256 roleBitmap, address account, bool executeCallbacks) internal virtual returns (bool) {
         uint256 currentRoles = _roles[resource][account];
         uint256 updatedRoles = currentRoles | roleBitmap;
 
         if (currentRoles != updatedRoles) {
             _roles[resource][account] = updatedRoles;
-            if (enableCallbacks) {
+            if (executeCallbacks) {
                 _onRolesGranted(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
             emit EACRolesGranted(resource, roleBitmap, account);
@@ -214,14 +221,20 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
 
     /**
      * @dev Attempts to revoke roles from `account` and returns a boolean indicating if roles were revoked.
+     *
+     * @param resource The resource to revoke roles within.
+     * @param roleBitmap The roles bitmap to revoke.
+     * @param account The account to revoke roles from.
+     * @param executeCallbacks Whether to execute the callbacks.
+     * @return `true` if the roles were revoked, `false` otherwise.
      */
-    function _revokeRoles(bytes32 resource, uint256 roleBitmap, address account, bool enableCallbacks) internal virtual returns (bool) {
+    function _revokeRoles(bytes32 resource, uint256 roleBitmap, address account, bool executeCallbacks) internal virtual returns (bool) {
         uint256 currentRoles = _roles[resource][account];
         uint256 updatedRoles = currentRoles & ~roleBitmap;
         
         if (currentRoles != updatedRoles) {
             _roles[resource][account] = updatedRoles;
-            if (enableCallbacks) {
+            if (executeCallbacks) {
                 _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
             emit EACRolesRevoked(resource, roleBitmap, account);
@@ -234,8 +247,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev Revoke all roles for account within resource.
      */
-    function _revokeAllRoles(bytes32 resource, address account, bool enableCallbacks) internal virtual returns (bool) {
-        return _revokeRoles(resource, ALL_ROLES, account, enableCallbacks);
+    function _revokeAllRoles(bytes32 resource, address account, bool executeCallbacks) internal virtual returns (bool) {
+        return _revokeRoles(resource, ALL_ROLES, account, executeCallbacks);
     }
 
     /**
