@@ -8,20 +8,23 @@ export async function deployEnsFixture() {
     .getWalletClients()
     .then((clients) => clients.map((c) => c.account));
 
+  const ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn
+
   const datastore = await hre.viem.deployContract("RegistryDatastore", []);
   const rootRegistry = await hre.viem.deployContract("PermissionedRegistry", [
     datastore.address,
     zeroAddress,
+    ALL_ROLES
   ]);
   const ethRegistry = await hre.viem.deployContract("PermissionedRegistry", [
     datastore.address,
     zeroAddress,
+    ALL_ROLES
   ]);
   const universalResolver = await hre.viem.deployContract("UniversalResolver", [
     rootRegistry.address,
   ]);
 
-  const ALL_ROLES = await rootRegistry.read.ALL_ROLES()
   const MAX_EXPIRY = 18446744073709551615n // type(uint64).max
   
   await rootRegistry.write.register([
@@ -61,7 +64,7 @@ export const deployUserRegistry = async ({
   const wallet = (await hre.viem.getWalletClients())[ownerIndex];
   return await hre.viem.deployContract(
     "PermissionedRegistry",
-    [datastoreAddress, metadataAddress ?? zeroAddress],
+    [datastoreAddress, metadataAddress ?? zeroAddress, ALL_ROLES],
     {
       client: { wallet },
     }
