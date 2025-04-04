@@ -31,9 +31,12 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
+        // Use a defined ALL_ROLES value for deployer roles
+        uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
         registry = new PermissionedRegistry(
             datastore,
-            metadata
+            metadata,
+            deployerRoles
         );
     }
 

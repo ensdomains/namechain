@@ -67,7 +67,9 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         vm.warp(2_000_000_000);
 
         datastore = new RegistryDatastore();
-        registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata());
+        // Use a defined ALL_ROLES value for deployer roles
+        uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+        registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), deployerRoles);
         priceOracle = new MockPriceOracle(BASE_PRICE, PREMIUM_PRICE);
         
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE);

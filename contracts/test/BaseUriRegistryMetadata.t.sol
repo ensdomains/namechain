@@ -26,9 +26,12 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         datastore = new RegistryDatastore();
         metadata = new BaseUriRegistryMetadata();
         
+        // Use a defined ALL_ROLES value for deployer roles
+        uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
         registry = new PermissionedRegistry(
             datastore,
-            metadata
+            metadata,
+            deployerRoles
         );
     }
 

@@ -43,11 +43,12 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     address owner = makeAddr("owner");
     address user1 = makeAddr("user1");
 
+    uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
-        registry = new PermissionedRegistry(datastore, metadata);
-        registry.grantRootRoles(ROLE_REGISTRAR, address(this));
+        registry = new PermissionedRegistry(datastore, metadata, deployerRoles);
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
         priceOracle = new MockPriceOracle();
@@ -55,8 +56,8 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     }
 
     function test_constructor_sets_roles() public view {
-        uint256 r = ROLE_REGISTRAR | ROLE_REGISTRAR_ADMIN | ROLE_RENEW | ROLE_RENEW_ADMIN;
-        assertTrue(registry.hasRoles(registry.ROOT_RESOURCE(), r, address(this)));
+        uint256 expectedRoles = deployerRoles;
+        assertTrue(registry.hasRoles(registry.ROOT_RESOURCE(), expectedRoles, address(this)));
     }
 
     function test_Revert_register_without_registrar_role() public {

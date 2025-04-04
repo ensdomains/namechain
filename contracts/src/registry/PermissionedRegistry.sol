@@ -44,8 +44,8 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         _;
     }
 
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) BaseRegistry(_datastore) MetadataMixin(_metadata) {
-        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender(), false);
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata, uint256 _deployerRoles) BaseRegistry(_datastore) MetadataMixin(_metadata) {
+        _grantRoles(ROOT_RESOURCE, _deployerRoles, _msgSender(), false);
 
         if (address(_metadata) == address(0)) {
             _updateMetadataProvider(new SimpleRegistryMetadata());

@@ -29,7 +29,7 @@ contract L1ETHRegistry is PermissionedRegistry {
 
     IL1EjectionController public ejectionController;
 
-    constructor(IRegistryDatastore _datastore, address _ejectionController, IRegistryMetadata _registryMetadata) PermissionedRegistry(_datastore, _registryMetadata) {
+    constructor(IRegistryDatastore _datastore, address _ejectionController, IRegistryMetadata _registryMetadata) PermissionedRegistry(_datastore, _registryMetadata, ALL_ROLES) {
         // Set the ejection controller
         require(_ejectionController != address(0), "Ejection controller cannot be empty");
         ejectionController = IL1EjectionController(_ejectionController);
