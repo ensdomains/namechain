@@ -15,10 +15,23 @@ contract UniversalResolver is AbstractUniversalResolver {
         rootRegistry = root;
     }
 
-    /// @dev Finds the resolver and registry responsible for `name`.
+    /// @inheritdoc AbstractUniversalResolver
+    function findResolver(
+        bytes memory name
+    )
+        public
+        view
+        override
+        returns (address resolver, bytes32 node, uint256 offset)
+    {
+        node = NameCoder.namehash(name, 0); // check name
+        (, , resolver, offset) = _findResolver(name, 0);
+    }
+
+    /// @dev Finds the resolver for `name`.
     /// @param name The name to find.
     /// @return registry The registry responsible for `name`.
-    /// @return exact A boolean that is true if the registry is an exact match for `name`.
+    /// @return exact True if the registry is an exact match for `name`.
     /// @return resolver The resolver for `name`.
     /// @return offset The byte-offset into `name` of the name corresponding to the resolver.
     function _findResolver(
@@ -49,32 +62,39 @@ contract UniversalResolver is AbstractUniversalResolver {
                 resolver = r;
                 offset = offset0;
             }
-            if (offset0 > 0) {
-                IRegistry sub = registry.getSubregistry(label);
-                if (address(sub) == address(0)) {
-                    exact = false;
-                } else {
-                    registry = sub;
-                }
+            IRegistry sub = registry.getSubregistry(label);
+            if (address(sub) == address(0)) {
+                exact = false;
+            } else {
+                registry = sub;
             }
         }
     }
 
+    /// @notice Finds the nearest registry for `name`.
+    /// @param name The name to find.
+    /// @return registry The nearest registry for `name`.
+    /// @return exact True if the registry is an exact match for `name`.
     function getRegistry(
         bytes memory name
     ) external view returns (IRegistry registry, bool exact) {
         (registry, exact, , ) = _findResolver(name, 0);
     }
 
-    function findResolver(
-        bytes memory name
-    )
-        public
-        view
-        override
-        returns (address resolver, bytes32 node, uint256 offset)
-    {
-        node = NameCoder.namehash(name, 0); // confirms name is valid
-        (, , resolver, offset) = _findResolver(name, 0);
+    /// @notice Finds the registry responsible for `name`.
+    /// @param name The name to find.
+    /// @return registry The registry responsible for `name` or null.
+    /// @return label The leading label if `registry` exists or null.
+    function getParentRegistry(
+        bytes calldata name
+    ) external view returns (IRegistry registry, string memory label) {
+        (bytes32 labelHash, uint256 offset) = NameCoder.readLabel(name, 0);
+        if (labelHash != bytes32(0)) {
+            (IRegistry parent, bool exact, , ) = _findResolver(name, offset);
+            if (exact) {
+                registry = parent;
+                label = string(name[1:offset]);
+            }
+        }
     }
 }

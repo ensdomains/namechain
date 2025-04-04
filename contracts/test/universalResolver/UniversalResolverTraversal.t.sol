@@ -24,13 +24,16 @@ contract MockRegistry is UserRegistry {
 contract UniversalResolverTraversal is Test, ERC1155Holder {
     RegistryDatastore datastore;
     RootRegistry rootRegistry;
-    UniversalResolver ur;
+    UniversalResolver universalResolver;
 
     function setUp() public {
         datastore = new RegistryDatastore();
         rootRegistry = new RootRegistry(datastore);
         rootRegistry.grantRole(rootRegistry.TLD_ISSUER_ROLE(), address(this));
-        ur = new UniversalResolver(rootRegistry, new string[](0));
+        universalResolver = new UniversalResolver(
+            rootRegistry,
+            new string[](0)
+        );
     }
 
     function _createRegistry(
@@ -53,12 +56,22 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         rootRegistry.setResolver(tokenId, address(1));
 
         bytes memory name = NameCoder.encode(ethRegistry.label());
-        (address resolver, , uint256 offset) = ur.findResolver(name);
-        (IRegistry registry, bool exact) = ur.getRegistry(name);
+        (address resolver, , uint256 offset) = universalResolver.findResolver(
+            name
+        );
+        (IRegistry parentRegistry, string memory label) = universalResolver
+            .getParentRegistry(name);
+        (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
 
         assertEq(resolver, address(1), "resolver");
         assertEq(offset, 0, "offset");
-        assertEq(address(registry), address(rootRegistry), "registry");
+        assertEq(
+            address(parentRegistry),
+            address(rootRegistry),
+            "parentRegistry"
+        );
+        assertEq(label, ethRegistry.label(), "label");
+        assertEq(address(registry), address(ethRegistry), "registry");
         assertEq(exact, true, "exact");
     }
 
@@ -84,12 +97,22 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         bytes memory name = NameCoder.encode(
             string.concat(raffyRegistry.label(), ".", ethRegistry.label())
         );
-        (address resolver, , uint256 offset) = ur.findResolver(name);
-        (IRegistry registry, bool exact) = ur.getRegistry(name);
+        (address resolver, , uint256 offset) = universalResolver.findResolver(
+            name
+        );
+        (IRegistry parentRegistry, string memory label) = universalResolver
+            .getParentRegistry(name);
+        (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
 
         assertEq(resolver, address(1), "resolver");
         assertEq(offset, 0, "offset");
-        assertEq(address(registry), address(ethRegistry), "registry");
+        assertEq(
+            address(parentRegistry),
+            address(ethRegistry),
+            "parentRegistry"
+        );
+        assertEq(label, raffyRegistry.label(), "label");
+        assertEq(address(registry), address(raffyRegistry), "registry");
         assertEq(exact, true, "exact");
     }
 
@@ -112,24 +135,36 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
 
         rootRegistry.setResolver(tokenId, address(1));
 
+        string memory sub = "sub";
         bytes memory name = NameCoder.encode(
             string.concat(
-                "sub.",
+                sub,
+                ".",
                 raffyRegistry.label(),
                 ".",
                 ethRegistry.label()
             )
         );
-        (address resolver, , uint256 offset) = ur.findResolver(name);
-        (IRegistry registry, bool exact) = ur.getRegistry(name);
+        (address resolver, , uint256 offset) = universalResolver.findResolver(
+            name
+        );
+        (IRegistry parentRegistry, string memory label) = universalResolver
+            .getParentRegistry(name);
+        (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
 
         assertEq(resolver, address(1), "resolver");
         assertEq(offset, 10, "offset");
+        assertEq(
+            address(parentRegistry),
+            address(raffyRegistry),
+            "parentRegistry"
+        );
+        assertEq(label, sub, "label");
         assertEq(address(registry), address(raffyRegistry), "registry");
-        assertEq(exact, true, "exact");
+        assertEq(exact, false, "exact");
     }
 
-    function test_findResolver_nonExact() external {
+    function test_findResolver_virtual() external {
         MockRegistry ethRegistry = _createRegistry(rootRegistry, "eth");
         MockRegistry raffyRegistry = _createRegistry(ethRegistry, "raffy");
         uint256 tokenId = rootRegistry.mint(
@@ -156,11 +191,17 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
                 ethRegistry.label()
             )
         );
-        (address resolver, , uint256 offset) = ur.findResolver(name);
-        (IRegistry registry, bool exact) = ur.getRegistry(name);
+        (address resolver, , uint256 offset) = universalResolver.findResolver(
+            name
+        );
+        (IRegistry parentRegistry, string memory label) = universalResolver
+            .getParentRegistry(name);
+        (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
 
         assertEq(resolver, address(1), "resolver");
         assertEq(offset, 10, "offset");
+        assertEq(address(parentRegistry), address(0), "parentRegistry");
+        assertEq(label, "", "label");
         assertEq(address(registry), address(raffyRegistry), "registry");
         assertEq(exact, false, "exact");
     }
