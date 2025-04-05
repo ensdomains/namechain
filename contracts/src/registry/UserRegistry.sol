@@ -32,8 +32,8 @@ contract UserRegistry is BaseRegistry, MetadataMixin {
         _;
     }
 
-    function mint(string calldata _label, address owner, IRegistry registry, uint96 flags) external onlyNameOwner {
-        uint256 tokenId = uint256(keccak256(bytes(_label)));
+    function mint(string calldata _label, address owner, IRegistry registry, uint96 flags) external onlyNameOwner returns (uint256 tokenId) {
+        tokenId = uint256(keccak256(bytes(_label)));
         _mint(owner, tokenId, 1, "");
         datastore.setSubregistry(tokenId, address(registry), flags);
         emit NewSubname(tokenId, label);
