@@ -39,7 +39,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
     function test_findResolver_eth() external {
         //     name:  eth
         // registry: <eth> <root>
-        // resolver:         0x1
+        // resolver:  0x1
         MockRegistry ethRegistry = new MockRegistry(
             rootRegistry,
             "eth",
