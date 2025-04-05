@@ -261,6 +261,11 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
 
     /**
      * @dev Regenerate a token id.
+     * @param tokenId The token id to regenerate.
+     * @param registry The registry to set.
+     * @param expires The expiry date to set.
+     * @param tokenIdVersion The token id version to set.
+     * @return newTokenId The new token id.
      */
     function _regenerateTokenId(uint256 tokenId, address registry, uint64 expires, uint32 tokenIdVersion) internal returns (uint256 newTokenId) {
         tokenIdVersion++;
@@ -270,6 +275,9 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
 
     /**
      * @dev Construct a token id from a canonical/token id and a token id version.
+     * @param id The canonical/token id to construct the token id from.
+     * @param tokenIdVersion The token id version to set.
+     * @return newTokenId The new token id.
      */
     function _constructTokenId(uint256 id, uint32 tokenIdVersion) internal pure returns (uint256 newTokenId) {
         newTokenId = NameUtils.getCanonicalId(id) | tokenIdVersion;
