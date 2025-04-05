@@ -294,7 +294,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             duration
         );
 
-        bytes32 resource = registry.tokenIdResource(tokenId);
+        bytes32 resource = registry.getTokenIdResource(tokenId);
         assertTrue(registry.hasRoles(resource, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, owner));
     }
 

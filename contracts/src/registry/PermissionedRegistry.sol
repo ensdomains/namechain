@@ -36,7 +36,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
     uint256 private constant ROLE_SET_TOKEN_OBSERVER_ADMIN = ROLE_SET_TOKEN_OBSERVER << 128;
 
     modifier onlyNonExpiredTokenRoles(uint256 tokenId, uint256 roleBitmap) {
-        _checkRoles(tokenIdResource(tokenId), roleBitmap, _msgSender());
+        _checkRoles(getTokenIdResource(tokenId), roleBitmap, _msgSender());
         (, uint64 expires, ) = datastore.getSubregistry(tokenId);
         if (expires < block.timestamp) {
             revert NameExpired(tokenId);
@@ -97,7 +97,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         }
 
         _mint(owner, tokenId, 1, "");
-        _grantRoles(tokenIdResource(tokenId), roleBitmap, owner, false);
+        _grantRoles(getTokenIdResource(tokenId), roleBitmap, owner, false);
 
         datastore.setResolver(tokenId, resolver, 0, 0);
 
@@ -196,11 +196,11 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         return interfaceId == type(IPermissionedRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    function tokenIdResource(uint256 tokenId) public pure returns (bytes32) {
+    function getTokenIdResource(uint256 tokenId) public pure returns (bytes32) {
         return bytes32(NameUtils.getCanonicalId(tokenId));
     }
 
-    function resourceTokenId(bytes32 resource) public view returns (uint256) {
+    function getResourceTokenId(bytes32 resource) public view returns (uint256) {
         uint256 canonicalId = uint256(resource);
         (, , uint32 tokenIdVersion) = datastore.getSubregistry(canonicalId);
         return _constructTokenId(canonicalId, tokenIdVersion);
@@ -218,8 +218,8 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
             /*
             in _regenerateToken, we burn the token and then mint a new one. This flow below ensures the roles go from owner => zeroAddr => owner
             */
-            _copyRoles(tokenIdResource(ids[i]), from, to, false);
-            _revokeAllRoles(tokenIdResource(ids[i]), from, false);
+            _copyRoles(getTokenIdResource(ids[i]), from, to, false);
+            _revokeAllRoles(getTokenIdResource(ids[i]), from, false);
         }
     }
 
@@ -227,7 +227,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
      * @dev Override the base registry _onRolesGranted function to regenerate the token when the roles are granted.
      */
     function _onRolesGranted(bytes32 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
-        uint256 tokenId = resourceTokenId(resource);
+        uint256 tokenId = getResourceTokenId(resource);
         // skip just-burn/expired tokens
         address owner = ownerOf(tokenId);
         if (owner != address(0)) {
@@ -239,7 +239,7 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
      * @dev Override the base registry _onRolesRevoked function to regenerate the token when the roles are revoked.
      */
     function _onRolesRevoked(bytes32 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
-        uint256 tokenId = resourceTokenId(resource);
+        uint256 tokenId = getResourceTokenId(resource);
         // skip just-burn/expired tokens
         address owner = ownerOf(tokenId);
         if (owner != address(0)) {

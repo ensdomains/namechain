@@ -40,7 +40,7 @@ interface IRegistry is IERC1155Singleton {
     event NewSubname(uint256 indexed labelHash, string label);
 
     /**
-     * @dev Fetches the registry for a subdomain of the current registry.
+     * @dev Fetches the registry for a subdomain.
      * @param label The label to resolve.
      * @return The address of the registry for this subdomain, or `address(0)` if none exists.
      */
@@ -54,7 +54,7 @@ interface IRegistry is IERC1155Singleton {
     function getResolver(string calldata label) external view returns (address);
 
     /**
-     * @dev Registers a new subdomain of the current registry.
+     * @dev Registers a new subdomain.
      * @param label The label to register.
      * @param owner The address of the owner of the subdomain.
      * @param registry The registry to set as the subdomain.
@@ -65,50 +65,50 @@ interface IRegistry is IERC1155Singleton {
     function register(string calldata label, address owner, IRegistry registry, address resolver, uint256 roleBitmap, uint64 expires) external returns (uint256 tokenId);
 
     /**
-     * @dev Renews a subdomain of the current registry.
+     * @dev Renews a subdomain.
      * @param tokenId The token ID of the subdomain to renew.
      * @param expires The expiration date of the subdomain.
      */ 
     function renew(uint256 tokenId, uint64 expires) external;
 
     /**
-     * @dev Relinquishes a subdomain of the current registry.
+     * @dev Relinquishes a subdomain.
      * @param tokenId The token ID of the subdomain to relinquish.
      */
     function relinquish(uint256 tokenId) external;
 
     /**
-     * @dev Sets a subdomain of the current registry.
+     * @dev Sets a subdomain.
      * @param tokenId The token ID of the subdomain to set.
      * @param registry The registry to set as the subdomain.
      */
     function setSubregistry(uint256 tokenId, IRegistry registry) external;
 
     /**
-     * @dev Sets a resolver for a subdomain of the current registry.
+     * @dev Sets a resolver for a subdomain.
      * @param tokenId The token ID of the subdomain to set a resolver for.
      * @param resolver The resolver to set for the subdomain.
      */
     function setResolver(uint256 tokenId, address resolver) external;
 
     /**
-     * @dev Fetches the expiry date of a subdomain of the current registry.
+     * @dev Fetches the expiry date of a subdomain.
      * @param tokenId The token ID of the subdomain to fetch the expiry for.
      * @return The expiry date of the subdomain.
      */
     function getExpiry(uint256 tokenId) external view returns (uint64);
 
     /**
-     * @dev Fetches the resource of a subdomain of the current registry.
+     * @dev Fetches the resource of a subdomain.
      * @param tokenId The token ID of the subdomain to fetch the resource for.
      * @return The resource of the subdomain.
      */
-    function tokenIdResource(uint256 tokenId) external view returns(bytes32);
+    function getTokenIdResource(uint256 tokenId) external view returns(bytes32);
 
     /**
-     * @dev Fetches the token ID of a resource of the current registry.
+     * @dev Get the token ID of a resource.
      * @param resource The resource to fetch the token ID for.
      * @return The token ID of the resource.
      */
-    function resourceTokenId(bytes32 resource) external view returns (uint256);
+    function getResourceTokenId(bytes32 resource) external view returns (uint256);
 }
