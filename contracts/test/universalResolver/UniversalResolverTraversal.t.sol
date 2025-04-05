@@ -36,15 +36,15 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         );
     }
 
-    function _createRegistry(
-        IRegistry parent,
-        string memory label
-    ) internal returns (MockRegistry) {
-        return new MockRegistry(parent, label, datastore);
-    }
-
     function test_findResolver_eth() external {
-        MockRegistry ethRegistry = _createRegistry(rootRegistry, "eth");
+        //     name:  eth
+        // registry: <eth> <root>
+        // resolver:         0x1
+        MockRegistry ethRegistry = new MockRegistry(
+            rootRegistry,
+            "eth",
+            datastore
+        );
         uint256 tokenId = rootRegistry.mint(
             ethRegistry.label(),
             address(this),
@@ -76,8 +76,19 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
     }
 
     function test_findResolver_resolverOnParent() external {
-        MockRegistry ethRegistry = _createRegistry(rootRegistry, "eth");
-        MockRegistry raffyRegistry = _createRegistry(ethRegistry, "raffy");
+        //     name:  raffy . eth
+        // registry: <raffy> <eth> <root>
+        // resolver:   0x1
+        MockRegistry ethRegistry = new MockRegistry(
+            rootRegistry,
+            "eth",
+            datastore
+        );
+        MockRegistry raffyRegistry = new MockRegistry(
+            ethRegistry,
+            "raffy",
+            datastore
+        );
         rootRegistry.mint(
             ethRegistry.label(),
             address(this),
@@ -117,8 +128,19 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
     }
 
     function test_findResolver_resolverOnRoot() external {
-        MockRegistry ethRegistry = _createRegistry(rootRegistry, "eth");
-        MockRegistry raffyRegistry = _createRegistry(ethRegistry, "raffy");
+        //     name:  sub . raffy . eth
+        // registry:       <raffy> <eth> <root>
+        // resolver:                0x1
+        MockRegistry ethRegistry = new MockRegistry(
+            rootRegistry,
+            "eth",
+            datastore
+        );
+        MockRegistry raffyRegistry = new MockRegistry(
+            ethRegistry,
+            "raffy",
+            datastore
+        );
         uint256 tokenId = rootRegistry.mint(
             ethRegistry.label(),
             address(this),
@@ -165,8 +187,19 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
     }
 
     function test_findResolver_virtual() external {
-        MockRegistry ethRegistry = _createRegistry(rootRegistry, "eth");
-        MockRegistry raffyRegistry = _createRegistry(ethRegistry, "raffy");
+        //     name:  a . b . raffy . eth
+        // registry:         <raffy> <eth> <root>
+        // resolver:                  0x1
+        MockRegistry ethRegistry = new MockRegistry(
+            rootRegistry,
+            "eth",
+            datastore
+        );
+        MockRegistry raffyRegistry = new MockRegistry(
+            ethRegistry,
+            "raffy",
+            datastore
+        );
         uint256 tokenId = rootRegistry.mint(
             ethRegistry.label(),
             address(this),
