@@ -130,7 +130,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         vm.warp(block.timestamp + 101);
 
         vm.prank(address(ejectionController));
-        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameExpired.selector, tokenId));
+        vm.expectRevert(abi.encodeWithSelector(IRegistry.NameExpired.selector, tokenId));
         registry.updateExpiration(tokenId, uint64(block.timestamp) + 200);
     }
 
@@ -144,7 +144,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         vm.prank(address(ejectionController));
         vm.expectRevert(
             abi.encodeWithSelector(
-                IPermissionedRegistry.CannotReduceExpiration.selector, uint64(block.timestamp) + 200, newExpiry
+                IRegistry.CannotReduceExpiration.selector, uint64(block.timestamp) + 200, newExpiry
             )
         );
         registry.updateExpiration(tokenId, newExpiry);

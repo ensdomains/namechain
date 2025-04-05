@@ -106,9 +106,9 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         return tokenId;
     }
 
-    function setTokenObserver(uint256 tokenId, address _observer) external onlyNonExpiredTokenRoles(tokenId, ROLE_SET_TOKEN_OBSERVER) {
-        tokenObservers[tokenId] = TokenObserver(_observer);
-        emit TokenObserverSet(tokenId, _observer);
+    function setTokenObserver(uint256 tokenId, address observer) external onlyNonExpiredTokenRoles(tokenId, ROLE_SET_TOKEN_OBSERVER) {
+        tokenObservers[tokenId] = TokenObserver(observer);
+        emit TokenObserverSet(tokenId, observer);
     }
 
     function renew(uint256 tokenId, uint64 expires) public onlyNonExpiredTokenRoles(tokenId, ROLE_RENEW) {
@@ -187,8 +187,9 @@ contract PermissionedRegistry is IPermissionedRegistry, BaseRegistry, EnhancedAc
         tokenId = _constructTokenId(canonicalId, tokenIdVersion);
     }
 
-    function getExpiry(uint256 tokenId) external view returns (uint64 expires) {
-        (, expires, ) = datastore.getSubregistry(tokenId);
+    function getExpiry(uint256 tokenId) external view returns (uint64) {
+        (, uint64 expires, ) = datastore.getSubregistry(tokenId);
+        return expires;
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override(BaseRegistry, EnhancedAccessControl, IERC165) returns (bool) {

@@ -192,7 +192,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     function test_Revert_cannot_mint_duplicates() public {
         registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
 
-        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameAlreadyRegistered.selector, "test2"));
+        vm.expectRevert(abi.encodeWithSelector(IRegistry.NameAlreadyRegistered.selector, "test2"));
         registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
     }
 
@@ -253,7 +253,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
         vm.warp(block.timestamp + 101);
         
-        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameExpired.selector, tokenId));
+        vm.expectRevert(abi.encodeWithSelector(IRegistry.NameExpired.selector, tokenId));
         registry.renew(tokenId, uint64(block.timestamp) + 200);
     }
 
@@ -261,7 +261,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 200);
         uint64 newExpiry = uint64(block.timestamp) + 100;
         
-        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.CannotReduceExpiration.selector, uint64(block.timestamp) + 200, newExpiry));
+        vm.expectRevert(abi.encodeWithSelector(IRegistry.CannotReduceExpiration.selector, uint64(block.timestamp) + 200, newExpiry));
         registry.renew(tokenId, newExpiry);
     }
 
@@ -555,7 +555,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         
         vm.warp(block.timestamp + 101);
         
-        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameExpired.selector, tokenId));
+        vm.expectRevert(abi.encodeWithSelector(IRegistry.NameExpired.selector, tokenId));
         registry.setTokenObserver(tokenId, address(observer));
     }
 
@@ -564,7 +564,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         
         vm.warp(block.timestamp + 101);
         
-        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameExpired.selector, tokenId));
+        vm.expectRevert(abi.encodeWithSelector(IRegistry.NameExpired.selector, tokenId));
         registry.setSubregistry(tokenId, IRegistry(address(this)));
     }
 
@@ -573,7 +573,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         
         vm.warp(block.timestamp + 101);
         
-        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameExpired.selector, tokenId));
+        vm.expectRevert(abi.encodeWithSelector(IRegistry.NameExpired.selector, tokenId));
         registry.setResolver(tokenId, address(this));
     }
 
