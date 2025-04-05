@@ -3,9 +3,9 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {UniversalResolver, NameCoder} from "../../src/universalResolver/UniversalResolver.sol";
-import {RootRegistry, IRegistry, IRegistryMetadata, IRegistryDatastore} from "../../src/registry/RootRegistry.sol";
-import {UserRegistry} from "../../src/registry/UserRegistry.sol";
-import {RegistryDatastore} from "../../src/registry/RegistryDatastore.sol";
+import {RootRegistry, IRegistry, IRegistryMetadata, IRegistryDatastore} from "../../src/L2/RootRegistry.sol";
+import {UserRegistry} from "../../src/L2/UserRegistry.sol";
+import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 contract MockRegistry is UserRegistry {

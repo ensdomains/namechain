@@ -2,8 +2,8 @@
 pragma solidity >=0.8.13;
 
 import {AbstractUniversalResolver, NameCoder} from "./AbstractUniversalResolver.sol";
-import {NameUtils} from "../utils/NameUtils.sol";
-import {IRegistry} from "../registry/IRegistry.sol";
+import {NameUtils} from "../common/NameUtils.sol";
+import {IRegistry} from "../common/IRegistry.sol";
 
 contract UniversalResolver is AbstractUniversalResolver {
     IRegistry public immutable rootRegistry;

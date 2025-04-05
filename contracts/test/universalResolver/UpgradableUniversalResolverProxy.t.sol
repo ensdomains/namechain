@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
-import "../../src/utils/UpgradableUniversalResolverProxy.sol";
+import {Test} from "forge-std/Test.sol";
+import {UpgradableUniversalResolverProxy} from "../../src/universalResolver/UpgradableUniversalResolverProxy.sol";
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {EIP3668, OffchainLookup} from "@ens/contracts/ccipRead/EIP3668.sol";
+import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {UniversalResolver as UniversalResolverV1} from "./mocks/MockUniversalResolverV1.sol";
 import {UniversalResolver as UniversalResolverV2} from "../../src/universalResolver/UniversalResolver.sol";
-import {IRegistry} from "../../src/registry/IRegistry.sol";
+import {IRegistry} from "../../src/common/IRegistry.sol";
 
 contract ProxyTest is Test {
     address constant ADMIN = address(0x123);

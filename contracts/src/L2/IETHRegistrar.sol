@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IRegistry} from "./IRegistry.sol";
+import {IRegistry} from "../common/IRegistry.sol";
 import {IPriceOracle} from "./IPriceOracle.sol";
 
 /**
