@@ -5,12 +5,12 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-import {IRegistry} from "./IRegistry.sol";
-import {IRegistryDatastore} from "./IRegistryDatastore.sol";
-import {BaseRegistry} from "./BaseRegistry.sol";
-import {IRegistryMetadata} from "./IRegistryMetadata.sol";
-import {NameUtils} from "../utils/NameUtils.sol";
-import {MetadataMixin} from "./MetadataMixin.sol";
+import {IRegistry} from "../common/IRegistry.sol";
+import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
+import {BaseRegistry} from "../common/BaseRegistry.sol";
+import {IRegistryMetadata} from "../common/IRegistryMetadata.sol";
+import {NameUtils} from "../common/NameUtils.sol";
+import {MetadataMixin} from "../common/MetadataMixin.sol";
 
 contract UserRegistry is BaseRegistry, MetadataMixin {
     uint96 public constant SUBREGISTRY_FLAGS_MASK = 0x1;
