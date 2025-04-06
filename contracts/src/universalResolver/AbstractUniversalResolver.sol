@@ -56,7 +56,7 @@ abstract contract AbstractUniversalResolver is
         virtual
         returns (address resolver, bytes32 node, uint256 offset);
 
-    // @dev A valid resolver and its relevant properties.
+    /// @dev A valid resolver and its relevant properties.
     struct ResolverInfo {
         bytes name; // dns-encoded name (safe to decode)
         uint256 offset; // byte offset into name used for resolver
