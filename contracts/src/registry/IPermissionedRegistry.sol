@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IRegistry} from "./IRegistry.sol";
+import {IStandardRegistry} from "./IStandardRegistry.sol";
 
-interface IPermissionedRegistry is IRegistry {
+interface IPermissionedRegistry is IStandardRegistry {
     /**
      * @dev Event emitted when a token observer is set.
      */
