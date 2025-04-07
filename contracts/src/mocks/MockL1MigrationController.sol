@@ -46,7 +46,7 @@ contract MockL1MigrationController is IController {
     function processMessage(bytes calldata message) external override {
         require(msg.sender == address(bridge), "Not authorized");
         
-        bytes4 messageType = abi.decode(message, (bytes4));
+        bytes4 messageType = bytes4(message[:4]);
         
         if (messageType == bytes4(keccak256("NAME_EJECTION"))) {
             (string memory name, address owner, address subregistry, uint64 expiry) =
