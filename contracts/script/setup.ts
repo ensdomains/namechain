@@ -150,8 +150,16 @@ async function setupCrossChainEnvironment() {
   );
   
   // Deploy the helper on L1
-  const bridgeHelper = await deployContract(
+  const bridgeHelperL1 = await deployContract(
     l1Wallet,
+    'MockBridgeHelper',
+    contracts.MockBridgeHelper.abi,
+    contracts.MockBridgeHelper.bytecode
+  );
+
+  // Deploy the helper on L2
+  const bridgeHelperL2 = await deployContract(
+    l2Wallet,
     'MockBridgeHelper',
     contracts.MockBridgeHelper.abi,
     contracts.MockBridgeHelper.bytecode
@@ -181,7 +189,7 @@ async function setupCrossChainEnvironment() {
     contracts.MockL1MigrationController.abi,
     contracts.MockL1MigrationController.bytecode,
     await l1Registry.getAddress(),
-    await bridgeHelper.getAddress(),
+    await bridgeHelperL1.getAddress(),
     await l1Bridge.getAddress()
   );
   
@@ -191,7 +199,7 @@ async function setupCrossChainEnvironment() {
     contracts.MockL2MigrationController.abi,
     contracts.MockL2MigrationController.bytecode,
     await l2Registry.getAddress(),
-    await bridgeHelper.getAddress(),
+    await bridgeHelperL2.getAddress(),
     await l2Bridge.getAddress()
   );
   
@@ -207,14 +215,14 @@ async function setupCrossChainEnvironment() {
     l1: {
       registry: l1Registry,
       bridge: l1Bridge,
-      bridgeHelper,
+      bridgeHelper: bridgeHelperL1,
       controller: l1Controller,
       wallet: l1Wallet
     },
     l2: {
       registry: l2Registry,
       bridge: l2Bridge,
-      bridgeHelper,
+      bridgeHelper: bridgeHelperL2,
       controller: l2Controller,
       wallet: l2Wallet
     }
@@ -317,29 +325,6 @@ class CrossChainRelayer {
     }
   }
 }
-
-// setupCrossChainEnvironment()
-//   .then((env) => {
-//     // Create a relayer
-//     const relayer = new CrossChainRelayer(
-//       env.l1.bridge,
-//       env.l2.bridge,
-//       env.l1.wallet,
-//       env.l2.wallet
-//     );
-    
-//     console.log("Setup complete! Cross-chain relayer is running.");
-//     console.log("Keep this process running to relay cross-chain messages.");
-    
-//     // Export environment for interactive use
-//     global.env = env;
-//     global.relayer = relayer;
-//     console.log("Environment and relayer exported to global variables for interactive use");
-//   })
-//   .catch((error) => {
-//     console.error('Error setting up environment:', error);
-//     process.exit(1);
-//   });
 
   export {
     setupCrossChainEnvironment,
