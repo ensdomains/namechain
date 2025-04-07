@@ -1,6 +1,7 @@
 import hre from "hardhat";
 import { type Address, bytesToHex, keccak256, stringToHex, zeroAddress } from "viem";
 import { packetToBytes } from "../utils/utils.js";
+import { serveBatchGateway } from '../../lib/ens-contracts/test/fixtures/localBatchGateway.js';
 
 export async function deployEnsFixture() {
   const publicClient = await hre.viem.getPublicClient();
@@ -17,8 +18,11 @@ export async function deployEnsFixture() {
     datastore.address,
     metadata.address,
   ]);
+  const bg = await serveBatchGateway();
+  after(bg.shutdown);
   const universalResolver = await hre.viem.deployContract("UniversalResolver", [
     rootRegistry.address,
+    [bg.localBatchGatewayUrl]
   ]);
   await rootRegistry.write.grantRole([
     keccak256(stringToHex("TLD_ISSUER_ROLE")),
