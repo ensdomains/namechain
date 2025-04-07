@@ -6,7 +6,9 @@
     "test:hardhat": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat test",
     "test:forge": "forge test",
     "test": "bun run test:forge && bun run test:hardhat",
-    "coverage": "forge coverage --report lcov && bun run test:hardhat"
+    "coverage": "forge coverage --report lcov && bun run test:hardhat",
+    "devnet": "npx tsx ./script/runDevnet.ts",
+    "test:bridge": "npx tsx ./script/testBridge.ts"
   },
   "devDependencies": {
     "@ensdomains/hardhat-chai-matchers-viem": "^0.0.7",

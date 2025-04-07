@@ -104,7 +104,7 @@ function loadCompiledContracts() {
 // Deploy a contract to a specific chain
 async function deployContract(wallet, contractName, abi, bytecode, ...args) {
   console.log(wallet.provider);
-  console.log(`Deploying ${contractName} to ${wallet.provider}...`);
+  console.log(`Deploying ${contractName} to ${wallet.provider._getConnection().url}...`);
   
   const factory = new ethers.ContractFactory(abi, bytecode, wallet);
   const contract = await factory.deploy(...args);
