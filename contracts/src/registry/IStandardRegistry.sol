@@ -39,11 +39,6 @@ interface IStandardRegistry is IRegistry {
     event NameRelinquished(uint256 indexed tokenId, address relinquishedBy);
 
     /**
-     * @dev SHOULD be emitted when a new label is registered
-     */
-    event NewSubname(uint256 indexed labelHash, string label);
-
-    /**
      * @dev Registers a new subdomain.
      * @param label The label to register.
      * @param owner The address of the owner of the subdomain.
@@ -87,18 +82,4 @@ interface IStandardRegistry is IRegistry {
      * @return The expiry date of the subdomain.
      */
     function getExpiry(uint256 tokenId) external view returns (uint64);
-
-    /**
-     * @dev Fetches the resource of a subdomain.
-     * @param tokenId The token ID of the subdomain to fetch the resource for.
-     * @return The resource of the subdomain.
-     */
-    function getTokenIdResource(uint256 tokenId) external view returns(bytes32);
-
-    /**
-     * @dev Get the token ID of a resource.
-     * @param resource The resource to fetch the token ID for.
-     * @return The token ID of the resource.
-     */
-    function getResourceTokenId(bytes32 resource) external view returns (uint256);
 }

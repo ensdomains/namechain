@@ -78,7 +78,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     {
         uint64 oldExpiry;
         uint32 tokenIdVersion;
-        (tokenId, oldExpiry, tokenIdVersion) = this.getNameData(label);
+        (tokenId, oldExpiry, tokenIdVersion) = getNameData(label);
 
         if (oldExpiry >= block.timestamp) {
             revert NameAlreadyRegistered(label);
@@ -199,11 +199,11 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         return interfaceId == type(IPermissionedRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    function getTokenIdResource(uint256 tokenId) public pure override returns (bytes32) {
+    function getTokenIdResource(uint256 tokenId) public pure returns (bytes32) {
         return bytes32(NameUtils.getCanonicalId(tokenId));
     }
 
-    function getResourceTokenId(bytes32 resource) public view override returns (uint256) {
+    function getResourceTokenId(bytes32 resource) public view returns (uint256) {
         uint256 canonicalId = uint256(resource);
         (, , uint32 tokenIdVersion) = datastore.getSubregistry(canonicalId);
         return _constructTokenId(canonicalId, tokenIdVersion);
