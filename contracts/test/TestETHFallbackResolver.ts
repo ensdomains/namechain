@@ -42,7 +42,7 @@ async function fixture() {
     [
       mainnet.rootRegistry.address,
       namechain.datastore.address,
-      namechain.rootRegistry.address,
+      namechain.ethRegistry.address,
       verifierAddress,
     ]
   );

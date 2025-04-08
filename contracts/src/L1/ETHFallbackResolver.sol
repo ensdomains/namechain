@@ -13,7 +13,6 @@ import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHa
 import {IRegistry} from "../common/IRegistry.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {DatastoreUtils} from "../common/DatastoreUtils.sol";
-import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
@@ -22,7 +21,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
 
     IRegistry public immutable ethRegistry;
     address public immutable namechainDatastore;
-    address public immutable namechainRootRegistry;
+    address public immutable namechainEthRegistry;
     IGatewayVerifier public immutable namechainVerifier;
 
     bytes constant DOT_ETH_SUFFIX = "\x03eth\x00";
@@ -45,12 +44,12 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
     constructor(
         IRegistry _ethRegistry,
         address _namechainDatastore,
-        address _namechainRootRegistry,
+        address _namechainEthRegistry,
         IGatewayVerifier _namechainVerifier
     ) {
         ethRegistry = _ethRegistry;
         namechainDatastore = _namechainDatastore;
-        namechainRootRegistry = _namechainRootRegistry;
+        namechainEthRegistry = _namechainEthRegistry;
         namechainVerifier = _namechainVerifier;
     }
 
@@ -93,8 +92,14 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
         }
     }
 
-	/// @dev Create program to traverse RegistryDatastore.
-    function _findResolverProgram() internal pure returns (GatewayRequest memory req) {
+    /// @dev Create program to traverse the RegistryDatastore.
+    ///      Inputs: Output[0] = Parent Registry
+    ///      Outputs: Output[0] = Child Registry, Output[1] = Resolver
+    function _findResolverProgram()
+        internal
+        pure
+        returns (GatewayRequest memory req)
+    {
         req = GatewayFetcher.newCommand();
         req.pushOutput(0); // parent registry
         req.setSlot(SLOT_RD_ENTRIES);
@@ -128,8 +133,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
             (bytes32 labelHash, ) = NameCoder.readLabel(name, offsets[i]);
             req.push(DatastoreUtils.normalizeLabelHash(uint256(labelHash)));
         }
-        req.push(DatastoreUtils.normalizeLabelHash(uint256(keccak256("eth"))));
-        req.push(namechainRootRegistry).setOutput(0); // start at root
+        req.push(namechainEthRegistry).setOutput(0); // start at root
         req.push(_findResolverProgram());
         req.evalLoop(EvalFlag.STOP_ON_FAILURE); // outputs = [registry, resolver]
         req.pushOutput(1).requireNonzero(2).target(); // target resolver
@@ -139,7 +143,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
         req.read(); // version, leave on stack at offset 1
         if (bytes4(data) == IAddrResolver.addr.selector) {
             req.setSlot(SLOT_PR_ADDRESSES);
-			req.follow(); // addr[version]
+            req.follow(); // addr[version]
             req.follow(); // addr[version][node]
             req.push(60).follow(); // addr[version][node][60]
             req.readBytes().setOutput(1);
