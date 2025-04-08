@@ -92,10 +92,9 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         address previousOwner = super.ownerOf(tokenId);
         if (previousOwner != address(0)) {
             _burn(previousOwner, tokenId, 1);
-            tokenId = _regenerateTokenId(tokenId, address(registry), expires, tokenIdVersion); // so we have a fresh acl
-        } else {
-            datastore.setSubregistry(tokenId, address(registry), expires, tokenIdVersion);
+            tokenIdVersion++; // so we have a fresh acl
         }
+        tokenId = _generateTokenId(tokenId, address(registry), expires, tokenIdVersion); 
 
         _mint(owner, tokenId, 1, "");
         _grantRoles(getTokenIdResource(tokenId), roleBitmap, owner, false);
