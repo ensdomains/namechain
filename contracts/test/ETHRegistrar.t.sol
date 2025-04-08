@@ -809,6 +809,46 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         vm.stopPrank();
     }
 
+    function test_registration_default_role_bitmap() public {
+        bytes32 commitment = registrar.makeCommitment(
+            "testname", 
+            user1, 
+            SECRET, 
+            address(registry),
+            address(0),
+            REGISTRATION_DURATION
+        );
+        registrar.commit(commitment);
+        
+        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
+        
+        uint256 tokenId = registrar.register{value: BASE_PRICE + PREMIUM_PRICE}(
+            "testname", 
+            user1, 
+            SECRET,
+            registry,
+            address(0),
+            REGISTRATION_DURATION
+        );
+
+        bytes32 resource = registry.getTokenIdResource(tokenId);
+
+        // Check individual roles
+        uint256 ROLE_SET_SUBREGISTRY = 1 << 2;
+        uint256 ROLE_SET_SUBREGISTRY_ADMIN = 1 << 130;
+        uint256 ROLE_SET_RESOLVER = 1 << 3;
+        uint256 ROLE_SET_RESOLVER_ADMIN = 1 << 131;
+
+        assertTrue(registry.hasRoles(resource, ROLE_SET_SUBREGISTRY, user1));
+        assertTrue(registry.hasRoles(resource, ROLE_SET_SUBREGISTRY_ADMIN, user1));
+        assertTrue(registry.hasRoles(resource, ROLE_SET_RESOLVER, user1));
+        assertTrue(registry.hasRoles(resource, ROLE_SET_RESOLVER_ADMIN, user1));
+
+        // Check combined bitmap
+        uint256 ROLE_BITMAP_REGISTRATION = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;
+        assertTrue(registry.hasRoles(resource, ROLE_BITMAP_REGISTRATION, user1));
+    }
+
     receive() external payable {}
 } 
 
