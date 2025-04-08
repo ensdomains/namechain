@@ -14,6 +14,7 @@ import "../src/registry/BaseRegistry.sol";
 import "../src/registry/IPermissionedRegistry.sol";
 import "../src/registry/ETHRegistrar.sol";
 import "../src/registry/IPriceOracle.sol";
+import "../src/registry/ITokenObserver.sol";
 
 
 contract TestPermissionedRegistry is Test, ERC1155Holder {
@@ -343,7 +344,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
 
     function test_token_observer_renew() public {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
-        registry.setTokenObserver(tokenId, address(observer));
+        registry.setTokenObserver(tokenId, observer);
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
         registry.renew(tokenId, newExpiry);
@@ -356,7 +357,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
 
     function test_token_observer_relinquish() public {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
-        registry.setTokenObserver(tokenId, address(observer));
+        registry.setTokenObserver(tokenId, observer);
         
         registry.relinquish(tokenId);
         
@@ -383,7 +384,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
             ROLE_SET_TOKEN_OBSERVER,
             randomUser
         ));
-        registry.setTokenObserver(tokenId, address(observer));
+        registry.setTokenObserver(tokenId, observer);
         vm.stopPrank();
     }
 
@@ -398,7 +399,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         // Owner should not be able to set token observer without the role
         vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, user1));
         vm.prank(user1);
-        registry.setTokenObserver(tokenId, address(observer));
+        registry.setTokenObserver(tokenId, observer);
     }
 
     function test_non_owner_with_role_can_set_observer() public {
@@ -416,7 +417,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         
         // The non-owner with role should be able to set the token observer
         vm.prank(tokenObserverSetter);
-        registry.setTokenObserver(newTokenId, address(observer));
+        registry.setTokenObserver(newTokenId, observer);
         
         // Verify observer was set
         vm.prank(user1);
@@ -427,7 +428,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
 
     function test_Revert_renew_when_token_observer_reverts() public {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
-        registry.setTokenObserver(tokenId, address(revertingObserver));
+        registry.setTokenObserver(tokenId, revertingObserver);
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
         vm.expectRevert(RevertingTokenObserver.ObserverReverted.selector);
@@ -439,7 +440,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
 
     function test_Revert_relinquish_when_token_observer_reverts() public {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
-        registry.setTokenObserver(tokenId, address(revertingObserver));
+        registry.setTokenObserver(tokenId, revertingObserver);
         
         vm.expectRevert(RevertingTokenObserver.ObserverReverted.selector);
         registry.relinquish(tokenId);
@@ -451,7 +452,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
         
         vm.recordLogs();
-        registry.setTokenObserver(tokenId, address(observer));
+        registry.setTokenObserver(tokenId, observer);
         
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
@@ -556,7 +557,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         vm.warp(block.timestamp + 101);
         
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameExpired.selector, tokenId));
-        registry.setTokenObserver(tokenId, address(observer));
+        registry.setTokenObserver(tokenId, observer);
     }
 
     function test_Revert_setSubregistry_when_token_expired() public {
@@ -589,7 +590,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
             user1
         ));
         vm.prank(user1);
-        registry.setTokenObserver(tokenId, address(observer));
+        registry.setTokenObserver(tokenId, observer);
     }
 
     function test_Revert_setSubregistry_without_role_when_expired() public {
@@ -626,7 +627,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", user1, registry, address(0), ROLE_SET_TOKEN_OBSERVER, uint64(block.timestamp) + 100);
         
         vm.prank(user1);
-        registry.setTokenObserver(tokenId, address(observer));
+        registry.setTokenObserver(tokenId, observer);
         
         assertEq(address(registry.tokenObservers(tokenId)), address(observer));
     }
@@ -659,7 +660,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
             user1
         ));
         vm.prank(user1);
-        registry.setTokenObserver(tokenId, address(observer));
+        registry.setTokenObserver(tokenId, observer);
     }
 
     function test_Revert_setSubregistry_without_role_when_not_expired() public {
@@ -828,7 +829,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
 }
 
 
-contract MockTokenObserver is TokenObserver {
+contract MockTokenObserver is ITokenObserver {
     uint256 public lastTokenId;
     uint64 public lastExpiry;
     address public lastCaller;
@@ -848,7 +849,7 @@ contract MockTokenObserver is TokenObserver {
     }
 }
 
-contract RevertingTokenObserver is TokenObserver {
+contract RevertingTokenObserver is ITokenObserver {
     error ObserverReverted();
 
     function onRenew(uint256, uint64, address) external pure {

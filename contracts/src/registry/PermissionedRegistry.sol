@@ -14,11 +14,12 @@ import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 import {SimpleRegistryMetadata} from "./SimpleRegistryMetadata.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
+import {ITokenObserver} from "./ITokenObserver.sol";
 
 contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissionedRegistry, MetadataMixin {
     event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
 
-    mapping(uint256 => TokenObserver) public tokenObservers;
+    mapping(uint256 => ITokenObserver) public tokenObservers;
 
     uint256 private constant ROLE_REGISTRAR = 1 << 0;
     uint256 private constant ROLE_REGISTRAR_ADMIN = ROLE_REGISTRAR << 128;
@@ -106,9 +107,9 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         return tokenId;
     }
 
-    function setTokenObserver(uint256 tokenId, address observer) external override onlyNonExpiredTokenRoles(tokenId, ROLE_SET_TOKEN_OBSERVER) {
-        tokenObservers[tokenId] = TokenObserver(observer);
-        emit TokenObserverSet(tokenId, observer);
+    function setTokenObserver(uint256 tokenId, ITokenObserver observer) external override onlyNonExpiredTokenRoles(tokenId, ROLE_SET_TOKEN_OBSERVER) {
+        tokenObservers[tokenId] = observer;
+        emit TokenObserverSet(tokenId, address(observer));
     }
 
     function renew(uint256 tokenId, uint64 expires) public override onlyNonExpiredTokenRoles(tokenId, ROLE_RENEW) {
@@ -119,7 +120,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
 
         datastore.setSubregistry(tokenId, subregistry, expires, tokenIdVersion);
 
-        TokenObserver observer = tokenObservers[tokenId];
+        ITokenObserver observer = tokenObservers[tokenId];
         if (address(observer) != address(0)) {
             observer.onRenew(tokenId, expires, msg.sender);
         }
@@ -139,7 +140,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         datastore.setSubregistry(tokenId, address(0), 0, 0);
         datastore.setResolver(tokenId, address(0), 0, 0);
 
-        TokenObserver observer = tokenObservers[tokenId];
+        ITokenObserver observer = tokenObservers[tokenId];
         if (address(observer) != address(0)) {
             observer.onRelinquish(tokenId, msg.sender);
         }
@@ -183,7 +184,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         datastore.setResolver(tokenId, resolver, 0, 0);
     }
 
-    function getNameData(string calldata label) external view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion) {
+    function getNameData(string calldata label) public view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion) {
         uint256 canonicalId = NameUtils.labelToCanonicalId(label);
         (, expiry, tokenIdVersion) = datastore.getSubregistry(canonicalId);
         tokenId = _constructTokenId(canonicalId, tokenIdVersion);
@@ -218,7 +219,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
 
         for (uint256 i = 0; i < ids.length; ++i) {
             /*
-            in _regenerateToken, we burn the token and then mint a new one. This flow below ensures the roles go from owner => zeroAddr => owner
+            in _regenerateToken, we burn the token and then mint a new one. This flow below ensures the roles go from owner => zeroAddr => owner during this process.
             */
             _copyRoles(getTokenIdResource(ids[i]), from, to, false);
             _revokeAllRoles(getTokenIdResource(ids[i]), from, false);
@@ -255,7 +256,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     function _regenerateToken(uint256 tokenId, address owner) internal {
         _burn(owner, tokenId, 1);
         (address registry, uint64 expires, uint32 tokenIdVersion) = datastore.getSubregistry(tokenId);
-        uint256 newTokenId = _regenerateTokenId(tokenId, registry, expires, tokenIdVersion);
+        uint256 newTokenId = _generateTokenId(tokenId, registry, expires, tokenIdVersion + 1);
         _mint(owner, newTokenId, 1, "");
 
         emit TokenRegenerated(tokenId, newTokenId);
@@ -269,8 +270,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
      * @param tokenIdVersion The token id version to set.
      * @return newTokenId The new token id.
      */
-    function _regenerateTokenId(uint256 tokenId, address registry, uint64 expires, uint32 tokenIdVersion) internal returns (uint256 newTokenId) {
-        tokenIdVersion++;
+    function _generateTokenId(uint256 tokenId, address registry, uint64 expires, uint32 tokenIdVersion) internal returns (uint256 newTokenId) {
         newTokenId = _constructTokenId(tokenId, tokenIdVersion);
         datastore.setSubregistry(newTokenId, registry, expires, tokenIdVersion);
     }
@@ -284,12 +284,4 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     function _constructTokenId(uint256 id, uint32 tokenIdVersion) internal pure returns (uint256 newTokenId) {
         newTokenId = NameUtils.getCanonicalId(id) | tokenIdVersion;
     }
-}
-
-/**
- * @dev Observer pattern for events on existing tokens.
- */
-interface TokenObserver {
-    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external;
-    function onRelinquish(uint256 tokenId, address relinquishedBy) external;
 }

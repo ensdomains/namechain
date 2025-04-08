@@ -2,6 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {IStandardRegistry} from "./IStandardRegistry.sol";
+import {ITokenObserver} from "./ITokenObserver.sol";
 
 interface IPermissionedRegistry is IStandardRegistry {
     /**
@@ -12,9 +13,9 @@ interface IPermissionedRegistry is IStandardRegistry {
     /**
      * @dev Sets a token observer for a token.
      * @param tokenId The token ID of the token to set the observer for.
-     * @param observer The address of the observer to set.
+     * @param observer The observer to set.
      */
-    function setTokenObserver(uint256 tokenId, address observer) external;
+    function setTokenObserver(uint256 tokenId, ITokenObserver observer) external;
 
     /**
      * @dev Fetches the name data for a label.
