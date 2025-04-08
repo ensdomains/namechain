@@ -9,16 +9,10 @@ import {IPriceOracle} from "./IPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
+import {RegistryRolesMixin} from "./RegistryRolesMixin.sol";
 
-contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
-    /*
-    Default roles for registration:
-    - ROLE_SET_SUBREGISTRY
-    - ROLE_SET_SUBREGISTRY_ADMIN
-    - ROLE_SET_RESOLVER
-    - ROLE_SET_RESOLVER_ADMIN
-    */
-    uint256 private constant ROLE_BITMAP_REGISTRATION = 1 << 2 | 1 << 130 | 1 << 3 | 1 << 131;
+contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixin {
+    uint256 private constant REGISTRATION_ROLE_BITMAP = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;
 
     uint256 private constant ROLE_SET_PRICE_ORACLE = 1 << 0;
     uint256 private constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
@@ -158,7 +152,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
 
         uint64 expiry = uint64(block.timestamp) + duration;
-        tokenId = registry.register(name, owner, subregistry, resolver, ROLE_BITMAP_REGISTRATION, expiry);
+        tokenId = registry.register(name, owner, subregistry, resolver, REGISTRATION_ROLE_BITMAP, expiry);
 
         if (msg.value > totalPrice) {
             payable(msg.sender).transfer(msg.value - totalPrice);

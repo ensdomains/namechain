@@ -15,26 +15,12 @@ import {SimpleRegistryMetadata} from "./SimpleRegistryMetadata.sol";
 import {NameUtils} from "../utils/NameUtils.sol";
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 import {ITokenObserver} from "./ITokenObserver.sol";
+import {RegistryRolesMixin} from "./RegistryRolesMixin.sol";
 
-contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissionedRegistry, MetadataMixin {
+contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissionedRegistry, MetadataMixin, RegistryRolesMixin {
     event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
 
     mapping(uint256 => ITokenObserver) public tokenObservers;
-
-    uint256 private constant ROLE_REGISTRAR = 1 << 0;
-    uint256 private constant ROLE_REGISTRAR_ADMIN = ROLE_REGISTRAR << 128;
-
-    uint256 private constant ROLE_RENEW = 1 << 1;
-    uint256 private constant ROLE_RENEW_ADMIN = ROLE_RENEW << 128;
-
-    uint256 private constant ROLE_SET_SUBREGISTRY = 1 << 2;
-    uint256 private constant ROLE_SET_SUBREGISTRY_ADMIN = ROLE_SET_SUBREGISTRY << 128;
-
-    uint256 private constant ROLE_SET_RESOLVER = 1 << 3;
-    uint256 private constant ROLE_SET_RESOLVER_ADMIN = ROLE_SET_RESOLVER << 128;
-
-    uint256 private constant ROLE_SET_TOKEN_OBSERVER = 1 << 4;
-    uint256 private constant ROLE_SET_TOKEN_OBSERVER_ADMIN = ROLE_SET_TOKEN_OBSERVER << 128;
 
     modifier onlyNonExpiredTokenRoles(uint256 tokenId, uint256 roleBitmap) {
         _checkRoles(getTokenIdResource(tokenId), roleBitmap, _msgSender());
