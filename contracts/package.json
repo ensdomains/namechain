@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "@ensdomains/hardhat-chai-matchers-viem": "^0.0.7",
+    "@namestone/ezccip": "^0.1.0",
     "@nomicfoundation/hardhat-foundry": "^1.1.1",
     "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
     "@nomicfoundation/hardhat-viem": "^2.0.0",

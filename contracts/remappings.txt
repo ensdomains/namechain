@@ -2,5 +2,6 @@
 @openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
 @ens/contracts/=lib/ens-contracts/contracts/
 @ensdomains/buffer/=lib/buffer/
+@unruggable/gateways/=lib/unruggable-gateways/
 verifiable-factory/=lib/verifiable-factory/src/
 forge-std/=lib/forge-std/src/
