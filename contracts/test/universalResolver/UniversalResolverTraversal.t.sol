@@ -3,33 +3,31 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {UniversalResolver, NameCoder} from "../../src/universalResolver/UniversalResolver.sol";
-import {RootRegistry, IRegistry, IRegistryMetadata, IRegistryDatastore} from "../../src/L2/RootRegistry.sol";
-import {UserRegistry} from "../../src/L2/UserRegistry.sol";
+import {IRegistry} from "../../src/common/IRegistry.sol";
+import {PermissionedRegistry} from "../../src/common/PermissionedRegistry.sol";
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {IRegistryDatastore} from "../../src/common/IRegistryDatastore.sol";
+import {IRegistryMetadata} from "../../src/common/IRegistryMetadata.sol";
 
-contract MockRegistry is UserRegistry {
+contract MockRegistry is PermissionedRegistry {
     constructor(
-        IRegistry _parent,
-        string memory _label,
         IRegistryDatastore _datastore
     )
-        UserRegistry(_parent, _label, _datastore, IRegistryMetadata(address(0)))
+        PermissionedRegistry(_datastore, IRegistryMetadata(address(0)), ALL_ROLES)
     {}
-    function setResolver(uint256 tokenId, address resolver) external {
-        datastore.setResolver(tokenId, resolver, 0);
-    }
 }
 
 contract UniversalResolverTraversal is Test, ERC1155Holder {
+    uint256 constant public ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+
     RegistryDatastore datastore;
-    RootRegistry rootRegistry;
+    PermissionedRegistry rootRegistry;
     UniversalResolver universalResolver;
 
     function setUp() public {
         datastore = new RegistryDatastore();
-        rootRegistry = new RootRegistry(datastore);
-        rootRegistry.grantRole(rootRegistry.TLD_ISSUER_ROLE(), address(this));
+        rootRegistry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), ALL_ROLES);
         universalResolver = new UniversalResolver(
             rootRegistry,
             new string[](0)
@@ -41,21 +39,20 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         // registry: <eth> <root>
         // resolver:  0x1
         MockRegistry ethRegistry = new MockRegistry(
-            rootRegistry,
-            "eth",
             datastore
         );
-        uint256 tokenId = rootRegistry.mint(
-            ethRegistry.label(),
+        uint256 tokenId = rootRegistry.register(
+            "eth",
             address(this),
             ethRegistry,
-            0,
-            ""
+            address(0),
+            ALL_ROLES,
+            uint64(block.timestamp + 1000)
         );
 
         rootRegistry.setResolver(tokenId, address(1));
 
-        bytes memory name = NameCoder.encode(ethRegistry.label());
+        bytes memory name = NameCoder.encode("eth");
         (address resolver, , uint256 offset) = universalResolver.findResolver(
             name
         );
@@ -70,7 +67,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             address(rootRegistry),
             "parentRegistry"
         );
-        assertEq(label, ethRegistry.label(), "label");
+        assertEq(label, "eth", "label");
         assertEq(address(registry), address(ethRegistry), "registry");
         assertEq(exact, true, "exact");
     }
@@ -80,33 +77,32 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         // registry: <raffy> <eth> <root>
         // resolver:   0x1
         MockRegistry ethRegistry = new MockRegistry(
-            rootRegistry,
-            "eth",
             datastore
         );
         MockRegistry raffyRegistry = new MockRegistry(
-            ethRegistry,
-            "raffy",
             datastore
         );
-        rootRegistry.mint(
-            ethRegistry.label(),
+        rootRegistry.register(
+            "eth",
             address(this),
             ethRegistry,
-            0,
-            ""
+            address(0),
+            ALL_ROLES,
+            uint64(block.timestamp + 1000)
         );
-        uint256 tokenId = ethRegistry.mint(
-            raffyRegistry.label(),
+        uint256 tokenId = ethRegistry.register(
+            "raffy",
             address(this),
             raffyRegistry,
-            0
+            address(0),
+            ALL_ROLES,
+            uint64(block.timestamp + 1000)
         );
 
         ethRegistry.setResolver(tokenId, address(1));
 
         bytes memory name = NameCoder.encode(
-            string.concat(raffyRegistry.label(), ".", ethRegistry.label())
+            string.concat("raffy", ".", "eth")
         );
         (address resolver, , uint256 offset) = universalResolver.findResolver(
             name
@@ -122,7 +118,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             address(ethRegistry),
             "parentRegistry"
         );
-        assertEq(label, raffyRegistry.label(), "label");
+        assertEq(label, "raffy", "label");
         assertEq(address(registry), address(raffyRegistry), "registry");
         assertEq(exact, true, "exact");
     }
@@ -132,27 +128,26 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         // registry:       <raffy> <eth> <root>
         // resolver:                0x1
         MockRegistry ethRegistry = new MockRegistry(
-            rootRegistry,
-            "eth",
             datastore
         );
         MockRegistry raffyRegistry = new MockRegistry(
-            ethRegistry,
-            "raffy",
             datastore
         );
-        uint256 tokenId = rootRegistry.mint(
-            ethRegistry.label(),
+        uint256 tokenId = rootRegistry.register(
+            "eth",
             address(this),
             ethRegistry,
-            0,
-            ""
+            address(0),
+            ALL_ROLES,
+            uint64(block.timestamp + 1000)
         );
-        ethRegistry.mint(
-            raffyRegistry.label(),
+        ethRegistry.register(
+            "raffy",
             address(this),
             raffyRegistry,
-            0
+            address(0),
+            ALL_ROLES,
+            uint64(block.timestamp + 1000)
         );
 
         rootRegistry.setResolver(tokenId, address(1));
@@ -162,9 +157,9 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             string.concat(
                 sub,
                 ".",
-                raffyRegistry.label(),
+                "raffy",
                 ".",
-                ethRegistry.label()
+                "eth"
             )
         );
         (address resolver, , uint256 offset) = universalResolver.findResolver(
@@ -191,27 +186,26 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         // registry:         <raffy> <eth> <root>
         // resolver:                  0x1
         MockRegistry ethRegistry = new MockRegistry(
-            rootRegistry,
-            "eth",
             datastore
         );
         MockRegistry raffyRegistry = new MockRegistry(
-            ethRegistry,
-            "raffy",
             datastore
         );
-        uint256 tokenId = rootRegistry.mint(
-            ethRegistry.label(),
+        uint256 tokenId = rootRegistry.register(
+            "eth",
             address(this),
             ethRegistry,
-            0,
-            ""
+            address(0),
+            ALL_ROLES,
+            uint64(block.timestamp + 1000)
         );
-        ethRegistry.mint(
-            raffyRegistry.label(),
+        ethRegistry.register(
+            "raffy",
             address(this),
             raffyRegistry,
-            0
+            address(0),
+            ALL_ROLES,
+            uint64(block.timestamp + 1000)
         );
 
         rootRegistry.setResolver(tokenId, address(1));
@@ -219,9 +213,9 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         bytes memory name = NameCoder.encode(
             string.concat(
                 "a.b.",
-                raffyRegistry.label(),
+                "raffy",
                 ".",
-                ethRegistry.label()
+                "eth"
             )
         );
         (address resolver, , uint256 offset) = universalResolver.findResolver(

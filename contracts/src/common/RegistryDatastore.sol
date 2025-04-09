@@ -2,43 +2,47 @@
 pragma solidity >=0.8.13;
 
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
+import {NameUtils} from "./NameUtils.sol";
 
 contract RegistryDatastore is IRegistryDatastore {
-    uint256 LABEL_HASH_MASK = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000;
-    mapping(address registry => mapping(uint256 labelHash => uint256)) internal subregistries;
-    mapping(address registry => mapping(uint256 labelHash => uint256)) internal resolvers;
+    mapping(address registry => mapping(uint256 id => uint256)) internal subregistries;
+    mapping(address registry => mapping(uint256 id => uint256)) internal resolvers;
 
-    function getSubregistry(address registry, uint256 labelHash)
+    function getSubregistry(address registry, uint256 id)
         public
         view
-        returns (address subregistry, uint96 flags)
+        returns (address subregistry, uint64 expiry, uint32 data)
     {
-        uint256 data = subregistries[registry][labelHash & LABEL_HASH_MASK];
-        subregistry = address(uint160(data));
-        flags = uint96(data >> 160);
+        uint256 blob = subregistries[registry][NameUtils.getCanonicalId(id)];
+        subregistry = address(uint160(blob));
+        expiry = uint64(blob >> 160);
+        data = uint32(blob >> 224);
     }
 
-    function getSubregistry(uint256 labelHash) external view returns (address subregistry, uint96 flags) {
-        return getSubregistry(msg.sender, labelHash);
+    function getSubregistry(uint256 id) external view returns (address subregistry, uint64 expiry, uint32 data) {
+        return getSubregistry(msg.sender, id);
     }
 
-    function getResolver(address registry, uint256 labelHash) public view returns (address resolver, uint96 flags) {
-        uint256 data = resolvers[registry][labelHash & LABEL_HASH_MASK];
-        resolver = address(uint160(data));
-        flags = uint96(data >> 160);
+    function getResolver(address registry, uint256 id) public view returns (address resolver, uint64 expiry, uint32 data) {
+        uint256 blob = resolvers[registry][NameUtils.getCanonicalId(id)];
+        resolver = address(uint160(blob));
+        expiry = uint64(blob >> 160);
+        data = uint32(blob >> 224);
     }
 
-    function getResolver(uint256 labelHash) external view returns (address resolver, uint96 flags) {
-        return getResolver(msg.sender, labelHash);
+    function getResolver(uint256 id) external view returns (address resolver, uint64 expiry, uint32 data) {
+        return getResolver(msg.sender, id);
     }
 
-    function setSubregistry(uint256 labelHash, address subregistry, uint96 flags) external {
-        subregistries[msg.sender][labelHash & LABEL_HASH_MASK] = (uint256(flags) << 160) | uint256(uint160(subregistry));
-        emit SubregistryUpdate(msg.sender, labelHash & LABEL_HASH_MASK, subregistry, flags);
+    function setSubregistry(uint256 id, address subregistry, uint64 expiry, uint32 data) external {
+        id = NameUtils.getCanonicalId(id);
+        subregistries[msg.sender][id] = (uint256(data) << 224) | (uint256(expiry) << 160) | uint256(uint160(subregistry));
+        emit SubregistryUpdate(msg.sender, id, subregistry, expiry, data);
     }
 
-    function setResolver(uint256 labelHash, address resolver, uint96 flags) external {
-        resolvers[msg.sender][labelHash & LABEL_HASH_MASK] = (uint256(flags) << 160) | uint256(uint160(resolver));
-        emit ResolverUpdate(msg.sender, labelHash & LABEL_HASH_MASK, resolver, flags);
+    function setResolver(uint256 id, address resolver, uint64 expiry, uint32 data) external {
+        id = NameUtils.getCanonicalId(id);
+        resolvers[msg.sender][id] = (uint256(data) << 224) | (uint256(expiry) << 160) | uint256(uint160(resolver));
+        emit ResolverUpdate(msg.sender, id, resolver, expiry, data);
     }
 }

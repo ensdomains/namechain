@@ -10,7 +10,7 @@ interface IRegistry is IERC1155Singleton {
     event NewSubname(uint256 indexed labelHash, string label);
 
     /**
-     * @dev Fetches the registry for a subdomain of the current registry.
+     * @dev Fetches the registry for a subdomain.
      * @param label The label to resolve.
      * @return The address of the registry for this subdomain, or `address(0)` if none exists.
      */

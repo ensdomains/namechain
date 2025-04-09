@@ -9,14 +9,18 @@ export async function deployEnsFixture() {
     .getWalletClients()
     .then((clients) => clients.map((c) => c.account));
 
+  const ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn
+
   const datastore = await hre.viem.deployContract("RegistryDatastore", []);
-  const rootRegistry = await hre.viem.deployContract("RootRegistry", [
+  const rootRegistry = await hre.viem.deployContract("PermissionedRegistry", [
     datastore.address,
+    zeroAddress,
+    ALL_ROLES
   ]);
-  const metadata = await hre.viem.deployContract("SimpleRegistryMetadata", []);
-  const ethRegistry = await hre.viem.deployContract("ETHRegistry", [
+  const ethRegistry = await hre.viem.deployContract("PermissionedRegistry", [
     datastore.address,
-    metadata.address,
+    zeroAddress,
+    ALL_ROLES
   ]);
   const bg = await serveBatchGateway();
   after(bg.shutdown);
@@ -24,21 +28,17 @@ export async function deployEnsFixture() {
     rootRegistry.address,
     [bg.localBatchGatewayUrl]
   ]);
-  await rootRegistry.write.grantRole([
-    keccak256(stringToHex("TLD_ISSUER_ROLE")),
-    accounts[0].address,
-  ]);
-  await ethRegistry.write.grantRole([
-    keccak256(stringToHex("REGISTRAR_ROLE")),
-    accounts[0].address,
-  ]);
-  await rootRegistry.write.mint([
+
+  const MAX_EXPIRY = 18446744073709551615n // type(uint64).max
+  
+  await rootRegistry.write.register([
     "eth",
     accounts[0].address,
     ethRegistry.address,
-    1n,
-    "https://example.com/"
-  ]);
+    zeroAddress,
+    ALL_ROLES,
+    MAX_EXPIRY
+  ])
 
   return {
     publicClient,
@@ -67,8 +67,8 @@ export const deployUserRegistry = async ({
 }) => {
   const wallet = (await hre.viem.getWalletClients())[ownerIndex];
   return await hre.viem.deployContract(
-    "UserRegistry",
-    [parentRegistryAddress, bytesToHex(packetToBytes(name)), datastoreAddress, metadataAddress ?? zeroAddress],
+    "PermissionedRegistry",
+    [datastoreAddress, metadataAddress ?? zeroAddress, ALL_ROLES],
     {
       client: { wallet },
     }
@@ -93,8 +93,10 @@ export const registerName = async ({
   subregistryLocked?: boolean;
   resolverLocked?: boolean;
 }) => {
+  const ROLE_SET_SUBREGISTRY = 1n << 2n
+  const ROLE_SET_RESOLVER = 1n << 3n
   const owner =
     owner_ ?? (await hre.viem.getWalletClients())[0].account.address;
-  const flags = (subregistryLocked ? 1n : 0n) | (resolverLocked ? 2n : 0n);
-  return ethRegistry.write.register([label, owner, subregistry, resolver, flags, expiry]);
+  const roles = (subregistryLocked ? 0n : ROLE_SET_SUBREGISTRY) | (resolverLocked ? 0n : ROLE_SET_RESOLVER);
+  return ethRegistry.write.register([label, owner, subregistry, resolver, roles, expiry]);
 };

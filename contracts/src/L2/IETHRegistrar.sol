@@ -15,11 +15,10 @@ interface IETHRegistrar {
      * @param owner The address of the owner of the name.
      * @param subregistry The registry used for the registration.
      * @param resolver The resolver used for the registration.
-     * @param flags The flags used for the registration.
      * @param duration The duration of the registration.
      * @param tokenId The ID of the newly registered name.
      */
-    event NameRegistered(string name, address owner, IRegistry subregistry, address resolver, uint96 flags, uint64 duration, uint256 tokenId);
+    event NameRegistered(string name, address owner, IRegistry subregistry, address resolver, uint64 duration, uint256 tokenId);
 
     /**
      * @dev Emitted when a name is renewed.
@@ -73,8 +72,7 @@ interface IETHRegistrar {
      * @param secret The secret of the name.
      * @param subregistry The registry to use for the commitment.
      * @param resolver The resolver to use for the commitment.
-     * @param flags The flags to use for the commitment.
-     * @param expires The expiration timestamp of the commitment.
+     * @param duration The duration of the commitment.
      * @return The commitment.
      */
     function makeCommitment(
@@ -83,8 +81,7 @@ interface IETHRegistrar {
         bytes32 secret,
         address subregistry,
         address resolver,
-        uint96 flags,
-        uint64 expires
+        uint64 duration
     ) external pure returns (bytes32);
 
 
@@ -103,8 +100,7 @@ interface IETHRegistrar {
      * @param secret The secret of the name.
      * @param subregistry The registry to use for the registration.
      * @param resolver The resolver to use for the registration.
-     * @param flags The flags to use for the registration.
-     * @param expires The expiration timestamp of the registration.
+     * @param duration The duration of the registration.
      *
      * @return The ID of the newly registered name.
      */
@@ -114,8 +110,7 @@ interface IETHRegistrar {
         bytes32 secret,
         IRegistry subregistry,
         address resolver,
-        uint96 flags,
-        uint64 expires
+        uint64 duration
     ) external payable returns (uint256);
 
     /**
