@@ -148,7 +148,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
 
         assertEq(resolver, address(1), "resolver");
-        assertEq(offset, 10, "offset");
+        assertEq(offset, 9, "offset");
         assertEq(
             address(parentRegistry),
             address(testRegistry),
@@ -193,7 +193,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
 
         assertEq(resolver, address(1), "resolver");
-        assertEq(offset, 10, "offset");
+        assertEq(offset, 9, "offset");
         assertEq(address(parentRegistry), address(0), "parentRegistry");
         assertEq(label, "", "label");
         assertEq(address(registry), address(testRegistry), "registry");

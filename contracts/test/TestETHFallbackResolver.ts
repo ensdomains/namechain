@@ -9,6 +9,7 @@ import {
 } from "./fixtures/deployEnsFixture.js";
 import { deployArtifact, urgArtifact } from "./fixtures/deployArtifact.js";
 import {
+  type Address,
   type Hex,
   encodeErrorResult,
   encodeFunctionData,
@@ -108,10 +109,13 @@ async function fixture() {
       await publicResolver.write.multicall([calls]);
     }
   }
-  async function ensureRegistry(
-    name: string,
-    owner = namechain.accounts[0].address
-  ) {
+  async function ensureRegistry({
+    name,
+    owner = namechain.accounts[0].address,
+  }: {
+    name: string;
+    owner?: Address;
+  }) {
     const labels = splitName(name);
     if (labels.pop() !== "eth") throw new Error("expected eth");
     if (!labels.length) throw new Error("expected 2LD+");
@@ -184,7 +188,7 @@ describe("ETHFallbackResolver", () => {
             },
           ],
         };
-        await F.ensureRegistry(kp.name);
+        await F.ensureRegistry(kp);
         await F.writeResolutions(kp);
         const [res] = makeResolutions(kp);
         const [answer, resolver] =
@@ -212,12 +216,12 @@ describe("ETHFallbackResolver", () => {
           encodedAddress: "0x1234",
         },
       ],
-      texts: [{ key: "chonk", value: "Chonk" }],
+      texts: [{ key: "url", value: "https://ens.domains" }],
       primary: {
         name: "test.eth",
       },
     };
-    await F.ensureRegistry(kp.name);
+    await F.ensureRegistry(kp);
     await F.writeResolutions(kp);
     const bundle = bundleCalls(makeResolutions(kp));
     const [answer, resolver] =
