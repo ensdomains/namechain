@@ -3,23 +3,10 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {UniversalResolver, NameCoder} from "../../src/universalResolver/UniversalResolver.sol";
-import {RootRegistry, IRegistry, IRegistryMetadata, IRegistryDatastore} from "../../src/L2/RootRegistry.sol";
-import {UserRegistry} from "../../src/L2/UserRegistry.sol";
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
+import {RootRegistry, IRegistry} from "../../src/L2/RootRegistry.sol";
+import {MockUserRegistry} from "../../src/L2/mocks/MockUserRegistry.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-
-contract MockRegistry is UserRegistry {
-    constructor(
-        IRegistry _parent,
-        string memory _label,
-        IRegistryDatastore _datastore
-    )
-        UserRegistry(_parent, _label, _datastore, IRegistryMetadata(address(0)))
-    {}
-    function setResolver(uint256 tokenId, address resolver) external {
-        datastore.setResolver(tokenId, resolver, 0);
-    }
-}
 
 contract UniversalResolverTraversal is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -40,7 +27,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         //     name:  eth
         // registry: <eth> <root>
         // resolver:  0x1
-        MockRegistry ethRegistry = new MockRegistry(
+        MockUserRegistry ethRegistry = new MockUserRegistry(
             rootRegistry,
             "eth",
             datastore
@@ -79,12 +66,12 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         //     name:  raffy . eth
         // registry: <raffy> <eth> <root>
         // resolver:   0x1
-        MockRegistry ethRegistry = new MockRegistry(
+        MockUserRegistry ethRegistry = new MockUserRegistry(
             rootRegistry,
             "eth",
             datastore
         );
-        MockRegistry raffyRegistry = new MockRegistry(
+        MockUserRegistry raffyRegistry = new MockUserRegistry(
             ethRegistry,
             "raffy",
             datastore
@@ -131,12 +118,12 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         //     name:  sub . raffy . eth
         // registry:       <raffy> <eth> <root>
         // resolver:                0x1
-        MockRegistry ethRegistry = new MockRegistry(
+        MockUserRegistry ethRegistry = new MockUserRegistry(
             rootRegistry,
             "eth",
             datastore
         );
-        MockRegistry raffyRegistry = new MockRegistry(
+        MockUserRegistry raffyRegistry = new MockUserRegistry(
             ethRegistry,
             "raffy",
             datastore
@@ -190,12 +177,12 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         //     name:  a . b . raffy . eth
         // registry:         <raffy> <eth> <root>
         // resolver:                  0x1
-        MockRegistry ethRegistry = new MockRegistry(
+        MockUserRegistry ethRegistry = new MockUserRegistry(
             rootRegistry,
             "eth",
             datastore
         );
-        MockRegistry raffyRegistry = new MockRegistry(
+        MockUserRegistry raffyRegistry = new MockUserRegistry(
             ethRegistry,
             "raffy",
             datastore

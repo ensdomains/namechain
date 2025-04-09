@@ -51,3 +51,7 @@ export const labelhashUint256 = (label: string): bigint => {
 export const namehashUint256 = (name: string): bigint => {
   return hexToBigInt(namehash(name));
 };
+
+export function splitName(name: string): string[] {
+  return name ? name.split('.') : [];
+}

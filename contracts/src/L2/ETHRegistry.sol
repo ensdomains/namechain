@@ -13,13 +13,22 @@ import {IRegistryMetadata} from "../common/IRegistryMetadata.sol";
 import {MetadataMixin} from "../common/MetadataMixin.sol";
 import {IETHRegistry} from "./IETHRegistry.sol";
 import {NameUtils} from "../common/NameUtils.sol";
+import {DatastoreUtils} from "../common/DatastoreUtils.sol";
 
-contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETHRegistry {
+contract ETHRegistry is
+    PermissionedRegistry,
+    AccessControl,
+    MetadataMixin,
+    IETHRegistry
+{
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
 
     mapping(uint256 => address) public tokenObservers;
-    
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata) PermissionedRegistry(_datastore) MetadataMixin(_metadata) {
+
+    constructor(
+        IRegistryDatastore _datastore,
+        IRegistryMetadata _metadata
+    ) PermissionedRegistry(_datastore) MetadataMixin(_metadata) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
@@ -28,32 +37,41 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
      * @param tokenId The ID of the node to fetch a URI for.
      * @return The token URI for the node.
      */
-    function uri(uint256 tokenId) public view virtual override returns (string memory) {
+    function uri(
+        uint256 tokenId
+    ) public view virtual override returns (string memory) {
         return tokenURI(tokenId);
     }
 
-    function ownerOf(uint256 tokenId)
+    function ownerOf(
+        uint256 tokenId
+    )
         public
         view
         virtual
         override(ERC1155Singleton, IERC1155Singleton)
         returns (address)
     {
-        (, uint96 oldFlags) = datastore.getSubregistry(tokenId);
-        uint64 expires = _extractExpiry(oldFlags);
+        (, uint96 flags) = datastore.getSubregistry(tokenId);
+        uint64 expires = _extractExpiry(flags);
         if (expires < block.timestamp) {
             return address(0);
         }
-        return super.ownerOf(tokenId);
+        return super.ownerOf(_replaceTokenFlags(tokenId, flags));
     }
 
-    function register(string calldata label, address owner, IRegistry registry, address resolver, uint96 flags, uint64 expires)
-        public
-        onlyRole(REGISTRAR_ROLE)
-        returns (uint256 tokenId)
-    {
-        tokenId = (NameUtils.labelToTokenId(label) & ~uint256(FLAGS_MASK)) | flags;
-        flags = (flags & FLAGS_MASK) | (uint96(expires) << 32);
+    function register(
+        string calldata label,
+        address owner,
+        IRegistry registry,
+        address resolver,
+        uint96 flags,
+        uint64 expires
+    ) public onlyRole(REGISTRAR_ROLE) returns (uint256 tokenId) {
+        if (expires < block.timestamp) {
+            revert CannotSetPastExpiration(expires);
+        }
+        tokenId = _replaceTokenFlags(NameUtils.labelToTokenId(label), flags);
 
         (, uint96 oldFlags) = datastore.getSubregistry(tokenId);
         uint64 oldExpiry = _extractExpiry(oldFlags);
@@ -61,29 +79,33 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
             revert NameAlreadyRegistered(label);
         }
 
-        if (expires < block.timestamp) {
-            revert CannotSetPastExpiration(expires);
-        }
-
         // if there is a previous owner, burn the token
-        address previousOwner = super.ownerOf(tokenId);
+        uint256 previousTokenId = _replaceTokenFlags(tokenId, flags);
+        address previousOwner = super.ownerOf(previousTokenId);
         if (previousOwner != address(0)) {
-            _burn(previousOwner, tokenId, 1);
+            _burn(previousOwner, previousTokenId, 1);
         }
 
         _mint(owner, tokenId, 1, "");
+        flags = _packFlags(expires, flags);
         datastore.setSubregistry(tokenId, address(registry), flags);
         datastore.setResolver(tokenId, resolver, flags);
         emit NewSubname(tokenId, label);
         return tokenId;
     }
 
-    function setTokenObserver(uint256 tokenId, address _observer) external onlyTokenOwner(tokenId) {
+    function setTokenObserver(
+        uint256 tokenId,
+        address _observer
+    ) external onlyTokenOwner(tokenId) {
         tokenObservers[tokenId] = _observer;
         emit TokenObserverSet(tokenId, _observer);
     }
 
-    function renew(uint256 tokenId, uint64 expires) public onlyRole(REGISTRAR_ROLE) {
+    function renew(
+        uint256 tokenId,
+        uint64 expires
+    ) public onlyRole(REGISTRAR_ROLE) {
         (address subregistry, uint96 flags) = datastore.getSubregistry(tokenId);
         uint64 oldExpiration = _extractExpiry(flags);
         if (oldExpiration < block.timestamp) {
@@ -92,11 +114,19 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
         if (expires < oldExpiration) {
             revert CannotReduceExpiration(oldExpiration, expires);
         }
-        datastore.setSubregistry(tokenId, subregistry, (flags & FLAGS_MASK) | (uint96(expires) << 32));
+        datastore.setSubregistry(
+            tokenId,
+            subregistry,
+            _packFlags(expires, flags)
+        );
 
         address observer = tokenObservers[tokenId];
         if (observer != address(0)) {
-            ETHRegistryTokenObserver(observer).onRenew(tokenId, expires, msg.sender);
+            ETHRegistryTokenObserver(observer).onRenew(
+                tokenId,
+                expires,
+                msg.sender
+            );
         }
 
         emit NameRenewed(tokenId, expires, msg.sender);
@@ -114,37 +144,60 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
 
         address observer = tokenObservers[tokenId];
         if (observer != address(0)) {
-            ETHRegistryTokenObserver(observer).onRelinquish(tokenId, msg.sender);
+            ETHRegistryTokenObserver(observer).onRelinquish(
+                tokenId,
+                msg.sender
+            );
         }
 
         emit NameRelinquished(tokenId, msg.sender);
     }
 
-    function nameData(uint256 tokenId) external view returns (uint64 expiry, uint32 flags) {
+    function nameData(
+        uint256 tokenId
+    ) external view returns (uint64 expiry, uint32 flags) {
         (, uint96 _flags) = datastore.getSubregistry(tokenId);
         return (_extractExpiry(_flags), uint32(_flags));
     }
 
-    function setFlags(uint256 tokenId, uint96 flags)
-        external
-        onlyTokenOwner(tokenId)
-        returns (uint256 newTokenId)
-    {
-        uint96 newFlags = _setFlags(tokenId, flags);
-        newTokenId = (tokenId & ~uint256(FLAGS_MASK)) | (newFlags & FLAGS_MASK);
+    function setFlags(
+        uint256 tokenId,
+        uint96 flags
+    ) external onlyTokenOwner(tokenId) returns (uint256 newTokenId) {
+        address owner = ownerOf(tokenId); // remember owner
+        uint96 newFlags = _setFlags(tokenId, flags); // apply flags and update datastore
+        newTokenId = _replaceTokenFlags(tokenId, newFlags); // see if anything changes
         if (tokenId != newTokenId) {
-            address owner = ownerOf(tokenId);
             _burn(owner, tokenId, 1);
             _mint(owner, newTokenId, 1, "");
         }
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(BaseRegistry, AccessControl, IERC165) returns (bool) {
-        return interfaceId == type(IRegistry).interfaceId || super.supportsInterface(interfaceId);
+    function supportsInterface(
+        bytes4 interfaceId
+    )
+        public
+        view
+        override(BaseRegistry, AccessControl, IERC165)
+        returns (bool)
+    {
+        return
+            interfaceId == type(IRegistry).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
-    function getSubregistry(string calldata label) external view virtual override(BaseRegistry, IRegistry) returns (IRegistry) {
-        (address subregistry, uint96 flags) = datastore.getSubregistry(uint256(keccak256(bytes(label))));
+    function getSubregistry(
+        string calldata label
+    )
+        external
+        view
+        virtual
+        override(BaseRegistry, IRegistry)
+        returns (IRegistry)
+    {
+        (address subregistry, uint96 flags) = datastore.getSubregistry(
+            uint256(keccak256(bytes(label)))
+        );
         uint64 expires = _extractExpiry(flags);
         if (expires <= block.timestamp) {
             return IRegistry(address(0));
@@ -152,7 +205,15 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
         return IRegistry(subregistry);
     }
 
-    function getResolver(string calldata label) external view virtual override(BaseRegistry, IRegistry) returns (address) {
+    function getResolver(
+        string calldata label
+    )
+        external
+        view
+        virtual
+        override(BaseRegistry, IRegistry)
+        returns (address)
+    {
         uint256 tokenId = uint256(keccak256(bytes(label)));
         (, uint96 flags) = datastore.getSubregistry(tokenId);
         uint64 expires = _extractExpiry(flags);
@@ -164,11 +225,17 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
         return resolver;
     }
 
-
     // Private methods
 
     function _extractExpiry(uint96 flags) private pure returns (uint64) {
         return uint64(flags >> 32);
+    }
+
+    function _packFlags(
+        uint64 expiry,
+        uint96 flags
+    ) internal pure returns (uint96) {
+        return (uint96(expiry) << 32) | (flags & FLAGS_MASK);
     }
 }
 
@@ -176,6 +243,10 @@ contract ETHRegistry is PermissionedRegistry, AccessControl, MetadataMixin, IETH
  * @dev Observer pattern for events on existing tokens.
  */
 interface ETHRegistryTokenObserver {
-    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external;
+    function onRenew(
+        uint256 tokenId,
+        uint64 expires,
+        address renewedBy
+    ) external;
     function onRelinquish(uint256 tokenId, address relinquishedBy) external;
 }

@@ -26,6 +26,8 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
 
     bytes constant DOT_ETH_SUFFIX = "\x03eth\x00";
 
+    uint8 constant EXIT_CODE_NO_RESOLVER = 2;
+
     // storage layout of RegistryDatastore
     uint256 constant SLOT_RD_ENTRIES = 0;
 
@@ -128,15 +130,14 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
         }
         GatewayRequest memory req = GatewayFetcher.newRequest(2);
         req.setTarget(namechainDatastore);
-        req.setSlot(SLOT_RD_ENTRIES);
         for (uint256 i; i < offsets.length; i++) {
             (bytes32 labelHash, ) = NameCoder.readLabel(name, offsets[i]);
             req.push(DatastoreUtils.normalizeLabelHash(uint256(labelHash)));
         }
-        req.push(namechainEthRegistry).setOutput(0); // start at root
+        req.push(namechainEthRegistry).setOutput(0); // starting point
         req.push(_findResolverProgram());
         req.evalLoop(EvalFlag.STOP_ON_FAILURE); // outputs = [registry, resolver]
-        req.pushOutput(1).requireNonzero(2).target(); // target resolver
+        req.pushOutput(1).requireNonzero(EXIT_CODE_NO_RESOLVER).target(); // target resolver
         req.push(NameCoder.namehash(name, 0)); // node, leave on stack at offset 0
         req.setSlot(SLOT_PR_VERSIONS); // recordVersions
         req.pushStack(0).follow(); // recordVersions[node]
@@ -168,17 +169,23 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
             namechainVerifier,
             req,
             this.resolveCallback.selector,
-            data,
+            abi.encode(name, data),
             new string[](0)
         );
     }
 
     function resolveCallback(
-        bytes[] memory values,
-        uint8 /*exitCode*/,
-        bytes memory data
+        bytes[] calldata values,
+        uint8 exitCode,
+        bytes calldata extraData
     ) external pure returns (bytes memory) {
-        // exitCode == 2 => no resolver
+        (bytes memory name, bytes memory data) = abi.decode(
+            extraData,
+            (bytes, bytes)
+        );
+        if (exitCode == EXIT_CODE_NO_RESOLVER) {
+            revert UnreachableName(name);
+        }
         bytes memory value = values[1];
         if (bytes4(data) == IAddrResolver.addr.selector) {
             return abi.encode(address(bytes20(value)));

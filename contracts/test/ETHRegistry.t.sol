@@ -57,9 +57,7 @@ contract TestETHRegistry is Test, ERC1155Holder {
     function test_lock_name() public {
         uint96 flags = registry.FLAG_SUBREGISTRY_LOCKED() | registry.FLAG_RESOLVER_LOCKED();
         uint256 oldTokenId = registry.register("test2", address(this), registry, address(0), 0, uint64(block.timestamp) + 86400);
-
         uint256 expectedTokenId = oldTokenId | flags;
-
         uint256 newTokenId = registry.setFlags(oldTokenId, flags);
         vm.assertEq(newTokenId, expectedTokenId);
     }

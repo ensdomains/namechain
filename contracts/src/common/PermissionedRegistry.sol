@@ -19,6 +19,10 @@ abstract contract PermissionedRegistry is BaseRegistry {
     constructor(IRegistryDatastore _datastore) BaseRegistry(_datastore) {
     }
 
+    function _replaceTokenFlags(uint256 tokenId, uint256 _flags) internal pure returns (uint256) {
+        return (tokenId & ~uint256(FLAGS_MASK)) | (_flags & FLAGS_MASK);
+    }
+
     function _setFlags(uint256 tokenId, uint96 _flags)
         internal
         withSubregistryFlags(tokenId, FLAG_FLAGS_LOCKED, 0)
