@@ -9,7 +9,7 @@
     "coverage": "forge coverage --report lcov && bun run test:hardhat"
   },
   "devDependencies": {
-    "@ensdomains/hardhat-chai-matchers-viem": "^0.0.7",
+    "@ensdomains/hardhat-chai-matchers-viem": "^0.0.10",
     "@namestone/ezccip": "^0.1.0",
     "@nomicfoundation/hardhat-foundry": "^1.1.1",
     "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",

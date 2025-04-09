@@ -12,12 +12,10 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {IRegistry} from "./IRegistry.sol";
-import {IRegistryMetadata} from "./IRegistryMetadata.sol";
+import {NameUtils} from "./NameUtils.sol";
 
 abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     error AccessDenied(uint256 tokenId, address owner, address caller);
-    error InvalidSubregistryFlags(uint256 tokenId, uint96 flags, uint96 expected);
-    error InvalidResolverFlags(uint256 tokenId, uint96 flags, uint96 expected);
 
     IRegistryDatastore public datastore;
 
@@ -29,22 +27,6 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
         address owner = ownerOf(tokenId);
         if (owner != msg.sender) {
             revert AccessDenied(tokenId, owner, msg.sender);
-        }
-        _;
-    }
-
-    modifier withSubregistryFlags(uint256 tokenId, uint96 mask, uint96 expected) {
-        (, uint96 flags) = datastore.getSubregistry(tokenId);
-        if (flags & mask != expected) {
-            revert InvalidSubregistryFlags(tokenId, flags & mask, expected);
-        }
-        _;
-    }
-
-    modifier withResolverFlags(uint256 tokenId, uint96 mask, uint96 expected) {
-        (, uint96 flags) = datastore.getResolver(tokenId);
-        if (flags & mask != expected) {
-            revert InvalidResolverFlags(tokenId, flags & mask, expected);
         }
         _;
     }
@@ -75,7 +57,7 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
      * @return The address of the registry for this subdomain, or `address(0)` if none exists.
      */
     function getSubregistry(string calldata label) external view virtual returns (IRegistry) {
-        (address subregistry,) = datastore.getSubregistry(uint256(keccak256(bytes(label))));
+        (address subregistry, ,) = datastore.getSubregistry(NameUtils.labelToCanonicalId(label));
         return IRegistry(subregistry);
     }
 
@@ -85,6 +67,6 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
      * @return resolver The address of a resolver responsible for this name, or `address(0)` if none exists.
      */
     function getResolver(string calldata label) external view virtual returns (address resolver) {
-        (resolver,) = datastore.getResolver(uint256(keccak256(bytes(label))));
+        (resolver, ,) = datastore.getResolver(NameUtils.labelToCanonicalId(label));
     }
 }

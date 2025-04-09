@@ -8,7 +8,7 @@ import "../src/common/IRegistryMetadata.sol";
 // Mock implementation of IRegistryMetadata for testing
 contract MockMetadataProvider is IRegistryMetadata {
     mapping(uint256 => string) private _tokenUris;
-    
+
     function setTokenUri(uint256 tokenId, string memory uri) external {
         _tokenUris[tokenId] = uri;
     }

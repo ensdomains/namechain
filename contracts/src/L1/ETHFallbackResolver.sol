@@ -10,9 +10,9 @@ import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
+import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {NameUtils} from "../common/NameUtils.sol";
-import {DatastoreUtils} from "../common/DatastoreUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
@@ -28,13 +28,14 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
 
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
 
-    // storage layout of RegistryDatastore
+    /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;
 
-    // storage layout of PublicResolver
+    /// @dev Storage layout of PublicResolver.
     uint256 constant SLOT_PR_VERSIONS = 0;
     uint256 constant SLOT_PR_ADDRESSES = 2;
     uint256 constant SLOT_PR_CONTENTHASHES = 3;
+	uint256 constant SLOT_PR_NAMES = 8;
     uint256 constant SLOT_PR_TEXTS = 10;
 
     /// @param name DNS-encoded ENS name that does not exist.
@@ -132,7 +133,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
         req.setTarget(namechainDatastore);
         for (uint256 i; i < offsets.length; i++) {
             (bytes32 labelHash, ) = NameCoder.readLabel(name, offsets[i]);
-            req.push(DatastoreUtils.normalizeLabelHash(uint256(labelHash)));
+            req.push(NameUtils.getCanonicalId(uint256(labelHash)));
         }
         req.push(namechainEthRegistry).setOutput(0); // starting point
         req.push(_findResolverProgram());
@@ -144,23 +145,33 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
         req.read(); // version, leave on stack at offset 1
         if (bytes4(data) == IAddrResolver.addr.selector) {
             req.setSlot(SLOT_PR_ADDRESSES);
-            req.follow(); // addr[version]
-            req.follow(); // addr[version][node]
-            req.push(60).follow(); // addr[version][node][60]
+            req.follow(); // versionable_addresses[version]
+            req.follow(); // versionable_addresses[version][node]
+            req.push(60).follow(); // versionable_addresses[version][node][60]
             req.readBytes().setOutput(1);
         } else if (bytes4(data) == IAddressResolver.addr.selector) {
             (, uint256 coinType) = abi.decode(data[4:], (bytes32, uint256));
             req.setSlot(SLOT_PR_ADDRESSES);
-            req.follow(); // addr[version]
-            req.follow(); // addr[version][node]
-            req.push(coinType).follow(); // addr[version][node][coinType]
+            req.follow(); // versionable_addresses[version]
+            req.follow(); // versionable_addresses[version][node]
+            req.push(coinType).follow(); // versionable_addresses[version][node][coinType]
             req.readBytes().setOutput(1);
         } else if (bytes4(data) == ITextResolver.text.selector) {
             (, string memory key) = abi.decode(data[4:], (bytes32, string));
             req.setSlot(SLOT_PR_TEXTS);
-            req.follow(); // text[version]
-            req.follow(); // text[version][node]
-            req.push(key).follow(); // text[version][node][key]
+            req.follow(); // versionable_texts[version]
+            req.follow(); // versionable_texts[version][node]
+            req.push(key).follow(); // versionable_texts[version][node][key]
+            req.readBytes().setOutput(1);
+		} else if (bytes4(data) == IContentHashResolver.contenthash.selector) {
+			req.setSlot(SLOT_PR_CONTENTHASHES);
+            req.follow(); // versionable_hashes[version]
+            req.follow(); // versionable_hashes[version][node]
+            req.readBytes().setOutput(1);
+		} else if (bytes4(data) == INameResolver.name.selector) {
+			req.setSlot(SLOT_PR_NAMES);
+            req.follow(); // versionable_names[version]
+            req.follow(); // versionable_names[version][node]
             req.readBytes().setOutput(1);
         } else {
             revert UnsupportedResolverProfile(bytes4(data));

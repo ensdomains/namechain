@@ -3,64 +3,72 @@ pragma solidity >=0.8.13;
 
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {DatastoreUtils} from "./DatastoreUtils.sol";
+import {NameUtils} from "./NameUtils.sol";
 
 contract RegistryDatastore is IRegistryDatastore {
-
     struct Entry {
         uint256 registryData;
         uint256 resolverData;
     }
-
-    mapping(address registry => mapping(uint256 labelHash => Entry)) entries;
+    mapping(address registry => mapping(uint256 id => Entry)) entries;
 
     function getSubregistry(
         address registry,
-        uint256 labelHash
-    ) public view returns (address subregistry, uint96 flags) {
-        (subregistry, flags) = DatastoreUtils.unpack(
-            entries[registry][DatastoreUtils.normalizeLabelHash(labelHash)].registryData
+        uint256 id
+    ) public view returns (address subregistry, uint64 expiry, uint32 data) {
+        (subregistry, expiry, data) = DatastoreUtils.unpack(
+            entries[registry][NameUtils.getCanonicalId(id)].registryData
         );
     }
 
     function getSubregistry(
-        uint256 labelHash
-    ) external view returns (address subregistry, uint96 flags) {
-        return getSubregistry(msg.sender, labelHash);
+        uint256 id
+    ) external view returns (address subregistry, uint64 expiry, uint32 data) {
+        return getSubregistry(msg.sender, id);
     }
 
     function getResolver(
         address registry,
-        uint256 labelHash
-    ) public view returns (address resolver, uint96 flags) {
-        (resolver, flags) = DatastoreUtils.unpack(
-            entries[registry][DatastoreUtils.normalizeLabelHash(labelHash)].resolverData
+        uint256 id
+    ) public view returns (address resolver, uint64 expiry, uint32 data) {
+        (resolver, expiry, data) = DatastoreUtils.unpack(
+            entries[registry][NameUtils.getCanonicalId(id)].resolverData
         );
     }
 
     function getResolver(
-        uint256 labelHash
-    ) external view returns (address resolver, uint96 flags) {
-        return getResolver(msg.sender, labelHash);
+        uint256 id
+    ) external view returns (address resolver, uint64 expiry, uint32 data) {
+        return getResolver(msg.sender, id);
     }
 
     function setSubregistry(
-        uint256 labelHash,
+        uint256 id,
         address subregistry,
-        uint96 flags
+        uint64 expiry,
+        uint32 data
     ) external {
-        labelHash = DatastoreUtils.normalizeLabelHash(labelHash);
-        entries[msg.sender][labelHash].registryData = DatastoreUtils.pack(subregistry, flags);
-        emit SubregistryUpdate(msg.sender, labelHash, subregistry, flags);
+        id = NameUtils.getCanonicalId(id);
+        entries[msg.sender][id].registryData = DatastoreUtils.pack(
+            subregistry,
+            expiry,
+            data
+        );
+        emit SubregistryUpdate(msg.sender, id, subregistry, expiry, data);
     }
 
     function setResolver(
-        uint256 labelHash,
+        uint256 id,
         address resolver,
-        uint96 flags
+        uint64 expiry,
+        uint32 data
     ) external {
-        labelHash = DatastoreUtils.normalizeLabelHash(labelHash);
-        entries[msg.sender][labelHash].resolverData = DatastoreUtils.pack(resolver, flags);
-        emit ResolverUpdate(msg.sender, labelHash, resolver, flags);
+        id = NameUtils.getCanonicalId(id);
+        entries[msg.sender][id].resolverData = DatastoreUtils.pack(
+            resolver,
+            expiry,
+            data
+        );
+        emit ResolverUpdate(msg.sender, id, resolver, expiry, data);
     }
-
 }

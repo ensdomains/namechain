@@ -1,13 +1,9 @@
 import hre from "hardhat";
-import {
-	type Address,
-	bytesToHex,
-	keccak256,
-	stringToHex,
-	zeroAddress,
-} from "viem";
-import { packetToBytes } from "../utils/utils.js";
+import { type Address, zeroAddress } from "viem";
 import { serveBatchGateway } from "../../lib/ens-contracts/test/fixtures/localBatchGateway.js";
+
+export const ALL_ROLES = (1n << 256n) - 1n;
+export const MAX_EXPIRY = (1n << 64n) - 1n;
 
 export async function deployEnsFixture(enableCcipRead = false) {
 	const publicClient = await hre.viem.getPublicClient();
@@ -16,14 +12,17 @@ export async function deployEnsFixture(enableCcipRead = false) {
 		.then((clients) => clients.map((c) => c.account));
 
 	const datastore = await hre.viem.deployContract("RegistryDatastore", []);
-	const rootRegistry = await hre.viem.deployContract("RootRegistry", [
+	const rootRegistry = await hre.viem.deployContract("PermissionedRegistry", [
 		datastore.address,
+		zeroAddress,
+		ALL_ROLES,
 	]);
-	const metadata = await hre.viem.deployContract("SimpleRegistryMetadata");
-	const ethRegistry = await hre.viem.deployContract("ETHRegistry", [
+	const ethRegistry = await hre.viem.deployContract("PermissionedRegistry", [
 		datastore.address,
-		metadata.address,
+		zeroAddress,
+		ALL_ROLES,
 	]);
+
 	const gateways: string[] = [];
 	if (enableCcipRead) {
 		const bg = await serveBatchGateway();
@@ -43,20 +42,14 @@ export async function deployEnsFixture(enableCcipRead = false) {
 			  }
 			: undefined
 	);
-	await rootRegistry.write.grantRole([
-		keccak256(stringToHex("TLD_ISSUER_ROLE")),
-		accounts[0].address,
-	]);
-	await ethRegistry.write.grantRole([
-		keccak256(stringToHex("REGISTRAR_ROLE")),
-		accounts[0].address,
-	]);
-	await rootRegistry.write.mint([
+
+	await rootRegistry.write.register([
 		"eth",
 		accounts[0].address,
 		ethRegistry.address,
-		1n,
-		"https://example.com/",
+		zeroAddress,
+		ALL_ROLES,
+		MAX_EXPIRY,
 	]);
 
 	return {
@@ -72,27 +65,18 @@ export async function deployEnsFixture(enableCcipRead = false) {
 export type EnsFixture = Awaited<ReturnType<typeof deployEnsFixture>>;
 
 export const deployUserRegistry = async ({
-	name,
-	parentRegistryAddress,
 	datastoreAddress,
-	metadataAddress,
+	metadataAddress = zeroAddress,
 	ownerIndex = 0,
 }: {
-	name: string;
-	parentRegistryAddress: Address;
 	datastoreAddress: Address;
 	metadataAddress?: Address;
 	ownerIndex?: number;
 }) => {
 	const wallet = (await hre.viem.getWalletClients())[ownerIndex];
 	return await hre.viem.deployContract(
-		"UserRegistry",
-		[
-			parentRegistryAddress,
-			bytesToHex(packetToBytes(name)),
-			datastoreAddress,
-			metadataAddress ?? zeroAddress,
-		],
+		"PermissionedRegistry",
+		[datastoreAddress, metadataAddress, ALL_ROLES],
 		{
 			client: { wallet },
 		}
@@ -117,15 +101,19 @@ export const registerName = async ({
 	subregistryLocked?: boolean;
 	resolverLocked?: boolean;
 }) => {
+	const ROLE_SET_SUBREGISTRY = 1n << 2n;
+	const ROLE_SET_RESOLVER = 1n << 3n;
 	const owner =
 		owner_ ?? (await hre.viem.getWalletClients())[0].account.address;
-	const flags = (subregistryLocked ? 1n : 0n) | (resolverLocked ? 2n : 0n);
+	const roles =
+		(subregistryLocked ? 0n : ROLE_SET_SUBREGISTRY) |
+		(resolverLocked ? 0n : ROLE_SET_RESOLVER);
 	return ethRegistry.write.register([
 		label,
 		owner,
 		subregistry,
 		resolver,
-		flags,
+		roles,
 		expiry,
 	]);
 };
