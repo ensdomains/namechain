@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
-import {NameUtils} from "../utils/NameUtils.sol";
+import {NameUtils} from "./NameUtils.sol";
 
 contract RegistryDatastore is IRegistryDatastore {
     mapping(address registry => mapping(uint256 id => uint256)) internal subregistries;

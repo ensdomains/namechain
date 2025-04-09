@@ -12,7 +12,7 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {IRegistry} from "./IRegistry.sol";
-import {NameUtils} from "../utils/NameUtils.sol";
+import {NameUtils} from "./NameUtils.sol";
 
 abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     error AccessDenied(uint256 tokenId, address owner, address caller);

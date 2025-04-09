@@ -6,13 +6,12 @@ import "forge-std/console.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import "../src/registry/L1ETHRegistry.sol";
-import "../src/registry/RegistryDatastore.sol";
-import "../src/registry/IRegistry.sol";
-import "../src/registry/IPermissionedRegistry.sol";
-import "../src/controller/IL1EjectionController.sol";
-import "../src/registry/EnhancedAccessControl.sol";
-import "../src/registry/IRegistryMetadata.sol";
+import "../src/L1/L1ETHRegistry.sol";
+import "../src/common/RegistryDatastore.sol";
+import "../src/common/IRegistry.sol";
+import "../src/L1/IL1EjectionController.sol";
+import "../src/common/EnhancedAccessControl.sol";
+import "../src/common/IRegistryMetadata.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {

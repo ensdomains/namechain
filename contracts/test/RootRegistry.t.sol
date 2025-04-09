@@ -6,11 +6,11 @@ import "forge-std/console.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import "../src/registry/PermissionedRegistry.sol";
-import "../src/registry/RegistryDatastore.sol";
-import "../src/registry/EnhancedAccessControl.sol";
-import "../src/registry/SimpleRegistryMetadata.sol";
-import "../src/registry/BaseRegistry.sol";
+import "../src/common/PermissionedRegistry.sol";
+import "../src/common/RegistryDatastore.sol";
+import "../src/common/EnhancedAccessControl.sol";
+import "../src/common/SimpleRegistryMetadata.sol";
+import "../src/common/BaseRegistry.sol";
 
 contract TestRootRegistry is Test, ERC1155Holder {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);

@@ -2,14 +2,14 @@
 pragma solidity >=0.8.13;
 
 import {IETHRegistrar} from "./IETHRegistrar.sol";
-import {IRegistry} from "./IRegistry.sol";
-import {IERC1155Singleton} from "./IERC1155Singleton.sol";
-import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
+import {IRegistry} from "../common/IRegistry.sol";
+import {IERC1155Singleton} from "../common/IERC1155Singleton.sol";
+import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IPriceOracle} from "./IPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {NameUtils} from "../utils/NameUtils.sol";
-import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
-import {RegistryRolesMixin} from "./RegistryRolesMixin.sol";
+import {NameUtils} from "../common/NameUtils.sol";
+import {EnhancedAccessControl} from "../common/EnhancedAccessControl.sol";
+import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
 
 contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixin {
     uint256 private constant REGISTRATION_ROLE_BITMAP = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;

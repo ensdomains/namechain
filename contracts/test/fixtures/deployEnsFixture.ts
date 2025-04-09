@@ -1,6 +1,7 @@
 import hre from "hardhat";
 import { type Address, bytesToHex, keccak256, stringToHex, zeroAddress } from "viem";
 import { packetToBytes } from "../utils/utils.js";
+import { serveBatchGateway } from '../../lib/ens-contracts/test/fixtures/localBatchGateway.js';
 
 export async function deployEnsFixture() {
   const publicClient = await hre.viem.getPublicClient();
@@ -21,8 +22,11 @@ export async function deployEnsFixture() {
     zeroAddress,
     ALL_ROLES
   ]);
+  const bg = await serveBatchGateway();
+  after(bg.shutdown);
   const universalResolver = await hre.viem.deployContract("UniversalResolver", [
     rootRegistry.address,
+    [bg.localBatchGatewayUrl]
   ]);
 
   const MAX_EXPIRY = 18446744073709551615n // type(uint64).max

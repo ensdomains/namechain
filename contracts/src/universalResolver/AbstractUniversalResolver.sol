@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity >=0.8.13;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {CCIPBatcher} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
-import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
@@ -16,18 +15,15 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH} from "@ens/contracts/utils/ENSIP19.sol";
 
-// TODO: HardhatFoundryPlugin does not allow remapping subdependencies for now.
-// Until that problem is solved, we are keeping the mock copy of the UniversalResolverV1 here.
-// The reason to have a mock here is, to be able to use the ens-contracts library instead of mock, we need openzeppelin 4.0.0 >= x < 4.5.0 remapped to make it work correctly,
-// but in main project we are using OZ 5.2.0, which requires us to have changes in the used dependency contract.
-// ref: https://github.com/NomicFoundation/hardhat/issues/4812
-
-contract UniversalResolver is IUniversalResolver, CCIPBatcher, Ownable, ERC165 {
-    ENS public immutable registry;
+abstract contract AbstractUniversalResolver is
+    IUniversalResolver,
+    CCIPBatcher,
+    Ownable,
+    ERC165
+{
     string[] public batchGateways;
 
-    constructor(ENS ens, string[] memory gateways) Ownable(msg.sender) {
-        registry = ens;
+    constructor(address owner, string[] memory gateways) Ownable(owner) {
         batchGateways = gateways;
     }
 
@@ -49,37 +45,16 @@ contract UniversalResolver is IUniversalResolver, CCIPBatcher, Ownable, ERC165 {
     /// @dev Find the resolver address for `name`.
     ///      Does not perform any validity checks.
     /// @param name The name to search.
+    /// @return resolver The resolver responsible for this name, or `address(0)` if none.
+    /// @return node The namehash of name corresponding to the resolver.
+    /// @return offset The byte-offset into `name` of the name corresponding to the resolver.
     function findResolver(
         bytes memory name
-    ) external view returns (address, bytes32, uint256) {
-        return _findResolver(name, 0);
-    }
-
-    /// @dev Efficiently find the resolver address for `name[offset:]`.
-    /// @param name The name to search.
-    /// @param offset The byte-offset into `name` to begin the search.
-    /// @return resolver The address of the resolver.
-    /// @return node The namehash of name corresponding to the resolver.
-    /// @return offset_ The byte-offset into `name` of the name corresponding to the resolver.
-    function _findResolver(
-        bytes memory name,
-        uint256 offset
-    ) internal view returns (address resolver, bytes32 node, uint256 offset_) {
-        (bytes32 labelHash, uint256 next) = NameCoder.readLabel(name, offset);
-        if (labelHash != bytes32(0)) {
-            (
-                address parentResolver,
-                bytes32 parentNode,
-                uint256 parentOffset
-            ) = _findResolver(name, next);
-            node = keccak256(abi.encodePacked(parentNode, labelHash));
-            resolver = registry.resolver(node);
-            return
-                resolver != address(0)
-                    ? (resolver, node, offset)
-                    : (parentResolver, node, parentOffset);
-        }
-    }
+    )
+        public
+        view
+        virtual
+        returns (address resolver, bytes32 node, uint256 offset);
 
     /// @dev A valid resolver and its relevant properties.
     struct ResolverInfo {
@@ -97,8 +72,7 @@ contract UniversalResolver is IUniversalResolver, CCIPBatcher, Ownable, ERC165 {
         bytes memory name
     ) public view returns (ResolverInfo memory info) {
         // https://docs.ens.domains/ensip/10
-        info.name = name;
-        (info.resolver, info.node, info.offset) = _findResolver(name, 0);
+        (info.resolver, info.node, info.offset) = findResolver(name);
         if (info.resolver == address(0)) {
             revert ResolverNotFound(name);
         } else if (
@@ -113,6 +87,7 @@ contract UniversalResolver is IUniversalResolver, CCIPBatcher, Ownable, ERC165 {
         } else if (info.resolver.code.length == 0) {
             revert ResolverNotContract(name, info.resolver);
         }
+        info.name = name;
     }
 
     /// @notice Same as `resolveWithGateways()` but uses default batch gateways.

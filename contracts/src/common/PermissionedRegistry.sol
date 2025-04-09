@@ -12,7 +12,7 @@ import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 import {MetadataMixin} from "./MetadataMixin.sol";
 import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 import {SimpleRegistryMetadata} from "./SimpleRegistryMetadata.sol";
-import {NameUtils} from "../utils/NameUtils.sol";
+import {NameUtils} from "./NameUtils.sol";
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 import {ITokenObserver} from "./ITokenObserver.sol";
 import {RegistryRolesMixin} from "./RegistryRolesMixin.sol";

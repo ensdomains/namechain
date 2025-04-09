@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import "forge-std/Test.sol";
-import "forge-std/console.sol";
-
+import {Test} from "forge-std/Test.sol";
+import {console} from "forge-std/console.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import "../src/registry/PermissionedRegistry.sol";
-import "../src/registry/RegistryDatastore.sol";
-import "../src/registry/IRegistryMetadata.sol";
-import "../src/registry/SimpleRegistryMetadata.sol";
-import "../src/registry/BaseRegistry.sol";
-import "../src/registry/IPermissionedRegistry.sol";
-import "../src/registry/ETHRegistrar.sol";
-import "../src/registry/IPriceOracle.sol";
-import "../src/registry/ITokenObserver.sol";
+import "../src/common/PermissionedRegistry.sol";
+import "../src/common/RegistryDatastore.sol";
+import "../src/common/IRegistryMetadata.sol";
+import "../src/common/SimpleRegistryMetadata.sol";
+import "../src/common/BaseRegistry.sol";
+import "../src/common/IPermissionedRegistry.sol";
+import "../src/L2/ETHRegistrar.sol";
+import "../src/L2/IPriceOracle.sol";
+import "../src/common/ITokenObserver.sol";
 
 
 contract TestPermissionedRegistry is Test, ERC1155Holder {
