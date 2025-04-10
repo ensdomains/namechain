@@ -27,6 +27,10 @@ import {
   bundleCalls,
   makeResolutions,
 } from "../lib/ens-contracts/test/universalResolver/utils.js";
+import {
+  COIN_TYPE_ETH,
+  EVM_BIT,
+} from "../lib/ens-contracts/test/fixtures/ensip19.js";
 
 async function fixture() {
   const mainnet = await deployEnsFixture(true);
@@ -65,7 +69,7 @@ async function fixture() {
     ensureRegistry,
     writeResolutions,
   };
-  async function writeResolutions(p: KnownProfile) {
+  async function writeResolutions(p: KnownProfile, network = namechain) {
     // TODO: move this to ens-contracts/
     // TODO: add contenthash()
     const node = namehash(p.name);
@@ -74,7 +78,7 @@ async function fixture() {
       for (const x of p.addresses) {
         calls.push(
           encodeFunctionData({
-            abi: namechain.ownedResolver.abi,
+            abi: network.ownedResolver.abi,
             functionName: "setAddr",
             args: [node, x.coinType, x.encodedAddress],
           })
@@ -85,7 +89,7 @@ async function fixture() {
       for (const x of p.texts) {
         calls.push(
           encodeFunctionData({
-            abi: namechain.ownedResolver.abi,
+            abi: network.ownedResolver.abi,
             functionName: "setText",
             args: [node, x.key, x.value],
           })
@@ -95,31 +99,34 @@ async function fixture() {
     if (p.primary) {
       calls.push(
         encodeFunctionData({
-          abi: namechain.ownedResolver.abi,
+          abi: network.ownedResolver.abi,
           functionName: "setName",
           args: [node, p.primary.name],
         })
       );
     }
     if (calls.length) {
-      await namechain.ownedResolver.write.multicall([calls]);
+      await network.ownedResolver.write.multicall([calls]);
     }
   }
-  async function ensureRegistry({
-    name,
-    owner = namechain.accounts[0].address,
-  }: {
-    name: string;
-    owner?: Address;
-  }) {
+  async function ensureRegistry(
+    {
+      name,
+      owner = namechain.accounts[0].address,
+    }: {
+      name: string;
+      owner?: Address;
+    },
+    network = namechain
+  ) {
     const labels = splitName(name);
     if (labels.pop() !== "eth") throw new Error("expected eth");
     if (!labels.length) throw new Error("expected 2LD+");
-    let parentRegistry = namechain.ethRegistry;
+    let parentRegistry = network.ethRegistry;
     for (let i = labels.length - 1; i > 0; i--) {
       const registry = await hre.viem.deployContract(
         "PermissionedRegistry",
-        [namechain.datastore.address, zeroAddress, ALL_ROLES]
+        [network.datastore.address, zeroAddress, ALL_ROLES]
       );
       await parentRegistry.write.register([
         labels[i],
@@ -135,13 +142,14 @@ async function fixture() {
       labels[0],
       owner,
       zeroAddress,
-      namechain.ownedResolver.address,
+      network.ownedResolver.address,
       ALL_ROLES,
       MAX_EXPIRY,
     ]);
   }
 }
 
+const dummySelector = "0x12345678";
 const testAddress = "0x8000000000000000000000000000000000000001";
 
 describe("ETHFallbackResolver", () => {
@@ -150,13 +158,53 @@ describe("ETHFallbackResolver", () => {
     interfaces: ["IERC165", "IExtendedResolver"],
   });
 
-  describe("not ejected: resolver unset", () => {
-    for (const name of ["eth", "test.eth", "sub.test.eth"]) {
+  describe("ejected", () => {
+    it("eth never resolves", async () => {
+      const F = await loadFixture(fixture);
+      await expect(F.mainnet.universalResolver)
+        .read("resolve", [dnsEncodeName("eth"), dummySelector])
+        .toBeRevertedWithCustomError("ResolverError");
+    });
+    for (const name of ["test.eth", "sub.test.eth"]) {
+      it(name, async () => {
+        const F = await loadFixture(fixture);
+        const kp: KnownProfile = {
+          name,
+          addresses: [
+            {
+              coinType: COIN_TYPE_ETH,
+              encodedAddress: testAddress,
+            },
+          ],
+        };
+        await F.ensureRegistry(kp, F.mainnet);
+        await F.writeResolutions(kp, F.mainnet);
+        const [res] = makeResolutions(kp);
+        const [answer, resolver] =
+          await F.mainnet.universalResolver.read.resolve([
+            dnsEncodeName(name),
+            res.call,
+          ]);
+        expect(resolver).toEqualAddress(
+          F.mainnet.ownedResolver.address
+        );
+        res.expect(answer);
+      });
+    }
+  });
+
+  describe("resolver unset", () => {
+    for (const name of ["test.eth", "sub.test.eth"]) {
       it(name, async () => {
         const F = await loadFixture(fixture);
         const [res] = makeResolutions({
           name,
-          addresses: [{ coinType: 60n, encodedAddress: testAddress }],
+          addresses: [
+            {
+              coinType: COIN_TYPE_ETH,
+              encodedAddress: testAddress,
+            },
+          ],
         });
         await expect(F.mainnet.universalResolver)
           .read("resolve", [dnsEncodeName(name), res.call])
@@ -171,7 +219,7 @@ describe("ETHFallbackResolver", () => {
     }
   });
 
-  describe("not ejected: resolver set", () => {
+  describe("resolver set", () => {
     for (const name of ["test.eth", "sub.test.eth"]) {
       it(name, async () => {
         const F = await loadFixture(fixture);
@@ -179,7 +227,7 @@ describe("ETHFallbackResolver", () => {
           name,
           addresses: [
             {
-              coinType: 60n,
+              coinType: COIN_TYPE_ETH,
               encodedAddress: testAddress,
             },
           ],
@@ -198,16 +246,20 @@ describe("ETHFallbackResolver", () => {
     }
   });
 
-  describe("record profiles", () => {
+  describe("profile support", () => {
     const kp: KnownProfile = {
       name: "test.eth",
       addresses: [
         {
-          coinType: 60n,
+          coinType: COIN_TYPE_ETH,
           encodedAddress: testAddress,
         },
         {
-          coinType: 1n,
+          coinType: 1n | EVM_BIT,
+          encodedAddress: testAddress,
+        },
+        {
+          coinType: 2n,
           encodedAddress: "0x1234",
         },
       ],
@@ -231,7 +283,7 @@ describe("ETHFallbackResolver", () => {
         res.expect(answer);
       });
     }
-    it("multicall", async () => {
+    it(`multicall(${resolutions.length})`, async () => {
       const F = await loadFixture(fixture);
       await F.ensureRegistry(kp);
       await F.writeResolutions(kp);
@@ -243,6 +295,13 @@ describe("ETHFallbackResolver", () => {
         ]);
       expect(resolver).toEqualAddress(F.ethFallbackRegistry.address);
       bundle.expect(answer);
+    });
+    it("unsupported", async () => {
+      const F = await loadFixture(fixture);
+      await expect(F.mainnet.universalResolver)
+        .read("resolve", [dnsEncodeName("test.eth"), dummySelector])
+        .toBeRevertedWithCustomError("UnsupportedResolverProfile")
+        .withArgs(dummySelector);
     });
   });
 });

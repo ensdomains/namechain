@@ -2,9 +2,7 @@ import hre from "hardhat";
 import {
   type Address,
   encodeFunctionData,
-  keccak256,
   labelhash,
-  namehash,
   parseEventLogs,
   zeroAddress,
 } from "viem";
