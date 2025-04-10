@@ -1,332 +1,124 @@
-// Setup script for cross-chain ENS v2 testing with Anvil
-import { ethers } from 'ethers';
-import fs from 'fs';
-import path from 'path';
-import { execSync } from 'child_process';
-import { spawn } from 'child_process';
+// setup.ts - Cross-chain ENS v2 testing with blocksmith.js
+import { Foundry } from "@adraffy/blocksmith";
+import { ethers } from "ethers";
+import { CrossChainRelayer } from "./CrossChainRelayer.js";
 
-// Configuration
-const L1_RPC_URL = 'http://localhost:8545';
-const L2_RPC_URL = 'http://localhost:8546';
-
-// Connect to both networks
-const l1Provider = new ethers.JsonRpcProvider(L1_RPC_URL);
-const l2Provider = new ethers.JsonRpcProvider(L2_RPC_URL);
-
-// Helper to get a wallet on both chains
-async function getWallets() {
-  // Use the default anvil private key for the first account
-  const PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+/**
+ * Sets up the cross-chain testing environment using blocksmith.js
+ * @ref https://github.com/adraffy/blocksmith.js
+ * @returns Environment with L1 and L2 contracts and a relayer
+ */
+export async function setupCrossChainEnvironment() {
+  console.log('Setting up cross-chain ENS v2 environment...');
   
-  const l1Wallet = new ethers.Wallet(PRIVATE_KEY, l1Provider);
-  const l2Wallet = new ethers.Wallet(PRIVATE_KEY, l2Provider);
+  // Launch two separate Anvil instances for L1 and L2
+  const [L1, L2] = await Promise.all([
+    Foundry.launch({ 
+      chain: 31337, 
+      port: 8545,
+    }),
+    Foundry.launch({ 
+      chain: 31338, 
+      port: 8546,
+    })
+  ]);
   
-  console.log(`Using wallet address: ${l1Wallet.address}`);
+  console.log(`L1: Chain ID ${L1.chain}, URL: ${L1.endpoint}`);
+  console.log(`L2: Chain ID ${L2.chain}, URL: ${L2.endpoint}`);
   
-  // Check balances
-  const l1Balance = await l1Provider.getBalance(l1Wallet.address);
-  const l2Balance = await l2Provider.getBalance(l2Wallet.address);
+  // Deploy contracts to both chains
+  console.log('Deploying contracts...');
   
-  console.log(`L1 Balance: ${ethers.formatEther(l1Balance)} ETH`);
-  console.log(`L2 Balance: ${ethers.formatEther(l2Balance)} ETH`);
+  // Deploy registries
+  const l1Registry = await L1.deploy({ file: 'MockL1Registry' });
+  const l2Registry = await L2.deploy({ file: 'MockL2Registry' });
   
-  return { l1Wallet, l2Wallet };
-}
-
-// Compile contracts using Forge
-function compileContractsWithForge() {
-  console.log('Compiling contracts with Forge...');
-  try {
-    // Run forge build to compile all contracts
-    execSync('forge build --force', { stdio: 'inherit' });
-    console.log('Compilation successful');
-  } catch (error) {
-    console.error('Error during compilation:', error.message);
-    throw new Error('Forge compilation failed');
-  }
-}
-
-// Load compiled contracts from Forge output
-function loadCompiledContracts() {
-  const contractNames = [
-    'MockL1Registry',
-    'MockL2Registry',
-    'MockBridgeHelper',
-    'MockL1Bridge',
-    'MockL2Bridge',
-    'MockL1MigrationController',
-    'MockL2MigrationController'
-  ];
+  // Deploy bridge helpers
+  const l1BridgeHelper = await L1.deploy({ file: 'MockBridgeHelper' });
+  const l2BridgeHelper = await L2.deploy({ file: 'MockBridgeHelper' });
   
-  const contracts = {};
-  const outDir = path.join(process.cwd(), 'out');
+  // Deploy bridges (with temporary target addresses)
+  const l1Bridge = await L1.deploy({ 
+    file: 'MockL1Bridge',
+    args: [ethers.ZeroAddress]
+  });
   
-  for (const contractName of contractNames) {
-    try {
-      // First try to find the contract in its expected location
-      let artifactPath;
-      
-      // Check in various possible locations
-      const possiblePaths = [
-        // In mocks subdirectory
-        path.join(outDir, `${contractName}.sol`, `${contractName}.json`)
-      ];
-      
-      // Find the first path that exists
-      for (const possiblePath of possiblePaths) {
-        if (fs.existsSync(possiblePath)) {
-          artifactPath = possiblePath;
-          break;
-        }
-      }
-      
-      if (!artifactPath) {
-        throw new Error(`Could not find artifact for ${contractName}`);
-      }
-      
-      const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
-      
-      contracts[contractName] = {
-        abi: artifact.abi,
-        bytecode: artifact.bytecode.object,
-      };
-      
-      console.log(`Loaded compiled contract: ${contractName}`);
-    } catch (error) {
-      console.error(`Error loading compiled contract ${contractName}:`, error.message);
-      throw error;
-    }
-  }
+  const l2Bridge = await L2.deploy({ 
+    file: 'MockL2Bridge', 
+    args: [ethers.ZeroAddress]
+  });
   
-  return contracts;
-}
-
-// Deploy a contract to a specific chain
-async function deployContract(wallet, contractName, abi, bytecode, ...args) {
-  console.log(wallet.provider);
-  console.log(`Deploying ${contractName} to ${wallet.provider._getConnection().url}...`);
+  // Deploy controllers with proper connections
+  const l1Controller = await L1.deploy({ 
+    file: 'MockL1MigrationController', 
+    args: [
+      await l1Registry.getAddress(),
+      await l1BridgeHelper.getAddress(),
+      await l1Bridge.getAddress()
+    ]
+  });
   
-  const factory = new ethers.ContractFactory(abi, bytecode, wallet);
-  const contract = await factory.deploy(...args);
+  const l2Controller = await L2.deploy({ 
+    file: 'MockL2MigrationController', 
+    args: [
+      await l2Registry.getAddress(),
+      await l2BridgeHelper.getAddress(),
+      await l2Bridge.getAddress()
+    ]
+  });
   
-  console.log(`${contractName} deploying, waiting for deployment...`);
-  await contract.waitForDeployment();
-  
-  const address = await contract.getAddress();
-  console.log(`${contractName} deployed to: ${address}`);
-  return contract;
-}
-
-// Main function to set up the testing environment
-async function setupCrossChainEnvironment() {
-  // Deploy the contracts
-  console.log("Start chains...");
-  startAnvilInstances();
-  // Get wallets for both chains
-  const { l1Wallet, l2Wallet } = await getWallets();
-  
-  // Compile contracts with Forge
-  compileContractsWithForge();
-  
-  // Load compiled contracts
-  const contracts: any = loadCompiledContracts();
-  
-  // Deploy the contracts
-  console.log("Deploying contracts...");
-  
-  // First deploy registries
-  const l1Registry = await deployContract(
-    l1Wallet,
-    'MockL1Registry',
-    contracts.MockL1Registry.abi,
-    contracts.MockL1Registry.bytecode
-  );
-  
-  const l2Registry = await deployContract(
-    l2Wallet,
-    'MockL2Registry',
-    contracts.MockL2Registry.abi,
-    contracts.MockL2Registry.bytecode
-  );
-  
-  // Deploy the helper on L1
-  const bridgeHelperL1 = await deployContract(
-    l1Wallet,
-    'MockBridgeHelper',
-    contracts.MockBridgeHelper.abi,
-    contracts.MockBridgeHelper.bytecode
-  );
-
-  // Deploy the helper on L2
-  const bridgeHelperL2 = await deployContract(
-    l2Wallet,
-    'MockBridgeHelper',
-    contracts.MockBridgeHelper.abi,
-    contracts.MockBridgeHelper.bytecode
-  );
-  
-  // Deploy bridges with temporary target addresses (we'll update them later)
-  const l1Bridge = await deployContract(
-    l1Wallet,
-    'MockL1Bridge',
-    contracts.MockL1Bridge.abi,
-    contracts.MockL1Bridge.bytecode,
-    ethers.ZeroAddress // Ethers v6 uses ZeroAddress instead of constants.AddressZero
-  );
-  
-  const l2Bridge = await deployContract(
-    l2Wallet,
-    'MockL2Bridge',
-    contracts.MockL2Bridge.abi,
-    contracts.MockL2Bridge.bytecode,
-    ethers.ZeroAddress // Ethers v6 uses ZeroAddress instead of constants.AddressZero
-  );
-  
-  // Deploy controllers
-  const l1Controller = await deployContract(
-    l1Wallet,
-    'MockL1MigrationController',
-    contracts.MockL1MigrationController.abi,
-    contracts.MockL1MigrationController.bytecode,
-    await l1Registry.getAddress(),
-    await bridgeHelperL1.getAddress(),
-    await l1Bridge.getAddress()
-  );
-  
-  const l2Controller = await deployContract(
-    l2Wallet,
-    'MockL2MigrationController',
-    contracts.MockL2MigrationController.abi,
-    contracts.MockL2MigrationController.bytecode,
-    await l2Registry.getAddress(),
-    await bridgeHelperL2.getAddress(),
-    await l2Bridge.getAddress()
-  );
-  
-  // Update bridge target contracts
-  console.log("Setting up bridge target contracts...");
-  await (l1Bridge as any).setTargetContract(await l1Controller.getAddress());
-  await (l2Bridge as any).setTargetContract(await l2Controller.getAddress());
+  // Set the correct target controllers for the bridges
+  await L1.confirm(l1Bridge.setTargetContract(await l1Controller.getAddress()));
+  await L2.confirm(l2Bridge.setTargetContract(await l2Controller.getAddress()));
   
   console.log('Cross-chain environment setup complete!');
   
-  // Return all deployed contracts for use in tests or manual interactions
+  // Return all deployed contracts, providers, and the relayer
   return {
+    L1,
+    L2,
     l1: {
       registry: l1Registry,
       bridge: l1Bridge,
-      bridgeHelper: bridgeHelperL1,
-      controller: l1Controller,
-      wallet: l1Wallet
+      bridgeHelper: l1BridgeHelper,
+      controller: l1Controller
     },
     l2: {
       registry: l2Registry,
       bridge: l2Bridge,
-      bridgeHelper: bridgeHelperL2,
-      controller: l2Controller,
-      wallet: l2Wallet
+      bridgeHelper: l2BridgeHelper,
+      controller: l2Controller
+    },
+    // Safe shutdown function to properly terminate WebSocket connections
+    shutdown: async () => {
+      console.log('Shutting down environment...');
+      
+      const safeShutdown = async (instance) => {
+        try {
+          // First terminate any WebSocket connections cleanly
+          if (instance.provider instanceof ethers.WebSocketProvider) {
+            // Access internal provider properties if available
+            const websocket = instance.provider._websocket;
+            if (websocket && typeof websocket.terminate === 'function') {
+              websocket.terminate();
+            }
+          }
+          
+          // Then call the shutdown method
+          await instance.shutdown();
+        } catch (error) {
+          console.error(`Error shutting down instance: ${error.message}`);
+        }
+      };
+      
+      // Sequential shutdown to avoid race conditions
+      await safeShutdown(L1);
+      await safeShutdown(L2);
+      
+      console.log('Environment shutdown complete');
     }
   };
 }
 
-function startAnvilInstances() {
-  console.log('Starting L1 Anvil instance...');
-  const anvilL1 = spawn('anvil', ['--port', '8545', '--chain-id', '31337'], {
-    stdio: 'ignore',
-    detached: true
-  });
-  anvilL1.unref(); // Unreference the process so it won't keep the Node.js process running
-  
-  console.log('Starting L2 Anvil instance...');
-  const anvilL2 = spawn('anvil', ['--port', '8546', '--chain-id', '31338'], {
-    stdio: 'ignore',
-    detached: true
-  });
-  anvilL2.unref();
-  
-  console.log('Waiting for Anvil instances to start...');
-  execSync('sleep 2');
-}
-
-// Simulate a relayer that listens for events and forwards messages
-class CrossChainRelayer {
-  l1Bridge: any;
-  l2Bridge: any;
-  l1Wallet: any;
-  l2Wallet: any;
-  
-  constructor(l1Bridge, l2Bridge, l1Wallet, l2Wallet) {
-    this.l1Bridge = l1Bridge;
-    this.l2Bridge = l2Bridge;
-    this.l1Wallet = l1Wallet;
-    this.l2Wallet = l2Wallet;
-    
-    this.setupListeners();
-  }
-  
-  setupListeners() {
-    console.log("Setting up cross-chain event listeners...");
-    
-    // Listen for L1->L2 messages
-    this.l1Bridge.on(this.l1Bridge.filters.L1ToL2Message, async (message, event) => {
-      console.log(`Relaying message from L1 to L2:`);
-      console.log(`Message: ${message}`);
-      console.log(`Transaction: ${event.log.transactionHash}`);
-      
-      try {
-        // Create a transaction to relay the message to L2
-        const tx = await this.l2Bridge.connect(this.l2Wallet).receiveMessageFromL1(message);
-        console.log('tx', tx)
-        await tx.wait();
-        
-        console.log(`Message relayed to L2, tx hash: ${tx.hash}`);
-      } catch (error) {
-        console.error(`Error relaying message to L2:`, error.message);
-      }
-    });
-    
-    // Listen for L2->L1 messages
-    this.l2Bridge.on(this.l2Bridge.filters.L2ToL1Message, async (message, event) => {
-      console.log(`Relaying message from L2 to L1:`);
-      console.log(`Message: ${message}`);
-      console.log(`Transaction: ${event.log.transactionHash}`);
-      
-      try {
-        // Create a transaction to relay the message to L1
-        const tx = await this.l1Bridge.connect(this.l1Wallet).receiveMessageFromL2(message);
-        await tx.wait();
-        
-        console.log(`Message relayed to L1, tx hash: ${tx.hash}`);
-      } catch (error) {
-        console.error(`Error relaying message to L1:`, error.message);
-      }
-    });
-    
-    console.log("Cross-chain event listeners set up successfully");
-  }
-  
-  // Method to manually relay a message for testing
-  async manualRelay(fromL1ToL2, message) {
-    try {
-      if (fromL1ToL2) {
-        console.log(`Manually relaying message from L1 to L2`);
-        const tx = await this.l2Bridge.connect(this.l2Wallet).receiveMessageFromL1(message);
-        const receipt = await tx.wait();
-        return receipt?.hash;
-      } else {
-        console.log(`Manually relaying message from L2 to L1`);
-        const tx = await this.l1Bridge.connect(this.l1Wallet).receiveMessageFromL2(message);
-        const receipt = await tx.wait();
-        return receipt?.hash;
-      }
-    } catch (error) {
-      console.error(`Error in manual relay:`, error.message);
-      throw error;
-    }
-  }
-}
-
-  export {
-    setupCrossChainEnvironment,
-    CrossChainRelayer
-  }
+// Re-export CrossChainRelayer for convenience
+export { CrossChainRelayer };

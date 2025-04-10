@@ -7,10 +7,11 @@
     "test:forge": "forge test",
     "test": "bun run test:forge && bun run test:hardhat",
     "coverage": "forge coverage --report lcov && bun run test:hardhat",
-    "devnet": "npx tsx ./script/runDevnet.ts",
-    "test:bridge": "npx tsx ./script/testBridge.ts"
+    "devnet": "FOUNDRY_DISABLE_NIGHTLY_WARNING=true npx tsx ./script/runDevnet.ts",
+    "test:bridge": "FOUNDRY_DISABLE_NIGHTLY_WARNING=true npx tsx ./script/testBridge.ts"
   },
   "devDependencies": {
+    "@adraffy/blocksmith": "^0.1.52",
     "@ensdomains/hardhat-chai-matchers-viem": "^0.0.7",
     "@nomicfoundation/hardhat-foundry": "^1.1.1",
     "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",

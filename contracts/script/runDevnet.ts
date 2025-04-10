@@ -6,8 +6,8 @@ setupCrossChainEnvironment()
     const relayer = new CrossChainRelayer(
       env.l1.bridge,
       env.l2.bridge,
-      env.l1.wallet,
-      env.l2.wallet
+      env.L1,
+      env.L2
     );
 
     console.log('Setup complete! Cross-chain relayer is running.');
@@ -19,8 +19,8 @@ setupCrossChainEnvironment()
     console.log(
       'Environment and relayer exported to global variables for interactive use'
     );
-    console.log("L1: http://localhost:8545 Chain ID: 31337");
-    console.log("L2: http://localhost:8546 Chain ID: 31338");
+    console.log(`L1: ${env.L1.endpoint} Chain ID: ${env.L1.chain}`);
+    console.log(`L2: ${env.L2.endpoint} Chain ID: ${env.L2.chain}`);
   })
   .catch((error) => {
     console.error('Error setting up environment:', error);
