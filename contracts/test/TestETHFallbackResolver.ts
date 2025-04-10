@@ -34,9 +34,7 @@ async function fixture() {
   const gateway = new Gateway(
     new UncheckedRollup(new BrowserProvider(hre.network.provider))
   );
-  gateway.latestCache.cacheMs = 0;
-  gateway.commitCacheMap.cacheMs = 0;
-  gateway.callLRU.max = 0;
+  gateway.disableCache();
   const ccip = await serve(gateway, { protocol: "raw", log: false });
   after(ccip.shutdown);
   const GatewayVM = await deployArtifact({
