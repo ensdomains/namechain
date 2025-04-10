@@ -60,10 +60,8 @@ async function fixture() {
     labelhashUint256("eth"),
     ethFallbackRegistry.address,
   ]);
-  const publicResolver = await hre.viem.deployContract("PublicResolver");
   return {
     ethFallbackRegistry,
-    publicResolver,
     mainnet,
     namechain,
     ensureRegistry,
@@ -78,7 +76,7 @@ async function fixture() {
       for (const x of p.addresses) {
         calls.push(
           encodeFunctionData({
-            abi: publicResolver.abi,
+            abi: namechain.ownedResolver.abi,
             functionName: "setAddr",
             args: [node, x.coinType, x.encodedAddress],
           })
@@ -89,7 +87,7 @@ async function fixture() {
       for (const x of p.texts) {
         calls.push(
           encodeFunctionData({
-            abi: publicResolver.abi,
+            abi: namechain.ownedResolver.abi,
             functionName: "setText",
             args: [node, x.key, x.value],
           })
@@ -99,14 +97,14 @@ async function fixture() {
     if (p.primary) {
       calls.push(
         encodeFunctionData({
-          abi: publicResolver.abi,
+          abi: namechain.ownedResolver.abi,
           functionName: "setName",
           args: [node, p.primary.name],
         })
       );
     }
     if (calls.length) {
-      await publicResolver.write.multicall([calls]);
+      await namechain.ownedResolver.write.multicall([calls]);
     }
   }
   async function ensureRegistry({
@@ -139,7 +137,7 @@ async function fixture() {
       labels[0],
       owner,
       zeroAddress,
-      publicResolver.address,
+      namechain.ownedResolver.address,
       ALL_ROLES,
       MAX_EXPIRY,
     ]);
@@ -202,8 +200,7 @@ describe("ETHFallbackResolver", () => {
     }
   });
 
-  it("record profiles", async () => {
-    const F = await loadFixture(fixture);
+  describe("record profiles", () => {
     const kp: KnownProfile = {
       name: "test.eth",
       addresses: [
@@ -221,15 +218,33 @@ describe("ETHFallbackResolver", () => {
         name: "test.eth",
       },
     };
-    await F.ensureRegistry(kp);
-    await F.writeResolutions(kp);
-    const bundle = bundleCalls(makeResolutions(kp));
-    const [answer, resolver] =
-      await F.mainnet.universalResolver.read.resolve([
-        dnsEncodeName(kp.name),
-        bundle.call,
-      ]);
-    expect(resolver).toEqualAddress(F.ethFallbackRegistry.address);
-    bundle.expect(answer);
+    const resolutions = makeResolutions(kp);
+    for (const res of resolutions) {
+      it(res.desc, async () => {
+        const F = await loadFixture(fixture);
+        await F.ensureRegistry(kp);
+        await F.writeResolutions(kp);
+        const [answer, resolver] =
+          await F.mainnet.universalResolver.read.resolve([
+            dnsEncodeName(kp.name),
+            res.call,
+          ]);
+        expect(resolver).toEqualAddress(F.ethFallbackRegistry.address);
+        res.expect(answer);
+      });
+    }
+    it("multicall", async () => {
+      const F = await loadFixture(fixture);
+      await F.ensureRegistry(kp);
+      await F.writeResolutions(kp);
+      const bundle = bundleCalls(resolutions);
+      const [answer, resolver] =
+        await F.mainnet.universalResolver.read.resolve([
+          dnsEncodeName(kp.name),
+          bundle.call,
+        ]);
+      expect(resolver).toEqualAddress(F.ethFallbackRegistry.address);
+      bundle.expect(answer);
+    });
   });
 });

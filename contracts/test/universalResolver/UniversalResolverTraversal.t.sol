@@ -8,8 +8,7 @@ import {PermissionedRegistry, IRegistry, IRegistryMetadata} from "../../src/comm
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
 
 contract UniversalResolverTraversal is Test, ERC1155Holder {
-    uint256 public constant ALL_ROLES =
-        0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    uint256 public constant ALL_ROLES = ~uint256(0);
 
     RegistryDatastore datastore;
     PermissionedRegistry rootRegistry;
@@ -38,16 +37,14 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         // registry: <eth> <root>
         // resolver:  0x1
         PermissionedRegistry ethRegistry = _createRegistry();
-        uint256 tokenId = rootRegistry.register(
+        rootRegistry.register(
             "eth",
             address(this),
             ethRegistry,
-            address(0),
+            address(1),
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
-
-        rootRegistry.setResolver(tokenId, address(1));
 
         bytes memory name = NameCoder.encode("eth");
         (address resolver, , uint256 offset) = universalResolver.findResolver(
@@ -83,16 +80,14 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
-        uint256 tokenId = ethRegistry.register(
+        ethRegistry.register(
             "test",
             address(this),
             testRegistry,
-            address(0),
+            address(1),
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
-
-        ethRegistry.setResolver(tokenId, address(1));
 
         bytes memory name = NameCoder.encode("test.eth");
         (address resolver, , uint256 offset) = universalResolver.findResolver(
@@ -120,11 +115,11 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         // resolver:               0x1
         PermissionedRegistry ethRegistry = _createRegistry();
         PermissionedRegistry testRegistry = _createRegistry();
-        uint256 tokenId = rootRegistry.register(
+        rootRegistry.register(
             "eth",
             address(this),
             ethRegistry,
-            address(0),
+            address(1),
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
@@ -136,8 +131,6 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
-
-        rootRegistry.setResolver(tokenId, address(1));
 
         bytes memory name = NameCoder.encode("sub.test.eth");
         (address resolver, , uint256 offset) = universalResolver.findResolver(
@@ -165,11 +158,11 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         // resolver:                 0x1
         PermissionedRegistry ethRegistry = _createRegistry();
         PermissionedRegistry testRegistry = _createRegistry();
-        uint256 tokenId = rootRegistry.register(
+        rootRegistry.register(
             "eth",
             address(this),
             ethRegistry,
-            address(0),
+            address(1),
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
@@ -181,8 +174,6 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
-
-        rootRegistry.setResolver(tokenId, address(1));
 
         bytes memory name = NameCoder.encode("a.b.test.eth");
         (address resolver, , uint256 offset) = universalResolver.findResolver(

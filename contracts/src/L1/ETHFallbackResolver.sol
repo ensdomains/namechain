@@ -105,8 +105,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
     {
         req = GatewayFetcher.newCommand();
         req.pushOutput(0); // parent registry
-        req.setSlot(SLOT_RD_ENTRIES);
-        req.follow().follow(); // entry[registry][labelHash]
+        req.setSlot(SLOT_RD_ENTRIES).follow().follow(); // entry[registry][labelHash]
         req.read().shl(96).shr(96); // read registry
         req.offset(1).read().shl(96).shr(96); // read resolver
         req.push(GatewayFetcher.newCommand().requireNonzero(1).setOutput(1)); // save resolver if set

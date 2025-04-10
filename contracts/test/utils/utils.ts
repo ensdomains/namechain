@@ -1,57 +1,33 @@
-import {
-  type ByteArray,
-  type Hex,
-  bytesToHex,
-  hexToBigInt,
-  labelhash as labelhashBytes32,
-  namehash,
-  stringToBytes,
-} from "viem";
+import { labelhash, namehash } from "viem";
 
-export function packetToBytes(packet: string): ByteArray {
-  // strip leading and trailing `.`
-  const value = packet.replace(/^\.|\.$/gm, "");
-  if (value.length === 0) return new Uint8Array(1);
+export {
+  dnsEncodeName,
+  packetToBytes,
+  encodeLabelhash,
+} from "../../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
 
-  const bytes = new Uint8Array(stringToBytes(value).byteLength + 2);
+// export function packetToBytes(packet: string) {
+//   const m = splitName(packet).flatMap(s => {
+//   let v = stringToBytes(s);
+//   if (v.length > 255) v = stringToBytes(`[${labelhash(s).slice(2)}]`);
+//     return [Uint8Array.of(v.length), v];
+//   });
+//   m.push(Uint8Array.of(0));
+//   return concat(m);
+// }
 
-  let offset = 0;
-  const list = value.split(".");
-  for (let i = 0; i < list.length; i += 1) {
-    let encoded = stringToBytes(list[i]);
-    if (encoded.byteLength > 255)
-      encoded = stringToBytes(encodeLabelhash(labelhashBytes32(list[i])));
-    bytes[offset] = encoded.length;
-    bytes.set(encoded, offset + 1);
-    offset += encoded.length + 1;
-  }
-
-  if (bytes.byteLength !== offset + 1) return bytes.slice(0, offset + 1);
-
-  return bytes;
-}
-
-export const dnsEncodeName = (name: string): Hex =>
-  bytesToHex(packetToBytes(name));
-
-export function encodeLabelhash(hash: string) {
-  if (!hash.startsWith("0x"))
-    throw new Error("Expected labelhash to start with 0x");
-
-  if (hash.length !== 66)
-    throw new Error("Expected labelhash to have a length of 66");
-
-  return `[${hash.slice(2)}]`;
-}
+// export function dnsEncodeName(name: string) {
+//   return bytesToHex(packetToBytes(name));
+// }
 
 export const labelhashUint256 = (label: string): bigint => {
-  return hexToBigInt(labelhashBytes32(label));
+  return BigInt(labelhash(label));
 };
 
 export const namehashUint256 = (name: string): bigint => {
-  return hexToBigInt(namehash(name));
+  return BigInt(namehash(name));
 };
 
 export function splitName(name: string): string[] {
-  return name ? name.split('.') : [];
+  return name ? name.split(".") : [];
 }
