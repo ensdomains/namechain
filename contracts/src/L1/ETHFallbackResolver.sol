@@ -49,15 +49,8 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     /// @param selector The function selector of the resolver profile.
     error UnsupportedResolverProfile(bytes4 selector);
 
-    /// @dev
-    ///      Output[0] = registry
-    ///      Output[1] = resolver?
-    ///      Output[2+i] = Answer[i]
-    uint256 constant RESERVED_OUTPUTS = 2;
-
     /// @dev Maximum number of multicalls.
-    //       Hard limit: 255
-    //       Actual limit: gateway proof size.
+    //       Hard limit: 255 / Actual limit: gateway proof size.
     uint256 public immutable MAX_MULTICALLS = 32;
 
     /// @dev Error when the number of calls in a multicall() is too large.
@@ -83,7 +76,8 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         return type(IExtendedResolver).interfaceId == interfaceID || super.supportsInterface(interfaceID);
     }
 
-    /// @dev Update t
+    /// @dev Set the Namechain verifier.
+    /// @param verifier The new verifier address.
     function setNamechainVerifier(IGatewayVerifier verifier) external onlyOwner {
         namechainVerifier = verifier;
     }

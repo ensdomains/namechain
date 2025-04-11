@@ -39,14 +39,14 @@ export async function deployV1Fixture(batchGateways: string[] = []) {
     },
   );
   await setupResolver("eth");
-  await ownedResolver.write.setAddr([namehash('eth'), ethRegistrar.address]);
+  await ownedResolver.write.setAddr([namehash("eth"), ethRegistrar.address]);
   return {
     publicClient,
     ensRegistry,
     ethRegistrar,
     ownedResolver,
     universalResolver,
-	setupResolver,
+    setupResolver,
   };
   async function setupResolver(name: string) {
     const labels = splitName(name);
