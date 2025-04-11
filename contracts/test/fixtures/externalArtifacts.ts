@@ -1,5 +1,5 @@
 export function ensArtifact(name: string) {
-  return new URL(`./ens-contracts/${name}.sol/${name}.json`, import.meta.url);
+  return new URL(`./ens-contracts/${name}.json`, import.meta.url);
 }
 
 export function urgArtifact(name: string) {
