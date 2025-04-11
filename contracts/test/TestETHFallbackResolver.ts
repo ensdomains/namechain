@@ -16,8 +16,8 @@ import {
 } from "./fixtures/deployV2Fixture.js";
 import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
 import { launchBatchGateway } from "./utils/localBatchGateway.js";
-import { deployArtifact } from "./artifacts/deploy.js";
-import { urgArtifact } from "./artifacts/artifacts.js";
+import { deployArtifact } from "./fixtures/deployArtifact.js";
+import { urgArtifact } from "./fixtures/externalArtifacts.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { dnsEncodeName, labelhashUint256, splitName } from "./utils/utils.js";

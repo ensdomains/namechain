@@ -1,6 +1,6 @@
 import hre from "hardhat";
-import { deployArtifact } from "../artifacts/deploy.js";
-import { ensArtifact } from "../artifacts/artifacts.js";
+import { deployArtifact } from "./deployArtifact.js";
+import { ensArtifact } from "./externalArtifacts.js";
 import { labelhash, namehash } from "viem";
 import { splitName } from "../utils/utils.js";
 
