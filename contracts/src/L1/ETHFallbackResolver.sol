@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {GatewayFetcher} from "@unruggable/gateways/contracts/GatewayFetcher.sol";
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
@@ -12,56 +13,66 @@ import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
-import {IRegistry} from "../common/IRegistry.sol";
+import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
+import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
+import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
-contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
+contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReader, Ownable, ERC165 {
     using GatewayFetcher for GatewayRequest;
 
-    IRegistry public immutable ethRegistry;
+    IBaseRegistrar public immutable ethRegistrarV1;
+    IUniversalResolver public immutable universalResolverV1;
     address public immutable namechainDatastore;
     address public immutable namechainEthRegistry;
-    IGatewayVerifier public immutable namechainVerifier;
-
-    bytes constant DOT_ETH_SUFFIX = "\x03eth\x00";
-
-    uint8 constant EXIT_CODE_NO_RESOLVER = 2;
-
-    uint256 constant RESERVED_OUTPUTS = 2;
+    IGatewayVerifier public namechainVerifier;
 
     /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;
 
-    /// @dev Storage layout of PublicResolver.
+    /// @dev Storage layout of OwnedResolver.
     uint256 constant SLOT_PR_VERSIONS = 0;
     uint256 constant SLOT_PR_ADDRESSES = 2;
     uint256 constant SLOT_PR_CONTENTHASHES = 3;
     uint256 constant SLOT_PR_NAMES = 8;
     uint256 constant SLOT_PR_TEXTS = 10;
 
+    uint8 constant EXIT_CODE_NO_RESOLVER = 2;
+
     /// @dev Error when `name` does not exist.
     /// @param name The DNS-encoded ENS name.
     error UnreachableName(bytes name);
 
-    /// @dev Error when the resolver profile that cannot be answered.
+    /// @dev Error when the resolver profile cannot be answered.
     /// @param selector The function selector of the resolver profile.
     error UnsupportedResolverProfile(bytes4 selector);
 
-    uint256 public immutable MAX_MULTICALLS = 32; // cant be more than 253
+    /// @dev
+    ///      Output[0] = registry
+    ///      Output[1] = resolver?
+    ///      Output[2+i] = Answer[i]
+    uint256 constant RESERVED_OUTPUTS = 2;
+
+    /// @dev Maximum number of multicalls.
+    //       Hard limit: 255
+    //       Actual limit: gateway proof size.
+    uint256 public immutable MAX_MULTICALLS = 32;
 
     /// @dev Error when the number of calls in a multicall() is too large.
     /// @param max The maximum number of calls.
     error MulticallTooLarge(uint256 max);
 
     constructor(
-        IRegistry _ethRegistry,
+        IBaseRegistrar _ethRegistrarV1,
+        IUniversalResolver _universalResolverV1,
         address _namechainDatastore,
         address _namechainEthRegistry,
         IGatewayVerifier _namechainVerifier
-    ) {
-        ethRegistry = _ethRegistry;
+    ) Ownable(msg.sender) {
+        ethRegistrarV1 = _ethRegistrarV1;
+        universalResolverV1 = _universalResolverV1;
         namechainDatastore = _namechainDatastore;
         namechainEthRegistry = _namechainEthRegistry;
         namechainVerifier = _namechainVerifier;
@@ -72,31 +83,36 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
         return type(IExtendedResolver).interfaceId == interfaceID || super.supportsInterface(interfaceID);
     }
 
-    /// @dev Parse `"\x01a\x02bb\x03ccc\x03eth\x00"` into `[0, 2, 5]`.
-    ///      Reverts if not ".eth" or the name is invalid.
-    ///      Returns [] for "eth".
+    /// @dev Update t
+    function setNamechainVerifier(IGatewayVerifier verifier) external onlyOwner {
+        namechainVerifier = verifier;
+    }
+
+    /// @dev Count the number of labels before "eth".
+    ///      Reverts if invalid name or not "*.eth".
     /// @param name The name to parse.
-    /// @return offsets The byte-offsets of each label excluding ".eth".
-    function _parseName(bytes memory name) internal pure returns (uint256[] memory offsets) {
+    /// @return count The number of labels before "eth".
+    /// @return offset2LD The offset of the 2LD.
+    function _countLabels(bytes calldata name) internal pure returns (uint256 count, uint256 offset2LD) {
         uint256 offset;
-        uint256 count;
+        uint256 offset1LD;
         while (true) {
-            if (BytesUtils.equals(name, offset, DOT_ETH_SUFFIX, 0, DOT_ETH_SUFFIX.length)) {
+            uint8 size = uint8(name[offset]);
+            if (size == 0) {
+                NameCoder.readLabel(name, offset); // validate end of name
                 break;
             }
-            if (count == offsets.length) {
-                uint256[] memory v = new uint256[](count + 8);
-                for (uint256 i; i < count; i++) {
-                    v[i] = offsets[i];
-                }
-                offsets = v;
-            }
-            offsets[count++] = offset;
-            (, offset) = NameCoder.readLabel(name, offset);
+            offset2LD = offset1LD;
+            offset1LD = offset;
+            offset += 1 + size;
+            count++;
         }
-        assembly {
-            mstore(offsets, count)
+        // verify the last label was "eth"
+        (bytes32 labelHash,) = NameCoder.readLabel(name, offset1LD);
+        if (labelHash != keccak256("eth")) {
+            revert UnreachableName(name);
         }
+        count--;
     }
 
     /// @dev Create program to traverse the RegistryDatastore.
@@ -116,7 +132,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
         req.requireNonzero(1).setOutput(0); // require registry and save it
     }
 
-    /// @dev Split the calldata into calls.
+    /// @dev Split the calldata into individual calls.
     /// @param data The calldata.
     /// @return multi True if the calldata is a multicall.
     /// @return calls The individual calls.
@@ -136,20 +152,23 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
     /// @inheritdoc IExtendedResolver
     /// @notice Callers should enable EIP-3668.
     /// @dev This function executes over multiple steps (step 1 of 2).
-    function resolve(bytes memory name, bytes calldata data) external view returns (bytes memory) {
-        uint256[] memory offsets = _parseName(name);
-        if (offsets.length == 0) {
-            revert UnreachableName(name); // no records on "eth"
-        }
-        address resolver = ethRegistry.getResolver(NameUtils.readLabel(name, offsets[offsets.length - 1]));
-        if (resolver != address(0) && resolver != address(this)) {
-            revert UnreachableName(name); // invalid state
+    function resolve(bytes calldata name, bytes calldata data) external view returns (bytes memory) {
+        (uint256 labelCount, uint256 offset) = _countLabels(name);
+        (bytes32 labelHash,) = NameCoder.readLabel(name, offset);
+        if (labelCount == 0 || !ethRegistrarV1.available(uint256(labelHash))) {
+            ccipRead(
+                address(universalResolverV1),
+                abi.encodeCall(IUniversalResolver.resolve, (name, data)),
+                this.resolveV1Callback.selector,
+                ""
+            );
         }
         (bool multi, bytes[] memory calls) = _parseCalls(data);
-        GatewayRequest memory req = GatewayFetcher.newRequest(uint8(RESERVED_OUTPUTS + calls.length));
+        GatewayRequest memory req = GatewayFetcher.newRequest(uint8(calls.length < 2 ? 2 : calls.length));
         req.setTarget(namechainDatastore);
-        for (uint256 i; i < offsets.length; i++) {
-            (bytes32 labelHash,) = NameCoder.readLabel(name, offsets[i]);
+        offset = 0; // reset to start
+        for (uint256 i; i < labelCount; i++) {
+            (labelHash, offset) = NameCoder.readLabel(name, offset);
             req.push(NameUtils.getCanonicalId(uint256(labelHash)));
         }
         req.push(namechainEthRegistry).setOutput(0); // starting point
@@ -160,6 +179,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
         req.setSlot(SLOT_PR_VERSIONS);
         req.pushStack(0).follow(); // recordVersions[node]
         req.read(); // version, leave on stack at offset 1
+        req.push(bytes("")).dup().setOutput(0).setOutput(1); // clear outputs
         uint256 errors;
         for (uint256 i; i < calls.length; i++) {
             bytes memory v = calls[i];
@@ -188,24 +208,34 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
             } else {
                 revert UnsupportedResolverProfile(bytes4(v));
             }
-            req.readBytes().setOutput(uint8(RESERVED_OUTPUTS + i));
+            req.readBytes().setOutput(uint8(i));
         }
         if (multi && errors == calls.length) {
             return abi.encode(calls);
         }
-        fetch(namechainVerifier, req, this.resolveCallback.selector, abi.encode(name, multi, calls), new string[](0));
+        fetch(namechainVerifier, req, this.resolveV2Callback.selector, abi.encode(name, multi, calls), new string[](0));
     }
 
-    /// @dev CCIP-Read callback for `resolve()` (step 2 of 2).
-    ///      The outputs are verified by the Unruggable Gateway verifier.
+    /// @dev V1 CCIP-Read callback for `resolve()` (step 2 of 2).
+    /// @param response The response data from `UniversalResolver`.
+    /// @return result The abi-encoded result.
+    function resolveV1Callback(bytes calldata response, bytes calldata /*extraData*/ )
+        external
+        pure
+        returns (bytes memory result)
+    {
+        (result,) = abi.decode(response, (bytes, address));
+    }
+
+    /// @dev V2 CCIP-Read callback for `resolve()` (step 2 of 2).
     /// @param values The outputs from the `GatewayRequest`.
     /// @param exitCode The exit code from the `GatewayRequest`.
     /// @param extraData The contextual data passed from `resolve()`.
-    /// @return response The abi-encoded response for the request.
-    function resolveCallback(bytes[] calldata values, uint8 exitCode, bytes calldata extraData)
+    /// @return result The abi-encoded result.
+    function resolveV2Callback(bytes[] calldata values, uint8 exitCode, bytes calldata extraData)
         external
         pure
-        returns (bytes memory response)
+        returns (bytes memory result)
     {
         (bytes memory name, bool multi, bytes[] memory calls) = abi.decode(extraData, (bytes, bool, bytes[]));
         if (exitCode == EXIT_CODE_NO_RESOLVER) {
@@ -213,11 +243,11 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
         }
         if (multi) {
             for (uint256 i; i < calls.length; i++) {
-                calls[i] = _prepareResponse(calls[i], values[RESERVED_OUTPUTS + i]);
+                calls[i] = _prepareResponse(calls[i], values[i]);
             }
             return abi.encode(calls);
         } else {
-            return _prepareResponse(calls[0], values[RESERVED_OUTPUTS]);
+            return _prepareResponse(calls[0], values[0]);
         }
     }
 

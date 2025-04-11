@@ -6,17 +6,15 @@ import {
   parseEventLogs,
   zeroAddress,
 } from "viem";
-import { serveBatchGateway } from "../../lib/ens-contracts/test/fixtures/localBatchGateway.js";
 
 export const ALL_ROLES = (1n << 256n) - 1n;
 export const MAX_EXPIRY = (1n << 64n) - 1n;
 
-export async function deployEnsFixture(enableCcipRead = false) {
+export async function deployV2Fixture(batchGateways: string[] = []) {
   const publicClient = await hre.viem.getPublicClient({
-    ccipRead: enableCcipRead ? undefined : false,
+    ccipRead: batchGateways ? undefined : false,
   });
   const accounts = (await hre.viem.getWalletClients()).map((x) => x.account);
-
   const datastore = await hre.viem.deployContract("RegistryDatastore", []);
   const rootRegistry = await hre.viem.deployContract("PermissionedRegistry", [
     datastore.address,
@@ -28,21 +26,13 @@ export async function deployEnsFixture(enableCcipRead = false) {
     zeroAddress,
     ALL_ROLES,
   ]);
-
-  const gateways: string[] = [];
-  if (enableCcipRead) {
-    const bg = await serveBatchGateway();
-    after(bg.shutdown);
-    gateways.push(bg.localBatchGatewayUrl);
-  }
   const universalResolver = await hre.viem.deployContract(
     "UniversalResolver",
-    [rootRegistry.address, gateways],
+    [rootRegistry.address, batchGateways],
     {
       client: { public: publicClient },
     },
   );
-
   await rootRegistry.write.register([
     "eth",
     accounts[0].address,
@@ -51,7 +41,6 @@ export async function deployEnsFixture(enableCcipRead = false) {
     ALL_ROLES,
     MAX_EXPIRY,
   ]);
-
   const verifiableFactory = await hre.viem.deployContract(
     "@ensdomains/verifiable-factory/VerifiableFactory.sol:VerifiableFactory",
   );
@@ -103,7 +92,7 @@ export async function deployEnsFixture(enableCcipRead = false) {
   }
 }
 
-export type EnsFixture = Awaited<ReturnType<typeof deployEnsFixture>>;
+export type EnsFixture = Awaited<ReturnType<typeof deployV2Fixture>>;
 
 export const deployUserRegistry = async ({
   datastoreAddress,
