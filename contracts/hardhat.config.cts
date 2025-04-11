@@ -16,6 +16,9 @@ const config = {
         runs: 1000,
       },
       evmVersion: "cancun",
+      metadata: {
+        useLiteralContent: true, // required for @ensdomains/hardhat-chai-matchers-viem/behaviour
+      },
     },
   },
 } satisfies HardhatUserConfig;

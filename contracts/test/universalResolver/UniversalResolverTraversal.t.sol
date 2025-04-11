@@ -2,32 +2,30 @@
 pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {UniversalResolver, NameCoder} from "../../src/universalResolver/UniversalResolver.sol";
-import {IRegistry} from "../../src/common/IRegistry.sol";
-import {PermissionedRegistry} from "../../src/common/PermissionedRegistry.sol";
-import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import {IRegistryDatastore} from "../../src/common/IRegistryDatastore.sol";
-import {IRegistryMetadata} from "../../src/common/IRegistryMetadata.sol";
-
-contract MockRegistry is PermissionedRegistry {
-    constructor(
-        IRegistryDatastore _datastore
-    )
-        PermissionedRegistry(_datastore, IRegistryMetadata(address(0)), ALL_ROLES)
-    {}
-}
+import {UniversalResolver, NameCoder} from "../../src/universalResolver/UniversalResolver.sol";
+import {PermissionedRegistry, IRegistry, IRegistryMetadata} from "../../src/common/PermissionedRegistry.sol";
+import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
 
 contract UniversalResolverTraversal is Test, ERC1155Holder {
-    uint256 constant public ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    uint256 public constant ALL_ROLES = ~uint256(0);
 
     RegistryDatastore datastore;
     PermissionedRegistry rootRegistry;
     UniversalResolver universalResolver;
 
+    function _createRegistry() internal returns (PermissionedRegistry) {
+        return
+            new PermissionedRegistry(
+                datastore,
+                IRegistryMetadata(address(0)),
+                ALL_ROLES
+            );
+    }
+
     function setUp() public {
         datastore = new RegistryDatastore();
-        rootRegistry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), ALL_ROLES);
+        rootRegistry = _createRegistry();
         universalResolver = new UniversalResolver(
             rootRegistry,
             new string[](0)
@@ -38,19 +36,15 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         //     name:  eth
         // registry: <eth> <root>
         // resolver:  0x1
-        MockRegistry ethRegistry = new MockRegistry(
-            datastore
-        );
-        uint256 tokenId = rootRegistry.register(
+        PermissionedRegistry ethRegistry = _createRegistry();
+        rootRegistry.register(
             "eth",
             address(this),
             ethRegistry,
-            address(0),
+            address(1),
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
-
-        rootRegistry.setResolver(tokenId, address(1));
 
         bytes memory name = NameCoder.encode("eth");
         (address resolver, , uint256 offset) = universalResolver.findResolver(
@@ -73,15 +67,11 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
     }
 
     function test_findResolver_resolverOnParent() external {
-        //     name:  raffy . eth
-        // registry: <raffy> <eth> <root>
+        //     name:  test . eth
+        // registry: <test> <eth> <root>
         // resolver:   0x1
-        MockRegistry ethRegistry = new MockRegistry(
-            datastore
-        );
-        MockRegistry raffyRegistry = new MockRegistry(
-            datastore
-        );
+        PermissionedRegistry ethRegistry = _createRegistry();
+        PermissionedRegistry testRegistry = _createRegistry();
         rootRegistry.register(
             "eth",
             address(this),
@@ -90,20 +80,16 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
-        uint256 tokenId = ethRegistry.register(
-            "raffy",
+        ethRegistry.register(
+            "test",
             address(this),
-            raffyRegistry,
-            address(0),
+            testRegistry,
+            address(1),
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
 
-        ethRegistry.setResolver(tokenId, address(1));
-
-        bytes memory name = NameCoder.encode(
-            string.concat("raffy", ".", "eth")
-        );
+        bytes memory name = NameCoder.encode("test.eth");
         (address resolver, , uint256 offset) = universalResolver.findResolver(
             name
         );
@@ -118,50 +104,35 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             address(ethRegistry),
             "parentRegistry"
         );
-        assertEq(label, "raffy", "label");
-        assertEq(address(registry), address(raffyRegistry), "registry");
+        assertEq(label, "test", "label");
+        assertEq(address(registry), address(testRegistry), "registry");
         assertEq(exact, true, "exact");
     }
 
     function test_findResolver_resolverOnRoot() external {
-        //     name:  sub . raffy . eth
-        // registry:       <raffy> <eth> <root>
-        // resolver:                0x1
-        MockRegistry ethRegistry = new MockRegistry(
-            datastore
-        );
-        MockRegistry raffyRegistry = new MockRegistry(
-            datastore
-        );
-        uint256 tokenId = rootRegistry.register(
+        //     name:  sub . test . eth
+        // registry:       <test> <eth> <root>
+        // resolver:               0x1
+        PermissionedRegistry ethRegistry = _createRegistry();
+        PermissionedRegistry testRegistry = _createRegistry();
+        rootRegistry.register(
             "eth",
             address(this),
             ethRegistry,
-            address(0),
+            address(1),
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
         ethRegistry.register(
-            "raffy",
+            "test",
             address(this),
-            raffyRegistry,
+            testRegistry,
             address(0),
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
 
-        rootRegistry.setResolver(tokenId, address(1));
-
-        string memory sub = "sub";
-        bytes memory name = NameCoder.encode(
-            string.concat(
-                sub,
-                ".",
-                "raffy",
-                ".",
-                "eth"
-            )
-        );
+        bytes memory name = NameCoder.encode("sub.test.eth");
         (address resolver, , uint256 offset) = universalResolver.findResolver(
             name
         );
@@ -170,54 +141,41 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
 
         assertEq(resolver, address(1), "resolver");
-        assertEq(offset, 10, "offset");
+        assertEq(offset, 9, "offset");
         assertEq(
             address(parentRegistry),
-            address(raffyRegistry),
+            address(testRegistry),
             "parentRegistry"
         );
-        assertEq(label, sub, "label");
-        assertEq(address(registry), address(raffyRegistry), "registry");
+        assertEq(label, "sub", "label");
+        assertEq(address(registry), address(testRegistry), "registry");
         assertEq(exact, false, "exact");
     }
 
     function test_findResolver_virtual() external {
-        //     name:  a . b . raffy . eth
-        // registry:         <raffy> <eth> <root>
-        // resolver:                  0x1
-        MockRegistry ethRegistry = new MockRegistry(
-            datastore
-        );
-        MockRegistry raffyRegistry = new MockRegistry(
-            datastore
-        );
-        uint256 tokenId = rootRegistry.register(
+        //     name:  a . b . test . eth
+        // registry:         <test> <eth> <root>
+        // resolver:                 0x1
+        PermissionedRegistry ethRegistry = _createRegistry();
+        PermissionedRegistry testRegistry = _createRegistry();
+        rootRegistry.register(
             "eth",
             address(this),
             ethRegistry,
-            address(0),
+            address(1),
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
         ethRegistry.register(
-            "raffy",
+            "test",
             address(this),
-            raffyRegistry,
+            testRegistry,
             address(0),
             ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
 
-        rootRegistry.setResolver(tokenId, address(1));
-
-        bytes memory name = NameCoder.encode(
-            string.concat(
-                "a.b.",
-                "raffy",
-                ".",
-                "eth"
-            )
-        );
+        bytes memory name = NameCoder.encode("a.b.test.eth");
         (address resolver, , uint256 offset) = universalResolver.findResolver(
             name
         );
@@ -226,10 +184,10 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
 
         assertEq(resolver, address(1), "resolver");
-        assertEq(offset, 10, "offset");
+        assertEq(offset, 9, "offset");
         assertEq(address(parentRegistry), address(0), "parentRegistry");
         assertEq(label, "", "label");
-        assertEq(address(registry), address(raffyRegistry), "registry");
+        assertEq(address(registry), address(testRegistry), "registry");
         assertEq(exact, false, "exact");
     }
 }
