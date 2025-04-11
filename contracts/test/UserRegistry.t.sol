@@ -13,12 +13,16 @@ import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
 import {IRegistry} from "../src/common/IRegistry.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
+import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 
 contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
     // Test constants
     uint256 constant SALT = 12345;
     uint256 constant ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
     bytes32 constant ROOT_RESOURCE = 0;
+
+    uint256 constant ROLE_UPGRADE = 1 << 5;
+    uint256 constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
     
     // Contracts
     VerifiableFactory factory;
@@ -166,7 +170,14 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
     function test_Revert_unauthorized_registration() public {
         // User1 tries to register a domain without ROLE_REGISTRAR
         vm.prank(user1);
-        vm.expectRevert(); // Should revert because user1 doesn't have ROLE_REGISTRAR
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                ROOT_RESOURCE,
+                ROLE_REGISTRAR,
+                user1
+            )
+        );
         proxy.register(
             "unauthorizeddomain",
             user1,
@@ -180,7 +191,14 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
     function test_Revert_unauthorized_role_grant() public {
         // User1 tries to grant roles without permission
         vm.prank(user1);
-        vm.expectRevert(); // Should revert because user1 doesn't have ROLE_REGISTRAR_ADMIN
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector,
+                ROOT_RESOURCE,
+                ROLE_REGISTRAR,
+                user1
+            )
+        );
         proxy.grantRootRoles(ROLE_REGISTRAR, user2);
     }
     
@@ -227,7 +245,14 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
         
         // User1 tries to upgrade without permission
         vm.prank(user1);
-        vm.expectRevert(); // Should revert because user1 doesn't have upgrade rights
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                ROOT_RESOURCE,
+                ROLE_UPGRADE,
+                user1
+            )
+        );
         proxy.upgradeToAndCall(address(newImplementation), "");
     }
     

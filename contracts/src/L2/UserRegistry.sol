@@ -16,6 +16,9 @@ import {IRegistry} from "../common/IRegistry.sol";
  */
 contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
 
+    uint256 internal constant ROLE_UPGRADE = 1 << 5;
+    uint256 internal constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
+
     constructor() PermissionedRegistry(IRegistryDatastore(address(0)), IRegistryMetadata(address(0)), 0) {
         // This disables initialization for the implementation contract
         _disableInitializers();
@@ -26,15 +29,15 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
      * @param _datastore The registry datastore contract.
      * @param _metadata The registry metadata contract.
      * @param _deployerRoles The roles to grant to the deployer.
-     * @param admin The address that will be set as the admin with upgrade privileges.
+     * @param _admin The address that will be set as the admin with upgrade privileges.
      */
     function initialize(
         IRegistryDatastore _datastore,
         IRegistryMetadata _metadata,
         uint256 _deployerRoles,
-        address admin
+        address _admin
     ) public initializer {
-        require(admin != address(0), "Admin cannot be zero address");
+        require(_admin != address(0), "Admin cannot be zero address");
         
         // Initialize datastore
         datastore = _datastore;
@@ -48,7 +51,7 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
         }
         
         // Grant deployer roles to the admin
-        _grantRoles(ROOT_RESOURCE, _deployerRoles, admin, false);
+        _grantRoles(ROOT_RESOURCE, _deployerRoles, _admin, false);
     }
 
     /**
@@ -56,7 +59,7 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
      * Only accounts with the ROLE_UPGRADE_ADMIN role can upgrade the contract.
      * @param newImplementation The address of the new implementation.
      */
-    function _authorizeUpgrade(address newImplementation) internal override onlyRootRoles(ROLE_UPGRADE_ADMIN) {
+    function _authorizeUpgrade(address newImplementation) internal override onlyRootRoles(ROLE_UPGRADE) {
         // Authorization is handled by the onlyRootRoles modifier
     }
 
