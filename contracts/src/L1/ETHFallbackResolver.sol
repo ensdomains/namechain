@@ -124,7 +124,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
         multi = bytes4(data) == IMulticallable.multicall.selector;
         if (multi) {
             calls = abi.decode(data[4:], (bytes[]));
-            if (calls.length >= MAX_MULTICALLS) {
+            if (calls.length > MAX_MULTICALLS) {
                 revert MulticallTooLarge(MAX_MULTICALLS);
             }
         } else {
@@ -134,6 +134,8 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
     }
 
     /// @inheritdoc IExtendedResolver
+    /// @notice Callers should enable EIP-3668.
+    /// @dev This function executes over multiple steps (step 1 of 2).
     function resolve(bytes memory name, bytes calldata data) external view returns (bytes memory) {
         uint256[] memory offsets = _parseName(name);
         if (offsets.length == 0) {
@@ -141,7 +143,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
         }
         address resolver = ethRegistry.getResolver(NameUtils.readLabel(name, offsets[offsets.length - 1]));
         if (resolver != address(0) && resolver != address(this)) {
-            revert UnreachableName(name); // invalid state: ejected and resolver exists and different from us
+            revert UnreachableName(name); // invalid state
         }
         (bool multi, bytes[] memory calls) = _parseCalls(data);
         GatewayRequest memory req = GatewayFetcher.newRequest(uint8(RESERVED_OUTPUTS + calls.length));
@@ -194,10 +196,16 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, ERC165 {
         fetch(namechainVerifier, req, this.resolveCallback.selector, abi.encode(name, multi, calls), new string[](0));
     }
 
+    /// @dev CCIP-Read callback for `resolve()` (step 2 of 2).
+    ///      The outputs are verified by the Unruggable Gateway verifier.
+    /// @param values The outputs from the `GatewayRequest`.
+    /// @param exitCode The exit code from the `GatewayRequest`.
+    /// @param extraData The contextual data passed from `resolve()`.
+    /// @return response The abi-encoded response for the request.
     function resolveCallback(bytes[] calldata values, uint8 exitCode, bytes calldata extraData)
         external
         pure
-        returns (bytes memory)
+        returns (bytes memory response)
     {
         (bytes memory name, bool multi, bytes[] memory calls) = abi.decode(extraData, (bytes, bool, bytes[]));
         if (exitCode == EXIT_CODE_NO_RESOLVER) {

@@ -12,7 +12,7 @@ import {
 export function urgArtifact(name: string) {
   return new URL(
     `../../lib/unruggable-gateways/artifacts/${name}.sol/${name}.json`,
-    import.meta.url
+    import.meta.url,
   );
 }
 
@@ -51,7 +51,7 @@ export async function deployArtifact(options: {
     : await hre.viem.getWalletClients().then((x) => x[0]);
   const publicClient = await hre.viem.getPublicClient();
   const nonce = BigInt(
-    await publicClient.getTransactionCount(walletClient.account)
+    await publicClient.getTransactionCount(walletClient.account),
   );
   const hash = await walletClient.deployContract({
     abi: artifact.abi,
