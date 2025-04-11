@@ -13,13 +13,14 @@
     "@namestone/ezccip": "^0.1.0",
     "@nomicfoundation/hardhat-foundry": "^1.1.1",
     "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
-    "@nomicfoundation/hardhat-viem": "^2.0.0",
+    "@nomicfoundation/hardhat-viem": "^2.0.6",
     "@types/bun": "latest",
     "@vitest/expect": "^1.6.0",
     "chai": "^5.1.1",
-    "hardhat": "^2.22.2",
+    "hardhat": "^2.23.0",
+    "prettier": "^3.5.3",
     "ts-node": "^10.9.2",
-    "viem": "^2.9.12"
+    "viem": "^2.26.3"
   },
   "peerDependencies": {
     "typescript": "^5.4.5"

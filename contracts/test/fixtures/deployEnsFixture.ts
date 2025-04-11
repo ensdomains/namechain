@@ -15,9 +15,7 @@ export async function deployEnsFixture(enableCcipRead = false) {
   const publicClient = await hre.viem.getPublicClient({
     ccipRead: enableCcipRead ? undefined : false,
   });
-  const accounts = await hre.viem
-    .getWalletClients()
-    .then((clients) => clients.map((c) => c.account));
+  const accounts = (await hre.viem.getWalletClients()).map((x) => x.account);
 
   const datastore = await hre.viem.deployContract("RegistryDatastore", []);
   const rootRegistry = await hre.viem.deployContract("PermissionedRegistry", [
@@ -42,7 +40,7 @@ export async function deployEnsFixture(enableCcipRead = false) {
     [rootRegistry.address, gateways],
     {
       client: { public: publicClient },
-    }
+    },
   );
 
   await rootRegistry.write.register([
@@ -55,10 +53,12 @@ export async function deployEnsFixture(enableCcipRead = false) {
   ]);
 
   const verifiableFactory = await hre.viem.deployContract(
-    "@ensdomains/verifiable-factory/VerifiableFactory.sol:VerifiableFactory"
+    "@ensdomains/verifiable-factory/VerifiableFactory.sol:VerifiableFactory",
   );
   const ownedResolverImpl = await hre.viem.deployContract("OwnedResolver");
-  const ownedResolver = await deployOwnedResolver({owner: accounts[0].address});
+  const ownedResolver = await deployOwnedResolver({
+    owner: accounts[0].address,
+  });
   return {
     publicClient,
     accounts,
@@ -120,7 +120,7 @@ export const deployUserRegistry = async ({
     [datastoreAddress, metadataAddress, ALL_ROLES],
     {
       client: { wallet },
-    }
+    },
   );
 };
 
