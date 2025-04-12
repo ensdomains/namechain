@@ -14,7 +14,7 @@ export async function deployV2Fixture(batchGateways: string[] = []) {
   const publicClient = await hre.viem.getPublicClient({
     ccipRead: batchGateways ? undefined : false,
   });
-  const accounts = (await hre.viem.getWalletClients()).map((x) => x.account);
+  const [walletClient] = await hre.viem.getWalletClients();
   const datastore = await hre.viem.deployContract("RegistryDatastore", []);
   const rootRegistry = await hre.viem.deployContract("PermissionedRegistry", [
     datastore.address,
@@ -35,7 +35,7 @@ export async function deployV2Fixture(batchGateways: string[] = []) {
   );
   await rootRegistry.write.register([
     "eth",
-    accounts[0].address,
+    walletClient.account.address,
     ethRegistry.address,
     zeroAddress,
     ALL_ROLES,
@@ -46,11 +46,11 @@ export async function deployV2Fixture(batchGateways: string[] = []) {
   );
   const ownedResolverImpl = await hre.viem.deployContract("OwnedResolver");
   const ownedResolver = await deployOwnedResolver({
-    owner: accounts[0].address,
+    owner: walletClient.account.address,
   });
   return {
     publicClient,
-    accounts,
+    walletClient,
     datastore,
     rootRegistry,
     ethRegistry,

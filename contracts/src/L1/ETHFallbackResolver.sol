@@ -49,11 +49,11 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     /// @param selector The function selector of the resolver profile.
     error UnsupportedResolverProfile(bytes4 selector);
 
-    /// @dev Maximum number of multicalls.
-    //       Hard limit: 255 / Actual limit: gateway proof size.
-    uint256 public immutable MAX_MULTICALLS = 32;
+    /// @dev Maximum number of calls in a `multicall()`.
+    //       Actual limit: gateway proof size and/or gas limit.
+    uint8 public immutable MAX_MULTICALLS = 32;
 
-    /// @dev Error when the number of calls in a multicall() is too large.
+    /// @dev Error when the number of calls in a `multicall()` is too large.
     /// @param max The maximum number of calls.
     error MulticallTooLarge(uint256 max);
 
@@ -91,7 +91,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         uint256 offset;
         uint256 offset1LD;
         while (true) {
-            uint8 size = uint8(name[offset]);
+            uint256 size = uint8(name[offset]);
             if (size == 0) {
                 NameCoder.readLabel(name, offset); // validate end of name
                 break;
@@ -106,23 +106,23 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         if (labelHash != keccak256("eth")) {
             revert UnreachableName(name);
         }
-        count--;
+        count--; // drop last label
     }
 
     /// @dev Create program to traverse the RegistryDatastore.
-    ///      Inputs: Output[0] = Parent Registry
-    ///      Outputs: Output[0] = Child Registry, Output[1] = Resolver
+    ///      In:  output[0] = parentRegistry, stack[0] = labelhash
+    ///      Out: output[0] = childRegistry, output[1] = resolver
     function _findResolverProgram() internal view returns (GatewayRequest memory req) {
         req = GatewayFetcher.newCommand();
         req.pushOutput(0); // parent registry
-        req.setSlot(SLOT_RD_ENTRIES).follow().follow(); // entry[registry][labelHash]
+        req.follow().follow(); // entry[registry][labelHash]
         req.read(); // read registryData
         req.dup().shl(32).shr(192); // extract expiry
         req.push(block.timestamp).gt().assertNonzero(1); // require expiry > timestamp
         req.shl(96).shr(96); // extract registry
         req.offset(1).read().shl(96).shr(96); // read resolverData => extract resolver
         req.push(GatewayFetcher.newCommand().requireNonzero(1).setOutput(1)); // save resolver if set
-        req.evalLoop(0, 1);
+        req.evalLoop(0, 1); // consume resolver, catch assert
         req.requireNonzero(1).setOutput(0); // require registry and save it
     }
 
@@ -159,13 +159,14 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         }
         (bool multi, bytes[] memory calls) = _parseCalls(data);
         GatewayRequest memory req = GatewayFetcher.newRequest(uint8(calls.length < 2 ? 2 : calls.length));
-        req.setTarget(namechainDatastore);
         offset = 0; // reset to start
         for (uint256 i; i < labelCount; i++) {
             (labelHash, offset) = NameCoder.readLabel(name, offset);
             req.push(NameUtils.getCanonicalId(uint256(labelHash)));
         }
         req.push(namechainEthRegistry).setOutput(0); // starting point
+        req.setTarget(namechainDatastore);
+        req.setSlot(SLOT_RD_ENTRIES);
         req.push(_findResolverProgram());
         req.evalLoop(EvalFlag.STOP_ON_FAILURE); // outputs = [registry, resolver]
         req.pushOutput(1).requireNonzero(EXIT_CODE_NO_RESOLVER).target(); // target resolver
@@ -205,7 +206,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
             req.readBytes().setOutput(uint8(i));
         }
         if (multi && errors == calls.length) {
-            return abi.encode(calls);
+            return abi.encode(calls); // return immediate if all errors (or 0-calls)
         }
         fetch(namechainVerifier, req, this.resolveV2Callback.selector, abi.encode(name, multi, calls), new string[](0));
     }

@@ -66,7 +66,7 @@ async function fixture() {
       verifierAddress,
     ],
     {
-      client: { public: mainnet.publicClient }, // CCIP on FR
+      client: { public: mainnet.publicClient }, // CCIP on EFR
     },
   );
   await mainnet.rootRegistry.write.setResolver([
@@ -83,7 +83,7 @@ async function fixture() {
   async function ensureRegistry(
     {
       name,
-      owner = namechain.accounts[0].address,
+      owner = namechain.walletClient.account.address,
       expiry = MAX_EXPIRY,
       roles = ALL_ROLES,
     }: {
@@ -144,7 +144,7 @@ describe("ETHFallbackResolver", () => {
   });
 
   describe("unregistered", () => {
-    for (const name of ["test.eth", "sub.test.eth"]) {
+    for (const name of ["test.eth", "a.b.c.test.eth"]) {
       it(name, async () => {
         const F = await loadFixture(fixture);
         const [res] = makeResolutions({
@@ -185,10 +185,38 @@ describe("ETHFallbackResolver", () => {
       expect(resolver).toEqualAddress(F.ethFallbackResolver.address);
       res.expect(answer);
     });
+    for (const name of ["boomer.eth", "a.b.c.boomer.eth"]) {
+      it(name, async () => {
+        const F = await loadFixture(fixture);
+        const kp: KnownProfile = {
+          name,
+          addresses: [
+            {
+              coinType: COIN_TYPE_ETH,
+              value: testAddress,
+            },
+          ],
+        };
+        const [res] = makeResolutions(kp);
+        await F.mainnetV1.setupResolver(kp.name);
+        // await F.mainnetV1.ownedResolver.write.multicall([res.write]);
+        await F.mainnetV1.walletClient.sendTransaction({
+          to: F.mainnetV1.ownedResolver.address,
+          data: res.write,
+        });
+        const [answer, resolver] =
+          await F.mainnet.universalResolver.read.resolve([
+            dnsEncodeName(kp.name),
+            res.call,
+          ]);
+        expect(resolver).toEqualAddress(F.ethFallbackResolver.address);
+        res.expect(answer);
+      });
+    }
   });
 
   describe("registered on mainnet", () => {
-    for (const name of ["test.eth", "sub.test.eth"]) {
+    for (const name of ["test.eth", "a.b.c.test.eth"]) {
       it(name, async () => {
         const F = await loadFixture(fixture);
         const kp: KnownProfile = {
@@ -215,7 +243,7 @@ describe("ETHFallbackResolver", () => {
   });
 
   describe("registered on namechain", () => {
-    for (const name of ["test.eth", "sub.test.eth"]) {
+    for (const name of ["test.eth", "a.b.c.test.eth"]) {
       it(name, async () => {
         const F = await loadFixture(fixture);
         const kp: KnownProfile = {
@@ -242,7 +270,7 @@ describe("ETHFallbackResolver", () => {
   });
 
   describe("expired", () => {
-    for (const name of ["test.eth", "sub.test.eth"]) {
+    for (const name of ["test.eth", "a.b.c.test.eth"]) {
       it(name, async () => {
         const F = await loadFixture(fixture);
         const kp: KnownProfile = {
@@ -288,9 +316,8 @@ describe("ETHFallbackResolver", () => {
         },
       ],
       texts: [{ key: "url", value: "https://ens.domains" }],
-      primary: {
-        value: "test.eth",
-      },
+      contenthash: { value: "0xabcdef" },
+      primary: { value: "test.eth" },
     };
     const errors: KnownProfile["errors"] = [
       {
