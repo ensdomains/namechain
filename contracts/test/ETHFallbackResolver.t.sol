@@ -37,7 +37,7 @@ contract TestETHFallbackResolver is Test {
         bytes memory dns = NameCoder.encode(ens);
         (uint256 count, uint256 offset) = efr.countLabels(dns);
         assertEq(count, expectCount, "count");
-        assertEq(offset, expectCount > 0 ? dns.length - (6 + size2LD) : 0, "offset");
+        assertEq(offset, expectCount > 0 ? dns.length - (6 + size2LD) : 0, "offset"); // size(1) + size(3) + "eth" + size(0)
     }
 
     function test_countLabels_dotEth() external view {
@@ -66,7 +66,7 @@ contract TestETHFallbackResolver is Test {
     }
 
     function testFuzz_countLabels_dotEth(uint8 n) external {
-        vm.assume(n < 1);
+        vm.assume(n < 10);
         uint256 size2LD = vm.randomUint(1, 255);
         string memory ens = string.concat(new string(size2LD), ".eth");
         for (uint256 i; i < n; i++) {

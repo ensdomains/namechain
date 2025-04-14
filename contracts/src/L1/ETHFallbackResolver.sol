@@ -42,10 +42,12 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
 
     /// @dev Error when `name` does not exist.
+    ///      Error selector: `0x5fe9a5df`
     /// @param name The DNS-encoded ENS name.
     error UnreachableName(bytes name);
 
     /// @dev Error when the resolver profile cannot be answered.
+    ///      Error selector: `0x7b1c461b`
     /// @param selector The function selector of the resolver profile.
     error UnsupportedResolverProfile(bytes4 selector);
 
@@ -54,6 +56,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     uint8 public immutable MAX_MULTICALLS = 32;
 
     /// @dev Error when the number of calls in a `multicall()` is too large.
+    ///      Error selector: `0xf752eecf`
     /// @param max The maximum number of calls.
     error MulticallTooLarge(uint256 max);
 

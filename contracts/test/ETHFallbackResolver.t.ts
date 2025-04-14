@@ -1,26 +1,19 @@
 import hre from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox-viem/network-helpers.js";
+import {
+  loadFixture,
+  mine,
+} from "@nomicfoundation/hardhat-toolbox-viem/network-helpers.js";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
-import {
-  type Address,
-  encodeErrorResult,
-  parseAbi,
-  parseEventLogs,
-  zeroAddress,
-} from "viem";
+import { encodeErrorResult, parseAbi } from "viem";
 import { expect } from "chai";
-import {
-  ALL_ROLES,
-  MAX_EXPIRY,
-  deployV2Fixture,
-} from "./fixtures/deployV2Fixture.js";
+import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
 import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
 import { launchBatchGateway } from "./utils/localBatchGateway.js";
 import { deployArtifact } from "./fixtures/deployArtifact.js";
 import { urgArtifact } from "./fixtures/externalArtifacts.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
-import { dnsEncodeName, labelhashUint256, splitName } from "./utils/utils.js";
+import { dnsEncodeName, labelhashUint256 } from "./utils/utils.js";
 import { serve } from "@namestone/ezccip/serve";
 import { BrowserProvider } from "ethers/providers";
 import {
@@ -36,7 +29,6 @@ async function fixture() {
   const mainnetV1 = await deployV1Fixture(batchGateways); // CCIP on UR
   const mainnet = await deployV2Fixture(batchGateways); // CCIP on UR
   const namechain = await deployV2Fixture();
-
   const gateway = new Gateway(
     new UncheckedRollup(new BrowserProvider(hre.network.provider)),
   );
@@ -78,60 +70,7 @@ async function fixture() {
     mainnet,
     mainnetV1,
     namechain,
-    ensureRegistry,
   };
-  async function ensureRegistry(
-    {
-      name,
-      owner = namechain.walletClient.account.address,
-      expiry = MAX_EXPIRY,
-      roles = ALL_ROLES,
-    }: {
-      name: string;
-      owner?: Address;
-      expiry?: bigint;
-      roles?: bigint;
-    },
-    network = namechain,
-  ) {
-    const labels = splitName(name);
-    if (labels.pop() !== "eth") throw new Error("expected eth");
-    if (!labels.length) throw new Error("expected 2LD+");
-    let parentRegistry = network.ethRegistry;
-    for (let i = labels.length - 1; i > 0; i--) {
-      const registry = await hre.viem.deployContract("PermissionedRegistry", [
-        network.datastore.address,
-        zeroAddress,
-        ALL_ROLES,
-      ]);
-      await parentRegistry.write.register([
-        labels[i],
-        owner,
-        registry.address,
-        zeroAddress,
-        roles,
-        expiry,
-      ]);
-      parentRegistry = registry;
-    }
-    const hash = await parentRegistry.write.register([
-      labels[0],
-      owner,
-      zeroAddress,
-      network.ownedResolver.address,
-      roles,
-      expiry,
-    ]);
-    const receipt = await network.publicClient.getTransactionReceipt({
-      hash,
-    });
-    const [log] = parseEventLogs({
-      abi: parentRegistry.abi,
-      eventName: "NewSubname",
-      logs: receipt.logs,
-    });
-    return { parentRegistry, ...log.args };
-  }
 }
 
 const dummySelector = "0x12345678";
@@ -228,7 +167,7 @@ describe("ETHFallbackResolver", () => {
             },
           ],
         };
-        await F.ensureRegistry(kp, F.mainnet);
+        await F.mainnet.setupName(kp);
         const [res] = makeResolutions(kp);
         await F.mainnet.ownedResolver.write.multicall([[res.write]]);
         const [answer, resolver] =
@@ -255,7 +194,7 @@ describe("ETHFallbackResolver", () => {
             },
           ],
         };
-        await F.ensureRegistry(kp);
+        await F.namechain.setupName(kp);
         const [res] = makeResolutions(kp);
         await F.namechain.ownedResolver.write.multicall([[res.write]]);
         const [answer, resolver] =
@@ -282,7 +221,12 @@ describe("ETHFallbackResolver", () => {
             },
           ],
         };
-        const { parentRegistry, labelHash } = await F.ensureRegistry(kp);
+        const interval = 10n;
+        const { timestamp } = await F.namechain.publicClient.getBlock();
+        await F.namechain.setupName({
+          name: kp.name,
+          expiry: timestamp + interval,
+        });
         const [res] = makeResolutions(kp);
         await F.namechain.ownedResolver.write.multicall([[res.write]]);
         const answer = await F.ethFallbackResolver.read.resolve([
@@ -290,7 +234,7 @@ describe("ETHFallbackResolver", () => {
           res.call,
         ]);
         res.expect(answer);
-        await parentRegistry.write.relinquish([labelHash]);
+        await mine(2, { interval }); // wait for the name to expire
         await expect(F.ethFallbackResolver)
           .read("resolve", [dnsEncodeName(kp.name), res.call])
           .toBeRevertedWithCustomError("UnreachableName");
@@ -338,7 +282,7 @@ describe("ETHFallbackResolver", () => {
     for (const res of makeResolutions(kp)) {
       it(res.desc, async () => {
         const F = await loadFixture(fixture);
-        await F.ensureRegistry(kp);
+        await F.namechain.setupName(kp);
         await F.namechain.ownedResolver.write.multicall([[res.write]]);
         const [answer, resolver] =
           await F.mainnet.universalResolver.read.resolve([
@@ -351,7 +295,7 @@ describe("ETHFallbackResolver", () => {
     }
     it(`multicall()`, async () => {
       const F = await loadFixture(fixture);
-      await F.ensureRegistry(kp);
+      await F.namechain.setupName(kp);
       await F.namechain.ownedResolver.write.multicall([
         makeResolutions(kp).map((x) => x.write),
       ]);
@@ -364,7 +308,7 @@ describe("ETHFallbackResolver", () => {
     });
     it("resolve(multicall)", async () => {
       const F = await loadFixture(fixture);
-      await F.ensureRegistry(kp);
+      await F.namechain.setupName(kp);
       await F.namechain.ownedResolver.write.multicall([
         makeResolutions(kp).map((x) => x.write),
       ]);

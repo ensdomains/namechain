@@ -6,7 +6,7 @@ import { splitName } from "../utils/utils.js";
 
 export async function deployV1Fixture(batchGateways: string[] = []) {
   const publicClient = await hre.viem.getPublicClient({
-    ccipRead: batchGateways ? undefined : false,
+    ccipRead: batchGateways.length ? undefined : false,
   });
   const [walletClient] = await hre.viem.getWalletClients();
   const ensRegistry = await hre.viem.getContractAt(

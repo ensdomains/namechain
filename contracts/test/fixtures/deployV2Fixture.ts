@@ -6,25 +6,45 @@ import {
   parseEventLogs,
   zeroAddress,
 } from "viem";
+import { splitName } from "../utils/utils.js";
 
-export const ALL_ROLES = (1n << 256n) - 1n;
-export const MAX_EXPIRY = (1n << 64n) - 1n;
+export const MAX_EXPIRY = (1n << 64n) - 1n; // see: DatastoreUtils.sol
+
+// see: RegistryRolesMixin.sol
+const FLAGS = {
+  REGISTRAR: 1n << 0n,
+  RENEW: 1n << 1n,
+  SET_SUBREGISTRY: 1n << 2n,
+  SET_RESOLVER: 1n << 3n,
+  SET_TOKEN_OBSERVER: 1n << 4n,
+  MASK: (1n << 128n) - 1n,
+} as const;
+export const ROLES = {
+  OWNER: FLAGS,
+  ADMIN: Object.fromEntries(
+    Object.entries(FLAGS).map(([k, v]) => [k, v << 128n]),
+  ) as typeof FLAGS,
+  ALL: (1n << 256n) - 1n, // see: EnhancedAccessControl.sol
+} as const;
+
+export const ROLE_SET_SUBREGISTRY = 1n << 2n;
+export const ROLE_SET_RESOLVER = 1n << 3n;
 
 export async function deployV2Fixture(batchGateways: string[] = []) {
   const publicClient = await hre.viem.getPublicClient({
-    ccipRead: batchGateways ? undefined : false,
+    ccipRead: batchGateways.length ? undefined : false,
   });
   const [walletClient] = await hre.viem.getWalletClients();
   const datastore = await hre.viem.deployContract("RegistryDatastore", []);
   const rootRegistry = await hre.viem.deployContract("PermissionedRegistry", [
     datastore.address,
     zeroAddress,
-    ALL_ROLES,
+    ROLES.ALL,
   ]);
   const ethRegistry = await hre.viem.deployContract("PermissionedRegistry", [
     datastore.address,
     zeroAddress,
-    ALL_ROLES,
+    ROLES.ALL,
   ]);
   const universalResolver = await hre.viem.deployContract(
     "UniversalResolver",
@@ -38,7 +58,7 @@ export async function deployV2Fixture(batchGateways: string[] = []) {
     walletClient.account.address,
     ethRegistry.address,
     zeroAddress,
-    ALL_ROLES,
+    ROLES.ALL,
     MAX_EXPIRY,
   ]);
   const verifiableFactory = await hre.viem.deployContract(
@@ -58,6 +78,7 @@ export async function deployV2Fixture(batchGateways: string[] = []) {
     verifiableFactory,
     ownedResolver,
     deployOwnedResolver,
+    setupName,
   };
   async function deployOwnedResolver({
     owner,
@@ -90,60 +111,78 @@ export async function deployV2Fixture(batchGateways: string[] = []) {
       },
     });
   }
+  // creates registries up to the parent name
+  async function setupName({
+    name,
+    owner = walletClient.account.address,
+    expiry = MAX_EXPIRY,
+    roles = ROLES.ALL,
+    resolverAddress = ownedResolver.address,
+    metadataAddress = zeroAddress,
+  }: {
+    name: string;
+    owner?: Address;
+    expiry?: bigint;
+    roles?: bigint;
+    resolverAddress?: Address;
+    metadataAddress?: Address;
+  }) {
+    const labels = splitName(name);
+    if (!labels.length) throw new Error("expected name");
+    const registries = [rootRegistry];
+    while (true) {
+      const parentRegistry = registries[registries.length - 1];
+      const label = labels.pop()!;
+      const [tokenId] = await parentRegistry.read.getNameData([label]);
+      const registryOwner = await parentRegistry.read.ownerOf([tokenId]);
+      const exists = registryOwner !== zeroAddress;
+      let registryAddress = await parentRegistry.read.getSubregistry([label]);
+      if (labels.length) {
+        // this is an inner node
+        if (registryAddress === zeroAddress) {
+          // registry does not exist, create it
+          const registry = await hre.viem.deployContract(
+            "PermissionedRegistry",
+            [datastore.address, metadataAddress, roles],
+          );
+          registryAddress = registry.address;
+          if (exists) {
+            // label exists but registry does not exist, set it
+            await parentRegistry.write.setSubregistry([
+              tokenId,
+              registryAddress,
+            ]);
+          }
+          registries.push(registry);
+        } else {
+          registries.push(
+            await hre.viem.getContractAt(
+              "PermissionedRegistry",
+              registryAddress,
+            ),
+          );
+        }
+      }
+      if (!exists) {
+        // child does not exist, register it
+        await parentRegistry.write.register([
+          label,
+          owner,
+          labels.length ? registryAddress : zeroAddress,
+          labels.length ? zeroAddress : resolverAddress,
+          roles,
+          expiry,
+        ]);
+      } else if (!labels.length) {
+        const currentResolver = await parentRegistry.read.getResolver([label]);
+        if (currentResolver !== resolverAddress) {
+          // leaf node exists but resolver is different, set it
+          await parentRegistry.write.setResolver([tokenId, resolverAddress]);
+        }
+      }
+      if (!labels.length) {
+        return { registries, labels, tokenId, parentRegistry };
+      }
+    }
+  }
 }
-
-export type EnsFixture = Awaited<ReturnType<typeof deployV2Fixture>>;
-
-export const deployUserRegistry = async ({
-  datastoreAddress,
-  metadataAddress = zeroAddress,
-  ownerIndex = 0,
-}: {
-  datastoreAddress: Address;
-  metadataAddress?: Address;
-  ownerIndex?: number;
-}) => {
-  const wallet = (await hre.viem.getWalletClients())[ownerIndex];
-  return await hre.viem.deployContract(
-    "PermissionedRegistry",
-    [datastoreAddress, metadataAddress, ALL_ROLES],
-    {
-      client: { wallet },
-    },
-  );
-};
-
-export const registerName = async ({
-  ethRegistry,
-  label,
-  expiry = BigInt(Math.floor(Date.now() / 1000) + 1000000),
-  owner: owner_,
-  subregistry = zeroAddress,
-  resolver = zeroAddress,
-  subregistryLocked = false,
-  resolverLocked = false,
-}: Pick<EnsFixture, "ethRegistry"> & {
-  label: string;
-  expiry?: bigint;
-  owner?: Address;
-  subregistry?: Address;
-  resolver?: Address;
-  subregistryLocked?: boolean;
-  resolverLocked?: boolean;
-}) => {
-  const ROLE_SET_SUBREGISTRY = 1n << 2n;
-  const ROLE_SET_RESOLVER = 1n << 3n;
-  const owner =
-    owner_ ?? (await hre.viem.getWalletClients())[0].account.address;
-  const roles =
-    (subregistryLocked ? 0n : ROLE_SET_SUBREGISTRY) |
-    (resolverLocked ? 0n : ROLE_SET_RESOLVER);
-  return ethRegistry.write.register([
-    label,
-    owner,
-    subregistry,
-    resolver,
-    roles,
-    expiry,
-  ]);
-};

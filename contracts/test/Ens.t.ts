@@ -1,26 +1,65 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox-viem/network-helpers.js";
 import { expect } from "chai";
-import { deployV2Fixture, registerName } from "./fixtures/deployV2Fixture.js";
+import { deployV2Fixture, ROLES } from "./fixtures/deployV2Fixture.js";
 import { dnsEncodeName } from "./utils/utils.js";
+
+const testAddress = "0x8000000000000000000000000000000000000001";
 
 describe("Ens", () => {
   it("returns eth registry for eth", async () => {
-    const { universalResolver, ethRegistry } =
-      await loadFixture(deployV2Fixture);
-    const [fetchedEthRegistry, isExact] =
-      await universalResolver.read.getRegistry([dnsEncodeName("eth")]);
+    const F = await loadFixture(deployV2Fixture);
+    const [ethRegistry, isExact] = await F.universalResolver.read.getRegistry([
+      dnsEncodeName("eth"),
+    ]);
     expect(isExact).toBe(true);
-    expect(fetchedEthRegistry).toEqualAddress(ethRegistry.address);
+    expect(ethRegistry).toEqualAddress(F.ethRegistry.address);
   });
 
   it("returns eth registry for test.eth without user registry", async () => {
-    const { universalResolver, ethRegistry } =
-      await loadFixture(deployV2Fixture);
-    await registerName({ ethRegistry, label: "test" });
-    const [registry, isExact] = await universalResolver.read.getRegistry([
-      dnsEncodeName("test.eth"),
+    const F = await loadFixture(deployV2Fixture);
+    const name = "test.eth";
+    await F.setupName({ name });
+    const [registry, isExact] = await F.universalResolver.read.getRegistry([
+      dnsEncodeName(name),
     ]);
     expect(isExact).toBe(false);
-    expect(registry).toEqualAddress(ethRegistry.address);
+    expect(registry).toEqualAddress(F.ethRegistry.address);
+  });
+
+  it("overlapping names", async () => {
+    const F = await loadFixture(deployV2Fixture);
+    await F.setupName({ name: "test.eth" });
+    await F.setupName({ name: "a.b.c.sub.test.eth" });
+    await F.setupName({ name: "sub.test.eth" });
+  });
+
+  it("arbitrary name", async () => {
+    const F = await loadFixture(deployV2Fixture);
+    await F.setupName({ name: "ens.domains" });
+    await F.setupName({ name: "chonk.box" });
+  });
+
+  it("locked resolver", async () => {
+    const F = await loadFixture(deployV2Fixture);
+    const { parentRegistry, tokenId } = await F.setupName({
+      name: "locked.test.eth",
+      roles: ROLES.ALL & ~ROLES.OWNER.SET_RESOLVER,
+    });
+    await parentRegistry.write.setSubregistry([tokenId, testAddress]);
+    await expect(parentRegistry)
+      .write("setResolver", [tokenId, testAddress])
+      .toBeRevertedWithCustomError("EACUnauthorizedAccountRoles");
+  });
+
+  it("locked registry", async () => {
+    const F = await loadFixture(deployV2Fixture);
+    const { parentRegistry, tokenId } = await F.setupName({
+      name: "locked.test.eth",
+      roles: ROLES.ALL & ~ROLES.OWNER.SET_SUBREGISTRY,
+    });
+    await parentRegistry.write.setResolver([tokenId, testAddress]);
+    await expect(parentRegistry)
+      .write("setSubregistry", [tokenId, testAddress])
+      .toBeRevertedWithCustomError("EACUnauthorizedAccountRoles");
   });
 });
