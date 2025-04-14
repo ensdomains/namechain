@@ -27,9 +27,6 @@ export const ROLES = {
   ALL: (1n << 256n) - 1n, // see: EnhancedAccessControl.sol
 } as const;
 
-export const ROLE_SET_SUBREGISTRY = 1n << 2n;
-export const ROLE_SET_RESOLVER = 1n << 3n;
-
 export async function deployV2Fixture(batchGateways: string[] = []) {
   const publicClient = await hre.viem.getPublicClient({
     ccipRead: batchGateways.length ? undefined : false,
@@ -181,6 +178,9 @@ export async function deployV2Fixture(batchGateways: string[] = []) {
         }
       }
       if (!labels.length) {
+        // registries.length == labels.length - 1
+        // parentRegistry == registries.at(-1)
+        // tokenId = canonical(labelhash(labels.at(-1)))
         return { registries, labels, tokenId, parentRegistry };
       }
     }
