@@ -29,11 +29,14 @@ export const PROFILE_ABI = parseAbi([
   "function text(bytes32, string key) external view returns (string)",
   "function contenthash(bytes32) external view returns (bytes)",
   "function name(bytes32) external view returns (string)",
+  "function pubkey(bytes32) external view returns (bytes32 x, bytes32 y)",
+  "function recordVersions(bytes32) external view returns (uint64)",
 
   "function setAddr(bytes32, uint256 coinType, bytes value) external",
   "function setText(bytes32, string key, string value) external",
   "function setContenthash(bytes32, bytes value) external",
   "function setName(bytes32, string name) external",
+  "function setPubkey(bytes32, bytes32 x, bytes32 y) external",
 ]);
 
 export function getParentName(name: string) {
@@ -72,6 +75,12 @@ type TextRecord = StringRecord & {
   key: string;
 };
 
+type PubkeyRecord = {
+  origin?: KnownOrigin;
+  x: Hex;
+  y: Hex;
+};
+
 type ErrorRecord = {
   call: Hex;
   answer: Hex;
@@ -85,6 +94,7 @@ export type KnownProfile = {
   texts?: TextRecord[];
   contenthash?: BytesRecord;
   primary?: StringRecord;
+  pubkey?: PubkeyRecord;
   errors?: ErrorRecord[];
 };
 
@@ -180,9 +190,7 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
               functionName,
               data,
             });
-            expect(actual, this.desc).toStrictEqual(
-              getAddress(value)
-            );
+            expect(actual, this.desc).toStrictEqual(getAddress(value));
           },
         });
       } else {
@@ -279,6 +287,38 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
           data,
         });
         expect(actual, this.desc).toStrictEqual(value);
+      },
+    });
+  }
+  if (p.pubkey) {
+    const abi = PROFILE_ABI;
+    const functionName = "pubkey";
+    const { x, y, origin } = p.pubkey;
+    v.push({
+      desc: `${functionName}()`,
+      origin,
+      call: encodeFunctionData({
+        abi,
+        functionName,
+        args: [node],
+      }),
+      write: encodeFunctionData({
+        abi,
+        functionName: "setPubkey",
+        args: [node, x, y],
+      }),
+      answer: encodeFunctionResult({
+        abi,
+        functionName,
+        result: [x, y],
+      }),
+      expect(data) {
+        const actual = decodeFunctionResult({
+          abi,
+          functionName,
+          data,
+        });
+        expect(actual, this.desc).toStrictEqual([x, y]);
       },
     });
   }
