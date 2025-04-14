@@ -28,29 +28,72 @@ export async function setupCrossChainEnvironment() {
   
   // Deploy contracts to both chains
   console.log('Deploying contracts...');
+
+  // Deploy registry datastores for L1 and L2
+  const l1Datastore = await L1.deploy({ 
+    file: 'RegistryDatastore'
+  });
   
-  // Deploy registries
-  const l1Registry = await L1.deploy({ file: 'MockL1Registry' });
-  const l2Registry = await L2.deploy({ file: 'MockL2Registry' });
+  const l2Datastore = await L2.deploy({ 
+    file: 'RegistryDatastore'
+  });
+
+  // Deploy metadata providers for L1 and L2
+  const l1Metadata = await L1.deploy({ 
+    file: 'SimpleRegistryMetadata'
+  });
   
-  // Deploy bridge helpers
-  const l1BridgeHelper = await L1.deploy({ file: 'MockBridgeHelper' });
-  const l2BridgeHelper = await L2.deploy({ file: 'MockBridgeHelper' });
+  const l2Metadata = await L2.deploy({ 
+    file: 'SimpleRegistryMetadata'
+  });
   
-  // Deploy bridges (with temporary target addresses)
+  // Deploy bridge helpers first
+  const l1BridgeHelper = await L1.deploy({ 
+    file: 'MockBridgeHelper'
+  });
+  
+  const l2BridgeHelper = await L2.deploy({ 
+    file: 'MockBridgeHelper'
+  });
+  
+  // Deploy the real registries using their actual interfaces
+  // L1ETHRegistry for L1 and ETHRegistry for L2
+  const l1Registry = await L1.deploy({ 
+    file: 'L1ETHRegistry', 
+    args: [
+      await l1Datastore.getAddress(),
+      await l1Metadata.getAddress()
+    ]
+  });
+  
+  const l2Registry = await L2.deploy({ 
+    file: 'ETHRegistry', 
+    args: [
+      await l2Datastore.getAddress(),
+      await l2Metadata.getAddress()
+    ]
+  });
+  
+  // Deploy bridges with bridge helpers
   const l1Bridge = await L1.deploy({ 
-    file: 'MockL1Bridge',
-    args: [ethers.ZeroAddress]
+    file: 'MockL1Bridge', 
+    args: [
+      ethers.ZeroAddress,
+      await l1BridgeHelper.getAddress()
+    ]
   });
   
   const l2Bridge = await L2.deploy({ 
     file: 'MockL2Bridge', 
-    args: [ethers.ZeroAddress]
+    args: [
+      ethers.ZeroAddress,
+      await l2BridgeHelper.getAddress()
+    ]
   });
   
   // Deploy controllers with proper connections
   const l1Controller = await L1.deploy({ 
-    file: 'MockL1MigrationController', 
+    file: 'MockL1EjectionController', 
     args: [
       await l1Registry.getAddress(),
       await l1BridgeHelper.getAddress(),
@@ -59,7 +102,7 @@ export async function setupCrossChainEnvironment() {
   });
   
   const l2Controller = await L2.deploy({ 
-    file: 'MockL2MigrationController', 
+    file: 'MockL2EjectionController', 
     args: [
       await l2Registry.getAddress(),
       await l2BridgeHelper.getAddress(),
@@ -68,8 +111,21 @@ export async function setupCrossChainEnvironment() {
   });
   
   // Set the correct target controllers for the bridges
-  await L1.confirm(l1Bridge.setTargetContract(await l1Controller.getAddress()));
-  await L2.confirm(l2Bridge.setTargetContract(await l2Controller.getAddress()));
+  await L1.confirm(l1Bridge.setTargetController(await l1Controller.getAddress()));
+  await L2.confirm(l2Bridge.setTargetController(await l2Controller.getAddress()));
+  
+  // Grant necessary roles to controllers
+  // Grant REGISTRAR_ROLE to the l1Controller on L1ETHRegistry
+  await L1.confirm(l1Registry.grantRole(
+    await l2Registry.REGISTRAR_ROLE(),
+    await l1Controller.getAddress()
+  ));
+
+  // Grant REGISTRAR_ROLE to the l2Controller on ETHRegistry
+  await L2.confirm(l2Registry.grantRole(
+    await l2Registry.REGISTRAR_ROLE(),
+    await l2Controller.getAddress()
+  ));
   
   console.log('Cross-chain environment setup complete!');
   
@@ -81,13 +137,17 @@ export async function setupCrossChainEnvironment() {
       registry: l1Registry,
       bridge: l1Bridge,
       bridgeHelper: l1BridgeHelper,
-      controller: l1Controller
+      controller: l1Controller,
+      datastore: l1Datastore,
+      metadata: l1Metadata
     },
     l2: {
       registry: l2Registry,
       bridge: l2Bridge,
       bridgeHelper: l2BridgeHelper,
-      controller: l2Controller
+      controller: l2Controller,
+      datastore: l2Datastore,
+      metadata: l2Metadata
     },
     // Safe shutdown function to properly terminate WebSocket connections
     shutdown: async () => {

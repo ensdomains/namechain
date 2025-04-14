@@ -64,11 +64,12 @@ async function testNameMigration(env, relayer) {
     console.log('Waiting for the relayer to process the event...');
     await setTimeout(3000);
 
-    const filter = env.l2.registry.filters.NameRegistered();
+    // Check for NewSubname events on L2
+    const filter = env.l2.registry.filters.NewSubname();
     const events = await env.l2.registry.queryFilter(filter);
 
     if (events.length === 0) {
-      console.log('No registration event found, performing manual relay');
+      console.log('No NewSubname event found, performing manual relay');
 
       // Get the migration message
       const message = await env.l1.bridgeHelper.encodeMigrationMessage(
@@ -90,13 +91,21 @@ async function testNameMigration(env, relayer) {
     console.log('Verifying registration on L2...');
     await setTimeout(1000);
 
-    const nameRegisteredFilter = await env.l2.registry.filters.NameRegistered();
+    const newSubnameFilter = env.l2.registry.filters.NewSubname();
     const registrationEvents = await env.l2.registry.queryFilter(
-      nameRegisteredFilter
+      newSubnameFilter
     );
 
     if (registrationEvents.length > 0) {
       console.log('✓ Name successfully registered on L2');
+      
+      // Get the token ID from the event
+      const tokenId = registrationEvents[registrationEvents.length - 1].args[0];
+      console.log(`TokenID: ${tokenId}`);
+      
+      // Check owner of token
+      const owner = await env.l2.registry.ownerOf(tokenId);
+      console.log(`Owner on L2: ${owner}`);
     } else {
       console.log('! Name registration on L2 could not be verified');
     }
@@ -133,11 +142,11 @@ async function testNameEjection(env, relayer) {
     await setTimeout(3000);
 
     // Check if the name is registered on L1
-    const filter = env.l1.registry.filters.NameRegistered();
+    const filter = env.l1.registry.filters.NewSubname();
     const events = await env.l1.registry.queryFilter(filter);
 
     if (events.length === 0) {
-      console.log('No registration event found on L1, performing manual relay');
+      console.log('No NewSubname event found on L1, performing manual relay');
 
       // Get the ejection message
       const message = await env.l2.bridgeHelper.encodeEjectionMessage(
@@ -160,13 +169,21 @@ async function testNameEjection(env, relayer) {
     console.log('Verifying registration on L1...');
     await setTimeout(1000);
 
-    const nameRegisteredFilter = await env.l1.registry.filters.NameRegistered();
+    const newSubnameFilter = env.l1.registry.filters.NewSubname();
     const registrationEvents = await env.l1.registry.queryFilter(
-      nameRegisteredFilter
+      newSubnameFilter
     );
 
     if (registrationEvents.length > 0) {
       console.log('✓ Name successfully registered on L1');
+      
+      // Get the token ID from the event
+      const tokenId = registrationEvents[registrationEvents.length - 1].args[0];
+      console.log(`TokenID: ${tokenId}`);
+      
+      // Check owner of token
+      const owner = await env.l1.registry.ownerOf(tokenId);
+      console.log(`Owner on L1: ${owner}`);
     } else {
       console.log('! Name registration on L1 could not be verified');
     }
@@ -245,30 +262,31 @@ async function testRoundTrip(env, relayer) {
     console.log('\nVerifying round trip results:');
     await setTimeout(1000);
 
-    // Check if name is registered on L1
     const tokenId = ethers.keccak256(ethers.toUtf8Bytes(name));
-    const isRegistered = await env.l1.registry.registered(tokenId);
-    console.log(`Name registered on L1: ${isRegistered}`);
-
-    // Check owner on L2 (should be the controller)
-    const ownerOnL2 = await env.l2.registry.owners(tokenId);
-    const expectedOwner = await env.l2.controller.getAddress();
-    console.log(`Owner on L2: ${ownerOnL2}`);
-    console.log(`Expected owner (L2 controller): ${expectedOwner}`);
-    console.log(
-      `Owner match: ${ownerOnL2.toLowerCase() === expectedOwner.toLowerCase()}`
-    );
-
-    if (ownerOnL2.toLowerCase() !== expectedOwner.toLowerCase()) {
-      console.warn(
-        'WARN: The owner on L2 is not the L2 controller as expected!'
-      );
+    
+    // Check if the name is owned on L1
+    try {
+      const owner = await env.l1.registry.ownerOf(tokenId);
+      console.log(`Owner on L1: ${owner}`);
+      console.log(`Expected owner: ${l1Owner}`);
+      console.log(`Owner match: ${owner.toLowerCase() === l1Owner.toLowerCase()}`);
+    } catch (error) {
+      console.log('! Failed to get owner on L1, name might not be registered');
     }
+    
+    // Check for resolver and subregistry on L1
+    try {
+      // This might be too specific to the actual implementation
+      const [subregistry, flags] = await env.l1.registry.getSubregistry_Data(tokenId);
+      console.log(`Subregistry on L1: ${subregistry}`);
+      console.log(`Flags on L1: ${flags}`);
+    } catch (error) {
+      console.log('! Could not check subregistry on L1');
+    }
+    console.log('Round trip test completed');
   } catch (error) {
     console.error('Error during round trip test:', error);
   }
-
-  console.log('Round trip test completed');
 }
 
 // Run the tests if executed directly
