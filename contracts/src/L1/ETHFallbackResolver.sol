@@ -25,9 +25,10 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
 
     IBaseRegistrar public immutable ethRegistrarV1;
     IUniversalResolver public immutable universalResolverV1;
+    address public immutable burnAddressV1;
+    IGatewayVerifier public namechainVerifier;
     address public immutable namechainDatastore;
     address public immutable namechainEthRegistry;
-    IGatewayVerifier public namechainVerifier;
 
     /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;
@@ -63,15 +64,17 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     constructor(
         IBaseRegistrar _ethRegistrarV1,
         IUniversalResolver _universalResolverV1,
+        address _burnAddressV1,
+        IGatewayVerifier _namechainVerifier,
         address _namechainDatastore,
-        address _namechainEthRegistry,
-        IGatewayVerifier _namechainVerifier
+        address _namechainEthRegistry
     ) Ownable(msg.sender) {
         ethRegistrarV1 = _ethRegistrarV1;
         universalResolverV1 = _universalResolverV1;
+        burnAddressV1 = _burnAddressV1;
+        namechainVerifier = _namechainVerifier;
         namechainDatastore = _namechainDatastore;
         namechainEthRegistry = _namechainEthRegistry;
-        namechainVerifier = _namechainVerifier;
     }
 
     /// @inheritdoc ERC165
@@ -88,17 +91,16 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     /// @dev Count the number of labels before "eth".
     ///      Reverts if invalid name or not "*.eth".
     /// @param name The name to parse.
+    /// @return node The namehash of the name.
     /// @return count The number of labels before "eth".
     /// @return offset2LD The offset of the 2LD.
-    function _countLabels(bytes calldata name) internal pure returns (uint256 count, uint256 offset2LD) {
+    function _countLabels(bytes memory name) internal pure returns (bytes32 node, uint256 count, uint256 offset2LD) {
+        node = NameCoder.namehash(name, 0); // validates the name
         uint256 offset;
         uint256 offset1LD;
         while (true) {
             uint256 size = uint8(name[offset]);
-            if (size == 0) {
-                NameCoder.readLabel(name, offset); // validate end of name
-                break;
-            }
+            if (size == 0) break;
             offset2LD = offset1LD;
             offset1LD = offset;
             offset += 1 + size;
@@ -110,23 +112,6 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
             revert UnreachableName(name);
         }
         count--; // drop last label
-    }
-
-    /// @dev Create program to traverse the RegistryDatastore.
-    ///      In:  output[0] = parentRegistry, stack[0] = labelhash
-    ///      Out: output[0] = childRegistry, output[1] = resolver
-    function _findResolverProgram() internal view returns (GatewayRequest memory req) {
-        req = GatewayFetcher.newCommand();
-        req.pushOutput(0); // parent registry
-        req.follow().follow(); // entry[registry][labelHash]
-        req.read(); // read registryData
-        req.dup().shl(32).shr(192); // extract expiry
-        req.push(block.timestamp).gt().assertNonzero(1); // require expiry > timestamp
-        req.shl(96).shr(96); // extract registry
-        req.offset(1).read().shl(96).shr(96); // read resolverData => extract resolver
-        req.push(GatewayFetcher.newCommand().requireNonzero(1).setOutput(1)); // save resolver if set
-        req.evalLoop(0, 1); // consume resolver, catch assert
-        req.requireNonzero(1).setOutput(0); // require registry and save it
     }
 
     /// @dev Split the calldata into individual calls.
@@ -146,13 +131,71 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         }
     }
 
+    /// @dev Return true if the name is actively registered on V1.
+    /// @param id The labelhash of the "eth" 2LD.
+    function _isActiveRegistrationV1(uint256 id) internal view returns (bool) {
+        return !ethRegistrarV1.available(id) && ethRegistrarV1.ownerOf(id) != burnAddressV1;
+    }
+
+    /// @dev Program to traverse a label in the RegistryDatastore.
+    function _findResolverProgram() internal view returns (GatewayRequest memory req) {
+        req = GatewayFetcher.newCommand();
+        req.pushOutput(0); // parent registry
+        req.follow().follow(); // entry[registry][labelHash]
+        req.read(); // read registryData
+        req.dup().shl(32).shr(192); // extract expiry
+        req.push(block.timestamp).gt().assertNonzero(1); // require expiry > timestamp
+        req.shl(96).shr(96); // extract registry
+        req.offset(1).read().shl(96).shr(96); // read resolverData => extract resolver
+        req.push(GatewayFetcher.newCommand().requireNonzero(1).setOutput(1)); // save resolver if set
+        req.evalLoop(0, 1); // consume resolver, catch assert
+        req.requireNonzero(1).setOutput(0); // require registry and save it
+    }
+
     /// @inheritdoc IExtendedResolver
     /// @notice Callers should enable EIP-3668.
     /// @dev This function executes over multiple steps (step 1 of 2).
-    function resolve(bytes calldata name, bytes calldata data) external view returns (bytes memory) {
-        (uint256 labelCount, uint256 offset) = _countLabels(name);
+    ///
+    /// `GatewayRequest` walkthrough:
+    /// * The stack is loaded with labelhashes, excluding "eth".
+    ///     * "sub.vitalik.eth" &rarr; `["sub", "vitalik"]`.
+    /// * `output[0]` is set to the Namechain "eth" registry.
+    /// * `_findResolverProgram()` is pushed onto the stack.
+    /// * `evalLoop(flags, count)` pops the program and executes it `count` times,
+    ///   consuming one labelhash from the stack and passing it to the program in a separate context.
+    ///     * The default `count` is the full stack.
+    ///     * If `EvalFlag.STOP_ON_FAILURE`, the loop terminates when the program throws.
+    ///     * Unless `EvalFlag.KEEP_ARGS`, `count` stack arguments are consumed, even when the loop terminates early.
+    /// * Before the program executes:
+    ///     * The target is `namechainDatastore`.
+    ///     * The slot is `SLOT_RD_ENTRIES`.
+    ///     * The stack is `[labelhash]`.
+    ///     * `output[0]` is the parent registry address.
+    ///     * `output[1]` is the latest resolver address.
+    /// * `pushOutput(0)` adds the `registry` to the stack.
+    ///     * The stack is `[labelHash, registry]`.
+    /// * `req.setSlot(SLOT_RD_ENTRIES).follow().follow()` &harr; `entries[registry][labelHash]`.
+    ///     * `follow()` does a pop and uses the value as a mapping key.
+    /// * The program terminates if the next registry is expired.
+    /// * `output[1]` is updated if a resolver is set.
+    /// * The program terminates if the next registry is unset.
+    /// * `output[0]` is updated to the next registry.
+    ///
+    /// Pseudocode:
+    /// ```
+    /// registry = <eth>
+    /// resolver = null
+    /// for label of ["vitalik", "sub"]
+    ///    (reg, res) = registry[label]
+    ///    if (expired) break
+    ///    if (res) resolver = res
+    ///    if (!reg) break
+    ///    registry = reg
+    /// ````
+    function resolve(bytes memory name, bytes calldata data) external view returns (bytes memory) {
+        (bytes32 node, uint256 labelCount, uint256 offset) = _countLabels(name);
         (bytes32 labelHash,) = NameCoder.readLabel(name, offset);
-        if (labelCount == 0 || !ethRegistrarV1.available(uint256(labelHash))) {
+        if (labelCount == 0 || _isActiveRegistrationV1(uint256(labelHash))) {
             ccipRead(
                 address(universalResolverV1),
                 abi.encodeCall(IUniversalResolver.resolve, (name, data)),
@@ -173,9 +216,9 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         req.push(_findResolverProgram());
         req.evalLoop(EvalFlag.STOP_ON_FAILURE); // outputs = [registry, resolver]
         req.pushOutput(1).requireNonzero(EXIT_CODE_NO_RESOLVER).target(); // target resolver
-        req.push(NameCoder.namehash(name, 0)); // node, leave on stack at offset 0
         req.setSlot(SLOT_PR_VERSIONS);
-        req.pushStack(0).follow(); // recordVersions[node]
+        req.push(node); // leave on stack at offset 0
+        req.pushOutput(0).follow(); // recordVersions[node]
         req.read(); // version, leave on stack at offset 1
         req.push(bytes("")).dup().setOutput(0).setOutput(1); // clear outputs
         uint256 errors;

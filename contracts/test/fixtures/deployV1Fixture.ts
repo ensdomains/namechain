@@ -54,9 +54,9 @@ export async function deployV1Fixture(batchGateways: string[] = []) {
     ethRegistrar,
     ownedResolver,
     universalResolver,
-    setupResolver,
+    setupName,
   };
-  async function setupResolver(name: string) {
+  async function setupName(name: string) {
     const labels = splitName(name);
     let i = labels.length;
     if (name.endsWith(".eth")) {

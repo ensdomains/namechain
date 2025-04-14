@@ -26,6 +26,17 @@ describe("Ens", () => {
     expect(registry).toEqualAddress(F.ethRegistry.address);
   });
 
+  it("exact", async () => {
+    const F = await loadFixture(deployV2Fixture);
+    const name = "test.eth";
+    const { registries } = await F.setupName({ name, exact: true });
+    const [registry, isExact] = await F.universalResolver.read.getRegistry([
+      dnsEncodeName(name),
+    ]);
+    expect(isExact).toBe(true);
+    expect(registry).toEqualAddress(registries[registries.length - 1].address);
+  });
+
   it("overlapping names", async () => {
     const F = await loadFixture(deployV2Fixture);
     await F.setupName({ name: "test.eth" });
@@ -33,10 +44,11 @@ describe("Ens", () => {
     await F.setupName({ name: "sub.test.eth" });
   });
 
-  it("arbitrary name", async () => {
+  it("arbitrary names", async () => {
     const F = await loadFixture(deployV2Fixture);
-    await F.setupName({ name: "ens.domains" });
+    await F.setupName({ name: "xyz" });
     await F.setupName({ name: "chonk.box" });
+    await F.setupName({ name: "ens.domains" });
   });
 
   it("locked resolver", async () => {

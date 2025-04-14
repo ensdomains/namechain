@@ -7,31 +7,19 @@ Currently this repository hosts Proof-of-Concept contracts for ENSv2. See the [E
 
 At present the following contracts are implemented:
 
-- [RegistryDatastore](src/registry/RegistryDatastore.sol) - an implementation of the registry datastore defined in the design doc. All registry contracts must use a singleton instance of the datastore for storage of subregistry and resolver addresses.
-- [ERC1155Singleton](src/registry/ERC1155Singleton.sol) - an implementation of the ERC1155 standard that permits only a single token per token ID. This saves on gas costs for storage while also permitting easy implementation of an `ownerOf` function.
-- [BaseRegistry](src/registry/BaseRegistry.sol) - an implementation of the registry defined in the design doc, to be used as a base class for custom implementations.
-- [RootRegistry](src/registry/RootRegistry.sol) - an implementation of an ENSv2 registry to be used as the root of the name hierarchy. Owned by a single admin account that can authorise others to create and update TLDs. Supports locking TLDs so they cannot be further modified.
-- [ETHRegistry](src/registry/ETHRegistry.sol) - a basic implementation of an ENSv2 .eth registry. Supports locking TLDs and name expirations; when a name is expired, its resolver and subregistry addresses are zeroed out. User registrations and renewals are expected to occur via a controller contract that handles payments etc, just as in ENSv1.
-- [UserRegistry](src/registry/UserRegistry.sol) - a sample implementation of a standardized user registry contract. Supports locking subnames.
-- [UniversalResolver](src/utils/UniversalResolver.sol) - a sample implementation of the ENSv2 resolution algorithm.
-
-The ENSv2 contracts module uses forge + hardhat combined to allow for simple unit testing, e2e tests (incl. CCIP-Read support), performant build forks, etc.
-
-## Foundry (forge) installation
-
-https://book.getfoundry.sh/getting-started/installation
+- [RegistryDatastore](src/common/RegistryDatastore.sol) &mdash; an implementation of the registry datastore defined in the design doc. All registry contracts must use a singleton instance of the datastore for storage of subregistry and resolver addresses.
+- [ERC1155Singleton](src/common/ERC1155Singleton.sol) &mdash; an implementation of the ERC1155 standard that permits only a single token per token ID. This saves on gas costs for storage while also permitting easy implementation of an `ownerOf` function.
+- [PermissionedRegistry](src/common/PermissionedRegistry.sol) &mdash; an implementation of the v2 registry.
+- [UniversalResolver](src/universalResolver/UniversalResolver.sol) &mdash; onchain ENSv2 resolution.
+- [ETHFallbackResolver](src/L1/ETHFallbackResolver.sol) &mdash; crosschain resolver that combines mainnet v2 (ejected), mainnet v1 (unmigrated), and Namechain v2.
 
 ## Getting started
 
 ### Installation
 
-Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation)
-
-Install packages (bun)
-
-```sh
-bun install
-```
+1. Install [Foundry](https://book.getfoundry.sh/getting-started/installation)
+1. Install [bun](https://bun.sh/)
+1. `bun i`
 
 ### Build
 
@@ -41,10 +29,13 @@ forge build
 
 ### Test
 
-Testing is done in both forge and hardhat, so you can use the helper script.
+Testing is done using both Foundry and Hardhat.
 
 ```sh
-bun run test
+bun run test         # ALL tests
+forge test           # Foundry tests
+bun run test:hardhat # Hardhat tests
+bun run test:hardhat test/Ens.t.ts # specific Hardhat test
 ```
 
 ### Format

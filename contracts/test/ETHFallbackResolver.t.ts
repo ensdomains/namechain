@@ -33,11 +33,6 @@ async function fixture() {
     new UncheckedRollup(new BrowserProvider(hre.network.provider)),
   );
   gateway.disableCache();
-  // beforeEach(() => {
-  //   gateway.commitCacheMap.clear();
-  //   gateway.latestCache.clear();
-  //   gateway.callLRU.clear();
-  // });
   const ccip = await serve(gateway, { protocol: "raw", log: false });
   after(ccip.shutdown);
   const GatewayVM = await deployArtifact({
@@ -48,14 +43,16 @@ async function fixture() {
     args: [[ccip.endpoint]],
     libs: { GatewayVM },
   });
+  const burnAddressV1 = "0x000000000000000000000000000000000000FadE";
   const ethFallbackResolver = await hre.viem.deployContract(
     "ETHFallbackResolver",
     [
       mainnetV1.ethRegistrar.address,
       mainnetV1.universalResolver.address,
+      burnAddressV1,
+      verifierAddress,
       namechain.datastore.address,
       namechain.ethRegistry.address,
-      verifierAddress,
     ],
     {
       client: { public: mainnet.publicClient }, // CCIP on EFR
@@ -67,10 +64,11 @@ async function fixture() {
   ]);
   return {
     ethFallbackResolver,
-    mainnet,
     mainnetV1,
+    burnAddressV1,
+    mainnet,
     namechain,
-  };
+  } as const;
 }
 
 const dummySelector = "0x12345678";
@@ -98,9 +96,19 @@ describe("ETHFallbackResolver", () => {
         await expect(F.mainnetV1.universalResolver)
           .read("resolve", [dnsEncodeName(name), res.call])
           .toBeRevertedWithCustomError("ResolverNotFound");
+        // the errors are different because:
+        // v1: requireResolver() fails
+        // v2: gateway to namechain, no resolver found
         await expect(F.mainnet.universalResolver)
           .read("resolve", [dnsEncodeName(name), res.call])
-          .toBeRevertedWithCustomError("ResolverError");
+          .toBeRevertedWithCustomError("ResolverError")
+          .withArgs(
+            encodeErrorResult({
+              abi: F.ethFallbackResolver.abi,
+              errorName: "UnreachableName",
+              args: [dnsEncodeName(name)],
+            }),
+          );
       });
     }
   });
@@ -137,12 +145,50 @@ describe("ETHFallbackResolver", () => {
           ],
         };
         const [res] = makeResolutions(kp);
-        await F.mainnetV1.setupResolver(kp.name);
+        await F.mainnetV1.setupName(kp.name);
         // await F.mainnetV1.ownedResolver.write.multicall([res.write]);
         await F.mainnetV1.walletClient.sendTransaction({
           to: F.mainnetV1.ownedResolver.address,
           data: res.write,
         });
+        const [answer, resolver] =
+          await F.mainnet.universalResolver.read.resolve([
+            dnsEncodeName(kp.name),
+            res.call,
+          ]);
+        expect(resolver).toEqualAddress(F.ethFallbackResolver.address);
+        res.expect(answer);
+      });
+    }
+  });
+
+  describe("migrated from V1", () => {
+    const label = "burned";
+    for (const name of [`${label}.eth`, `a.b.c.${label}.eth`]) {
+      it(name, async () => {
+        const F = await loadFixture(fixture);
+        const kp: KnownProfile = {
+          name,
+          addresses: [
+            {
+              coinType: COIN_TYPE_ETH,
+              value: testAddress,
+            },
+          ],
+        };
+        const [res] = makeResolutions(kp);
+        await F.mainnetV1.setupName(kp.name);
+        await F.mainnetV1.ethRegistrar.write.safeTransferFrom([
+          F.mainnetV1.walletClient.account.address,
+          F.burnAddressV1,
+          labelhashUint256(label),
+        ]);
+        const available = await F.mainnetV1.ethRegistrar.read.available([
+          labelhashUint256(label),
+        ]);
+        expect(available).toStrictEqual(false);
+        await F.namechain.setupName(kp);
+        await F.namechain.ownedResolver.write.multicall([[res.write]]);
         const [answer, resolver] =
           await F.mainnet.universalResolver.read.resolve([
             dnsEncodeName(kp.name),

@@ -16,12 +16,13 @@ contract MockETHFallbackResolver is ETHFallbackResolver {
             IBaseRegistrar(address(0)),
             IUniversalResolver(address(0)),
             address(0),
+            IGatewayVerifier(address(0)),
             address(0),
-            IGatewayVerifier(address(0))
+            address(0)
         )
     {}
 
-    function countLabels(bytes calldata v) external pure returns (uint256, uint256) {
+    function countLabels(bytes calldata v) external pure returns (bytes32, uint256, uint256) {
         return _countLabels(v);
     }
 }
@@ -35,7 +36,7 @@ contract TestETHFallbackResolver is Test {
 
     function _countLabels(string memory ens, uint256 expectCount, uint256 size2LD) internal view {
         bytes memory dns = NameCoder.encode(ens);
-        (uint256 count, uint256 offset) = efr.countLabels(dns);
+        (, uint256 count, uint256 offset) = efr.countLabels(dns);
         assertEq(count, expectCount, "count");
         assertEq(offset, expectCount > 0 ? dns.length - (6 + size2LD) : 0, "offset"); // size(1) + size(3) + "eth" + size(0)
     }

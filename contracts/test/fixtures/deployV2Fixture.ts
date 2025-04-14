@@ -116,6 +116,7 @@ export async function deployV2Fixture(batchGateways: string[] = []) {
     roles = ROLES.ALL,
     resolverAddress = ownedResolver.address,
     metadataAddress = zeroAddress,
+    exact = false,
   }: {
     name: string;
     owner?: Address;
@@ -123,19 +124,20 @@ export async function deployV2Fixture(batchGateways: string[] = []) {
     roles?: bigint;
     resolverAddress?: Address;
     metadataAddress?: Address;
+    exact?: boolean;
   }) {
     const labels = splitName(name);
     if (!labels.length) throw new Error("expected name");
     const registries = [rootRegistry];
     while (true) {
       const parentRegistry = registries[registries.length - 1];
-      const label = labels.pop()!;
+      const label = labels[labels.length - registries.length];
       const [tokenId] = await parentRegistry.read.getNameData([label]);
       const registryOwner = await parentRegistry.read.ownerOf([tokenId]);
       const exists = registryOwner !== zeroAddress;
+      const leaf = registries.length == labels.length;
       let registryAddress = await parentRegistry.read.getSubregistry([label]);
-      if (labels.length) {
-        // this is an inner node
+      if (!leaf || exact) {
         if (registryAddress === zeroAddress) {
           // registry does not exist, create it
           const registry = await hre.viem.deployContract(
@@ -165,21 +167,21 @@ export async function deployV2Fixture(batchGateways: string[] = []) {
         await parentRegistry.write.register([
           label,
           owner,
-          labels.length ? registryAddress : zeroAddress,
-          labels.length ? zeroAddress : resolverAddress,
+          registryAddress,
+          leaf ? resolverAddress : zeroAddress,
           roles,
           expiry,
         ]);
-      } else if (!labels.length) {
+      } else if (leaf) {
         const currentResolver = await parentRegistry.read.getResolver([label]);
         if (currentResolver !== resolverAddress) {
           // leaf node exists but resolver is different, set it
           await parentRegistry.write.setResolver([tokenId, resolverAddress]);
         }
       }
-      if (!labels.length) {
-        // registries.length == labels.length - 1
-        // parentRegistry == registries.at(-1)
+      if (leaf) {
+        // registries.length == labels.length - (exact ? 0 : 1)
+        // parentRegistry == registries.at(exact ? -2 : -1)
         // tokenId = canonical(labelhash(labels.at(-1)))
         return { registries, labels, tokenId, parentRegistry };
       }
