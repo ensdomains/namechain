@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {IL1EjectionController} from "../controller/IL1EjectionController.sol";
-import {L1ETHRegistry} from "../registry/L1ETHRegistry.sol";
+import {IL1EjectionController} from "../L1/IL1EjectionController.sol";
+import {L1ETHRegistry} from "../L1/L1ETHRegistry.sol";
 
 contract MockEjectionController is IL1EjectionController {
     // Storage for last migration call

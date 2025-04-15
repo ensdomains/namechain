@@ -19,6 +19,10 @@ const config = {
   solidity: {
     version: "0.8.25",
     settings: {
+      optimizer: {
+        enabled: true,
+        runs: 1000,
+      },
       evmVersion: "cancun",
     },
     remappings: [

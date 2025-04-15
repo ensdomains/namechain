@@ -3,9 +3,9 @@ pragma solidity ^0.8.13;
 
 import {IBridge} from "./IBridge.sol";
 import {MockBridgeHelper} from "./MockBridgeHelper.sol";
-import {IRegistry} from "../registry/IRegistry.sol";
-import {L1ETHRegistry} from "../registry/L1ETHRegistry.sol";
-import {IL1EjectionController} from "../controller/IL1EjectionController.sol";
+import {IRegistry} from "../common/IRegistry.sol";
+import {L1ETHRegistry} from "../L1/L1ETHRegistry.sol";
+import {IL1EjectionController} from "../L1/IL1EjectionController.sol";
 
 /**
  * @title MockL1EjectionController
@@ -78,7 +78,6 @@ contract MockL1EjectionController is IL1EjectionController {
             labelHash,
             l1Owner,
             IRegistry(l1Subregistry),
-            flags,
             expires
         );
         

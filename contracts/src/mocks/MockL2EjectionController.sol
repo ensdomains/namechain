@@ -3,9 +3,9 @@ pragma solidity ^0.8.13;
 
 import {IBridge} from "./IBridge.sol";
 import {MockBridgeHelper} from "./MockBridgeHelper.sol";
-import {IETHRegistry} from "../registry/IETHRegistry.sol";
-import {IRegistry} from "../registry/IRegistry.sol";
-import {IL2EjectionController} from "../controller/IL2EjectionController.sol";
+import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
+import {IRegistry} from "../common/IRegistry.sol";
+import {IL2EjectionController} from "../L2/IL2EjectionController.sol";
 
 
 /**
@@ -13,7 +13,7 @@ import {IL2EjectionController} from "../controller/IL2EjectionController.sol";
  * @dev Implementation of IL2EjectionController for L2 ENS operations
  */
 contract MockL2EjectionController is IL2EjectionController {
-    IETHRegistry public registry;
+    IPermissionedRegistry public registry;
     address public bridgeHelper;
     IBridge public bridge;
     
@@ -27,7 +27,7 @@ contract MockL2EjectionController is IL2EjectionController {
     mapping(string => uint256) private nameToLabelHash;
     
     constructor(address _registry, address _helper, address _bridge) {
-        registry = IETHRegistry(_registry);
+        registry = IPermissionedRegistry(_registry);
         bridgeHelper = _helper;
         bridge = IBridge(_bridge);
     }

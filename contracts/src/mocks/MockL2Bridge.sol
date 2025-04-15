@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {IL2EjectionController} from "../controller/IL2EjectionController.sol";
+import {IL2EjectionController} from "../L2/IL2EjectionController.sol";
 import {MockBridgeHelper} from "./MockBridgeHelper.sol";
 
 /**

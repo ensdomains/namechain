@@ -7,8 +7,8 @@ import "../../src/mocks/MockL2Bridge.sol";
 import "../../src/mocks/MockBridgeHelper.sol";
 import "../../src/mocks/MockL1EjectionController.sol";
 import "../../src/mocks/MockL2EjectionController.sol";
-import "../../src/controller/IL1EjectionController.sol";
-import "../../src/controller/IL2EjectionController.sol";
+import "../../src/L1/IL1EjectionController.sol";
+import "../../src/L2/IL2EjectionController.sol";
 
 // Mock registry implementations
 contract MockL1Registry is Test {
