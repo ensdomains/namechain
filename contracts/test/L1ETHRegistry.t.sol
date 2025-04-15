@@ -11,8 +11,9 @@ import {EjectionControllerMixin} from "../src/common/EjectionControllerMixin.sol
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistry.sol";
 import "../src/L1/IL1EjectionController.sol";
-import "../src/common/EnhancedAccessControl.sol";
+import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 import "../src/common/IRegistryMetadata.sol";
+import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -20,7 +21,7 @@ contract MockRegistryMetadata is IRegistryMetadata {
     }
 }
 
-contract TestL1ETHRegistry is Test, ERC1155Holder {
+contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
 
     RegistryDatastore datastore;
@@ -292,8 +293,9 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     
     function test_Revert_setEjectionController_if_not_admin() public {
         address nonAdmin = address(0x1234);
+        
         vm.startPrank(nonAdmin);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, bytes32(0), ROLE_SET_EJECTION_CONTROLLER, nonAdmin));
         registry.setEjectionController(IL1EjectionController(vm.addr(0x5678)));
         vm.stopPrank();
     }
