@@ -8,6 +8,7 @@ import {
   encodeErrorResult,
   encodeFunctionData,
   keccak256,
+  labelhash,
   namehash,
   parseAbi,
   toHex,
@@ -20,7 +21,7 @@ import { deployArtifact } from "./fixtures/deployArtifact.js";
 import { urgArtifact } from "./fixtures/externalArtifacts.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
-import { dnsEncodeName, labelhashUint256 } from "./utils/utils.js";
+import { dnsEncodeName, getLabelAt } from "./utils/utils.js";
 import { serve } from "@namestone/ezccip/serve";
 import { BrowserProvider } from "ethers/providers";
 import {
@@ -32,9 +33,8 @@ import {
 } from "./utils/resolutions.js";
 
 async function fixture() {
-  const batchGateways = await launchBatchGateway();
-  const mainnetV1 = await deployV1Fixture(batchGateways); // CCIP on UR
-  const mainnetV2 = await deployV2Fixture(batchGateways); // CCIP on UR
+  const mainnetV1 = await deployV1Fixture(true); // CCIP on UR
+  const mainnetV2 = await deployV2Fixture(true); // CCIP on UR
   const namechain = await deployV2Fixture();
   const gateway = new Gateway(
     new UncheckedRollup(new BrowserProvider(hre.network.provider)),
@@ -66,7 +66,7 @@ async function fixture() {
     },
   );
   await mainnetV2.rootRegistry.write.setResolver([
-    labelhashUint256("eth"),
+    BigInt(labelhash("eth")),
     ethFallbackResolver.address,
   ]);
   return {
@@ -172,8 +172,7 @@ describe("ETHFallbackResolver", () => {
   });
 
   describe("migrated from V1", () => {
-    const label = "burned";
-    for (const name of [`${label}.eth`, `a.b.c.${label}.eth`]) {
+    for (const name of [`burned.eth`, `a.b.c.burned.eth`]) {
       it(name, async () => {
         const F = await loadFixture(fixture);
         const kp: KnownProfile = {
@@ -187,13 +186,14 @@ describe("ETHFallbackResolver", () => {
         };
         const [res] = makeResolutions(kp);
         await F.mainnetV1.setupName(kp.name);
+        const tokenId = BigInt(labelhash(getLabelAt(kp.name, -2)));
         await F.mainnetV1.ethRegistrar.write.safeTransferFrom([
           F.mainnetV1.walletClient.account.address,
           F.burnAddressV1,
-          labelhashUint256(label),
+          tokenId,
         ]);
         const available = await F.mainnetV1.ethRegistrar.read.available([
-          labelhashUint256(label),
+          tokenId,
         ]);
         expect(available).toStrictEqual(false);
         await F.namechain.setupName(kp);

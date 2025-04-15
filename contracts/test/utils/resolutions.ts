@@ -39,11 +39,6 @@ export const PROFILE_ABI = parseAbi([
   "function setPubkey(bytes32, bytes32 x, bytes32 y) external",
 ]);
 
-export function getParentName(name: string) {
-  const i = name.indexOf(".");
-  return i == -1 ? "" : name.slice(i + 1);
-}
-
 // see: contracts/ccipRead/CCIPBatcher.sol
 export const RESPONSE_FLAGS = {
   OFFCHAIN: 1n << 0n,

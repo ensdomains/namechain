@@ -4,9 +4,9 @@ import { ensArtifact } from "./externalArtifacts.js";
 import { labelhash, namehash } from "viem";
 import { splitName } from "../utils/utils.js";
 
-export async function deployV1Fixture(batchGateways: string[] = []) {
+export async function deployV1Fixture(enableCcipRead = false) {
   const publicClient = await hre.viem.getPublicClient({
-    ccipRead: batchGateways.length ? undefined : false,
+    ccipRead: enableCcipRead ? undefined : false,
   });
   const [walletClient] = await hre.viem.getWalletClients();
   const ensRegistry = await hre.viem.getContractAt(
@@ -32,7 +32,7 @@ export async function deployV1Fixture(batchGateways: string[] = []) {
     "@ens/contracts/universalResolver/IUniversalResolver.sol:IUniversalResolver",
     await deployArtifact({
       file: ensArtifact("UniversalResolver"),
-      args: [ensRegistry.address, batchGateways],
+      args: [ensRegistry.address, ['x-batch-gateway:true']],
     }),
     {
       client: { public: publicClient },
@@ -79,5 +79,6 @@ export async function deployV1Fixture(batchGateways: string[] = []) {
       namehash(name),
       ownedResolver.address,
     ]);
+	return { labels };
   }
 }

@@ -27,9 +27,9 @@ export const ROLES = {
   ALL: (1n << 256n) - 1n, // see: EnhancedAccessControl.sol
 } as const;
 
-export async function deployV2Fixture(batchGateways: string[] = []) {
+export async function deployV2Fixture(enableCcipRead = false) {
   const publicClient = await hre.viem.getPublicClient({
-    ccipRead: batchGateways.length ? undefined : false,
+    ccipRead: enableCcipRead ? undefined : false,
   });
   const [walletClient] = await hre.viem.getWalletClients();
   const datastore = await hre.viem.deployContract("RegistryDatastore", []);
@@ -45,7 +45,7 @@ export async function deployV2Fixture(batchGateways: string[] = []) {
   ]);
   const universalResolver = await hre.viem.deployContract(
     "UniversalResolver",
-    [rootRegistry.address, batchGateways],
+    [rootRegistry.address, ["x-batch-gateway:true"]],
     {
       client: { public: publicClient },
     },

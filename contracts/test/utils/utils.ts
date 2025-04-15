@@ -20,14 +20,23 @@ export {
 //   return bytesToHex(packetToBytes(name));
 // }
 
-export const labelhashUint256 = (label: string): bigint => {
-  return BigInt(labelhash(label));
-};
+// export const labelhashUint256 = (label: string): bigint => {
+//   return BigInt(labelhash(label));
+// };
 
-export const namehashUint256 = (name: string): bigint => {
-  return BigInt(namehash(name));
-};
+// export const namehashUint256 = (name: string): bigint => {
+//   return BigInt(namehash(name));
+// };
 
 export function splitName(name: string): string[] {
   return name ? name.split(".") : [];
+}
+
+export function getParentName(name: string) {
+  const i = name.indexOf(".");
+  return i == -1 ? "" : name.slice(i + 1);
+}
+
+export function getLabelAt(name: string, index: number) {
+  return splitName(name).at(index) ?? "";
 }
