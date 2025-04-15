@@ -16,7 +16,6 @@ import {
 import { expect } from "chai";
 import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
 import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
-import { launchBatchGateway } from "./utils/localBatchGateway.js";
 import { deployArtifact } from "./fixtures/deployArtifact.js";
 import { urgArtifact } from "./fixtures/externalArtifacts.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
