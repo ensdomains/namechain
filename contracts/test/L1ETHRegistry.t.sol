@@ -7,6 +7,7 @@ import "forge-std/console.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import "../src/L1/L1ETHRegistry.sol";
+import {EjectionControllerMixin} from "../src/common/EjectionControllerMixin.sol";
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistry.sol";
 import "../src/L1/IL1EjectionController.sol";
@@ -33,7 +34,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         datastore = new RegistryDatastore();
         ejectionController = new MockEjectionController();
         registryMetadata = new MockRegistryMetadata();
-        registry = new L1ETHRegistry(datastore, address(ejectionController), registryMetadata);
+        registry = new L1ETHRegistry(datastore, ejectionController, registryMetadata);
     }
 
     function test_eject_from_namechain_unlocked() public {
@@ -77,7 +78,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
     function test_Revert_eject_from_namechain_if_not_controller() public {
         address nonController = address(0x1234);
         vm.startPrank(nonController);
-        vm.expectRevert(L1ETHRegistry.OnlyEjectionController.selector);
+        vm.expectRevert(EjectionControllerMixin.OnlyEjectionController.selector);
         registry.ejectFromNamechain(labelHash, address(this), registry, uint64(block.timestamp) + 86400);
         vm.stopPrank();
     }
@@ -158,7 +159,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         
         address nonController = address(0x1234);
         vm.startPrank(nonController);
-        vm.expectRevert(L1ETHRegistry.OnlyEjectionController.selector);
+        vm.expectRevert(EjectionControllerMixin.OnlyEjectionController.selector);
         registry.updateExpiration(tokenId, newExpiry);
         vm.stopPrank();
     }
@@ -272,7 +273,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         // Record logs to verify event emission
         vm.recordLogs();
         
-        registry.setEjectionController(address(newController));
+        registry.setEjectionController(newController);
         
         // Verify controller was updated
         assertEq(address(registry.ejectionController()), address(newController));
@@ -293,13 +294,13 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         address nonAdmin = address(0x1234);
         vm.startPrank(nonAdmin);
         vm.expectRevert();
-        registry.setEjectionController(address(0x5678));
+        registry.setEjectionController(IL1EjectionController(vm.addr(0x5678)));
         vm.stopPrank();
     }
     
     function test_Revert_setEjectionController_zero_address() public {
-        vm.expectRevert("Ejection controller cannot be empty");
-        registry.setEjectionController(address(0));
+        vm.expectRevert(EjectionControllerMixin.InvalidEjectionController.selector);
+        registry.setEjectionController(IL1EjectionController(address(0)));
     }
 
     function test_supportsInterface() public view {
@@ -366,7 +367,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         MockEjectionController newController = new MockEjectionController();
         
         // Set the new controller
-        registry.setEjectionController(address(newController));
+        registry.setEjectionController(newController);
         
         // Call migrate
         registry.migrateToNamechain(tokenId, l2Owner, l2Subregistry, data);
@@ -388,7 +389,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder {
         MockEjectionController newController = new MockEjectionController();
         
         // Set the new controller
-        registry.setEjectionController(address(newController));
+        registry.setEjectionController(newController);
         
         // New expiry time
         uint64 newExpiry = uint64(block.timestamp) + 300;
@@ -507,7 +508,7 @@ contract MockEjectionController is IL1EjectionController {
         uint256,
         address,
         address,
-        uint32,
+        uint256,
         uint64,
         bytes memory
     ) external override {}

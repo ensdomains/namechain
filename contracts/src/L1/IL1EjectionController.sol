@@ -28,7 +28,7 @@ interface IL1EjectionController {
      * @param labelHash The keccak256 hash of the label
      * @param l1Owner The address that will own the name on L1
      * @param l1Subregistry The subregistry address to use on L1
-     * @param flags The flags to set on the name
+     * @param roleBitmap The roles to set on the name
      * @param expires The expiration timestamp of the name
      * @param data Extra data
      */
@@ -36,7 +36,7 @@ interface IL1EjectionController {
         uint256 labelHash,
         address l1Owner,
         address l1Subregistry,
-        uint32 flags,
+        uint256 roleBitmap,
         uint64 expires,
         bytes memory data
     ) external;

@@ -7,9 +7,12 @@ import {IERC1155Singleton} from "../common/IERC1155Singleton.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {BaseRegistry} from "../common/BaseRegistry.sol";
-import {PermissionedRegistry} from "../common/PermissionedRegistry.sol";
 import {IRegistryMetadata} from "../common/IRegistryMetadata.sol";
 import {IStandardRegistry} from "../common/IStandardRegistry.sol";
+import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
+import {PermissionedRegistry} from "../common/PermissionedRegistry.sol";
+import {EjectionControllerMixin} from "../common/EjectionControllerMixin.sol";
+
 
 /**
  * @title L1ETHRegistry
@@ -17,24 +20,13 @@ import {IStandardRegistry} from "../common/IStandardRegistry.sol";
  * Unlike the L2 ETHRegistry, this registry does not handle new registrations directly,
  * but receives names that have been ejected from L2.
  */
-contract L1ETHRegistry is PermissionedRegistry {
-    uint256 private constant ROLE_SET_EJECTION_CONTROLLER = 1 << 5;
-    uint256 private constant ROLE_SET_EJECTION_CONTROLLER_ADMIN = ROLE_SET_EJECTION_CONTROLLER << 128;
-
+contract L1ETHRegistry is PermissionedRegistry, EjectionControllerMixin {
     error NameNotExpired(uint256 tokenId, uint64 expires);
-    error OnlyEjectionController();
 
     event NameEjected(uint256 indexed tokenId, address owner, uint64 expires);
     event NameMigratedToL2(uint256 indexed tokenId, address sendTo);
-    event EjectionControllerChanged(address oldController, address newController);
 
     IL1EjectionController public ejectionController;
-
-    constructor(IRegistryDatastore _datastore, address _ejectionController, IRegistryMetadata _registryMetadata) PermissionedRegistry(_datastore, _registryMetadata, ALL_ROLES) {
-        // Set the ejection controller
-        require(_ejectionController != address(0), "Ejection controller cannot be empty");
-        ejectionController = IL1EjectionController(_ejectionController);
-    }
 
     modifier onlyEjectionController() {
         if (msg.sender != address(ejectionController)) {
@@ -43,19 +35,18 @@ contract L1ETHRegistry is PermissionedRegistry {
         _;
     }
 
+    constructor(IRegistryDatastore _datastore, IL1EjectionController _ejectionController, IRegistryMetadata _registryMetadata) PermissionedRegistry(_datastore, _registryMetadata, ALL_ROLES) {
+        _setEjectionController(_ejectionController);
+    }
+
     /**
      * @dev Set a new ejection controller
      * @param _newEjectionController The address of the new controller
      */
-    function setEjectionController(address _newEjectionController) external onlyRoles(ROOT_RESOURCE, ROLE_SET_EJECTION_CONTROLLER) {
-        require(_newEjectionController != address(0), "Ejection controller cannot be empty");
-        
+    function setEjectionController(IL1EjectionController _newEjectionController) external onlyRoles(ROOT_RESOURCE, ROLE_SET_EJECTION_CONTROLLER) {
         address oldController = address(ejectionController);
-        
-        // Set the new controller
-        ejectionController = IL1EjectionController(_newEjectionController);
-        
-        emit EjectionControllerChanged(oldController, _newEjectionController);
+        _setEjectionController(_newEjectionController);
+        emit EjectionControllerChanged(oldController, address(_newEjectionController));
     }
 
     /**
@@ -133,13 +124,19 @@ contract L1ETHRegistry is PermissionedRegistry {
         datastore.setSubregistry(tokenId, address(0), 0, 0);
 
         // Notify the ejection controller to handle cross-chain messaging
-        ejectionController.migrateToNamechain(tokenId, l2Owner, l2Subregistry, data);
+        IL1EjectionController(ejectionController).migrateToNamechain(tokenId, l2Owner, l2Subregistry, data);
 
         emit NameMigratedToL2(tokenId, l2Owner);
     }
 
 
-    function supportsInterface(bytes4 interfaceId) public view override(PermissionedRegistry) returns (bool) {
-        return interfaceId == type(IRegistry).interfaceId || super.supportsInterface(interfaceId);
+    // Internal functions
+
+    function _setEjectionController(IL1EjectionController _newEjectionController) internal {
+        if (address(_newEjectionController) == address(0)) {
+            revert InvalidEjectionController();
+        }
+        ejectionController = _newEjectionController;
     }
+
 }
