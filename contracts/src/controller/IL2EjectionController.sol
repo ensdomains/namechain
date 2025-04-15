@@ -38,12 +38,4 @@ interface IL2EjectionController {
         address l2Subregistry,
         bytes memory data
     ) external;
-
-    /**
-     * @dev Called when a name is renewed on L1. This function updates the expiration date on L2.
-     *
-     * @param tokenId The token ID of the name
-     * @param newExpiry The new expiration timestamp
-     */
-    function syncRenewalFromL1(uint256 tokenId, uint64 newExpiry) external;
 }

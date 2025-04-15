@@ -92,17 +92,6 @@ contract MockL2EjectionController is IL2EjectionController {
     }
     
     /**
-     * @dev Implements IL2EjectionController.syncRenewalFromL1
-     * Updates expiration date on L2 when a renewal happens on L1
-     */
-    function syncRenewalFromL1(uint256 tokenId, uint64 newExpiry) external override {
-        // Update expiration on L2
-        registry.renew(tokenId, newExpiry);
-        
-        emit RenewalSynced(tokenId, newExpiry);
-    }
-    
-    /**
      * @dev Utility function to request ejection of a name with a simplified interface
      */
     function requestEjection(string calldata name, address l1Owner, address l1Subregistry, uint64 expiry) external {
