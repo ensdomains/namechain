@@ -14,8 +14,8 @@ import {IRegistry} from "../common/IRegistry.sol";
  */
 contract L2EjectionController is IL2EjectionController {
     error NotTokenOwner(uint256 tokenId);
-    event NameEjectedToL1(uint256 indexed tokenId, address l1Owner, address l1Subregistry, uint64 expiry);
-    event NameMigratedToL2(uint256 indexed tokenId, address l2Owner, address l2Subregistry);
+    event NameEjectedToL1(uint256 indexed tokenId, address l1Owner, address l1Subregistry, address l1Resolver, uint64 expiry);
+    event NameMigratedToL2(uint256 indexed tokenId, address l2Owner, address l2Subregistry, address l2Resolver);
     event NameRenewed(uint256 indexed tokenId, uint64 expires, address renewedBy);
 
     IStandardRegistry public immutable registry;
@@ -30,8 +30,9 @@ contract L2EjectionController is IL2EjectionController {
      * @param tokenId The token ID of the name being ejected
      * @param l1Owner The address that will own the name on L1
      * @param l1Subregistry The subregistry address to use on L1
+     * @param l1Resolver The resolver address to use on L1
      */
-    function ejectToL1(uint256 tokenId, address l1Owner, address l1Subregistry) external {
+    function ejectToL1(uint256 tokenId, address l1Owner, address l1Subregistry, address l1Resolver) external {
         if (registry.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
         }
@@ -41,7 +42,7 @@ contract L2EjectionController is IL2EjectionController {
         registry.setSubregistry(tokenId, IRegistry(address(0)));
 
         // bridge will listen for this event        
-        emit NameEjectedToL1(tokenId, l1Owner, l1Subregistry, expiry);
+        emit NameEjectedToL1(tokenId, l1Owner, l1Subregistry, l1Resolver, expiry);
     }
 
     /**
@@ -50,20 +51,23 @@ contract L2EjectionController is IL2EjectionController {
      * @param tokenId The token ID of the name being migrated
      * @param l2Owner The address that will own the name on L2
      * @param l2Subregistry The subregistry address to use on L2
+     * @param l2Resolver The resolver address to use on L2
      */
     function completeMigrationToL2(
         uint256 tokenId,
         address l2Owner,
-        address l2Subregistry
+        address l2Subregistry,
+        address l2Resolver
     ) external {
         if (registry.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
         }
 
         registry.setSubregistry(tokenId, IRegistry(l2Subregistry));
+        registry.setResolver(tokenId, l2Resolver);
         registry.safeTransferFrom(address(this), l2Owner, tokenId, 1, "");
 
-        emit NameMigratedToL2(tokenId, l2Owner, l2Subregistry);
+        emit NameMigratedToL2(tokenId, l2Owner, l2Subregistry, l2Resolver);
     }
 
     /**

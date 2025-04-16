@@ -37,8 +37,10 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     address user = address(0x1);
     address l1Owner = address(0x2);
     address l1Subregistry = address(0x3);
+    address l1Resolver = address(0x6);
     address l2Owner = address(0x4);
     address l2Subregistry = address(0x5);
+    address l2Resolver = address(0x7);
     
     string label = "test";
     uint256 labelHash; // = NameUtils.labelToCanonicalId(label);
@@ -70,11 +72,11 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     }
 
     // Helper to eject a name
-    function _ejectName(uint256 _tokenId, address _l1Owner, address _l1Subregistry) internal {
+    function _ejectName(uint256 _tokenId, address _l1Owner, address _l1Subregistry, address _l1Resolver) internal {
         // Eject needs to be called by the token owner
         address owner = registry.ownerOf(_tokenId);
         vm.startPrank(owner);
-        registry.eject(_tokenId, _l1Owner, _l1Subregistry);
+        registry.eject(_tokenId, _l1Owner, _l1Subregistry, _l1Resolver);
         vm.stopPrank();
     }
 
@@ -88,17 +90,18 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         uint64 initialExpiry = registry.getExpiry(tokenId);
         
         vm.recordLogs();
-        _ejectName(tokenId, l1Owner, l1Subregistry);
+        _ejectName(tokenId, l1Owner, l1Subregistry, l1Resolver);
 
         // Verify event emitted by the controller
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundEjected = false;
         for(uint i = 0; i < entries.length; i++) {
-            if(entries[i].topics[0] == keccak256("NameEjectedToL1(uint256,address,address,uint64)")) {
+            if(entries[i].topics[0] == keccak256("NameEjectedToL1(uint256,address,address,address,uint64)")) {
                 assertEq(uint256(entries[i].topics[1]), tokenId, "Event tokenId mismatch");
-                (address emittedL1Owner, address emittedL1Subregistry, uint64 emittedExpiry) = abi.decode(entries[i].data, (address, address, uint64));
+                (address emittedL1Owner, address emittedL1Subregistry, address emittedL1Resolver, uint64 emittedExpiry) = abi.decode(entries[i].data, (address, address, address, uint64));
                 assertEq(emittedL1Owner, l1Owner, "Event l1Owner mismatch");
                 assertEq(emittedL1Subregistry, l1Subregistry, "Event l1Subregistry mismatch");
+                assertEq(emittedL1Resolver, l1Resolver, "Event l1Resolver mismatch");
                 assertEq(emittedExpiry, initialExpiry, "Event expiry mismatch");
                 foundEjected = true;
                 break;
@@ -118,16 +121,20 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_completeMigrationToL2() public {
         // Setup: Register and eject a name. Token is now owned by controller.
         tokenId = _registerName(address(this));
-        _ejectName(tokenId, l1Owner, l1Subregistry);
+        _ejectName(tokenId, l1Owner, l1Subregistry, l1Resolver);
         assertEq(registry.ownerOf(tokenId), address(controller), "Setup failed: Controller doesn't own token after eject");
 
         vm.recordLogs();
         // Simulate the cross-chain message calling the controller
-        controller.completeMigrationToL2(tokenId, l2Owner, l2Subregistry);
+        controller.completeMigrationToL2(tokenId, l2Owner, l2Subregistry, l2Resolver);
 
         // Verify subregistry is set correctly in the registry 
         IRegistry subregAddr = registry.getSubregistry(label);
         assertEq(address(subregAddr), l2Subregistry, "Subregistry not set correctly after migration");
+
+        // Verify resolver is set correctly
+        address resolverAddr = registry.getResolver(label);
+        assertEq(resolverAddr, l2Resolver, "Resolver not set correctly after migration");
 
         // Verify token ownership transferred
         assertEq(registry.ownerOf(tokenId), l2Owner, "Token ownership not transferred after migration"); 
@@ -136,11 +143,12 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundMigrated = false;
         for(uint i = 0; i < entries.length; i++) {
-            if(entries[i].topics[0] == keccak256("NameMigratedToL2(uint256,address,address)")) {
+            if(entries[i].topics[0] == keccak256("NameMigratedToL2(uint256,address,address,address)")) {
                 assertEq(uint256(entries[i].topics[1]), tokenId, "Event tokenId mismatch");
-                 (address emittedL2Owner, address emittedL2Subregistry) = abi.decode(entries[i].data, (address, address));
+                 (address emittedL2Owner, address emittedL2Subregistry, address emittedL2Resolver) = abi.decode(entries[i].data, (address, address, address));
                  assertEq(emittedL2Owner, l2Owner, "Event l2Owner mismatch");
                  assertEq(emittedL2Subregistry, l2Subregistry, "Event l2Subregistry mismatch");
+                 assertEq(emittedL2Resolver, l2Resolver, "Event l2Resolver mismatch");
                  foundMigrated = true;
                  break;
             }
@@ -156,7 +164,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
 
         // Expect revert with NotTokenOwner error 
         vm.expectRevert(abi.encodeWithSelector(L2EjectionController.NotTokenOwner.selector, tokenId));
-        controller.completeMigrationToL2(tokenId, l2Owner, l2Subregistry);
+        controller.completeMigrationToL2(tokenId, l2Owner, l2Subregistry, l2Resolver);
     }
 
     function test_supportsInterface() public view {
@@ -181,7 +189,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_onRenew_emitsEvent_whenOwner() public {
         // Setup: Register and eject. Controller owns the token.
         tokenId = _registerName(address(this));
-        _ejectName(tokenId, l1Owner, l1Subregistry);
+        _ejectName(tokenId, l1Owner, l1Subregistry, l1Resolver);
         assertEq(registry.ownerOf(tokenId), address(controller), "Setup failed: Controller doesn't own token after eject");
 
         // Before renewing, confirm that the token still exists and has the right owner
@@ -248,7 +256,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_onRelinquish_doesNothing() public {
         // Setup: Register and eject. Controller owns the token.
         tokenId = _registerName(address(this));
-        _ejectName(tokenId, l1Owner, l1Subregistry);
+        _ejectName(tokenId, l1Owner, l1Subregistry, l1Resolver);
         assertEq(registry.ownerOf(tokenId), address(controller), "Setup failed: Controller doesn't own token after eject");
         
         // Set the controller as the token observer

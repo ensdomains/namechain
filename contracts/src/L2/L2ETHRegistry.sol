@@ -44,14 +44,15 @@ contract L2ETHRegistry is PermissionedRegistry, EjectionControllerMixin {
      * @param tokenId The token ID of the name
      * @param l1Owner The new owner of the name on L1
      * @param l1Subregistry The new subregistry to use for the name on L1
+     * @param l1Resolver The new resolver to use for the name on L1
      */
-    function eject(uint256 tokenId, address l1Owner, address l1Subregistry)
+    function eject(uint256 tokenId, address l1Owner, address l1Subregistry, address l1Resolver)
         public
         onlyTokenOwner(tokenId)
     {
         setTokenObserver(tokenId, ejectionController);
         _safeTransferFrom(msg.sender, address(ejectionController), tokenId, 1, "");
-        IL2EjectionController(ejectionController).ejectToL1(tokenId, l1Owner, l1Subregistry);
+        IL2EjectionController(ejectionController).ejectToL1(tokenId, l1Owner, l1Subregistry, l1Resolver);
     }
 
     // Internal functions

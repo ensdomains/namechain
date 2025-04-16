@@ -17,8 +17,9 @@ interface IL2EjectionController is ITokenObserver, IERC1155Receiver {
      * @param tokenId The token ID of the name being ejected
      * @param l1Owner The address that will own the name on L1
      * @param l1Subregistry The subregistry address to use on L1    
+     * @param l1Resolver The resolver address to use on L1
      */
-    function ejectToL1(uint256 tokenId, address l1Owner, address l1Subregistry) external;
+    function ejectToL1(uint256 tokenId, address l1Owner, address l1Subregistry, address l1Resolver) external;
 
     /**
      * @dev Called by the cross-chain messaging system when a name is being migrated back to L2.
@@ -26,10 +27,12 @@ interface IL2EjectionController is ITokenObserver, IERC1155Receiver {
      * @param labelHash The keccak256 hash of the label
      * @param l2Owner The address that will own the name on L2
      * @param l2Subregistry The subregistry address to use on L2
+     * @param l2Resolver The resolver address to use on L2
      */
     function completeMigrationToL2(
         uint256 labelHash,
         address l2Owner,
-        address l2Subregistry
+        address l2Subregistry,
+        address l2Resolver
     ) external;
 }
