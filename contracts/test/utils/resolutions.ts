@@ -25,18 +25,23 @@ export const ADDR_ABI = parseAbi([
 ]);
 
 export const PROFILE_ABI = parseAbi([
+  "function recordVersions(bytes32) external view returns (uint64)",
+
   "function addr(bytes32, uint256 coinType) external view returns (bytes)",
   "function text(bytes32, string key) external view returns (string)",
   "function contenthash(bytes32) external view returns (bytes)",
   "function name(bytes32) external view returns (string)",
-  "function pubkey(bytes32) external view returns (bytes32 x, bytes32 y)",
-  "function recordVersions(bytes32) external view returns (uint64)",
+  "function pubkey(bytes32) external view returns (bytes32, bytes32)",
+  "function ABI(bytes32, uint256 contentTypes) external view returns (uint256, bytes memory)",
+  "function interfaceImplementer(bytes32, bytes4 interfaceID) external view returns (address)",
 
   "function setAddr(bytes32, uint256 coinType, bytes value) external",
   "function setText(bytes32, string key, string value) external",
   "function setContenthash(bytes32, bytes value) external",
   "function setName(bytes32, string name) external",
   "function setPubkey(bytes32, bytes32 x, bytes32 y) external",
+  "function setABI(bytes32, uint256 contentType, bytes data) external",
+  "function setInterface(bytes32, bytes4 interfaceID, address implementer) external",
 ]);
 
 // see: contracts/ccipRead/CCIPBatcher.sol
@@ -52,34 +57,16 @@ export const RESPONSE_FLAGS = {
 
 type KnownOrigin = "on" | "off" | "batch";
 
-type StringRecord = {
-  value: string;
-  origin?: KnownOrigin;
-};
+type OriginRecord = { origin?: KnownOrigin };
 
-type BytesRecord = {
-  value: Hex;
-  origin?: KnownOrigin;
-};
-
-type AddressRecord = BytesRecord & {
-  coinType: bigint;
-};
-
-type TextRecord = StringRecord & {
-  key: string;
-};
-
-type PubkeyRecord = {
-  origin?: KnownOrigin;
-  x: Hex;
-  y: Hex;
-};
-
-type ErrorRecord = {
-  call: Hex;
-  answer: Hex;
-};
+type StringRecord = OriginRecord & { value: string };
+type BytesRecord = OriginRecord & { value: Hex };
+type PubkeyRecord = OriginRecord & { x: Hex; y: Hex };
+type ErrorRecord = OriginRecord & { call: Hex; answer: Hex };
+type AddressRecord = BytesRecord & { coinType: bigint };
+type TextRecord = StringRecord & { key: string };
+type ABIRecord = BytesRecord & { contentType: bigint };
+type InterfaceRecord = BytesRecord & { selector: Hex };
 
 export type KnownProfile = {
   title?: string;
@@ -90,6 +77,8 @@ export type KnownProfile = {
   contenthash?: BytesRecord;
   primary?: StringRecord;
   pubkey?: PubkeyRecord;
+  interfaces?: InterfaceRecord[];
+  abis?: ABIRecord[];
   errors?: ErrorRecord[];
 };
 
@@ -348,6 +337,72 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
         expect(actual, this.desc).toStrictEqual(value);
       },
     });
+  }
+  if (p.abis) {
+    const abi = PROFILE_ABI;
+    const functionName = "ABI";
+    for (const { contentType, value, origin } of p.abis) {
+      v.push({
+        desc: `${functionName}(${contentType})`,
+        origin,
+        call: encodeFunctionData({
+          abi,
+          functionName,
+          args: [node, contentType],
+        }),
+        write: encodeFunctionData({
+          abi,
+          functionName: "setABI",
+          args: [node, contentType, value],
+        }),
+        answer: encodeFunctionResult({
+          abi,
+          functionName,
+          result: [contentType, value],
+        }),
+        expect(data) {
+          const actual = decodeFunctionResult({
+            abi,
+            functionName,
+            data,
+          });
+          expect(actual, this.desc).toStrictEqual([contentType, value]);
+        },
+      });
+    }
+  }
+  if (p.interfaces) {
+    const abi = PROFILE_ABI;
+    const functionName = "interfaceImplementer";
+    for (const { selector, value, origin } of p.interfaces) {
+      v.push({
+        desc: `${functionName}(${selector})`,
+        origin,
+        call: encodeFunctionData({
+          abi,
+          functionName,
+          args: [node, selector],
+        }),
+        write: encodeFunctionData({
+          abi,
+          functionName: "setInterface",
+          args: [node, selector, value],
+        }),
+        answer: encodeFunctionResult({
+          abi,
+          functionName,
+          result: value,
+        }),
+        expect(data) {
+          const actual = decodeFunctionResult({
+            abi,
+            functionName,
+            data,
+          });
+          expect(actual, this.desc).toStrictEqual(value);
+        },
+      });
+    }
   }
   if (p.errors) {
     for (const { call, answer } of p.errors) {

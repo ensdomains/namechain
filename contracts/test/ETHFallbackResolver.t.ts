@@ -5,6 +5,7 @@ import {
 } from "@nomicfoundation/hardhat-toolbox-viem/network-helpers.js";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
 import {
+  concat,
   encodeErrorResult,
   encodeFunctionData,
   keccak256,
@@ -25,6 +26,7 @@ import { serve } from "@namestone/ezccip/serve";
 import { BrowserProvider } from "ethers/providers";
 import {
   type KnownProfile,
+  type KnownResolution,
   bundleCalls,
   makeResolutions,
   COIN_TYPE_ETH,
@@ -39,7 +41,7 @@ async function fixture() {
     new UncheckedRollup(new BrowserProvider(hre.network.provider)),
   );
   gateway.disableCache();
-  const ccip = await serve(gateway, { protocol: "raw", log: false });
+  const ccip = await serve(gateway, { protocol: "raw", log: false }); // enable to see gateway calls
   after(ccip.shutdown);
   const GatewayVM = await deployArtifact({
     file: urgArtifact("GatewayVM"),
@@ -314,12 +316,24 @@ describe("ETHFallbackResolver", () => {
         },
       ],
       texts: [{ key: "url", value: "https://ens.domains" }],
-      contenthash: { value: "0xabcdef" },
+      contenthash: { value: concat([keccak256("0x1"), "0x01"]) },
       pubkey: {
-        x: keccak256("0x1"),
-        y: keccak256("0x2"),
+        x: keccak256("0x2"),
+        y: keccak256("0x3"),
       },
       primary: { value: "test.eth" },
+      abis: [
+        {
+          contentType: 8n,
+          value: concat([keccak256("0x4"), "0x01"]),
+        },
+      ],
+      interfaces: [
+        {
+          selector: dummySelector,
+          value: testAddress,
+        },
+      ],
     };
     const errors: KnownProfile["errors"] = [
       {
@@ -371,6 +385,38 @@ describe("ETHFallbackResolver", () => {
         res.expect(answer);
       });
     }
+    it("multiple ABI contentTypes", async () => {
+      const kp: KnownProfile = {
+        name: "test.eth",
+        abis: [
+          { contentType: 0n, value: "0x" },
+          { contentType: 1n, value: "0x11" },
+          { contentType: 8n, value: "0x8888" },
+        ],
+      };
+      const F = await loadFixture(fixture);
+      await F.namechain.setupName(kp);
+      const [nul, ty1, ty8] = makeResolutions(kp);
+      await F.namechain.ownedResolver.write.multicall([[ty1.write, ty8.write]]);
+      await check(1n, ty1);
+      await check(8n, ty8);
+      await check(1n | 8n, ty1);
+      await check(4n | 8n, ty8);
+      await check(1n << 1n, nul);
+      await check(1n << 255n, nul);
+      async function check(contentType: bigint, res: KnownResolution) {
+        const [answer] = await F.mainnetV2.universalResolver.read.resolve([
+          dnsEncodeName(kp.name),
+          encodeFunctionData({
+            abi: F.namechain.ownedResolver.abi,
+            functionName: "ABI",
+            args: [namehash(kp.name), contentType],
+          }),
+        ]);
+        res.desc = `ABI(${contentType})`;
+        res.expect(answer);
+      }
+    });
     it(`multicall()`, async () => {
       const F = await loadFixture(fixture);
       await F.namechain.setupName(kp);
