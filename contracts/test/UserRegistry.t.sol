@@ -3,8 +3,8 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
-import {VerifiableFactory} from "verifiable-factory/VerifiableFactory.sol";
-import {UUPSProxy} from "verifiable-factory/UUPSProxy.sol";
+import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
+import {UUPSProxy} from "@ensdomains/verifiable-factory/UUPSProxy.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {UserRegistry} from "../src/L2/UserRegistry.sol";

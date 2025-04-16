@@ -144,7 +144,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         return !ethRegistrarV1.available(id) && ethRegistrarV1.ownerOf(id) != burnAddressV1;
     }
 
-    /// @inheritdoc IExtendedResolver
+    /// @notice Resolve `name` using Namechain, Mainnet V2, or Mainnet V1 depending on migration and ejection status.
     /// @notice Callers should enable EIP-3668.
     /// @dev This function executes over multiple steps (step 1 of 2).
     ///
