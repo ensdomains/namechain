@@ -30,6 +30,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     IBaseRegistrar public immutable ethRegistrarV1;
     IUniversalResolver public immutable universalResolverV1;
     address public immutable burnAddressV1;
+    address public ethResolver;
     IGatewayVerifier public namechainVerifier;
     address public immutable namechainDatastore;
     address public immutable namechainEthRegistry;
@@ -72,6 +73,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         IBaseRegistrar _ethRegistrarV1,
         IUniversalResolver _universalResolverV1,
         address _burnAddressV1,
+        address _ethResolver,
         IGatewayVerifier _namechainVerifier,
         address _namechainDatastore,
         address _namechainEthRegistry
@@ -79,6 +81,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         ethRegistrarV1 = _ethRegistrarV1;
         universalResolverV1 = _universalResolverV1;
         burnAddressV1 = _burnAddressV1;
+        ethResolver = _ethResolver;
         namechainVerifier = _namechainVerifier;
         namechainDatastore = _namechainDatastore;
         namechainEthRegistry = _namechainEthRegistry;
@@ -93,6 +96,12 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     /// @param verifier The new verifier address.
     function setNamechainVerifier(IGatewayVerifier verifier) external onlyOwner {
         namechainVerifier = verifier;
+    }
+
+    /// @dev Set the resolver for "eth".
+    /// @param resolver tThe new resolver address.
+    function setETHResolver(address resolver) external onlyOwner {
+        ethResolver = resolver;
     }
 
     /// @dev Count the number of labels before "eth".
@@ -186,8 +195,12 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     /// ````
     function resolve(bytes memory name, bytes calldata data) external view returns (bytes memory) {
         (bytes32 node, uint256 labelCount, uint256 offset) = _countLabels(name);
+        if (labelCount == 0) {
+            (, bytes memory v) = ethResolver.staticcall(data);
+            return v;
+        }
         (bytes32 labelHash,) = NameCoder.readLabel(name, offset);
-        if (labelCount == 0 || _isActiveRegistrationV1(uint256(labelHash))) {
+        if (_isActiveRegistrationV1(uint256(labelHash))) {
             ccipRead(
                 address(universalResolverV1),
                 abi.encodeCall(IUniversalResolver.resolve, (name, data)),
@@ -242,7 +255,9 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
                 req.readBytes();
             } else if (selector == ITextResolver.text.selector) {
                 (, string memory key) = abi.decode(BytesUtils.substring(v, 4, v.length - 4), (bytes32, string));
-                //bytes memory key = _readEncodedBytes(v, 4, uint256(BytesUtils.readBytes32(v, 36)));
+                // uint256 jump = 4 + uint256(BytesUtils.readBytes32(v, 36));
+                // uint256 size = uint256(BytesUtils.readBytes32(v, jump));
+                // bytes memory key = BytesUtils.substring(v, jump + 32, size);
                 req.setSlot(SLOT_PR_TEXTS);
                 req.dup2().follow().follow().push(key).follow(); // versionable_texts[version][node][key]
                 req.readBytes();
@@ -258,6 +273,11 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
                 req.setSlot(SLOT_PR_PUBKEYS);
                 req.dup2().follow().follow(); // versionable_pubkeys[version][node]
                 req.read(2);
+            } else if (selector == IInterfaceResolver.interfaceImplementer.selector) {
+                bytes4 interfaceID = bytes4(BytesUtils.readBytes32(v, 36));
+                req.setSlot(SLOT_PR_INTERFACES);
+                req.dup2().follow().follow().push(interfaceID).follow(); // versionable_interfaces[version][node][interfaceID]
+                req.read();
             } else if (selector == IABIResolver.ABI.selector) {
                 req.setSlot(SLOT_PR_ABIS);
                 req.dup2().follow().follow(); // versionable_abis[version][node]
@@ -279,11 +299,6 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
                 }
                 req.evalLoop(EvalFlag.STOP_ON_SUCCESS, count);
                 continue;
-            } else if (selector == IInterfaceResolver.interfaceImplementer.selector) {
-                bytes4 interfaceID = bytes4(BytesUtils.readBytes32(v, 36));
-                req.setSlot(SLOT_PR_INTERFACES);
-                req.dup2().follow().follow().push(interfaceID).follow(); // versionable_interfaces[version][node][interfaceID]
-                req.read();
             } else if (selector == IVersionableResolver.recordVersions.selector) {
                 req.dup(); // recordVersions[node]
             } else if (multi) {
@@ -344,9 +359,10 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         if (bytes4(data) == UnsupportedResolverProfile.selector) {
             return data;
         } else if (
-            bytes4(data) == IAddrResolver.addr.selector || bytes4(data) == IPubkeyResolver.pubkey.selector
-                || bytes4(data) == IVersionableResolver.recordVersions.selector
+            bytes4(data) == IAddrResolver.addr.selector
                 || bytes4(data) == IInterfaceResolver.interfaceImplementer.selector
+                || bytes4(data) == IVersionableResolver.recordVersions.selector
+                || bytes4(data) == IPubkeyResolver.pubkey.selector
         ) {
             return value;
         } else if (bytes4(data) == IABIResolver.ABI.selector) {
@@ -364,13 +380,4 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
             return abi.encode(value);
         }
     }
-
-    // function _readEncodedBytes(bytes memory encoded, uint256 start, uint256 offset)
-    //     internal
-    //     pure
-    //     returns (bytes memory decoded)
-    // {
-    //     uint256 size = uint256(BytesUtils.readBytes32(encoded, start + offset));
-    //     decoded = BytesUtils.substring(encoded, start + offset + 32, size);
-    // }
 }

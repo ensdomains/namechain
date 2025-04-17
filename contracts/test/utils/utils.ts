@@ -1,4 +1,4 @@
-import { labelhash, namehash } from "viem";
+// import { labelhash, namehash } from "viem";
 
 export {
   dnsEncodeName,
@@ -28,15 +28,22 @@ export {
 //   return BigInt(namehash(name));
 // };
 
+//      "" => []
+// "a.b.c" => ["a", "b", "c"]
 export function splitName(name: string): string[] {
   return name ? name.split(".") : [];
 }
 
+//      "" => ""
+// "a.b.c" => "b.c"
 export function getParentName(name: string) {
   const i = name.indexOf(".");
   return i == -1 ? "" : name.slice(i + 1);
 }
 
+// "a.b.c"  0 => "a"
+//         -1 => "c"
+//          5 => ""
 export function getLabelAt(name: string, index: number) {
   return splitName(name).at(index) ?? "";
 }

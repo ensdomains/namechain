@@ -16,6 +16,7 @@ contract MockETHFallbackResolver is ETHFallbackResolver {
             IBaseRegistrar(address(0)),
             IUniversalResolver(address(0)),
             address(0),
+            address(0),
             IGatewayVerifier(address(0)),
             address(0),
             address(0)

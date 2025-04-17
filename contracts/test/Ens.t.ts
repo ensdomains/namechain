@@ -55,7 +55,7 @@ describe("Ens", () => {
     const F = await loadFixture(deployV2Fixture);
     const { parentRegistry, tokenId } = await F.setupName({
       name: "locked.test.eth",
-      roles: ROLES.ALL & ~ROLES.OWNER.SET_RESOLVER,
+      roles: ROLES.ALL & ~ROLES.OWNER.EAC.SET_RESOLVER,
     });
     await parentRegistry.write.setSubregistry([tokenId, testAddress]);
     await expect(parentRegistry)
@@ -67,7 +67,7 @@ describe("Ens", () => {
     const F = await loadFixture(deployV2Fixture);
     const { parentRegistry, tokenId } = await F.setupName({
       name: "locked.test.eth",
-      roles: ROLES.ALL & ~ROLES.OWNER.SET_SUBREGISTRY,
+      roles: ROLES.ALL & ~ROLES.OWNER.EAC.SET_SUBREGISTRY,
     });
     await parentRegistry.write.setResolver([tokenId, testAddress]);
     await expect(parentRegistry)
