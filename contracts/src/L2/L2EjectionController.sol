@@ -14,35 +14,15 @@ import {IRegistry} from "../common/IRegistry.sol";
  */
 contract L2EjectionController is IL2EjectionController {
     error NotTokenOwner(uint256 tokenId);
+    event NameRenewed(uint256 indexed tokenId, uint64 expires, address renewedBy);
+
     event NameEjectedToL1(uint256 indexed tokenId, address l1Owner, address l1Subregistry, address l1Resolver, uint64 expiry);
     event NameMigratedToL2(uint256 indexed tokenId, address l2Owner, address l2Subregistry, address l2Resolver);
-    event NameRenewed(uint256 indexed tokenId, uint64 expires, address renewedBy);
 
     IStandardRegistry public immutable registry;
 
     constructor(IStandardRegistry _registry) {
         registry = _registry;
-    }
-
-    /**
-     * @dev Called by the L2 eth registry when a user ejects a name to L1.
-     *
-     * @param tokenId The token ID of the name being ejected
-     * @param l1Owner The address that will own the name on L1
-     * @param l1Subregistry The subregistry address to use on L1
-     * @param l1Resolver The resolver address to use on L1
-     */
-    function ejectToL1(uint256 tokenId, address l1Owner, address l1Subregistry, address l1Resolver) external {
-        if (registry.ownerOf(tokenId) != address(this)) {
-            revert NotTokenOwner(tokenId);
-        }
-
-        uint64 expiry = registry.getExpiry(tokenId);
-
-        registry.setSubregistry(tokenId, IRegistry(address(0)));
-
-        // bridge will listen for this event        
-        emit NameEjectedToL1(tokenId, l1Owner, l1Subregistry, l1Resolver, expiry);
     }
 
     /**
@@ -53,12 +33,12 @@ contract L2EjectionController is IL2EjectionController {
      * @param l2Subregistry The subregistry address to use on L2
      * @param l2Resolver The resolver address to use on L2
      */
-    function completeMigrationToL2(
+    function completeMigrationFromL1(
         uint256 tokenId,
         address l2Owner,
         address l2Subregistry,
         address l2Resolver
-    ) external {
+    ) external virtual override {
         if (registry.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
         }
@@ -80,14 +60,18 @@ contract L2EjectionController is IL2EjectionController {
     /**
      * Implements ERC1155Receiver.onERC1155Received
      */
-    function onERC1155Received(address, address, uint256, uint256, bytes calldata) external pure returns (bytes4) {
+    function onERC1155Received(address /*operator*/, address /*from*/, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external returns (bytes4) {
+        _onEjectToL1(tokenId, data);
         return this.onERC1155Received.selector;
     }
 
     /**
      * Implements ERC1155Receiver.onERC1155BatchReceived
      */
-    function onERC1155BatchReceived(address, address, uint256[] memory, uint256[] memory, bytes calldata) external pure returns (bytes4) {
+    function onERC1155BatchReceived(address /*operator*/, address /*from*/, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external returns (bytes4) {
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            _onEjectToL1(tokenIds[i], data);
+        }
         return this.onERC1155BatchReceived.selector;
     }
 
@@ -106,5 +90,22 @@ contract L2EjectionController is IL2EjectionController {
      */
     function onRelinquish(uint256 tokenId, address relinquishedBy) external {
         // nothing to do here since a user can't relinquish an ejected name
+    }
+
+    // Internal functions
+
+    function _onEjectToL1(uint256 tokenId, bytes memory data) internal {
+        (address l1Owner, address l1Subregistry, address l1Resolver) = abi.decode(data, (address, address, address));
+
+        if (registry.ownerOf(tokenId) != address(this)) {
+            revert NotTokenOwner(tokenId);
+        }
+
+        uint64 expiry = registry.getExpiry(tokenId);
+
+        registry.setSubregistry(tokenId, IRegistry(address(0)));
+
+        // bridge will listen for this event        
+        emit NameEjectedToL1(tokenId, l1Owner, l1Subregistry, l1Resolver, expiry);
     }
 }

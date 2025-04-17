@@ -11,32 +11,18 @@ import {IRegistryMetadata} from "../common/IRegistryMetadata.sol";
 import {IStandardRegistry} from "../common/IStandardRegistry.sol";
 import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
 import {PermissionedRegistry} from "../common/PermissionedRegistry.sol";
-import {EjectionControllerMixin} from "../common/EjectionControllerMixin.sol";
+import {ETHRegistry} from "../common/ETHRegistry.sol";
 
 /**
  * @title L2ETHRegistry
  * @dev L2 contract for .eth that holds .eth names.
  */
-contract L2ETHRegistry is PermissionedRegistry, EjectionControllerMixin {
+contract L2ETHRegistry is ETHRegistry {
     error NameNotExpired(uint256 tokenId, uint64 expires);
 
-    event NameEjected(uint256 indexed tokenId, address owner, uint64 expires);
-    event NameMigratedToL2(uint256 indexed tokenId, address sendTo);
+    event NameEjectedToL1(uint256 indexed tokenId, address l1Owner, address l1Subregistry, address l1Resolver);
 
-    IL2EjectionController public ejectionController;
-
-    constructor(IRegistryDatastore _datastore, IL2EjectionController _ejectionController, IRegistryMetadata _registryMetadata) PermissionedRegistry(_datastore, _registryMetadata, ALL_ROLES) {
-        _setEjectionController(_ejectionController);
-    }
-
-    /**
-     * @dev Set a new ejection controller
-     * @param _newEjectionController The address of the new controller
-     */
-    function setEjectionController(IL2EjectionController _newEjectionController) external onlyRoles(ROOT_RESOURCE, ROLE_SET_EJECTION_CONTROLLER) {
-        address oldController = address(ejectionController);
-        _setEjectionController(_newEjectionController);
-        emit EjectionControllerChanged(oldController, address(_newEjectionController));
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _registryMetadata, address _ejectionController) ETHRegistry(_datastore, _registryMetadata, _ejectionController) {
     }
 
     /**
@@ -50,17 +36,8 @@ contract L2ETHRegistry is PermissionedRegistry, EjectionControllerMixin {
         public
         onlyTokenOwner(tokenId)
     {
-        setTokenObserver(tokenId, ejectionController);
-        _safeTransferFrom(msg.sender, address(ejectionController), tokenId, 1, "");
-        IL2EjectionController(ejectionController).ejectToL1(tokenId, l1Owner, l1Subregistry, l1Resolver);
+        setTokenObserver(tokenId, IL2EjectionController(address(ejectionController)));
+        _safeTransferFrom(msg.sender, address(ejectionController), tokenId, 1, abi.encode(l1Owner, l1Subregistry, l1Resolver));
+        emit NameEjectedToL1(tokenId, l1Owner, l1Subregistry, l1Resolver);
     }
-
-    // Internal functions
-
-    function _setEjectionController(IL2EjectionController _newEjectionController) internal {
-        if (address(_newEjectionController) == address(0)) {
-            revert InvalidEjectionController();
-        }
-        ejectionController = _newEjectionController;
-    }    
 }
