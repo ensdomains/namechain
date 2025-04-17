@@ -62,6 +62,7 @@ export async function setupCrossChainEnvironment() {
     file: 'L1ETHRegistry', 
     args: [
       await l1Datastore.getAddress(),
+      "0x000000000000000000000000000000000000beef",
       await l1Metadata.getAddress()
     ]
   });
@@ -114,18 +115,9 @@ export async function setupCrossChainEnvironment() {
   await L1.confirm(l1Bridge.setTargetController(await l1Controller.getAddress()));
   await L2.confirm(l2Bridge.setTargetController(await l2Controller.getAddress()));
   
-  // Grant necessary roles to controllers
-  // Grant REGISTRAR_ROLE to the l1Controller on L1ETHRegistry
-  await L1.confirm(l1Registry.grantRole(
-    await l2Registry.REGISTRAR_ROLE(),
-    await l1Controller.getAddress()
-  ));
 
-  // Grant REGISTRAR_ROLE to the l2Controller on ETHRegistry
-  await L2.confirm(l2Registry.grantRole(
-    await l2Registry.REGISTRAR_ROLE(),
-    await l2Controller.getAddress()
-  ));
+  await L1.confirm(l1Registry.setEjectionController(await l1Controller.getAddress()));
+  // await L1.confirm(l2Registry.setEjectionController(await l2Controller.getAddress())); when ready
   
   console.log('Cross-chain environment setup complete!');
   

@@ -21,11 +21,6 @@ contract MockL1EjectionController is IL1EjectionController {
     event NameMigrated(uint256 tokenId, address l2Owner, address l2Subregistry);
     event RenewalSynced(uint256 tokenId, uint64 newExpiry);
     
-    // Mapping of names to tokenIds for lookups
-    mapping(string => uint256) private nameToTokenId;
-    // Mapping of tokenIds to names for lookups
-    mapping(uint256 => string) private tokenIdToName;
-    
     constructor(address _registry, address _helper, address _bridge) {
         registry = L1ETHRegistry(_registry);
         bridgeHelper = _helper;
@@ -34,7 +29,6 @@ contract MockL1EjectionController is IL1EjectionController {
     
     /**
      * @dev Implements IL1EjectionController.migrateToNamechain
-     * Handles migration of a name from L1 to L2
      */
     function migrateToNamechain(
         uint256 tokenId, 
@@ -42,13 +36,10 @@ contract MockL1EjectionController is IL1EjectionController {
         address l2Subregistry, 
         bytes memory data
     ) external override {
-        // Get name from tokenId for message encoding
-        string memory name = tokenIdToName[tokenId];
+        // Get the name directly from the parameters
+        string memory name = abi.decode(data, (string));
         
-        // If name is not found, we can't continue
-        require(bytes(name).length > 0, "Name not found for tokenId");
-        
-        // Encode migration message
+        // Create and send migration message
         bytes memory message = MockBridgeHelper(bridgeHelper).encodeMigrationMessage(
             name,
             l2Owner,
@@ -63,7 +54,6 @@ contract MockL1EjectionController is IL1EjectionController {
     
     /**
      * @dev Implements IL1EjectionController.completeEjection
-     * Called by cross-chain messaging system when a name is ejected from L2
      */
     function completeEjection(
         uint256 labelHash,
@@ -86,7 +76,6 @@ contract MockL1EjectionController is IL1EjectionController {
     
     /**
      * @dev Implements IL1EjectionController.syncRenewalFromL2
-     * Updates expiration date on L1 when a renewal happens on L2
      */
     function syncRenewalFromL2(uint256 tokenId, uint64 newExpiry) external override {
         // Update expiration on L1
@@ -102,10 +91,6 @@ contract MockL1EjectionController is IL1EjectionController {
     function requestMigration(string calldata name, address l2Owner, address l2Subregistry) external {
         // Calculate tokenId from name
         uint256 tokenId = uint256(keccak256(abi.encodePacked(name)));
-        
-        // Store for future lookups in both directions
-        nameToTokenId[name] = tokenId;
-        tokenIdToName[tokenId] = name;
         
         // Create and send migration message
         bytes memory message = MockBridgeHelper(bridgeHelper).encodeMigrationMessage(

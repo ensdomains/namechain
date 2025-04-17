@@ -70,7 +70,7 @@ contract MockL2Bridge {
                     labelHash,
                     l2Owner,
                     l2Subregistry,
-                    "" // data (not used in our simple implementation)
+                    abi.encode(name)
                 );
             } catch Error(string memory reason) {
                 // Handle known errors

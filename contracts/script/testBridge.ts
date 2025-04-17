@@ -64,12 +64,12 @@ async function testNameMigration(env, relayer) {
     console.log('Waiting for the relayer to process the event...');
     await setTimeout(3000);
 
-    // Check for NewSubname events on L2
-    const filter = env.l2.registry.filters.NewSubname();
+    // Check for NameMigrated events on L2
+    const filter = env.l2.registry.filters.NameMigrated();
     const events = await env.l2.registry.queryFilter(filter);
 
     if (events.length === 0) {
-      console.log('No NewSubname event found, performing manual relay');
+      console.log('No NameMigrated event found, performing manual relay');
 
       // Get the migration message
       const message = await env.l1.bridgeHelper.encodeMigrationMessage(
@@ -142,11 +142,11 @@ async function testNameEjection(env, relayer) {
     await setTimeout(3000);
 
     // Check if the name is registered on L1
-    const filter = env.l1.registry.filters.NewSubname();
+    const filter = env.l1.registry.filters.NameEjected();
     const events = await env.l1.registry.queryFilter(filter);
 
     if (events.length === 0) {
-      console.log('No NewSubname event found on L1, performing manual relay');
+      console.log('No NameEjected event found on L1, performing manual relay');
 
       // Get the ejection message
       const message = await env.l2.bridgeHelper.encodeEjectionMessage(
@@ -161,7 +161,7 @@ async function testNameEjection(env, relayer) {
       console.log(`Manual relay completed, tx hash: ${relayTx}`);
     } else {
       console.log(
-        'Name registration event found on L1, automatic relay worked'
+        'Name ejection event found on L1, automatic relay worked'
       );
     }
 
@@ -169,9 +169,9 @@ async function testNameEjection(env, relayer) {
     console.log('Verifying registration on L1...');
     await setTimeout(1000);
 
-    const newSubnameFilter = env.l1.registry.filters.NewSubname();
+    const nameEjectedFilter = env.l1.registry.filters.NameEjected();
     const registrationEvents = await env.l1.registry.queryFilter(
-      newSubnameFilter
+      nameEjectedFilter
     );
 
     if (registrationEvents.length > 0) {
@@ -216,19 +216,26 @@ async function testRoundTrip(env, relayer) {
     // Wait for automatic relay or do manual relay
     await setTimeout(3000);
 
-    // Relay the migration message
-    const migrationMsg = await env.l1.bridgeHelper.encodeMigrationMessage(
-      name,
-      l2Owner,
-      l2Subregistry
-    );
+    // Check for NameMigrated events on L2
+    const filter = env.l2.registry.filters.NameMigrated();
+    const events = await env.l2.registry.queryFilter(filter);
 
-    try {
-      await relayer.manualRelay(true, migrationMsg);
-      console.log('Manual L1->L2 relay completed');
-    } catch (error) {
+    if (events.length === 0) {
+      console.log('No NameMigrated event found, performing manual relay');
+
+      // Get the migration message
+      const message = await env.l1.bridgeHelper.encodeMigrationMessage(
+        name,
+        l2Owner,
+        l2Subregistry
+      );
+
+      // Manually relay the message
+      const relayTx = await relayer.manualRelay(true, message); // true = L1->L2
+      console.log(`Manual L1->L2 relay completed, tx hash: ${relayTx}`);
+    } else {
       console.log(
-        'Manual relay failed, might have already been relayed automatically'
+        'Name registration event found on L2, automatic relay worked'
       );
     }
 
@@ -241,6 +248,30 @@ async function testRoundTrip(env, relayer) {
 
     // Wait for automatic relay or do manual relay
     await setTimeout(3000);
+
+    // Check if the name is registered on L1
+    const filterEjected = env.l1.registry.filters.NameEjected();
+    const eventsEjected = await env.l1.registry.queryFilter(filterEjected);
+
+    if (eventsEjected.length === 0) {
+      console.log('No NameEjected event found on L1, performing manual relay');
+
+      // Get the ejection message
+      const message = await env.l2.bridgeHelper.encodeEjectionMessage(
+        name,
+        l1Owner,
+        l1Subregistry,
+        expiry
+      );
+
+      // Manually relay the message
+      const relayTx = await relayer.manualRelay(false, message); // false = L2->L1
+      console.log(`Manual relay completed, tx hash: ${relayTx}`);
+    } else {
+      console.log(
+        'Name ejection event found on L1, automatic relay worked'
+      );
+    }
 
     // Manual relay if needed
     const ejectionMsg = await env.l2.bridgeHelper.encodeEjectionMessage(
