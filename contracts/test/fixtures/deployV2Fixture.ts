@@ -33,17 +33,17 @@ const FLAGS = {
   },
   MASK: (1n << 128n) - 1n,
 } as const satisfies Flags;
-function deepShift(flags: Flags): Flags {
+function mapFlags(flags: Flags, fn: (x: bigint) => bigint): Flags {
   return Object.fromEntries(
     Object.entries(flags).map(([k, x]) => [
       k,
-      typeof x === "bigint" ? x << 128n : deepShift(x),
+      typeof x === "bigint" ? fn(x) : mapFlags(x, fn),
     ]),
   );
 }
 export const ROLES = {
   OWNER: FLAGS,
-  ADMIN: deepShift(FLAGS),
+  ADMIN: mapFlags(FLAGS, (x) => x << 128n),
   ALL: (1n << 256n) - 1n, // see: EnhancedAccessControl.sol
 } as const;
 
@@ -52,7 +52,7 @@ export async function deployV2Fixture(enableCcipRead = false) {
     ccipRead: enableCcipRead ? undefined : false,
   });
   const [walletClient] = await hre.viem.getWalletClients();
-  const datastore = await hre.viem.deployContract("RegistryDatastore", []);
+  const datastore = await hre.viem.deployContract("RegistryDatastore");
   const rootRegistry = await hre.viem.deployContract("PermissionedRegistry", [
     datastore.address,
     zeroAddress,
@@ -200,9 +200,10 @@ export async function deployV2Fixture(enableCcipRead = false) {
         }
       }
       if (leaf) {
-        // registries.length == labels.length - (exact ? 0 : 1)
-        // parentRegistry == registries.at(exact ? -2 : -1)
-        // tokenId = canonical(labelhash(labels.at(-1)))
+        // invariants:
+        //  registries.length == labels.length - (exact ? 0 : 1)
+        //     parentRegistry == registries.at(exact ? -2 : -1)
+        //            tokenId == canonical(labelhash(labels.at(-1)))
         return { registries, labels, tokenId, parentRegistry };
       }
     }

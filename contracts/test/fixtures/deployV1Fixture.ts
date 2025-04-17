@@ -32,7 +32,7 @@ export async function deployV1Fixture(enableCcipRead = false) {
     "@ens/contracts/universalResolver/IUniversalResolver.sol:IUniversalResolver",
     await deployArtifact({
       file: ensArtifact("UniversalResolver"),
-      args: [ensRegistry.address, ['x-batch-gateway:true']],
+      args: [ensRegistry.address, ["x-batch-gateway:true"]],
     }),
     {
       client: { public: publicClient },
@@ -56,6 +56,8 @@ export async function deployV1Fixture(enableCcipRead = false) {
     universalResolver,
     setupName,
   };
+  // clobbers registry ownership up to name
+  // except for "eth" (since registrar is known)
   async function setupName(name: string) {
     const labels = splitName(name);
     let i = labels.length;
@@ -75,10 +77,11 @@ export async function deployV1Fixture(enableCcipRead = false) {
         walletClient.account.address,
       ]);
     }
+    // set resolver on leaf
     await ensRegistry.write.setResolver([
       namehash(name),
       ownedResolver.address,
     ]);
-	return { labels };
+    return { labels };
   }
 }
