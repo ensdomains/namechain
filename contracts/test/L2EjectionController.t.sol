@@ -7,7 +7,6 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
 import "../src/L2/L2EjectionController.sol";
-import "../src/L2/IL2EjectionController.sol"; // Import interface
 import "../src/L2/L2ETHRegistry.sol"; // Use the actual L2 registry
 import "../src/common/IStandardRegistry.sol";
 import "../src/common/IRegistry.sol";
@@ -175,7 +174,6 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     }
 
     function test_supportsInterface() public view {
-        assertTrue(controller.supportsInterface(type(IL2EjectionController).interfaceId));
         assertTrue(controller.supportsInterface(type(ITokenObserver).interfaceId));
         assertTrue(controller.supportsInterface(type(IERC1155Receiver).interfaceId));
         assertFalse(controller.supportsInterface(0x12345678));

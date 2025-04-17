@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IL2EjectionController} from "./IL2EjectionController.sol";
 import {IStandardRegistry} from "../common/IStandardRegistry.sol";
 import {ITokenObserver} from "../common/ITokenObserver.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IRegistry} from "../common/IRegistry.sol";
+import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 /**
  * @title L2EjectionController
  * @dev L2 contract for ejection controller that facilitates migrations of names
  * between L1 and L2, as well as handling renewals.
  */
-contract L2EjectionController is IL2EjectionController {
+contract L2EjectionController is ITokenObserver, IERC1155Receiver {
     error NotTokenOwner(uint256 tokenId);
     event NameRenewed(uint256 indexed tokenId, uint64 expires, address renewedBy);
 
@@ -38,7 +38,7 @@ contract L2EjectionController is IL2EjectionController {
         address l2Owner,
         address l2Subregistry,
         address l2Resolver
-    ) external virtual override {
+    ) external virtual {
         if (registry.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
         }
@@ -54,7 +54,7 @@ contract L2EjectionController is IL2EjectionController {
      * Implements ERC165.supportsInterface
      */
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return interfaceId == type(IL2EjectionController).interfaceId || interfaceId == type(ITokenObserver).interfaceId || interfaceId == type(IERC1155Receiver).interfaceId;
+        return interfaceId == type(ITokenObserver).interfaceId || interfaceId == type(IERC1155Receiver).interfaceId;
     }
 
     /**

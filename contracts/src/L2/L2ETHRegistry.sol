@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IL2EjectionController} from "./IL2EjectionController.sol";
+import {ITokenObserver} from "../common/ITokenObserver.sol";
 import {ERC1155Singleton} from "../common/ERC1155Singleton.sol";
 import {IERC1155Singleton} from "../common/IERC1155Singleton.sol";
 import {IRegistry} from "../common/IRegistry.sol";
@@ -36,7 +36,7 @@ contract L2ETHRegistry is ETHRegistry {
         public
         onlyTokenOwner(tokenId)
     {
-        setTokenObserver(tokenId, IL2EjectionController(address(ejectionController)));
+        setTokenObserver(tokenId, ITokenObserver(ejectionController));
         _safeTransferFrom(msg.sender, address(ejectionController), tokenId, 1, abi.encode(l1Owner, l1Subregistry, l1Resolver));
         emit NameEjectedToL1(tokenId, l1Owner, l1Subregistry, l1Resolver);
     }
