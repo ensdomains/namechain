@@ -1,5 +1,7 @@
 // import { labelhash, namehash } from "viem";
 
+export { expectVar } from "../../lib/ens-contracts/test/fixtures/expectVar.js";
+
 export {
   dnsEncodeName,
   packetToBytes,

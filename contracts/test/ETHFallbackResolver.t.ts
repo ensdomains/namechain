@@ -21,7 +21,7 @@ import { deployArtifact } from "./fixtures/deployArtifact.js";
 import { urgArtifact } from "./fixtures/externalArtifacts.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
-import { dnsEncodeName, getLabelAt } from "./utils/utils.js";
+import { dnsEncodeName, expectVar, getLabelAt } from "./utils/utils.js";
 import { serve } from "@namestone/ezccip/serve";
 import { BrowserProvider } from "ethers/providers";
 import {
@@ -84,6 +84,7 @@ async function fixture() {
 
 const dummySelector = "0x12345678";
 const testAddress = "0x8000000000000000000000000000000000000001";
+const testNames = ["test.eth", "a.b.c.test.eth"];
 
 describe("ETHFallbackResolver", () => {
   shouldSupportInterfaces({
@@ -95,19 +96,14 @@ describe("ETHFallbackResolver", () => {
     const F = await loadFixture(fixture);
     const kp: KnownProfile = {
       name: "eth",
-      addresses: [
-        {
-          coinType: COIN_TYPE_ETH,
-          value: F.mainnetV1.ethRegistrar.address,
-        },
-      ],
+      addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
     };
     const [res] = makeResolutions(kp);
     await F.ethResolver.write.multicall([[res.write]]);
     const [answer, resolver] = await F.mainnetV2.universalResolver.read.resolve(
       [dnsEncodeName(kp.name), res.call],
     );
-    expect(resolver).toEqualAddress(F.ethFallbackResolver.address);
+    expectVar({ resolver }).toEqualAddress(F.ethFallbackResolver.address);
     res.expect(answer);
   });
 
@@ -139,8 +135,8 @@ describe("ETHFallbackResolver", () => {
     }
   });
 
-  describe("registered on V1", () => {
-    for (const name of ["boomer.eth", "a.b.c.boomer.eth"]) {
+  describe("still registered on V1", () => {
+    for (const name of testNames) {
       it(name, async () => {
         const F = await loadFixture(fixture);
         const kp: KnownProfile = {
@@ -149,24 +145,23 @@ describe("ETHFallbackResolver", () => {
         };
         const [res] = makeResolutions(kp);
         await F.mainnetV1.setupName(kp.name);
-        // await F.mainnetV1.ownedResolver.write.multicall([res.write]);
         await F.mainnetV1.walletClient.sendTransaction({
           to: F.mainnetV1.ownedResolver.address,
-          data: res.write,
+          data: res.write, // V1 OwnedResolver lacks multicall()
         });
         const [answer, resolver] =
           await F.mainnetV2.universalResolver.read.resolve([
             dnsEncodeName(kp.name),
             res.call,
           ]);
-        expect(resolver).toEqualAddress(F.ethFallbackResolver.address);
+        expectVar({ resolver }).toEqualAddress(F.ethFallbackResolver.address);
         res.expect(answer);
       });
     }
   });
 
   describe("migrated from V1", () => {
-    for (const name of [`migrated.eth`, `a.b.c.migrated.eth`]) {
+    for (const name of testNames) {
       it(name, async () => {
         const F = await loadFixture(fixture);
         const kp: KnownProfile = {
@@ -184,7 +179,7 @@ describe("ETHFallbackResolver", () => {
         const available = await F.mainnetV1.ethRegistrar.read.available([
           tokenId,
         ]);
-        expect(available).toStrictEqual(false);
+        expectVar({ available }).toStrictEqual(false);
         await F.namechain.setupName(kp);
         await F.namechain.ownedResolver.write.multicall([[res.write]]);
         const [answer, resolver] =
@@ -192,14 +187,14 @@ describe("ETHFallbackResolver", () => {
             dnsEncodeName(kp.name),
             res.call,
           ]);
-        expect(resolver).toEqualAddress(F.ethFallbackResolver.address);
+        expectVar({ resolver }).toEqualAddress(F.ethFallbackResolver.address);
         res.expect(answer);
       });
     }
   });
 
-  describe("registered on mainnet", () => {
-    for (const name of ["test.eth", "a.b.c.test.eth"]) {
+  describe("ejected from Namechain", () => {
+    for (const name of testNames) {
       it(name, async () => {
         const F = await loadFixture(fixture);
         const kp: KnownProfile = {
@@ -214,14 +209,16 @@ describe("ETHFallbackResolver", () => {
             dnsEncodeName(kp.name),
             res.call,
           ]);
-        expect(resolver).toEqualAddress(F.mainnetV2.ownedResolver.address);
+        expectVar({ resolver }).toEqualAddress(
+          F.mainnetV2.ownedResolver.address,
+        );
         res.expect(answer);
       });
     }
   });
 
-  describe("registered on namechain", () => {
-    ethResolver: for (const name of ["test.eth", "a.b.c.test.eth"]) {
+  describe("registered on Namechain", () => {
+    for (const name of testNames) {
       it(name, async () => {
         const F = await loadFixture(fixture);
         const kp: KnownProfile = {
@@ -236,14 +233,14 @@ describe("ETHFallbackResolver", () => {
             dnsEncodeName(kp.name),
             res.call,
           ]);
-        expect(resolver).toEqualAddress(F.ethFallbackResolver.address);
+        expectVar({ resolver }).toEqualAddress(F.ethFallbackResolver.address);
         res.expect(answer);
       });
     }
   });
 
   describe("expired", () => {
-    for (const name of ["test.eth", "a.b.c.test.eth"]) {
+    for (const name of testNames) {
       it(name, async () => {
         const F = await loadFixture(fixture);
         const kp: KnownProfile = {
@@ -273,12 +270,12 @@ describe("ETHFallbackResolver", () => {
 
   describe("profile support", () => {
     const kp: KnownProfile = {
-      name: "test.eth",
-      primary: { value: "test.eth" },
+      name: testNames[0],
+      primary: { value: testNames[0] },
       addresses: [
         { coinType: COIN_TYPE_ETH, value: testAddress },
         { coinType: 1n | EVM_BIT, value: testAddress },
-        { coinType: 2n, value: "0x1234" },
+        { coinType: 2n, value: concat([keccak256("0x0"), "0x01"]) },
       ],
       texts: [{ key: "url", value: "https://ens.domains" }],
       contenthash: { value: concat([keccak256("0x1"), "0x01"]) },
@@ -333,13 +330,13 @@ describe("ETHFallbackResolver", () => {
             dnsEncodeName(kp.name),
             res.call,
           ]);
-        expect(resolver).toEqualAddress(F.ethFallbackResolver.address);
+        expectVar({ resolver }).toEqualAddress(F.ethFallbackResolver.address);
         res.expect(answer);
       });
     }
     it("multiple ABI contentTypes", async () => {
       const kp: KnownProfile = {
-        name: "test.eth",
+        name: testNames[0],
         abis: [
           { contentType: 0n, value: "0x" },
           { contentType: 1n, value: "0x11" },
@@ -381,7 +378,7 @@ describe("ETHFallbackResolver", () => {
           dnsEncodeName(kp.name),
           bundle.call,
         ]);
-      expect(resolver).toEqualAddress(F.ethFallbackResolver.address);
+      expectVar({ resolver }).toEqualAddress(F.ethFallbackResolver.address);
       bundle.expect(answer);
     });
     it("resolve(multicall)", async () => {

@@ -58,7 +58,6 @@ export const RESPONSE_FLAGS = {
 type KnownOrigin = "on" | "off" | "batch";
 
 type OriginRecord = { origin?: KnownOrigin };
-
 type StringRecord = OriginRecord & { value: string };
 type BytesRecord = OriginRecord & { value: Hex };
 type PubkeyRecord = OriginRecord & { x: Hex; y: Hex };
@@ -117,6 +116,10 @@ export function bundleCalls(calls: KnownResolution[]): KnownBundle {
     };
   }
   return {
+    write: encodeFunctionData({
+      abi: RESOLVE_MULTICALL,
+      args: [calls.map((x) => x.write)],
+    }),
     call: encodeFunctionData({
       abi: RESOLVE_MULTICALL,
       args: [calls.map((x) => x.call)],
@@ -124,10 +127,6 @@ export function bundleCalls(calls: KnownResolution[]): KnownBundle {
     answer: encodeFunctionResult({
       abi: RESOLVE_MULTICALL,
       result: calls.map((x) => x.answer),
-    }),
-    write: encodeFunctionData({
-      abi: RESOLVE_MULTICALL,
-      args: [calls.map((x) => x.write)],
     }),
     unbundle: (data) =>
       decodeFunctionResult({
@@ -153,27 +152,15 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
         v.push({
           desc: `${functionName}()`,
           origin,
-          call: encodeFunctionData({
-            abi,
-            functionName,
-            args: [node],
-          }),
           write: encodeFunctionData({
             abi,
             functionName: "setAddr",
             args: [node, value],
           }),
-          answer: encodeFunctionResult({
-            abi,
-            functionName,
-            result: value,
-          }),
+          call: encodeFunctionData({ abi, functionName, args: [node] }),
+          answer: encodeFunctionResult({ abi, functionName, result: value }),
           expect(data) {
-            const actual = decodeFunctionResult({
-              abi,
-              functionName,
-              data,
-            });
+            const actual = decodeFunctionResult({ abi, functionName, data });
             expect(actual, this.desc).toStrictEqual(getAddress(value));
           },
         });
@@ -182,27 +169,19 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
         v.push({
           desc: `${functionName}(${shortCoin(coinType)})`,
           origin,
-          call: encodeFunctionData({
-            abi,
-            functionName,
-            args: [node, coinType],
-          }),
           write: encodeFunctionData({
             abi,
             functionName: "setAddr",
             args: [node, coinType, value],
           }),
-          answer: encodeFunctionResult({
+          call: encodeFunctionData({
             abi,
             functionName,
-            result: value,
+            args: [node, coinType],
           }),
+          answer: encodeFunctionResult({ abi, functionName, result: value }),
           expect(data) {
-            const actual = decodeFunctionResult({
-              abi,
-              functionName,
-              data,
-            });
+            const actual = decodeFunctionResult({ abi, functionName, data });
             expect(actual, this.desc).toStrictEqual(value);
           },
         });
@@ -216,27 +195,15 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
       v.push({
         desc: `${functionName}(${key})`,
         origin,
-        call: encodeFunctionData({
-          abi,
-          functionName,
-          args: [node, key],
-        }),
         write: encodeFunctionData({
           abi,
           functionName: "setText",
           args: [node, key, value],
         }),
-        answer: encodeFunctionResult({
-          abi,
-          functionName,
-          result: value,
-        }),
+        call: encodeFunctionData({ abi, functionName, args: [node, key] }),
+        answer: encodeFunctionResult({ abi, functionName, result: value }),
         expect(data) {
-          const actual = decodeFunctionResult({
-            abi,
-            functionName,
-            data,
-          });
+          const actual = decodeFunctionResult({ abi, functionName, data });
           expect(actual, this.desc).toStrictEqual(value);
         },
       });
@@ -249,27 +216,15 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
     v.push({
       desc: `${functionName}()`,
       origin,
-      call: encodeFunctionData({
-        abi,
-        functionName,
-        args: [node],
-      }),
       write: encodeFunctionData({
         abi,
         functionName: "setContenthash",
         args: [node, value],
       }),
-      answer: encodeFunctionResult({
-        abi,
-        functionName,
-        result: value,
-      }),
+      call: encodeFunctionData({ abi, functionName, args: [node] }),
+      answer: encodeFunctionResult({ abi, functionName, result: value }),
       expect(data) {
-        const actual = decodeFunctionResult({
-          abi,
-          functionName,
-          data,
-        });
+        const actual = decodeFunctionResult({ abi, functionName, data });
         expect(actual, this.desc).toStrictEqual(value);
       },
     });
@@ -281,27 +236,15 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
     v.push({
       desc: `${functionName}()`,
       origin,
-      call: encodeFunctionData({
-        abi,
-        functionName,
-        args: [node],
-      }),
       write: encodeFunctionData({
         abi,
         functionName: "setPubkey",
         args: [node, x, y],
       }),
-      answer: encodeFunctionResult({
-        abi,
-        functionName,
-        result: [x, y],
-      }),
+      call: encodeFunctionData({ abi, functionName, args: [node] }),
+      answer: encodeFunctionResult({ abi, functionName, result: [x, y] }),
       expect(data) {
-        const actual = decodeFunctionResult({
-          abi,
-          functionName,
-          data,
-        });
+        const actual = decodeFunctionResult({ abi, functionName, data });
         expect(actual, this.desc).toStrictEqual([x, y]);
       },
     });
@@ -313,27 +256,15 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
     v.push({
       desc: `${functionName}()`,
       origin,
-      call: encodeFunctionData({
-        abi,
-        functionName,
-        args: [node],
-      }),
       write: encodeFunctionData({
         abi,
         functionName: "setName",
         args: [node, value],
       }),
-      answer: encodeFunctionResult({
-        abi,
-        functionName,
-        result: value,
-      }),
+      call: encodeFunctionData({ abi, functionName, args: [node] }),
+      answer: encodeFunctionResult({ abi, functionName, result: value }),
       expect(data) {
-        const actual = decodeFunctionResult({
-          abi,
-          functionName,
-          data,
-        });
+        const actual = decodeFunctionResult({ abi, functionName, data });
         expect(actual, this.desc).toStrictEqual(value);
       },
     });
@@ -345,15 +276,15 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
       v.push({
         desc: `${functionName}(${contentType})`,
         origin,
-        call: encodeFunctionData({
-          abi,
-          functionName,
-          args: [node, contentType],
-        }),
         write: encodeFunctionData({
           abi,
           functionName: "setABI",
           args: [node, contentType, value],
+        }),
+        call: encodeFunctionData({
+          abi,
+          functionName,
+          args: [node, contentType],
         }),
         answer: encodeFunctionResult({
           abi,
@@ -361,11 +292,7 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
           result: [contentType, value],
         }),
         expect(data) {
-          const actual = decodeFunctionResult({
-            abi,
-            functionName,
-            data,
-          });
+          const actual = decodeFunctionResult({ abi, functionName, data });
           expect(actual, this.desc).toStrictEqual([contentType, value]);
         },
       });
@@ -378,27 +305,15 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
       v.push({
         desc: `${functionName}(${selector})`,
         origin,
-        call: encodeFunctionData({
-          abi,
-          functionName,
-          args: [node, selector],
-        }),
         write: encodeFunctionData({
           abi,
           functionName: "setInterface",
           args: [node, selector, value],
         }),
-        answer: encodeFunctionResult({
-          abi,
-          functionName,
-          result: value,
-        }),
+        call: encodeFunctionData({ abi, functionName, args: [node, selector] }),
+        answer: encodeFunctionResult({ abi, functionName, result: value }),
         expect(data) {
-          const actual = decodeFunctionResult({
-            abi,
-            functionName,
-            data,
-          });
+          const actual = decodeFunctionResult({ abi, functionName, data });
           expect(actual, this.desc).toStrictEqual(value);
         },
       });
@@ -408,8 +323,8 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
     for (const { call, answer } of p.errors) {
       v.push({
         desc: `error(${call.slice(0, 10)})`,
-        call,
         write: "0x",
+        call,
         answer,
         expect(data) {
           expect(data, this.desc).toStrictEqual(this.answer);
