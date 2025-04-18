@@ -1,0 +1,18 @@
+services:
+  devnet:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8545:8545" # L1 chain
+      - "8546:8546" # L2 chain
+    expose:
+      - 8545
+      - 8546
+    environment:
+      ANVIL_IP_ADDR: "0.0.0.0"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
