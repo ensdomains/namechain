@@ -7,6 +7,15 @@ import {GatewayFetcher} from "@unruggable/gateways/contracts/GatewayFetcher.sol"
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
 import {GatewayFetchTarget, IGatewayVerifier} from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
+import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
+import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
+import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
+import {NameUtils} from "../common/NameUtils.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
+
+// resolver profiles
 import {IVersionableResolver} from "@ens/contracts/resolvers/profiles/IVersionableResolver.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
@@ -16,13 +25,6 @@ import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
 import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
-import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
-import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
-import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
-import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
-import {NameUtils} from "../common/NameUtils.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
-import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
 contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReader, Ownable, ERC165 {
     using GatewayFetcher for GatewayRequest;
@@ -99,7 +101,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     }
 
     /// @dev Set the resolver for "eth".
-    /// @param resolver tThe new resolver address.
+    /// @param resolver The new resolver address.
     function setETHResolver(address resolver) external onlyOwner {
         ethResolver = resolver;
     }
@@ -196,8 +198,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     function resolve(bytes memory name, bytes calldata data) external view returns (bytes memory) {
         (bytes32 node, uint256 labelCount, uint256 offset) = _countLabels(name);
         if (labelCount == 0) {
-            (, bytes memory v) = ethResolver.staticcall(data);
-            return v;
+            ccipRead(ethResolver, data, this.resolveEthCallback.selector, "");
         }
         (bytes32 labelHash,) = NameCoder.readLabel(name, offset);
         if (_isActiveRegistrationV1(uint256(labelHash))) {
@@ -244,6 +245,12 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         for (uint256 i; i < calls.length; i++) {
             bytes memory v = calls[i];
             bytes4 selector = bytes4(v);
+            // NOTE: "node check" is NOT performed:
+            // if (BytesUtils.readBytes32(v, 4) != node) {
+            //     calls[i] = abi.encodeWithSelector(NodeMismatch.selector, node);
+            //     errors++;
+            //     continue;
+            // }
             if (selector == IAddrResolver.addr.selector) {
                 req.setSlot(SLOT_PR_ADDRESSES);
                 req.dup2().follow().follow().push(60).follow(); // versionable_addresses[version][node][60]
@@ -278,6 +285,8 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
                 req.setSlot(SLOT_PR_INTERFACES);
                 req.dup2().follow().follow().push(interfaceID).follow(); // versionable_interfaces[version][node][interfaceID]
                 req.read();
+            } else if (selector == IVersionableResolver.recordVersions.selector) {
+                req.dup(); // recordVersions[node]
             } else if (selector == IABIResolver.ABI.selector) {
                 req.setSlot(SLOT_PR_ABIS);
                 req.dup2().follow().follow(); // versionable_abis[version][node]
@@ -299,25 +308,45 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
                 }
                 req.evalLoop(EvalFlag.STOP_ON_SUCCESS, count);
                 continue;
-            } else if (selector == IVersionableResolver.recordVersions.selector) {
-                req.dup(); // recordVersions[node]
-            } else if (multi) {
+            } else {
                 calls[i] = abi.encodeWithSelector(UnsupportedResolverProfile.selector, selector);
                 errors++;
                 continue;
-            } else {
-                revert UnsupportedResolverProfile(bytes4(v));
             }
             req.setOutput(uint8(i));
         }
-        if (multi && errors == calls.length) {
-            return abi.encode(calls); // return immediate if all errors (or 0-calls)
+        if (calls.length == errors) {
+            if (multi) {
+                return abi.encode(calls); // every multicall failed
+            } else {
+                bytes memory v = calls[0];
+                assembly {
+                    revert(add(v, 32), mload(v)) // revert with the call that failed
+                }
+            }
         }
-        fetch(namechainVerifier, req, this.resolveV2Callback.selector, abi.encode(name, multi, calls), new string[](0));
+        fetch(
+            namechainVerifier,
+            req,
+            this.resolveNamechainCallback.selector,
+            abi.encode(name, multi, calls),
+            new string[](0)
+        );
     }
 
-    /// @dev V1 CCIP-Read callback for `resolve()` (step 2 of 2).
-    /// @param response The response data from `UniversalResolver`.
+    /// @dev CCIP-Read callback for `resolve()` from calling `ethResolver` (step 2 of 2).
+    /// @param response The response data.
+    /// @return result The abi-encoded result.
+    function resolveEthCallback(bytes calldata response, bytes calldata /*extraData*/ )
+        external
+        pure
+        returns (bytes memory result)
+    {
+        result = response;
+    }
+
+    /// @dev CCIP-Read callback for `resolve()` from calling `universalResolverV1` (step 2 of 2).
+    /// @param response The response data.
     /// @return result The abi-encoded result.
     function resolveV1Callback(bytes calldata response, bytes calldata /*extraData*/ )
         external
@@ -327,12 +356,12 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         (result,) = abi.decode(response, (bytes, address));
     }
 
-    /// @dev V2 CCIP-Read callback for `resolve()` (step 2 of 2).
-    /// @param values The outputs for `GatewayRequest` from `IGatewayVerifier`.
+    /// @dev CCIP-Read callback for `resolve()` from calling `namechainVerifier` (step 2 of 2).
+    /// @param values The outputs for `GatewayRequest`.
     /// @param exitCode The exit code for `GatewayRequest`.
     /// @param extraData The contextual data passed from `resolve()`.
     /// @return result The abi-encoded result.
-    function resolveV2Callback(bytes[] calldata values, uint8 exitCode, bytes calldata extraData)
+    function resolveNamechainCallback(bytes[] calldata values, uint8 exitCode, bytes calldata extraData)
         external
         pure
         returns (bytes memory result)

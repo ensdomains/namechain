@@ -19,8 +19,8 @@ import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
 import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
 import { deployArtifact } from "./fixtures/deployArtifact.js";
 import { urgArtifact } from "./fixtures/externalArtifacts.js";
-import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
+import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { dnsEncodeName, expectVar, getLabelAt } from "./utils/utils.js";
 import { serve } from "@namestone/ezccip/serve";
 import { BrowserProvider } from "ethers/providers";
@@ -108,7 +108,7 @@ describe("ETHFallbackResolver", () => {
   });
 
   describe("unregistered", () => {
-    for (const name of ["test.eth", "a.b.c.test.eth"]) {
+    for (const name of testNames) {
       it(name, async () => {
         const F = await loadFixture(fixture);
         const [res] = makeResolutions({
@@ -295,25 +295,24 @@ describe("ETHFallbackResolver", () => {
     it("unsupported", async () => {
       const F = await loadFixture(fixture);
       await expect(F.mainnetV2.universalResolver)
-        .read("resolve", [dnsEncodeName("test.eth"), dummySelector])
+        .read("resolve", [dnsEncodeName(kp.name), dummySelector])
         .toBeRevertedWithCustomError("UnsupportedResolverProfile")
         .withArgs(dummySelector);
     });
     it("recordVersions", async () => {
       const F = await loadFixture(fixture);
       await F.namechain.setupName(kp);
-      const call = encodeFunctionData({
-        abi: F.namechain.ownedResolver.abi,
-        functionName: "recordVersions",
-        args: [namehash(kp.name)],
-      });
       await check(0n);
       await F.namechain.ownedResolver.write.clearRecords([namehash(kp.name)]);
       await check(1n);
       async function check(version: bigint) {
         const [answer] = await F.mainnetV2.universalResolver.read.resolve([
           dnsEncodeName(kp.name),
-          call,
+          encodeFunctionData({
+            abi: F.namechain.ownedResolver.abi,
+            functionName: "recordVersions",
+            args: [namehash(kp.name)],
+          }),
         ]);
         expect(answer, `version(${version})`).toStrictEqual(
           toHex(version, { size: 32 }),
@@ -388,7 +387,41 @@ describe("ETHFallbackResolver", () => {
         makeResolutions(kp).map((x) => x.write),
       ]);
       const bundle = bundleCalls(makeResolutions({ ...kp, errors }));
+      // the UR doesn't yet support direct resolve(multicall)
+      // so we explicitly call the resolver until this is possible
       const answer = await F.ethFallbackResolver.read.resolve([
+        dnsEncodeName(kp.name),
+        bundle.call,
+      ]);
+      bundle.expect(answer);
+    });
+    it("zero multicalls", async () => {
+      const kp: KnownProfile = { name: testNames[0] };
+      const F = await loadFixture(fixture);
+      const bundle = bundleCalls(makeResolutions(kp));
+      const [answer] = await F.mainnetV2.universalResolver.read.resolve([
+        dnsEncodeName(kp.name),
+        bundle.call,
+      ]);
+      bundle.expect(answer);
+    });
+    it("every multicalls failed", async () => {
+      const kp: KnownProfile = {
+        name: testNames[0],
+        errors: Array.from({ length: 2 }, (_, i) => {
+          const call = toHex(i, { size: 4 });
+          return {
+            call,
+            answer: encodeErrorResult({
+              abi: parseAbi(["error UnsupportedResolverProfile(bytes4)"]),
+              args: [call],
+            }),
+          };
+        }),
+      };
+      const F = await loadFixture(fixture);
+      const bundle = bundleCalls(makeResolutions(kp));
+      const [answer] = await F.mainnetV2.universalResolver.read.resolve([
         dnsEncodeName(kp.name),
         bundle.call,
       ]);
