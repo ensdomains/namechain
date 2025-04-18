@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import "forge-std/console.sol";
 import {IBridge} from "./IBridge.sol";
 import {MockBridgeHelper} from "./MockBridgeHelper.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
@@ -65,21 +64,18 @@ contract MockL2EjectionController is IL2EjectionController {
         address l2Subregistry,
         bytes memory data
     ) external override {
-        // // Extract name from data
+        // Extract name from data
         string memory name = abi.decode(data, (string));
-        console.log("ens name:");
-        console.log(name);
-        
-        // // Require the name to be valid
+        // Require the name to be valid
         require(bytes(name).length > 0, "Name not found for labelHash");
         
-        // // Default values for registration
+        // Default values for registration
         address resolver = address(0);
         uint96 flags = 0; // Using uint96 flags for ETHRegistry
         uint64 expires = uint64(block.timestamp + 365 days);
         
-        // // Register the name on L2
-        // registry.register(name, l2Owner, IRegistry(l2Subregistry), resolver, flags, expires);
+        // Register the name on L2
+        registry.register(name, l2Owner, IRegistry(l2Subregistry), resolver, flags, expires);
         
         emit NameMigrated(labelHash, l2Owner, l2Subregistry);
     }
