@@ -59,6 +59,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
 
     function register(string calldata label, address owner, IRegistry registry, address resolver, uint256 roleBitmap, uint64 expires)
         public
+        virtual
         override
         onlyRootRoles(ROLE_REGISTRAR)
         returns (uint256 tokenId)
@@ -256,7 +257,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
      * @param tokenIdVersion The token id version to set.
      * @return newTokenId The new token id.
      */
-    function _generateTokenId(uint256 tokenId, address registry, uint64 expires, uint32 tokenIdVersion) internal returns (uint256 newTokenId) {
+    function _generateTokenId(uint256 tokenId, address registry, uint64 expires, uint32 tokenIdVersion) internal virtual returns (uint256 newTokenId) {
         newTokenId = _constructTokenId(tokenId, tokenIdVersion);
         datastore.setSubregistry(newTokenId, registry, expires, tokenIdVersion);
     }

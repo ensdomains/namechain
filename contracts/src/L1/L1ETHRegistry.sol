@@ -25,7 +25,7 @@ contract L1ETHRegistry is ETHRegistry {
     event NameMigratedToL2(uint256 indexed tokenId, address l2Owner, address l2Subregistry, address l2Resolver);
     event NameEjectedFromL2(uint256 indexed tokenId, address l1Owner, address l1Subregistry, address l1Resolver, uint64 expires);
 
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _registryMetadata, address _ejectionController) ETHRegistry(_datastore, _registryMetadata, _ejectionController) {
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _registryMetadata, IL1EjectionController _ejectionController) ETHRegistry(_datastore, _registryMetadata, _ejectionController) {
     }
 
     /**
@@ -107,7 +107,7 @@ contract L1ETHRegistry is ETHRegistry {
 
         // Notify the ejection controller to handle cross-chain messaging
         // expiry is set to 0 since L2 will handle the expiry
-        IL1EjectionController(ejectionController).migrateToNamechain(tokenId, l2Owner, l2Subregistry, l2Resolver, data);
+        IL1EjectionController(address(ejectionController)).migrateToNamechain(tokenId, l2Owner, l2Subregistry, l2Resolver, data);
 
         emit NameMigratedToL2(tokenId, l2Owner, l2Subregistry, l2Resolver);
     }

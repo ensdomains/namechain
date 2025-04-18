@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {IEjectionController} from "../common/IEjectionController.sol";
+
 /**
  * @title IL1EjectionController
  * @dev Interface for the L1 ejection controller that facilitates migrations of names
  * between L1 and L2, as well as handling renewals. 
  */
-interface IL1EjectionController {
+interface IL1EjectionController is IEjectionController {
     /**
      * @dev Called by the registry when a user initiates a migration of a name to Namechain.
      *
