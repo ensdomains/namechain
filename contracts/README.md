@@ -25,12 +25,13 @@ https://book.getfoundry.sh/getting-started/installation
 
 ### Installation
 
-Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation)
-
-Install packages (bun)
+1. Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation)
+2. Install dependencies:
 
 ```sh
-bun install
+bun i
+cd contracts
+forge i
 ```
 
 ### Build
@@ -41,16 +42,65 @@ forge build
 
 ### Test
 
-Testing is done in both forge and hardhat, so you can use the helper script.
+Run all test suites:
 
 ```sh
 bun run test
 ```
 
+Or run specific test suites:
+
+```sh
+bun run test:hardhat  # Run Hardhat tests
+bun run test:forge    # Run Forge tests
+```
+
+## Running the Devnet
+
+There are two ways to run the devnet:
+
+### Using Docker Compose
+
+1. Make sure you have Docker and Docker Compose installed
+2. Run the devnet:
+   ```bash
+   docker compose up -d
+   ```
+3. The devnet will be available at:
+   - L1 Chain: http://localhost:8545 (Chain ID: 31337)
+   - L2 Chain: http://localhost:8546 (Chain ID: 31338)
+
+To view logs:
+
+```bash
+docker logs -f namechain-devnet-1
+```
+
+To stop the devnet:
+
+```bash
+docker compose down
+```
+
+### Local Development
+
+### Run Local Devnet
+
+Start a local devnet with L1 and L2 chains:
+
+```sh
+bun run devnet
+```
+
+This will start:
+
+- L1 chain at http://localhost:8545 (Chain ID: 31337)
+- L2 chain at http://localhost:8546 (Chain ID: 31338)
+
 ### Format
 
 ```shell
-$ forge fmt
+forge fmt
 ```
 
 ### Gas Snapshots
