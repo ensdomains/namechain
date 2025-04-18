@@ -17,6 +17,8 @@ contract MockBridgeHelper {
         address l1Subregistry,
         uint64 expiry
     ) external pure returns (bytes memory) {
+        require(bytes(name).length > 0, "Name cannot be empty");
+        
         return abi.encode(
             NAME_EJECTION,
             name,
@@ -31,6 +33,8 @@ contract MockBridgeHelper {
         address l2Owner,
         address l2Subregistry
     ) external pure returns (bytes memory) {
+        require(bytes(name).length > 0, "Name cannot be empty");
+        
         return abi.encode(
             NAME_MIGRATION,
             name,

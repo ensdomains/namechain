@@ -69,14 +69,13 @@ export class CrossChainRelayer {
    * @returns Transaction hash
    */
   async manualRelay(fromL1ToL2, message) {
+    console.log(`Manually relaying message from ${fromL1ToL2 ? 'L1 to L2' : 'L2 to L1'}`);
     try {
       if (fromL1ToL2) {
-        console.log(`Manually relaying message from L1 to L2`);
         const tx = await this.L2.confirm(this.l2Bridge.receiveMessageFromL1(message));
         console.log(`Message relayed to L2, tx hash: ${tx.hash}`);
         return tx.hash;
       } else {
-        console.log(`Manually relaying message from L2 to L1`);
         const tx = await this.L1.confirm(this.l1Bridge.receiveMessageFromL2(message));
         console.log(`Message relayed to L1, tx hash: ${tx.hash}`);
         return tx.hash;

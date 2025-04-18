@@ -4,126 +4,74 @@ pragma solidity >=0.8.13;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-import "src/registry/RegistryDatastore.sol";
+import "../src/common/RegistryDatastore.sol";
 
-contract TestETHRegistry is Test {
-    uint256 LABEL_HASH_MASK = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000;
-    uint256 labelHash = uint256(keccak256("test"));
+contract TestRegistryDatastore is Test {
+    uint256 id = uint256(keccak256("test"));
     RegistryDatastore datastore;
+    uint64 expiryTime = uint64(block.timestamp + 100);
+    uint32 data = 123;
 
     function setUp() public {
         datastore = new RegistryDatastore();
     }
 
     function test_GetSetSubregistry_MsgSender() public {
-        // set subregistry with empty flags
-        datastore.setSubregistry(labelHash, address(this), 0);
+        datastore.setSubregistry(id, address(this), expiryTime, data);
 
-        address subregistry;
-        uint96 flags;
-
-        (subregistry, flags) = datastore.getSubregistry(labelHash);
+        (address subregistry, uint64 expiry, uint32 returnedData) = datastore.getSubregistry(id);
         vm.assertEq(subregistry, address(this));
-        vm.assertEq(flags, 0);
+        vm.assertEq(expiry, expiryTime);
+        vm.assertEq(returnedData, data);
 
-        (subregistry, flags) = datastore.getSubregistry(address(this), labelHash);
+        (subregistry, expiry, returnedData) = datastore.getSubregistry(address(this), id);
         vm.assertEq(subregistry, address(this));
-        vm.assertEq(flags, 0);
+        vm.assertEq(expiry, expiryTime);
+        vm.assertEq(returnedData, data);
     }
 
     function test_GetSetSubregistry_OtherRegistry() public {
         DummyRegistry r = new DummyRegistry(datastore);
-        r.setSubregistry(labelHash, address(this), 0);
+        r.setSubregistry(id, address(this), expiryTime, data);
 
-        address subregistry;
-        uint96 flags;
-
-        (subregistry, flags) = datastore.getSubregistry(labelHash);
+        (address subregistry, uint64 expiry, uint32 returnedData) = datastore.getSubregistry(id);
         vm.assertEq(subregistry, address(0));
-        vm.assertEq(flags, 0);
+        vm.assertEq(expiry, 0);
+        vm.assertEq(returnedData, 0);
 
-        (subregistry, flags) = datastore.getSubregistry(address(r), labelHash);
+        (subregistry, expiry, returnedData) = datastore.getSubregistry(address(r), id);
         vm.assertEq(subregistry, address(this));
-        vm.assertEq(flags, 0);
-    }
-
-    function test_GetSetSubregistry_32BitCustomFlags() public {
-        datastore.setSubregistry(labelHash, address(this), 0x80000001);
-
-        address subregistry;
-        uint96 flags;
-
-        (subregistry, flags) = datastore.getSubregistry(labelHash);
-        vm.assertEq(subregistry, address(this));
-        vm.assertEq(flags, 0x80000001);
-
-        // get with flags on labelhash
-        (subregistry, flags) = datastore.getSubregistry((labelHash & LABEL_HASH_MASK) | 0x80000001);
-        vm.assertEq(subregistry, address(this));
-        vm.assertEq(flags, 0x80000001);
-    }
-
-    function test_GetSetSubregistry_96BitCustomFlags() public {
-        datastore.setSubregistry(labelHash, address(this), 0x800000000000000000000001);
-
-        (address subregistry, uint96 flags) = datastore.getSubregistry(labelHash);
-        vm.assertEq(subregistry, address(this));
-        vm.assertEq(flags, 0x800000000000000000000001);
+        vm.assertEq(expiry, expiryTime);
+        vm.assertEq(returnedData, data);
     }
 
     function test_GetSetResolver_MsgSender() public {
-        datastore.setResolver(labelHash, address(this), 0);
+        datastore.setResolver(id, address(this), expiryTime, data);
 
-        address resolver;
-        uint96 flags;
-
-        (resolver, flags) = datastore.getResolver(labelHash);
+        (address resolver, uint64 expiry, uint32 returnedData) = datastore.getResolver(id);
         vm.assertEq(resolver, address(this));
-        vm.assertEq(flags, 0);
+        vm.assertEq(expiry, expiryTime);
+        vm.assertEq(returnedData, data);
 
-        (resolver, flags) = datastore.getResolver(address(this), labelHash);
+        (resolver, expiry, returnedData) = datastore.getResolver(address(this), id);
         vm.assertEq(resolver, address(this));
-        vm.assertEq(flags, 0);
+        vm.assertEq(expiry, expiryTime);
+        vm.assertEq(returnedData, data);
     }
 
     function test_GetSetResolver_OtherRegistry() public {
         DummyRegistry r = new DummyRegistry(datastore);
-        r.setResolver(labelHash, address(this), 0);
+        r.setResolver(id, address(this), expiryTime, data);
 
-        address resolver;
-        uint96 flags;
-
-        (resolver, flags) = datastore.getResolver(labelHash);
+        (address resolver, uint64 expiry, uint32 returnedData) = datastore.getResolver(id);
         vm.assertEq(resolver, address(0));
-        vm.assertEq(flags, 0);
+        vm.assertEq(expiry, 0);
+        vm.assertEq(returnedData, 0);
 
-        (resolver, flags) = datastore.getResolver(address(r), labelHash);
+        (resolver, expiry, returnedData) = datastore.getResolver(address(r), id);
         vm.assertEq(resolver, address(this));
-        vm.assertEq(flags, 0);
-    }
-
-    function test_GetSetResolver_32BitCustomFlags() public {
-        datastore.setResolver(labelHash, address(this), 0x80000001);
-
-        address resolver;
-        uint96 flags;
-
-        (resolver, flags) = datastore.getResolver(labelHash);
-        vm.assertEq(resolver, address(this));
-        vm.assertEq(flags, 0x80000001);
-
-        // get with flags on labelhash
-        (resolver, flags) = datastore.getResolver((labelHash & LABEL_HASH_MASK) | 0x80000001);
-        vm.assertEq(resolver, address(this));
-        vm.assertEq(flags, 0x80000001);
-    }
-
-    function test_GetSetResolver_96BitCustomFlags() public {
-        datastore.setResolver(labelHash, address(this), 0x800000000000000000000001);
-
-        (address resolver, uint96 flags) = datastore.getResolver(labelHash);
-        vm.assertEq(resolver, address(this));
-        vm.assertEq(flags, 0x800000000000000000000001);
+        vm.assertEq(expiry, expiryTime);
+        vm.assertEq(returnedData, data);
     }
 }
 
@@ -134,11 +82,11 @@ contract DummyRegistry {
         datastore = _datastore;
     }
 
-    function setSubregistry(uint256 labelHash, address subregistry, uint96 flags) public {
-        datastore.setSubregistry(labelHash, subregistry, flags);
+    function setSubregistry(uint256 id, address subregistry, uint64 expiry, uint32 data) public {
+        datastore.setSubregistry(id, subregistry, expiry, data);
     }
 
-    function setResolver(uint256 labelHash, address resolver, uint96 flags) public {
-        datastore.setResolver(labelHash, resolver, flags);
+    function setResolver(uint256 id, address resolver, uint64 expiry, uint32 data) public {
+        datastore.setResolver(id, resolver, expiry, data);
     }
 }

@@ -29,28 +29,63 @@ export async function setupCrossChainEnvironment() {
   // Deploy contracts to both chains
   console.log("Deploying contracts...");
 
-  // Deploy registries
-  const l1Registry = await L1.deploy({ file: "MockL1Registry" });
-  const l2Registry = await L2.deploy({ file: "MockL2Registry" });
+  // Deploy registry datastores for L1 and L2
+  const l1Datastore = await L1.deploy({
+    file: "RegistryDatastore",
+  });
 
-  // Deploy bridge helpers
-  const l1BridgeHelper = await L1.deploy({ file: "MockBridgeHelper" });
-  const l2BridgeHelper = await L2.deploy({ file: "MockBridgeHelper" });
+  const l2Datastore = await L2.deploy({
+    file: "RegistryDatastore",
+  });
 
-  // Deploy bridges (with temporary target addresses)
+  // Deploy metadata providers for L1 and L2
+  const l1Metadata = await L1.deploy({
+    file: "SimpleRegistryMetadata",
+  });
+
+  const l2Metadata = await L2.deploy({
+    file: "SimpleRegistryMetadata",
+  });
+
+  // Deploy bridge helpers first
+  const l1BridgeHelper = await L1.deploy({
+    file: "MockBridgeHelper",
+  });
+
+  const l2BridgeHelper = await L2.deploy({
+    file: "MockBridgeHelper",
+  });
+
+  // Deploy the real registries using their actual interfaces
+  // L1ETHRegistry for L1 and ETHRegistry for L2
+  const l1Registry = await L1.deploy({
+    file: "L1ETHRegistry",
+    args: [
+      await l1Datastore.getAddress(),
+      "0x000000000000000000000000000000000000beef",
+      await l1Metadata.getAddress(),
+    ],
+  });
+
+  const l2Registry = await L2.deploy({
+    file: "ETHRegistry",
+    args: [await l2Datastore.getAddress(), await l2Metadata.getAddress()],
+  });
+
+  // Deploy bridges with bridge helpers
   const l1Bridge = await L1.deploy({
     file: "MockL1Bridge",
-    args: [ethers.ZeroAddress],
+    args: [ethers.ZeroAddress, await l1BridgeHelper.getAddress()],
   });
 
   const l2Bridge = await L2.deploy({
     file: "MockL2Bridge",
-    args: [ethers.ZeroAddress],
+    args: [ethers.ZeroAddress, await l2BridgeHelper.getAddress()],
   });
 
   // Deploy controllers with proper connections
   const l1Controller = await L1.deploy({
-    file: "MockL1MigrationController",
+    file: "MockL1EjectionController",
     args: [
       await l1Registry.getAddress(),
       await l1BridgeHelper.getAddress(),
@@ -59,7 +94,7 @@ export async function setupCrossChainEnvironment() {
   });
 
   const l2Controller = await L2.deploy({
-    file: "MockL2MigrationController",
+    file: "MockL2EjectionController",
     args: [
       await l2Registry.getAddress(),
       await l2BridgeHelper.getAddress(),
@@ -68,24 +103,19 @@ export async function setupCrossChainEnvironment() {
   });
 
   // Set the correct target controllers for the bridges
-  await L1.confirm(l1Bridge.setTargetContract(await l1Controller.getAddress()));
-  await L2.confirm(l2Bridge.setTargetContract(await l2Controller.getAddress()));
+  await L1.confirm(
+    l1Bridge.setTargetController(await l1Controller.getAddress())
+  );
+  await L2.confirm(
+    l2Bridge.setTargetController(await l2Controller.getAddress())
+  );
 
-  // Log contract addresses
-  console.log("\nDeployed Contract Addresses:");
-  console.log("\nL1 Contracts:");
-  console.log("Registry:", await l1Registry.getAddress());
-  console.log("Bridge:", await l1Bridge.getAddress());
-  console.log("Bridge Helper:", await l1BridgeHelper.getAddress());
-  console.log("Migration Controller:", await l1Controller.getAddress());
+  await L1.confirm(
+    l1Registry.setEjectionController(await l1Controller.getAddress())
+  );
+  // await L1.confirm(l2Registry.setEjectionController(await l2Controller.getAddress())); when ready
 
-  console.log("\nL2 Contracts:");
-  console.log("Registry:", await l2Registry.getAddress());
-  console.log("Bridge:", await l2Bridge.getAddress());
-  console.log("Bridge Helper:", await l2BridgeHelper.getAddress());
-  console.log("Migration Controller:", await l2Controller.getAddress());
-
-  console.log("\nCross-chain environment setup complete!");
+  console.log("Cross-chain environment setup complete!");
 
   // Return all deployed contracts, providers, and the relayer
   return {
@@ -96,12 +126,16 @@ export async function setupCrossChainEnvironment() {
       bridge: l1Bridge,
       bridgeHelper: l1BridgeHelper,
       controller: l1Controller,
+      datastore: l1Datastore,
+      metadata: l1Metadata,
     },
     l2: {
       registry: l2Registry,
       bridge: l2Bridge,
       bridgeHelper: l2BridgeHelper,
       controller: l2Controller,
+      datastore: l2Datastore,
+      metadata: l2Metadata,
     },
     // Safe shutdown function to properly terminate WebSocket connections
     shutdown: async () => {
