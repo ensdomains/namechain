@@ -246,7 +246,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
             bytes memory v = calls[i];
             bytes4 selector = bytes4(v);
             // NOTE: "node check" is NOT performed:
-            // if (BytesUtils.readBytes32(v, 4) != node) {
+            // if (v.length < 36 || BytesUtils.readBytes32(v, 4) != node) {
             //     calls[i] = abi.encodeWithSelector(NodeMismatch.selector, node);
             //     errors++;
             //     continue;

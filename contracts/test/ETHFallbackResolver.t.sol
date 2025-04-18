@@ -39,7 +39,7 @@ contract TestETHFallbackResolver is Test {
         bytes memory dns = NameCoder.encode(ens);
         (, uint256 count, uint256 offset) = efr.countLabels(dns);
         assertEq(count, expectCount, "count");
-        assertEq(offset, expectCount > 0 ? dns.length - (6 + size2LD) : 0, "offset"); // size(1) + size(3) + "eth" + size(0)
+        assertEq(offset, expectCount > 0 ? dns.length - (6 + size2LD) : 0, "offset"); // u8(1) + u8(3) + "eth" + u8(0)
     }
 
     function test_countLabels_dotEth() external view {

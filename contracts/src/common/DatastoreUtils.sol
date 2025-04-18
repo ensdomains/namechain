@@ -2,17 +2,17 @@
 pragma solidity >=0.8.13;
 
 library DatastoreUtils {
-    /// @dev Pack (address, expiry, data) together into a word.
+    /// @dev Pack `(address, expiry, data)` together into a word.
     /// @param addr The address to pack.
     /// @param expiry The expiry to pack.
     /// @param data The data to pack.
-    /// @return packed The packed data.
+    /// @return packed The packed word.
     function pack(address addr, uint64 expiry, uint32 data) internal pure returns (uint256 packed) {
         packed = (uint256(data) << 224) | (uint256(expiry) << 160) | uint256(uint160(addr));
     }
 
-    /// @dev Unpack a word into (address, expiry, data).
-    /// @param packed The packed data.
+    /// @dev Unpack a word into `(address, expiry, data)`.
+    /// @param packed The packed word.
     /// @return addr The packed address.
     /// @return expiry The packed expiry.
     /// @return data The packed data.

@@ -119,8 +119,8 @@ describe("ETHFallbackResolver", () => {
           .read("resolve", [dnsEncodeName(name), res.call])
           .toBeRevertedWithCustomError("ResolverNotFound");
         // the errors are different because:
-        // v1: requireResolver() fails
-        // v2: gateway to namechain, no resolver found
+        // V1: requireResolver() fails
+        // V2: gateway to namechain, no resolver found
         await expect(F.mainnetV2.universalResolver)
           .read("resolve", [dnsEncodeName(name), res.call])
           .toBeRevertedWithCustomError("ResolverError")

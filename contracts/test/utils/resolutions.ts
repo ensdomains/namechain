@@ -115,9 +115,6 @@ export function bundleCalls(resolutions: KnownResolution[]): KnownBundle {
     return {
       ...resolutions[0],
       unbundle: (x) => [x],
-      expect(answer) {
-        resolutions[0].expect(answer);
-      },
     };
   }
   return {
