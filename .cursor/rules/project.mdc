@@ -7,3 +7,4 @@ alwaysApply: true
 # Forge/foundry tests
 
 - When running tests they should be run from the contracts/ subfolder.
+- When testing for event emission never use vm.expectEmit, always use vm.recordLogs and actually check the logs properly.

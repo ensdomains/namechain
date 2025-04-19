@@ -59,6 +59,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
 
     function register(string calldata label, address owner, IRegistry registry, address resolver, uint256 roleBitmap, uint64 expires)
         public
+        virtual
         override
         onlyRootRoles(ROLE_REGISTRAR)
         returns (uint256 tokenId)
@@ -93,7 +94,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         return tokenId;
     }
 
-    function setTokenObserver(uint256 tokenId, ITokenObserver observer) external override onlyNonExpiredTokenRoles(tokenId, ROLE_SET_TOKEN_OBSERVER) {
+    function setTokenObserver(uint256 tokenId, ITokenObserver observer) public override onlyNonExpiredTokenRoles(tokenId, ROLE_SET_TOKEN_OBSERVER) {
         tokenObservers[tokenId] = observer;
         emit TokenObserverSet(tokenId, address(observer));
     }
@@ -176,7 +177,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         tokenId = _constructTokenId(canonicalId, tokenIdVersion);
     }
 
-    function getExpiry(uint256 tokenId) external view override returns (uint64) {
+    function getExpiry(uint256 tokenId) public view override returns (uint64) {
         (, uint64 expires, ) = datastore.getSubregistry(tokenId);
         return expires;
     }
@@ -256,7 +257,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
      * @param tokenIdVersion The token id version to set.
      * @return newTokenId The new token id.
      */
-    function _generateTokenId(uint256 tokenId, address registry, uint64 expires, uint32 tokenIdVersion) internal returns (uint256 newTokenId) {
+    function _generateTokenId(uint256 tokenId, address registry, uint64 expires, uint32 tokenIdVersion) internal virtual returns (uint256 newTokenId) {
         newTokenId = _constructTokenId(tokenId, tokenIdVersion);
         datastore.setSubregistry(newTokenId, registry, expires, tokenIdVersion);
     }
