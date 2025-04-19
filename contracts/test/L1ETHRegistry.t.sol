@@ -16,7 +16,6 @@ import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import "../src/common/BaseRegistry.sol";
 import "../src/common/IStandardRegistry.sol";
 import "../src/common/ETHRegistry.sol";
-import "../src/common/ITokenObserver.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -41,7 +40,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
         datastore = new RegistryDatastore();
         ejectionController = new MockEjectionController();
         registryMetadata = new MockRegistryMetadata();
-        registry = new L1ETHRegistry(datastore, registryMetadata, IL1EjectionController(address(ejectionController)));
+        registry = new L1ETHRegistry(datastore, registryMetadata, ejectionController);
     }
 
     function test_eject_from_namechain_unlocked() public {
@@ -224,31 +223,6 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
         
         // Verify the controller was set
         assertEq(address(registry.ejectionController()), address(newController));
-    }
-
-    function test_onRenew() public {
-        uint256 tokenId = 123;
-        uint64 expires = uint64(block.timestamp + 86400);
-        address renewedBy = address(this);
-
-        vm.recordLogs();
-        registry.onRenew(tokenId, expires, renewedBy);
-        
-        // Verify the ejection controller was called through logs or we could mock the controller
-        // Here we'd need to check if ejectionController.onRenew was called with correct params
-        // This is just structural testing to ensure the function calls through correctly
-    }
-
-    function test_onRelinquish() public {
-        uint256 tokenId = 123;
-        address relinquishedBy = address(this);
-
-        vm.recordLogs();
-        registry.onRelinquish(tokenId, relinquishedBy);
-        
-        // Verify the ejection controller was called through logs or we could mock the controller
-        // Here we'd need to check if ejectionController.onRelinquish was called with correct params
-        // This is just structural testing to ensure the function calls through correctly
     }
 }
 

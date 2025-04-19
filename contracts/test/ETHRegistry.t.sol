@@ -10,7 +10,6 @@ import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistryDatastore.sol";
 import "../src/common/IRegistryMetadata.sol";
 import "../src/common/IEjectionController.sol";
-import "../src/common/ITokenObserver.sol";
 import "../src/common/NameUtils.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
@@ -22,14 +21,6 @@ contract MockETHRegistry is ETHRegistry {
         IRegistryMetadata _registryMetadata,
         IEjectionController _ejectionController
     ) ETHRegistry(_datastore, _registryMetadata, _ejectionController) {}
-
-    // This function exposes the protected _generateTokenId for testing
-    function generateTokenIdTest(uint256 tokenId, address registry, uint64 expires, uint32 tokenIdVersion) 
-        external 
-        returns (uint256 newTokenId) 
-    {
-        return _generateTokenId(tokenId, registry, expires, tokenIdVersion);
-    }
 }
 
 // Mock implementation of IRegistryMetadata
@@ -133,51 +124,5 @@ contract ETHRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
         // Attempt to set controller to zero address should revert
         vm.expectRevert(ETHRegistry.InvalidEjectionController.selector);
         registry.setEjectionController(IEjectionController(address(0)));
-    }
-
-    function test_generateTokenId_sets_self_as_token_observer() public {
-        // Create a test token ID
-        uint256 tokenId = 123;
-        address registryAddress = address(0x123);
-        uint64 expires = uint64(block.timestamp + 86400); // 1 day from now
-        uint32 tokenIdVersion = 1;
-        
-        // Call the generateTokenId function
-        uint256 newTokenId = registry.generateTokenIdTest(tokenId, registryAddress, expires, tokenIdVersion);
-        
-        // Verify that the registry set itself as the token observer
-        // Changed to check against newTokenId instead of tokenId
-        ITokenObserver observer = registry.tokenObservers(tokenId);
-        assertEq(address(observer), address(registry));
-    }
-
-    function test_onRenew_calls_ejection_controller() public {
-        // Create test data
-        uint256 tokenId = 123;
-        uint64 expires = uint64(block.timestamp + 86400);
-        address renewedBy = address(this);
-        
-        // Call onRenew
-        registry.onRenew(tokenId, expires, renewedBy);
-        
-        // Verify ejection controller's onRenew was called with correct parameters
-        assertTrue(ejectionController.renewCalled());
-        assertEq(ejectionController.lastRenewedTokenId(), tokenId);
-        assertEq(ejectionController.lastRenewedExpires(), expires);
-        assertEq(ejectionController.lastRenewedBy(), renewedBy);
-    }
-
-    function test_onRelinquish_calls_ejection_controller() public {
-        // Create test data
-        uint256 tokenId = 123;
-        address relinquishedBy = address(this);
-        
-        // Call onRelinquish
-        registry.onRelinquish(tokenId, relinquishedBy);
-        
-        // Verify ejection controller's onRelinquish was called with correct parameters
-        assertTrue(ejectionController.relinquishCalled());
-        assertEq(ejectionController.lastRelinquishedTokenId(), tokenId);
-        assertEq(ejectionController.lastRelinquishedBy(), relinquishedBy);
     }
 } 

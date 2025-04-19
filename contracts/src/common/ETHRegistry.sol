@@ -8,7 +8,7 @@ import {ITokenObserver} from "./ITokenObserver.sol";
 import {IEjectionController} from "./IEjectionController.sol";
 import {IRegistry} from "./IRegistry.sol";
 
-abstract contract ETHRegistry is PermissionedRegistry, ITokenObserver {
+abstract contract ETHRegistry is PermissionedRegistry {
     error InvalidEjectionController();
     error OnlyEjectionController();
 
@@ -35,30 +35,7 @@ abstract contract ETHRegistry is PermissionedRegistry, ITokenObserver {
         _setEjectionController(_newEjectionController);
     }
 
-    /**
-     * Implements ITokenObserver.onRenew
-     */
-    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external {
-        if (address(ejectionController) != address(0)) {
-            ejectionController.onRenew(tokenId, expires, renewedBy);
-        }
-    }
-
-    /**
-     * Implements ITokenObserver.onRelinquish
-     */
-    function onRelinquish(uint256 tokenId, address relinquishedBy) external {
-        if (address(ejectionController) != address(0)) {
-            ejectionController.onRelinquish(tokenId, relinquishedBy);
-        }
-    }
-
     // Internal functions
-
-    function _generateTokenId(uint256 tokenId, address registry, uint64 expires, uint32 tokenIdVersion) internal virtual override returns (uint256 newTokenId) {
-        newTokenId = super._generateTokenId(tokenId, registry, expires, tokenIdVersion);
-        tokenObservers[tokenId] = this;
-    }
 
     function _setEjectionController(IEjectionController _newEjectionController) internal virtual {
         address oldController = address(ejectionController);
