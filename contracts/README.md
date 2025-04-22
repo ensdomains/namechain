@@ -62,10 +62,17 @@ There are two ways to run the devnet:
 ### Using Docker Compose
 
 1. Make sure you have Docker and Docker Compose installed
-2. Run the devnet:
+2. Run the devnet using either:
+
    ```bash
+   # Using local build
+   docker compose up -d
+
+   # Or using pre-built image from GitHub Container Registry
+   docker pull ghcr.io/ensdomains/namechain:latest
    docker compose up -d
    ```
+
 3. The devnet will be available at:
    - L1 Chain: http://localhost:8545 (Chain ID: 31337)
    - L2 Chain: http://localhost:8546 (Chain ID: 31338)
