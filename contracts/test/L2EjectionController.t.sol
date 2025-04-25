@@ -6,7 +6,7 @@ import "forge-std/console.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
-import "../src/L2/L2EjectionController.sol";
+import {L2EjectionController} from "../src/L2/L2EjectionController.sol";
 import "../src/common/IPermissionedRegistry.sol";
 import "../src/common/IRegistry.sol";
 import "../src/common/ITokenObserver.sol";
@@ -58,32 +58,11 @@ contract MockL2EjectionController is L2EjectionController {
     /**
      * @dev Overridden to emit a mock event after calling the parent logic.
      */
-    function _onEjectToL1(uint256 tokenId, bytes memory data) internal override {
-        super._onEjectToL1(tokenId, data);
-        emit MockNameEjectedToL1(tokenId, data);
+    function _onEjectToL1(uint256 tokenId, TransferData memory transferData) internal override {
+        super._onEjectToL1(tokenId, transferData);
+        emit MockNameEjectedToL1(tokenId, abi.encode(transferData.label, transferData.l1Owner, transferData.l1Subregistry, transferData.l1Resolver, transferData.expires));
     }
 
-    /**
-     * @dev Overridden internal migration logic to emit a mock event.
-     */
-    function _completeMigrationFromL1(
-        uint256 tokenId,
-        address l2Owner,
-        address l2Subregistry,
-        address l2Resolver
-    ) internal override {
-        // Replicate parent logic instead of calling super
-        if (registry.ownerOf(tokenId) != address(this)) {
-            revert NotTokenOwner(tokenId);
-        }
-        registry.setSubregistry(tokenId, IRegistry(l2Subregistry));
-        registry.setResolver(tokenId, l2Resolver);
-        registry.safeTransferFrom(address(this), l2Owner, tokenId, 1, "");
-        
-        // Emit mock event
-        emit MockNameMigratedFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver);
-    }
-    
     /**
      * @dev Public wrapper to call the internal _completeMigrationFromL1 for testing.
      */
@@ -94,6 +73,7 @@ contract MockL2EjectionController is L2EjectionController {
         address l2Resolver
     ) public {
         _completeMigrationFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver);
+        emit MockNameMigratedFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver);
     }
 
     /**
@@ -133,6 +113,57 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     uint256 labelHash;
     uint256 tokenId;
     uint64 expiryDuration = 86400; // 1 day
+    
+    /**
+     * Helper method to create properly encoded data for the ERC1155 transfers
+     */
+    function _createEjectionData(
+        string memory nameLabel,
+        address owner,
+        address subregistry,
+        address resolver,
+        uint64 expiryTime
+    ) internal pure returns (bytes memory) {
+        L2EjectionController.TransferData memory transferData = L2EjectionController.TransferData({
+            label: nameLabel,
+            l1Owner: owner,
+            l1Subregistry: subregistry,
+            l1Resolver: resolver,
+            expires: expiryTime
+        });
+        return abi.encode(transferData);
+    }
+    
+    /**
+     * Helper method to create properly encoded batch data for the ERC1155 batch transfers
+     */
+    function _createBatchEjectionData(
+        string[] memory labels,
+        address[] memory owners,
+        address[] memory subregistries,
+        address[] memory resolvers,
+        uint64[] memory expiryTimes
+    ) internal pure returns (bytes memory) {
+        require(labels.length == owners.length && 
+                labels.length == subregistries.length && 
+                labels.length == resolvers.length && 
+                labels.length == expiryTimes.length, 
+                "Array lengths must match");
+                
+        L2EjectionController.TransferData[] memory transferDataArray = new L2EjectionController.TransferData[](labels.length);
+        
+        for (uint256 i = 0; i < labels.length; i++) {
+            transferDataArray[i] = L2EjectionController.TransferData({
+                label: labels[i],
+                l1Owner: owners[i],
+                l1Subregistry: subregistries[i],
+                l1Resolver: resolvers[i],
+                expires: expiryTimes[i]
+            });
+        }
+        
+        return abi.encode(transferDataArray);
+    }
 
     function setUp() public {
         datastore = new RegistryDatastore();
@@ -167,8 +198,9 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     }
 
     function test_eject_flow_via_transfer() public {
-        // Prepare the data for ejection
-        bytes memory ejectionData = abi.encode(l1Owner, l1Subregistry, l1Resolver);
+        // Prepare the data for ejection with label and expiry
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime);
         
         // Make sure user still owns the token
         assertEq(registry.ownerOf(tokenId), user);
@@ -213,7 +245,8 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
 
     function test_completeMigrationFromL1() public {
         // First eject the name so the controller owns it
-        bytes memory ejectionData = abi.encode(l1Owner, l1Subregistry, l1Resolver);
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime);
         vm.prank(user);
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
         
@@ -290,9 +323,6 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         uint256 tokenId2 = registry.register(label2, user, registry, address(0), ALL_ROLES, expires);
         uint256 tokenId3 = registry.register(label3, user, registry, address(0), ALL_ROLES, expires);
         
-        // Setup data for the batch transfer
-        bytes memory ejectionData = abi.encode(l1Owner, l1Subregistry, l1Resolver);
-        
         // Create batch of tokens to transfer
         uint256[] memory ids = new uint256[](2);
         ids[0] = tokenId2;
@@ -301,12 +331,33 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         amounts[0] = 1;
         amounts[1] = 1;
         
-        // Perform the batch transfer
-        vm.recordLogs();
+        // Create arrays for transfer data
+        string[] memory labels = new string[](2);
+        address[] memory owners = new address[](2);
+        address[] memory subregistries = new address[](2);
+        address[] memory resolvers = new address[](2);
+        uint64[] memory expiries = new uint64[](2);
+        
+        // Set values for each token
+        labels[0] = label2;
+        labels[1] = label3;
+        
+        for (uint256 i = 0; i < 2; i++) {
+            owners[i] = l1Owner;
+            subregistries[i] = l1Subregistry;
+            resolvers[i] = l1Resolver;
+            expiries[i] = uint64(block.timestamp + expiryDuration);
+        }
+        
+        // Create batch ejection data
+        bytes memory batchData = _createBatchEjectionData(labels, owners, subregistries, resolvers, expiries);
+        
+        // Execute batch transfer
         vm.startPrank(user);
-        registry.safeBatchTransferFrom(user, address(controller), ids, amounts, ejectionData);
+        vm.recordLogs();
+        registry.safeBatchTransferFrom(user, address(controller), ids, amounts, batchData);
         vm.stopPrank();
-                
+        
         // Verify tokens are now owned by the controller
         assertEq(registry.ownerOf(ids[0]), address(controller), "First token should be owned by controller");
         assertEq(registry.ownerOf(ids[1]), address(controller), "Second token should be owned by controller");
@@ -320,11 +371,26 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         // Verify token observer was set for both tokens
         assertEq(address(registry.tokenObservers(ids[0])), address(controller), "Token observer not set for token 1");
         assertEq(address(registry.tokenObservers(ids[1])), address(controller), "Token observer not set for token 2");
+        
+        // Check for events
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint256 ejectionEventsCount = 0;
+        bytes32 expectedSig = keccak256("MockNameEjectedToL1(uint256,bytes)");
+        
+        for (uint i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(controller) && 
+                logs[i].topics[0] == expectedSig) {
+                ejectionEventsCount++;
+            }
+        }
+        
+        assertEq(ejectionEventsCount, 2, "Should have emitted 2 MockNameEjectedToL1 events");
     }
 
     function test_onRenew_emitsEvent() public {
         // First eject the name so the controller owns it and becomes the observer
-        bytes memory ejectionData = abi.encode(l1Owner, l1Subregistry, l1Resolver);
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime);
         vm.prank(user);
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
         
@@ -372,7 +438,8 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
 
     function test_onRelinquish_emitsEvent() public {
         // First eject the name so the controller owns it and becomes the observer
-        bytes memory ejectionData = abi.encode(l1Owner, l1Subregistry, l1Resolver);
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime);
         vm.prank(user);
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
         
@@ -415,5 +482,20 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         
         // Verify token is still owned by the controller (onRelinquish in mock doesn't change ownership)
         assertEq(registry.ownerOf(tokenId), address(controller), "Token should still be owned by controller");
+    }
+
+    function test_Revert_eject_invalid_label() public {
+        // Prepare the data for ejection with an invalid label
+        string memory invalidLabel = "invalid";
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        bytes memory ejectionData = _createEjectionData(invalidLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime);
+        
+        // Make sure user still owns the token
+        assertEq(registry.ownerOf(tokenId), user);
+        
+        // User transfers the token to the ejection controller, should revert with InvalidLabel
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(L2EjectionController.InvalidLabel.selector, tokenId, invalidLabel));
+        registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
     }
 }

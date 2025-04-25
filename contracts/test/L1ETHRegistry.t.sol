@@ -9,7 +9,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import "../src/L1/L1ETHRegistry.sol";
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistry.sol";
-import "../src/L1/L1EjectionController.sol";
+import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
 import "../src/common/IEjectionController.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 import "../src/common/IRegistryMetadata.sol";
@@ -36,6 +36,52 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
 
     function supportsInterface(bytes4 /*interfaceId*/) public pure override(ERC1155Holder, EnhancedAccessControl) returns (bool) {
         return true;
+    }
+    
+    /**
+     * Helper method to create properly encoded data for the ERC1155 transfers
+     */
+    function _createEjectionData(
+        address l2Owner,
+        address l2Subregistry,
+        address l2Resolver,
+        uint64 expiryTime
+    ) internal pure returns (bytes memory) {
+        L1EjectionController.TransferData memory transferData = L1EjectionController.TransferData({
+            l2Owner: l2Owner,
+            l2Subregistry: l2Subregistry,
+            l2Resolver: l2Resolver,
+            expires: expiryTime
+        });
+        return abi.encode(transferData);
+    }
+    
+    /**
+     * Helper method to create properly encoded batch data for the ERC1155 batch transfers
+     */
+    function _createBatchEjectionData(
+        address[] memory l2Owners,
+        address[] memory l2Subregistries,
+        address[] memory l2Resolvers,
+        uint64[] memory expiryTimes
+    ) internal pure returns (bytes memory) {
+        require(l2Owners.length == l2Subregistries.length && 
+                l2Owners.length == l2Resolvers.length && 
+                l2Owners.length == expiryTimes.length, 
+                "Array lengths must match");
+                
+        L1EjectionController.TransferData[] memory transferDataArray = new L1EjectionController.TransferData[](l2Owners.length);
+        
+        for (uint256 i = 0; i < l2Owners.length; i++) {
+            transferDataArray[i] = L1EjectionController.TransferData({
+                l2Owner: l2Owners[i],
+                l2Subregistry: l2Subregistries[i],
+                l2Resolver: l2Resolvers[i],
+                expires: expiryTimes[i]
+            });
+        }
+        
+        return abi.encode(transferDataArray);
     }
     
     function setUp() public {
@@ -184,7 +230,12 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
         vm.prank(address(ejectionController));
         uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
 
-        bytes memory data = hex"beef";
+        // Use helper method to create properly encoded data with expected values
+        address expectedOwner = address(1);
+        address expectedSubregistry = address(2);
+        address expectedResolver = address(3);
+        uint64 expectedExpiry = uint64(block.timestamp + 86400);
+        bytes memory data = _createEjectionData(expectedOwner, expectedSubregistry, expectedResolver, expectedExpiry);
 
         vm.recordLogs();
         registry.safeTransferFrom(address(this), address(ejectionController), tokenId, 1, data);
@@ -192,11 +243,13 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
         // Check that the token is now owned by address(0)
         assertEq(registry.ownerOf(tokenId), address(0), "Token should have no owner after migration");
 
+        // Check for event emission without trying to decode specific fields
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool eventReceived = false;
+        bytes32 expectedSig = keccak256("MockNameEjectedToL2(uint256,address,address,address,uint64)");
+        
         for (uint256 i = 0; i < entries.length; i++) {
-            bytes32 topic = entries[i].topics[0];
-            if (topic == keccak256("MockNameEjectedToL2(uint256,bytes)")) {
+            if (entries[i].topics[0] == expectedSig) {
                 eventReceived = true;
                 break;
             }
@@ -224,13 +277,32 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
         (,uint64 updatedExpiry,) = datastore.getSubregistry(address(registry), tokenId);
         assertEq(updatedExpiry, newExpiry);
         
-        // Test the migration to L2 flow
-        bytes memory data = abi.encode(address(1), address(2), address(3));
+        // Test the migration to L2 flow with properly encoded data
+        address expectedOwner = address(1);
+        address expectedSubregistry = address(2);
+        address expectedResolver = address(3);
+        uint64 expectedExpiry = uint64(block.timestamp + 86400);
+        bytes memory data = _createEjectionData(expectedOwner, expectedSubregistry, expectedResolver, expectedExpiry);
+        
         vm.recordLogs();
         registry.safeTransferFrom(address(this), address(ejectionController), tokenId, 1, data);
         
         // Verify that onERC1155Received was called and the token is relinquished
         assertEq(registry.ownerOf(tokenId), address(0), "Token should have no owner after migration");
+        
+        // Check for event emission without trying to decode specific fields
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool eventFound = false;
+        bytes32 expectedSig = keccak256("MockNameEjectedToL2(uint256,address,address,address,uint64)");
+        
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == expectedSig) {
+                eventFound = true;
+                break;
+            }
+        }
+        
+        assertTrue(eventFound, "MockNameEjectedToL2 event not found");
     }
 
     function test_onERC1155BatchReceived() public {
@@ -265,7 +337,22 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
         amounts[1] = 1;
         amounts[2] = 1;
         
-        bytes memory data = hex"1234";
+        // Create arrays for transfer data
+        address[] memory owners = new address[](3);
+        address[] memory subregistries = new address[](3);
+        address[] memory resolvers = new address[](3);
+        uint64[] memory expiries = new uint64[](3);
+        
+        // Fill with different values for each token
+        for (uint256 i = 0; i < 3; i++) {
+            owners[i] = address(uint160(i + 1));
+            subregistries[i] = address(uint160(i + 10));
+            resolvers[i] = address(uint160(i + 100));
+            expiries[i] = uint64(block.timestamp + 86400 * (i + 1));
+        }
+        
+        // Create batch ejection data
+        bytes memory data = _createBatchEjectionData(owners, subregistries, resolvers, expiries);
         
         // Execute batch transfer
         vm.recordLogs();
@@ -276,12 +363,13 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
             assertEq(registry.ownerOf(ids[i]), address(0), "Token should have been relinquished");
         }
         
-        // Check for batch event
+        // Check for batch event emission without trying to decode specific fields
         Vm.Log[] memory logs = vm.getRecordedLogs();
         uint256 batchEventsCount = 0;
+        bytes32 expectedSig = keccak256("MockNameEjectedToL2(uint256,address,address,address,uint64)");
         
         for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == keccak256("MockNameEjectedToL2(uint256,bytes)")) {
+            if (logs[i].topics[0] == expectedSig) {
                 batchEventsCount++;
             }
         }
@@ -291,7 +379,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
 }
 
 contract MockL1EjectionController is L1EjectionController {
-    event MockNameEjectedToL2(uint256 tokenId, bytes data);
+    event MockNameEjectedToL2(uint256 tokenId, address l1Owner, address l1Subregistry, address l1Resolver, uint64 expires);
     
     constructor(IL1ETHRegistry _registry) L1EjectionController(_registry) {}
     
@@ -317,8 +405,8 @@ contract MockL1EjectionController is L1EjectionController {
     /**
      * @dev Overridden to emit a mock event after calling the parent logic.
      */
-    function _onEjectToL2(uint256 tokenId, bytes memory data) internal override {
-        super._onEjectToL2(tokenId, data);
-        emit MockNameEjectedToL2(tokenId, data);
+    function _onEjectToL2(uint256 tokenId, TransferData memory transferData) internal override {
+        super._onEjectToL2(tokenId, transferData);
+        emit MockNameEjectedToL2(tokenId, transferData.l2Owner, transferData.l2Subregistry, transferData.l2Resolver, transferData.expires);
     }
 }

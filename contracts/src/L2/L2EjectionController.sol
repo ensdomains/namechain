@@ -6,6 +6,7 @@ import {IEjectionController} from "../common/IEjectionController.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {NameUtils} from "../common/NameUtils.sol";
 
 /**
  * @title L2EjectionController
@@ -14,8 +15,17 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
  */
 abstract contract L2EjectionController is IEjectionController, IERC1155Receiver {
     error NotTokenOwner(uint256 tokenId);
+    error InvalidLabel(uint256 tokenId, string label);
 
     IPermissionedRegistry public immutable registry;
+
+    struct TransferData {
+        string label;
+        address l1Owner;
+        address l1Subregistry;
+        address l1Resolver;
+        uint64 expires;
+    }
 
     constructor(IPermissionedRegistry _registry) {
         registry = _registry;
@@ -55,7 +65,8 @@ abstract contract L2EjectionController is IEjectionController, IERC1155Receiver 
      * Implements ERC1155Receiver.onERC1155Received
      */
     function onERC1155Received(address /*operator*/, address /*from*/, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual returns (bytes4) {
-        _onEjectToL1(tokenId, data);
+        TransferData memory transferData = abi.decode(data, (TransferData));
+        _onEjectToL1(tokenId, transferData);
         return this.onERC1155Received.selector;
     }
 
@@ -63,8 +74,11 @@ abstract contract L2EjectionController is IEjectionController, IERC1155Receiver 
      * Implements ERC1155Receiver.onERC1155BatchReceived
      */
     function onERC1155BatchReceived(address /*operator*/, address /*from*/, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual returns (bytes4) {
+        TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
+        
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            _onEjectToL1(tokenIds[i], data);
+            TransferData memory transferData = transferDataArray[i];
+            _onEjectToL1(tokenIds[i], transferData);
         }
         return this.onERC1155BatchReceived.selector;
     }
@@ -85,11 +99,16 @@ abstract contract L2EjectionController is IEjectionController, IERC1155Receiver 
      * @dev Called when a name is ejected to L1.
      *
      * @param tokenId The token ID of the name being ejected
-     * @param data Extra data
+     * @param transferData The transfer data containing label, l1Owner, l1Subregistry, l1Resolver, and expires
      */
-    function _onEjectToL1(uint256 tokenId, bytes memory data) internal virtual {
+    function _onEjectToL1(uint256 tokenId, TransferData memory transferData) internal virtual {
         if (registry.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
+        }
+
+        // check that the label matches the token id
+        if (NameUtils.labelToCanonicalId(transferData.label) != NameUtils.getCanonicalId(tokenId)) {
+            revert InvalidLabel(tokenId, transferData.label);
         }
 
         registry.setSubregistry(tokenId, IRegistry(address(0)));

@@ -19,6 +19,13 @@ abstract contract L1EjectionController is IEjectionController, IERC1155Receiver,
 
     IL1ETHRegistry public immutable registry;
 
+    struct TransferData {
+        address l2Owner;
+        address l2Subregistry;
+        address l2Resolver;
+        uint64 expires;
+    }
+
     constructor(IL1ETHRegistry _registry) {
         registry = _registry;
     }
@@ -62,7 +69,8 @@ abstract contract L1EjectionController is IEjectionController, IERC1155Receiver,
      * Implements ERC1155Receiver.onERC1155Received
      */
     function onERC1155Received(address /*operator*/, address /*from*/, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external override virtual returns (bytes4) {
-        _onEjectToL2(tokenId, data);
+        TransferData memory transferData = abi.decode(data, (TransferData));
+        _onEjectToL2(tokenId, transferData);
         return this.onERC1155Received.selector;
     }
 
@@ -70,8 +78,11 @@ abstract contract L1EjectionController is IEjectionController, IERC1155Receiver,
      * Implements ERC1155Receiver.onERC1155BatchReceived
      */
     function onERC1155BatchReceived(address /*operator*/, address /*from*/, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external override virtual returns (bytes4) {
+        TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
+        
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            _onEjectToL2(tokenIds[i], data);
+            TransferData memory transferData = transferDataArray[i];
+            _onEjectToL2(tokenIds[i], transferData);
         }
         return this.onERC1155BatchReceived.selector;
     }
@@ -92,9 +103,9 @@ abstract contract L1EjectionController is IEjectionController, IERC1155Receiver,
      * @dev Called when a name is ejected back to L2.
      *
      * @param tokenId The token ID of the name being ejected
-     * @param data Extra data
+     * @param transferData The transfer data containing l2Owner, l2Subregistry, l2Resolver, and expires
      */
-    function _onEjectToL2(uint256 tokenId, bytes memory data) internal virtual {
+    function _onEjectToL2(uint256 tokenId, TransferData memory transferData) internal virtual {
         if (registry.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
         }
