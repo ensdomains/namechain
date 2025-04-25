@@ -2,34 +2,20 @@
 pragma solidity >=0.8.13;
 
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
-import {IEjectionController} from "../common/IEjectionController.sol";
-import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
-import {IRegistry} from "../common/IRegistry.sol";
-import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {EjectionController} from "../common/EjectionController.sol";
 import {NameUtils} from "../common/NameUtils.sol";
+import {IRegistry} from "../common/IRegistry.sol";  
 
 /**
  * @title L2EjectionController
  * @dev L2 contract for ejection controller that facilitates migrations of names
  * between L1 and L2, as well as handling renewals.
  */
-abstract contract L2EjectionController is IEjectionController, IERC1155Receiver {
+abstract contract L2EjectionController is EjectionController {
     error NotTokenOwner(uint256 tokenId);
     error InvalidLabel(uint256 tokenId, string label);
 
-    IPermissionedRegistry public immutable registry;
-
-    struct TransferData {
-        string label;
-        address l1Owner;
-        address l1Subregistry;
-        address l1Resolver;
-        uint64 expires;
-    }
-
-    constructor(IPermissionedRegistry _registry) {
-        registry = _registry;
-    }
+    constructor(IPermissionedRegistry _registry) EjectionController(_registry) {}
 
     /**
      * @dev Should be called when a name is being migrated back to L2.
@@ -54,54 +40,12 @@ abstract contract L2EjectionController is IEjectionController, IERC1155Receiver 
         registry.safeTransferFrom(address(this), l2Owner, tokenId, 1, "");
     }
 
-    /**
-     * Implements ERC165.supportsInterface
-     */
-    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return interfaceId == type(IEjectionController).interfaceId || interfaceId == type(IERC1155Receiver).interfaceId;
-    }
-
-    /**
-     * Implements ERC1155Receiver.onERC1155Received
-     */
-    function onERC1155Received(address /*operator*/, address /*from*/, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual returns (bytes4) {
-        TransferData memory transferData = abi.decode(data, (TransferData));
-        _onEjectToL1(tokenId, transferData);
-        return this.onERC1155Received.selector;
-    }
-
-    /**
-     * Implements ERC1155Receiver.onERC1155BatchReceived
-     */
-    function onERC1155BatchReceived(address /*operator*/, address /*from*/, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual returns (bytes4) {
-        TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
-        
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            TransferData memory transferData = transferDataArray[i];
-            _onEjectToL1(tokenIds[i], transferData);
-        }
-        return this.onERC1155BatchReceived.selector;
-    }
-
-    /**
-     * Implements ITokenObserver.onRenew
-     */
-    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external virtual;
-
-    /**
-     * Implements ITokenObserver.onRelinquish
-     */
-    function onRelinquish(uint256 tokenId, address relinquishedBy) external virtual;
-
     // Internal functions
 
     /**
-     * @dev Called when a name is ejected to L1.
-     *
-     * @param tokenId The token ID of the name being ejected
-     * @param transferData The transfer data containing label, l1Owner, l1Subregistry, l1Resolver, and expires
+     * Overrides the EjectionController._onEject function.
      */
-    function _onEjectToL1(uint256 tokenId, TransferData memory transferData) internal virtual {
+    function _onEject(uint256 tokenId, TransferData memory transferData) internal virtual override {
         if (registry.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
         }

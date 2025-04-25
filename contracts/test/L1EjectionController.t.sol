@@ -9,7 +9,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistry.sol";
 import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
-import "../src/common/IEjectionController.sol";
+import {EjectionController} from "../src/common/EjectionController.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 import "../src/common/IRegistryMetadata.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
@@ -17,6 +17,7 @@ import "../src/common/BaseRegistry.sol";
 import "../src/common/IStandardRegistry.sol";
 import "../src/common/NameUtils.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
+import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -37,7 +38,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
     function supportsInterface(bytes4 /*interfaceId*/) public pure override(ERC1155Holder, EnhancedAccessControl) returns (bool) {
         return true;
     }
-    
+
     /**
      * Helper method to create properly encoded data for the ERC1155 transfers
      */
@@ -47,11 +48,12 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         address l2Resolver,
         uint64 expiryTime
     ) internal pure returns (bytes memory) {
-        L1EjectionController.TransferData memory transferData = L1EjectionController.TransferData({
-            l2Owner: l2Owner,
-            l2Subregistry: l2Subregistry,
-            l2Resolver: l2Resolver,
-            expires: expiryTime
+        EjectionController.TransferData memory transferData = EjectionController.TransferData({
+            label: "",
+            newOwner: l2Owner,
+            newSubregistry: l2Subregistry,
+            newResolver: l2Resolver,
+            newExpires: expiryTime
         });
         return abi.encode(transferData);
     }
@@ -70,14 +72,15 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
                 l2Owners.length == expiryTimes.length, 
                 "Array lengths must match");
                 
-        L1EjectionController.TransferData[] memory transferDataArray = new L1EjectionController.TransferData[](l2Owners.length);
+        EjectionController.TransferData[] memory transferDataArray = new EjectionController.TransferData[](l2Owners.length);
         
         for (uint256 i = 0; i < l2Owners.length; i++) {
-            transferDataArray[i] = L1EjectionController.TransferData({
-                l2Owner: l2Owners[i],
-                l2Subregistry: l2Subregistries[i],
-                l2Resolver: l2Resolvers[i],
-                expires: expiryTimes[i]
+            transferDataArray[i] = EjectionController.TransferData({
+                label: "",
+                newOwner: l2Owners[i],
+                newSubregistry: l2Subregistries[i],
+                newResolver: l2Resolvers[i],
+                newExpires: expiryTimes[i]
             });
         }
         
@@ -88,7 +91,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         datastore = new RegistryDatastore();
         registryMetadata = new MockRegistryMetadata();
         
-        // Deploy the registry with temporary controller
+        // Deploy the registry
         registry = new PermissionedRegistry(datastore, registryMetadata, ALL_ROLES);
         
         // Create the real controller with the correct registry
@@ -459,7 +462,7 @@ contract MockL1EjectionController is L1EjectionController {
     event MockNameEjectedToL2(uint256 tokenId, address l1Owner, address l1Subregistry, address l1Resolver, uint64 expires);
     event MockNameEjectedFromL2(string label, address l1Owner, address l1Subregistry, address l1Resolver, uint64 expires);
     
-    constructor(IStandardRegistry _registry) L1EjectionController(_registry) {}
+    constructor(IPermissionedRegistry _registry) L1EjectionController(_registry) {}
     
     function onRenew(uint256, uint64, address) external override {}
     
@@ -484,8 +487,8 @@ contract MockL1EjectionController is L1EjectionController {
     /**
      * @dev Overridden to emit a mock event after calling the parent logic.
      */
-    function _onEjectToL2(uint256 tokenId, TransferData memory transferData) internal override {
-        super._onEjectToL2(tokenId, transferData);
-        emit MockNameEjectedToL2(tokenId, transferData.l2Owner, transferData.l2Subregistry, transferData.l2Resolver, transferData.expires);
+    function _onEject(uint256 tokenId, TransferData memory transferData) internal override {
+        super._onEject(tokenId, transferData);
+        emit MockNameEjectedToL2(tokenId, transferData.newOwner, transferData.newSubregistry, transferData.newResolver, transferData.newExpires);
     }
 }

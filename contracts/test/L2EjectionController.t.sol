@@ -14,9 +14,9 @@ import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistryDatastore.sol";
 import "../src/common/IRegistryMetadata.sol";
 import "../src/common/NameUtils.sol";
-import "../src/common/IEjectionController.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
+import {EjectionController} from "../src/common/EjectionController.sol";
 
 // Mock implementation of IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -38,9 +38,9 @@ contract MockL2EjectionController is L2EjectionController {
     /**
      * @dev Overridden to emit a mock event after calling the parent logic.
      */
-    function _onEjectToL1(uint256 tokenId, TransferData memory transferData) internal override {
-        super._onEjectToL1(tokenId, transferData);
-        emit MockNameEjectedToL1(tokenId, abi.encode(transferData.label, transferData.l1Owner, transferData.l1Subregistry, transferData.l1Resolver, transferData.expires));
+    function _onEject(uint256 tokenId, EjectionController.TransferData memory transferData) internal override {
+        super._onEject(tokenId, transferData);
+        emit MockNameEjectedToL1(tokenId, abi.encode(transferData.label, transferData.newOwner, transferData.newSubregistry, transferData.newResolver, transferData.newExpires));
     }
 
     /**
@@ -104,12 +104,12 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         address resolver,
         uint64 expiryTime
     ) internal pure returns (bytes memory) {
-        L2EjectionController.TransferData memory transferData = L2EjectionController.TransferData({
+        EjectionController.TransferData memory transferData = EjectionController.TransferData({
             label: nameLabel,
-            l1Owner: owner,
-            l1Subregistry: subregistry,
-            l1Resolver: resolver,
-            expires: expiryTime
+            newOwner: owner,
+            newSubregistry: subregistry,
+            newResolver: resolver,
+            newExpires: expiryTime
         });
         return abi.encode(transferData);
     }
@@ -130,15 +130,15 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
                 labels.length == expiryTimes.length, 
                 "Array lengths must match");
                 
-        L2EjectionController.TransferData[] memory transferDataArray = new L2EjectionController.TransferData[](labels.length);
+        EjectionController.TransferData[] memory transferDataArray = new EjectionController.TransferData[](labels.length);
         
         for (uint256 i = 0; i < labels.length; i++) {
-            transferDataArray[i] = L2EjectionController.TransferData({
+            transferDataArray[i] = EjectionController.TransferData({
                 label: labels[i],
-                l1Owner: owners[i],
-                l1Subregistry: subregistries[i],
-                l1Resolver: resolvers[i],
-                expires: expiryTimes[i]
+                newOwner: owners[i],
+                newSubregistry: subregistries[i],
+                newResolver: resolvers[i],
+                newExpires: expiryTimes[i]
             });
         }
         
@@ -149,7 +149,6 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         datastore = new RegistryDatastore();
         registryMetadata = new MockRegistryMetadata();
         
-        // Deploy registry with the temp controller as IEjectionController
         registry = new PermissionedRegistry(datastore, registryMetadata, ALL_ROLES);
         
         // Now deploy the real mock controller with the correct registry
@@ -158,9 +157,8 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         // Set up for testing
         labelHash = NameUtils.labelToCanonicalId(label);
         
-        // Grant registrar roles
+        // Grant roles
         registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(this));
-        registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(controller));
         
         // Register a test name
         uint64 expires = uint64(block.timestamp + expiryDuration);
@@ -283,7 +281,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     }
 
     function test_supportsInterface() public view {
-        assertTrue(controller.supportsInterface(type(IEjectionController).interfaceId));
+        assertTrue(controller.supportsInterface(type(EjectionController).interfaceId));
         assertTrue(controller.supportsInterface(type(IERC1155Receiver).interfaceId));
         // Remove test for ITokenObserver until we confirm it's actually implemented
         assertFalse(controller.supportsInterface(0x12345678));
