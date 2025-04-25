@@ -51,7 +51,7 @@ abstract contract L1EjectionController is EjectionController, RegistryRolesMixin
     /**
      * Overrides the EjectionController._onEject function.
      */
-    function _onEject(uint256 tokenId, TransferData memory transferData) internal override virtual {
+    function _onEject(uint256 tokenId, TransferData memory /*transferData*/) internal override virtual {
         if (registry.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
         }
