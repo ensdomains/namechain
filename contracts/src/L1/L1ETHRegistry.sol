@@ -11,7 +11,8 @@ import {IStandardRegistry} from "../common/IStandardRegistry.sol";
 import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
 import {PermissionedRegistry} from "../common/PermissionedRegistry.sol";
 import {ETHRegistry} from "../common/ETHRegistry.sol";
-import {IL1EjectionController} from "./IL1EjectionController.sol";
+import {IL1ETHRegistry} from "./IL1ETHRegistry.sol";
+import {IEjectionController} from "../common/IEjectionController.sol";
 
 /**
  * @title L1ETHRegistry
@@ -19,13 +20,12 @@ import {IL1EjectionController} from "./IL1EjectionController.sol";
  * Unlike the L2 ETHRegistry, this registry does not handle new registrations directly,
  * but receives names that have been ejected from L2.
  */
-contract L1ETHRegistry is ETHRegistry {
+contract L1ETHRegistry is ETHRegistry, IL1ETHRegistry {
     error NameNotExpired(uint256 tokenId, uint64 expires);
-
-    event NameMigratedToL2(uint256 indexed tokenId, address l2Owner, address l2Subregistry, address l2Resolver);
+    
     event NameEjectedFromL2(uint256 indexed tokenId, address l1Owner, address l1Subregistry, address l1Resolver, uint64 expires);
 
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _registryMetadata, IL1EjectionController _ejectionController) ETHRegistry(_datastore, _registryMetadata, _ejectionController) {
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _registryMetadata, IEjectionController _ejectionController) ETHRegistry(_datastore, _registryMetadata, _ejectionController) {
     }
 
     /**
@@ -60,56 +60,9 @@ contract L1ETHRegistry is ETHRegistry {
         datastore.setSubregistry(tokenId, address(registry), expires, tokenIdVersion);
         datastore.setResolver(tokenId, resolver, expires, 0);
 
+        _grantRoles(getTokenIdResource(tokenId), ROLE_RENEW, address(ejectionController), false);
+
         emit NameEjectedFromL2(tokenId, owner, address(registry), resolver, expires);
         return tokenId;
     }
-
-    /**
-     * @dev Update expiration date for a name. This can only be called by the ejection controller
-     * when it receives a notification from L2 about a renewal.
-     *
-     * @param tokenId The token ID of the name to update
-     * @param expires New expiration timestamp
-     */
-    function updateExpiration(uint256 tokenId, uint64 expires) 
-        public 
-        onlyEjectionController
-    {
-        (address subregistry, uint64 oldExpiration, uint32 tokenIdVersion) = datastore.getSubregistry(tokenId);
-        
-        if (oldExpiration < block.timestamp) {
-            revert NameExpired(tokenId);
-        }
-        
-        if (expires < oldExpiration) {
-            revert CannotReduceExpiration(oldExpiration, expires);
-        }
-        
-        datastore.setSubregistry(tokenId, subregistry, expires, tokenIdVersion);
-        
-        emit NameRenewed(tokenId, expires, msg.sender);
-    }
-
-    /**
-     * @dev Migrate a name back to Namechain, preserving ownership on Namechain.
-     * According to section 4.5.6 of the design doc, this process requires
-     * the ejection controller to facilitate cross-chain communication.
-     * @param tokenId The token ID of the name to migrate
-     * @param l2Owner The address to send the name to on L2
-     * @param l2Subregistry The subregistry to use on L2 (optional)
-     * @param l2Resolver The resolver to use on L2 (optional)
-     * @param data Extra data
-     */
-    function migrateToNamechain(uint256 tokenId, address l2Owner, address l2Subregistry, address l2Resolver, bytes memory data) external onlyTokenOwner(tokenId) {
-        address owner = ownerOf(tokenId);
-        _burn(owner, tokenId, 1);
-        datastore.setSubregistry(tokenId, address(0), 0, 0);
-
-        // Notify the ejection controller to handle cross-chain messaging
-        // expiry is set to 0 since L2 will handle the expiry
-        IL1EjectionController(address(ejectionController)).migrateToNamechain(tokenId, l2Owner, l2Subregistry, l2Resolver, data);
-
-        emit NameMigratedToL2(tokenId, l2Owner, l2Subregistry, l2Resolver);
-    }
-
 }

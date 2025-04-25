@@ -9,13 +9,15 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import "../src/L1/L1ETHRegistry.sol";
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistry.sol";
-import "../src/L1/IL1EjectionController.sol";
+import "../src/L1/L1EjectionController.sol";
+import "../src/common/IEjectionController.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 import "../src/common/IRegistryMetadata.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import "../src/common/BaseRegistry.sol";
 import "../src/common/IStandardRegistry.sol";
 import "../src/common/ETHRegistry.sol";
+import "../src/common/NameUtils.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -26,7 +28,7 @@ contract MockRegistryMetadata is IRegistryMetadata {
 contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedAccessControl {
     RegistryDatastore datastore;
     L1ETHRegistry registry;
-    MockEjectionController ejectionController;
+    MockL1EjectionController ejectionController;
     MockRegistryMetadata registryMetadata;
     address constant MOCK_RESOLVER = address(0xabcd);
 
@@ -38,21 +40,32 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
     
     function setUp() public {
         datastore = new RegistryDatastore();
-        ejectionController = new MockEjectionController();
         registryMetadata = new MockRegistryMetadata();
-        registry = new L1ETHRegistry(datastore, registryMetadata, ejectionController);
+        
+        // Create a temporary controller to satisfy the ETHRegistry constructor
+        MockL1EjectionController tempController = new MockL1EjectionController(IL1ETHRegistry(address(0)));
+        
+        // Deploy the registry with temporary controller
+        registry = new L1ETHRegistry(datastore, registryMetadata, IEjectionController(address(tempController)));
+        
+        // Create the real controller with the correct registry
+        ejectionController = new MockL1EjectionController(registry);
+        
+        // Update the registry to use the real controller
+        registry.grantRootRoles(ROLE_SET_EJECTION_CONTROLLER, address(this));
+        registry.setEjectionController(ejectionController);
     }
 
     function test_eject_from_namechain_unlocked() public {
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), IRegistry(address(registry)), MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
         
         assertEq(registry.ownerOf(tokenId), address(this));
     }
 
     function test_eject_from_namechain_basic() public {
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), IRegistry(address(registry)), MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
         
         assertEq(registry.ownerOf(tokenId), address(this));
         
@@ -65,7 +78,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
         vm.recordLogs();
         
         vm.prank(address(ejectionController));
-        registry.ejectFromNamechain(labelHash, address(this), IRegistry(address(registry)), MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundNameEjected = false;
@@ -83,14 +96,25 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
         address nonController = address(0x1234);
         vm.startPrank(nonController);
         vm.expectRevert(ETHRegistry.OnlyEjectionController.selector);
-        registry.ejectFromNamechain(labelHash, address(this), IRegistry(address(registry)), MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
         vm.stopPrank();
+    }
+
+    function test_Revert_eject_from_namechain_not_expired() public {
+        // First register the name
+        vm.prank(address(ejectionController));
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        
+        // Try to eject again while not expired
+        vm.prank(address(ejectionController));
+        vm.expectRevert(abi.encodeWithSelector(L1ETHRegistry.NameNotExpired.selector, tokenId, uint64(block.timestamp) + 86400));
+        registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
     }
 
     function test_updateExpiration() public {
         vm.prank(address(ejectionController));
         uint64 expiryTime = uint64(block.timestamp) + 100;
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), IRegistry(address(registry)), MOCK_RESOLVER, expiryTime);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, expiryTime);
         
         // Verify initial expiry was set
         (,uint64 initialExpiry,) = datastore.getSubregistry(address(registry), tokenId);
@@ -99,7 +123,7 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
         uint64 newExpiry = uint64(block.timestamp) + 200;
         
         vm.prank(address(ejectionController));
-        registry.updateExpiration(tokenId, newExpiry);
+        ejectionController.syncRenewal(tokenId, newExpiry);
 
         // Verify new expiry was set
         (,uint64 updatedExpiry,) = datastore.getSubregistry(address(registry), tokenId);
@@ -108,14 +132,14 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
 
     function test_updateExpiration_emits_event() public {
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), IRegistry(address(registry)), MOCK_RESOLVER, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 100);
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
 
         vm.recordLogs();
         
         vm.prank(address(ejectionController));
-        registry.updateExpiration(tokenId, newExpiry);
+        ejectionController.syncRenewal(tokenId, newExpiry);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundNameRenewed = false;
@@ -131,19 +155,19 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
 
     function test_Revert_updateExpiration_expired_name() public {
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), IRegistry(address(registry)), MOCK_RESOLVER, uint64(block.timestamp) + 100);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 100);
         
         vm.warp(block.timestamp + 101);
 
         vm.prank(address(ejectionController));
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameExpired.selector, tokenId));
-        registry.updateExpiration(tokenId, uint64(block.timestamp) + 200);
+        ejectionController.syncRenewal(tokenId, uint64(block.timestamp) + 200);
     }
 
     function test_Revert_updateExpiration_reduce_expiry() public {
         vm.prank(address(ejectionController));
         uint64 initialExpiry = uint64(block.timestamp) + 200;
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), IRegistry(address(registry)), MOCK_RESOLVER, initialExpiry);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, initialExpiry);
         
         uint64 newExpiry = uint64(block.timestamp) + 100;
 
@@ -153,116 +177,148 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
                 IStandardRegistry.CannotReduceExpiration.selector, initialExpiry, newExpiry
             )
         );
-        registry.updateExpiration(tokenId, newExpiry);
-    }
-
-    function test_Revert_updateExpiration_if_not_controller() public {
-        vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), IRegistry(address(registry)), MOCK_RESOLVER, uint64(block.timestamp) + 100);
-        
-        uint64 newExpiry = uint64(block.timestamp) + 200;
-        
-        address nonController = address(0x1234);
-        vm.startPrank(nonController);
-        vm.expectRevert(ETHRegistry.OnlyEjectionController.selector);
-        registry.updateExpiration(tokenId, newExpiry);
-        vm.stopPrank();
+        ejectionController.syncRenewal(tokenId, newExpiry);
     }
 
     function test_migrateToNamechain() public {
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), IRegistry(address(registry)), MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
 
-        address l2Owner = address(1);
-        address l2Subregistry = address(2);
-        address l2Resolver = address(3);
         bytes memory data = hex"beef";
 
         vm.recordLogs();
-        registry.migrateToNamechain(tokenId, l2Owner, l2Subregistry, l2Resolver, data);
+        registry.safeTransferFrom(address(this), address(ejectionController), tokenId, 1, data);
 
-        assertEq(registry.ownerOf(tokenId), address(0));
+        // Check that the token is now owned by address(0)
+        assertEq(registry.ownerOf(tokenId), address(0), "Token should have no owner after migration");
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundNameMigrated = false;
-        bytes32 expectedSig = keccak256("NameMigratedToL2(uint256,address,address,address)");
+        bool eventReceived = false;
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == expectedSig) {
-                foundNameMigrated = true;
+            bytes32 topic = entries[i].topics[0];
+            if (topic == keccak256("MockNameEjectedToL2(uint256,bytes)")) {
+                eventReceived = true;
                 break;
             }
         }
-        assertTrue(foundNameMigrated, "NameMigratedToL2 event not found");
-
-        (uint256 lastTokenId, address lastL2Owner, address lastL2Subregistry, address lastL2Resolver, bytes memory lastData) = ejectionController.getLastMigration();
-        assertEq(lastTokenId, tokenId);
-        assertEq(lastL2Owner, l2Owner);
-        assertEq(lastL2Subregistry, l2Subregistry);
-        assertEq(lastL2Resolver, l2Resolver);
-        assertEq(keccak256(lastData), keccak256(data));
+        assertTrue(eventReceived, "MockNameEjectedToL2 event not found");
     }
 
-    function test_migrateToNamechain_only_owner() public {
+    function test_ejectionController_integration() public {
+        // Verify the controller is properly set
+        assertEq(address(registry.ejectionController()), address(ejectionController));
+        
+        // Test complete ejection flow
         vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(0xdead), IRegistry(address(registry)), MOCK_RESOLVER, uint64(block.timestamp) + 86400);
-
-        // Try to migrate as a non-owner (the current test is run as address(this))
-        vm.expectRevert(abi.encodeWithSelector(BaseRegistry.AccessDenied.selector, tokenId, address(0xdead), address(this)));
-        registry.migrateToNamechain(tokenId, address(1), address(2), address(3), hex"beef");
+        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        
+        // Verify the token exists and has correct ownership
+        assertEq(registry.ownerOf(tokenId), address(this));
+        
+        // Test the renewal from the controller
+        uint64 newExpiry = uint64(block.timestamp) + 100000;
+        vm.prank(address(ejectionController));
+        ejectionController.syncRenewal(tokenId, newExpiry);
+        
+        // Verify expiry was updated
+        (,uint64 updatedExpiry,) = datastore.getSubregistry(address(registry), tokenId);
+        assertEq(updatedExpiry, newExpiry);
+        
+        // Test the migration to L2 flow
+        bytes memory data = abi.encode(address(1), address(2), address(3));
+        vm.recordLogs();
+        registry.safeTransferFrom(address(this), address(ejectionController), tokenId, 1, data);
+        
+        // Verify that onERC1155Received was called and the token is relinquished
+        assertEq(registry.ownerOf(tokenId), address(0), "Token should have no owner after migration");
     }
 
-    function test_setEjectionController() public {
-        // Create a new controller
-        MockEjectionController newController = new MockEjectionController();
+    function test_onERC1155BatchReceived() public {
+        // Register multiple names to migrate to L2
+        vm.startPrank(address(ejectionController));
         
-        // Grant necessary permissions
-        registry.grantRootRoles(ROLE_SET_EJECTION_CONTROLLER, address(this));
+        uint256 labelHash1 = uint256(keccak256("test1"));
+        uint256 labelHash2 = uint256(keccak256("test2"));
+        uint256 labelHash3 = uint256(keccak256("test3"));
         
-        // Set new controller
-        registry.setEjectionController(IEjectionController(address(newController)));
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
         
-        // Verify the controller was set
-        assertEq(address(registry.ejectionController()), address(newController));
+        uint256 tokenId1 = registry.ejectFromNamechain(labelHash1, address(this), registry, MOCK_RESOLVER, expiryTime);
+        uint256 tokenId2 = registry.ejectFromNamechain(labelHash2, address(this), registry, MOCK_RESOLVER, expiryTime);
+        uint256 tokenId3 = registry.ejectFromNamechain(labelHash3, address(this), registry, MOCK_RESOLVER, expiryTime);
+        
+        vm.stopPrank();
+        
+        // Verify we own the tokens
+        assertEq(registry.ownerOf(tokenId1), address(this));
+        assertEq(registry.ownerOf(tokenId2), address(this));
+        assertEq(registry.ownerOf(tokenId3), address(this));
+        
+        // Set up batch transfer data
+        uint256[] memory ids = new uint256[](3);
+        ids[0] = tokenId1;
+        ids[1] = tokenId2;
+        ids[2] = tokenId3;
+        
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = 1;
+        amounts[1] = 1;
+        amounts[2] = 1;
+        
+        bytes memory data = hex"1234";
+        
+        // Execute batch transfer
+        vm.recordLogs();
+        registry.safeBatchTransferFrom(address(this), address(ejectionController), ids, amounts, data);
+        
+        // Verify all tokens were processed correctly
+        for (uint256 i = 0; i < ids.length; i++) {
+            assertEq(registry.ownerOf(ids[i]), address(0), "Token should have been relinquished");
+        }
+        
+        // Check for batch event
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint256 batchEventsCount = 0;
+        
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == keccak256("MockNameEjectedToL2(uint256,bytes)")) {
+                batchEventsCount++;
+            }
+        }
+        
+        assertEq(batchEventsCount, 3, "Should have emitted 3 MockNameEjectedToL2 events");
     }
 }
 
-contract MockEjectionController is IL1EjectionController {
-    uint256 private _lastTokenId;
-    address private _lastL2Owner;
-    address private _lastL2Subregistry;
-    address private _lastL2Resolver;
-    bytes private _lastData;
-
-    // Implement ITokenObserver interface
+contract MockL1EjectionController is L1EjectionController {
+    event MockNameEjectedToL2(uint256 tokenId, bytes data);
+    
+    constructor(IL1ETHRegistry _registry) L1EjectionController(_registry) {}
+    
     function onRenew(uint256, uint64, address) external override {}
+    
     function onRelinquish(uint256, address) external override {}
-
-    function migrateToNamechain(uint256 tokenId, address newOwner, address newSubregistry, address newResolver, bytes memory data) external override {
-        _lastTokenId = tokenId;
-        _lastL2Owner = newOwner;
-        _lastL2Subregistry = newSubregistry;
-        _lastL2Resolver = newResolver;
-        _lastData = data;
-    }
-
+    
     function completeEjectionFromNamechain(
-        uint256,
-        address,
-        address,
-        address,
-        uint64,
+        uint256 tokenId,
+        address l1Owner,
+        address l1Subregistry,
+        address l1Resolver,
+        uint64 expires,
         bytes memory
-    ) external override {}
-
-    function syncRenewal(uint256 tokenId, uint64 newExpiry) external override {
-        L1ETHRegistry(msg.sender).updateExpiration(tokenId, newExpiry);
+    ) external {
+        _completeEjectionFromL2(tokenId, l1Owner, l1Subregistry, l1Resolver, expires);
     }
     
-    function triggerSyncRenewal(L1ETHRegistry _registry, uint256 tokenId, uint64 newExpiry) external {
-        _registry.updateExpiration(tokenId, newExpiry);
+    function syncRenewal(uint256 tokenId, uint64 newExpiry) external {
+        _syncRenewal(tokenId, newExpiry);
     }
     
-    function getLastMigration() external view returns (uint256, address, address, address, bytes memory) {
-        return (_lastTokenId, _lastL2Owner, _lastL2Subregistry, _lastL2Resolver, _lastData);
+    /**
+     * @dev Overridden to emit a mock event after calling the parent logic.
+     */
+    function _onEjectToL2(uint256 tokenId, bytes memory data) internal override {
+        super._onEjectToL2(tokenId, data);
+        emit MockNameEjectedToL2(tokenId, data);
     }
 }
