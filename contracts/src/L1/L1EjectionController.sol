@@ -16,7 +16,6 @@ import {IL1ETHRegistry} from "./IL1ETHRegistry.sol";
  */
 abstract contract L1EjectionController is IEjectionController, IERC1155Receiver, RegistryRolesMixin {
     error NotTokenOwner(uint256 tokenId);
-    error NameNotExpired(uint256 tokenId, uint64 expires);
 
     IL1ETHRegistry public immutable registry;
 
