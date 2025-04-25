@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IEjectionController} from "../common/IEjectionController.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
-import {IL1ETHRegistry} from "./IL1ETHRegistry.sol";
+import {IStandardRegistry} from "../common/IStandardRegistry.sol";  
 
 /**
  * @title L1EjectionController
@@ -16,8 +15,9 @@ import {IL1ETHRegistry} from "./IL1ETHRegistry.sol";
  */
 abstract contract L1EjectionController is IEjectionController, IERC1155Receiver, RegistryRolesMixin {
     error NotTokenOwner(uint256 tokenId);
-
-    IL1ETHRegistry public immutable registry;
+    error NameNotExpired(uint256 tokenId, uint64 expires);
+    
+    IStandardRegistry public immutable registry;
 
     struct TransferData {
         address l2Owner;
@@ -26,26 +26,26 @@ abstract contract L1EjectionController is IEjectionController, IERC1155Receiver,
         uint64 expires;
     }
 
-    constructor(IL1ETHRegistry _registry) {
+    constructor(IStandardRegistry _registry) {
         registry = _registry;
     }
 
     /**
      * @dev Should be called when a name has been ejected from L2.  
      *
-     * @param tokenId The token ID of the name being ejected
+     * @param label The label of the name being ejected
      * @param l1Owner The address that will own the name on L1
      * @param l1Subregistry The subregistry address to use on L1
      * @param l1Resolver The resolver address to use on L1
      */
     function _completeEjectionFromL2(
-        uint256 tokenId,
+        string memory label,
         address l1Owner,
         address l1Subregistry,
         address l1Resolver,
         uint64 expires
     ) internal virtual {
-        registry.ejectFromNamechain(tokenId, l1Owner, IRegistry(l1Subregistry), l1Resolver, expires);
+        registry.register(label, l1Owner, IRegistry(l1Subregistry), l1Resolver, ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY, expires);
     }
 
     /**

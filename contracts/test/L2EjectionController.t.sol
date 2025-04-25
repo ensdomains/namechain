@@ -7,14 +7,13 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
 import {L2EjectionController} from "../src/L2/L2EjectionController.sol";
-import "../src/common/IPermissionedRegistry.sol";
+import "../src/common/PermissionedRegistry.sol";
 import "../src/common/IRegistry.sol";
 import "../src/common/ITokenObserver.sol";
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistryDatastore.sol";
 import "../src/common/IRegistryMetadata.sol";
 import "../src/common/NameUtils.sol";
-import "../src/common/ETHRegistry.sol";
 import "../src/common/IEjectionController.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
@@ -23,25 +22,6 @@ import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
         return "";
-    }
-}
-
-// Concrete implementation of ETHRegistry for testing
-contract TestETHRegistry is ETHRegistry {
-    constructor(
-        IRegistryDatastore _datastore,
-        IRegistryMetadata _registryMetadata,
-        IEjectionController _ejectionController
-    ) ETHRegistry(_datastore, _registryMetadata, _ejectionController) {}
-
-    // Make register method public for testing
-    function register(string calldata label, address owner, IRegistry registry, address resolver, uint256 roleBitmap, uint64 expires)
-        public
-        override
-        onlyRootRoles(ROLE_REGISTRAR)
-        returns (uint256 tokenId)
-    {
-        return super.register(label, owner, registry, resolver, roleBitmap, expires);
     }
 }
 
@@ -97,7 +77,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     uint256 constant ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
     
     MockL2EjectionController controller; // Changed type to MockL2EjectionController
-    TestETHRegistry registry;
+    PermissionedRegistry registry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
 
@@ -169,24 +149,18 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         datastore = new RegistryDatastore();
         registryMetadata = new MockRegistryMetadata();
         
-        // First create temporary mock controller to satisfy ETHRegistry constructor
-        MockL2EjectionController tempController = new MockL2EjectionController(IPermissionedRegistry(address(0)));
-        
         // Deploy registry with the temp controller as IEjectionController
-        registry = new TestETHRegistry(datastore, registryMetadata, IEjectionController(address(tempController)));
+        registry = new PermissionedRegistry(datastore, registryMetadata, ALL_ROLES);
         
         // Now deploy the real mock controller with the correct registry
         controller = new MockL2EjectionController(registry); // Deploy MockL2EjectionController
         
-        // Update registry to use the real mock controller
-        registry.grantRootRoles(ROLE_SET_EJECTION_CONTROLLER, address(this));
-        registry.setEjectionController(IEjectionController(address(controller)));
-        
         // Set up for testing
         labelHash = NameUtils.labelToCanonicalId(label);
         
-        // Grant this test contract the registrar role so we can register names
-        registry.grantRootRoles(ROLE_REGISTRAR, address(this));
+        // Grant registrar roles
+        registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(this));
+        registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(controller));
         
         // Register a test name
         uint64 expires = uint64(block.timestamp + expiryDuration);

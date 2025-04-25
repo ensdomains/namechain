@@ -6,7 +6,6 @@ import "forge-std/console.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import "../src/L1/L1ETHRegistry.sol";
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistry.sol";
 import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
@@ -16,8 +15,8 @@ import "../src/common/IRegistryMetadata.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import "../src/common/BaseRegistry.sol";
 import "../src/common/IStandardRegistry.sol";
-import "../src/common/ETHRegistry.sol";
 import "../src/common/NameUtils.sol";
+import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -25,14 +24,15 @@ contract MockRegistryMetadata is IRegistryMetadata {
     }
 }
 
-contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedAccessControl {
+contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, EnhancedAccessControl {
     RegistryDatastore datastore;
-    L1ETHRegistry registry;
+    PermissionedRegistry registry;
     MockL1EjectionController ejectionController;
     MockRegistryMetadata registryMetadata;
     address constant MOCK_RESOLVER = address(0xabcd);
 
     uint256 labelHash = uint256(keccak256("test"));
+    string testLabel = "test";
 
     function supportsInterface(bytes4 /*interfaceId*/) public pure override(ERC1155Holder, EnhancedAccessControl) returns (bool) {
         return true;
@@ -88,79 +88,120 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
         datastore = new RegistryDatastore();
         registryMetadata = new MockRegistryMetadata();
         
-        // Create a temporary controller to satisfy the ETHRegistry constructor
-        MockL1EjectionController tempController = new MockL1EjectionController(IL1ETHRegistry(address(0)));
-        
         // Deploy the registry with temporary controller
-        registry = new L1ETHRegistry(datastore, registryMetadata, IEjectionController(address(tempController)));
+        registry = new PermissionedRegistry(datastore, registryMetadata, ALL_ROLES);
         
         // Create the real controller with the correct registry
         ejectionController = new MockL1EjectionController(registry);
-        
-        // Update the registry to use the real controller
-        registry.grantRootRoles(ROLE_SET_EJECTION_CONTROLLER, address(this));
-        registry.setEjectionController(ejectionController);
+
+        // grant roles
+        registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(this));
+        registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(ejectionController));
     }
 
     function test_eject_from_namechain_unlocked() public {
-        vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        ejectionController.completeEjectionFromNamechain(
+            testLabel, 
+            address(this), 
+            address(registry), 
+            MOCK_RESOLVER, 
+            expiryTime, 
+            ""
+        );
         
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), address(this));
     }
 
     function test_eject_from_namechain_basic() public {
-        vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        ejectionController.completeEjectionFromNamechain(
+            testLabel, 
+            address(this), 
+            address(registry), 
+            MOCK_RESOLVER, 
+            expiryTime, 
+            ""
+        );
         
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), address(this));
         
-        assertEq(address(registry.getSubregistry("test")), address(registry));
+        assertEq(address(registry.getSubregistry(testLabel)), address(registry));
 
-        assertEq(registry.getResolver("test"), MOCK_RESOLVER);
+        assertEq(registry.getResolver(testLabel), MOCK_RESOLVER);
     }
 
     function test_eject_from_namechain_emits_events() public {
         vm.recordLogs();
         
-        vm.prank(address(ejectionController));
-        registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        ejectionController.completeEjectionFromNamechain(
+            testLabel, 
+            address(this), 
+            address(registry), 
+            MOCK_RESOLVER, 
+            expiryTime, 
+            ""
+        );
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundNameEjected = false;
-        bytes32 expectedSig = keccak256("NameEjectedFromL2(uint256,address,address,address,uint64)");
+        bool foundNewSubname = false;
+        bool foundMockNameEjectedFromL2 = false;
+        
+        bytes32 newSubnameSig = keccak256("NewSubname(uint256,string)");
+        bytes32 mockEjectedSig = keccak256("MockNameEjectedFromL2(string,address,address,address,uint64)");
+        
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == expectedSig) {
-                foundNameEjected = true;
-                break;
+            if (entries[i].topics[0] == newSubnameSig) {
+                foundNewSubname = true;
+            }
+            if (entries[i].topics[0] == mockEjectedSig) {
+                foundMockNameEjectedFromL2 = true;
             }
         }
-        assertTrue(foundNameEjected, "NameEjectedFromL2 event not found");
-    }
-
-    function test_Revert_eject_from_namechain_if_not_controller() public {
-        address nonController = address(0x1234);
-        vm.startPrank(nonController);
-        vm.expectRevert(ETHRegistry.OnlyEjectionController.selector);
-        registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
-        vm.stopPrank();
+        
+        assertTrue(foundNewSubname, "NewSubname event not found");
+        assertTrue(foundMockNameEjectedFromL2, "MockNameEjectedFromL2 event not found");
     }
 
     function test_Revert_eject_from_namechain_not_expired() public {
         // First register the name
-        vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        ejectionController.completeEjectionFromNamechain(
+            testLabel, 
+            address(this), 
+            address(registry), 
+            MOCK_RESOLVER, 
+            expiryTime, 
+            ""
+        );
         
         // Try to eject again while not expired
-        vm.prank(address(ejectionController));
-        vm.expectRevert(abi.encodeWithSelector(L1ETHRegistry.NameNotExpired.selector, tokenId, uint64(block.timestamp) + 86400));
-        registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameAlreadyRegistered.selector, testLabel));
+        ejectionController.completeEjectionFromNamechain(
+            testLabel, 
+            address(this), 
+            address(registry), 
+            MOCK_RESOLVER, 
+            expiryTime, 
+            ""
+        );
     }
 
     function test_updateExpiration() public {
-        vm.prank(address(ejectionController));
         uint64 expiryTime = uint64(block.timestamp) + 100;
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, expiryTime);
+        ejectionController.completeEjectionFromNamechain(
+            testLabel, 
+            address(this), 
+            address(registry), 
+            MOCK_RESOLVER, 
+            expiryTime, 
+            ""
+        );
+        
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
         
         // Verify initial expiry was set
         (,uint64 initialExpiry,) = datastore.getSubregistry(address(registry), tokenId);
@@ -168,7 +209,6 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
         
-        vm.prank(address(ejectionController));
         ejectionController.syncRenewal(tokenId, newExpiry);
 
         // Verify new expiry was set
@@ -177,14 +217,22 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
     }
 
     function test_updateExpiration_emits_event() public {
-        vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 100);
+        uint64 expiryTime = uint64(block.timestamp) + 100;
+        ejectionController.completeEjectionFromNamechain(
+            testLabel, 
+            address(this), 
+            address(registry), 
+            MOCK_RESOLVER, 
+            expiryTime, 
+            ""
+        );
+        
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
 
         vm.recordLogs();
         
-        vm.prank(address(ejectionController));
         ejectionController.syncRenewal(tokenId, newExpiry);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -200,24 +248,39 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
     }
 
     function test_Revert_updateExpiration_expired_name() public {
-        vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 100);
+        uint64 expiryTime = uint64(block.timestamp) + 100;
+        ejectionController.completeEjectionFromNamechain(
+            testLabel, 
+            address(this), 
+            address(registry), 
+            MOCK_RESOLVER, 
+            expiryTime, 
+            ""
+        );
+        
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
         
         vm.warp(block.timestamp + 101);
 
-        vm.prank(address(ejectionController));
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameExpired.selector, tokenId));
         ejectionController.syncRenewal(tokenId, uint64(block.timestamp) + 200);
     }
 
     function test_Revert_updateExpiration_reduce_expiry() public {
-        vm.prank(address(ejectionController));
         uint64 initialExpiry = uint64(block.timestamp) + 200;
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, initialExpiry);
+        ejectionController.completeEjectionFromNamechain(
+            testLabel, 
+            address(this), 
+            address(registry), 
+            MOCK_RESOLVER, 
+            initialExpiry, 
+            ""
+        );
+        
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
         
         uint64 newExpiry = uint64(block.timestamp) + 100;
 
-        vm.prank(address(ejectionController));
         vm.expectRevert(
             abi.encodeWithSelector(
                 IStandardRegistry.CannotReduceExpiration.selector, initialExpiry, newExpiry
@@ -227,8 +290,17 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
     }
 
     function test_migrateToNamechain() public {
-        vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        ejectionController.completeEjectionFromNamechain(
+            testLabel, 
+            address(this), 
+            address(registry), 
+            MOCK_RESOLVER, 
+            expiryTime, 
+            ""
+        );
+
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
 
         // Use helper method to create properly encoded data with expected values
         address expectedOwner = address(1);
@@ -258,19 +330,24 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
     }
 
     function test_ejectionController_integration() public {
-        // Verify the controller is properly set
-        assertEq(address(registry.ejectionController()), address(ejectionController));
-        
         // Test complete ejection flow
-        vm.prank(address(ejectionController));
-        uint256 tokenId = registry.ejectFromNamechain(labelHash, address(this), registry, MOCK_RESOLVER, uint64(block.timestamp) + 86400);
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        ejectionController.completeEjectionFromNamechain(
+            testLabel, 
+            address(this), 
+            address(registry), 
+            MOCK_RESOLVER, 
+            expiryTime, 
+            ""
+        );
+        
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
         
         // Verify the token exists and has correct ownership
         assertEq(registry.ownerOf(tokenId), address(this));
         
         // Test the renewal from the controller
         uint64 newExpiry = uint64(block.timestamp) + 100000;
-        vm.prank(address(ejectionController));
         ejectionController.syncRenewal(tokenId, newExpiry);
         
         // Verify expiry was updated
@@ -307,19 +384,19 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
 
     function test_onERC1155BatchReceived() public {
         // Register multiple names to migrate to L2
-        vm.startPrank(address(ejectionController));
-        
-        uint256 labelHash1 = uint256(keccak256("test1"));
-        uint256 labelHash2 = uint256(keccak256("test2"));
-        uint256 labelHash3 = uint256(keccak256("test3"));
-        
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         
-        uint256 tokenId1 = registry.ejectFromNamechain(labelHash1, address(this), registry, MOCK_RESOLVER, expiryTime);
-        uint256 tokenId2 = registry.ejectFromNamechain(labelHash2, address(this), registry, MOCK_RESOLVER, expiryTime);
-        uint256 tokenId3 = registry.ejectFromNamechain(labelHash3, address(this), registry, MOCK_RESOLVER, expiryTime);
+        string memory testLabel1 = "test1";
+        string memory testLabel2 = "test2";
+        string memory testLabel3 = "test3";
         
-        vm.stopPrank();
+        ejectionController.completeEjectionFromNamechain(testLabel1, address(this), address(registry), MOCK_RESOLVER, expiryTime, "");
+        ejectionController.completeEjectionFromNamechain(testLabel2, address(this), address(registry), MOCK_RESOLVER, expiryTime, "");
+        ejectionController.completeEjectionFromNamechain(testLabel3, address(this), address(registry), MOCK_RESOLVER, expiryTime, "");
+        
+        (uint256 tokenId1,,) = registry.getNameData(testLabel1);
+        (uint256 tokenId2,,) = registry.getNameData(testLabel2);
+        (uint256 tokenId3,,) = registry.getNameData(testLabel3);
         
         // Verify we own the tokens
         assertEq(registry.ownerOf(tokenId1), address(this));
@@ -380,22 +457,24 @@ contract TestL1ETHRegistry is Test, ERC1155Holder, RegistryRolesMixin, EnhancedA
 
 contract MockL1EjectionController is L1EjectionController {
     event MockNameEjectedToL2(uint256 tokenId, address l1Owner, address l1Subregistry, address l1Resolver, uint64 expires);
+    event MockNameEjectedFromL2(string label, address l1Owner, address l1Subregistry, address l1Resolver, uint64 expires);
     
-    constructor(IL1ETHRegistry _registry) L1EjectionController(_registry) {}
+    constructor(IStandardRegistry _registry) L1EjectionController(_registry) {}
     
     function onRenew(uint256, uint64, address) external override {}
     
     function onRelinquish(uint256, address) external override {}
     
     function completeEjectionFromNamechain(
-        uint256 tokenId,
+        string memory label,
         address l1Owner,
         address l1Subregistry,
         address l1Resolver,
         uint64 expires,
         bytes memory
     ) external {
-        _completeEjectionFromL2(tokenId, l1Owner, l1Subregistry, l1Resolver, expires);
+        _completeEjectionFromL2(label, l1Owner, l1Subregistry, l1Resolver, expires);
+        emit MockNameEjectedFromL2(label, l1Owner, l1Subregistry, l1Resolver, expires);
     }
     
     function syncRenewal(uint256 tokenId, uint64 newExpiry) external {
