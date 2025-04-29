@@ -21,19 +21,12 @@ abstract contract L1EjectionController is EjectionController, RegistryRolesMixin
     /**
      * @dev Should be called when a name has been ejected from L2.  
      *
-     * @param label The label of the name being ejected
-     * @param l1Owner The address that will own the name on L1
-     * @param l1Subregistry The subregistry address to use on L1
-     * @param l1Resolver The resolver address to use on L1
+     * @param transferData The transfer data for the name being ejected
      */
     function _completeEjectionFromL2(
-        string memory label,
-        address l1Owner,
-        address l1Subregistry,
-        address l1Resolver,
-        uint64 expires
+        TransferData memory transferData
     ) internal virtual {
-        registry.register(label, l1Owner, IRegistry(l1Subregistry), l1Resolver, ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY, expires);
+        registry.register(transferData.label, transferData.newOwner, IRegistry(transferData.newSubregistry), transferData.newResolver, transferData.newRoleBitmap, transferData.newExpires);
     }
 
     /**
@@ -51,11 +44,13 @@ abstract contract L1EjectionController is EjectionController, RegistryRolesMixin
     /**
      * Overrides the EjectionController._onEject function.
      */
-    function _onEject(uint256 tokenId, TransferData memory /*transferData*/) internal override virtual {
-        if (registry.ownerOf(tokenId) != address(this)) {
-            revert NotTokenOwner(tokenId);
+    function _onEject(uint256[] memory tokenIds, TransferData[] memory /*transferDataArray*/) internal override virtual {
+        if (registry.ownerOf(tokenIds[0]) != address(this)) {
+            revert NotTokenOwner(tokenIds[0]);
         }
 
-        registry.relinquish(tokenId);
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            registry.relinquish(tokenIds[i]);
+        }
     }
 }

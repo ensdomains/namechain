@@ -21,23 +21,19 @@ abstract contract L2EjectionController is EjectionController {
      * @dev Should be called when a name is being migrated back to L2.
      *
      * @param tokenId The token ID of the name being migrated
-     * @param l2Owner The address that will own the name on L2
-     * @param l2Subregistry The subregistry address to use on L2
-     * @param l2Resolver The resolver address to use on L2
+     * @param transferData The transfer data for the name being migrated
      */
     function _completeMigrationFromL1(
         uint256 tokenId,
-        address l2Owner,
-        address l2Subregistry,
-        address l2Resolver
+        TransferData memory transferData
     ) internal virtual {
         if (registry.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
         }
 
-        registry.setSubregistry(tokenId, IRegistry(l2Subregistry));
-        registry.setResolver(tokenId, l2Resolver);
-        registry.safeTransferFrom(address(this), l2Owner, tokenId, 1, "");
+        registry.setSubregistry(tokenId, IRegistry(transferData.newSubregistry));
+        registry.setResolver(tokenId, transferData.newResolver);
+        registry.safeTransferFrom(address(this), transferData.newOwner, tokenId, 1, "");
     }
 
     // Internal functions
@@ -45,19 +41,24 @@ abstract contract L2EjectionController is EjectionController {
     /**
      * Overrides the EjectionController._onEject function.
      */
-    function _onEject(uint256 tokenId, TransferData memory transferData) internal virtual override {
-        if (registry.ownerOf(tokenId) != address(this)) {
-            revert NotTokenOwner(tokenId);
+    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal virtual override {
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            uint256 tokenId = tokenIds[i];
+            TransferData memory transferData = transferDataArray[i];
+
+            if (registry.ownerOf(tokenId) != address(this)) {
+                revert NotTokenOwner(tokenId);
+            }
+
+            // check that the label matches the token id
+            if (NameUtils.labelToCanonicalId(transferData.label) != NameUtils.getCanonicalId(tokenId)) {
+                revert InvalidLabel(tokenId, transferData.label);
+            }
+
+            registry.setSubregistry(tokenId, IRegistry(address(0)));
+
+            // listen for events
+            registry.setTokenObserver(tokenId, this);
         }
-
-        // check that the label matches the token id
-        if (NameUtils.labelToCanonicalId(transferData.label) != NameUtils.getCanonicalId(tokenId)) {
-            revert InvalidLabel(tokenId, transferData.label);
-        }
-
-        registry.setSubregistry(tokenId, IRegistry(address(0)));
-
-        // listen for events
-        registry.setTokenObserver(tokenId, this);
     }
 }

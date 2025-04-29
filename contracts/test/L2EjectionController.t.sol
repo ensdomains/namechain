@@ -25,51 +25,6 @@ contract MockRegistryMetadata is IRegistryMetadata {
     }
 }
 
-// Mock implementation of L2EjectionController for testing abstract contract
-contract MockL2EjectionController is L2EjectionController {
-    // Define event signatures exactly as they will be emitted
-    event MockNameEjectedToL1(uint256 indexed tokenId, bytes data);
-    event MockNameMigratedFromL1(uint256 indexed tokenId, address l2Owner, address l2Subregistry, address l2Resolver);
-    event MockNameRenewed(uint256 indexed tokenId, uint64 expires, address renewedBy);
-    event MockNameRelinquished(uint256 indexed tokenId, address relinquishedBy);
-
-    constructor(IPermissionedRegistry _registry) L2EjectionController(_registry) {}
-
-    /**
-     * @dev Overridden to emit a mock event after calling the parent logic.
-     */
-    function _onEject(uint256 tokenId, EjectionController.TransferData memory transferData) internal override {
-        super._onEject(tokenId, transferData);
-        emit MockNameEjectedToL1(tokenId, abi.encode(transferData.label, transferData.newOwner, transferData.newSubregistry, transferData.newResolver, transferData.newExpires));
-    }
-
-    /**
-     * @dev Public wrapper to call the internal _completeMigrationFromL1 for testing.
-     */
-    function call_completeMigrationFromL1(
-        uint256 tokenId,
-        address l2Owner,
-        address l2Subregistry,
-        address l2Resolver
-    ) public {
-        _completeMigrationFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver);
-        emit MockNameMigratedFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver);
-    }
-
-    /**
-     * @dev Implementation of abstract function, emits mock event.
-     */
-    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {
-        emit MockNameRenewed(tokenId, expires, renewedBy);
-    }
-
-    /**
-     * @dev Implementation of abstract function, emits mock event.
-     */
-    function onRelinquish(uint256 tokenId, address relinquishedBy) external override {
-        emit MockNameRelinquished(tokenId, relinquishedBy);
-    }
-}
 
 contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     // Import constants from RegistryRolesMixin and EnhancedAccessControl
@@ -102,14 +57,16 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         address owner,
         address subregistry,
         address resolver,
-        uint64 expiryTime
+        uint64 expiryTime,
+        uint256 roleBitmap
     ) internal pure returns (bytes memory) {
         EjectionController.TransferData memory transferData = EjectionController.TransferData({
             label: nameLabel,
             newOwner: owner,
             newSubregistry: subregistry,
             newResolver: resolver,
-            newExpires: expiryTime
+            newExpires: expiryTime,
+            newRoleBitmap: roleBitmap
         });
         return abi.encode(transferData);
     }
@@ -122,12 +79,14 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         address[] memory owners,
         address[] memory subregistries,
         address[] memory resolvers,
-        uint64[] memory expiryTimes
+        uint64[] memory expiryTimes,
+        uint256[] memory roleBitmaps
     ) internal pure returns (bytes memory) {
         require(labels.length == owners.length && 
                 labels.length == subregistries.length && 
                 labels.length == resolvers.length && 
-                labels.length == expiryTimes.length, 
+                labels.length == expiryTimes.length &&
+                labels.length == roleBitmaps.length, 
                 "Array lengths must match");
                 
         EjectionController.TransferData[] memory transferDataArray = new EjectionController.TransferData[](labels.length);
@@ -138,7 +97,8 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
                 newOwner: owners[i],
                 newSubregistry: subregistries[i],
                 newResolver: resolvers[i],
-                newExpires: expiryTimes[i]
+                newExpires: expiryTimes[i],
+                newRoleBitmap: roleBitmaps[i]
             });
         }
         
@@ -172,7 +132,8 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_eject_flow_via_transfer() public {
         // Prepare the data for ejection with label and expiry
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime);
+        uint256 roleBitmap = ALL_ROLES;
+        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Make sure user still owns the token
         assertEq(registry.ownerOf(tokenId), user);
@@ -216,68 +177,87 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     }
 
     function test_completeMigrationFromL1() public {
-        // First eject the name so the controller owns it
+        // Use specific roles instead of ALL_ROLES
+        uint256 originalRoles = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY | ROLE_SET_TOKEN_OBSERVER;
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime);
+
+        string memory label2 = "test2";
+        tokenId = registry.register(label2, user, registry, address(0), originalRoles, expiryTime);        
+        
+        // First eject the name so the controller owns it
+        bytes memory ejectionData = _createEjectionData(label2, l1Owner, l1Subregistry, l1Resolver, expiryTime, originalRoles);
         vm.prank(user);
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
         
         // Verify controller owns the token
         assertEq(registry.ownerOf(tokenId), address(controller), "Controller should own the token");
         
-        // Call the migration function via the public wrapper
+        // Try to migrate with different roles than the original ones - these should be ignored
+        uint256 differentRoles = ROLE_RENEW | ROLE_REGISTRAR;
         vm.recordLogs();
-        controller.call_completeMigrationFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver);
+        controller.call_completeMigrationFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver, differentRoles);
         
-        // Check for MockNameMigratedFromL1 event
+        // Verify migration results
+        _verifyMigrationResults(tokenId, label2, originalRoles, differentRoles);
+        _verifyMigrationEvent(tokenId, differentRoles);
+    }
+    
+    // Helper function to verify migration results
+    function _verifyMigrationResults(uint256 _tokenId, string memory _label, uint256 originalRoles, uint256 ignoredRoles) internal view {
+        // Verify name was migrated - check ownership transfer
+        assertEq(registry.ownerOf(_tokenId), l2Owner, "L2 owner should now own the token");
+        
+        // Verify subregistry and resolver were set correctly
+        IRegistry subregAddr = registry.getSubregistry(_label);
+        assertEq(address(subregAddr), l2Subregistry, "Subregistry not set correctly after migration");
+        
+        address resolverAddr = registry.getResolver(_label);
+        assertEq(resolverAddr, l2Resolver, "Resolver not set correctly after migration");
+        
+        // ROLE BITMAP VERIFICATION:
+        bytes32 resource = registry.getTokenIdResource(_tokenId);
+        assertTrue(registry.hasRoles(resource, originalRoles, l2Owner), "L2 owner should have original roles");
+        assertFalse(registry.hasRoles(resource, ignoredRoles, l2Owner), "L2 owner should not have new roles");
+    }
+    
+    // Helper function to check for event emission
+    function _verifyMigrationEvent(uint256 _tokenId, uint256 expectedRoleBitmap) internal {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
         
-        bytes32 eventSig = keccak256("MockNameMigratedFromL1(uint256,address,address,address)");
+        bytes32 eventSig = keccak256("MockNameMigratedFromL1(uint256,address,address,address,uint256)");
         
         for (uint i = 0; i < logs.length; i++) {
-            // Check if this log is our event (emitter and first topic match)
             if (logs[i].emitter == address(controller) && 
-                logs[i].topics[0] == eventSig) {
+                logs[i].topics[0] == eventSig &&
+                logs[i].topics.length > 1 &&
+                uint256(logs[i].topics[1]) == _tokenId) {
                 
-                // For indexed parameters, check that the topics match
-                if (logs[i].topics.length > 1) {
-                    assertEq(uint256(logs[i].topics[1]), tokenId);
-                }
+                foundEvent = true;
                 
                 // Only decode data if there is data to decode
                 if (logs[i].data.length > 0) {
-                    (address emittedL2Owner, address emittedL2Subregistry, address emittedL2Resolver) = 
-                        abi.decode(logs[i].data, (address, address, address));
+                    (address emittedL2Owner, address emittedL2Subregistry, address emittedL2Resolver, uint256 emittedRoleBitmap) = 
+                        abi.decode(logs[i].data, (address, address, address, uint256));
                     
                     // Verify all data fields match expected values
                     assertEq(emittedL2Owner, l2Owner);
                     assertEq(emittedL2Subregistry, l2Subregistry);
                     assertEq(emittedL2Resolver, l2Resolver);
+                    assertEq(emittedRoleBitmap, expectedRoleBitmap);
                 }
-                
-                foundEvent = true;
                 break;
             }
         }
+        
         assertTrue(foundEvent, "MockNameMigratedFromL1 event not found");
-        
-        // Verify subregistry and resolver were set correctly
-        IRegistry subregAddr = registry.getSubregistry(label);
-        assertEq(address(subregAddr), l2Subregistry, "Subregistry not set correctly after migration");
-        
-        address resolverAddr = registry.getResolver(label);
-        assertEq(resolverAddr, l2Resolver, "Resolver not set correctly after migration");
-        
-        // Verify token ownership transferred
-        assertEq(registry.ownerOf(tokenId), l2Owner, "Token ownership not transferred after migration");
     }
 
     function test_Revert_completeMigrationFromL1_notOwner() public {
         // Expect revert with NotTokenOwner error from the L2EjectionController logic
         vm.expectRevert(abi.encodeWithSelector(L2EjectionController.NotTokenOwner.selector, tokenId));
         // Call the public wrapper which invokes the internal logic that should revert
-        controller.call_completeMigrationFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver);
+        controller.call_completeMigrationFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver, ALL_ROLES);
     }
 
     function test_supportsInterface() public view {
@@ -309,6 +289,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         address[] memory subregistries = new address[](2);
         address[] memory resolvers = new address[](2);
         uint64[] memory expiries = new uint64[](2);
+        uint256[] memory roleBitmaps = new uint256[](2);
         
         // Set values for each token
         labels[0] = label2;
@@ -319,10 +300,11 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
             subregistries[i] = l1Subregistry;
             resolvers[i] = l1Resolver;
             expiries[i] = uint64(block.timestamp + expiryDuration);
+            roleBitmaps[i] = ALL_ROLES - i; // Different role for each token
         }
         
         // Create batch ejection data
-        bytes memory batchData = _createBatchEjectionData(labels, owners, subregistries, resolvers, expiries);
+        bytes memory batchData = _createBatchEjectionData(labels, owners, subregistries, resolvers, expiries, roleBitmaps);
         
         // Execute batch transfer
         vm.startPrank(user);
@@ -362,7 +344,8 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_onRenew_emitsEvent() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime);
+        uint32 roleBitmap = uint32(ALL_ROLES);
+        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         vm.prank(user);
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
         
@@ -411,7 +394,8 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_onRelinquish_emitsEvent() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime);
+        uint32 roleBitmap = uint32(ALL_ROLES);
+        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         vm.prank(user);
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
         
@@ -460,7 +444,8 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         // Prepare the data for ejection with an invalid label
         string memory invalidLabel = "invalid";
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        bytes memory ejectionData = _createEjectionData(invalidLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime);
+        uint256 roleBitmap = ALL_ROLES;
+        bytes memory ejectionData = _createEjectionData(invalidLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Make sure user still owns the token
         assertEq(registry.ownerOf(tokenId), user);
@@ -469,5 +454,154 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(L2EjectionController.InvalidLabel.selector, tokenId, invalidLabel));
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
+    }
+
+    function test_Revert_onERC1155Received_CallerNotRegistry() public {
+        // Prepare valid data for ejection
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        uint256 roleBitmap = ALL_ROLES;
+        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        
+        // Try to call onERC1155Received directly (not through registry)
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.CallerNotRegistry.selector, address(this)));
+        controller.onERC1155Received(address(this), user, tokenId, 1, ejectionData);
+    }
+
+    function test_Revert_onERC1155BatchReceived_CallerNotRegistry() public {
+        // Create batch of tokens to transfer
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = tokenId;
+        ids[1] = tokenId + 1;
+        
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+        
+        // Create arrays for transfer data
+        string[] memory labels = new string[](2);
+        address[] memory owners = new address[](2);
+        address[] memory subregistries = new address[](2);
+        address[] memory resolvers = new address[](2);
+        uint64[] memory expiries = new uint64[](2);
+        uint256[] memory roleBitmaps = new uint256[](2);
+        
+        // Set values for each token
+        labels[0] = label;
+        labels[1] = "test2";
+        
+        for (uint256 i = 0; i < 2; i++) {
+            owners[i] = l1Owner;
+            subregistries[i] = l1Subregistry;
+            resolvers[i] = l1Resolver;
+            expiries[i] = uint64(block.timestamp + expiryDuration);
+            roleBitmaps[i] = ALL_ROLES;
+        }
+        
+        // Create batch ejection data
+        bytes memory batchData = _createBatchEjectionData(labels, owners, subregistries, resolvers, expiries, roleBitmaps);
+        
+        // Try to call onERC1155BatchReceived directly (not through registry)
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.CallerNotRegistry.selector, address(this)));
+        controller.onERC1155BatchReceived(address(this), user, ids, amounts, batchData);
+    }
+
+    // Add a test specifically for role bitmap in transfer data
+    function test_ejection_with_role_bitmap() public {
+        // Prepare data with different role bitmaps
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        
+        uint256 basicRoles = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
+        uint256 allRoles = ALL_ROLES;
+        uint256 noRoles = 0;
+        
+        bytes memory data1 = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, basicRoles);
+        bytes memory data2 = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, allRoles);
+        bytes memory data3 = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, noRoles);
+        
+        // Verify the role bitmap is set correctly in the encoded data
+        EjectionController.TransferData memory decoded1 = abi.decode(data1, (EjectionController.TransferData));
+        EjectionController.TransferData memory decoded2 = abi.decode(data2, (EjectionController.TransferData));
+        EjectionController.TransferData memory decoded3 = abi.decode(data3, (EjectionController.TransferData));
+        
+        assertEq(decoded1.newRoleBitmap, basicRoles, "Basic roles not set correctly");
+        assertEq(decoded2.newRoleBitmap, allRoles, "All roles not set correctly");
+        assertEq(decoded3.newRoleBitmap, noRoles, "No roles not set correctly");
+        
+        // Test the ejection with a role bitmap
+        vm.prank(user);
+        registry.safeTransferFrom(user, address(controller), tokenId, 1, data2);
+        
+        // Verify token is now owned by the controller
+        assertEq(registry.ownerOf(tokenId), address(controller), "Token should be owned by the controller");
+    }
+}
+
+// Mock implementation of L2EjectionController for testing abstract contract
+contract MockL2EjectionController is L2EjectionController {
+    // Define event signatures exactly as they will be emitted
+    event MockNameEjectedToL1(uint256 indexed tokenId, bytes data);
+    event MockNameMigratedFromL1(uint256 indexed tokenId, address l2Owner, address l2Subregistry, address l2Resolver, uint256 roleBitmap);
+    event MockNameRenewed(uint256 indexed tokenId, uint64 expires, address renewedBy);
+    event MockNameRelinquished(uint256 indexed tokenId, address relinquishedBy);
+
+    constructor(IPermissionedRegistry _registry) L2EjectionController(_registry) {}
+
+    /**
+     * @dev Overridden to emit a mock event after calling the parent logic.
+     */
+    function _onEject(uint256[] memory tokenIds, EjectionController.TransferData[] memory transferDataArray) internal override {
+        super._onEject(tokenIds, transferDataArray);
+        
+        // Emit events for each token ID processed
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            EjectionController.TransferData memory transferData = transferDataArray[i];
+            emit MockNameEjectedToL1(
+                tokenIds[i], 
+                abi.encode(
+                    transferData.label, 
+                    transferData.newOwner, 
+                    transferData.newSubregistry, 
+                    transferData.newResolver, 
+                    transferData.newExpires
+                )
+            );
+        }
+    }
+
+    /**
+     * @dev Public wrapper to call the internal _completeMigrationFromL1 for testing.
+     */
+    function call_completeMigrationFromL1(
+        uint256 tokenId,
+        address l2Owner,
+        address l2Subregistry,
+        address l2Resolver,
+        uint256 newRoleBitmap
+    ) public {
+        EjectionController.TransferData memory transferData = EjectionController.TransferData({
+            label: "",
+            newOwner: l2Owner,
+            newSubregistry: l2Subregistry,
+            newResolver: l2Resolver,
+            newExpires: 0,
+            newRoleBitmap: newRoleBitmap
+        });
+        
+        _completeMigrationFromL1(tokenId, transferData);
+        emit MockNameMigratedFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver, newRoleBitmap);
+    }
+
+    /**
+     * @dev Implementation of abstract function, emits mock event.
+     */
+    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {
+        emit MockNameRenewed(tokenId, expires, renewedBy);
+    }
+
+    /**
+     * @dev Implementation of abstract function, emits mock event.
+     */
+    function onRelinquish(uint256 tokenId, address relinquishedBy) external override {
+        emit MockNameRelinquished(tokenId, relinquishedBy);
     }
 }

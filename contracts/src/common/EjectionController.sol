@@ -10,6 +10,8 @@ import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
  * @dev Base contract for the ejection controllers.
  */
 abstract contract EjectionController is ITokenObserver, IERC1155Receiver {
+    error CallerNotRegistry(address caller);
+
     IPermissionedRegistry public immutable registry;
 
     struct TransferData {
@@ -17,6 +19,7 @@ abstract contract EjectionController is ITokenObserver, IERC1155Receiver {
         address newOwner;
         address newSubregistry;
         address newResolver;
+        uint256 newRoleBitmap;
         uint64 newExpires;
     }
 
@@ -35,8 +38,20 @@ abstract contract EjectionController is ITokenObserver, IERC1155Receiver {
      * Implements ERC1155Receiver.onERC1155Received
      */
     function onERC1155Received(address /*operator*/, address /*from*/, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual returns (bytes4) {
+        if (msg.sender != address(registry)) {
+            revert CallerNotRegistry(msg.sender);
+        }
+
         TransferData memory transferData = abi.decode(data, (TransferData));
-        _onEject(tokenId, transferData);
+        
+        TransferData[] memory transferDataArray = new TransferData[](1);
+        transferDataArray[0] = transferData;
+        
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenId;
+
+        _onEject(tokenIds, transferDataArray);
+
         return this.onERC1155Received.selector;
     }
 
@@ -44,12 +59,14 @@ abstract contract EjectionController is ITokenObserver, IERC1155Receiver {
      * Implements ERC1155Receiver.onERC1155BatchReceived
      */
     function onERC1155BatchReceived(address /*operator*/, address /*from*/, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual returns (bytes4) {
+        if (msg.sender != address(registry)) {
+            revert CallerNotRegistry(msg.sender);
+        }
+
         TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
         
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            TransferData memory transferData = transferDataArray[i];
-            _onEject(tokenIds[i], transferData);
-        }
+        _onEject(tokenIds, transferDataArray);
+
         return this.onERC1155BatchReceived.selector;
     }
 
@@ -66,10 +83,10 @@ abstract contract EjectionController is ITokenObserver, IERC1155Receiver {
     // Internal functions
 
     /**
-     * @dev Called when a name is ejected.
+     * @dev Called when names are ejected.
      *
-     * @param tokenId The token ID of the name being ejected
-     * @param transferData The transfer data containing label, l1Owner, l1Subregistry, l1Resolver, and expires
+     * @param tokenIds Array of token IDs of the names being ejected
+     * @param transferDataArray Array of transfer data items
      */
-    function _onEject(uint256 tokenId, TransferData memory transferData) internal virtual;
+    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal virtual;
 }
