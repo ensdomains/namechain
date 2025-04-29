@@ -757,4 +757,98 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // But all roles should be revoked
         assertFalse(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
     }
+
+    function test_direct_roles_access() public {
+        // Test direct access to roles mapping
+        uint256 roleBitmap = ROLE_A | ROLE_B;
+        
+        // Grant roles to user1
+        access.grantRoles(RESOURCE_1, roleBitmap, user1);
+        
+        // Verify direct access to the roles mapping matches hasRoles results
+        assertTrue(access.hasRoles(RESOURCE_1, roleBitmap, user1));
+        assertEq(access.roles(RESOURCE_1, user1), roleBitmap);
+        
+        // Verify root resource roles
+        access.grantRootRoles(ROLE_C, user1);
+        assertTrue(access.hasRootRoles(ROLE_C, user1));
+        assertEq(access.roles(access.ROOT_RESOURCE(), user1), ROLE_C);
+        
+        // Check that roles in different resources are distinct
+        assertFalse(access.hasRootRoles(ROLE_A, user1));
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
+        assertTrue((access.roles(RESOURCE_1, user1) & ROLE_A) == ROLE_A);
+        assertTrue((access.roles(access.ROOT_RESOURCE(), user1) & ROLE_A) == 0);
+        
+        // Verify role removal affects the mapping correctly
+        access.revokeRoles(RESOURCE_1, ROLE_A, user1);
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user1));
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_B, user1));
+        assertEq(access.roles(RESOURCE_1, user1), ROLE_B);
+        
+        // Test that revoking all roles clears the mapping entry
+        access.revokeAllRoles(RESOURCE_1, user1);
+        assertEq(access.roles(RESOURCE_1, user1), 0);
+        
+        // Root resource roles should still exist
+        assertEq(access.roles(access.ROOT_RESOURCE(), user1), ROLE_C);
+    }
+    
+    function test_roles_mapping_after_operations() public {
+        // Test mapping state after complex operations
+        
+        // Set up initial roles
+        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        access.grantRoles(RESOURCE_2, ROLE_C, user1);
+        access.grantRootRoles(ROLE_D, user1);
+        
+        // Verify initial state directly from the mapping
+        assertEq(access.roles(RESOURCE_1, user1), ROLE_A | ROLE_B);
+        assertEq(access.roles(RESOURCE_2, user1), ROLE_C);
+        assertEq(access.roles(access.ROOT_RESOURCE(), user1), ROLE_D);
+        
+        // Add another user with roles
+        access.grantRoles(RESOURCE_1, ROLE_C | ROLE_D, user2);
+        assertEq(access.roles(RESOURCE_1, user2), ROLE_C | ROLE_D);
+        
+        // Copy roles and verify
+        access.copyRoles(RESOURCE_1, user1, user2);
+        assertEq(access.roles(RESOURCE_1, user2), ROLE_A | ROLE_B | ROLE_C | ROLE_D);
+        
+        // Verify root resource roles from user1 were not copied
+        assertTrue((access.roles(access.ROOT_RESOURCE(), user2) & ROLE_D) == 0);
+        
+        // Test that mapping is not affected for non-existent user
+        assertEq(access.roles(RESOURCE_1, address(0x123)), 0);
+    }
+    
+    function test_roles_mapping_consistency() public {
+        // Test consistency between hasRoles and direct mapping access
+        
+        // Grant multiple roles to user1
+        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B | ROLE_C, user1);
+        access.grantRootRoles(ROLE_D, user1);
+        
+        // Verify consistency for normal resource
+        bool directCheck = (access.roles(RESOURCE_1, user1) & (ROLE_A | ROLE_B)) == (ROLE_A | ROLE_B);
+        bool helperCheck = access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        assertEq(directCheck, helperCheck);
+        
+        // Verify consistency with root resource logic
+        // hasRoles should also check root resource roles
+        access.revokeRoles(RESOURCE_1, ROLE_A, user1);
+        assertFalse((access.roles(RESOURCE_1, user1) & ROLE_A) == ROLE_A);
+        
+        // Grant the same role in root resource
+        access.grantRootRoles(ROLE_A, user1);
+        
+        // hasRoles should return true for ROLE_A because it's in root resource
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
+        
+        // But direct access to RESOURCE_1 mapping should not show ROLE_A
+        assertFalse((access.roles(RESOURCE_1, user1) & ROLE_A) == ROLE_A);
+        
+        // Direct access to ROOT_RESOURCE mapping should show ROLE_A
+        assertTrue((access.roles(access.ROOT_RESOURCE(), user1) & ROLE_A) == ROLE_A);
+    }
 }
