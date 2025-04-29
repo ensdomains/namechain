@@ -2,13 +2,13 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
-import "../src/registry/MetadataMixin.sol";
-import "../src/registry/IRegistryMetadata.sol";
+import "../src/common/MetadataMixin.sol";
+import "../src/common/IRegistryMetadata.sol";
 
 // Mock implementation of IRegistryMetadata for testing
 contract MockMetadataProvider is IRegistryMetadata {
     mapping(uint256 => string) private _tokenUris;
-    
+
     function setTokenUri(uint256 tokenId, string memory uri) external {
         _tokenUris[tokenId] = uri;
     }

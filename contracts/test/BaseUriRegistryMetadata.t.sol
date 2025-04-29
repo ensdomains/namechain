@@ -3,49 +3,47 @@ pragma solidity >=0.8.13;
 
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {Test} from "forge-std/Test.sol";
-import {UserRegistry} from "../src/registry/UserRegistry.sol";
-import {ETHRegistry} from "../src/registry/ETHRegistry.sol";
-import {IRegistry} from "../src/registry/IRegistry.sol";
-import {RegistryDatastore} from "../src/registry/RegistryDatastore.sol";
-import {IRegistryMetadata} from "../src/registry/IRegistryMetadata.sol";
+import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
+import {IRegistry} from "../src/common/IRegistry.sol";
+import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {BaseUriRegistryMetadata} from "../src/registry/BaseUriRegistryMetadata.sol";
+import {BaseUriRegistryMetadata} from "../src/common/BaseUriRegistryMetadata.sol";
+import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
+import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 
 contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
-    UserRegistry registry;
-    ETHRegistry parentRegistry;
+    PermissionedRegistry registry;
+    PermissionedRegistry parentRegistry;
     BaseUriRegistryMetadata metadata;
+
+    // Hardcoded role constants
+    uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
+    bytes32 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new BaseUriRegistryMetadata();
         
-        parentRegistry = new ETHRegistry(datastore, metadata);
-        parentRegistry.grantRole(parentRegistry.REGISTRAR_ROLE(), address(this));
-        
-        registry = new UserRegistry(
-            parentRegistry,
-            "test",
+        // Use a defined ALL_ROLES value for deployer roles
+        uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+        registry = new PermissionedRegistry(
             datastore,
-            metadata
+            metadata,
+            deployerRoles
         );
-
-        parentRegistry.register("test", address(this), registry, address(0), 0, uint64(block.timestamp + 1000));
     }
 
     function test_registry_metadata_base_uri() public {
-        string memory expectedUri = "ipfs://base/{id}";
         uint256 tokenId = uint256(keccak256(bytes("sub")));
 
-        registry.mint("sub", address(this), registry, 0);
+        registry.register("sub", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
 
         assertEq(registry.uri(tokenId), "");
         
-        metadata.grantRole(metadata.UPDATE_ROLE(), address(this));
-        metadata.setTokenUri(expectedUri);
-
+        string memory expectedUri = "ipfs://base/{id}";
+        metadata.setTokenBaseUri(expectedUri);
         assertEq(metadata.tokenUri(tokenId), expectedUri);
         assertEq(registry.uri(tokenId), expectedUri);
     }
@@ -55,11 +53,10 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         uint256 tokenId1 = uint256(keccak256(bytes("sub1")));
         uint256 tokenId2 = uint256(keccak256(bytes("sub2")));
 
-        registry.mint("sub1", address(this), registry, 0);
-        registry.mint("sub2", address(this), registry, 0);
+        registry.register("sub1", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
+        registry.register("sub2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
 
-        metadata.grantRole(metadata.UPDATE_ROLE(), address(this));
-        metadata.setTokenUri(expectedUri);
+        metadata.setTokenBaseUri(expectedUri);
 
         assertEq(metadata.tokenUri(tokenId1), expectedUri);
         assertEq(metadata.tokenUri(tokenId2), expectedUri);
@@ -72,26 +69,32 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         string memory updatedUri = "ipfs://updated/{id}";
         uint256 tokenId = uint256(keccak256(bytes("sub")));
 
-        registry.mint("sub", address(this), registry, 0);
+        registry.register("sub", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
         
-        metadata.grantRole(metadata.UPDATE_ROLE(), address(this));
-
-        metadata.setTokenUri(initialUri);
+        metadata.setTokenBaseUri(initialUri);
         assertEq(metadata.tokenUri(tokenId), initialUri);
 
-        metadata.setTokenUri(updatedUri);
+        metadata.setTokenBaseUri(updatedUri);
         assertEq(metadata.tokenUri(tokenId), updatedUri);
     }
 
     function test_registry_metadata_unauthorized() public {
         string memory expectedUri = "ipfs://test/";
 
-        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), metadata.UPDATE_ROLE()));
-        metadata.setTokenUri(expectedUri);
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_UPDATE_METADATA, address(1))); 
+        vm.prank(address(1));
+        metadata.setTokenBaseUri(expectedUri);
     }
 
     function test_registry_metadata_supports_interface() public view {
         assertEq(metadata.supportsInterface(type(IRegistryMetadata).interfaceId), true);
+        assertEq(metadata.supportsInterface(type(EnhancedAccessControl).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
+
+    // Role bitmaps for different permission configurations
+    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
+    uint256 constant ROLE_SET_RESOLVER = 1 << 3;
+    uint256 constant ROLE_SET_FLAGS = 1 << 4;
+    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
 } 
