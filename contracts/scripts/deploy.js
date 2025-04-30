@@ -1,8 +1,14 @@
 import hre from "hardhat";
 import { labelhash, encodeFunctionData, zeroAddress, decodeEventLog, namehash, decodeAbiParameters } from "viem";
-import { dnsEncodeName } from "../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
+import { packetToBytes } from 'viem/ens'
+import { toHex } from 'viem/utils'
 import fs from "fs";
 const MAX_EXPIRY = (1n << 64n) - 1n;
+
+function dnsEncodeName(name) {
+  const bytes = packetToBytes(name)
+  return toHex(bytes)
+}
 
 async function main() {
   console.log("Starting deployment...");
@@ -89,12 +95,10 @@ async function main() {
     }
   })
   // .filter(l => l && l.eventName === 'ProxyDeployed')[0]; // Get first matching log or undefined
-  console.log(3, log);
   if (!log) {
     throw new Error('ProxyDeployed event not found in transaction logs');
   }
 
-  console.log(4);
   const ownedResolver = await hre.viem.getContractAt("OwnedResolver", log.args.proxyAddress);
   console.log("OwnedResolver proxy deployed to:", ownedResolver.address);
 
@@ -244,14 +248,12 @@ UNIVERSAL_RESOLVER_ADDRESS=${universalResolver.address}
   for (const name of allNames) {
     console.log(`\n${name}:`);
     try {
-      // Encode name using dnsEncodeName
-      const encodedName = dnsEncodeName(name)
+      const encodedName = dnsEncodeName(name);
       
       // Create calldata for addr(bytes32) - function selector is 0x3b3b57de
       // Append the namehash of the name to the selector
       const node = namehash(name);
       const callData = "0x3b3b57de" + node.slice(2); // remove 0x from node
-      
       // Resolve the name using UniversalResolver
       const result = await universalResolver.read.resolve([
         encodedName,
