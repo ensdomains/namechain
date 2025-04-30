@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {IPriceOracle} from "../registry/IPriceOracle.sol";
+import {IPriceOracle} from "../L2/IPriceOracle.sol";
 
 contract MockPriceOracle is IPriceOracle {
     uint256 public basePrice;
@@ -12,11 +12,11 @@ contract MockPriceOracle is IPriceOracle {
         premiumPrice = _premiumPrice;
     }
 
-    function price(
-        string calldata /*name*/,
-        uint256 /*expires*/,
-        uint256 /*duration*/
-    ) external view returns (Price memory) {
+    function price(string calldata, /*name*/ uint256, /*expires*/ uint256 /*duration*/ )
+        external
+        view
+        returns (Price memory)
+    {
         return Price(basePrice, premiumPrice);
     }
 }

@@ -8,8 +8,10 @@ export const config = {
     deployer: {
       default: 0,
     },
-    admin: {
-      default: 1,
+    owner: {
+      default: 0,
+      // admin is DAO on mainnet
+      1: "0xFe89cc7aBB2C4183683ab71653C4cdc9B02D44b7",
     },
   },
   networks: {
@@ -20,6 +22,18 @@ export const config = {
     "l2-local": {
       scripts: ["deploy/l2", "deploy/shared"],
       tags: ["l2"],
+    },
+    mainnet: {
+      scripts: ["deploy/l1/universalResolver"],
+      tags: ["hasDao"],
+    },
+    sepolia: {
+      scripts: ["deploy/l1/universalResolver"],
+      tags: [],
+    },
+    holesky: {
+      scripts: ["deploy/l1/universalResolver"],
+      tags: [],
     },
   },
 } as const satisfies UserConfig;

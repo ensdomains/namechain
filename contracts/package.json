@@ -2,16 +2,18 @@
   "name": "contracts",
   "type": "module",
   "scripts": {
-    "hh": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat",
-    "compile:hardhat": "bun hh compile",
-    "test:hardhat": "bun hh test",
+    "deploy": "hardhat deploy",
+    "compile:hardhat": "hardhat compile",
+    "test:hardhat": "hardhat test",
     "test:forge": "forge test",
     "test": "bun run test:forge && bun run test:hardhat",
     "coverage": "forge coverage --report lcov && bun run test:hardhat",
-    "clean": "forge clean && bun hh clean"
+    "clean": "forge clean && hardhat clean"
   },
   "devDependencies": {
+    "@namestone/ezccip": "^0.1.0",
     "@nomicfoundation/hardhat-foundry": "^1.1.1",
+    "@nomicfoundation/hardhat-keystore": "^3.0.0-next.5",
     "@nomicfoundation/hardhat-viem": "next",
     "@rocketh/deploy": "^0.11.18",
     "@rocketh/read-execute": "^0.11.19",
@@ -19,10 +21,9 @@
     "@types/bun": "latest",
     "@vitest/expect": "^1.6.0",
     "chai": "^5.1.1",
-    "hardhat": "next",
+    "hardhat": "^3.0.0-next.5",
     "hardhat-deploy": "^2.0.0-next.25",
     "rocketh": "^0.11.18",
-    "@namestone/ezccip": "^0.1.0",
     "ts-node": "^10.9.2",
     "viem": "^2.27.0"
   },
