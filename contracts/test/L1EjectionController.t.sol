@@ -52,11 +52,11 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
     ) internal pure returns (bytes memory) {
         EjectionController.TransferData memory transferData = EjectionController.TransferData({
             label: "",
-            newOwner: l2Owner,
-            newSubregistry: l2Subregistry,
-            newResolver: l2Resolver,
-            newExpires: expiryTime,
-            newRoleBitmap: roleBitmap
+            owner: l2Owner,
+            subregistry: l2Subregistry,
+            resolver: l2Resolver,
+            expires: expiryTime,
+            roleBitmap: roleBitmap
         });
         return abi.encode(transferData);
     }
@@ -82,11 +82,11 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         for (uint256 i = 0; i < l2Owners.length; i++) {
             transferDataArray[i] = EjectionController.TransferData({
                 label: "",
-                newOwner: l2Owners[i],
-                newSubregistry: l2Subregistries[i],
-                newResolver: l2Resolvers[i],
-                newExpires: expiryTimes[i],
-                newRoleBitmap: roleBitmaps[i]
+                owner: l2Owners[i],
+                subregistry: l2Subregistries[i],
+                resolver: l2Resolvers[i],
+                expires: expiryTimes[i],
+                roleBitmap: roleBitmaps[i]
             });
         }
         
@@ -430,7 +430,6 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         
         assertEq(batchEventsCount, 3, "Should have emitted 3 MockNameEjectedToL2 events");
     }
-
 }
 
 contract MockL1EjectionController is L1EjectionController {
@@ -438,10 +437,6 @@ contract MockL1EjectionController is L1EjectionController {
     event MockNameEjectedFromL2(string label, address l1Owner, address l1Subregistry, address l1Resolver, uint64 expires);
     
     constructor(IPermissionedRegistry _registry) L1EjectionController(_registry) {}
-    
-    function onRenew(uint256, uint64, address) external override {}
-    
-    function onRelinquish(uint256, address) external override {}
     
     function completeEjectionFromNamechain(
         string memory label,
@@ -454,11 +449,11 @@ contract MockL1EjectionController is L1EjectionController {
     ) external {
         EjectionController.TransferData memory transferData = EjectionController.TransferData({
             label: label,
-            newOwner: l1Owner,
-            newSubregistry: l1Subregistry,
-            newResolver: l1Resolver,
-            newExpires: expires,
-            newRoleBitmap: roleBitmap
+            owner: l1Owner,
+            subregistry: l1Subregistry,
+            resolver: l1Resolver,
+            expires: expires,
+            roleBitmap: roleBitmap
         });
         
         _completeEjectionFromL2(transferData);
@@ -480,10 +475,10 @@ contract MockL1EjectionController is L1EjectionController {
             EjectionController.TransferData memory transferData = transferDataArray[i];
             emit MockNameEjectedToL2(
                 tokenIds[i],
-                transferData.newOwner, 
-                transferData.newSubregistry, 
-                transferData.newResolver, 
-                transferData.newExpires
+                transferData.owner, 
+                transferData.subregistry, 
+                transferData.resolver, 
+                transferData.expires
             );
         }
     }

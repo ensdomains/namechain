@@ -62,11 +62,11 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     ) internal pure returns (bytes memory) {
         EjectionController.TransferData memory transferData = EjectionController.TransferData({
             label: nameLabel,
-            newOwner: owner,
-            newSubregistry: subregistry,
-            newResolver: resolver,
-            newExpires: expiryTime,
-            newRoleBitmap: roleBitmap
+            owner: owner,
+            subregistry: subregistry,
+            resolver: resolver,
+            expires: expiryTime,
+            roleBitmap: roleBitmap
         });
         return abi.encode(transferData);
     }
@@ -94,11 +94,11 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         for (uint256 i = 0; i < labels.length; i++) {
             transferDataArray[i] = EjectionController.TransferData({
                 label: labels[i],
-                newOwner: owners[i],
-                newSubregistry: subregistries[i],
-                newResolver: resolvers[i],
-                newExpires: expiryTimes[i],
-                newRoleBitmap: roleBitmaps[i]
+                owner: owners[i],
+                subregistry: subregistries[i],
+                resolver: resolvers[i],
+                expires: expiryTimes[i],
+                roleBitmap: roleBitmaps[i]
             });
         }
         
@@ -263,7 +263,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_supportsInterface() public view {
         assertTrue(controller.supportsInterface(type(EjectionController).interfaceId));
         assertTrue(controller.supportsInterface(type(IERC1155Receiver).interfaceId));
-        // Remove test for ITokenObserver until we confirm it's actually implemented
+        assertTrue(controller.supportsInterface(type(ITokenObserver).interfaceId));
         assertFalse(controller.supportsInterface(0x12345678));
     }
 
@@ -372,7 +372,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
                 
                 // For indexed parameters, check that the topics match
                 if (logs[i].topics.length > 1) {
-                    assertEq(uint256(logs[i].topics[1]), tokenId);
+                    assertEq(uint256(logs[i].topics[1]), tokenId, "Event tokenId should match");
                 }
                 
                 // Only decode data if there is data to decode
@@ -380,8 +380,8 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
                     (uint64 emittedExpiry, address emittedRenewer) = 
                         abi.decode(logs[i].data, (uint64, address));
                     
-                    assertEq(emittedExpiry, newExpiry);
-                    assertEq(emittedRenewer, renewer);
+                    assertEq(emittedExpiry, newExpiry, "Event expiry should match");
+                    assertEq(emittedRenewer, renewer, "Event renewer should match");
                 }
                 
                 foundEvent = true;
@@ -421,13 +421,13 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
                 
                 // For indexed parameters, check that the topics match
                 if (logs[i].topics.length > 1) {
-                    assertEq(uint256(logs[i].topics[1]), tokenId);
+                    assertEq(uint256(logs[i].topics[1]), tokenId, "Event tokenId should match");
                 }
                 
                 // Only decode data if there is data to decode
                 if (logs[i].data.length > 0) {
                     address emittedRelinquisher = abi.decode(logs[i].data, (address));
-                    assertEq(emittedRelinquisher, relinquisher);
+                    assertEq(emittedRelinquisher, relinquisher, "Event relinquisher should match");
                 }
                 
                 foundEvent = true;
@@ -523,9 +523,9 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         EjectionController.TransferData memory decoded2 = abi.decode(data2, (EjectionController.TransferData));
         EjectionController.TransferData memory decoded3 = abi.decode(data3, (EjectionController.TransferData));
         
-        assertEq(decoded1.newRoleBitmap, basicRoles, "Basic roles not set correctly");
-        assertEq(decoded2.newRoleBitmap, allRoles, "All roles not set correctly");
-        assertEq(decoded3.newRoleBitmap, noRoles, "No roles not set correctly");
+        assertEq(decoded1.roleBitmap, basicRoles, "Basic roles not set correctly");
+        assertEq(decoded2.roleBitmap, allRoles, "All roles not set correctly");
+        assertEq(decoded3.roleBitmap, noRoles, "No roles not set correctly");
         
         // Test the ejection with a role bitmap
         vm.prank(user);
@@ -534,9 +534,37 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         // Verify token is now owned by the controller
         assertEq(registry.ownerOf(tokenId), address(controller), "Token should be owned by the controller");
     }
+
+    // Add test to verify the internal callback methods are correctly called through token observer interface
+    function test_tokenObserver_callbacks() public {
+        // First eject the name so the controller owns it and becomes the observer
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        uint32 roleBitmap = uint32(ALL_ROLES);
+        bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        vm.prank(user);
+        registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
+        
+        // Verify controller owns the token and is the observer
+        assertEq(registry.ownerOf(tokenId), address(controller), "Controller should own the token");
+        assertEq(address(registry.tokenObservers(tokenId)), address(controller), "Controller should be the observer");
+        
+        // Reset tracking flags
+        controller.resetTracking();
+        
+        // Test onRenew callback
+        uint64 newExpiry = uint64(block.timestamp + expiryDuration * 2);
+        address renewer = address(this);
+        controller.onRenew(tokenId, newExpiry, renewer);
+        assertTrue(controller.onRenewCalled(), "onRenew should call _onRenew");
+        
+        // Test onRelinquish callback
+        address relinquisher = address(this);
+        controller.onRelinquish(tokenId, relinquisher);
+        assertTrue(controller.onRelinquishCalled(), "onRelinquish should call _onRelinquish");
+    }
 }
 
-// Mock implementation of L2EjectionController for testing abstract contract
+// Mock implementation of L2EjectionController for testing
 contract MockL2EjectionController is L2EjectionController {
     // Define event signatures exactly as they will be emitted
     event MockNameEjectedToL1(uint256 indexed tokenId, bytes data);
@@ -544,7 +572,20 @@ contract MockL2EjectionController is L2EjectionController {
     event MockNameRenewed(uint256 indexed tokenId, uint64 expires, address renewedBy);
     event MockNameRelinquished(uint256 indexed tokenId, address relinquishedBy);
 
+    // Tracking flags for callback tests
+    bool private _onRenewCalled;
+    bool private _onRelinquishCalled;
+
     constructor(IPermissionedRegistry _registry) L2EjectionController(_registry) {}
+
+    // Implement the required external methods
+    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {
+        _onRenew(tokenId, expires, renewedBy);
+    }
+    
+    function onRelinquish(uint256 tokenId, address relinquishedBy) external override {
+        _onRelinquish(tokenId, relinquishedBy);
+    }
 
     /**
      * @dev Overridden to emit a mock event after calling the parent logic.
@@ -559,10 +600,10 @@ contract MockL2EjectionController is L2EjectionController {
                 tokenIds[i], 
                 abi.encode(
                     transferData.label, 
-                    transferData.newOwner, 
-                    transferData.newSubregistry, 
-                    transferData.newResolver, 
-                    transferData.newExpires
+                    transferData.owner, 
+                    transferData.subregistry, 
+                    transferData.resolver, 
+                    transferData.expires
                 )
             );
         }
@@ -580,11 +621,11 @@ contract MockL2EjectionController is L2EjectionController {
     ) public {
         EjectionController.TransferData memory transferData = EjectionController.TransferData({
             label: "",
-            newOwner: l2Owner,
-            newSubregistry: l2Subregistry,
-            newResolver: l2Resolver,
-            newExpires: 0,
-            newRoleBitmap: newRoleBitmap
+            owner: l2Owner,
+            subregistry: l2Subregistry,
+            resolver: l2Resolver,
+            expires: 0,
+            roleBitmap: newRoleBitmap
         });
         
         _completeMigrationFromL1(tokenId, transferData);
@@ -592,16 +633,32 @@ contract MockL2EjectionController is L2EjectionController {
     }
 
     /**
-     * @dev Implementation of abstract function, emits mock event.
+     * @dev Implementation of internal _onRenew method
      */
-    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {
+    function _onRenew(uint256 tokenId, uint64 expires, address renewedBy) internal override {
+        _onRenewCalled = true;
         emit MockNameRenewed(tokenId, expires, renewedBy);
     }
 
     /**
-     * @dev Implementation of abstract function, emits mock event.
+     * @dev Implementation of internal _onRelinquish method
      */
-    function onRelinquish(uint256 tokenId, address relinquishedBy) external override {
+    function _onRelinquish(uint256 tokenId, address relinquishedBy) internal override {
+        _onRelinquishCalled = true;
         emit MockNameRelinquished(tokenId, relinquishedBy);
+    }
+    
+    // Helper functions for tests
+    function resetTracking() external {
+        _onRenewCalled = false;
+        _onRelinquishCalled = false;
+    }
+    
+    function onRenewCalled() external view returns (bool) {
+        return _onRenewCalled;
+    }
+    
+    function onRelinquishCalled() external view returns (bool) {
+        return _onRelinquishCalled;
     }
 }

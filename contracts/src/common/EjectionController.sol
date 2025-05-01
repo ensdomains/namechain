@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {ITokenObserver} from "./ITokenObserver.sol";  
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
+import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 /**
  * @title EjectionController
  * @dev Base contract for the ejection controllers.
  */
-abstract contract EjectionController is ITokenObserver, IERC1155Receiver {
+abstract contract EjectionController is IERC1155Receiver, ERC165 {
     error CallerNotRegistry(address caller);
 
     IPermissionedRegistry public immutable registry;
@@ -30,8 +30,8 @@ abstract contract EjectionController is ITokenObserver, IERC1155Receiver {
     /**
      * Implements ERC165.supportsInterface
      */
-    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return interfaceId == type(EjectionController).interfaceId || interfaceId == type(IERC1155Receiver).interfaceId;
+    function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(EjectionController).interfaceId || interfaceId == type(IERC1155Receiver).interfaceId || super.supportsInterface(interfaceId);
     }
 
     /**
@@ -69,16 +69,6 @@ abstract contract EjectionController is ITokenObserver, IERC1155Receiver {
 
         return this.onERC1155BatchReceived.selector;
     }
-
-    /**
-     * Implements ITokenObserver.onRenew
-     */
-    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external virtual;
-
-    /**
-     * Implements ITokenObserver.onRelinquish
-     */
-    function onRelinquish(uint256 tokenId, address relinquishedBy) external virtual;
 
     // Internal functions
 
