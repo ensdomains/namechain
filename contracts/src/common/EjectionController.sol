@@ -16,11 +16,11 @@ abstract contract EjectionController is ITokenObserver, IERC1155Receiver {
 
     struct TransferData {
         string label;
-        address newOwner;
-        address newSubregistry;
-        address newResolver;
-        uint256 newRoleBitmap;
-        uint64 newExpires;
+        address owner;
+        address subregistry;
+        address resolver;
+        uint256 roleBitmap;
+        uint64 expires;
     }
 
     constructor(IPermissionedRegistry _registry) {
