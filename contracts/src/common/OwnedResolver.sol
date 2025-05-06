@@ -13,6 +13,7 @@ import {NameResolver} from "@ens/contracts/resolvers/profiles/NameResolver.sol";
 import {PubkeyResolver} from "@ens/contracts/resolvers/profiles/PubkeyResolver.sol";
 import {TextResolver} from "@ens/contracts/resolvers/profiles/TextResolver.sol";
 import {ExtendedResolver} from "@ens/contracts/resolvers/profiles/ExtendedResolver.sol";
+import {Multicallable} from "@ens/contracts/resolvers/Multicallable.sol";
 
 /**
  * @title OwnedResolver
@@ -30,9 +31,9 @@ contract OwnedResolver is
     NameResolver,
     PubkeyResolver,
     TextResolver,
-    ExtendedResolver
-    {
-
+    ExtendedResolver,
+    Multicallable
+{
     function initialize(address _owner) public initializer {
         __Ownable_init(_owner); // Initialize Ownable
         __UUPSUpgradeable_init();
@@ -58,10 +59,11 @@ contract OwnedResolver is
             InterfaceResolver,
             NameResolver,
             PubkeyResolver,
-            TextResolver
+            TextResolver,
+            Multicallable
         )
         returns (bool)
     {
         return super.supportsInterface(interfaceID);
     }
-} 
+}

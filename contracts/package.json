@@ -2,18 +2,22 @@
   "name": "contracts",
   "type": "module",
   "scripts": {
-    "compile:hardhat": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat compile",
-    "test:hardhat": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat test",
+    "hh": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat",
+    "compile:hardhat": "bun hh compile",
+    "test:hardhat": "bun hh test",
     "test:forge": "forge test",
     "test": "bun run test:forge && bun run test:hardhat",
     "coverage": "forge coverage --report lcov && bun run test:hardhat",
+    "clean": "forge clean && bun hh clean",
     "devnet": "FOUNDRY_DISABLE_NIGHTLY_WARNING=true npx tsx ./script/runDevnet.ts",
     "test:bridge": "FOUNDRY_DISABLE_NIGHTLY_WARNING=true npx tsx ./script/testBridge.ts"
   },
   "devDependencies": {
     "@adraffy/blocksmith": "^0.1.52",
-    "@ensdomains/hardhat-chai-matchers-viem": "^0.0.7",
+    "@ensdomains/hardhat-chai-matchers-viem": "^0.0.10",
+    "@namestone/ezccip": "^0.1.0",
     "@nomicfoundation/hardhat-foundry": "^1.1.1",
+    "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
     "@nomicfoundation/hardhat-viem": "next",
     "@rocketh/deploy": "^0.11.15",
     "@rocketh/read-execute": "^0.11.16",
@@ -22,10 +26,11 @@
     "@vitest/expect": "^1.6.0",
     "chai": "^5.1.1",
     "hardhat": "next",
-    "hardhat-deploy": "^2.0.0-next.22",
+    "hardhat-deploy": "^2.0.0-next.25",
+    "prettier": "^3.5.3",
     "rocketh": "^0.11.15",
     "ts-node": "^10.9.2",
-    "viem": "^2.9.12"
+    "viem": "^2.27.0"
   },
   "peerDependencies": {
     "typescript": "^5.4.5"
