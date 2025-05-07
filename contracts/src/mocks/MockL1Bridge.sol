@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {IL1EjectionController} from "../L1/IL1EjectionController.sol";
 import {MockBridgeHelper} from "./MockBridgeHelper.sol";
 
 /**
@@ -69,14 +68,19 @@ contract MockL1Bridge {
                 uint256 labelHash = uint256(keccak256(abi.encodePacked(name)));
                 
                 // Call the complete ejection method on the controller
-                IL1EjectionController(targetController).completeEjection(
-                    labelHash,
-                    l1Owner,
-                    l1Subregistry,
-                    0, // flags (not used in our simple implementation)
-                    expiry,
-                    "" // data (not used in our simple implementation)
+                // Use the direct function call rather than interface
+                (bool success, ) = targetController.call(
+                    abi.encodeWithSignature(
+                        "completeEjection(uint256,address,address,uint32,uint64,bytes)",
+                        labelHash,
+                        l1Owner,
+                        l1Subregistry,
+                        0, // flags (not used in our simple implementation)
+                        expiry,
+                        abi.encode(name) // Include the name in the data
+                    )
                 );
+                require(success, "L1Bridge: call to controller failed");
             } catch Error(string memory reason) {
                 // Handle known errors
                 revert(string(abi.encodePacked("L1Bridge decoding failed: ", reason)));

@@ -4,15 +4,14 @@ pragma solidity ^0.8.13;
 import {IBridge} from "./IBridge.sol";
 import {MockBridgeHelper} from "./MockBridgeHelper.sol";
 import {IRegistry} from "../common/IRegistry.sol";
-import {L1ETHRegistry} from "../L1/L1ETHRegistry.sol";
-import {IL1EjectionController} from "../L1/IL1EjectionController.sol";
+import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 
 /**
  * @title MockL1EjectionController
- * @dev Implementation of IL1EjectionController for L1 ENS operations
+ * @dev Controller for handling L1 ENS operations with PermissionedRegistry
  */
-contract MockL1EjectionController is IL1EjectionController {
-    L1ETHRegistry public registry;
+contract MockL1EjectionController {
+    IPermissionedRegistry public registry;
     address public bridgeHelper;
     IBridge public bridge;
     
@@ -22,20 +21,20 @@ contract MockL1EjectionController is IL1EjectionController {
     event RenewalSynced(uint256 tokenId, uint64 newExpiry);
     
     constructor(address _registry, address _helper, address _bridge) {
-        registry = L1ETHRegistry(_registry);
+        registry = IPermissionedRegistry(_registry);
         bridgeHelper = _helper;
         bridge = IBridge(_bridge);
     }
     
     /**
-     * @dev Implements IL1EjectionController.migrateToNamechain
+     * @dev Handles migration to the L2 namechain
      */
     function migrateToNamechain(
         uint256 tokenId, 
         address l2Owner, 
         address l2Subregistry, 
         bytes memory data
-    ) external override {
+    ) external {
         // Get the name directly from the parameters
         string memory name = abi.decode(data, (string));
         
@@ -53,7 +52,7 @@ contract MockL1EjectionController is IL1EjectionController {
     }
     
     /**
-     * @dev Implements IL1EjectionController.completeEjection
+     * @dev Handles completion of ejection from L2
      */
     function completeEjection(
         uint256 labelHash,
@@ -62,12 +61,18 @@ contract MockL1EjectionController is IL1EjectionController {
         uint32 flags,
         uint64 expires,
         bytes memory data
-    ) external override {
-        // Process the ejection by calling the L1ETHRegistry
-        uint256 tokenId = registry.ejectFromNamechain(
-            labelHash,
+    ) external {
+        string memory label = "";
+        label = abi.decode(data, (string));
+        
+        // Register the name with the PermissionedRegistry
+        uint256 rolesBitmap = 0xF; // Basic roles for testing
+        uint256 tokenId = registry.register(
+            label,
             l1Owner,
             IRegistry(l1Subregistry),
+            address(0), // resolver
+            rolesBitmap,
             expires
         );
         
@@ -75,11 +80,11 @@ contract MockL1EjectionController is IL1EjectionController {
     }
     
     /**
-     * @dev Implements IL1EjectionController.syncRenewalFromL2
+     * @dev Handles synchronization of renewals from L2
      */
-    function syncRenewalFromL2(uint256 tokenId, uint64 newExpiry) external override {
-        // Update expiration on L1
-        registry.updateExpiration(tokenId, newExpiry);
+    function syncRenewalFromL2(uint256 tokenId, uint64 newExpiry) external {
+        // Update expiration using the PermissionedRegistry
+        registry.renew(tokenId, newExpiry);
         
         emit RenewalSynced(tokenId, newExpiry);
     }

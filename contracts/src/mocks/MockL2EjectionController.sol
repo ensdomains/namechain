@@ -5,13 +5,12 @@ import {IBridge} from "./IBridge.sol";
 import {MockBridgeHelper} from "./MockBridgeHelper.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IRegistry} from "../common/IRegistry.sol";
-import {IL2EjectionController} from "../L2/IL2EjectionController.sol";
 
 /**
  * @title MockL2EjectionController
- * @dev Implementation of IL2EjectionController for L2 ENS operations
+ * @dev Controller for handling L2 ENS operations with PermissionedRegistry
  */
-contract MockL2EjectionController is IL2EjectionController {
+contract MockL2EjectionController {
     IPermissionedRegistry public registry;
     address public bridgeHelper;
     IBridge public bridge;
@@ -27,8 +26,7 @@ contract MockL2EjectionController is IL2EjectionController {
     }
     
     /**
-     * @dev Implements IL2EjectionController.ejectToL1
-     * Called when a user wants to eject a name from L2 to L1
+     * @dev Handles ejection to L1
      */
     function ejectToL1(
         uint256 tokenId,
@@ -37,7 +35,7 @@ contract MockL2EjectionController is IL2EjectionController {
         uint32 flags,
         uint64 expires,
         bytes memory data
-    ) public override {
+    ) public {
         // Get the name directly from the parameters
         string memory name = abi.decode(data, (string));
         
@@ -56,14 +54,14 @@ contract MockL2EjectionController is IL2EjectionController {
     }
     
     /**
-     * @dev Implements IL2EjectionController.completeMigration
+     * @dev Handles completion of migration from L1
      */
     function completeMigration(
         uint256 labelHash,
         address l2Owner,
         address l2Subregistry,
         bytes memory data
-    ) external override {
+    ) external {
         // Extract name from data
         string memory name = abi.decode(data, (string));
         // Require the name to be valid
@@ -71,11 +69,11 @@ contract MockL2EjectionController is IL2EjectionController {
         
         // Default values for registration
         address resolver = address(0);
-        uint96 flags = 0; // Using uint96 flags for ETHRegistry
+        uint256 roleBitmap = 0xF; // Basic role bitmap for testing
         uint64 expires = uint64(block.timestamp + 365 days);
         
-        // Register the name on L2
-        registry.register(name, l2Owner, IRegistry(l2Subregistry), resolver, flags, expires);
+        // Register the name on L2 using PermissionedRegistry
+        registry.register(name, l2Owner, IRegistry(l2Subregistry), resolver, roleBitmap, expires);
         
         emit NameMigrated(labelHash, l2Owner, l2Subregistry);
     }

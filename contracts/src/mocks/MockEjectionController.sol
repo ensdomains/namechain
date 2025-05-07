@@ -1,28 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {IL1EjectionController} from "../L1/IL1EjectionController.sol";
-import {L1ETHRegistry} from "../L1/L1ETHRegistry.sol";
+import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 
-contract MockEjectionController is IL1EjectionController {
+/**
+ * @title MockEjectionController
+ * @dev A simple mock controller for testing ejection-related functionality
+ */
+contract MockEjectionController {
     // Storage for last migration call
     uint256 private _lastTokenId;
     address private _lastL2Owner;
     address private _lastL2Subregistry;
     bytes private _lastData;
 
+    /**
+     * @dev Records migration parameters for testing verification
+     */
     function migrateToNamechain(
         uint256 tokenId,
         address l2Owner,
         address l2Subregistry,
         bytes memory data
-    ) external override {
+    ) external {
         _lastTokenId = tokenId;
         _lastL2Owner = l2Owner;
         _lastL2Subregistry = l2Subregistry;
         _lastData = data;
     }
 
+    /**
+     * @dev Placeholder for ejection completion handling
+     */
     function completeEjection(
         uint256,
         address,
@@ -30,26 +39,33 @@ contract MockEjectionController is IL1EjectionController {
         uint32,
         uint64,
         bytes memory
-    ) external override {}
+    ) external {}
 
+    /**
+     * @dev Updates expiration on PermissionedRegistry
+     */
     function syncRenewalFromL2(
         uint256 tokenId,
         uint64 newExpiry
-    ) external override {
-        // This would be called by the L2 bridge to update expiry on L1
-        L1ETHRegistry(msg.sender).updateExpiration(tokenId, newExpiry);
+    ) external {
+        // Call renew on PermissionedRegistry
+        IPermissionedRegistry(msg.sender).renew(tokenId, newExpiry);
     }
 
-    // Method to trigger a renewal from L2 for testing
+    /**
+     * @dev Method to trigger a renewal from L2 for testing
+     */
     function triggerSyncRenewalFromL2(
-        L1ETHRegistry registry,
+        IPermissionedRegistry registry,
         uint256 tokenId,
         uint64 newExpiry
     ) external {
-        registry.updateExpiration(tokenId, newExpiry);
+        registry.renew(tokenId, newExpiry);
     }
 
-    // Method to retrieve the last migration details for assertions
+    /**
+     * @dev Method to retrieve the last migration details for assertions
+     */
     function getLastMigration()
         external
         view
