@@ -7,92 +7,204 @@ import "../../src/mocks/MockL2Bridge.sol";
 import "../../src/mocks/MockBridgeHelper.sol";
 import "../../src/mocks/MockL1EjectionController.sol";
 import "../../src/mocks/MockL2EjectionController.sol";
-import "../../src/L1/IL1EjectionController.sol";
-import "../../src/L2/IL2EjectionController.sol";
 
 import { IRegistry } from "../../src/common/IRegistry.sol";
+import { IPermissionedRegistry } from "../../src/common/IPermissionedRegistry.sol";
+import { ITokenObserver } from "../../src/common/ITokenObserver.sol";
 
-// Mock registry implementations
-contract MockL1Registry is Test {
-    event NameRegistered(string name, address owner, address subregistry, uint64 expiry);
-    event NameBurned(uint256 tokenId);
-    event NewSubname(uint256 indexed tokenId, string label);
+// Simple mock implementation
+contract SimpleMockRegistry {
+    event NewSubname(uint256 indexed labelHash, string label);
+    event NameRelinquished(uint256 indexed tokenId, address relinquishedBy);
+    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
+    event TokenObserverSet(uint256 indexed tokenId, address observer);
     
     mapping(uint256 => bool) public registered;
     mapping(uint256 => address) public owners;
+    mapping(uint256 => IRegistry) public subregistries;
+    mapping(uint256 => address) public resolvers;
+    mapping(uint256 => uint64) public expirations;
+    mapping(uint256 => ITokenObserver) public tokenObservers;
     
-    function ejectFromNamechain(
-        uint256 tokenId,
+    bytes32 public constant ROOT_RESOURCE = bytes32(0);
+    
+    // Role definitions for testing
+    uint256 public constant ROLE_REGISTRAR = 1 << 0;
+    uint256 public constant ROLE_RENEW = 1 << 1;
+    uint256 public constant ROLE_SET_SUBREGISTRY = 1 << 2;
+    uint256 public constant ROLE_SET_RESOLVER = 1 << 3;
+    uint256 public constant ROLE_SET_TOKEN_OBSERVER = 1 << 4;
+    
+    mapping(bytes32 => mapping(address => uint256)) public roles;
+    
+    constructor() {
+        // Grant all roles to the deployer for testing
+        roles[ROOT_RESOURCE][msg.sender] = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    }
+    
+    function register(
+        string calldata label,
         address owner,
-        address subregistry,
-        uint64 expiry
-    ) external returns (uint256) {
+        IRegistry subregistry,
+        address resolver,
+        uint256 roleBitmap,
+        uint64 expires
+    ) external returns (uint256 tokenId) {
+        require(roles[ROOT_RESOURCE][msg.sender] & ROLE_REGISTRAR != 0, "Not authorized");
+        tokenId = uint256(keccak256(abi.encodePacked(label)));
+        
         registered[tokenId] = true;
         owners[tokenId] = owner;
+        subregistries[tokenId] = subregistry;
+        resolvers[tokenId] = resolver;
+        expirations[tokenId] = expires;
         
-        // For testing, use "premiumname.eth" as the name since that's what the test expects
-        string memory name = "premiumname.eth"; // Updated to match test expectations
+        // Grant roles to the owner
+        bytes32 resource = bytes32(tokenId);
+        roles[resource][owner] = roleBitmap;
         
-        emit NameRegistered(name, owner, subregistry, expiry);
-        emit NewSubname(tokenId, name); // Using the actual name here instead of hardcoded "name.eth"
-        return tokenId;
-    }
-    
-    function migrateToNamechain(uint256 tokenId, address l2Owner, address l2Subregistry, bytes memory data) external {
-        registered[tokenId] = false;
-        owners[tokenId] = address(0);
-        emit NameBurned(tokenId);
-    }
-    
-    function updateExpiration(uint256 tokenId, uint64 newExpiry) external {
-        // Just for test, no actual implementation needed
-    }
-    
-    function ownerOf(uint256 tokenId) external view returns (address) {
-        return owners[tokenId];
-    }
-}
-
-contract MockL2Registry is Test {
-    event NameRegistered(string name, address owner, address subregistry);
-    event OwnerChanged(uint256 tokenId, address newOwner);
-    event NewSubname(uint256 indexed tokenId, string label);
-    
-    mapping(uint256 => address) public owners;
-    
-    function register (
-        string calldata label, 
-        address owner, 
-        IRegistry subregistry, 
-        address resolver, 
-        uint256, 
-        uint64
-    ) external returns (uint256 tokenId) {
-        tokenId = uint256(keccak256(abi.encodePacked(label)));
-        owners[tokenId] = owner;
-        emit NameRegistered(label, owner, address(subregistry));
         emit NewSubname(tokenId, label);
         return tokenId;
     }
     
     function renew(uint256 tokenId, uint64 newExpiry) external {
-        // Just for test, no actual implementation needed
+        require(roles[ROOT_RESOURCE][msg.sender] & ROLE_RENEW != 0 || 
+                roles[bytes32(tokenId)][msg.sender] & ROLE_RENEW != 0, "Not authorized");
+        
+        require(expirations[tokenId] <= newExpiry, "Cannot reduce expiration");
+        expirations[tokenId] = newExpiry;
+        
+        // Notify observer if exists
+        if (address(tokenObservers[tokenId]) != address(0)) {
+            tokenObservers[tokenId].onRenew(tokenId, newExpiry, msg.sender);
+        }
+        
+        emit NameRenewed(tokenId, newExpiry, msg.sender);
     }
     
-    function nameData(uint256 tokenId) external view returns (uint64 expiry, uint32 flags) {
-        // Return some dummy values for testing
-        return (uint64(block.timestamp + 365 days), 0);
+    function relinquish(uint256 tokenId) external {
+        require(owners[tokenId] == msg.sender, "Not owner");
+        
+        // Notify observer if exists
+        if (address(tokenObservers[tokenId]) != address(0)) {
+            tokenObservers[tokenId].onRelinquish(tokenId, msg.sender);
+        }
+        
+        registered[tokenId] = false;
+        owners[tokenId] = address(0);
+        subregistries[tokenId] = IRegistry(address(0));
+        resolvers[tokenId] = address(0);
+        expirations[tokenId] = 0;
+        
+        // Clear roles for token
+        bytes32 resource = bytes32(tokenId);
+        roles[resource][msg.sender] = 0;
+        
+        emit NameRelinquished(tokenId, msg.sender);
+    }
+    
+    function setSubregistry(uint256 tokenId, IRegistry subregistry) external {
+        require(roles[bytes32(tokenId)][msg.sender] & ROLE_SET_SUBREGISTRY != 0, "Not authorized");
+        subregistries[tokenId] = subregistry;
+    }
+    
+    function setResolver(uint256 tokenId, address resolver) external {
+        require(roles[bytes32(tokenId)][msg.sender] & ROLE_SET_RESOLVER != 0, "Not authorized");
+        resolvers[tokenId] = resolver;
+    }
+    
+    function setTokenObserver(uint256 tokenId, ITokenObserver observer) external {
+        require(roles[bytes32(tokenId)][msg.sender] & ROLE_SET_TOKEN_OBSERVER != 0, "Not authorized");
+        tokenObservers[tokenId] = observer;
+        emit TokenObserverSet(tokenId, address(observer));
+    }
+    
+    function getExpiry(uint256 tokenId) external view returns (uint64) {
+        return expirations[tokenId];
+    }
+    
+    function getNameData(string calldata label) external view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion) {
+        tokenId = uint256(keccak256(abi.encodePacked(label)));
+        expiry = expirations[tokenId];
+        tokenIdVersion = 0; // Using 0 for simplicity in mocks
     }
     
     function ownerOf(uint256 tokenId) external view returns (address) {
+        if (expirations[tokenId] < block.timestamp) {
+            return address(0); // Expired name has no owner
+        }
         return owners[tokenId];
+    }
+    
+    function getSubregistry(string calldata label) external view returns (IRegistry) {
+        uint256 tokenId = uint256(keccak256(abi.encodePacked(label)));
+        if (expirations[tokenId] < block.timestamp) {
+            return IRegistry(address(0)); // Expired name has no subregistry
+        }
+        return subregistries[tokenId];
+    }
+    
+    function getResolver(string calldata label) external view returns (address) {
+        uint256 tokenId = uint256(keccak256(abi.encodePacked(label)));
+        if (expirations[tokenId] < block.timestamp) {
+            return address(0); // Expired name has no resolver
+        }
+        return resolvers[tokenId];
+    }
+    
+    function getTokenIdResource(uint256 tokenId) external pure returns (bytes32) {
+        return bytes32(tokenId);
+    }
+    
+    function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes memory data) external {
+        require(owners[id] == from, "Not owner");
+        owners[id] = to;
+        
+        // Transfer roles
+        bytes32 resource = bytes32(id);
+        roles[resource][to] = roles[resource][from];
+        roles[resource][from] = 0;
+    }
+    
+    function balanceOf(address account, uint256 id) external view returns (uint256) {
+        return owners[id] == account ? 1 : 0;
+    }
+    
+    // EnhancedAccessControl required methods
+    function hasRoles(bytes32 resource, uint256 rolesBitmap, address account) external view returns (bool) {
+        return (roles[resource][account] & rolesBitmap) == rolesBitmap ||
+               (roles[ROOT_RESOURCE][account] & rolesBitmap) == rolesBitmap;
+    }
+    
+    function hasRootRoles(uint256 rolesBitmap, address account) external view returns (bool) {
+        return (roles[ROOT_RESOURCE][account] & rolesBitmap) == rolesBitmap;
+    }
+    
+    function grantRootRoles(uint256 rolesBitmap, address account) external returns (bool) {
+        roles[ROOT_RESOURCE][account] |= rolesBitmap;
+        return true;
+    }
+    
+    function grantRoles(bytes32 resource, uint256 rolesBitmap, address account) external returns (bool) {
+        roles[resource][account] |= rolesBitmap;
+        return true;
+    }
+    
+    function revokeRootRoles(uint256 rolesBitmap, address account) external returns (bool) {
+        roles[ROOT_RESOURCE][account] &= ~rolesBitmap;
+        return true;
+    }
+    
+    function revokeRoles(bytes32 resource, uint256 rolesBitmap, address account) external returns (bool) {
+        roles[resource][account] &= ~rolesBitmap;
+        return true;
     }
 }
 
 contract BridgeTest is Test {
     // Components for the test
-    MockL1Registry l1Registry;
-    MockL2Registry l2Registry;
+    SimpleMockRegistry l1Registry;
+    SimpleMockRegistry l2Registry;
     MockBridgeHelper bridgeHelper;
     MockL1Bridge l1Bridge;
     MockL2Bridge l2Bridge;
@@ -105,8 +217,8 @@ contract BridgeTest is Test {
     
     function setUp() public {
         // Deploy the contracts
-        l1Registry = new MockL1Registry();
-        l2Registry = new MockL2Registry();
+        l1Registry = new SimpleMockRegistry();
+        l2Registry = new SimpleMockRegistry();
         
         bridgeHelper = new MockBridgeHelper();
         
@@ -121,6 +233,10 @@ contract BridgeTest is Test {
         // Set the controller contracts as targets for the bridges
         l1Bridge.setTargetController(address(l1Controller));
         l2Bridge.setTargetController(address(l2Controller));
+        
+        // Grant ROLE_REGISTRAR and ROLE_RENEW to controllers
+        l1Registry.grantRootRoles(l1Registry.ROLE_REGISTRAR() | l1Registry.ROLE_RENEW(), address(l1Controller));
+        l2Registry.grantRootRoles(l2Registry.ROLE_REGISTRAR() | l2Registry.ROLE_RENEW(), address(l2Controller));
     }
     
     function testNameMigrationFromL1ToL2() public {
@@ -159,11 +275,9 @@ contract BridgeTest is Test {
         bytes memory message = bridgeHelper.encodeEjectionMessage(name, l1Owner, l1Subregistry, expiry);
         
         // Now correctly expect the event with the name "premiumname.eth"
+        uint256 labelHash = uint256(keccak256(abi.encodePacked(name)));
         vm.expectEmit(true, true, true, true);
-        emit MockL1Registry.NewSubname(
-            uint256(keccak256(abi.encodePacked(name))), 
-            name
-        );
+        emit SimpleMockRegistry.NewSubname(labelHash, name);
         
         l1Bridge.receiveMessageFromL2(message);
         
