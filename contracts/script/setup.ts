@@ -56,20 +56,26 @@ export async function setupCrossChainEnvironment() {
     file: "MockBridgeHelper",
   });
 
-  // Deploy the real registries using their actual interfaces
-  // L1ETHRegistry for L1 and ETHRegistry for L2
+  // Define ALL_ROLES as a BigInt - used for granting all roles to the admin
+  const ALL_ROLES = ethers.MaxUint256;
+
+  // Deploy the unified PermissionedRegistry for both L1 and L2
   const l1Registry = await L1.deploy({
-    file: "L1ETHRegistry",
+    file: "PermissionedRegistry",
     args: [
       await l1Datastore.getAddress(),
-      "0x000000000000000000000000000000000000beef",
       await l1Metadata.getAddress(),
+      ALL_ROLES
     ],
   });
 
   const l2Registry = await L2.deploy({
-    file: "ETHRegistry",
-    args: [await l2Datastore.getAddress(), await l2Metadata.getAddress()],
+    file: "PermissionedRegistry",
+    args: [
+      await l2Datastore.getAddress(), 
+      await l2Metadata.getAddress(),
+      ALL_ROLES
+    ],
   });
 
   // Deploy bridges with bridge helpers
@@ -110,10 +116,17 @@ export async function setupCrossChainEnvironment() {
     l2Bridge.setTargetController(await l2Controller.getAddress())
   );
 
+  // Grant registrar and renew roles to controllers
+  const ROLE_REGISTRAR = 1n << 0n;
+  const ROLE_RENEW = 1n << 1n;
+  
+  // Grant roles to controllers
   await L1.confirm(
-    l1Registry.setEjectionController(await l1Controller.getAddress())
+    l1Registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, await l1Controller.getAddress())
   );
-  // await L1.confirm(l2Registry.setEjectionController(await l2Controller.getAddress())); when ready
+  await L2.confirm(
+    l2Registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, await l2Controller.getAddress())
+  );
 
   console.log("Cross-chain environment setup complete!");
 

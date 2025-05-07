@@ -65,8 +65,8 @@ async function testNameMigration(env, relayer) {
     await setTimeout(3000);
 
     // Check for NameMigrated events on L2
-    const filter = env.l2.registry.filters.NameMigrated();
-    const events = await env.l2.registry.queryFilter(filter);
+    const filter = env.l2.controller.filters.NameMigrated();
+    const events = await env.l2.controller.queryFilter(filter);
 
     if (events.length === 0) {
       console.log('No NameMigrated event found, performing manual relay');
@@ -83,7 +83,7 @@ async function testNameMigration(env, relayer) {
       console.log(`Manual relay completed, tx hash: ${relayTx}`);
     } else {
       console.log(
-        'Name registration event found on L2, automatic relay worked'
+        'Name migration event found on L2, automatic relay worked'
       );
     }
 
@@ -141,9 +141,9 @@ async function testNameEjection(env, relayer) {
     console.log('Waiting for the relayer to process the event...');
     await setTimeout(3000);
 
-    // Check if the name is registered on L1
-    const filter = env.l1.registry.filters.NameEjected();
-    const events = await env.l1.registry.queryFilter(filter);
+    // Check for NameEjected events on L1 Controller
+    const filter = env.l1.controller.filters.NameEjected();
+    const events = await env.l1.controller.queryFilter(filter);
 
     if (events.length === 0) {
       console.log('No NameEjected event found on L1, performing manual relay');
@@ -169,9 +169,9 @@ async function testNameEjection(env, relayer) {
     console.log('Verifying registration on L1...');
     await setTimeout(1000);
 
-    const nameEjectedFilter = env.l1.registry.filters.NameEjected();
+    const newSubnameFilter = env.l1.registry.filters.NewSubname();
     const registrationEvents = await env.l1.registry.queryFilter(
-      nameEjectedFilter
+      newSubnameFilter
     );
 
     if (registrationEvents.length > 0) {
@@ -217,10 +217,10 @@ async function testRoundTrip(env, relayer) {
     await setTimeout(3000);
 
     // Check for NameMigrated events on L2
-    const filter = env.l2.registry.filters.NameMigrated();
-    const events = await env.l2.registry.queryFilter(filter);
+    const migrationFilter = env.l2.controller.filters.NameMigrated();
+    const migrationEvents = await env.l2.controller.queryFilter(migrationFilter);
 
-    if (events.length === 0) {
+    if (migrationEvents.length === 0) {
       console.log('No NameMigrated event found, performing manual relay');
 
       // Get the migration message
@@ -235,7 +235,7 @@ async function testRoundTrip(env, relayer) {
       console.log(`Manual L1->L2 relay completed, tx hash: ${relayTx}`);
     } else {
       console.log(
-        'Name registration event found on L2, automatic relay worked'
+        'Name migration event found on L2, automatic relay worked'
       );
     }
 
@@ -249,11 +249,11 @@ async function testRoundTrip(env, relayer) {
     // Wait for automatic relay or do manual relay
     await setTimeout(3000);
 
-    // Check if the name is registered on L1
-    const filterEjected = env.l1.registry.filters.NameEjected();
-    const eventsEjected = await env.l1.registry.queryFilter(filterEjected);
+    // Check for NameEjected events on L1
+    const ejectionFilter = env.l1.controller.filters.NameEjected();
+    const ejectionEvents = await env.l1.controller.queryFilter(ejectionFilter);
 
-    if (eventsEjected.length === 0) {
+    if (ejectionEvents.length === 0) {
       console.log('No NameEjected event found on L1, performing manual relay');
 
       // Get the ejection message
@@ -273,48 +273,44 @@ async function testRoundTrip(env, relayer) {
       );
     }
 
-    // Manual relay if needed
-    const ejectionMsg = await env.l2.bridgeHelper.encodeEjectionMessage(
-      name,
-      l1Owner,
-      l1Subregistry,
-      expiry
-    );
-    try {
-      await relayer.manualRelay(false, ejectionMsg);
-      console.log('Manual L2->L1 relay completed');
-    } catch (error) {
-      console.log(
-        'Manual relay failed, might have already been relayed automatically'
-      );
-    }
-
     // Verify results
     console.log('\nVerifying round trip results:');
-    await setTimeout(1000);
+    await setTimeout(3000);
 
     const tokenId = ethers.keccak256(ethers.toUtf8Bytes(name));
     
     // Check if the name is owned on L1
     try {
-      const owner = await env.l1.registry.ownerOf(tokenId);
+      // Try to get the tokenId directly from the event
+      const newSubnameFilter = env.l1.registry.filters.NewSubname();
+      const registrationEvents = await env.l1.registry.queryFilter(newSubnameFilter);
+      
+      // Find the event with the correct name
+      let actualTokenId = tokenId;
+      for (const event of registrationEvents) {
+        if (event.args && event.args[1] === name) {
+          actualTokenId = event.args[0];
+          console.log(`Found actual tokenId from event: ${actualTokenId}`);
+          break;
+        }
+      }
+      
+      const owner = await env.l1.registry.ownerOf(actualTokenId);
       console.log(`Owner on L1: ${owner}`);
       console.log(`Expected owner: ${l1Owner}`);
       console.log(`Owner match: ${owner.toLowerCase() === l1Owner.toLowerCase()}`);
+      
+      // Check for subregistry
+      try {
+        const subregistry = await env.l1.registry.getSubregistry(name);
+        console.log(`Subregistry on L1: ${subregistry}`);
+      } catch (error) {
+        console.log('! Could not check subregistry on L1');
+      }
     } catch (error) {
       console.log('! Failed to get owner on L1, name might not be registered');
+      console.log('Error details:', error.message);
     }
-    
-    // Check for resolver and subregistry on L1
-    try {
-      // This might be too specific to the actual implementation
-      const [subregistry, flags] = await env.l1.registry.getSubregistry_Data(tokenId);
-      console.log(`Subregistry on L1: ${subregistry}`);
-      console.log(`Flags on L1: ${flags}`);
-    } catch (error) {
-      console.log('! Could not check subregistry on L1');
-    }
-    console.log('Round trip test completed');
   } catch (error) {
     console.error('Error during round trip test:', error);
   }
