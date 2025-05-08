@@ -2,17 +2,16 @@
 pragma solidity ^0.8.13;
 
 import {IBridge} from "./IBridge.sol";
-import {MockBridgeHelper} from "./MockBridgeHelper.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
+import {L1EjectionController} from "../L1/L1EjectionController.sol";
+import {TransferData} from "../common/EjectionController.sol";
 
 /**
  * @title MockL1EjectionController
  * @dev Controller for handling L1 ENS operations with PermissionedRegistry
  */
-contract MockL1EjectionController {
-    IPermissionedRegistry public registry;
-    address public bridgeHelper;
+contract MockL1EjectionController is L1EjectionController {
     IBridge public bridge;
     
     // Events for tracking actions
@@ -20,93 +19,34 @@ contract MockL1EjectionController {
     event NameMigrated(uint256 tokenId, address l2Owner, address l2Subregistry);
     event RenewalSynced(uint256 tokenId, uint64 newExpiry);
     
-    constructor(address _registry, address _helper, address _bridge) {
-        registry = IPermissionedRegistry(_registry);
-        bridgeHelper = _helper;
-        bridge = IBridge(_bridge);
+    constructor(IPermissionedRegistry _registry, IBridge _bridge) L1EjectionController(_registry) {
+        bridge = _bridge;
     }
-    
-    /**
-     * @dev Handles migration to the L2 namechain
-     */
-    function migrateToNamechain(
-        uint256 tokenId, 
-        address l2Owner, 
-        address l2Subregistry, 
-        bytes memory data
-    ) external {
-        // Get the name directly from the parameters
-        string memory name = abi.decode(data, (string));
+
+    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal override virtual {
+        super._onEject(tokenIds, transferDataArray);
         
-        // Create and send migration message
-        bytes memory message = MockBridgeHelper(bridgeHelper).encodeMigrationMessage(
-            name,
-            l2Owner,
-            l2Subregistry
-        );
-        
-        // Send migration message to L2
-        bridge.sendMessageToL2(message);
-        
-        emit NameMigrated(tokenId, l2Owner, l2Subregistry);
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            bridge.sendMessageToL2(tokenIds[i], transferDataArray[i]);
+            emit NameMigrated(tokenIds[i], transferDataArray[i].owner, transferDataArray[i].subregistry);
+        }
     }
     
     /**
      * @dev Handles completion of ejection from L2
      */
-    function completeEjection(
-        uint256 labelHash,
-        address l1Owner,
-        address l1Subregistry,
-        uint32 flags,
-        uint64 expires,
-        bytes memory data
-    ) external {
-        string memory label = "";
-        label = abi.decode(data, (string));
-        
-        // Register the name with the PermissionedRegistry
-        uint256 rolesBitmap = 0xF; // Basic roles for testing
-        uint256 tokenId = registry.register(
-            label,
-            l1Owner,
-            IRegistry(l1Subregistry),
-            address(0), // resolver
-            rolesBitmap,
-            expires
-        );
-        
-        emit NameEjected(labelHash, l1Owner, l1Subregistry, expires);
+    function completeEjectionFromL2(
+        TransferData memory transferData
+    ) external returns (uint256 tokenId) {
+        tokenId = _completeEjectionFromL2(transferData);
+        emit NameEjected(tokenId, transferData.owner, transferData.subregistry, transferData.expires);
     }
-    
+
     /**
      * @dev Handles synchronization of renewals from L2
      */
     function syncRenewalFromL2(uint256 tokenId, uint64 newExpiry) external {
-        // Update expiration using the PermissionedRegistry
-        registry.renew(tokenId, newExpiry);
-        
+        super._syncRenewal(tokenId, newExpiry);
         emit RenewalSynced(tokenId, newExpiry);
-    }
-    
-    /**
-     * @dev Utility function to request migration of a name with a simplified interface
-     * This method is used by the test scripts
-     */
-    function requestMigration(string calldata name, address l2Owner, address l2Subregistry) external {
-        // Calculate tokenId from name
-        uint256 tokenId = uint256(keccak256(abi.encodePacked(name)));
-        
-        // Create and send migration message
-        bytes memory message = MockBridgeHelper(bridgeHelper).encodeMigrationMessage(
-            name,
-            l2Owner,
-            l2Subregistry
-        );
-        
-        // Send migration message to L2
-        bridge.sendMessageToL2(message);
-        
-        emit NameMigrated(tokenId, l2Owner, l2Subregistry);
     }
 }
