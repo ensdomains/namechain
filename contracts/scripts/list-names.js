@@ -8,13 +8,123 @@ import dotenv from "dotenv";
 const ENV_FILE_PATH = path.resolve(process.cwd(), '.env');
 dotenv.config({ path: ENV_FILE_PATH });
 
-async function getOwnedNames(registry, address, parentName = '') {
-  const publicClient = await hre.viem.getPublicClient();
+// State to track known names and their relationships
+const nameState = {
+  // Map of registry address -> Map of labelHash -> { label, owner, subregistry }
+  registries: new Map(),
+  // Map of registry address -> Set of relinquished tokenIds
+  relinquished: new Map(),
+  // Map of registry address -> Set of processed block numbers
+  processedBlocks: new Map()
+};
 
-  // First, get all NewSubname events to build the name hierarchy
-  console.log("Fetching NewSubname events...");
+async function processNewSubnameEvent(registry, log, address) {
+  const publicClient = await hre.viem.getPublicClient();
+  const registryAddress = registry.address;
+  
+  // Initialize registry state if not exists
+  if (!nameState.registries.has(registryAddress)) {
+    nameState.registries.set(registryAddress, new Map());
+  }
+  if (!nameState.relinquished.has(registryAddress)) {
+    nameState.relinquished.set(registryAddress, new Set());
+  }
+
+  try {
+    const decoded = decodeEventLog({
+      abi: registry.abi,
+      data: log.data,
+      topics: log.topics
+    });
+    console.log("***** decoded:", {registryAddress, log, decoded});
+    const labelHash = decoded.args.labelHash.toString();
+    const label = decoded.args.label;
+    
+    console.log("Processing NewSubname event:", { labelHash, label });
+    
+    // Check ownership
+    let owner;
+    try {
+      owner = await registry.read.ownerOf([BigInt(labelHash)]);
+    } catch (e) {
+      console.log("Error getting owner for tokenId:", labelHash, e.message);
+      return;
+    }
+
+    // Check for subregistry
+    let subregistry = null;
+    try {
+      subregistry = await registry.read.getSubregistry([label]);
+      if (subregistry === "0x0000000000000000000000000000000000000000") {
+        subregistry = null;
+      }
+    } catch (e) {
+      console.log(`Error checking subregistry for ${label}:`, e.message);
+    }
+
+    // Update state
+    nameState.registries.get(registryAddress).set(labelHash, {
+      label,
+      owner,
+      subregistry,
+      isRelinquished: false
+    });
+
+    // If this is a new subregistry, start watching it
+    if (subregistry) {
+      const subregistryContract = await hre.viem.getContractAt("PermissionedRegistry", subregistry);
+      await watchRegistry(subregistryContract, address);
+    }
+
+  } catch (error) {
+    console.error("Error processing NewSubname event:", error);
+  }
+}
+
+async function processNameRelinquishedEvent(registry, log) {
+  const registryAddress = registry.address;
+  
+  try {
+    const decoded = decodeEventLog({
+      abi: registry.abi,
+      data: log.data,
+      topics: log.topics
+    });
+    
+    const tokenId = decoded.args.tokenId.toString();
+    nameState.relinquished.get(registryAddress).add(tokenId);
+    
+    // Update the name state
+    const nameInfo = nameState.registries.get(registryAddress)?.get(tokenId);
+    if (nameInfo) {
+      nameInfo.isRelinquished = true;
+    }
+  } catch (error) {
+    console.error("Error processing NameRelinquished event:", error);
+  }
+}
+
+async function watchRegistry(registry, address) {
+  const publicClient = await hre.viem.getPublicClient();
+  const registryAddress = registry.address;
+  
+  // Initialize state for this registry
+  if (!nameState.registries.has(registryAddress)) {
+    nameState.registries.set(registryAddress, new Map());
+  }
+  if (!nameState.relinquished.has(registryAddress)) {
+    nameState.relinquished.set(registryAddress, new Set());
+  }
+  if (!nameState.processedBlocks.has(registryAddress)) {
+    nameState.processedBlocks.set(registryAddress, 0n);
+  }
+
+  // Get the last processed block
+  const fromBlock = nameState.processedBlocks.get(registryAddress);
+
+  // Watch for new events
   const newSubnameLogs = await publicClient.getLogs({
-    address: registry.address,
+    address: registryAddress,
     event: {
       type: 'event',
       name: 'NewSubname',
@@ -23,30 +133,11 @@ async function getOwnedNames(registry, address, parentName = '') {
         { type: 'string', name: 'label', indexed: false }
       ]
     },
-    fromBlock: 0n
+    fromBlock
   });
-  console.log(`Found ${newSubnameLogs.length} NewSubname events`);
 
-  // Build a map of labelHash to label for this registry
-  const labelMap = new Map();
-  for (const log of newSubnameLogs) {
-    try {
-      const decoded = decodeEventLog({
-        abi: registry.abi,
-        data: log.data,
-        topics: log.topics
-      });
-      labelMap.set(decoded.args.labelHash.toString(), decoded.args.label);
-      console.log("*** labelMap set", decoded.args.labelHash.toString(), decoded.args.label);
-    } catch (error) {
-      console.error("Error decoding NewSubname event:", error);
-    }
-  }
-
-  // Get all NameRelinquished events
-  console.log("Fetching NameRelinquished events...");
   const relinquishedLogs = await publicClient.getLogs({
-    address: registry.address,
+    address: registryAddress,
     event: {
       type: 'event',
       name: 'NameRelinquished',
@@ -55,77 +146,47 @@ async function getOwnedNames(registry, address, parentName = '') {
         { type: 'address', name: 'sender', indexed: true }
       ]
     },
-    fromBlock: 0n
+    fromBlock
   });
-  console.log(`Found ${relinquishedLogs.length} NameRelinquished events`);
 
-  const relinquishedTokenIds = new Set(relinquishedLogs.map(log => {
-    try {
-      const decoded = decodeEventLog({
-        abi: registry.abi,
-        data: log.data,
-        topics: log.topics
-      });
-      return decoded.args.tokenId.toString();
-    } catch (error) {
-      console.error("Error decoding NameRelinquished event:", error);
-      return null;
-    }
-  }).filter(Boolean));
-
-  console.log("Relinquished token IDs:", Array.from(relinquishedTokenIds));
-
-  // For each NewSubname, check if it's owned by the address and not relinquished
-  const ownedNames = [];
-  const subregistries = new Map(); // Track subregistries for recursive processing
-  console.log("***** labelMap:", labelMap);
-  for (const [labelHash, label] of labelMap.entries()) {
-    try {
-      console.log("Processing labelHash:", labelHash, "label:", label);
-      
-      if (relinquishedTokenIds.has(labelHash)) {
-        console.log("Token was relinquished, skipping:", labelHash);
-        continue;
-      }
-      
-      let owner;
-      try {
-        owner = await registry.read.ownerOf([BigInt(labelHash)]);
-        console.log("Current owner:", owner);
-      } catch (e) {
-        console.log("Error getting owner for tokenId:", labelHash, e.message);
-        continue; // token may not exist anymore
-      }
-      
-      if (owner && owner.toLowerCase() === address.toLowerCase()) {
-        const fullName = parentName 
-          ? `${label}.${parentName}`
-          : label;
-        console.log("Adding owned name:", fullName);
-        ownedNames.push(fullName);
-
-        // Check for subregistry
-        try {
-          const subregistry = await registry.read.getSubregistry([label]);
-          if (subregistry && subregistry !== "0x0000000000000000000000000000000000000000") {
-            console.log(`Found subregistry for ${label}:`, subregistry);
-            subregistries.set(label, subregistry);
-          }
-        } catch (e) {
-          console.log(`Error checking subregistry for ${label}:`, e.message);
-        }
-      }
-    } catch (error) {
-      console.error("Error processing label:", label, error);
-    }
+  // Process new events
+  for (const log of newSubnameLogs) {
+    await processNewSubnameEvent(registry, log, address);
   }
 
-  // Process subregistries recursively
-  for (const [label, subregistryAddress] of subregistries) {
-    const fullName = parentName ? `${label}.${parentName}` : label;
-    const subregistry = await hre.viem.getContractAt("PermissionedRegistry", subregistryAddress);
-    const subnames = await getOwnedNames(subregistry, address, fullName);
-    ownedNames.push(...subnames);
+  for (const log of relinquishedLogs) {
+    await processNameRelinquishedEvent(registry, log);
+  }
+
+  // Update processed block
+  const currentBlock = await publicClient.getBlockNumber();
+  nameState.processedBlocks.set(registryAddress, currentBlock);
+}
+
+function getOwnedNames(registry, address, parentName = '') {
+  const registryAddress = registry.address;
+  const ownedNames = [];
+  const registryNames = nameState.registries.get(registryAddress);
+  const relinquished = nameState.relinquished.get(registryAddress);
+
+  if (!registryNames) return ownedNames;
+
+  for (const [labelHash, info] of registryNames) {
+    if (relinquished.has(labelHash) || info.isRelinquished) continue;
+    
+    if (info.owner.toLowerCase() === address.toLowerCase()) {
+      const fullName = parentName ? `${info.label}.${parentName}` : info.label;
+      ownedNames.push(fullName);
+
+      // Check for subregistry
+      if (info.subregistry) {
+        const subregistry = nameState.registries.get(info.subregistry);
+        if (subregistry) {
+          const subnames = getOwnedNames({ address: info.subregistry }, address, fullName);
+          ownedNames.push(...subnames);
+        }
+      }
+    }
   }
 
   return ownedNames;
@@ -153,8 +214,11 @@ async function main() {
   // Get the Root registry contract
   const RootRegistry = await hre.viem.getContractAt("PermissionedRegistry", rootRegistryAddress);
   
-  // Start from Root Registry - it will automatically find and process all TLDs
-  const names = await getOwnedNames(RootRegistry, address);
+  // Start watching the Root Registry
+  await watchRegistry(RootRegistry, address);
+
+  // Get owned names from state
+  const names = getOwnedNames(RootRegistry, address);
 
   console.log("\nOwned names:");
   console.log("------------");
@@ -162,6 +226,7 @@ async function main() {
   for (const name of sortedNames) {
     console.log(name);
   }
+  console.log("***** nameState.registries:", nameState.registries);
 }
 
 main().catch((error) => {
