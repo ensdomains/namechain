@@ -20,7 +20,7 @@ const nameState = {
 
 async function processNewSubnameEvent(registry, log) {
   const publicClient = await hre.viem.getPublicClient();
-  const registryAddress = registry.address;
+  const registryAddress = registry.address.toLowerCase();
   
   // Initialize registry state if not exists
   if (!nameState.registries.has(registryAddress)) {
@@ -36,45 +36,67 @@ async function processNewSubnameEvent(registry, log) {
       data: log.data,
       topics: log.topics
     });
-    
-    console.log("***** decoded:", {registryAddress, log, decoded});
+  
     const labelHash = decoded.args.labelHash.toString();
     const label = decoded.args.label;
     
-    console.log("Processing NewSubname event:", { labelHash, label });
     
-    // Check for subregistry
-    let subregistry = null;
-    try {
-      subregistry = await registry.read.getSubregistry([label]);
-      if (subregistry === "0x0000000000000000000000000000000000000000") {
-        subregistry = null;
-      }
-    } catch (e) {
-      console.log(`Error checking subregistry for ${label}:`, e.message);
-    }
-
     // Update state with initial owner (from TransferSingle event that follows)
     nameState.registries.get(registryAddress).set(labelHash, {
       label,
       owner: null, // Will be set by TransferSingle event
-      subregistry,
+      subregistry: null, // Will be set by SubregistryUpdate event if applicable
       isRelinquished: false
     });
-
-    // If this is a new subregistry, start watching it
-    if (subregistry) {
-      const subregistryContract = await hre.viem.getContractAt("PermissionedRegistry", subregistry);
-      await watchRegistry(subregistryContract);
-    }
 
   } catch (error) {
     console.error("Error processing NewSubname event:", error);
   }
 }
 
+async function processSubregistryUpdateEvent(datastore, log) {
+  try {
+    const decoded = decodeEventLog({
+      abi: datastore.abi,
+      data: log.data,
+      topics: log.topics
+    });
+    
+    const registry = decoded.args.registry.toLowerCase();
+    const id = decoded.args.id.toString();
+    const subregistry = decoded.args.subregistry.toLowerCase();
+    const expiry = decoded.args.expiry;
+    
+    // Skip if expired
+    if (expiry < BigInt(Math.floor(Date.now() / 1000))) {
+      console.log(`Skipping expired subregistry for id ${id}`);
+      return;
+    }
+    
+    // Find the name info by id
+    const registryNames = nameState.registries.get(registry);
+    if (registryNames) {
+      const nameInfo = registryNames.get(id);
+      if (nameInfo) {
+        nameInfo.subregistry = subregistry;
+        console.log(`Updated subregistry for ${nameInfo.label} to ${subregistry}`);
+        
+        // Start watching the new subregistry
+        const subregistryContract = await hre.viem.getContractAt("PermissionedRegistry", subregistry);
+        await watchRegistry(subregistryContract);
+      } else {
+        console.log(`No name info found for id ${id} in registry ${registry}`);
+      }
+    } else {
+      console.log(`No registry state found for ${registry}`);
+    }
+  } catch (error) {
+    console.error("Error processing SubregistryUpdate event:", error);
+  }
+}
+
 async function processTransferEvent(registry, log) {
-  const registryAddress = registry.address;
+  const registryAddress = registry.address.toLowerCase();
   
   try {
     const decoded = decodeEventLog({
@@ -84,7 +106,7 @@ async function processTransferEvent(registry, log) {
     });
     
     const tokenId = decoded.args.id.toString();
-    const to = decoded.args.to;
+    const to = decoded.args.to.toLowerCase();
     
     // Update owner in state
     const nameInfo = nameState.registries.get(registryAddress)?.get(tokenId);
@@ -98,7 +120,7 @@ async function processTransferEvent(registry, log) {
 }
 
 async function processNameRelinquishedEvent(registry, log) {
-  const registryAddress = registry.address;
+  const registryAddress = registry.address.toLowerCase();
   
   try {
     const decoded = decodeEventLog({
@@ -122,9 +144,9 @@ async function processNameRelinquishedEvent(registry, log) {
 
 async function watchRegistry(registry) {
   const publicClient = await hre.viem.getPublicClient();
-  const registryAddress = registry.address;
+  const registryAddress = registry.address.toLowerCase();
   
-  // Initialize state for this registry
+  // Initialize registry state if not exists
   if (!nameState.registries.has(registryAddress)) {
     nameState.registries.set(registryAddress, new Map());
   }
@@ -199,8 +221,38 @@ async function watchRegistry(registry) {
   nameState.processedBlocks.set(registryAddress, currentBlock);
 }
 
+async function watchDatastore(datastore) {
+  const publicClient = await hre.viem.getPublicClient();
+  const datastoreAddress = datastore.address;
+  
+  // Get the last processed block
+  const fromBlock = 0n; // Start from the beginning for datastore events
+
+  // Watch for SubregistryUpdate events
+  const subregistryUpdateLogs = await publicClient.getLogs({
+    address: datastoreAddress,
+    event: {
+      type: 'event',
+      name: 'SubregistryUpdate',
+      inputs: [
+        { type: 'address', name: 'registry', indexed: true },
+        { type: 'uint256', name: 'id', indexed: true },
+        { type: 'address', name: 'subregistry', indexed: false },
+        { type: 'uint64', name: 'expiry', indexed: false },
+        { type: 'uint32', name: 'data', indexed: false }
+      ]
+    },
+    fromBlock
+  });
+
+  // Process SubregistryUpdate events
+  for (const log of subregistryUpdateLogs) {
+    await processSubregistryUpdateEvent(datastore, log);
+  }
+}
+
 function getOwnedNames(registry, address, parentName = '') {
-  const registryAddress = registry.address;
+  const registryAddress = registry.address.toLowerCase();
   const ownedNames = [];
   const registryNames = nameState.registries.get(registryAddress);
   const relinquished = nameState.relinquished.get(registryAddress);
@@ -216,7 +268,7 @@ function getOwnedNames(registry, address, parentName = '') {
 
       // Check for subregistry
       if (info.subregistry) {
-        const subregistry = nameState.registries.get(info.subregistry);
+        const subregistry = nameState.registries.get(info.subregistry.toLowerCase());
         if (subregistry) {
           const subnames = getOwnedNames({ address: info.subregistry }, address, fullName);
           ownedNames.push(...subnames);
@@ -250,8 +302,15 @@ async function main() {
   // Get the Root registry contract
   const RootRegistry = await hre.viem.getContractAt("PermissionedRegistry", rootRegistryAddress);
   
-  // Start watching the Root Registry
+  // Get the datastore contract
+  const datastoreAddress = await RootRegistry.read.datastore();
+  const Datastore = await hre.viem.getContractAt("RegistryDatastore", datastoreAddress);
+  
+  // First, watch all registries for NewSubname events
   await watchRegistry(RootRegistry);
+  
+  // Then, watch the datastore for SubregistryUpdate events
+  await watchDatastore(Datastore);
 
   // Get owned names from state
   const names = getOwnedNames(RootRegistry, address);
