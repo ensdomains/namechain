@@ -299,11 +299,17 @@ async function main() {
     process.exit(1);
   }
 
+  // Get the datastore address from env
+  const datastoreAddress = process.env.REGISTRY_DATASTORE_ADDRESS;
+  if (!datastoreAddress) {
+    console.error("REGISTRY_DATASTORE_ADDRESS not found in .env");
+    process.exit(1);
+  }
+
   // Get the Root registry contract
   const RootRegistry = await hre.viem.getContractAt("PermissionedRegistry", rootRegistryAddress);
   
   // Get the datastore contract
-  const datastoreAddress = await RootRegistry.read.datastore();
   const Datastore = await hre.viem.getContractAt("RegistryDatastore", datastoreAddress);
   
   // First, watch all registries for NewSubname events
