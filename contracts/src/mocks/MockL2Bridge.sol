@@ -52,7 +52,7 @@ contract MockL2Bridge is IBridge {
         // Determine the message type and call the appropriate controller method
         bytes4 messageType = bytes4(message[:4]);
         
-        if (messageType == bytes4(keccak256("NAME_MIGRATION"))) {
+        if (messageType == bytes4(keccak256("NAME_EJECTION"))) {
             try bridgeHelper.decodeEjectionMessage(message) returns (
                 uint256 tokenId,
                 TransferData memory _transferData
