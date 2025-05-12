@@ -10,11 +10,59 @@ function dnsEncodeName(name) {
   return toHex(bytes)
 }
 
+async function deployResolver(deployer, verifiableFactory, ownedResolverImpl) {
+  const salt = BigInt(labelhash(new Date().toISOString()));
+  const hash = await verifiableFactory.write.deployProxy([
+    ownedResolverImpl.address,
+    salt,
+    encodeFunctionData({
+      abi: ownedResolverImpl.abi,
+      functionName: "initialize",
+      args: [deployer.account.address],
+    }),
+  ]);
+  
+  const publicClient = await hre.viem.getPublicClient();
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  
+  if (!receipt || !receipt.logs) {
+    throw new Error('No logs found in transaction receipt');
+  }
+  
+  const logs = Array.isArray(receipt.logs) ? receipt.logs : Object.values(receipt.logs);
+  
+  let log;
+  for (const l of logs) {
+    if (l.address.toLowerCase() !== verifiableFactory.address.toLowerCase()) {
+      continue;
+    }
+    
+    try {
+      log = decodeEventLog({
+        abi: verifiableFactory.abi,
+        data: l.data,
+        topics: l.topics,
+      });
+      break;
+    } catch (error) {
+      console.log('Error decoding log:', error.message);
+    }
+  }
+  
+  if (!log) {
+    throw new Error('ProxyDeployed event not found in transaction logs');
+  }
+
+  const ownedResolver = await hre.viem.getContractAt("OwnedResolver", log.args.proxyAddress);
+  return ownedResolver;
+}
+
 async function main() {
   console.log("Starting deployment...");
   
-  const [deployer] = await hre.viem.getWalletClients();
+  const [deployer, newOwner] = await hre.viem.getWalletClients();
   console.log("Deploying with account:", deployer.account.address);
+  console.log("New owner address:", newOwner.account.address);
 
   // Deploy core contracts
   console.log("Deploying RegistryDatastore...");
@@ -37,8 +85,8 @@ async function main() {
   ]);
   console.log("ETHRegistry deployed to:", ethRegistry.address);
 
-  // Deploy resolver
-  console.log("Deploying OwnedResolver...");
+  // Deploy resolver implementation
+  console.log("Deploying OwnedResolver implementation...");
   const ownedResolverImpl = await hre.viem.deployContract("OwnedResolver");
   console.log("OwnedResolver implementation deployed to:", ownedResolverImpl.address);
 
@@ -47,60 +95,6 @@ async function main() {
     "@ensdomains/verifiable-factory/VerifiableFactory.sol:VerifiableFactory"
   );
   console.log("VerifiableFactory deployed to:", verifiableFactory.address);
-  console.log(1);
-  // Deploy resolver proxy
-  const salt = BigInt(labelhash(new Date().toISOString()));
-  const hash = await verifiableFactory.write.deployProxy([
-    ownedResolverImpl.address,
-    salt,
-    encodeFunctionData({
-      abi: ownedResolverImpl.abi,
-      functionName: "initialize",
-      args: [deployer.account.address],
-    }),
-  ]);
-  console.log(2);
-  const publicClient = await hre.viem.getPublicClient();
-  const receipt = await publicClient.waitForTransactionReceipt({ hash });
-  console.log('Transaction receipt:', receipt);
-  
-  if (!receipt || !receipt.logs) {
-    throw new Error('No logs found in transaction receipt');
-  }
-  
-  console.log('Number of logs:', receipt.logs.length);
-  const logs = Array.isArray(receipt.logs) ? receipt.logs : Object.values(receipt.logs);
-  
-  let log
-  logs.map(l => {
-    console.log('Log entry:', {
-      address: l.address,
-      data: l.data,
-      topics: l.topics
-    });
-    try {
-      // Skip logs that don't match our contract address
-      if (l.address.toLowerCase() !== verifiableFactory.address.toLowerCase()) {
-        return null;
-      }
-      
-      log = decodeEventLog({
-        abi: verifiableFactory.abi,
-        data: l.data,
-        topics: l.topics,
-      });
-      console.log('Decoded log:', log);
-    } catch (error) {
-      console.log('Error decoding log:', error.message);
-    }
-  })
-  // .filter(l => l && l.eventName === 'ProxyDeployed')[0]; // Get first matching log or undefined
-  if (!log) {
-    throw new Error('ProxyDeployed event not found in transaction logs');
-  }
-
-  const ownedResolver = await hre.viem.getContractAt("OwnedResolver", log.args.proxyAddress);
-  console.log("OwnedResolver proxy deployed to:", ownedResolver.address);
 
   // Deploy UniversalResolver
   console.log("Deploying UniversalResolver...");
@@ -143,6 +137,11 @@ async function main() {
       console.log(`Subregistry for ${domain} deployed to:`, subregistry);
     }
     
+    // Deploy a new resolver for this domain
+    console.log(`Deploying resolver for ${domain}...`);
+    const ownedResolver = await deployResolver(deployer, verifiableFactory, ownedResolverImpl);
+    console.log(`Resolver for ${domain} deployed to:`, ownedResolver.address);
+    
     await ethRegistry.write.register([
       name,
       deployer.account.address,
@@ -163,20 +162,29 @@ async function main() {
     ]);
     console.log(result);
   }
-  console.log(5);
+
   // Register subnames under example.eth using its subregistry
   const subnames = ["foo.example.eth", "bar.example.eth", "sub.example.eth"];
   const exampleSubregistry = await hre.viem.getContractAt(
     "PermissionedRegistry",
     await ethRegistry.read.getSubregistry(["example"])
   );
-  console.log(6);
+
   for (const subname of subnames) {
     console.log(`Registering ${subname}...`);
     const label = subname.split(".")[0];  // Get the first part before any dots
+    
+    // Deploy a new resolver for this subname
+    console.log(`Deploying resolver for ${subname}...`);
+    const ownedResolver = await deployResolver(deployer, verifiableFactory, ownedResolverImpl);
+    console.log(`Resolver for ${subname} deployed to:`, ownedResolver.address);
+    
+    // For bar.example.eth, register it to the new owner
+    const owner = subname === "bar.example.eth" ? newOwner.account.address : deployer.account.address;
+    
     await exampleSubregistry.write.register([
       label,
-      deployer.account.address,
+      owner,
       zeroAddress, // No further subregistry
       ownedResolver.address,
       (1n << 256n) - 1n, // ROLES.ALL
@@ -187,7 +195,7 @@ async function main() {
     console.log(`Setting address record for ${subname}...`);
     await ownedResolver.write.setAddr([
       namehash(subname),
-      deployer.account.address
+      owner
     ]);
     const result = await ownedResolver.read.addr([
       namehash(subname)
@@ -195,13 +203,56 @@ async function main() {
     console.log(result);
   }
 
+  // Transfer ownership of bar.example.eth's resolver to the new owner
+  console.log("\nTransferring resolver ownership for bar.example.eth...");
+  const barResolver = await hre.viem.getContractAt(
+    "OwnedResolver",
+    await exampleSubregistry.read.getResolver(["bar"])
+  );
+  const transferTx = await barResolver.write.transferOwnership([newOwner.account.address]);
+  console.log("Waiting for ownership transfer transaction to be mined...");
+  const publicClient = await hre.viem.getPublicClient();
+  await publicClient.waitForTransactionReceipt({ hash: transferTx });
+  console.log("Resolver ownership transferred to:", newOwner.account.address);
+
+  // New owner updates the address record
+  console.log("\nNew owner updating address record for bar.example.eth...");
+  console.log(newOwner);
+  
+  // Create a new contract instance with the new owner's wallet client
+  const barResolverWithNewOwner = await hre.viem.getContractAt(
+    "OwnedResolver",
+    barResolver.address,
+    { walletClient: newOwner }
+  );
+
+  // Verify the new owner is actually the owner
+  const currentOwner = await barResolverWithNewOwner.read.owner();
+  console.log("Current resolver owner:", currentOwner);
+  console.log("New owner address:", newOwner.account.address);
+  if (currentOwner.toLowerCase() !== newOwner.account.address.toLowerCase()) {
+    throw new Error("Ownership transfer failed - new owner is not the current owner");
+  }
+
+  // Use the new owner's contract instance to set the address
+  const setAddrTx = await barResolverWithNewOwner.write.setAddr(
+    [namehash("bar.example.eth"), newOwner.account.address],
+    { account: newOwner.account }
+  );
+  console.log("Waiting for setAddr transaction to be mined...");
+  await publicClient.waitForTransactionReceipt({ hash: setAddrTx });
+  
+  const newResult = await barResolverWithNewOwner.read.addr([
+    namehash("bar.example.eth")
+  ]);
+  console.log("New address record set to:", newResult);
+
   console.log("\nDeployment Summary:");
   console.log("-------------------");
   console.log("RegistryDatastore:", datastore.address);
   console.log("RootRegistry:", rootRegistry.address);
   console.log("ETHRegistry:", ethRegistry.address);
   console.log("OwnedResolver Implementation:", ownedResolverImpl.address);
-  console.log("OwnedResolver Proxy:", ownedResolver.address);
   console.log("VerifiableFactory:", verifiableFactory.address);
   console.log("UniversalResolver:", universalResolver.address);
 
@@ -219,7 +270,6 @@ REGISTRY_DATASTORE_ADDRESS=${datastore.address}
 ROOT_REGISTRY_ADDRESS=${rootRegistry.address}
 ETH_REGISTRY_ADDRESS=${ethRegistry.address}
 OWNED_RESOLVER_IMPL_ADDRESS=${ownedResolverImpl.address}
-OWNED_RESOLVER_PROXY_ADDRESS=${ownedResolver.address}
 VERIFIABLE_FACTORY_ADDRESS=${verifiableFactory.address}
 UNIVERSAL_RESOLVER_ADDRESS=${universalResolver.address}
 `;
@@ -250,6 +300,23 @@ UNIVERSAL_RESOLVER_ADDRESS=${universalResolver.address}
     try {
       const encodedName = dnsEncodeName(name);
       
+      // Get the resolver address first
+      let resolverAddress;
+      if (name.endsWith('.eth')) {
+        const label = name.split('.')[0];
+        if (name === 'example.eth') {
+          // For example.eth, get resolver from ETH registry
+          resolverAddress = await ethRegistry.read.getResolver([label]);
+        } else if (name.includes('example.eth')) {
+          // For subnames of example.eth, get resolver from example subregistry
+          const subLabel = name.split('.')[0];
+          resolverAddress = await exampleSubregistry.read.getResolver([subLabel]);
+        } else {
+          // For other .eth names, get resolver from ETH registry
+          resolverAddress = await ethRegistry.read.getResolver([label]);
+        }
+      }
+      
       // Create calldata for addr(bytes32) - function selector is 0x3b3b57de
       // Append the namehash of the name to the selector
       const node = namehash(name);
@@ -259,7 +326,7 @@ UNIVERSAL_RESOLVER_ADDRESS=${universalResolver.address}
         encodedName,
         callData
       ]);
-      console.log("✓ Successfully resolved");
+      console.log(`✓ Successfully resolved (Resolver: ${resolverAddress})`);
       if (result.data !== "0x") {
         // Decode the address using ABI parameters
         const [addr] = decodeAbiParameters(
