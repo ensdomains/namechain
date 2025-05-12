@@ -87,7 +87,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         _mint(owner, tokenId, 1, "");
         _grantRoles(getTokenIdResource(tokenId), roleBitmap, owner, false);
 
-        datastore.setResolver(tokenId, resolver, 0, 0);
+        datastore.setResolver(tokenId, resolver, 0);
 
         emit NewSubname(tokenId, label);
 
@@ -125,7 +125,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         _burn(ownerOf(tokenId), tokenId, 1);
 
         datastore.setSubregistry(tokenId, address(0), 0, 0);
-        datastore.setResolver(tokenId, address(0), 0, 0);
+        datastore.setResolver(tokenId, address(0), 0);
 
         ITokenObserver observer = tokenObservers[tokenId];
         if (address(observer) != address(0)) {
@@ -168,7 +168,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         override
         onlyNonExpiredTokenRoles(tokenId, ROLE_SET_RESOLVER)
     {
-        datastore.setResolver(tokenId, resolver, 0, 0);
+        datastore.setResolver(tokenId, resolver, 0);
     }
 
     function getNameData(string calldata label) public view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion) {
