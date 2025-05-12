@@ -16,6 +16,8 @@ function getCanonicalId(id: bigint) {
   return idBigInt & mask;
 }
 
+const ALL_ROLES = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
 // Main test function
 export async function runCrossChainTests() {
   console.log('Starting cross-chain ENS v2 tests...');
@@ -37,7 +39,7 @@ export async function runCrossChainTests() {
     await testNameEjection(env, relayer);
 
     // Test 2: Complete round trip
-    // await testRoundTrip(env, relayer);
+    await testRoundTrip(env, relayer);
 
     console.log('\nAll tests completed successfully!');
   } catch (error) {
@@ -63,7 +65,7 @@ async function testNameEjection(env, relayer) {
   const l1Subregistry = await env.l1.registry.getAddress();
   const l1Resolver = ethers.ZeroAddress;
   const expiryTime = Math.floor(Date.now() / 1000) + 31536000; // 1 year from now
-  const roleBitmap = BigInt("0xF"); // Common role bitmap for basic permissions
+  const roleBitmap = ALL_ROLES;
 
   console.log(`Initiating ejection for name: ${name}`);
   console.log(`L2 User: ${user}`);
@@ -112,10 +114,9 @@ async function testNameEjection(env, relayer) {
       expiryTime
     ];
 
-    // encode the TransferData
     const encodedData = ethers.AbiCoder.defaultAbiCoder().encode(
-      ['string', 'address', 'address', 'address', 'uint256', 'uint64'],
-      TransferDataStruct
+      ["tuple(string,address,address,address,uint256,uint64)"],
+      [TransferDataStruct]
     );
 
     console.log("L2 registry", await env.l2.registry.getAddress());
@@ -125,9 +126,9 @@ async function testNameEjection(env, relayer) {
     console.log('Transferring token to L2EjectionController...');
     const transferTx = await env.L2.confirm(
       env.l2.registry.safeTransferFrom(
-        user,
+        owner,
         await env.l2.controller.getAddress(),
-        canonicalId,
+        tokenId,
         1,
         encodedData
       )
@@ -195,7 +196,7 @@ async function testRoundTrip(env, relayer) {
   const l1Subregistry = await env.l1.registry.getAddress();
   const resolver = ethers.ZeroAddress;
   const expiryTime = Math.floor(Date.now() / 1000) + 31536000; // 1 year from now
-  const roleBitmap = BigInt("0xF"); // Common role bitmap for basic permissions
+  const roleBitmap = ALL_ROLES;
 
   try {
     // Step 1: Register on L2
@@ -229,10 +230,9 @@ async function testRoundTrip(env, relayer) {
       expiryTime
     ];
 
-    // encode the TransferData
     let encodedData = ethers.AbiCoder.defaultAbiCoder().encode(
-      ['string', 'address', 'address', 'address', 'uint256', 'uint64'],
-      TransferDataStruct
+      ["tuple(string,address,address,address,uint256,uint64)"],
+      [TransferDataStruct]
     );
 
     // Transfer the token to L2EjectionController
@@ -300,8 +300,8 @@ async function testRoundTrip(env, relayer) {
 
     // encode the TransferData
     encodedData = ethers.AbiCoder.defaultAbiCoder().encode(
-      ['string', 'address', 'address', 'address', 'uint256', 'uint64'],
-      TransferDataStruct
+      ["tuple(string,address,address,address,uint256,uint64)"],
+      [TransferDataStruct]
     );
 
     // Transfer the token to L1EjectionController
