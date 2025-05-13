@@ -432,6 +432,13 @@ OWNED_RESOLVER_IMPLEMENTATION=${ownedResolverImpl.address}
 EXAMPLE_RESOLVER_ADDRESS=${exampleResolver.address}
 FOO_RESOLVER_ADDRESS=${fooResolver.address}
 OWNED_RESOLVER_ADDRESS=${ownedResolver.address}
+
+# Domain-specific resolver addresses
+ETH_RESOLVER_ADDRESS=${ethResolver.address}
+EXAMPLE_ETH_RESOLVER_ADDRESS=${exampleResolver.address}
+FOO_EXAMPLE_ETH_RESOLVER_ADDRESS=${fooResolver.address}
+XYZ_RESOLVER_ADDRESS=${xyzResolver.address}
+EXAMPLE_XYZ_RESOLVER_ADDRESS=${exampleResolver.address}
 `;
   
   fs.writeFileSync('.env', envContent);
