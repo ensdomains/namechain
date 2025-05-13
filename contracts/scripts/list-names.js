@@ -257,23 +257,38 @@ function getOwnedNames(registry, address, parentName = '') {
   const registryNames = nameState.registries.get(registryAddress);
   const relinquished = nameState.relinquished.get(registryAddress);
 
-  if (!registryNames) return ownedNames;
+  if (!registryNames) {
+    console.log(`No registry names found for ${registryAddress}`);
+    return ownedNames;
+  }
 
+  console.log(`\nChecking registry ${registryAddress} for names owned by ${address}`);
+  console.log(`Found ${registryNames.size} names in registry`);
+
+  // First check direct ownership in this registry
   for (const [labelHash, info] of registryNames) {
-    if (relinquished.has(labelHash) || info.isRelinquished) continue;
+    if (relinquished.has(labelHash) || info.isRelinquished) {
+      console.log(`Skipping relinquished name: ${info.label}`);
+      continue;
+    }
     
     if (info.owner && info.owner.toLowerCase() === address.toLowerCase()) {
       const fullName = parentName ? `${info.label}.${parentName}` : info.label;
+      console.log(`Found owned name: ${fullName}`);
       ownedNames.push(fullName);
+    } else {
+      console.log(`Name ${info.label} owned by ${info.owner}, not ${address}`);
+    }
+  }
 
-      // Check for subregistry
-      if (info.subregistry) {
-        const subregistry = nameState.registries.get(info.subregistry.toLowerCase());
-        if (subregistry) {
-          const subnames = getOwnedNames({ address: info.subregistry }, address, fullName);
-          ownedNames.push(...subnames);
-        }
-      }
+  // Then check all subregistries recursively
+  for (const [labelHash, info] of registryNames) {
+    if (info.subregistry && info.subregistry !== '0x0000000000000000000000000000000000000000') {
+      const fullName = parentName ? `${info.label}.${parentName}` : info.label;
+      console.log(`Checking subregistry ${info.subregistry} for ${fullName}`);
+      const subnames = getOwnedNames({ address: info.subregistry }, address, fullName);
+      console.log(`Found ${subnames.length} subnames for ${fullName}`);
+      ownedNames.push(...subnames);
     }
   }
 
@@ -327,7 +342,19 @@ async function main() {
   for (const name of sortedNames) {
     console.log(name);
   }
-  console.log("***** nameState.registries:", nameState.registries);
+
+  // Debug output
+  console.log("\nRegistry State:");
+  console.log("--------------");
+  for (const [registryAddr, names] of nameState.registries) {
+    console.log(`\nRegistry ${registryAddr}:`);
+    for (const [labelHash, info] of names) {
+      console.log(`  ${info.label}:`);
+      console.log(`    Owner: ${info.owner}`);
+      console.log(`    Subregistry: ${info.subregistry}`);
+      console.log(`    Relinquished: ${info.isRelinquished}`);
+    }
+  }
 }
 
 main().catch((error) => {
