@@ -55,6 +55,6 @@ contract RegistryDatastore is IRegistryDatastore {
         // Convert the 32-bit data to a 96-bit flags field, preserving the data in the lower 32 bits
         uint96 flags = uint96(data);
         entries[msg.sender][id].resolverData = DatastoreUtils.packWithFlags(resolver, flags);
-        emit ResolverUpdate(msg.sender, id, resolver, 0, data);
+        emit ResolverUpdate(msg.sender, id, resolver, flags);
     }
 }
