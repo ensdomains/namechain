@@ -4,7 +4,8 @@ import type { HardhatUserConfig } from "hardhat/config";
 import HardhatViem from "@nomicfoundation/hardhat-viem";
 import HardhatDeploy from "hardhat-deploy";
 
-const config = {
+// Define the config object with the HardhatUserConfig interface
+const config: HardhatUserConfig = {
   networks: {
     "l1-local": {
       url: "http://127.0.0.1:8545",
@@ -33,8 +34,9 @@ const config = {
   },
   paths: {
     sources: "./src",
+    tests: "./test",
   },
   plugins: [HardhatViem, HardhatDeploy],
-} satisfies HardhatUserConfig;
+};
 
 export default config;
