@@ -121,7 +121,7 @@ contract HybridResolver is
         view
         virtual
         override(
-            ERC165Upgradeable,
+            ResolverBase,
             ABIResolver,
             AddrResolver,
             ContentHashResolver,
