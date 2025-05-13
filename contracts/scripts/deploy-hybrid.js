@@ -191,13 +191,29 @@ async function main() {
   ]);
   console.log("Registered .eth TLD");
   
+  console.log("Deploying HybridResolver for .eth...");
+  const ethResolver = await deployHybridResolver(deployer, verifiableFactory, hybridResolverImpl, rootRegistry.address);
+  console.log("HybridResolver for .eth deployed to:", ethResolver.address);
+  
   await rootRegistry.write.setResolver([
     BigInt(labelhash("eth")),
-    zeroAddress,
+    ethResolver.address,
     MAX_EXPIRY,
     0
   ]);
   console.log("Set resolver for .eth in registry");
+  
+  const ethNamehash = namehash("eth");
+  const ethLabelHash = labelhash("eth");
+  console.log("Namehash for .eth:", ethNamehash);
+  
+  console.log("Mapping namehash to labelHash in resolver...");
+  await ethResolver.write.mapNamehash([ethNamehash, BigInt(ethLabelHash), true]);
+  console.log("Mapped namehash to labelHash");
+  
+  console.log("Setting address for .eth...");
+  await ethResolver.write.setAddr([ethNamehash, "0x5555555555555555555555555555555555555555"]);
+  console.log("Set address for .eth");
   
   console.log("Registering example.eth...");
   
@@ -293,13 +309,29 @@ async function main() {
   ]);
   console.log("Registered .xyz TLD");
   
+  console.log("Deploying HybridResolver for .xyz...");
+  const xyzResolver = await deployHybridResolver(deployer, verifiableFactory, hybridResolverImpl, rootRegistry.address);
+  console.log("HybridResolver for .xyz deployed to:", xyzResolver.address);
+  
   await rootRegistry.write.setResolver([
     BigInt(labelhash("xyz")),
-    zeroAddress,
+    xyzResolver.address,
     MAX_EXPIRY,
     0
   ]);
   console.log("Set resolver for .xyz in registry");
+  
+  const xyzNamehash = namehash("xyz");
+  const xyzLabelHash = labelhash("xyz");
+  console.log("Namehash for .xyz:", xyzNamehash);
+  
+  console.log("Mapping namehash to labelHash in resolver...");
+  await xyzResolver.write.mapNamehash([xyzNamehash, BigInt(xyzLabelHash), true]);
+  console.log("Mapped namehash to labelHash");
+  
+  console.log("Setting address for .xyz...");
+  await xyzResolver.write.setAddr([xyzNamehash, "0x6666666666666666666666666666666666666666"]);
+  console.log("Set address for .xyz");
   
   console.log("Deploying XYZRegistry...");
   const xyzRegistry = await hre.viem.deployContract("PermissionedRegistry", [
@@ -337,6 +369,17 @@ async function main() {
   console.log("Mapping example.xyz namehash to same labelHash as example.eth...");
   await exampleResolver.write.mapNamehash([exampleXyzNamehash, BigInt(exampleLabelHash), false]);
   console.log("Mapped example.xyz namehash to same labelHash as example.eth");
+  
+  console.log("Setting address for example.xyz (should be same as example.eth)...");
+  // Since we're using the same labelHash, this should resolve to the same address as example.eth
+  const exampleXyzAddress = await exampleResolver.read.addr([exampleXyzNamehash]);
+  console.log("Address for example.xyz:", exampleXyzAddress);
+  
+  if (exampleXyzAddress === "0x0000000000000000000000000000000000000000") {
+    console.log("Setting address for example.xyz explicitly...");
+    await exampleResolver.write.setAddr([exampleXyzNamehash, "0x1234567890123456789012345678901234567890"]);
+    console.log("Set address for example.xyz");
+  }
   
   console.log("Deploying OwnedResolver for gas comparison...");
   const ownedResolver = await deployOwnedResolver(deployer, verifiableFactory, ownedResolverImpl);
