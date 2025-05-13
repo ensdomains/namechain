@@ -81,12 +81,12 @@ export async function setupCrossChainEnvironment() {
   // Deploy bridges with bridge helpers
   const l1Bridge = await L1.deploy({
     file: "MockL1Bridge",
-    args: [ethers.ZeroAddress, await l1BridgeHelper.getAddress()],
+    args: [await l1BridgeHelper.getAddress()],
   });
 
   const l2Bridge = await L2.deploy({
     file: "MockL2Bridge",
-    args: [ethers.ZeroAddress, await l2BridgeHelper.getAddress()],
+    args: [await l2BridgeHelper.getAddress()],
   });
 
   // Deploy controllers with proper connections
@@ -94,7 +94,6 @@ export async function setupCrossChainEnvironment() {
     file: "MockL1EjectionController",
     args: [
       await l1Registry.getAddress(),
-      await l1BridgeHelper.getAddress(),
       await l1Bridge.getAddress(),
     ],
   });
@@ -103,7 +102,6 @@ export async function setupCrossChainEnvironment() {
     file: "MockL2EjectionController",
     args: [
       await l2Registry.getAddress(),
-      await l2BridgeHelper.getAddress(),
       await l2Bridge.getAddress(),
     ],
   });
