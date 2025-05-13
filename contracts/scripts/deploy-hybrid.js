@@ -1,157 +1,353 @@
-import hardhat from "hardhat";
-const { ethers } = hardhat;
-import * as fs from "fs/promises";
-import * as path from "path";
-import * as dotenv from "dotenv";
+import hre from "hardhat";
+import { labelhash, encodeFunctionData, zeroAddress, decodeEventLog, namehash, decodeAbiParameters } from "viem";
+import { packetToBytes } from 'viem/ens';
+import { toHex } from 'viem/utils';
+import fs from "fs";
 
-const ENV_FILE_PATH = path.resolve(process.cwd(), '.env');
-dotenv.config({ path: ENV_FILE_PATH });
+const MAX_EXPIRY = (1n << 64n) - 1n;
+
+function dnsEncodeName(name) {
+  const bytes = packetToBytes(name);
+  return toHex(bytes);
+}
+
+async function deployHybridResolver(deployer, verifiableFactory, hybridResolverImpl, registryAddress) {
+  const salt = BigInt(labelhash(new Date().toISOString()));
+  const hash = await verifiableFactory.write.deployProxy([
+    hybridResolverImpl.address,
+    salt,
+    encodeFunctionData({
+      abi: hybridResolverImpl.abi,
+      functionName: "initialize",
+      args: [deployer.account.address, registryAddress],
+    }),
+  ]);
+  
+  const publicClient = await hre.viem.getPublicClient();
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  
+  if (!receipt || !receipt.logs) {
+    throw new Error('No logs found in transaction receipt');
+  }
+  
+  const logs = Array.isArray(receipt.logs) ? receipt.logs : Object.values(receipt.logs);
+  
+  let log;
+  for (const l of logs) {
+    if (l.address.toLowerCase() !== verifiableFactory.address.toLowerCase()) {
+      continue;
+    }
+    
+    try {
+      log = decodeEventLog({
+        abi: verifiableFactory.abi,
+        data: l.data,
+        topics: l.topics,
+      });
+      break;
+    } catch (error) {
+      console.log('Error decoding log:', error.message);
+    }
+  }
+  
+  if (!log) {
+    throw new Error('ProxyDeployed event not found in transaction logs');
+  }
+
+  const hybridResolver = await hre.viem.getContractAt("HybridResolver", log.args.proxyAddress);
+  return hybridResolver;
+}
+
+async function deployOwnedResolver(deployer, verifiableFactory, ownedResolverImpl) {
+  const salt = BigInt(labelhash(new Date().toISOString()));
+  const hash = await verifiableFactory.write.deployProxy([
+    ownedResolverImpl.address,
+    salt,
+    encodeFunctionData({
+      abi: ownedResolverImpl.abi,
+      functionName: "initialize",
+      args: [deployer.account.address],
+    }),
+  ]);
+  
+  const publicClient = await hre.viem.getPublicClient();
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  
+  if (!receipt || !receipt.logs) {
+    throw new Error('No logs found in transaction receipt');
+  }
+  
+  const logs = Array.isArray(receipt.logs) ? receipt.logs : Object.values(receipt.logs);
+  
+  let log;
+  for (const l of logs) {
+    if (l.address.toLowerCase() !== verifiableFactory.address.toLowerCase()) {
+      continue;
+    }
+    
+    try {
+      log = decodeEventLog({
+        abi: verifiableFactory.abi,
+        data: l.data,
+        topics: l.topics,
+      });
+      break;
+    } catch (error) {
+      console.log('Error decoding log:', error.message);
+    }
+  }
+  
+  if (!log) {
+    throw new Error('ProxyDeployed event not found in transaction logs');
+  }
+
+  const ownedResolver = await hre.viem.getContractAt("OwnedResolver", log.args.proxyAddress);
+  return ownedResolver;
+}
+
+async function measureGas(contract, functionName, args) {
+  try {
+    const gasEstimate = await contract.estimateGas[functionName](args);
+    return Number(gasEstimate);
+  } catch (error) {
+    console.error(`Error estimating gas for ${functionName}:`, error.message);
+    return 0;
+  }
+}
+
+async function estimateReadGas(contract, functionName, args) {
+  try {
+    const publicClient = await hre.viem.getPublicClient();
+    const gasEstimate = await publicClient.estimateGas({
+      to: contract.address,
+      data: encodeFunctionData({
+        abi: contract.abi,
+        functionName,
+        args,
+      }),
+    });
+    return Number(gasEstimate);
+  } catch (error) {
+    console.error(`Error estimating gas for ${functionName}:`, error.message);
+    return 0;
+  }
+}
 
 async function main() {
   console.log("Deploying contracts to hardhat node...");
   
-  const [deployer] = await ethers.getSigners();
-  console.log("Deploying with account:", deployer.address);
+  const [deployer] = await hre.viem.getWalletClients();
+  console.log("Deploying with account:", deployer.account.address);
   
   console.log("Deploying RegistryDatastore...");
-  const RegistryDatastore = await ethers.getContractFactory("RegistryDatastore");
-  const datastore = await RegistryDatastore.deploy();
-  await datastore.deployed();
+  const datastore = await hre.viem.deployContract("RegistryDatastore");
   console.log("RegistryDatastore deployed to:", datastore.address);
   
   console.log("Deploying RootRegistry...");
-  const RootRegistry = await ethers.getContractFactory("RootRegistry");
-  const rootRegistry = await RootRegistry.deploy(datastore.address);
-  await rootRegistry.waitForDeployment();
-  console.log("RootRegistry deployed to:", await rootRegistry.getAddress());
+  const rootRegistry = await hre.viem.deployContract("PermissionedRegistry", [
+    datastore.address,
+    zeroAddress,
+    (1n << 256n) - 1n, // ROLES.ALL
+  ]);
+  console.log("RootRegistry deployed to:", rootRegistry.address);
   
   console.log("Deploying ETHRegistry...");
-  const PermissionedRegistry = await ethers.getContractFactory("PermissionedRegistry");
-  const ethRegistry = await PermissionedRegistry.deploy(datastore.address);
-  await ethRegistry.waitForDeployment();
-  console.log("ETHRegistry deployed to:", await ethRegistry.getAddress());
+  const ethRegistry = await hre.viem.deployContract("PermissionedRegistry", [
+    datastore.address,
+    zeroAddress,
+    (1n << 256n) - 1n, // ROLES.ALL
+  ]);
+  console.log("ETHRegistry deployed to:", ethRegistry.address);
   
   console.log("Deploying HybridResolver implementation...");
-  const HybridResolver = await ethers.getContractFactory("HybridResolver");
-  const hybridResolverImpl = await HybridResolver.deploy();
-  await hybridResolverImpl.waitForDeployment();
-  console.log("HybridResolver implementation deployed to:", await hybridResolverImpl.getAddress());
+  const hybridResolverImpl = await hre.viem.deployContract("HybridResolver");
+  console.log("HybridResolver implementation deployed to:", hybridResolverImpl.address);
+  
+  console.log("Deploying OwnedResolver implementation for gas comparison...");
+  const ownedResolverImpl = await hre.viem.deployContract("OwnedResolver");
+  console.log("OwnedResolver implementation deployed to:", ownedResolverImpl.address);
+  
+  console.log("Deploying VerifiableFactory...");
+  const verifiableFactory = await hre.viem.deployContract(
+    "@ensdomains/verifiable-factory/VerifiableFactory.sol:VerifiableFactory"
+  );
+  console.log("VerifiableFactory deployed to:", verifiableFactory.address);
   
   console.log("Deploying UniversalResolver...");
-  const UniversalResolver = await ethers.getContractFactory("UniversalResolver");
-  const universalResolver = await UniversalResolver.deploy(await rootRegistry.getAddress(), []);
-  await universalResolver.waitForDeployment();
-  console.log("UniversalResolver deployed to:", await universalResolver.getAddress());
+  const universalResolver = await hre.viem.deployContract(
+    "UniversalResolver",
+    [rootRegistry.address, ["x-batch-gateway:true"]]
+  );
+  console.log("UniversalResolver deployed to:", universalResolver.address);
   
   console.log("Registering .eth TLD...");
-  await rootRegistry.registerSubname("eth", deployer.address);
+  await rootRegistry.write.register([
+    "eth",
+    deployer.account.address,
+    ethRegistry.address,
+    zeroAddress,
+    (1n << 256n) - 1n, // ROLES.ALL
+    MAX_EXPIRY,
+  ]);
   console.log("Registered .eth TLD");
   
-  console.log("Setting ETHRegistry as subregistry for .eth...");
-  const ethLabelHash = ethers.keccak256(ethers.toUtf8Bytes("eth"));
-  await datastore.setSubregistry(ethLabelHash, await ethRegistry.getAddress(), 0, 0);
-  console.log("Set ETHRegistry as subregistry for .eth");
-  
   console.log("Registering example.eth...");
-  await ethRegistry.registerSubname("example", deployer.address);
-  console.log("Registered example.eth");
   
   console.log("Deploying HybridResolver for example.eth...");
-  const HybridResolverProxy = await ethers.getContractFactory("ERC1967Proxy");
-  const exampleResolverProxy = await HybridResolverProxy.deploy(
-    await hybridResolverImpl.getAddress(),
-    HybridResolver.interface.encodeFunctionData("initialize", [deployer.address, await ethRegistry.getAddress()])
-  );
-  await exampleResolverProxy.waitForDeployment();
-  const exampleResolver = HybridResolver.attach(await exampleResolverProxy.getAddress());
-  console.log("HybridResolver for example.eth deployed to:", await exampleResolver.getAddress());
+  const exampleResolver = await deployHybridResolver(deployer, verifiableFactory, hybridResolverImpl, ethRegistry.address);
+  console.log("HybridResolver for example.eth deployed to:", exampleResolver.address);
   
-  console.log("Setting resolver for example.eth...");
-  const exampleLabelHash = ethers.keccak256(ethers.toUtf8Bytes("example"));
-  await datastore.setResolver(exampleLabelHash, await exampleResolver.getAddress(), 0, 0);
-  console.log("Set resolver for example.eth");
+  await ethRegistry.write.register([
+    "example",
+    deployer.account.address,
+    zeroAddress, // No subregistry yet
+    exampleResolver.address,
+    (1n << 256n) - 1n, // ROLES.ALL
+    MAX_EXPIRY,
+  ]);
+  console.log("Registered example.eth");
   
-  const exampleEthNamehash = calculateNamehash("example.eth");
+  console.log("Deploying subregistry for example.eth...");
+  const exampleRegistry = await hre.viem.deployContract("PermissionedRegistry", [
+    datastore.address,
+    zeroAddress,
+    (1n << 256n) - 1n, // ROLES.ALL
+  ]);
+  console.log("Example subregistry deployed to:", exampleRegistry.address);
+  
+  await ethRegistry.write.setSubregistry(["example", exampleRegistry.address]);
+  console.log("Set subregistry for example.eth");
+  
+  const exampleEthNamehash = namehash("example.eth");
+  const exampleLabelHash = labelhash("example");
   console.log("Namehash for example.eth:", exampleEthNamehash);
   
   console.log("Mapping namehash to labelHash in resolver...");
-  await exampleResolver.mapNamehash(exampleEthNamehash, exampleLabelHash, true);
+  await exampleResolver.write.mapNamehash([exampleEthNamehash, BigInt(exampleLabelHash), true]);
   console.log("Mapped namehash to labelHash");
   
   console.log("Setting address for example.eth...");
-  await exampleResolver.setAddr(exampleEthNamehash, "0x1234567890123456789012345678901234567890");
+  await exampleResolver.write.setAddr([exampleEthNamehash, "0x1234567890123456789012345678901234567890"]);
   console.log("Set address for example.eth");
   
   console.log("Registering foo.example.eth...");
-  const exampleRegistry = await PermissionedRegistry.deploy(datastore.address);
-  await exampleRegistry.waitForDeployment();
-  console.log("Example subregistry deployed to:", await exampleRegistry.getAddress());
-  
-  await datastore.setSubregistry(exampleLabelHash, await exampleRegistry.getAddress(), 0, 0);
-  console.log("Set subregistry for example.eth");
-  
-  await exampleRegistry.registerSubname("foo", deployer.address);
-  console.log("Registered foo.example.eth");
   
   console.log("Deploying HybridResolver for foo.example.eth...");
-  const fooResolverProxy = await HybridResolverProxy.deploy(
-    await hybridResolverImpl.getAddress(),
-    HybridResolver.interface.encodeFunctionData("initialize", [deployer.address, await exampleRegistry.getAddress()])
-  );
-  await fooResolverProxy.waitForDeployment();
-  const fooResolver = HybridResolver.attach(await fooResolverProxy.getAddress());
-  console.log("HybridResolver for foo.example.eth deployed to:", await fooResolver.getAddress());
+  const fooResolver = await deployHybridResolver(deployer, verifiableFactory, hybridResolverImpl, exampleRegistry.address);
+  console.log("HybridResolver for foo.example.eth deployed to:", fooResolver.address);
   
-  console.log("Setting resolver for foo.example.eth...");
-  const fooLabelHash = ethers.keccak256(ethers.toUtf8Bytes("foo"));
-  await datastore.setResolver(fooLabelHash, await fooResolver.getAddress(), 0, 0);
-  console.log("Set resolver for foo.example.eth");
+  await exampleRegistry.write.register([
+    "foo",
+    deployer.account.address,
+    zeroAddress, // No further subregistry
+    fooResolver.address,
+    (1n << 256n) - 1n, // ROLES.ALL
+    MAX_EXPIRY,
+  ]);
+  console.log("Registered foo.example.eth");
   
-  const fooExampleEthNamehash = calculateNamehash("foo.example.eth");
+  const fooExampleEthNamehash = namehash("foo.example.eth");
+  const fooLabelHash = labelhash("foo");
   console.log("Namehash for foo.example.eth:", fooExampleEthNamehash);
   
   console.log("Mapping namehash to labelHash in resolver...");
-  await fooResolver.mapNamehash(fooExampleEthNamehash, fooLabelHash, true);
+  await fooResolver.write.mapNamehash([fooExampleEthNamehash, BigInt(fooLabelHash), true]);
   console.log("Mapped namehash to labelHash");
   
   console.log("Setting address for foo.example.eth...");
-  await fooResolver.setAddr(fooExampleEthNamehash, "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd");
+  await fooResolver.write.setAddr([fooExampleEthNamehash, "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"]);
   console.log("Set address for foo.example.eth");
   
   console.log("Registering .xyz TLD...");
-  await rootRegistry.registerSubname("xyz", deployer.address);
+  await rootRegistry.write.register([
+    "xyz",
+    deployer.account.address,
+    zeroAddress, // No subregistry yet
+    zeroAddress, // No resolver yet
+    (1n << 256n) - 1n, // ROLES.ALL
+    MAX_EXPIRY,
+  ]);
   console.log("Registered .xyz TLD");
   
   console.log("Deploying XYZRegistry...");
-  const xyzRegistry = await PermissionedRegistry.deploy(datastore.address);
-  await xyzRegistry.waitForDeployment();
-  console.log("XYZRegistry deployed to:", await xyzRegistry.getAddress());
+  const xyzRegistry = await hre.viem.deployContract("PermissionedRegistry", [
+    datastore.address,
+    zeroAddress,
+    (1n << 256n) - 1n, // ROLES.ALL
+  ]);
+  console.log("XYZRegistry deployed to:", xyzRegistry.address);
   
-  console.log("Setting XYZRegistry as subregistry for .xyz...");
-  const xyzLabelHash = ethers.keccak256(ethers.toUtf8Bytes("xyz"));
-  await datastore.setSubregistry(xyzLabelHash, await xyzRegistry.getAddress(), 0, 0);
+  await rootRegistry.write.setSubregistry(["xyz", xyzRegistry.address]);
   console.log("Set XYZRegistry as subregistry for .xyz");
   
   console.log("Registering example.xyz...");
-  await xyzRegistry.registerSubname("example", deployer.address);
+  await xyzRegistry.write.register([
+    "example",
+    deployer.account.address,
+    zeroAddress, // No subregistry
+    exampleResolver.address, // Use same resolver as example.eth
+    (1n << 256n) - 1n, // ROLES.ALL
+    MAX_EXPIRY,
+  ]);
   console.log("Registered example.xyz");
   
-  const exampleXyzNamehash = calculateNamehash("example.xyz");
+  const exampleXyzNamehash = namehash("example.xyz");
   console.log("Namehash for example.xyz:", exampleXyzNamehash);
   
   console.log("Mapping example.xyz namehash to same labelHash as example.eth...");
-  await exampleResolver.mapNamehash(exampleXyzNamehash, exampleLabelHash, false);
+  await exampleResolver.write.mapNamehash([exampleXyzNamehash, BigInt(exampleLabelHash), false]);
   console.log("Mapped example.xyz namehash to same labelHash as example.eth");
   
-  console.log("Setting resolver for example.xyz...");
-  const exampleXyzLabelHash = ethers.keccak256(ethers.toUtf8Bytes("example"));
-  await datastore.setResolver(exampleXyzLabelHash, await exampleResolver.getAddress(), 0, 0);
-  console.log("Set resolver for example.xyz");
+  console.log("Deploying OwnedResolver for gas comparison...");
+  const ownedResolver = await deployOwnedResolver(deployer, verifiableFactory, ownedResolverImpl);
+  console.log("OwnedResolver deployed to:", ownedResolver.address);
   
-  console.log("Writing deployment addresses to .env file...");
+  console.log("\nComparing gas costs between HybridResolver and OwnedResolver...");
+  
+  const testNamehash = namehash("test.eth");
+  const testAddress = "0x0000000000000000000000000000000000000123";
+  
+  console.log("Measuring gas for HybridResolver.setAddr...");
+  const hybridSetAddrGas = await measureGas(
+    exampleResolver,
+    "setAddr",
+    [exampleEthNamehash, testAddress]
+  );
+  
+  console.log("Measuring gas for OwnedResolver.setAddr...");
+  const ownedSetAddrGas = await measureGas(
+    ownedResolver,
+    "setAddr",
+    [testNamehash, testAddress]
+  );
+  
+  console.log("Measuring gas for HybridResolver.addr...");
+  const hybridAddrGas = await estimateReadGas(
+    exampleResolver,
+    "addr",
+    [exampleEthNamehash]
+  );
+  
+  console.log("Measuring gas for OwnedResolver.addr...");
+  const ownedAddrGas = await estimateReadGas(
+    ownedResolver,
+    "addr",
+    [testNamehash]
+  );
+  
+  console.log("\nGas Cost Comparison Results:");
+  console.log("----------------------------");
+  console.log(`HybridResolver.setAddr: ${hybridSetAddrGas} gas`);
+  console.log(`OwnedResolver.setAddr: ${ownedSetAddrGas} gas`);
+  console.log(`Difference: ${hybridSetAddrGas - ownedSetAddrGas} gas (${((hybridSetAddrGas - ownedSetAddrGas) / ownedSetAddrGas * 100).toFixed(2)}%)`);
+  console.log(`HybridResolver.addr: ${hybridAddrGas} gas`);
+  console.log(`OwnedResolver.addr: ${ownedAddrGas} gas`);
+  console.log(`Difference: ${hybridAddrGas - ownedAddrGas} gas (${((hybridAddrGas - ownedAddrGas) / ownedAddrGas * 100).toFixed(2)}%)`);
+  
+  console.log("\nWriting deployment addresses to .env file...");
   const envContent = `
 # Deployment addresses
-DEPLOYER_ADDRESS=${deployer.address}
+DEPLOYER_ADDRESS=${deployer.account.address}
 REGISTRY_DATASTORE_ADDRESS=${datastore.address}
 ROOT_REGISTRY_ADDRESS=${rootRegistry.address}
 ETH_REGISTRY_ADDRESS=${ethRegistry.address}
@@ -159,31 +355,17 @@ XYZ_REGISTRY_ADDRESS=${xyzRegistry.address}
 EXAMPLE_REGISTRY_ADDRESS=${exampleRegistry.address}
 UNIVERSAL_RESOLVER_ADDRESS=${universalResolver.address}
 HYBRID_RESOLVER_IMPLEMENTATION=${hybridResolverImpl.address}
+OWNED_RESOLVER_IMPLEMENTATION=${ownedResolverImpl.address}
 EXAMPLE_RESOLVER_ADDRESS=${exampleResolver.address}
 FOO_RESOLVER_ADDRESS=${fooResolver.address}
+OWNED_RESOLVER_ADDRESS=${ownedResolver.address}
 `;
   
-  await fs.writeFile(ENV_FILE_PATH, envContent);
+  fs.writeFileSync('.env', envContent);
   console.log("Deployment addresses written to .env file");
   
-  console.log("Deployment complete!");
+  console.log("\nDeployment complete!");
 }
-
-function calculateNamehash(name) {
-  if (!name) return '0x0000000000000000000000000000000000000000000000000000000000000000';
-  
-  const labels = name.split('.');
-  let node = '0x0000000000000000000000000000000000000000000000000000000000000000';
-  
-  for (let i = labels.length - 1; i >= 0; i--) {
-    const labelHash = ethers.keccak256(ethers.toUtf8Bytes(labels[i]));
-    node = ethers.keccak256(ethers.concat([node, labelHash]));
-  }
-  
-  return node;
-}
-
-export default main;
 
 main()
   .then(() => process.exit(0))
@@ -191,3 +373,5 @@ main()
     console.error(error);
     process.exit(1);
   });
+
+export default main;
