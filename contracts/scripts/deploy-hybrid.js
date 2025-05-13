@@ -197,9 +197,7 @@ async function main() {
   
   await rootRegistry.write.setResolver([
     BigInt(labelhash("eth")),
-    ethResolver.address,
-    MAX_EXPIRY,
-    0
+    ethResolver.address
   ]);
   console.log("Set resolver for .eth in registry");
   
@@ -233,9 +231,7 @@ async function main() {
   
   await ethRegistry.write.setResolver([
     BigInt(labelhash("example")),
-    exampleResolver.address,
-    MAX_EXPIRY,
-    0
+    exampleResolver.address
   ]);
   console.log("Set resolver for example.eth in registry");
   
@@ -280,9 +276,7 @@ async function main() {
   
   await exampleRegistry.write.setResolver([
     BigInt(labelhash("foo")),
-    fooResolver.address,
-    MAX_EXPIRY,
-    0
+    fooResolver.address
   ]);
   console.log("Set resolver for foo.example.eth in registry");
   
@@ -315,9 +309,7 @@ async function main() {
   
   await rootRegistry.write.setResolver([
     BigInt(labelhash("xyz")),
-    xyzResolver.address,
-    MAX_EXPIRY,
-    0
+    xyzResolver.address
   ]);
   console.log("Set resolver for .xyz in registry");
   
@@ -357,9 +349,7 @@ async function main() {
   
   await xyzRegistry.write.setResolver([
     BigInt(labelhash("example")),
-    exampleResolver.address,
-    MAX_EXPIRY,
-    0
+    exampleResolver.address
   ]);
   console.log("Set resolver for example.xyz in registry");
   
