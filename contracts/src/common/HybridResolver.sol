@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 
 import {AddrResolver} from "@ens/contracts/resolvers/profiles/AddrResolver.sol";
 import {ABIResolver} from "@ens/contracts/resolvers/profiles/ABIResolver.sol";
@@ -14,6 +15,7 @@ import {PubkeyResolver} from "@ens/contracts/resolvers/profiles/PubkeyResolver.s
 import {TextResolver} from "@ens/contracts/resolvers/profiles/TextResolver.sol";
 import {ExtendedResolver} from "@ens/contracts/resolvers/profiles/ExtendedResolver.sol";
 import {Multicallable} from "@ens/contracts/resolvers/Multicallable.sol";
+import {IVersionableResolver} from "@ens/contracts/resolvers/profiles/IVersionableResolver.sol";
 import {NameUtils} from "./NameUtils.sol";
 
 /**
@@ -25,6 +27,8 @@ import {NameUtils} from "./NameUtils.sol";
 contract HybridResolver is
     OwnableUpgradeable,
     UUPSUpgradeable,
+    ERC165Upgradeable,
+    IVersionableResolver,
     ABIResolver,
     AddrResolver,
     ContentHashResolver,
@@ -44,6 +48,15 @@ contract HybridResolver is
     
     // Registry this resolver is associated with
     address public registry;
+    
+    // Coin type for ETH
+    uint256 private constant COIN_TYPE_ETH = 60;
+    
+    // Record versions for versioning support
+    mapping(bytes32 => uint64) public recordVersions;
+    
+    // Versionable addresses storage
+    mapping(uint64 => mapping(bytes32 => mapping(uint256 => bytes))) versionable_addresses;
 
     // Event emitted when a namehash is mapped to a labelHash
     event NamehashMapped(bytes32 indexed namehash, uint256 indexed labelHash, bool isPrimary);
@@ -97,6 +110,16 @@ contract HybridResolver is
     function isAuthorised(bytes32 node) internal view override returns (bool) {
         return msg.sender == owner();
     }
+    
+    /**
+     * @dev Increments the record version associated with an ENS node.
+     * May only be called by the owner of that node in the ENS registry.
+     * @param node The node to update.
+     */
+    function clearRecords(bytes32 node) public virtual override authorised(node) {
+        recordVersions[node]++;
+        emit VersionChanged(node, recordVersions[node]);
+    }
 
     /**
      * @dev Authorizes an upgrade to the implementation
@@ -109,6 +132,11 @@ contract HybridResolver is
      * @param interfaceID The interface identifier to check
      * @return Whether the interface is supported
      */
+    modifier authorised(bytes32 node) {
+        require(isAuthorised(node));
+        _;
+    }
+
     function supportsInterface(
         bytes4 interfaceID
     )
@@ -116,6 +144,7 @@ contract HybridResolver is
         view
         virtual
         override(
+            ERC165Upgradeable,
             ABIResolver,
             AddrResolver,
             ContentHashResolver,
@@ -128,7 +157,9 @@ contract HybridResolver is
         )
         returns (bool)
     {
-        return super.supportsInterface(interfaceID);
+        return
+            interfaceID == type(IVersionableResolver).interfaceId ||
+            super.supportsInterface(interfaceID);
     }
 
     /**
@@ -161,15 +192,15 @@ contract HybridResolver is
      * @param node The namehash to get the address for
      * @return The associated address
      */
-    function addr(bytes32 node) public view override returns (address) {
+    function addr(bytes32 node) public view override returns (address payable) {
         uint256 labelHash = getLabelHash(node);
         if (labelHash == 0) {
-            return address(0);
+            return payable(address(0));
         }
         
         bytes32 primaryNamehash = _labelHashToPrimaryNamehash[labelHash];
         if (primaryNamehash == bytes32(0)) {
-            return address(0);
+            return payable(address(0));
         }
         
         return super.addr(primaryNamehash);
@@ -180,13 +211,55 @@ contract HybridResolver is
      * @param node The namehash to set the address for
      * @param a The address to set
      */
-    function setAddr(bytes32 node, address a) public override {
+    function setAddr(bytes32 node, address a) external override authorised(node) {
+        setAddr(node, COIN_TYPE_ETH, addressToBytes(a));
+    }
+    
+    /**
+     * @dev Override for setAddr(bytes32,uint256,bytes) to use labelHash internally
+     * @param node The namehash to set the address for
+     * @param coinType The coin type to set
+     * @param a The address to set
+     */
+    function setAddr(bytes32 node, uint256 coinType, bytes memory a) public override authorised(node) {
         uint256 labelHash = _getOrCreateLabelHash(node);
         bytes32 primaryNamehash = _labelHashToPrimaryNamehash[labelHash];
         
-        super.setAddr(primaryNamehash, a);
+        super.setAddr(primaryNamehash, coinType, a);
     }
 
-    // Similar overrides would be implemented for all other resolver methods
-    // to use the labelHash internally while maintaining namehash compatibility
+    // Helper functions for address conversion
+    function bytesToAddress(bytes memory b) internal pure returns (address payable a) {
+        require(b.length == 20);
+        assembly {
+            a := div(mload(add(b, 32)), exp(256, 12))
+        }
+    }
+
+    function addressToBytes(address a) internal pure returns (bytes memory b) {
+        b = new bytes(20);
+        assembly {
+            mstore(add(b, 32), mul(a, exp(256, 12)))
+        }
+    }
+    
+    /**
+     * @dev Override for addr(bytes32,uint256) to use labelHash internally
+     * @param node The namehash to get the address for
+     * @param coinType The coin type to get
+     * @return The associated address
+     */
+    function addr(bytes32 node, uint256 coinType) public view override returns (bytes memory) {
+        uint256 labelHash = getLabelHash(node);
+        if (labelHash == 0) {
+            return new bytes(0);
+        }
+        
+        bytes32 primaryNamehash = _labelHashToPrimaryNamehash[labelHash];
+        if (primaryNamehash == bytes32(0)) {
+            return new bytes(0);
+        }
+        
+        return super.addr(primaryNamehash, coinType);
+    }
 }
