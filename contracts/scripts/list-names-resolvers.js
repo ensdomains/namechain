@@ -111,6 +111,39 @@ async function processResolverUpdateEvent(datastore, log) {
         nameInfo.resolver = resolver;
         console.log(`Updated resolver for ${nameInfo.label} to ${resolver}`);
         
+        let fullName = nameInfo.label;
+        let currentRegistry = registry;
+        let parentId = null;
+        
+        while (currentRegistry !== process.env.ROOT_REGISTRY_ADDRESS.toLowerCase()) {
+          let found = false;
+          
+          for (const [regAddr, names] of nameState.registries.entries()) {
+            for (const [labelId, info] of names.entries()) {
+              if (info.subregistry && info.subregistry.toLowerCase() === currentRegistry) {
+                fullName = `${fullName}.${info.label}`;
+                currentRegistry = regAddr;
+                parentId = labelId;
+                found = true;
+                break;
+              }
+            }
+            if (found) break;
+          }
+          
+          if (!found) break;
+        }
+        
+        console.log(`Full name for ${nameInfo.label} is ${fullName}`);
+        
+        const namehash = calculateNamehash(fullName);
+        console.log(`Namehash for ${fullName} is ${namehash}`);
+        
+        if (!nameState.resolverAddresses.has(resolver.toLowerCase())) {
+          nameState.resolverAddresses.set(resolver.toLowerCase(), new Map());
+        }
+        nameState.resolverAddresses.get(resolver.toLowerCase()).set(namehash, resolver);
+        
         await watchResolver(resolver);
       } else {
         console.log(`No name info found for id ${id} in registry ${registry}`);
@@ -419,17 +452,52 @@ function getOwnedNames(registry, address, parentName = '') {
   return ownedNames;
 }
 
-function getNameAddress(name, resolverAddress) {
+async function getNameAddress(name, resolverAddress) {
   if (!resolverAddress) return null;
   
   const namehash = calculateNamehash(name);
+  console.log(`Looking up address for ${name} with namehash ${namehash} in resolver ${resolverAddress}`);
   
-  const resolverAddresses = nameState.resolverAddresses.get(resolverAddress.toLowerCase());
-  if (resolverAddresses) {
-    return resolverAddresses.get(namehash.toString());
+  try {
+    const publicClient = await hre.viem.getPublicClient();
+    
+    let resolver;
+    try {
+      resolver = await hre.viem.getContractAt("HybridResolver", resolverAddress);
+    } catch (error) {
+      try {
+        resolver = await hre.viem.getContractAt("OwnedResolver", resolverAddress);
+      } catch (innerError) {
+        console.error(`Could not get resolver contract at ${resolverAddress}:`, innerError);
+        return null;
+      }
+    }
+    
+    try {
+      const address = await resolver.read.addr([namehash]);
+      if (address && address !== '0x0000000000000000000000000000000000000000') {
+        console.log(`Found address ${address} for ${name} by direct query`);
+        return address;
+      }
+    } catch (error) {
+      console.log(`Error calling addr(bytes32) for ${name}:`, error.message);
+    }
+    
+    const resolverAddresses = nameState.resolverAddresses.get(resolverAddress.toLowerCase());
+    if (resolverAddresses) {
+      const address = resolverAddresses.get(namehash.toString());
+      if (address) {
+        console.log(`Found address ${address} for ${name} from stored events`);
+        return address;
+      }
+    }
+    
+    console.log(`No address found for ${name} in resolver ${resolverAddress}`);
+    return null;
+  } catch (error) {
+    console.error(`Error getting address for ${name}:`, error);
+    return null;
   }
-  
-  return null;
 }
 
 function calculateNamehash(name) {
@@ -485,7 +553,7 @@ async function main() {
   
   const nameTable = [];
   for (const nameInfo of sortedNames) {
-    const ethAddress = getNameAddress(nameInfo.name, nameInfo.resolver);
+    const ethAddress = await getNameAddress(nameInfo.name, nameInfo.resolver);
     nameTable.push({
       name: nameInfo.name,
       resolver: nameInfo.resolver || 'None',
@@ -494,6 +562,60 @@ async function main() {
   }
   
   console.table(nameTable);
+  
+  console.log("\nDemonstrating aliasing with example.eth and example.xyz:");
+  console.log("----------------------------------------------------");
+  
+  try {
+    const exampleEthNamehash = calculateNamehash("example.eth");
+    const exampleXyzNamehash = calculateNamehash("example.xyz");
+    
+    console.log(`Namehash for example.eth: ${exampleEthNamehash}`);
+    console.log(`Namehash for example.xyz: ${exampleXyzNamehash}`);
+    
+    let exampleEthResolver = null;
+    let exampleXyzResolver = null;
+    
+    for (const nameInfo of sortedNames) {
+      if (nameInfo.name === "example.eth" && nameInfo.resolver) {
+        exampleEthResolver = nameInfo.resolver;
+      }
+      if (nameInfo.name === "example.xyz" && nameInfo.resolver) {
+        exampleXyzResolver = nameInfo.resolver;
+      }
+    }
+    
+    if (exampleEthResolver) {
+      console.log(`Found resolver for example.eth: ${exampleEthResolver}`);
+      const hybridResolver = await hre.viem.getContractAt("HybridResolver", exampleEthResolver);
+      
+      try {
+        const ethAddress = await hybridResolver.read.addr([exampleEthNamehash]);
+        console.log(`Address for example.eth: ${ethAddress}`);
+        
+        if (exampleXyzResolver) {
+          console.log(`Found resolver for example.xyz: ${exampleXyzResolver}`);
+          
+          try {
+            const xyzAddress = await hybridResolver.read.addr([exampleXyzNamehash]);
+            console.log(`Address for example.xyz: ${xyzAddress}`);
+            
+            if (ethAddress === xyzAddress) {
+              console.log("SUCCESS: Both example.eth and example.xyz resolve to the same address, demonstrating successful aliasing!");
+            } else {
+              console.log("Different addresses for example.eth and example.xyz");
+            }
+          } catch (error) {
+            console.error(`Error getting address for example.xyz:`, error.message);
+          }
+        }
+      } catch (error) {
+        console.error(`Error getting address for example.eth:`, error.message);
+      }
+    }
+  } catch (error) {
+    console.error("Error demonstrating aliasing:", error);
+  }
 }
 
 main().catch((error) => {
