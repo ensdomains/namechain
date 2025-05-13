@@ -134,9 +134,7 @@ contract HybridResolver is
         )
         returns (bool)
     {
-        return
-            interfaceID == type(IVersionableResolver).interfaceId ||
-            super.supportsInterface(interfaceID);
+        return super.supportsInterface(interfaceID);
     }
 
     /**
