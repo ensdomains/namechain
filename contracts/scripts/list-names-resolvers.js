@@ -603,7 +603,8 @@ async function main() {
     nameTable.push({
       name: nameInfo.name,
       resolver: resolverAddress || 'None',
-      ethAddress: ethAddress || 'None'
+      ethAddress: ethAddress || 'None',
+      owner: nameInfo.owner || 'None'
     });
   }
   
