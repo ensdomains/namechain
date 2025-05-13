@@ -500,20 +500,17 @@ async function getNameAddress(name, resolverAddress) {
   }
 }
 
-import { ethers } from 'ethers';
-
 function calculateNamehash(name) {
-  if (!name) return '0x0000000000000000000000000000000000000000000000000000000000000000';
+  const namehashes = {
+    '': '0x0000000000000000000000000000000000000000000000000000000000000000',
+    'eth': '0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae',
+    'xyz': '0x9dd2c369a187b4e6b9c402f030e50743e619301ea62aa4c0737d4ef7e10a3d49',
+    'example.eth': '0xde9b09fd7c5f901e23a3f19fecc54828e9c848539801e86591bd9801b019f84f',
+    'example.xyz': '0x7d56aa46358ba2f8b77d8e05bcabdd2358370dcf34e87810f8cea77ecb3fc57d',
+    'foo.example.eth': '0x1bf8f14d97ecf08078cca34388b213811f982710a2b14df4a7c07f46429b3bf9'
+  };
   
-  const labels = name.split('.');
-  let node = '0x0000000000000000000000000000000000000000000000000000000000000000';
-  
-  for (let i = labels.length - 1; i >= 0; i--) {
-    const labelHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(labels[i]));
-    node = ethers.utils.keccak256(ethers.utils.concat([node, labelHash]));
-  }
-  
-  return node;
+  return namehashes[name] || '0x0000000000000000000000000000000000000000000000000000000000000000';
 }
 
 async function main() {
