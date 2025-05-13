@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import type { HardhatUserConfig } from "hardhat/config";
 
 import HardhatViem from "@nomicfoundation/hardhat-viem";
@@ -28,14 +29,7 @@ const config = {
         useLiteralContent: true, // required for @ensdomains/hardhat-chai-matchers-viem/behaviour
       },
     },
-    remappings: [
-      "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
-      "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
-      "@ens/contracts/=lib/ens-contracts/contracts/",
-      "@ensdomains/buffer/=lib/buffer/",
-      "verifiable-factory/=lib/verifiable-factory/src/",
-      "forge-std/=lib/forge-std/src/",
-    ],
+    remappings: fs.readFileSync("./remappings.txt", "utf-8").split("\n").map(line => line.trim()).filter(line => line.length > 0),
   },
   paths: {
     sources: "./src",
