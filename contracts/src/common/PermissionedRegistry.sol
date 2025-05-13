@@ -150,7 +150,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         if (expires <= block.timestamp) {
             return address(0);
         }
-        (address resolver, , ) = datastore.getResolver(canonicalId);
+        (address resolver, ) = datastore.getResolver(canonicalId);
         return resolver;
     }
 

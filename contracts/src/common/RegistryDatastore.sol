@@ -29,18 +29,12 @@ contract RegistryDatastore is IRegistryDatastore {
     function getResolver(address registry, uint256 id)
         public
         view
-        returns (address resolver, uint64 expiry, uint32 data)
+        returns (address resolver, uint96 flags)
     {
-        address resolverAddr;
-        uint96 flags;
-        (resolverAddr, flags) = DatastoreUtils.unpackWithFlags(entries[registry][NameUtils.getCanonicalId(id)].resolverData);
-        // For backward compatibility, return 0 for expiry and the lower 32 bits of flags for data
-        resolver = resolverAddr;
-        expiry = 0;
-        data = uint32(flags);
+        return DatastoreUtils.unpackWithFlags(entries[registry][NameUtils.getCanonicalId(id)].resolverData);
     }
 
-    function getResolver(uint256 id) external view returns (address resolver, uint64 expiry, uint32 data) {
+    function getResolver(uint256 id) external view returns (address resolver, uint96 flags) {
         return getResolver(msg.sender, id);
     }
 
@@ -54,7 +48,7 @@ contract RegistryDatastore is IRegistryDatastore {
         id = NameUtils.getCanonicalId(id);
         // Convert the 32-bit data to a 96-bit flags field, preserving the data in the lower 32 bits
         uint96 flags = uint96(data);
-        entries[msg.sender][id].resolverData = DatastoreUtils.packWithFlags(resolver, flags);
+        entries[msg.sender][id].resolverData = DatastoreUtils.pack(resolver, flags);
         emit ResolverUpdate(msg.sender, id, resolver, flags);
     }
 }

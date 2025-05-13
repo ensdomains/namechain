@@ -48,30 +48,26 @@ contract TestRegistryDatastore is Test {
     function test_GetSetResolver_MsgSender() public {
         datastore.setResolver(id, address(this), data);
 
-        (address resolver, uint64 expiry, uint32 returnedData) = datastore.getResolver(id);
+        (address resolver, uint96 flags) = datastore.getResolver(id);
         vm.assertEq(resolver, address(this));
-        vm.assertEq(expiry, 0);
-        vm.assertEq(returnedData, data);
+        vm.assertEq(uint32(flags), data);
 
-        (resolver, expiry, returnedData) = datastore.getResolver(address(this), id);
+        (resolver, flags) = datastore.getResolver(address(this), id);
         vm.assertEq(resolver, address(this));
-        vm.assertEq(expiry, 0);
-        vm.assertEq(returnedData, data);
+        vm.assertEq(uint32(flags), data);
     }
 
     function test_GetSetResolver_OtherRegistry() public {
         DummyRegistry r = new DummyRegistry(datastore);
         r.setResolver(id, address(this), data);
 
-        (address resolver, uint64 expiry, uint32 returnedData) = datastore.getResolver(id);
+        (address resolver, uint96 flags) = datastore.getResolver(id);
         vm.assertEq(resolver, address(0));
-        vm.assertEq(expiry, 0);
-        vm.assertEq(returnedData, 0);
+        vm.assertEq(flags, 0);
 
-        (resolver, expiry, returnedData) = datastore.getResolver(address(r), id);
+        (resolver, flags) = datastore.getResolver(address(r), id);
         vm.assertEq(resolver, address(this));
-        vm.assertEq(expiry, 0);
-        vm.assertEq(returnedData, data);
+        vm.assertEq(uint32(flags), data);
     }
 }
 

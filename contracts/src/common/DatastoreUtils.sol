@@ -11,6 +11,14 @@ library DatastoreUtils {
         packed = (uint256(data) << 224) | (uint256(expiry) << 160) | uint256(uint160(addr));
     }
 
+    /// @dev Pack `(address, flags)` together into a word, with no expiry field.
+    /// @param addr The address to pack.
+    /// @param flags The 96-bit flags field to pack.
+    /// @return packed The packed word.
+    function pack(address addr, uint96 flags) internal pure returns (uint256 packed) {
+        packed = (uint256(flags) << 160) | uint256(uint160(addr));
+    }
+
     /// @dev Unpack a word into `(address, expiry, data)`.
     /// @param packed The packed word.
     /// @return addr The packed address.
@@ -20,14 +28,6 @@ library DatastoreUtils {
         addr = address(uint160(packed));
         expiry = uint64(packed >> 160);
         data = uint32(packed >> 224);
-    }
-    
-    /// @dev Pack `(address, flags)` together into a word, with no expiry field.
-    /// @param addr The address to pack.
-    /// @param flags The 96-bit flags field to pack.
-    /// @return packed The packed word.
-    function packWithFlags(address addr, uint96 flags) internal pure returns (uint256 packed) {
-        packed = (uint256(flags) << 160) | uint256(uint160(addr));
     }
 
     /// @dev Unpack a word into `(address, flags)`.
