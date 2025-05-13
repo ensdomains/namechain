@@ -5,6 +5,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
 
+import {ResolverBase} from "@ens/contracts/resolvers/ResolverBase.sol";
 import {AddrResolver} from "@ens/contracts/resolvers/profiles/AddrResolver.sol";
 import {ABIResolver} from "@ens/contracts/resolvers/profiles/ABIResolver.sol";
 import {ContentHashResolver} from "@ens/contracts/resolvers/profiles/ContentHashResolver.sol";
@@ -15,7 +16,6 @@ import {PubkeyResolver} from "@ens/contracts/resolvers/profiles/PubkeyResolver.s
 import {TextResolver} from "@ens/contracts/resolvers/profiles/TextResolver.sol";
 import {ExtendedResolver} from "@ens/contracts/resolvers/profiles/ExtendedResolver.sol";
 import {Multicallable} from "@ens/contracts/resolvers/Multicallable.sol";
-import {IVersionableResolver} from "@ens/contracts/resolvers/profiles/IVersionableResolver.sol";
 import {NameUtils} from "./NameUtils.sol";
 
 /**
@@ -27,8 +27,7 @@ import {NameUtils} from "./NameUtils.sol";
 contract HybridResolver is
     OwnableUpgradeable,
     UUPSUpgradeable,
-    ERC165Upgradeable,
-    IVersionableResolver,
+    ResolverBase,
     ABIResolver,
     AddrResolver,
     ContentHashResolver,
@@ -51,12 +50,6 @@ contract HybridResolver is
     
     // Coin type for ETH
     uint256 private constant COIN_TYPE_ETH = 60;
-    
-    // Record versions for versioning support
-    mapping(bytes32 => uint64) public recordVersions;
-    
-    // Versionable addresses storage
-    mapping(uint64 => mapping(bytes32 => mapping(uint256 => bytes))) versionable_addresses;
 
     // Event emitted when a namehash is mapped to a labelHash
     event NamehashMapped(bytes32 indexed namehash, uint256 indexed labelHash, bool isPrimary);
@@ -111,15 +104,7 @@ contract HybridResolver is
         return msg.sender == owner();
     }
     
-    /**
-     * @dev Increments the record version associated with an ENS node.
-     * May only be called by the owner of that node in the ENS registry.
-     * @param node The node to update.
-     */
-    function clearRecords(bytes32 node) public virtual override authorised(node) {
-        recordVersions[node]++;
-        emit VersionChanged(node, recordVersions[node]);
-    }
+    // clearRecords is inherited from ResolverBase
 
     /**
      * @dev Authorizes an upgrade to the implementation
@@ -127,15 +112,7 @@ contract HybridResolver is
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    /**
-     * @dev Overrides the supportsInterface function to report all supported interfaces
-     * @param interfaceID The interface identifier to check
-     * @return Whether the interface is supported
-     */
-    modifier authorised(bytes32 node) {
-        require(isAuthorised(node));
-        _;
-    }
+    // authorised modifier is inherited from ResolverBase
 
     function supportsInterface(
         bytes4 interfaceID
@@ -228,20 +205,7 @@ contract HybridResolver is
         super.setAddr(primaryNamehash, coinType, a);
     }
 
-    // Helper functions for address conversion
-    function bytesToAddress(bytes memory b) internal pure returns (address payable a) {
-        require(b.length == 20);
-        assembly {
-            a := div(mload(add(b, 32)), exp(256, 12))
-        }
-    }
-
-    function addressToBytes(address a) internal pure returns (bytes memory b) {
-        b = new bytes(20);
-        assembly {
-            mstore(add(b, 32), mul(a, exp(256, 12)))
-        }
-    }
+    // bytesToAddress and addressToBytes are inherited from AddrResolver
     
     /**
      * @dev Override for addr(bytes32,uint256) to use labelHash internally
