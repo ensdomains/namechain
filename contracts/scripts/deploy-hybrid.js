@@ -191,14 +191,13 @@ async function main() {
   ]);
   console.log("Registered .eth TLD");
   
-  await datastore.write.setResolver([
-    rootRegistry.address,
+  await rootRegistry.write.setResolver([
     BigInt(labelhash("eth")),
     zeroAddress,
     MAX_EXPIRY,
     0
   ]);
-  console.log("Set resolver for .eth in datastore");
+  console.log("Set resolver for .eth in registry");
   
   console.log("Registering example.eth...");
   
@@ -216,14 +215,13 @@ async function main() {
   ]);
   console.log("Registered example.eth");
   
-  await datastore.write.setResolver([
-    ethRegistry.address,
+  await ethRegistry.write.setResolver([
     BigInt(labelhash("example")),
     exampleResolver.address,
     MAX_EXPIRY,
     0
   ]);
-  console.log("Set resolver for example.eth in datastore");
+  console.log("Set resolver for example.eth in registry");
   
   console.log("Deploying subregistry for example.eth...");
   const exampleRegistry = await hre.viem.deployContract("PermissionedRegistry", [
@@ -264,14 +262,13 @@ async function main() {
   ]);
   console.log("Registered foo.example.eth");
   
-  await datastore.write.setResolver([
-    exampleRegistry.address,
+  await exampleRegistry.write.setResolver([
     BigInt(labelhash("foo")),
     fooResolver.address,
     MAX_EXPIRY,
     0
   ]);
-  console.log("Set resolver for foo.example.eth in datastore");
+  console.log("Set resolver for foo.example.eth in registry");
   
   const fooExampleEthNamehash = namehash("foo.example.eth");
   const fooLabelHash = labelhash("foo");
@@ -296,14 +293,13 @@ async function main() {
   ]);
   console.log("Registered .xyz TLD");
   
-  await datastore.write.setResolver([
-    rootRegistry.address,
+  await rootRegistry.write.setResolver([
     BigInt(labelhash("xyz")),
     zeroAddress,
     MAX_EXPIRY,
     0
   ]);
-  console.log("Set resolver for .xyz in datastore");
+  console.log("Set resolver for .xyz in registry");
   
   console.log("Deploying XYZRegistry...");
   const xyzRegistry = await hre.viem.deployContract("PermissionedRegistry", [
@@ -327,14 +323,13 @@ async function main() {
   ]);
   console.log("Registered example.xyz");
   
-  await datastore.write.setResolver([
-    xyzRegistry.address,
+  await xyzRegistry.write.setResolver([
     BigInt(labelhash("example")),
     exampleResolver.address,
     MAX_EXPIRY,
     0
   ]);
-  console.log("Set resolver for example.xyz in datastore");
+  console.log("Set resolver for example.xyz in registry");
   
   const exampleXyzNamehash = namehash("example.xyz");
   console.log("Namehash for example.xyz:", exampleXyzNamehash);
