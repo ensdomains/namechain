@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 import {ITokenObserver} from "../common/ITokenObserver.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
-import {EjectionController} from "../common/EjectionController.sol";
+import {EjectionController, TransferData} from "../common/EjectionController.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {IRegistry} from "../common/IRegistry.sol";  
 
@@ -42,16 +42,6 @@ abstract contract L2EjectionController is EjectionController, ITokenObserver {
     }
 
     // Internal functions
-
-    /**
-     * Implements ITokenObserver.onRenew
-     */
-    function _onRenew(uint256 tokenId, uint64 expires, address renewedBy) internal virtual;
-
-    /**
-     * Implements ITokenObserver.onRelinquish
-     */
-    function _onRelinquish(uint256 tokenId, address relinquishedBy) internal virtual;
 
     /**
      * Overrides the EjectionController._onEject function.

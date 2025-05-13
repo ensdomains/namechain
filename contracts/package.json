@@ -2,7 +2,7 @@
   "name": "contracts",
   "type": "module",
   "scripts": {
-    "hh": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only' hardhat",
+    "hh": "NODE_OPTIONS='--experimental-loader ts-node/esm' hardhat",
     "compile:hardhat": "bun hh compile",
     "test:hardhat": "bun hh test",
     "test:forge": "forge test",

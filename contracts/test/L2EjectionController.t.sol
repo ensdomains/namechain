@@ -16,7 +16,7 @@ import "../src/common/IRegistryMetadata.sol";
 import "../src/common/NameUtils.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
-import {EjectionController} from "../src/common/EjectionController.sol";
+import {EjectionController, TransferData} from "../src/common/EjectionController.sol";
 
 // Mock implementation of IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -60,7 +60,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         uint64 expiryTime,
         uint256 roleBitmap
     ) internal pure returns (bytes memory) {
-        EjectionController.TransferData memory transferData = EjectionController.TransferData({
+        TransferData memory transferData = TransferData({
             label: nameLabel,
             owner: owner,
             subregistry: subregistry,
@@ -89,10 +89,10 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
                 labels.length == roleBitmaps.length, 
                 "Array lengths must match");
                 
-        EjectionController.TransferData[] memory transferDataArray = new EjectionController.TransferData[](labels.length);
+        TransferData[] memory transferDataArray = new TransferData[](labels.length);
         
         for (uint256 i = 0; i < labels.length; i++) {
-            transferDataArray[i] = EjectionController.TransferData({
+            transferDataArray[i] = TransferData({
                 label: labels[i],
                 owner: owners[i],
                 subregistry: subregistries[i],
@@ -519,9 +519,9 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         bytes memory data3 = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, noRoles);
         
         // Verify the role bitmap is set correctly in the encoded data
-        EjectionController.TransferData memory decoded1 = abi.decode(data1, (EjectionController.TransferData));
-        EjectionController.TransferData memory decoded2 = abi.decode(data2, (EjectionController.TransferData));
-        EjectionController.TransferData memory decoded3 = abi.decode(data3, (EjectionController.TransferData));
+        TransferData memory decoded1 = abi.decode(data1, (TransferData));
+        TransferData memory decoded2 = abi.decode(data2, (TransferData));
+        TransferData memory decoded3 = abi.decode(data3, (TransferData));
         
         assertEq(decoded1.roleBitmap, basicRoles, "Basic roles not set correctly");
         assertEq(decoded2.roleBitmap, allRoles, "All roles not set correctly");
@@ -580,22 +580,24 @@ contract MockL2EjectionController is L2EjectionController {
 
     // Implement the required external methods
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {
-        _onRenew(tokenId, expires, renewedBy);
+        _onRenewCalled = true;
+        emit MockNameRenewed(tokenId, expires, renewedBy);
     }
     
     function onRelinquish(uint256 tokenId, address relinquishedBy) external override {
-        _onRelinquish(tokenId, relinquishedBy);
+        _onRelinquishCalled = true;
+        emit MockNameRelinquished(tokenId, relinquishedBy);
     }
 
     /**
      * @dev Overridden to emit a mock event after calling the parent logic.
      */
-    function _onEject(uint256[] memory tokenIds, EjectionController.TransferData[] memory transferDataArray) internal override {
+    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal override {
         super._onEject(tokenIds, transferDataArray);
         
         // Emit events for each token ID processed
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            EjectionController.TransferData memory transferData = transferDataArray[i];
+            TransferData memory transferData = transferDataArray[i];
             emit MockNameEjectedToL1(
                 tokenIds[i], 
                 abi.encode(
@@ -619,7 +621,7 @@ contract MockL2EjectionController is L2EjectionController {
         address l2Resolver,
         uint256 newRoleBitmap
     ) public {
-        EjectionController.TransferData memory transferData = EjectionController.TransferData({
+        TransferData memory transferData = TransferData({
             label: "",
             owner: l2Owner,
             subregistry: l2Subregistry,
@@ -632,22 +634,6 @@ contract MockL2EjectionController is L2EjectionController {
         emit MockNameMigratedFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver, newRoleBitmap);
     }
 
-    /**
-     * @dev Implementation of internal _onRenew method
-     */
-    function _onRenew(uint256 tokenId, uint64 expires, address renewedBy) internal override {
-        _onRenewCalled = true;
-        emit MockNameRenewed(tokenId, expires, renewedBy);
-    }
-
-    /**
-     * @dev Implementation of internal _onRelinquish method
-     */
-    function _onRelinquish(uint256 tokenId, address relinquishedBy) internal override {
-        _onRelinquishCalled = true;
-        emit MockNameRelinquished(tokenId, relinquishedBy);
-    }
-    
     // Helper functions for tests
     function resetTracking() external {
         _onRenewCalled = false;

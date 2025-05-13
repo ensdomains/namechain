@@ -30,6 +30,7 @@ contract MockETHFallbackResolver is ETHFallbackResolver {
 
 contract TestETHFallbackResolver is Test {
     MockETHFallbackResolver efr;
+    uint256 randSeed = 0;
 
     function setUp() external {
         efr = new MockETHFallbackResolver();
@@ -67,12 +68,19 @@ contract TestETHFallbackResolver is Test {
         efr.countLabels(hex"0200");
     }
 
+    // vm.randomUint(uint256, uint256) is not available in hardhat so we do this instead!
+    function _randomUint(uint256 min, uint256 max) internal returns (uint256) {
+        randSeed++;
+        uint256 randomNumber = uint256(keccak256(abi.encodePacked(block.timestamp, block.prevrandao, block.coinbase, block.number, block.gaslimit, randSeed)));
+        return min + (randomNumber % (max - min + 1));
+    }
+
     function testFuzz_countLabels_dotEth(uint8 n) external {
         vm.assume(n < 10);
-        uint256 size2LD = vm.randomUint(1, 255);
+        uint256 size2LD = _randomUint(1, 255);
         string memory ens = string.concat(new string(size2LD), ".eth");
         for (uint256 i; i < n; i++) {
-            ens = string.concat(new string(vm.randomUint(1, 255)), ".", ens);
+            ens = string.concat(new string(_randomUint(1, 255)), ".", ens);
         }
         _countLabels(ens, 1 + n, size2LD);
     }

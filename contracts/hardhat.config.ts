@@ -1,9 +1,11 @@
+import fs from 'node:fs'
 import type { HardhatUserConfig } from "hardhat/config";
 
 import HardhatViem from "@nomicfoundation/hardhat-viem";
 import HardhatDeploy from "hardhat-deploy";
 
-const config = {
+// Define the config object with the HardhatUserConfig interface
+const config: HardhatUserConfig = {
   networks: {
     "l1-local": {
       url: "http://127.0.0.1:8545",
@@ -28,19 +30,13 @@ const config = {
         useLiteralContent: true, // required for @ensdomains/hardhat-chai-matchers-viem/behaviour
       },
     },
-    remappings: [
-      "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
-      "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
-      "@ens/contracts/=lib/ens-contracts/contracts/",
-      "@ensdomains/buffer/=lib/buffer/",
-      "verifiable-factory/=lib/verifiable-factory/src/",
-      "forge-std/=lib/forge-std/src/",
-    ],
+    remappings: fs.readFileSync("./remappings.txt", "utf-8").split("\n").map(line => line.trim()).filter(line => line.length > 0),
   },
   paths: {
     sources: "./src",
+    tests: "./test",
   },
   plugins: [HardhatViem, HardhatDeploy],
-} satisfies HardhatUserConfig;
+};
 
 export default config;

@@ -2,13 +2,16 @@
 pragma solidity ^0.8.13;
 
 import {MockBridgeHelper} from "./MockBridgeHelper.sol";
+import {TransferData} from "../common/EjectionController.sol";
+import {MockL1EjectionController} from "./MockL1EjectionController.sol";
+import {IBridge} from "./IBridge.sol";
 
 /**
  * @title MockL1Bridge
  * @dev Generic mock L1 bridge for testing cross-chain communication
  * Accepts arbitrary messages as bytes and calls the appropriate controller methods
  */
-contract MockL1Bridge {
+contract MockL1Bridge is IBridge {
     // Event for outgoing messages from L1 to L2
     event L1ToL2Message(bytes message);
     
@@ -16,15 +19,14 @@ contract MockL1Bridge {
     event MessageProcessed(bytes message);
 
     // Target controller to call when receiving messages
-    address public targetController;
-    address public bridgeHelper;
+    MockL1EjectionController public targetController;
+    MockBridgeHelper public bridgeHelper;
     
-    constructor(address _targetController, address _bridgeHelper) {
-        targetController = _targetController;
+    constructor(MockBridgeHelper _bridgeHelper) {
         bridgeHelper = _bridgeHelper;
     }
     
-    function setTargetController(address _targetController) external {
+    function setTargetController(MockL1EjectionController _targetController) external {
         targetController = _targetController;
     }
     
@@ -33,9 +35,18 @@ contract MockL1Bridge {
      * In a real bridge, this would initiate cross-chain communication
      * For testing, it just emits an event that can be listened for
      */
-    function sendMessageToL2(bytes calldata message) external {
+    function sendMessageToL2(uint256 tokenId, TransferData memory transferData) external override {
+        bytes memory message = bridgeHelper.encodeEjectionMessage(
+            tokenId,
+            transferData
+        );
+
         // Simply emit the message for testing purposes
         emit L1ToL2Message(message);
+    }
+
+    function sendMessageToL1(uint256 /*tokenId*/, TransferData memory /*transferData*/) external pure override {
+        revert("Not implemented");
     }
     
     /**
@@ -48,43 +59,15 @@ contract MockL1Bridge {
         
         if (messageType == bytes4(keccak256("NAME_EJECTION"))) {
             // Decode the ejection message
-            string memory name;
-            address l1Owner;
-            address l1Subregistry;
-            uint64 expiry;
-            
-            try MockBridgeHelper(bridgeHelper).decodeEjectionMessage(message) returns (
-                string memory _name,
-                address _l1Owner,
-                address _l1Subregistry,
-                uint64 _expiry
+            try bridgeHelper.decodeEjectionMessage(message) returns (
+                uint256 /*tokenId*/,
+                TransferData memory _transferData
             ) {
-                name = _name;
-                l1Owner = _l1Owner;
-                l1Subregistry = _l1Subregistry;
-                expiry = _expiry;
-                
-                // Calculate the label hash directly from the name in the message
-                uint256 labelHash = uint256(keccak256(abi.encodePacked(name)));
-                
-                // Call the complete ejection method on the controller
-                // Use the direct function call rather than interface
-                (bool success, ) = targetController.call(
-                    abi.encodeWithSignature(
-                        "completeEjection(uint256,address,address,uint32,uint64,bytes)",
-                        labelHash,
-                        l1Owner,
-                        l1Subregistry,
-                        0, // flags (not used in our simple implementation)
-                        expiry,
-                        abi.encode(name) // Include the name in the data
-                    )
-                );
-                require(success, "L1Bridge: call to controller failed");
+                targetController.completeEjectionFromL2(_transferData);
             } catch Error(string memory reason) {
                 // Handle known errors
                 revert(string(abi.encodePacked("L1Bridge decoding failed: ", reason)));
-            } catch (bytes memory lowLevelData) {
+            } catch (bytes memory /*lowLevelData*/) {
                 // Handle unknown errors
                 revert("L1Bridge decoding failed with unknown error");
             }

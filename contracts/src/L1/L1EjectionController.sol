@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {EjectionController} from "../common/EjectionController.sol";
+import {EjectionController, TransferData} from "../common/EjectionController.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
@@ -25,8 +25,8 @@ abstract contract L1EjectionController is EjectionController, RegistryRolesMixin
      */
     function _completeEjectionFromL2(
         TransferData memory transferData
-    ) internal virtual {
-        registry.register(transferData.label, transferData.owner, IRegistry(transferData.subregistry), transferData.resolver, transferData.roleBitmap, transferData.expires);
+    ) internal virtual returns (uint256 tokenId) {
+        tokenId = registry.register(transferData.label, transferData.owner, IRegistry(transferData.subregistry), transferData.resolver, transferData.roleBitmap, transferData.expires);
     }
 
     /**
