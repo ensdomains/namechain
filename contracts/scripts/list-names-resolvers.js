@@ -500,6 +500,8 @@ async function getNameAddress(name, resolverAddress) {
   }
 }
 
+import { ethers } from 'ethers';
+
 function calculateNamehash(name) {
   if (!name) return '0x0000000000000000000000000000000000000000000000000000000000000000';
   
@@ -507,8 +509,8 @@ function calculateNamehash(name) {
   let node = '0x0000000000000000000000000000000000000000000000000000000000000000';
   
   for (let i = labels.length - 1; i >= 0; i--) {
-    const labelHash = hre.ethers.utils.keccak256(hre.ethers.utils.toUtf8Bytes(labels[i]));
-    node = hre.ethers.utils.keccak256(hre.ethers.utils.concat([node, labelHash]));
+    const labelHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(labels[i]));
+    node = ethers.utils.keccak256(ethers.utils.concat([node, labelHash]));
   }
   
   return node;
