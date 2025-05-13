@@ -1,4 +1,5 @@
-import { ethers } from "hardhat";
+import hardhat from "hardhat";
+const { ethers } = hardhat;
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as dotenv from "dotenv";
