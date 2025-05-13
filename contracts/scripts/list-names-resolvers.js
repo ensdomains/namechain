@@ -320,7 +320,12 @@ async function watchResolver(resolverAddress) {
   }
   
   try {
-    const resolver = await hre.viem.getContractAt("OwnedResolver", resolverAddress);
+    let resolver;
+    try {
+      resolver = await hre.viem.getContractAt("HybridResolver", resolverAddress);
+    } catch (error) {
+      resolver = await hre.viem.getContractAt("OwnedResolver", resolverAddress);
+    }
     
     const addrChangedLogs = await publicClient.getLogs({
       address: resolverAddress,
@@ -335,8 +340,47 @@ async function watchResolver(resolverAddress) {
       fromBlock: 0n
     });
     
+    const addrSetLogs = await publicClient.getLogs({
+      address: resolverAddress,
+      event: {
+        type: 'event',
+        name: 'AddressChanged',
+        inputs: [
+          { type: 'bytes32', name: 'node', indexed: true },
+          { type: 'uint256', name: 'coinType', indexed: false },
+          { type: 'bytes', name: 'newAddress', indexed: false }
+        ]
+      },
+      fromBlock: 0n
+    });
+    
     for (const log of addrChangedLogs) {
       await processAddrEvent(resolver, log);
+    }
+    
+    for (const log of addrSetLogs) {
+      try {
+        const decoded = decodeEventLog({
+          abi: resolver.abi,
+          data: log.data,
+          topics: log.topics
+        });
+        
+        if (decoded.args.coinType === 60n) {
+          const node = decoded.args.node;
+          const addr = hre.viem.getAddress('0x' + decoded.args.newAddress.slice(-40));
+          
+          const resolverAddress = resolver.address.toLowerCase();
+          if (!nameState.resolverAddresses.has(resolverAddress)) {
+            nameState.resolverAddresses.set(resolverAddress, new Map());
+          }
+          
+          nameState.resolverAddresses.get(resolverAddress).set(node.toString(), addr);
+          console.log(`Updated address for node ${node} to ${addr}`);
+        }
+      } catch (error) {
+        console.error("Error processing AddressChanged event:", error);
+      }
     }
   } catch (error) {
     console.error(`Error watching resolver ${resolverAddress}:`, error);
@@ -395,8 +439,8 @@ function calculateNamehash(name) {
   let node = '0x0000000000000000000000000000000000000000000000000000000000000000';
   
   for (let i = labels.length - 1; i >= 0; i--) {
-    const labelHash = hre.ethers.utils.keccak256(hre.ethers.utils.toUtf8Bytes(labels[i]));
-    node = hre.ethers.utils.keccak256(hre.ethers.utils.concat([node, labelHash]));
+    const labelHash = hre.viem.keccak256(hre.viem.toBytes(labels[i]));
+    node = hre.viem.keccak256(hre.viem.concat([node, labelHash]));
   }
   
   return node;
