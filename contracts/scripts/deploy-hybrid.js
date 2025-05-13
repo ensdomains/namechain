@@ -215,7 +215,7 @@ async function main() {
   ]);
   console.log("Example subregistry deployed to:", exampleRegistry.address);
   
-  await ethRegistry.write.setSubregistry(["example", exampleRegistry.address]);
+  await ethRegistry.write.setSubregistry([BigInt(labelhash("example")), exampleRegistry.address]);
   console.log("Set subregistry for example.eth");
   
   const exampleEthNamehash = namehash("example.eth");
@@ -277,7 +277,7 @@ async function main() {
   ]);
   console.log("XYZRegistry deployed to:", xyzRegistry.address);
   
-  await rootRegistry.write.setSubregistry(["xyz", xyzRegistry.address]);
+  await rootRegistry.write.setSubregistry([BigInt(labelhash("xyz")), xyzRegistry.address]);
   console.log("Set XYZRegistry as subregistry for .xyz");
   
   console.log("Registering example.xyz...");
