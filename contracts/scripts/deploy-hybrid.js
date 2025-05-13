@@ -1,8 +1,7 @@
-import hre from "hardhat";
-import { decodeEventLog } from "viem";
-import fs from "fs/promises";
-import path from "path";
-import dotenv from "dotenv";
+const hre = require("hardhat");
+const fs = require("fs").promises;
+const path = require("path");
+const dotenv = require("dotenv");
 
 const ENV_FILE_PATH = path.resolve(process.cwd(), '.env');
 dotenv.config({ path: ENV_FILE_PATH });
@@ -183,9 +182,13 @@ function calculateNamehash(name) {
   return node;
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+module.exports = main;
+
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+}
