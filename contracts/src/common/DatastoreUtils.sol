@@ -21,4 +21,21 @@ library DatastoreUtils {
         expiry = uint64(packed >> 160);
         data = uint32(packed >> 224);
     }
+    
+    /// @dev Pack `(address, flags)` together into a word, with no expiry field.
+    /// @param addr The address to pack.
+    /// @param flags The 96-bit flags field to pack.
+    /// @return packed The packed word.
+    function packWithFlags(address addr, uint96 flags) internal pure returns (uint256 packed) {
+        packed = (uint256(flags) << 160) | uint256(uint160(addr));
+    }
+
+    /// @dev Unpack a word into `(address, flags)`.
+    /// @param packed The packed word.
+    /// @return addr The packed address.
+    /// @return flags The packed 96-bit flags field.
+    function unpackWithFlags(uint256 packed) internal pure returns (address addr, uint96 flags) {
+        addr = address(uint160(packed));
+        flags = uint96(packed >> 160);
+    }
 }
