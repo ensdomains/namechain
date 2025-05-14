@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import fs from "fs";
-import { ethers } from "hardhat";
-import { dnsEncodeName } from "../test/utils/utils.ts";
+import hardhat from "hardhat";
+const { ethers } = hardhat;
 
 async function main() {
   console.log("Deploying Registry-Aware Resolver...");
