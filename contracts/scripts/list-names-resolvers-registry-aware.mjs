@@ -1,14 +1,19 @@
 import hre from "hardhat";
 import fs from "fs";
-const { ethers } = hre;
 import dotenv from "dotenv";
+import {
+  namehash,
+  keccak256,
+  stringToBytes,
+} from "viem";
 dotenv.config();
 
 async function main() {
   console.log("Listing names, resolvers, and ETH addresses...");
 
-  const [deployer] = await ethers.getSigners();
-  console.log("Using account:", deployer.address);
+  const publicClient = await hre.viem.getPublicClient();
+  const [walletClient] = await hre.viem.getWalletClients();
+  console.log("Using account:", walletClient.account.address);
 
   const datastoreAddress = process.env.DATASTORE_ADDRESS;
   const rootRegistryAddress = process.env.ROOT_REGISTRY_ADDRESS;
@@ -21,59 +26,59 @@ async function main() {
   const exampleResolverAddress = process.env.EXAMPLE_RESOLVER_ADDRESS;
   const fooResolverAddress = process.env.FOO_RESOLVER_ADDRESS;
 
-  const datastore = await ethers.getContractAt("RegistryDatastore", datastoreAddress);
-  const rootRegistry = await ethers.getContractAt("RootRegistry", rootRegistryAddress);
-  const ethRegistry = await ethers.getContractAt("PermissionedRegistry", ethRegistryAddress);
-  const xyzRegistry = await ethers.getContractAt("PermissionedRegistry", xyzRegistryAddress);
-  const exampleRegistry = await ethers.getContractAt("PermissionedRegistry", exampleRegistryAddress);
-  const fooRegistry = await ethers.getContractAt("PermissionedRegistry", fooRegistryAddress);
-  const ethResolver = await ethers.getContractAt("RegistryAwareResolver", ethResolverAddress);
-  const xyzResolver = await ethers.getContractAt("RegistryAwareResolver", xyzResolverAddress);
-  const exampleResolver = await ethers.getContractAt("RegistryAwareResolver", exampleResolverAddress);
-  const fooResolver = await ethers.getContractAt("RegistryAwareResolver", fooResolverAddress);
+  const datastore = await hre.viem.getContractAt("RegistryDatastore", datastoreAddress);
+  const rootRegistry = await hre.viem.getContractAt("RootRegistry", rootRegistryAddress);
+  const ethRegistry = await hre.viem.getContractAt("PermissionedRegistry", ethRegistryAddress);
+  const xyzRegistry = await hre.viem.getContractAt("PermissionedRegistry", xyzRegistryAddress);
+  const exampleRegistry = await hre.viem.getContractAt("PermissionedRegistry", exampleRegistryAddress);
+  const fooRegistry = await hre.viem.getContractAt("PermissionedRegistry", fooRegistryAddress);
+  const ethResolver = await hre.viem.getContractAt("RegistryAwareResolver", ethResolverAddress);
+  const xyzResolver = await hre.viem.getContractAt("RegistryAwareResolver", xyzResolverAddress);
+  const exampleResolver = await hre.viem.getContractAt("RegistryAwareResolver", exampleResolverAddress);
+  const fooResolver = await hre.viem.getContractAt("RegistryAwareResolver", fooResolverAddress);
 
-  const namehashEth = ethers.utils.namehash("eth");
-  const namehashXyz = ethers.utils.namehash("xyz");
-  const namehashExampleEth = ethers.utils.namehash("example.eth");
-  const namehashExampleXyz = ethers.utils.namehash("example.xyz");
-  const namehashFooExampleEth = ethers.utils.namehash("foo.example.eth");
+  const namehashEth = namehash("eth");
+  const namehashXyz = namehash("xyz");
+  const namehashExampleEth = namehash("example.eth");
+  const namehashExampleXyz = namehash("example.xyz");
+  const namehashFooExampleEth = namehash("foo.example.eth");
 
-  const ethAddress = await ethResolver.addr(namehashEth);
-  const xyzAddress = await xyzResolver.addr(namehashXyz);
-  const exampleEthAddress = await exampleResolver.addr(namehashExampleEth);
-  const exampleXyzAddress = await exampleResolver.addr(namehashExampleXyz);
-  const fooExampleEthAddress = await fooResolver.addr(namehashFooExampleEth);
+  const ethAddress = await ethResolver.read.addr([namehashEth]);
+  const xyzAddress = await xyzResolver.read.addr([namehashXyz]);
+  const exampleEthAddress = await exampleResolver.read.addr([namehashExampleEth]);
+  const exampleXyzAddress = await exampleResolver.read.addr([namehashExampleXyz]);
+  const fooExampleEthAddress = await fooResolver.read.addr([namehashFooExampleEth]);
 
   const nameTable = [
     {
       name: "eth",
       resolver: ethResolverAddress,
       ethAddress: ethAddress,
-      owner: deployer.address,
+      owner: walletClient.account.address,
     },
     {
       name: "xyz",
       resolver: xyzResolverAddress,
       ethAddress: xyzAddress,
-      owner: deployer.address,
+      owner: walletClient.account.address,
     },
     {
       name: "example.eth",
       resolver: exampleResolverAddress,
       ethAddress: exampleEthAddress,
-      owner: deployer.address,
+      owner: walletClient.account.address,
     },
     {
       name: "example.xyz",
       resolver: exampleResolverAddress,
       ethAddress: exampleXyzAddress,
-      owner: deployer.address,
+      owner: walletClient.account.address,
     },
     {
       name: "foo.example.eth",
       resolver: fooResolverAddress,
       ethAddress: fooExampleEthAddress,
-      owner: deployer.address,
+      owner: walletClient.account.address,
     },
   ];
 
@@ -100,10 +105,10 @@ async function main() {
   const exampleLabel = "example";
   const fooLabel = "foo";
 
-  const ethLabelHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(ethLabel));
-  const xyzLabelHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(xyzLabel));
-  const exampleLabelHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(exampleLabel));
-  const fooLabelHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(fooLabel));
+  const ethLabelHash = keccak256(stringToBytes(ethLabel));
+  const xyzLabelHash = keccak256(stringToBytes(xyzLabel));
+  const exampleLabelHash = keccak256(stringToBytes(exampleLabel));
+  const fooLabelHash = keccak256(stringToBytes(fooLabel));
 
   console.log("\nLabelhashes:");
   console.log(`eth: ${ethLabelHash}`);
