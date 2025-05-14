@@ -1,26 +1,28 @@
 import hre from "hardhat";
 import fs from "fs";
 import path from "path";
-const { ethers } = hre;
+import {
+  namehash,
+  keccak256,
+  stringToBytes,
+  zeroAddress,
+} from "viem";
 import dotenv from "dotenv";
 
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
-  console.log(`Querying names owned by ${deployer.address}...`);
+  const publicClient = await hre.viem.getPublicClient();
+  const [walletClient] = await hre.viem.getWalletClients();
+  console.log(`Querying names owned by ${walletClient.account.address}...`);
   
   const ROOT_REGISTRY_ADDRESS = process.env.ROOT_REGISTRY_ADDRESS;
   console.log(`ROOT_REGISTRY_ADDRESS: ${ROOT_REGISTRY_ADDRESS}`);
   
-  const RootRegistry = await ethers.getContractFactory("RootRegistry");
-  const rootRegistry = RootRegistry.attach(ROOT_REGISTRY_ADDRESS);
+  const rootRegistry = await hre.viem.getContractAt("RootRegistry", ROOT_REGISTRY_ADDRESS);
   
-  const registryDatastoreAddress = await rootRegistry.datastore();
-  const RegistryDatastore = await ethers.getContractFactory("RegistryDatastore");
-  const registryDatastore = RegistryDatastore.attach(registryDatastoreAddress);
-  
-  const ENSStandardResolver = await ethers.getContractFactory("ENSStandardResolver");
+  const registryDatastoreAddress = await rootRegistry.read.datastore();
+  const registryDatastore = await hre.viem.getContractAt("RegistryDatastore", registryDatastoreAddress);
   
   const nameState = {
     registries: {
@@ -34,12 +36,12 @@ async function main() {
   
   await processEvents(nameState, rootRegistry, registryDatastore);
   
-  const ownedNames = await getOwnedNames(nameState, deployer.address);
+  const ownedNames = await getOwnedNames(nameState, walletClient.account.address);
   
   const nameTable = [];
   
   for (const name of ownedNames) {
-    const namehash = ethers.utils.namehash(name);
+    const nameHash = namehash(name);
     let resolverAddress = null;
     let ethAddress = null;
     let owner = null;
@@ -57,18 +59,17 @@ async function main() {
         currentName = `${component}.${currentName}`;
       }
       
-      const resolverAddr = await currentRegistry.getResolver(component);
+      const resolverAddr = await currentRegistry.read.getResolver([component]);
       
-      if (resolverAddr !== ethers.constants.AddressZero) {
+      if (resolverAddr !== zeroAddress) {
         resolverAddress = resolverAddr;
       }
       
       if (i > 0) {
-        const subregistryAddr = await currentRegistry.getSubregistry(component);
+        const subregistryAddr = await currentRegistry.read.getSubregistry([component]);
         
-        if (subregistryAddr !== ethers.constants.AddressZero) {
-          const Registry = await ethers.getContractFactory("PermissionedRegistry");
-          currentRegistry = Registry.attach(subregistryAddr);
+        if (subregistryAddr !== zeroAddress) {
+          currentRegistry = await hre.viem.getContractAt("PermissionedRegistry", subregistryAddr);
         } else {
           break;
         }
@@ -76,10 +77,10 @@ async function main() {
     }
     
     if (resolverAddress) {
-      const resolver = ENSStandardResolver.attach(resolverAddress);
+      const resolver = await hre.viem.getContractAt("ENSStandardResolver", resolverAddress);
       
       try {
-        ethAddress = await resolver.addr(namehash);
+        ethAddress = await resolver.read.addr([nameHash]);
       } catch (error) {
         console.error(`Error getting ETH address for ${name}: ${error.message}`);
       }
@@ -99,20 +100,19 @@ async function main() {
           }
           
           if (i === 0) {
-            const labelHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(component));
-            const balance = await currentRegistry.balanceOf(deployer.address, labelHash);
+            const labelHash = keccak256(stringToBytes(component));
+            const balance = await currentRegistry.read.balanceOf([walletClient.account.address, labelHash]);
             
-            if (balance.gt(0)) {
-              owner = deployer.address;
+            if (Number(balance) > 0) {
+              owner = walletClient.account.address;
             }
           }
           
           if (i > 0) {
-            const subregistryAddr = await currentRegistry.getSubregistry(component);
+            const subregistryAddr = await currentRegistry.read.getSubregistry([component]);
             
-            if (subregistryAddr !== ethers.constants.AddressZero) {
-              const Registry = await ethers.getContractFactory("PermissionedRegistry");
-              currentRegistry = Registry.attach(subregistryAddr);
+            if (subregistryAddr !== zeroAddress) {
+              currentRegistry = await hre.viem.getContractAt("PermissionedRegistry", subregistryAddr);
             } else {
               break;
             }
@@ -138,33 +138,32 @@ async function main() {
   console.log("\nDemonstrating aliasing with example.eth and example.xyz:");
   console.log("----------------------------------------------------");
   
-  const namehashExampleEth = ethers.utils.namehash("example.eth");
-  const namehashExampleXyz = ethers.utils.namehash("example.xyz");
+  const namehashExampleEth = namehash("example.eth");
+  const namehashExampleXyz = namehash("example.xyz");
   
   console.log(`Namehash for example.eth: ${namehashExampleEth}`);
   console.log(`Namehash for example.xyz: ${namehashExampleXyz}`);
   
-  const ethRegistry = await rootRegistry.getSubregistry("eth");
-  const PermissionedRegistry = await ethers.getContractFactory("PermissionedRegistry");
-  const ethRegistryContract = PermissionedRegistry.attach(ethRegistry);
-  const exampleEthResolverAddress = await ethRegistryContract.getResolver("example");
+  const ethRegistry = await rootRegistry.read.getSubregistry(["eth"]);
+  const ethRegistryContract = await hre.viem.getContractAt("PermissionedRegistry", ethRegistry);
+  const exampleEthResolverAddress = await ethRegistryContract.read.getResolver(["example"]);
   
   console.log(`Found resolver for example.eth: ${exampleEthResolverAddress}`);
   
-  if (exampleEthResolverAddress !== ethers.constants.AddressZero) {
-    const exampleEthResolver = ENSStandardResolver.attach(exampleEthResolverAddress);
-    const exampleEthAddress = await exampleEthResolver.addr(namehashExampleEth);
+  if (exampleEthResolverAddress !== zeroAddress) {
+    const exampleEthResolver = await hre.viem.getContractAt("ENSStandardResolver", exampleEthResolverAddress);
+    const exampleEthAddress = await exampleEthResolver.read.addr([namehashExampleEth]);
     console.log(`Address for example.eth: ${exampleEthAddress}`);
     
-    const xyzRegistry = await rootRegistry.getSubregistry("xyz");
-    const xyzRegistryContract = PermissionedRegistry.attach(xyzRegistry);
-    const exampleXyzResolverAddress = await xyzRegistryContract.getResolver("example");
+    const xyzRegistry = await rootRegistry.read.getSubregistry(["xyz"]);
+    const xyzRegistryContract = await hre.viem.getContractAt("PermissionedRegistry", xyzRegistry);
+    const exampleXyzResolverAddress = await xyzRegistryContract.read.getResolver(["example"]);
     
     console.log(`Found resolver for example.xyz: ${exampleXyzResolverAddress}`);
     
-    if (exampleXyzResolverAddress !== ethers.constants.AddressZero) {
-      const exampleXyzResolver = ENSStandardResolver.attach(exampleXyzResolverAddress);
-      const exampleXyzAddress = await exampleXyzResolver.addr(namehashExampleXyz);
+    if (exampleXyzResolverAddress !== zeroAddress) {
+      const exampleXyzResolver = await hre.viem.getContractAt("ENSStandardResolver", exampleXyzResolverAddress);
+      const exampleXyzAddress = await exampleXyzResolver.read.addr([namehashExampleXyz]);
       console.log(`Address for example.xyz: ${exampleXyzAddress}`);
       
       if (exampleEthAddress === exampleXyzAddress) {
@@ -178,13 +177,13 @@ async function main() {
   console.log("\nLabelhash Computation Example:");
   console.log("----------------------------");
   const exampleLabel = "example";
-  const exampleLabelHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(exampleLabel));
+  const exampleLabelHash = keccak256(stringToBytes(exampleLabel));
   console.log(`Label: "${exampleLabel}"`);
   console.log(`Computed labelhash: ${exampleLabelHash}`);
   
-  if (exampleEthResolverAddress !== ethers.constants.AddressZero) {
-    const exampleEthResolver = ENSStandardResolver.attach(exampleEthResolverAddress);
-    const storedLabelHash = await exampleEthResolver.getLabelHash(namehashExampleEth);
+  if (exampleEthResolverAddress !== zeroAddress) {
+    const exampleEthResolver = await hre.viem.getContractAt("ENSStandardResolver", exampleEthResolverAddress);
+    const storedLabelHash = await exampleEthResolver.read.getLabelHash([namehashExampleEth]);
     console.log(`Stored labelhash for example.eth: ${storedLabelHash}`);
     
     if (storedLabelHash.toString() === exampleLabelHash.toString().replace("0x", "")) {
@@ -202,7 +201,7 @@ async function processEvents(nameState, rootRegistry, registryDatastore) {
 }
 
 async function processRegistryEvents(nameState, registry, prefix) {
-  const registryAddress = registry.address;
+  const registryAddress = await registry.getAddress();
   
   if (!nameState.registries[registryAddress]) {
     nameState.registries[registryAddress] = {
@@ -211,8 +210,11 @@ async function processRegistryEvents(nameState, registry, prefix) {
     };
   }
   
-  const newSubnameFilter = registry.filters.NewSubname();
-  const newSubnameEvents = await registry.queryFilter(newSubnameFilter);
+  const publicClient = await hre.viem.getPublicClient();
+  
+  // Get NewSubname events
+  const newSubnameFilter = await registry.createEventFilter.NewSubname();
+  const newSubnameEvents = await publicClient.getFilterLogs({ filter: newSubnameFilter });
   
   for (const event of newSubnameEvents) {
     const { labelHash, label } = event.args;
@@ -232,8 +234,9 @@ async function processRegistryEvents(nameState, registry, prefix) {
     }
   }
   
-  const transferSingleFilter = registry.filters.TransferSingle();
-  const transferSingleEvents = await registry.queryFilter(transferSingleFilter);
+  // Get TransferSingle events
+  const transferSingleFilter = await registry.createEventFilter.TransferSingle();
+  const transferSingleEvents = await publicClient.getFilterLogs({ filter: transferSingleFilter });
   
   for (const event of transferSingleEvents) {
     const { from, to, id } = event.args;
@@ -255,8 +258,9 @@ async function processRegistryEvents(nameState, registry, prefix) {
     }
   }
   
-  const nameRelinquishedFilter = registry.filters.NameRelinquished();
-  const nameRelinquishedEvents = await registry.queryFilter(nameRelinquishedFilter);
+  // Get NameRelinquished events
+  const nameRelinquishedFilter = await registry.createEventFilter.NameRelinquished();
+  const nameRelinquishedEvents = await publicClient.getFilterLogs({ filter: nameRelinquishedFilter });
   
   for (const event of nameRelinquishedEvents) {
     const { labelHash } = event.args;
@@ -268,12 +272,13 @@ async function processRegistryEvents(nameState, registry, prefix) {
     const name = nameState.registries[registryAddress].names[labelHash];
     
     if (nameState.names[name]) {
-      nameState.names[name].owner = ethers.constants.AddressZero;
+      nameState.names[name].owner = zeroAddress;
     }
   }
   
-  const subregistryUpdateFilter = registry.filters.SubregistryUpdate();
-  const subregistryUpdateEvents = await registry.queryFilter(subregistryUpdateFilter);
+  // Get SubregistryUpdate events
+  const subregistryUpdateFilter = await registry.createEventFilter.SubregistryUpdate();
+  const subregistryUpdateEvents = await publicClient.getFilterLogs({ filter: subregistryUpdateFilter });
   
   for (const event of subregistryUpdateEvents) {
     const { labelHash, subregistry } = event.args;
@@ -284,17 +289,33 @@ async function processRegistryEvents(nameState, registry, prefix) {
     
     const name = nameState.registries[registryAddress].names[labelHash];
     
-    if (subregistry === ethers.constants.AddressZero) {
+    if (subregistry === zeroAddress) {
       continue;
     }
     
-    const Registry = await ethers.getContractFactory("PermissionedRegistry");
-    const subregistryContract = Registry.attach(subregistry);
+    const subregistryContract = await hre.viem.getContractAt("PermissionedRegistry", subregistry);
     await processRegistryEvents(nameState, subregistryContract, name);
   }
 }
 
 async function processDatastoreEvents(nameState, datastore) {
+  const publicClient = await hre.viem.getPublicClient();
+  
+  // Get ResolverUpdate events
+  const resolverUpdateFilter = await datastore.createEventFilter.ResolverUpdate();
+  const resolverUpdateEvents = await publicClient.getFilterLogs({ filter: resolverUpdateFilter });
+  
+  for (const event of resolverUpdateEvents) {
+    const { node, resolver } = event.args;
+    
+    for (const name in nameState.names) {
+      const nameHash = namehash(name);
+      
+      if (nameHash === node) {
+        nameState.names[name].resolver = resolver;
+      }
+    }
+  }
 }
 
 async function getOwnedNames(nameState, address) {
@@ -310,12 +331,11 @@ async function getOwnedNames(nameState, address) {
         const registry = nameState.registries[registryAddress];
         
         if (registry.type === "Registry") {
-          const Registry = await ethers.getContractFactory("PermissionedRegistry");
-          const registryContract = Registry.attach(registryAddress);
+          const registryContract = await hre.viem.getContractAt("PermissionedRegistry", registryAddress);
           
-          const balance = await registryContract.balanceOf(address, nameData.labelHash);
+          const balance = await registryContract.read.balanceOf([address, nameData.labelHash]);
           
-          if (balance.gt(0)) {
+          if (Number(balance) > 0) {
             ownedNames.push(name);
             break;
           }
