@@ -1,7 +1,8 @@
-const hardhat = require("hardhat");
-const ethers = hardhat.ethers;
-const fs = require("fs");
-require("dotenv").config();
+import hardhat from "hardhat";
+const { ethers } = hardhat;
+import fs from "fs";
+import dotenv from "dotenv";
+dotenv.config();
 
 function shortenAddress(address) {
   if (!address) return "None";
@@ -127,9 +128,10 @@ async function main() {
   console.log("    └── example.xyz Registry (same as example.eth Registry)");
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+try {
+  await main();
+  process.exit(0);
+} catch (error) {
+  console.error(error);
+  process.exit(1);
+}
