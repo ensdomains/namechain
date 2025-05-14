@@ -1,6 +1,5 @@
 import { ethers } from "hardhat";
 import fs from "fs";
-import { dnsEncodeName } from "../test/utils/utils.js";
 import dotenv from "dotenv";
 dotenv.config();
 
