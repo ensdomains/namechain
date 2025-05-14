@@ -100,10 +100,22 @@ contract RegistryAwareResolver is
      * @param a The address to set
      */
     function setAddr(bytes32 node, address a) external override authorised(node) {
-        // Call the parent implementation to set the address
-        super.setAddr(node, a);
+        // Convert the address to bytes and call the parent implementation with ETH coin type
+        bytes memory addrBytes = addressToBytes(a);
+        super.setAddr(node, COIN_TYPE_ETH, addrBytes);
         
-        // The parent implementation already emits the AddrChanged event
+        // The parent implementation already emits the AddressChanged event
+        // We need to explicitly emit the AddrChanged event
+        emit AddrChanged(node, a);
+    }
+    
+    /**
+     * @dev Helper function to convert an address to bytes
+     * @param a The address to convert
+     * @return The address as bytes
+     */
+    function addressToBytes(address a) internal pure returns (bytes memory) {
+        return abi.encodePacked(a);
     }
 
     /**
