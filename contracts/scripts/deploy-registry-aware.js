@@ -1,7 +1,7 @@
-const hre = require("hardhat");
-const fs = require("fs");
-const { ethers } = require("hardhat");
-const { dnsEncodeName } = require("../test/utils/utils");
+import hre from "hardhat";
+import fs from "fs";
+import { ethers } from "hardhat";
+import { dnsEncodeName } from "../test/utils/utils.js";
 
 async function main() {
   console.log("Deploying Registry-Aware Resolver...");
@@ -221,9 +221,10 @@ OWNED_RESOLVER_ADDRESS=${ownedResolverAddress}
   console.log("\nDeployment addresses written to .env file");
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+try {
+  await main();
+  process.exit(0);
+} catch (error) {
+  console.error(error);
+  process.exit(1);
+}
