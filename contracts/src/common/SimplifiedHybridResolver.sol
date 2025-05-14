@@ -1,0 +1,248 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.13;
+
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ERC165Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/introspection/ERC165Upgradeable.sol";
+
+import {ResolverBase} from "@ens/contracts/resolvers/ResolverBase.sol";
+import {AddrResolver} from "@ens/contracts/resolvers/profiles/AddrResolver.sol";
+import {ABIResolver} from "@ens/contracts/resolvers/profiles/ABIResolver.sol";
+import {ContentHashResolver} from "@ens/contracts/resolvers/profiles/ContentHashResolver.sol";
+import {DNSResolver} from "@ens/contracts/resolvers/profiles/DNSResolver.sol";
+import {InterfaceResolver} from "@ens/contracts/resolvers/profiles/InterfaceResolver.sol";
+import {NameResolver} from "@ens/contracts/resolvers/profiles/NameResolver.sol";
+import {PubkeyResolver} from "@ens/contracts/resolvers/profiles/PubkeyResolver.sol";
+import {TextResolver} from "@ens/contracts/resolvers/profiles/TextResolver.sol";
+import {ExtendedResolver} from "@ens/contracts/resolvers/profiles/ExtendedResolver.sol";
+import {Multicallable} from "@ens/contracts/resolvers/Multicallable.sol";
+import {NameUtils} from "./NameUtils.sol";
+
+/**
+ * @title SimplifiedHybridResolver
+ * @dev A resolver that uses label hashes internally for storage efficiency while maintaining
+ * name hash compatibility through a mapping layer. This allows for efficient indexing and
+ * supports aliasing by allowing multiple name hashes to point to the same label hash.
+ * 
+ * This implementation automatically handles the mapping between namehashes and label hashes
+ * when setting addresses, eliminating the need for separate mapping calls.
+ */
+contract SimplifiedHybridResolver is
+    OwnableUpgradeable,
+    UUPSUpgradeable,
+    ResolverBase,
+    ABIResolver,
+    AddrResolver,
+    ContentHashResolver,
+    DNSResolver,
+    InterfaceResolver,
+    NameResolver,
+    PubkeyResolver,
+    TextResolver,
+    ExtendedResolver,
+    Multicallable
+{
+    // Mapping from namehash to labelHash
+    mapping(bytes32 => uint256) private _namehashToLabelHash;
+    
+    // Mapping from labelHash to namehash (primary namehash for this label)
+    mapping(uint256 => bytes32) private _labelHashToPrimaryNamehash;
+    
+    // Registry this resolver is associated with
+    address public registry;
+    
+    // Coin type for ETH
+    uint256 private constant COIN_TYPE_ETH = 60;
+
+    // Event emitted when a namehash is mapped to a labelHash
+    event NamehashMapped(bytes32 indexed namehash, uint256 indexed labelHash, bool isPrimary);
+
+    function initialize(address _owner, address _registry) public initializer {
+        __Ownable_init(_owner); // Initialize Ownable
+        __UUPSUpgradeable_init();
+        registry = _registry;
+    }
+
+    /**
+     * @dev Maps a namehash to a labelHash. This allows for aliasing where multiple
+     * namehashes can point to the same labelHash.
+     * @param namehash The namehash to map
+     * @param labelHash The labelHash to map to
+     * @param isPrimary Whether this namehash should be the primary one for this labelHash
+     */
+    function mapNamehash(bytes32 namehash, uint256 labelHash, bool isPrimary) external onlyOwner {
+        _mapNamehash(namehash, labelHash, isPrimary);
+    }
+
+    /**
+     * @dev Internal function to map a namehash to a labelHash
+     * @param namehash The namehash to map
+     * @param labelHash The labelHash to map to
+     * @param isPrimary Whether this namehash should be the primary one for this labelHash
+     */
+    function _mapNamehash(bytes32 namehash, uint256 labelHash, bool isPrimary) internal {
+        _namehashToLabelHash[namehash] = labelHash;
+        
+        if (isPrimary) {
+            _labelHashToPrimaryNamehash[labelHash] = namehash;
+        }
+        
+        emit NamehashMapped(namehash, labelHash, isPrimary);
+    }
+
+    /**
+     * @dev Gets the labelHash for a namehash
+     * @param namehash The namehash to look up
+     * @return The associated labelHash
+     */
+    function getLabelHash(bytes32 namehash) public view returns (uint256) {
+        return _namehashToLabelHash[namehash];
+    }
+
+    /**
+     * @dev Gets the primary namehash for a labelHash
+     * @param labelHash The labelHash to look up
+     * @return The primary namehash associated with this labelHash
+     */
+    function getPrimaryNamehash(uint256 labelHash) public view returns (bytes32) {
+        return _labelHashToPrimaryNamehash[labelHash];
+    }
+
+    /**
+     * @dev Checks if the sender is authorized to modify records
+     * @param node The node to check authorization for
+     * @return Whether the sender is authorized
+     */
+    function isAuthorised(bytes32 node) internal view override returns (bool) {
+        return msg.sender == owner();
+    }
+    
+    // clearRecords is inherited from ResolverBase
+
+    /**
+     * @dev Authorizes an upgrade to the implementation
+     * @param newImplementation The new implementation address
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    // authorised modifier is inherited from ResolverBase
+
+    function supportsInterface(
+        bytes4 interfaceID
+    )
+        public
+        view
+        virtual
+        override(
+            ResolverBase,
+            ABIResolver,
+            AddrResolver,
+            ContentHashResolver,
+            DNSResolver,
+            InterfaceResolver,
+            NameResolver,
+            PubkeyResolver,
+            TextResolver,
+            Multicallable
+        )
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceID);
+    }
+
+    /**
+     * @dev Internal function to get the labelHash for a node, creating a mapping if it doesn't exist
+     * @param node The namehash to get the labelHash for
+     * @return The labelHash for this node
+     */
+    function _getOrCreateLabelHash(bytes32 node) internal returns (uint256) {
+        uint256 labelHash = getLabelHash(node);
+        
+        if (labelHash == 0) {
+            // If no mapping exists, create one using the node itself as the labelHash
+            // This ensures each namehash gets a unique labelHash by default
+            labelHash = uint256(node);
+            
+            // Map the namehash to this labelHash
+            _mapNamehash(node, labelHash, true);
+        }
+        
+        return labelHash;
+    }
+
+    /**
+     * @dev Override for addr(bytes32) to use labelHash internally
+     * @param node The namehash to get the address for
+     * @return The associated address
+     */
+    function addr(bytes32 node) public view override returns (address payable) {
+        uint256 labelHash = getLabelHash(node);
+        if (labelHash == 0) {
+            return payable(address(0));
+        }
+        
+        bytes32 primaryNamehash = _labelHashToPrimaryNamehash[labelHash];
+        if (primaryNamehash == bytes32(0)) {
+            return payable(address(0));
+        }
+        
+        return super.addr(primaryNamehash);
+    }
+
+    /**
+     * @dev Override for setAddr(bytes32,address) to use labelHash internally
+     * @param node The namehash to set the address for
+     * @param a The address to set
+     */
+    function setAddr(bytes32 node, address a) external override authorised(node) {
+        setAddr(node, COIN_TYPE_ETH, addressToBytes(a));
+    }
+    
+    /**
+     * @dev Override for setAddr(bytes32,uint256,bytes) to use labelHash internally
+     * @param node The namehash to set the address for
+     * @param coinType The coin type to set
+     * @param a The address to set
+     */
+    function setAddr(bytes32 node, uint256 coinType, bytes memory a) public override authorised(node) {
+        uint256 labelHash = _getOrCreateLabelHash(node);
+        bytes32 primaryNamehash = _labelHashToPrimaryNamehash[labelHash];
+        
+        super.setAddr(primaryNamehash, coinType, a);
+    }
+
+    /**
+     * @dev Maps a namehash to an existing labelHash and sets the address in one transaction.
+     * This is useful for creating aliases.
+     * @param node The namehash to map
+     * @param targetLabelHash The existing labelHash to map to
+     */
+    function mapToExistingLabelHash(bytes32 node, uint256 targetLabelHash) external authorised(node) {
+        require(_labelHashToPrimaryNamehash[targetLabelHash] != bytes32(0), "Target labelHash does not exist");
+        
+        // Map this namehash to the target labelHash (not as primary)
+        _mapNamehash(node, targetLabelHash, false);
+    }
+
+    // bytesToAddress and addressToBytes are inherited from AddrResolver
+    
+    /**
+     * @dev Override for addr(bytes32,uint256) to use labelHash internally
+     * @param node The namehash to get the address for
+     * @param coinType The coin type to get
+     * @return The associated address
+     */
+    function addr(bytes32 node, uint256 coinType) public view override returns (bytes memory) {
+        uint256 labelHash = getLabelHash(node);
+        if (labelHash == 0) {
+            return new bytes(0);
+        }
+        
+        bytes32 primaryNamehash = _labelHashToPrimaryNamehash[labelHash];
+        if (primaryNamehash == bytes32(0)) {
+            return new bytes(0);
+        }
+        
+        return super.addr(primaryNamehash, coinType);
+    }
+}
