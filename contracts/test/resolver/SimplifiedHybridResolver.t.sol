@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import {SimplifiedHybridResolver} from "../../src/common/SimplifiedHybridResolver.sol";
-import {VerifiableFactory} from "../../src/common/VerifiableFactory.sol";
+import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {NameUtils} from "../../src/common/NameUtils.sol";
 
 contract SimplifiedHybridResolverTest is Test {
