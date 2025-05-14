@@ -1,7 +1,6 @@
 import hre from "hardhat";
 import fs from "fs";
-import hardhat from "hardhat";
-const { ethers } = hardhat;
+const { ethers } = hre;
 import dotenv from "dotenv";
 dotenv.config();
 

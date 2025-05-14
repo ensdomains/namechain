@@ -1,7 +1,6 @@
 import hre from "hardhat";
 import fs from "fs";
-import hardhat from "hardhat";
-const { ethers } = hardhat;
+const { ethers } = hre;
 
 async function main() {
   console.log("Deploying Registry-Aware Resolver...");

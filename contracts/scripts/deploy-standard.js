@@ -1,8 +1,7 @@
 import hre from "hardhat";
 import fs from "fs";
 import path from "path";
-import hardhat from "hardhat";
-const { ethers } = hardhat;
+const { ethers } = hre;
 import { VerifiableFactory } from "./utils/verifiable-factory.js";
 
 async function main() {
