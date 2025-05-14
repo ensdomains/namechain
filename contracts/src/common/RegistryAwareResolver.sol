@@ -58,7 +58,6 @@ contract RegistryAwareResolver is
 
     /**
      * @dev Checks if the sender is authorized to modify records
-     * @param node The node to check authorization for
      * @return Whether the sender is authorized
      */
     function isAuthorised(bytes32) internal view override returns (bool) {
@@ -107,15 +106,6 @@ contract RegistryAwareResolver is
         // The parent implementation already emits the AddressChanged event
         // We need to explicitly emit the AddrChanged event
         emit AddrChanged(node, a);
-    }
-    
-    /**
-     * @dev Helper function to convert an address to bytes
-     * @param a The address to convert
-     * @return The address as bytes
-     */
-    function addressToBytes(address a) internal pure returns (bytes memory) {
-        return abi.encodePacked(a);
     }
 
     /**
