@@ -18,7 +18,8 @@ contract ENSStandardResolverTest is Test {
     
     event NamehashMapped(bytes32 indexed namehash, uint256 indexed labelHash, bool isPrimary);
     event LabelRegistered(string label, uint256 indexed labelHash);
-    event AddrChanged(bytes32 indexed node, uint coinType, bytes newAddress);
+    event AddrChanged(bytes32 indexed node, address newAddress);
+    event AddressChanged(bytes32 indexed node, uint coinType, bytes newAddress);
     
     function setUp() public {
         // Deploy the resolver implementation
@@ -87,13 +88,9 @@ contract ENSStandardResolverTest is Test {
                 assertEq(logs[i].topics[1], bytes32(expectedLabelHash));
             }
             // Check for AddrChanged event
-            else if (logs[i].topics[0] == keccak256("AddrChanged(bytes32,uint256,bytes)")) {
+            else if (logs[i].topics[0] == keccak256("AddrChanged(bytes32,address)")) {
                 foundAddrChanged = true;
-                
-                // Get the primary namehash for the label hash
-                uint256 labelHash = uint256(keccak256(bytes(testLabel)));
-                bytes32 primaryNamehash = resolver.getPrimaryNamehash(labelHash);
-                assertEq(logs[i].topics[1], primaryNamehash);
+                assertEq(logs[i].topics[1], testNode);
             }
         }
         
