@@ -109,27 +109,7 @@ contract ENSStandardResolverTest is Test {
         assertEq(resolver.getPrimaryNamehash(expectedLabelHash), testNode);
     }
     
-    function testAliasing() public {
-        // Set the address for the primary name
-        resolver.setAddrWithLabel(testNode, testLabel, testAddr);
-        
-        // Map the alias to the same label
-        vm.expectEmit(true, true, false, true);
-        emit NamehashMapped(aliasNode, uint256(keccak256(bytes(testLabel))), false);
-        
-        resolver.mapToExistingLabel(aliasNode, testLabel);
-        
-        // Verify both names resolve to the same address
-        assertEq(resolver.addr(testNode), testAddr);
-        assertEq(resolver.addr(aliasNode), testAddr);
-        
-        // Verify the label hash mapping
-        uint256 expectedLabelHash = uint256(keccak256(bytes(testLabel)));
-        assertEq(resolver.getLabelHash(aliasNode), expectedLabelHash);
-        
-        // Verify the primary namehash is still the original
-        assertEq(resolver.getPrimaryNamehash(expectedLabelHash), testNode);
-    }
+    // Removed testAliasing as aliasing is now handled at the registry level, not the resolver level
     
     function testSetAddrWithLabelAndCoinType() public {
         uint256 coinType = 60; // ETH
@@ -159,13 +139,7 @@ contract ENSStandardResolverTest is Test {
         assertEq(resolver.getPrimaryNamehash(expectedLabelHash), testNode);
     }
     
-    function testMapToExistingLabelFailsForNonExistentLabel() public {
-        string memory nonExistentLabel = "nonexistent";
-        
-        // Should revert because the label doesn't exist
-        vm.expectRevert("Target label does not exist");
-        resolver.mapToExistingLabel(aliasNode, nonExistentLabel);
-    }
+    // Removed testMapToExistingLabelFailsForNonExistentLabel as aliasing is now handled at the registry level
     
     function testAuthorization() public {
         // Set up a non-owner address
@@ -186,23 +160,7 @@ contract ENSStandardResolverTest is Test {
         resolver.mapNamehashWithLabel(testNode, testLabel, true);
     }
     
-    function testMultipleAliases() public {
-        // Set up multiple aliases
-        bytes32 alias1Node = 0x1111111111111111111111111111111111111111111111111111111111111111;
-        bytes32 alias2Node = 0x2222222222222222222222222222222222222222222222222222222222222222;
-        
-        // Set the address for the primary name
-        resolver.setAddrWithLabel(testNode, testLabel, testAddr);
-        
-        // Map aliases to the same label
-        resolver.mapToExistingLabel(alias1Node, testLabel);
-        resolver.mapToExistingLabel(alias2Node, testLabel);
-        
-        // Verify all names resolve to the same address
-        assertEq(resolver.addr(testNode), testAddr);
-        assertEq(resolver.addr(alias1Node), testAddr);
-        assertEq(resolver.addr(alias2Node), testAddr);
-    }
+    // Removed testMultipleAliases as aliasing is now handled at the registry level, not the resolver level
     
     function testClearRecords() public {
         // Set the address

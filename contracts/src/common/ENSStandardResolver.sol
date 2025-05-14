@@ -221,19 +221,7 @@ contract ENSStandardResolver is
         }
     }
 
-    /**
-     * @dev Maps a namehash to an existing labelHash for aliasing
-     * @param node The namehash to map
-     * @param targetLabel The label string of the target name to alias to
-     */
-    function mapToExistingLabel(bytes32 node, string memory targetLabel) external authorised(node) {
-        uint256 targetLabelHash = computeLabelHash(targetLabel);
-        require(_labelHashToPrimaryNamehash[targetLabelHash] != bytes32(0), "Target label does not exist");
-        
-        // Map this namehash to the target labelHash (not as primary)
-        _mapNamehash(node, targetLabelHash, false);
-        emit LabelRegistered(targetLabel, targetLabelHash);
-    }
+    // Removed mapToExistingLabel function as aliasing is already handled at the registry level
 
     /**
      * @dev Override for addr(bytes32,uint256) to use labelHash internally
