@@ -127,11 +127,16 @@ async function main() {
   );
   console.log("Set ETH address for example.eth");
   
-  await sharedResolver.write.mapToExistingLabel(
-    [namehashExampleXyz, "example"],
+  // No need to map example.xyz to example.eth explicitly
+  // Registry-level aliasing is already achieved by setting the same resolver for both names
+  console.log("Registry-level aliasing achieved: example.eth and example.xyz share the same resolver");
+  
+  // Set the same address for example.xyz using its own namehash
+  await sharedResolver.write.setAddrWithLabel(
+    [namehashExampleXyz, "example", "0x1234567890123456789012345678901234567890"],
     { account: walletClient.account }
   );
-  console.log("Mapped example.xyz to the same label as example.eth (for aliasing)");
+  console.log("Set ETH address for example.xyz (same as example.eth)");
   
   await exampleRegistry.write.register(["foo"], { account: walletClient.account });
   console.log("Registered foo.example.eth");
