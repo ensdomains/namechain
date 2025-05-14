@@ -1,207 +1,408 @@
 import hre from "hardhat";
 import fs from "fs";
-const { ethers } = hre;
+import dotenv from "dotenv";
+import {
+  labelhash,
+  encodeFunctionData,
+  parseEventLogs,
+  zeroAddress,
+  namehash,
+  keccak256,
+  toHex,
+  stringToBytes,
+} from "viem";
+dotenv.config();
+
+// Define roles and flags similar to deployV2Fixture.ts
+const MAX_EXPIRY = (1n << 64n) - 1n; // see: DatastoreUtils.sol
+
+const FLAGS = {
+  // see: RegistryRolesMixin.sol
+  EAC: {
+    REGISTRAR: 1n << 0n,
+    RENEW: 1n << 1n,
+    SET_SUBREGISTRY: 1n << 2n,
+    SET_RESOLVER: 1n << 3n,
+    SET_TOKEN_OBSERVER: 1n << 4n,
+  },
+  // see: L2/ETHRegistry.sol
+  ETH: {
+    SET_PRICE_ORACLE: 1n << 0n,
+    SET_COMMITMENT_AGES: 1n << 1n,
+  },
+  // see: L2/UserRegistry.sol
+  USER: {
+    UPGRADE: 1n << 5n,
+  },
+  MASK: (1n << 128n) - 1n,
+};
+
+function mapFlags(flags, fn) {
+  return Object.fromEntries(
+    Object.entries(flags).map(([k, x]) => [
+      k,
+      typeof x === "bigint" ? fn(x) : mapFlags(x, fn),
+    ]),
+  );
+}
+
+const ROLES = {
+  OWNER: FLAGS,
+  ADMIN: mapFlags(FLAGS, (x) => x << 128n),
+  ALL: (1n << 256n) - 1n, // see: EnhancedAccessControl.sol
+};
 
 async function main() {
   console.log("Deploying Registry-Aware Resolver...");
 
-  const [deployer] = await ethers.getSigners();
-  console.log("Deploying with account:", deployer.address);
+  const publicClient = await hre.viem.getPublicClient();
+  const [walletClient] = await hre.viem.getWalletClients();
+  console.log("Deploying with account:", walletClient.account.address);
 
-  const RegistryDatastore = await ethers.getContractFactory("RegistryDatastore");
-  const datastore = await RegistryDatastore.deploy();
-  await datastore.deployed();
+  const datastore = await hre.viem.deployContract("RegistryDatastore");
   console.log("RegistryDatastore deployed to:", datastore.address);
 
-  const RootRegistry = await ethers.getContractFactory("RootRegistry");
-  const rootRegistry = await RootRegistry.deploy(datastore.address);
-  await rootRegistry.deployed();
+  const rootRegistry = await hre.viem.deployContract("RootRegistry", [
+    datastore.address
+  ]);
   console.log("RootRegistry deployed to:", rootRegistry.address);
 
-  const ETHRegistry = await ethers.getContractFactory("PermissionedRegistry");
-  const ethRegistry = await ETHRegistry.deploy(datastore.address);
-  await ethRegistry.deployed();
+  const ethRegistry = await hre.viem.deployContract("PermissionedRegistry", [
+    datastore.address,
+    zeroAddress,
+    ROLES.ALL,
+  ]);
   console.log("ETHRegistry deployed to:", ethRegistry.address);
 
-  const XYZRegistry = await ethers.getContractFactory("PermissionedRegistry");
-  const xyzRegistry = await XYZRegistry.deploy(datastore.address);
-  await xyzRegistry.deployed();
+  const xyzRegistry = await hre.viem.deployContract("PermissionedRegistry", [
+    datastore.address,
+    zeroAddress,
+    ROLES.ALL,
+  ]);
   console.log("XYZRegistry deployed to:", xyzRegistry.address);
 
-  const VerifiableFactory = await ethers.getContractFactory("VerifiableFactory");
-  const factory = await VerifiableFactory.deploy();
-  await factory.deployed();
-  console.log("VerifiableFactory deployed to:", factory.address);
+  const verifiableFactory = await hre.viem.deployContract(
+    "VerifiableFactory"
+  );
+  console.log("VerifiableFactory deployed to:", verifiableFactory.address);
 
-  const RegistryAwareResolver = await ethers.getContractFactory("RegistryAwareResolver");
-  const resolverImplementation = await RegistryAwareResolver.deploy();
-  await resolverImplementation.deployed();
+  const resolverImplementation = await hre.viem.deployContract("RegistryAwareResolver");
   console.log("RegistryAwareResolver implementation deployed to:", resolverImplementation.address);
 
-  const OwnedResolver = await ethers.getContractFactory("OwnedResolver");
-  const ownedResolverImplementation = await OwnedResolver.deploy();
-  await ownedResolverImplementation.deployed();
+  const ownedResolverImplementation = await hre.viem.deployContract("OwnedResolver");
   console.log("OwnedResolver implementation deployed to:", ownedResolverImplementation.address);
 
   const ethLabel = "eth";
-  const ethLabelHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(ethLabel));
-  await rootRegistry.setSubregistry(ethLabel, ethRegistry.address);
+  const ethLabelHash = keccak256(stringToBytes(ethLabel));
+  await rootRegistry.write.register([
+    ethLabel,
+    walletClient.account.address,
+    ethRegistry.address,
+    zeroAddress,
+    ROLES.ALL,
+    MAX_EXPIRY,
+  ]);
   console.log("Registered .eth in root registry");
 
   const xyzLabel = "xyz";
-  const xyzLabelHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(xyzLabel));
-  await rootRegistry.setSubregistry(xyzLabel, xyzRegistry.address);
+  const xyzLabelHash = keccak256(stringToBytes(xyzLabel));
+  await rootRegistry.write.register([
+    xyzLabel,
+    walletClient.account.address,
+    xyzRegistry.address,
+    zeroAddress,
+    ROLES.ALL,
+    MAX_EXPIRY,
+  ]);
   console.log("Registered .xyz in root registry");
 
-  const ethResolverSalt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("eth-resolver"));
-  const ethResolverInitData = RegistryAwareResolver.interface.encodeFunctionData("initialize", [
-    deployer.address,
-    ethRegistry.address,
-  ]);
-  const ethResolverAddress = await factory.callStatic.deployProxy(
+  const ethResolverSalt = keccak256(stringToBytes("eth-resolver"));
+  const ethResolverInitData = encodeFunctionData({
+    abi: resolverImplementation.abi,
+    functionName: "initialize",
+    args: [walletClient.account.address, ethRegistry.address],
+  });
+  
+  // Deploy ETH resolver proxy
+  const ethResolverTxHash = await verifiableFactory.write.deployProxy([
     resolverImplementation.address,
     ethResolverSalt,
     ethResolverInitData
-  );
-  await factory.deployProxy(resolverImplementation.address, ethResolverSalt, ethResolverInitData);
+  ]);
+  
+  const ethResolverReceipt = await publicClient.getTransactionReceipt({
+    hash: ethResolverTxHash,
+  });
+  
+  const [ethResolverLog] = parseEventLogs({
+    abi: verifiableFactory.abi,
+    eventName: "ProxyDeployed",
+    logs: ethResolverReceipt.logs,
+  });
+  
+  const ethResolverAddress = ethResolverLog.args.proxyAddress;
   console.log("ETH Resolver deployed to:", ethResolverAddress);
 
-  const xyzResolverSalt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("xyz-resolver"));
-  const xyzResolverInitData = RegistryAwareResolver.interface.encodeFunctionData("initialize", [
-    deployer.address,
-    xyzRegistry.address,
-  ]);
-  const xyzResolverAddress = await factory.callStatic.deployProxy(
+  const xyzResolverSalt = keccak256(stringToBytes("xyz-resolver"));
+  const xyzResolverInitData = encodeFunctionData({
+    abi: resolverImplementation.abi,
+    functionName: "initialize",
+    args: [walletClient.account.address, xyzRegistry.address],
+  });
+  
+  // Deploy XYZ resolver proxy
+  const xyzResolverTxHash = await verifiableFactory.write.deployProxy([
     resolverImplementation.address,
     xyzResolverSalt,
     xyzResolverInitData
-  );
-  await factory.deployProxy(resolverImplementation.address, xyzResolverSalt, xyzResolverInitData);
+  ]);
+  
+  const xyzResolverReceipt = await publicClient.getTransactionReceipt({
+    hash: xyzResolverTxHash,
+  });
+  
+  const [xyzResolverLog] = parseEventLogs({
+    abi: verifiableFactory.abi,
+    eventName: "ProxyDeployed",
+    logs: xyzResolverReceipt.logs,
+  });
+  
+  const xyzResolverAddress = xyzResolverLog.args.proxyAddress;
   console.log("XYZ Resolver deployed to:", xyzResolverAddress);
 
-  await ethRegistry.setResolver(ethLabel, ethResolverAddress);
+  // Set resolvers for TLDs
+  const [ethTokenId] = await rootRegistry.read.getNameData([ethLabel]);
+  await rootRegistry.write.setResolver([ethTokenId, ethResolverAddress]);
   console.log("Set resolver for .eth");
-  await xyzRegistry.setResolver(xyzLabel, xyzResolverAddress);
+  
+  const [xyzTokenId] = await rootRegistry.read.getNameData([xyzLabel]);
+  await rootRegistry.write.setResolver([xyzTokenId, xyzResolverAddress]);
   console.log("Set resolver for .xyz");
 
-  const ethResolver = await ethers.getContractAt("RegistryAwareResolver", ethResolverAddress);
-  
-  const xyzResolver = await ethers.getContractAt("RegistryAwareResolver", xyzResolverAddress);
+  const ethResolver = await hre.viem.getContractAt("RegistryAwareResolver", ethResolverAddress);
+  const xyzResolver = await hre.viem.getContractAt("RegistryAwareResolver", xyzResolverAddress);
 
-  const ExampleRegistry = await ethers.getContractFactory("PermissionedRegistry");
-  const exampleRegistry = await ExampleRegistry.deploy(datastore.address);
-  await exampleRegistry.deployed();
+  const exampleRegistry = await hre.viem.deployContract("PermissionedRegistry", [
+    datastore.address,
+    zeroAddress,
+    ROLES.ALL,
+  ]);
   console.log("Example Registry deployed to:", exampleRegistry.address);
 
   const exampleLabel = "example";
-  await ethRegistry.setSubregistry(exampleLabel, exampleRegistry.address);
+  
+  // Register example.eth in ETH registry
+  await ethRegistry.write.register([
+    exampleLabel,
+    walletClient.account.address,
+    exampleRegistry.address,
+    zeroAddress,
+    ROLES.ALL,
+    MAX_EXPIRY,
+  ]);
   console.log("Registered example.eth in ETH registry");
 
-  await xyzRegistry.setSubregistry(exampleLabel, exampleRegistry.address);
+  // Register example.xyz in XYZ registry (pointing to the same subregistry)
+  await xyzRegistry.write.register([
+    exampleLabel,
+    walletClient.account.address,
+    exampleRegistry.address,
+    zeroAddress,
+    ROLES.ALL,
+    MAX_EXPIRY,
+  ]);
   console.log("Registered example.xyz in XYZ registry (pointing to the same subregistry)");
 
-  const exampleResolverSalt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("example-resolver"));
-  const exampleResolverInitData = RegistryAwareResolver.interface.encodeFunctionData("initialize", [
-    deployer.address,
-    exampleRegistry.address,
-  ]);
-  const exampleResolverAddress = await factory.callStatic.deployProxy(
+  const exampleResolverSalt = keccak256(stringToBytes("example-resolver"));
+  const exampleResolverInitData = encodeFunctionData({
+    abi: resolverImplementation.abi,
+    functionName: "initialize",
+    args: [walletClient.account.address, exampleRegistry.address],
+  });
+  
+  // Deploy Example resolver proxy
+  const exampleResolverTxHash = await verifiableFactory.write.deployProxy([
     resolverImplementation.address,
     exampleResolverSalt,
     exampleResolverInitData
-  );
-  await factory.deployProxy(resolverImplementation.address, exampleResolverSalt, exampleResolverInitData);
+  ]);
+  
+  const exampleResolverReceipt = await publicClient.getTransactionReceipt({
+    hash: exampleResolverTxHash,
+  });
+  
+  const [exampleResolverLog] = parseEventLogs({
+    abi: verifiableFactory.abi,
+    eventName: "ProxyDeployed",
+    logs: exampleResolverReceipt.logs,
+  });
+  
+  const exampleResolverAddress = exampleResolverLog.args.proxyAddress;
   console.log("Example Resolver deployed to:", exampleResolverAddress);
 
-  await exampleRegistry.setResolver(exampleLabel, exampleResolverAddress);
+  // Set resolver for example.eth/example.xyz
+  const [exampleTokenId] = await exampleRegistry.read.getNameData([exampleLabel]);
+  await exampleRegistry.write.setResolver([exampleTokenId, exampleResolverAddress]);
   console.log("Set resolver for example.eth/example.xyz");
 
-  const exampleResolver = await ethers.getContractAt("RegistryAwareResolver", exampleResolverAddress);
+  const exampleResolver = await hre.viem.getContractAt("RegistryAwareResolver", exampleResolverAddress);
 
-  const namehashEth = ethers.utils.namehash("eth");
-  const namehashXyz = ethers.utils.namehash("xyz");
-  const namehashExampleEth = ethers.utils.namehash("example.eth");
-  const namehashExampleXyz = ethers.utils.namehash("example.xyz");
+  const namehashEth = namehash("eth");
+  const namehashXyz = namehash("xyz");
+  const namehashExampleEth = namehash("example.eth");
+  const namehashExampleXyz = namehash("example.xyz");
 
-  await ethResolver.setAddr(namehashEth, "0x5555555555555555555555555555555555555555");
+  await ethResolver.write.setAddr([namehashEth, "0x5555555555555555555555555555555555555555"]);
   console.log("Set ETH address for .eth");
-  await xyzResolver.setAddr(namehashXyz, "0x6666666666666666666666666666666666666666");
+  await xyzResolver.write.setAddr([namehashXyz, "0x6666666666666666666666666666666666666666"]);
   console.log("Set ETH address for .xyz");
-  await exampleResolver.setAddr(namehashExampleEth, "0x1234567890123456789012345678901234567890");
+  await exampleResolver.write.setAddr([namehashExampleEth, "0x1234567890123456789012345678901234567890"]);
   console.log("Set ETH address for example.eth");
 
-  const FooRegistry = await ethers.getContractFactory("PermissionedRegistry");
-  const fooRegistry = await FooRegistry.deploy(datastore.address);
-  await fooRegistry.deployed();
+  const fooRegistry = await hre.viem.deployContract("PermissionedRegistry", [
+    datastore.address,
+    zeroAddress,
+    ROLES.ALL,
+  ]);
   console.log("Foo Registry deployed to:", fooRegistry.address);
 
   const fooLabel = "foo";
-  await exampleRegistry.setSubregistry(fooLabel, fooRegistry.address);
+  
+  // Register foo.example.eth in example registry
+  await exampleRegistry.write.register([
+    fooLabel,
+    walletClient.account.address,
+    fooRegistry.address,
+    zeroAddress,
+    ROLES.ALL,
+    MAX_EXPIRY,
+  ]);
   console.log("Registered foo.example.eth in example registry");
 
-  const fooResolverSalt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("foo-resolver"));
-  const fooResolverInitData = RegistryAwareResolver.interface.encodeFunctionData("initialize", [
-    deployer.address,
-    fooRegistry.address,
-  ]);
-  const fooResolverAddress = await factory.callStatic.deployProxy(
+  const fooResolverSalt = keccak256(stringToBytes("foo-resolver"));
+  const fooResolverInitData = encodeFunctionData({
+    abi: resolverImplementation.abi,
+    functionName: "initialize",
+    args: [walletClient.account.address, fooRegistry.address],
+  });
+  
+  // Deploy Foo resolver proxy
+  const fooResolverTxHash = await verifiableFactory.write.deployProxy([
     resolverImplementation.address,
     fooResolverSalt,
     fooResolverInitData
-  );
-  await factory.deployProxy(resolverImplementation.address, fooResolverSalt, fooResolverInitData);
+  ]);
+  
+  const fooResolverReceipt = await publicClient.getTransactionReceipt({
+    hash: fooResolverTxHash,
+  });
+  
+  const [fooResolverLog] = parseEventLogs({
+    abi: verifiableFactory.abi,
+    eventName: "ProxyDeployed",
+    logs: fooResolverReceipt.logs,
+  });
+  
+  const fooResolverAddress = fooResolverLog.args.proxyAddress;
   console.log("Foo Resolver deployed to:", fooResolverAddress);
 
-  await fooRegistry.setResolver(fooLabel, fooResolverAddress);
+  // Set resolver for foo.example.eth
+  const [fooTokenId] = await fooRegistry.read.getNameData([fooLabel]);
+  await fooRegistry.write.setResolver([fooTokenId, fooResolverAddress]);
   console.log("Set resolver for foo.example.eth");
 
-  const fooResolver = await ethers.getContractAt("RegistryAwareResolver", fooResolverAddress);
+  const fooResolver = await hre.viem.getContractAt("RegistryAwareResolver", fooResolverAddress);
 
-  const namehashFooExampleEth = ethers.utils.namehash("foo.example.eth");
+  const namehashFooExampleEth = namehash("foo.example.eth");
 
-  await fooResolver.setAddr(namehashFooExampleEth, "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd");
+  await fooResolver.write.setAddr([namehashFooExampleEth, "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"]);
   console.log("Set ETH address for foo.example.eth");
 
   console.log("\nMeasuring gas costs...");
 
-  const setAddrTx = await exampleResolver.setAddr(namehashExampleEth, "0x1234567890123456789012345678901234567890");
-  const setAddrReceipt = await setAddrTx.wait();
-  console.log(`Gas used for setAddr with RegistryAwareResolver: ${setAddrReceipt.gasUsed.toString()}`);
-
-  const getAddrGas = await ethers.provider.estimateGas({
-    to: exampleResolverAddress,
-    data: exampleResolver.interface.encodeFunctionData("addr", [namehashExampleEth]),
+  // Deploy OwnedResolver for comparison
+  const ownedResolverSalt = keccak256(stringToBytes("owned-resolver"));
+  const ownedResolverInitData = encodeFunctionData({
+    abi: ownedResolverImplementation.abi,
+    functionName: "initialize",
+    args: [walletClient.account.address],
   });
-  console.log(`Gas used for addr with RegistryAwareResolver: ${getAddrGas.toString()}`);
-
-  const ownedResolverSalt = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("owned-resolver"));
-  const ownedResolverInitData = OwnedResolver.interface.encodeFunctionData("initialize", [deployer.address]);
-  const ownedResolverAddress = await factory.callStatic.deployProxy(
+  
+  // Deploy OwnedResolver proxy
+  const ownedResolverTxHash = await verifiableFactory.write.deployProxy([
     ownedResolverImplementation.address,
     ownedResolverSalt,
     ownedResolverInitData
-  );
-  await factory.deployProxy(ownedResolverImplementation.address, ownedResolverSalt, ownedResolverInitData);
+  ]);
+  
+  const ownedResolverReceipt = await publicClient.getTransactionReceipt({
+    hash: ownedResolverTxHash,
+  });
+  
+  const [ownedResolverLog] = parseEventLogs({
+    abi: verifiableFactory.abi,
+    eventName: "ProxyDeployed",
+    logs: ownedResolverReceipt.logs,
+  });
+  
+  const ownedResolverAddress = ownedResolverLog.args.proxyAddress;
   console.log("OwnedResolver deployed to:", ownedResolverAddress);
 
-  const ownedResolver = await ethers.getContractAt("OwnedResolver", ownedResolverAddress);
+  const ownedResolver = await hre.viem.getContractAt("OwnedResolver", ownedResolverAddress);
 
-  const setAddrOwnedTx = await ownedResolver.setAddr(namehashExampleEth, "0x1234567890123456789012345678901234567890");
-  const setAddrOwnedReceipt = await setAddrOwnedTx.wait();
+  // Measure gas for RegistryAwareResolver setAddr
+  const setAddrTxHash = await exampleResolver.write.setAddr([
+    namehashExampleEth, 
+    "0x1234567890123456789012345678901234567890"
+  ]);
+  
+  const setAddrReceipt = await publicClient.getTransactionReceipt({
+    hash: setAddrTxHash,
+  });
+  
+  console.log(`Gas used for setAddr with RegistryAwareResolver: ${setAddrReceipt.gasUsed.toString()}`);
+
+  // Measure gas for OwnedResolver setAddr
+  const setAddrOwnedTxHash = await ownedResolver.write.setAddr([
+    namehashExampleEth, 
+    "0x1234567890123456789012345678901234567890"
+  ]);
+  
+  const setAddrOwnedReceipt = await publicClient.getTransactionReceipt({
+    hash: setAddrOwnedTxHash,
+  });
+  
   console.log(`Gas used for setAddr with OwnedResolver: ${setAddrOwnedReceipt.gasUsed.toString()}`);
 
-  const getAddrOwnedGas = await ethers.provider.estimateGas({
-    to: ownedResolverAddress,
-    data: ownedResolver.interface.encodeFunctionData("addr", [namehashExampleEth]),
+  // Estimate gas for read operations
+  const getAddrGas = await publicClient.estimateContractGas({
+    address: exampleResolverAddress,
+    abi: exampleResolver.abi,
+    functionName: "addr",
+    args: [namehashExampleEth],
+    account: walletClient.account,
   });
+  
+  console.log(`Gas used for addr with RegistryAwareResolver: ${getAddrGas.toString()}`);
+
+  const getAddrOwnedGas = await publicClient.estimateContractGas({
+    address: ownedResolverAddress,
+    abi: ownedResolver.abi,
+    functionName: "addr",
+    args: [namehashExampleEth],
+    account: walletClient.account,
+  });
+  
   console.log(`Gas used for addr with OwnedResolver: ${getAddrOwnedGas.toString()}`);
 
-  const setAddrSavings = ((parseInt(setAddrOwnedReceipt.gasUsed.toString()) - parseInt(setAddrReceipt.gasUsed.toString())) / parseInt(setAddrOwnedReceipt.gasUsed.toString())) * 100;
-  const getAddrCost = ((parseInt(getAddrGas.toString()) - parseInt(getAddrOwnedGas.toString())) / parseInt(getAddrOwnedGas.toString())) * 100;
+  // Calculate gas savings/costs
+  const setAddrSavings = ((Number(setAddrOwnedReceipt.gasUsed) - Number(setAddrReceipt.gasUsed)) / Number(setAddrOwnedReceipt.gasUsed)) * 100;
+  const getAddrCost = ((Number(getAddrGas) - Number(getAddrOwnedGas)) / Number(getAddrOwnedGas)) * 100;
   
   console.log(`\nRegistryAwareResolver uses ${setAddrSavings.toFixed(2)}% ${setAddrSavings > 0 ? "less" : "more"} gas for write operations (setAddr)`);
   console.log(`RegistryAwareResolver uses ${Math.abs(getAddrCost).toFixed(2)}% ${getAddrCost > 0 ? "more" : "less"} gas for read operations (addr)`);
 
+  // Write deployment addresses to .env file
   const envContent = `
 DATASTORE_ADDRESS=${datastore.address}
 ROOT_REGISTRY_ADDRESS=${rootRegistry.address}
