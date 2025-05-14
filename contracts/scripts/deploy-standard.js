@@ -1,8 +1,8 @@
-const hre = require("hardhat");
-const fs = require("fs");
-const path = require("path");
-const { ethers } = require("hardhat");
-const { VerifiableFactory } = require("./utils/verifiable-factory");
+import hre from "hardhat";
+import fs from "fs";
+import path from "path";
+import { ethers } from "hardhat";
+import { VerifiableFactory } from "./utils/verifiable-factory.js";
 
 async function main() {
   console.log("Deploying ENSStandardResolver and associated contracts...");
@@ -223,9 +223,10 @@ UNIVERSAL_RESOLVER_ADDRESS=${universalResolver.address}
   console.log("\nDeployment complete!");
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+try {
+  await main();
+  process.exit(0);
+} catch (error) {
+  console.error(error);
+  process.exit(1);
+}

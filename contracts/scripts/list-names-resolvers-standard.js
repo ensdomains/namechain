@@ -1,8 +1,8 @@
-const hre = require("hardhat");
-const fs = require("fs");
-const path = require("path");
-const { ethers } = require("hardhat");
-const dotenv = require("dotenv");
+import hre from "hardhat";
+import fs from "fs";
+import path from "path";
+import { ethers } from "hardhat";
+import dotenv from "dotenv";
 
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
@@ -327,9 +327,10 @@ async function getOwnedNames(nameState, address) {
   return ownedNames;
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+try {
+  await main();
+  process.exit(0);
+} catch (error) {
+  console.error(error);
+  process.exit(1);
+}
