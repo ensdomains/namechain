@@ -85,10 +85,10 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
     function resolve(
         bytes calldata name,
         bytes calldata data
-    ) external view override returns (bytes memory) {
+    ) external view override returns (bytes memory result, address resolverAddress) {
         (address resolver, bytes32 node, uint256 offset) = findResolver(name);
         if (resolver == address(0)) {
-            return new bytes(0);
+            return (new bytes(0), address(0));
         }
 
         // Check if the resolver is a SingleNameResolver
@@ -107,19 +107,19 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
             if (selector == bytes4(keccak256("addr(bytes32)"))) {
                 // addr() - no parameters needed for SingleNameResolver
                 (bool success, bytes memory result) = resolver.staticcall(
-                    abi.encodeWithSelector(SingleNameResolver.addr.selector)
+                    abi.encodeWithSelector(SingleNameResolver(address(0)).addr.selector)
                 );
                 if (success) {
-                    return result;
+                    return (result, resolver);
                 }
             } else if (selector == bytes4(keccak256("addr(bytes32,uint256)"))) {
                 // addr(bytes32 node, uint256 coinType) -> addr(uint256 coinType)
                 uint256 coinType = abi.decode(data[36:], (uint256));
                 (bool success, bytes memory result) = resolver.staticcall(
-                    abi.encodeWithSelector(SingleNameResolver.addr.selector, coinType)
+                    abi.encodeWithSelector(SingleNameResolver(address(0)).addr.selector, coinType)
                 );
                 if (success) {
-                    return result;
+                    return (result, resolver);
                 }
             } else if (selector == bytes4(keccak256("text(bytes32,string)"))) {
                 // text(bytes32 node, string key) -> text(string key)
@@ -128,7 +128,7 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
                     abi.encodeWithSelector(SingleNameResolver.text.selector, key)
                 );
                 if (success) {
-                    return result;
+                    return (result, resolver);
                 }
             } else if (selector == bytes4(keccak256("contenthash(bytes32)"))) {
                 // contenthash(bytes32 node) -> contenthash()
@@ -136,7 +136,7 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
                     abi.encodeWithSelector(SingleNameResolver.contenthash.selector)
                 );
                 if (success) {
-                    return result;
+                    return (result, resolver);
                 }
             } else {
                 // For other functions, try to call without node parameter
@@ -144,7 +144,7 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
                 // for all resolver functions
                 (bool success, bytes memory result) = resolver.staticcall(data);
                 if (success) {
-                    return result;
+                    return (result, resolver);
                 }
             }
         } else {
@@ -152,7 +152,7 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
             return super.resolve(name, data);
         }
 
-        return new bytes(0);
+        return (new bytes(0), address(0));
     }
 
     /// @notice Finds the nearest registry for `name`.

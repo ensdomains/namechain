@@ -46,7 +46,7 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
     
     /**
      * @dev Set the ETH address
-     * @param addr The address to set
+     * @param addrValue The address to set
      */
     function setAddr(address addrValue) external onlyOwner {
         bytes memory addrBytes = addressToBytes(addrValue);
@@ -147,7 +147,7 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
     /**
      * @dev Convert bytes to address
      * @param b The bytes to convert
-     * @return The converted address
+     * @return a The converted address
      */
     function bytesToAddress(bytes memory b) internal pure returns (address payable a) {
         require(b.length == 20);
@@ -159,7 +159,7 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
     /**
      * @dev Convert address to bytes
      * @param a The address to convert
-     * @return The converted bytes
+     * @return b The converted bytes
      */
     function addressToBytes(address a) internal pure returns (bytes memory b) {
         b = new bytes(20);
