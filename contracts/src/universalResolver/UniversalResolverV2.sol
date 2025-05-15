@@ -108,7 +108,7 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
             if (selector == bytes4(keccak256("addr(bytes32)"))) {
                 // addr() - no parameters needed for SingleNameResolver
                 (bool success, bytes memory resultData) = resolver.staticcall(
-                    abi.encodeWithSelector(SingleNameResolver(address(0)).addr.selector)
+                    abi.encodeWithSelector(bytes4(keccak256("addr()")))
                 );
                 if (success) {
                     return (resultData, resolver);
@@ -117,7 +117,7 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
                 // addr(bytes32 node, uint256 coinType) -> addr(uint256 coinType)
                 uint256 coinType = abi.decode(data[36:], (uint256));
                 (bool success, bytes memory resultData) = resolver.staticcall(
-                    abi.encodeWithSelector(SingleNameResolver(address(0)).addr.selector, coinType)
+                    abi.encodeWithSelector(bytes4(keccak256("addr(uint256)")), coinType)
                 );
                 if (success) {
                     return (resultData, resolver);
@@ -126,7 +126,7 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
                 // text(bytes32 node, string key) -> text(string key)
                 string memory key = abi.decode(data[36:], (string));
                 (bool success, bytes memory resultData) = resolver.staticcall(
-                    abi.encodeWithSelector(SingleNameResolver(address(0)).text.selector, key)
+                    abi.encodeWithSelector(bytes4(keccak256("text(string)")), key)
                 );
                 if (success) {
                     return (resultData, resolver);
@@ -134,7 +134,7 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
             } else if (selector == bytes4(keccak256("contenthash(bytes32)"))) {
                 // contenthash(bytes32 node) -> contenthash()
                 (bool success, bytes memory resultData) = resolver.staticcall(
-                    abi.encodeWithSelector(SingleNameResolver(address(0)).contenthash.selector)
+                    abi.encodeWithSelector(bytes4(keccak256("contenthash()")))
                 );
                 if (success) {
                     return (resultData, resolver);
