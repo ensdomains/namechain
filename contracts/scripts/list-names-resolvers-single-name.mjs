@@ -67,8 +67,9 @@ async function main() {
         try {
           const encodedName = dnsEncodeName(fullName);
           const addrSelector = "0x3b3b57de"; // addr(bytes32)
-          const result = await universalResolver.resolve(encodedName, addrSelector);
+          const [result, resolverAddr] = await universalResolver.resolve(encodedName, addrSelector);
           console.log(`Resolved via UniversalResolver: ${result}`);
+          console.log(`Using resolver: ${resolverAddr}`);
         } catch (error) {
           console.log(`Error resolving via UniversalResolver: ${error.message}`);
         }

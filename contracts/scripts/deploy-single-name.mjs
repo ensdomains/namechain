@@ -116,13 +116,15 @@ async function main() {
   // Test resolving example.eth
   const encodedNameEth = dnsEncodeName("example.eth");
   const addrSelector = "0x3b3b57de"; // addr(bytes32)
-  const resultEth = await universalResolver.resolve(encodedNameEth, addrSelector);
+  const [resultEth, resolverAddrEth] = await universalResolver.resolve(encodedNameEth, addrSelector);
   console.log("Resolved example.eth to:", resultEth);
+  console.log("Using resolver:", resolverAddrEth);
   
   // Test resolving example.xyz
   const encodedNameXyz = dnsEncodeName("example.xyz");
-  const resultXyz = await universalResolver.resolve(encodedNameXyz, addrSelector);
+  const [resultXyz, resolverAddrXyz] = await universalResolver.resolve(encodedNameXyz, addrSelector);
   console.log("Resolved example.xyz to:", resultXyz);
+  console.log("Using resolver:", resolverAddrXyz);
   
   console.log("Deployment and setup complete!");
 }
