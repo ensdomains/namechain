@@ -48,25 +48,25 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
      * @dev Set the ETH address
      * @param addr The address to set
      */
-    function setAddr(address addr) external onlyOwner {
-        bytes memory addrBytes = addressToBytes(addr);
+    function setAddr(address addrValue) external onlyOwner {
+        bytes memory addrBytes = addressToBytes(addrValue);
         _addresses[COIN_TYPE_ETH] = addrBytes;
         
-        emit AddrChanged(addr);
+        emit AddrChanged(addrValue);
         emit AddressChanged(COIN_TYPE_ETH, addrBytes);
     }
     
     /**
      * @dev Set the address for a specific coin type
      * @param coinType The coin type to set
-     * @param addr The address to set
+     * @param addrValue The address to set
      */
-    function setAddr(uint coinType, bytes calldata addr) external onlyOwner {
-        _addresses[coinType] = addr;
+    function setAddr(uint coinType, bytes calldata addrValue) external onlyOwner {
+        _addresses[coinType] = addrValue;
         
-        emit AddressChanged(coinType, addr);
-        if (coinType == COIN_TYPE_ETH && addr.length == 20) {
-            emit AddrChanged(bytesToAddress(addr));
+        emit AddressChanged(coinType, addrValue);
+        if (coinType == COIN_TYPE_ETH && addrValue.length == 20) {
+            emit AddrChanged(bytesToAddress(addrValue));
         }
     }
     

@@ -8,6 +8,7 @@ import {IRegistry} from "./IRegistry.sol";
 import {NameUtils} from "./NameUtils.sol";
 import {SingleNameResolver} from "./SingleNameResolver.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
+import {RegistryRolesMixin} from "./RegistryRolesMixin.sol";
 
 /**
  * @title PermissionedRegistryV2
@@ -39,7 +40,7 @@ contract PermissionedRegistryV2 is PermissionedRegistry {
      * @param _resolverFactory The factory address
      * @param _resolverImplementation The implementation address
      */
-    function setResolverFactory(address _resolverFactory, address _resolverImplementation) external onlyRootRoles(ROLE_ADMIN) {
+    function setResolverFactory(address _resolverFactory, address _resolverImplementation) external onlyRootRoles(ROLE_REGISTRAR) {
         resolverFactory = _resolverFactory;
         resolverImplementation = _resolverImplementation;
         emit ResolverFactorySet(_resolverFactory, _resolverImplementation);
