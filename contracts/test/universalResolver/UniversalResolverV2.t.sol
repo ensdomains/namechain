@@ -108,13 +108,16 @@ contract UniversalResolverV2Test is Test {
         bytes memory encodedName = dnsEncodeName("example.eth");
         
         // Resolve the address
-        bytes memory result = resolver.resolve(
+        (bytes memory result, address resolverAddr) = resolver.resolve(
             encodedName,
             abi.encodeWithSelector(bytes4(keccak256("addr(bytes32)")))
         );
         
         // Decode the result
         address resolvedAddr = abi.decode(result, (address));
+        
+        // Verify the resolver address
+        assertEq(resolverAddr, resolverAddress);
         
         // Verify the address was resolved correctly
         assertEq(resolvedAddr, testAddr);
@@ -138,13 +141,16 @@ contract UniversalResolverV2Test is Test {
         bytes memory encodedName = dnsEncodeName("example.eth");
         
         // Resolve the text record
-        bytes memory result = resolver.resolve(
+        (bytes memory result, address resolverAddr) = resolver.resolve(
             encodedName,
             abi.encodeWithSelector(bytes4(keccak256("text(bytes32,string)")), bytes32(0), "email")
         );
         
         // Decode the result
         string memory resolvedText = abi.decode(result, (string));
+        
+        // Verify the resolver address
+        assertEq(resolverAddr, resolverAddress);
         
         // Verify the text record was resolved correctly
         assertEq(resolvedText, "test@example.com");
@@ -169,13 +175,16 @@ contract UniversalResolverV2Test is Test {
         bytes memory encodedName = dnsEncodeName("example.eth");
         
         // Resolve the content hash
-        bytes memory result = resolver.resolve(
+        (bytes memory result, address resolverAddr) = resolver.resolve(
             encodedName,
             abi.encodeWithSelector(bytes4(keccak256("contenthash(bytes32)")))
         );
         
         // Decode the result
         bytes memory resolvedHash = abi.decode(result, (bytes));
+        
+        // Verify the resolver address
+        assertEq(resolverAddr, resolverAddress);
         
         // Verify the content hash was resolved correctly
         assertEq(resolvedHash, hash);
@@ -210,15 +219,19 @@ contract UniversalResolverV2Test is Test {
         bytes memory encodedNameXyz = dnsEncodeName("example.xyz");
         
         // Resolve the addresses
-        bytes memory resultEth = resolver.resolve(
+        (bytes memory resultEth, address resolverAddrEth) = resolver.resolve(
             encodedNameEth,
             abi.encodeWithSelector(bytes4(keccak256("addr(bytes32)")))
         );
         
-        bytes memory resultXyz = resolver.resolve(
+        (bytes memory resultXyz, address resolverAddrXyz) = resolver.resolve(
             encodedNameXyz,
             abi.encodeWithSelector(bytes4(keccak256("addr(bytes32)")))
         );
+        
+        // Verify the resolver addresses
+        assertEq(resolverAddrEth, resolverAddress);
+        assertEq(resolverAddrXyz, resolverAddress);
         
         // Decode the results
         address resolvedAddrEth = abi.decode(resultEth, (address));
