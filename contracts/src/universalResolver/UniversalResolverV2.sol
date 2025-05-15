@@ -150,7 +150,7 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
             }
         } else {
             // For traditional resolvers, use the original behavior
-            return super.resolve(name, data);
+            return resolveWithGateways(name, data, batchGateways);
         }
 
         return (new bytes(0), address(0));
