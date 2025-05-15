@@ -80,7 +80,8 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
      * @dev Resolve a name to its data
      * @param name The name to resolve
      * @param data The data to resolve (e.g., function selector)
-     * @return The resolved data
+     * @return result The resolved data
+     * @return resolverAddress The address of the resolver
      */
     function resolve(
         bytes calldata name,
@@ -106,45 +107,45 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
             // Handle common resolver functions
             if (selector == bytes4(keccak256("addr(bytes32)"))) {
                 // addr() - no parameters needed for SingleNameResolver
-                (bool success, bytes memory result) = resolver.staticcall(
+                (bool success, bytes memory resultData) = resolver.staticcall(
                     abi.encodeWithSelector(SingleNameResolver(address(0)).addr.selector)
                 );
                 if (success) {
-                    return (result, resolver);
+                    return (resultData, resolver);
                 }
             } else if (selector == bytes4(keccak256("addr(bytes32,uint256)"))) {
                 // addr(bytes32 node, uint256 coinType) -> addr(uint256 coinType)
                 uint256 coinType = abi.decode(data[36:], (uint256));
-                (bool success, bytes memory result) = resolver.staticcall(
+                (bool success, bytes memory resultData) = resolver.staticcall(
                     abi.encodeWithSelector(SingleNameResolver(address(0)).addr.selector, coinType)
                 );
                 if (success) {
-                    return (result, resolver);
+                    return (resultData, resolver);
                 }
             } else if (selector == bytes4(keccak256("text(bytes32,string)"))) {
                 // text(bytes32 node, string key) -> text(string key)
                 string memory key = abi.decode(data[36:], (string));
-                (bool success, bytes memory result) = resolver.staticcall(
-                    abi.encodeWithSelector(SingleNameResolver.text.selector, key)
+                (bool success, bytes memory resultData) = resolver.staticcall(
+                    abi.encodeWithSelector(SingleNameResolver(address(0)).text.selector, key)
                 );
                 if (success) {
-                    return (result, resolver);
+                    return (resultData, resolver);
                 }
             } else if (selector == bytes4(keccak256("contenthash(bytes32)"))) {
                 // contenthash(bytes32 node) -> contenthash()
-                (bool success, bytes memory result) = resolver.staticcall(
-                    abi.encodeWithSelector(SingleNameResolver.contenthash.selector)
+                (bool success, bytes memory resultData) = resolver.staticcall(
+                    abi.encodeWithSelector(SingleNameResolver(address(0)).contenthash.selector)
                 );
                 if (success) {
-                    return (result, resolver);
+                    return (resultData, resolver);
                 }
             } else {
                 // For other functions, try to call without node parameter
                 // This is a simplified implementation and would need to be expanded
                 // for all resolver functions
-                (bool success, bytes memory result) = resolver.staticcall(data);
+                (bool success, bytes memory resultData) = resolver.staticcall(data);
                 if (success) {
-                    return (result, resolver);
+                    return (resultData, resolver);
                 }
             }
         } else {
