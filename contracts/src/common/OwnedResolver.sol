@@ -45,9 +45,7 @@ contract OwnedResolver is
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
-    function supportsInterface(
-        bytes4 interfaceID
-    )
+    function supportsInterface(bytes4 interfaceID)
         public
         view
         virtual

@@ -5,7 +5,7 @@ import {ITokenObserver} from "../common/ITokenObserver.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {EjectionController} from "../common/EjectionController.sol";
 import {NameUtils} from "../common/NameUtils.sol";
-import {IRegistry} from "../common/IRegistry.sol";  
+import {IRegistry} from "../common/IRegistry.sol";
 
 /**
  * @title L2EjectionController
@@ -24,10 +24,7 @@ abstract contract L2EjectionController is EjectionController, ITokenObserver {
      * @param tokenId The token ID of the name being migrated
      * @param transferData The transfer data for the name being migrated
      */
-    function _completeMigrationFromL1(
-        uint256 tokenId,
-        TransferData memory transferData
-    ) internal virtual {
+    function _completeMigrationFromL1(uint256 tokenId, TransferData memory transferData) internal virtual {
         if (registry.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
         }

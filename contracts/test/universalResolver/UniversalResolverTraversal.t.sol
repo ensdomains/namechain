@@ -15,21 +15,13 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
     UniversalResolver universalResolver;
 
     function _createRegistry() internal returns (PermissionedRegistry) {
-        return
-            new PermissionedRegistry(
-                datastore,
-                IRegistryMetadata(address(0)),
-                ALL_ROLES
-            );
+        return new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), ALL_ROLES);
     }
 
     function setUp() public {
         datastore = new RegistryDatastore();
         rootRegistry = _createRegistry();
-        universalResolver = new UniversalResolver(
-            rootRegistry,
-            new string[](0)
-        );
+        universalResolver = new UniversalResolver(rootRegistry, new string[](0));
     }
 
     function test_findResolver_eth() external {
@@ -37,30 +29,16 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         // registry: <eth> <root>
         // resolver:  0x1
         PermissionedRegistry ethRegistry = _createRegistry();
-        rootRegistry.register(
-            "eth",
-            address(this),
-            ethRegistry,
-            address(1),
-            ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
+        rootRegistry.register("eth", address(this), ethRegistry, address(1), ALL_ROLES, uint64(block.timestamp + 1000));
 
         bytes memory name = NameCoder.encode("eth");
-        (address resolver, , uint256 offset) = universalResolver.findResolver(
-            name
-        );
-        (IRegistry parentRegistry, string memory label) = universalResolver
-            .getParentRegistry(name);
+        (address resolver,, uint256 offset) = universalResolver.findResolver(name);
+        (IRegistry parentRegistry, string memory label) = universalResolver.getParentRegistry(name);
         (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
 
         assertEq(resolver, address(1), "resolver");
         assertEq(offset, 0, "offset");
-        assertEq(
-            address(parentRegistry),
-            address(rootRegistry),
-            "parentRegistry"
-        );
+        assertEq(address(parentRegistry), address(rootRegistry), "parentRegistry");
         assertEq(label, "eth", "label");
         assertEq(address(registry), address(ethRegistry), "registry");
         assertEq(exact, true, "exact");
@@ -72,38 +50,17 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         // resolver:   0x1
         PermissionedRegistry ethRegistry = _createRegistry();
         PermissionedRegistry testRegistry = _createRegistry();
-        rootRegistry.register(
-            "eth",
-            address(this),
-            ethRegistry,
-            address(0),
-            ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
-        ethRegistry.register(
-            "test",
-            address(this),
-            testRegistry,
-            address(1),
-            ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
+        rootRegistry.register("eth", address(this), ethRegistry, address(0), ALL_ROLES, uint64(block.timestamp + 1000));
+        ethRegistry.register("test", address(this), testRegistry, address(1), ALL_ROLES, uint64(block.timestamp + 1000));
 
         bytes memory name = NameCoder.encode("test.eth");
-        (address resolver, , uint256 offset) = universalResolver.findResolver(
-            name
-        );
-        (IRegistry parentRegistry, string memory label) = universalResolver
-            .getParentRegistry(name);
+        (address resolver,, uint256 offset) = universalResolver.findResolver(name);
+        (IRegistry parentRegistry, string memory label) = universalResolver.getParentRegistry(name);
         (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
 
         assertEq(resolver, address(1), "resolver");
         assertEq(offset, 0, "offset");
-        assertEq(
-            address(parentRegistry),
-            address(ethRegistry),
-            "parentRegistry"
-        );
+        assertEq(address(parentRegistry), address(ethRegistry), "parentRegistry");
         assertEq(label, "test", "label");
         assertEq(address(registry), address(testRegistry), "registry");
         assertEq(exact, true, "exact");
@@ -115,38 +72,17 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         // resolver:               0x1
         PermissionedRegistry ethRegistry = _createRegistry();
         PermissionedRegistry testRegistry = _createRegistry();
-        rootRegistry.register(
-            "eth",
-            address(this),
-            ethRegistry,
-            address(1),
-            ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
-        ethRegistry.register(
-            "test",
-            address(this),
-            testRegistry,
-            address(0),
-            ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
+        rootRegistry.register("eth", address(this), ethRegistry, address(1), ALL_ROLES, uint64(block.timestamp + 1000));
+        ethRegistry.register("test", address(this), testRegistry, address(0), ALL_ROLES, uint64(block.timestamp + 1000));
 
         bytes memory name = NameCoder.encode("sub.test.eth");
-        (address resolver, , uint256 offset) = universalResolver.findResolver(
-            name
-        );
-        (IRegistry parentRegistry, string memory label) = universalResolver
-            .getParentRegistry(name);
+        (address resolver,, uint256 offset) = universalResolver.findResolver(name);
+        (IRegistry parentRegistry, string memory label) = universalResolver.getParentRegistry(name);
         (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
 
         assertEq(resolver, address(1), "resolver");
         assertEq(offset, 9, "offset");
-        assertEq(
-            address(parentRegistry),
-            address(testRegistry),
-            "parentRegistry"
-        );
+        assertEq(address(parentRegistry), address(testRegistry), "parentRegistry");
         assertEq(label, "sub", "label");
         assertEq(address(registry), address(testRegistry), "registry");
         assertEq(exact, false, "exact");
@@ -158,29 +94,12 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         // resolver:                 0x1
         PermissionedRegistry ethRegistry = _createRegistry();
         PermissionedRegistry testRegistry = _createRegistry();
-        rootRegistry.register(
-            "eth",
-            address(this),
-            ethRegistry,
-            address(1),
-            ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
-        ethRegistry.register(
-            "test",
-            address(this),
-            testRegistry,
-            address(0),
-            ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
+        rootRegistry.register("eth", address(this), ethRegistry, address(1), ALL_ROLES, uint64(block.timestamp + 1000));
+        ethRegistry.register("test", address(this), testRegistry, address(0), ALL_ROLES, uint64(block.timestamp + 1000));
 
         bytes memory name = NameCoder.encode("a.b.test.eth");
-        (address resolver, , uint256 offset) = universalResolver.findResolver(
-            name
-        );
-        (IRegistry parentRegistry, string memory label) = universalResolver
-            .getParentRegistry(name);
+        (address resolver,, uint256 offset) = universalResolver.findResolver(name);
+        (IRegistry parentRegistry, string memory label) = universalResolver.getParentRegistry(name);
         (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
 
         assertEq(resolver, address(1), "resolver");

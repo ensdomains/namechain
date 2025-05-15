@@ -12,19 +12,19 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
     // Constants
     uint256 private constant COIN_TYPE_ETH = 60;
-    
+
     // Storage
     mapping(uint256 => bytes) private _addresses;
     mapping(string => string) private _textRecords;
     bytes private _contentHash;
     bytes32 private _associatedName;
-    
+
     // Events
     event AddrChanged(address addr);
-    event AddressChanged(uint coinType, bytes newAddress);
+    event AddressChanged(uint256 coinType, bytes newAddress);
     event TextChanged(string indexed key, string value);
     event ContenthashChanged(bytes hash);
-    
+
     /**
      * @dev Initialize the resolver with owner and associated name
      * @param owner_ The owner of this resolver
@@ -35,7 +35,7 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
         __UUPSUpgradeable_init();
         _associatedName = associatedName_;
     }
-    
+
     /**
      * @dev Get the namehash this resolver is associated with
      * @return The associated namehash
@@ -43,7 +43,7 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
     function associatedName() external view returns (bytes32) {
         return _associatedName;
     }
-    
+
     /**
      * @dev Set the ETH address
      * @param addrValue The address to set
@@ -51,25 +51,25 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
     function setAddr(address addrValue) external onlyOwner {
         bytes memory addrBytes = addressToBytes(addrValue);
         _addresses[COIN_TYPE_ETH] = addrBytes;
-        
+
         emit AddrChanged(addrValue);
         emit AddressChanged(COIN_TYPE_ETH, addrBytes);
     }
-    
+
     /**
      * @dev Set the address for a specific coin type
      * @param coinType The coin type to set
      * @param addrValue The address to set
      */
-    function setAddr(uint coinType, bytes calldata addrValue) external onlyOwner {
+    function setAddr(uint256 coinType, bytes calldata addrValue) external onlyOwner {
         _addresses[coinType] = addrValue;
-        
+
         emit AddressChanged(coinType, addrValue);
         if (coinType == COIN_TYPE_ETH && addrValue.length == 20) {
             emit AddrChanged(bytesToAddress(addrValue));
         }
     }
-    
+
     /**
      * @dev Get the ETH address
      * @return The ETH address
@@ -81,16 +81,16 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
         }
         return bytesToAddress(addrBytes);
     }
-    
+
     /**
      * @dev Get the address for a specific coin type
      * @param coinType The coin type to get
      * @return The address for the specified coin type
      */
-    function addr(uint coinType) external view returns (bytes memory) {
+    function addr(uint256 coinType) external view returns (bytes memory) {
         return _addresses[coinType];
     }
-    
+
     /**
      * @dev Set a text record
      * @param key The key to set
@@ -100,7 +100,7 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
         _textRecords[key] = value;
         emit TextChanged(key, value);
     }
-    
+
     /**
      * @dev Get a text record
      * @param key The key to get
@@ -109,7 +109,7 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
     function text(string calldata key) external view returns (string memory) {
         return _textRecords[key];
     }
-    
+
     /**
      * @dev Set the content hash
      * @param hash The content hash to set
@@ -118,7 +118,7 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
         _contentHash = hash;
         emit ContenthashChanged(hash);
     }
-    
+
     /**
      * @dev Get the content hash
      * @return The content hash
@@ -126,24 +126,22 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
     function contenthash() external view returns (bytes memory) {
         return _contentHash;
     }
-    
+
     /**
      * @dev Authorize an upgrade to the implementation
      * @param newImplementation The new implementation address
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
-    
+
     /**
      * @dev Support for various interfaces
      * @param interfaceID The interface ID to check
      * @return Whether the interface is supported
      */
     function supportsInterface(bytes4 interfaceID) public view virtual override returns (bool) {
-        return
-            interfaceID == type(IERC165).interfaceId ||
-            interfaceID == 0x3b3b57de; // IAddrResolver
+        return interfaceID == type(IERC165).interfaceId || interfaceID == 0x3b3b57de; // IAddrResolver
     }
-    
+
     /**
      * @dev Convert bytes to address
      * @param b The bytes to convert
@@ -155,7 +153,7 @@ contract SingleNameResolver is OwnableUpgradeable, UUPSUpgradeable, IERC165 {
             a := div(mload(add(b, 32)), exp(256, 12))
         }
     }
-    
+
     /**
      * @dev Convert address to bytes
      * @param a The address to convert
