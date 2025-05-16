@@ -1,6 +1,8 @@
 import { configVariable, type HardhatUserConfig } from "hardhat/config";
 
+import HardhatChaiMatchersViemPlugin from "@ensdomains/hardhat-chai-matchers-viem";
 import HardhatKeystore from "@nomicfoundation/hardhat-keystore";
+import HardhatNetworkHelpersPlugin from "@nomicfoundation/hardhat-network-helpers";
 import HardhatViem from "@nomicfoundation/hardhat-viem";
 import HardhatDeploy from "hardhat-deploy";
 
@@ -41,6 +43,10 @@ const config = {
     version: "0.8.25",
     settings: {
       evmVersion: "cancun",
+      optimizer: {
+        enabled: true,
+        runs: 200,
+      },
     },
     remappings: [
       "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
@@ -53,9 +59,20 @@ const config = {
     ],
   },
   paths: {
-    sources: "./src",
+    sources: [
+      "./src",
+      "./lib/verifiable-factory/src",
+      "./lib/ens-contracts/contracts/resolvers/profiles/",
+      "./lib/openzeppelin-contracts/contracts/utils/introspection/",
+    ],
   },
-  plugins: [HardhatViem, HardhatDeploy, HardhatKeystore],
+  plugins: [
+    HardhatNetworkHelpersPlugin,
+    HardhatChaiMatchersViemPlugin,
+    HardhatViem,
+    HardhatDeploy,
+    HardhatKeystore,
+  ],
 } satisfies HardhatUserConfig;
 
 export default config;

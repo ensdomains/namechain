@@ -1,12 +1,15 @@
-import hre from "hardhat";
+import type {
+  DefaultChainType,
+  NetworkConnection,
+} from "hardhat/types/network";
 import { readFile } from "node:fs/promises";
 import {
-  type Hex,
   type Abi,
   type Address,
-  sliceHex,
   concat,
   getContractAddress,
+  type Hex,
+  sliceHex,
 } from "viem";
 
 type LinkReferences = Record<
@@ -28,12 +31,15 @@ type HardhatArtifact = {
   linkReferences: LinkReferences;
 };
 
-export async function deployArtifact(options: {
-  file: string | URL;
-  from?: Hex;
-  args?: any[];
-  libs?: Record<string, Address>;
-}) {
+export async function deployArtifact(
+  networkConnection: NetworkConnection<DefaultChainType>,
+  options: {
+    file: string | URL;
+    from?: Hex;
+    args?: any[];
+    libs?: Record<string, Address>;
+  },
+) {
   const artifact = JSON.parse(await readFile(options.file, "utf8")) as
     | ForgeArtifact
     | HardhatArtifact;
@@ -60,9 +66,9 @@ export async function deployArtifact(options: {
     }
   }
   const walletClient = options.from
-    ? await hre.viem.getWalletClient(options.from)
-    : await hre.viem.getWalletClients().then((x) => x[0]);
-  const publicClient = await hre.viem.getPublicClient();
+    ? await networkConnection.viem.getWalletClient(options.from)
+    : await networkConnection.viem.getWalletClients().then((x) => x[0]);
+  const publicClient = await networkConnection.viem.getPublicClient();
   const nonce = BigInt(
     await publicClient.getTransactionCount(walletClient.account),
   );

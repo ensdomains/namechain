@@ -1,39 +1,34 @@
-import hre from "hardhat";
-import { deployArtifact } from "./deployArtifact.js";
-import { ensArtifact } from "./externalArtifacts.js";
+import type {
+  DefaultChainType,
+  NetworkConnection,
+} from "hardhat/types/network";
 import { labelhash, namehash } from "viem";
 import { splitName } from "../utils/utils.js";
+import { baseRegistrarImplementationArtifact } from "./ens-contracts/BaseRegistrarImplementation.js";
+import { ensRegistryArtifact } from "./ens-contracts/ENSRegistry.js";
+import { ownedResolverArtifact } from "./ens-contracts/OwnedResolver.js";
+import { universalResolverArtifact } from "./ens-contracts/UniversalResolver.js";
 
-export async function deployV1Fixture(enableCcipRead = false) {
-  const publicClient = await hre.viem.getPublicClient({
+export async function deployV1Fixture(
+  networkConnection: NetworkConnection<DefaultChainType>,
+  enableCcipRead = false,
+) {
+  const publicClient = await networkConnection.viem.getPublicClient({
     ccipRead: enableCcipRead ? undefined : false,
   });
-  const [walletClient] = await hre.viem.getWalletClients();
-  const ensRegistry = await hre.viem.getContractAt(
-    "@ens/contracts/registry/ENSRegistry.sol:ENSRegistry",
-    await deployArtifact({
-      file: ensArtifact("ENSRegistry"),
-    }),
+  const [walletClient] = await networkConnection.viem.getWalletClients();
+  const ensRegistry =
+    await networkConnection.viem.deployContract(ensRegistryArtifact);
+  const ethRegistrar = await networkConnection.viem.deployContract(
+    baseRegistrarImplementationArtifact,
+    [ensRegistry.address, namehash("eth")],
   );
-  const ethRegistrar = await hre.viem.getContractAt(
-    "@ens/contracts/ethregistrar/IBaseRegistrar.sol:IBaseRegistrar",
-    await deployArtifact({
-      file: ensArtifact("BaseRegistrarImplementation"),
-      args: [ensRegistry.address, namehash("eth")],
-    }),
+  const ownedResolver = await networkConnection.viem.deployContract(
+    ownedResolverArtifact,
   );
-  const ownedResolver = await hre.viem.getContractAt(
-    "OwnedResolver", // :)
-    await deployArtifact({
-      file: ensArtifact("OwnedResolver"),
-    }),
-  );
-  const universalResolver = await hre.viem.getContractAt(
-    "@ens/contracts/universalResolver/IUniversalResolver.sol:IUniversalResolver",
-    await deployArtifact({
-      file: ensArtifact("UniversalResolver"),
-      args: [ensRegistry.address, ["x-batch-gateway:true"]],
-    }),
+  const universalResolver = await networkConnection.viem.deployContract(
+    universalResolverArtifact,
+    [ensRegistry.address, ["x-batch-gateway:true"]],
     {
       client: { public: publicClient },
     },

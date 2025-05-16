@@ -4,16 +4,18 @@
   "scripts": {
     "deploy": "hardhat deploy",
     "compile:hardhat": "hardhat compile",
-    "test:hardhat": "hardhat test",
+    "test:hardhat": "vitest",
     "test:forge": "forge test",
     "test": "bun run test:forge && bun run test:hardhat",
     "coverage": "forge coverage --report lcov && bun run test:hardhat",
     "clean": "forge clean && hardhat clean"
   },
   "devDependencies": {
+    "@ensdomains/hardhat-chai-matchers-viem": "^0.1.4",
     "@namestone/ezccip": "^0.1.0",
     "@nomicfoundation/hardhat-foundry": "^1.1.1",
     "@nomicfoundation/hardhat-keystore": "^3.0.0-next.5",
+    "@nomicfoundation/hardhat-network-helpers": "next",
     "@nomicfoundation/hardhat-viem": "next",
     "@rocketh/deploy": "^0.11.18",
     "@rocketh/read-execute": "^0.11.19",
@@ -21,11 +23,12 @@
     "@types/bun": "latest",
     "@vitest/expect": "^1.6.0",
     "chai": "^5.1.1",
-    "hardhat": "^3.0.0-next.5",
+    "hardhat": "3.0.0-next.8",
     "hardhat-deploy": "^2.0.0-next.25",
     "rocketh": "^0.11.18",
     "ts-node": "^10.9.2",
-    "viem": "^2.27.0"
+    "viem": "^2.27.0",
+    "vitest": "^3.1.3"
   },
   "peerDependencies": {
     "typescript": "^5.4.5"
