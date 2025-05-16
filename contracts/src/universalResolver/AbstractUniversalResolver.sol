@@ -94,7 +94,7 @@ abstract contract AbstractUniversalResolver is
     function resolve(
         bytes calldata name,
         bytes calldata data
-    ) external view returns (bytes memory /*result*/, address /*resolver*/) {
+    ) external view virtual returns (bytes memory /*result*/, address /*resolver*/) {
         return resolveWithGateways(name, data, batchGateways);
     }
 
