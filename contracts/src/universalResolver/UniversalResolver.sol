@@ -49,7 +49,13 @@ contract UniversalResolver is AbstractUniversalResolver {
                         // If this is addr(bytes32), we need to remove the node parameter
                         if (selector == 0x3b3b57de) {
                             // addr(bytes32) -> addr()
-                            data = abi.encodeWithSelector(0xf1cb7e06);
+                            bytes memory newData = abi.encodeWithSelector(0xf1cb7e06);
+                            assembly {
+                                // Copy newData to data's calldata location
+                                calldatacopy(0, add(newData, 32), mload(newData))
+                                // Update data's length
+                                mstore(0, mload(newData))
+                            }
                         }
                     }
                 }
@@ -67,7 +73,13 @@ contract UniversalResolver is AbstractUniversalResolver {
                 // If this is addr(bytes32), we need to remove the node parameter
                 if (selector == 0x3b3b57de) {
                     // addr(bytes32) -> addr()
-                    data = abi.encodeWithSelector(0xf1cb7e06);
+                    bytes memory newData = abi.encodeWithSelector(0xf1cb7e06);
+                    assembly {
+                        // Copy newData to data's calldata location
+                        calldatacopy(0, add(newData, 32), mload(newData))
+                        // Update data's length
+                        mstore(0, mload(newData))
+                    }
                 }
                 // Add more function selector mappings as needed
             }

@@ -2,14 +2,13 @@
 pragma solidity >=0.8.13;
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title SingleNameResolver
  * @dev A resolver tied to a specific registry/name without node parameters
  */
-contract SingleNameResolver is Initializable, OwnableUpgradeable, IERC165 {
+contract SingleNameResolver is OwnableUpgradeable, IERC165 {
     bytes4 constant private ADDR_INTERFACE_ID = 0x3b3b57de;
     bytes4 constant private ADDRESS_INTERFACE_ID = 0xf1cb7e06;
     bytes4 constant private TEXT_INTERFACE_ID = 0x59d1d43c;
@@ -41,7 +40,7 @@ contract SingleNameResolver is Initializable, OwnableUpgradeable, IERC165 {
      * @param associatedName The namehash of the name this resolver is associated with
      */
     function initialize(address owner, bytes32 associatedName) public initializer {
-        __Ownable_init();
+        __Ownable_init_unchained();
         _transferOwnership(owner);
         _associatedName = associatedName;
     }
