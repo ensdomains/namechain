@@ -10,7 +10,8 @@
     "coverage": "forge coverage --report lcov && bun run test:hardhat",
     "clean": "forge clean && bun hh clean",
     "devnet": "FOUNDRY_DISABLE_NIGHTLY_WARNING=true npx tsx ./script/runDevnet.ts",
-    "test:bridge": "FOUNDRY_DISABLE_NIGHTLY_WARNING=true npx tsx ./script/testBridge.ts"
+    "test:bridge": "FOUNDRY_DISABLE_NIGHTLY_WARNING=true npx tsx ./script/testBridge.ts",
+    "test:registrar": "FOUNDRY_DISABLE_NIGHTLY_WARNING=true npx tsx ./script/testRegistrar.ts"
   },
   "devDependencies": {
     "@adraffy/blocksmith": "^0.1.52",
