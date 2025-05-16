@@ -3,21 +3,29 @@ pragma solidity >=0.8.13;
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Multicallable} from "@ens/contracts/resolvers/Multicallable.sol";
 
 /**
  * @title SingleNameResolver
  * @dev A resolver tied to a specific registry/name without node parameters
  */
-contract SingleNameResolver is OwnableUpgradeable, IERC165 {
+contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
     bytes4 constant private ADDR_INTERFACE_ID = 0x3b3b57de;
     bytes4 constant private ADDRESS_INTERFACE_ID = 0xf1cb7e06;
     bytes4 constant private TEXT_INTERFACE_ID = 0x59d1d43c;
     bytes4 constant private CONTENTHASH_INTERFACE_ID = 0xbc1c58d1;
+    bytes4 constant private PUBKEY_INTERFACE_ID = 0xc8690233;
+    bytes4 constant private ABI_INTERFACE_ID = 0x2203ab56;
+    bytes4 constant private INTERFACE_INTERFACE_ID = 0x01ffc9a7;
+    bytes4 constant private MULTICALL_INTERFACE_ID = 0x5a05180f;
 
     event AddrChanged(address addr);
     event AddressChanged(uint coinType, bytes newAddress);
     event TextChanged(string indexed key, string value);
     event ContenthashChanged(bytes hash);
+    event PubkeyChanged(bytes32 x, bytes32 y);
+    event ABIChanged(uint256 indexed contentType);
+    event InterfaceChanged(bytes4 indexed interfaceID, address implementer);
 
     // Mapping from coin type to address
     mapping(uint => bytes) private _coinAddresses;
@@ -30,6 +38,16 @@ contract SingleNameResolver is OwnableUpgradeable, IERC165 {
 
     // ETH address (for backward compatibility)
     address payable private _addr;
+
+    // Public key
+    bytes32 private _pubkeyX;
+    bytes32 private _pubkeyY;
+
+    // Mapping from content type to ABI
+    mapping(uint256 => bytes) private _abis;
+
+    // Mapping from interface ID to implementer
+    mapping(bytes4 => address) private _interfaces;
 
     /**
      * @dev Initializes the contract with an owner and associated name
@@ -112,16 +130,78 @@ contract SingleNameResolver is OwnableUpgradeable, IERC165 {
     }
 
     /**
+     * @dev Sets the public key for the associated name
+     * @param x The x coordinate of the public key
+     * @param y The y coordinate of the public key
+     */
+    function setPubkey(bytes32 x, bytes32 y) external onlyOwner {
+        _pubkeyX = x;
+        _pubkeyY = y;
+        emit PubkeyChanged(x, y);
+    }
+
+    /**
+     * @dev Gets the public key for the associated name
+     * @return x The x coordinate of the public key
+     * @return y The y coordinate of the public key
+     */
+    function pubkey() external view returns (bytes32 x, bytes32 y) {
+        return (_pubkeyX, _pubkeyY);
+    }
+
+    /**
+     * @dev Sets the ABI for the associated name
+     * @param contentType The content type of the ABI
+     * @param data The ABI data
+     */
+    function setABI(uint256 contentType, bytes calldata data) external onlyOwner {
+        _abis[contentType] = data;
+        emit ABIChanged(contentType);
+    }
+
+    /**
+     * @dev Gets the ABI for the associated name
+     * @param contentType The content type of the ABI
+     * @return The ABI data
+     */
+    function ABI(uint256 contentType) external view returns (uint256, bytes memory) {
+        return (contentType, _abis[contentType]);
+    }
+
+    /**
+     * @dev Sets the implementer for an interface
+     * @param interfaceID The interface ID
+     * @param implementer The implementer address
+     */
+    function setInterface(bytes4 interfaceID, address implementer) external onlyOwner {
+        _interfaces[interfaceID] = implementer;
+        emit InterfaceChanged(interfaceID, implementer);
+    }
+
+    /**
+     * @dev Gets the implementer for an interface
+     * @param interfaceID The interface ID
+     * @return The implementer address
+     */
+    function interfaceImplementer(bytes4 interfaceID) external view returns (address) {
+        return _interfaces[interfaceID];
+    }
+
+    /**
      * @dev Checks if the contract supports a specific interface
      * @param interfaceId The interface ID to check
      * @return True if the interface is supported
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, Multicallable) returns (bool) {
         return
             interfaceId == ADDR_INTERFACE_ID ||
             interfaceId == ADDRESS_INTERFACE_ID ||
             interfaceId == TEXT_INTERFACE_ID ||
             interfaceId == CONTENTHASH_INTERFACE_ID ||
+            interfaceId == PUBKEY_INTERFACE_ID ||
+            interfaceId == ABI_INTERFACE_ID ||
+            interfaceId == INTERFACE_INTERFACE_ID ||
+            interfaceId == MULTICALL_INTERFACE_ID ||
             interfaceId == type(IERC165).interfaceId;
     }
 }
