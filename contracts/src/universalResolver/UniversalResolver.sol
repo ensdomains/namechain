@@ -47,18 +47,18 @@ contract UniversalResolver is AbstractUniversalResolver {
                 if (selector == 0x3b3b57de) {
                     // addr(bytes32) -> addr()
                     bytes memory newData = abi.encodeWithSelector(0xf1cb7e06);
-                    (bool success, bytes memory returnData) = resolver.staticcall(newData);
-                    if (success) {
-                        return (returnData, resolver);
+                    (bool successCall, bytes memory resultData) = resolver.staticcall(newData);
+                    if (successCall) {
+                        return (resultData, resolver);
                     }
                 }
                 // Add more function selector mappings as needed
             }
             
             // Use original data if not a SingleNameResolver or if the selector doesn't match
-            (bool success, bytes memory returnData) = resolver.staticcall(data);
-            if (success) {
-                return (returnData, resolver);
+            (bool successCall, bytes memory resultData) = resolver.staticcall(data);
+            if (successCall) {
+                return (resultData, resolver);
             }
         }
         

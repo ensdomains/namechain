@@ -39,10 +39,9 @@ contract SingleNameResolver is OwnableUpgradeable, IERC165 {
      * @param owner The owner of the resolver
      * @param associatedName The namehash of the name this resolver is associated with
      */
-    function initialize(address owner, bytes32 associatedName) public initializer {
-        __Ownable_init_unchained();
-        _transferOwnership(owner);
-        _associatedName = associatedName;
+    function initialize(address owner, bytes32 nameHash) public initializer {
+        __Ownable_init_unchained(owner);
+        _associatedName = nameHash;
     }
 
     /**
