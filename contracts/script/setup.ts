@@ -16,10 +16,12 @@ export async function setupCrossChainEnvironment() {
     Foundry.launch({
       chain: 31337,
       port: 8545,
+      procLog: true
     }),
     Foundry.launch({
       chain: 31338,
       port: 8546,
+      procLog: true
     }),
   ]);
 
@@ -128,6 +130,35 @@ export async function setupCrossChainEnvironment() {
 
   console.log("Cross-chain environment setup complete!");
 
+  // Deploy MockPriceOracle for the ETHRegistrar
+  const l2PriceOracle = await L2.deploy({
+    file: "MockPriceOracle",
+    args: [
+      ethers.parseEther("0.01"), // Base price: 0.01 ETH
+      ethers.parseEther("0.005")  // Premium price: 0.005 ETH
+    ],
+  });
+  
+  // Constants for ETHRegistrar
+  const MIN_COMMITMENT_AGE = 10; // 10 sec
+  const MAX_COMMITMENT_AGE = 86400; // 1 day
+  
+  // Deploy ETHRegistrar on L2
+  const l2ETHRegistrar = await L2.deploy({
+    file: "ETHRegistrar",
+    args: [
+      await l2Registry.getAddress(),
+      await l2PriceOracle.getAddress(),
+      MIN_COMMITMENT_AGE,
+      MAX_COMMITMENT_AGE
+    ],
+  });
+  
+  // Grant registrar role to ETHRegistrar
+  await L2.confirm(
+    l2Registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, await l2ETHRegistrar.getAddress())
+  );
+
   // Return all deployed contracts, providers, and the relayer
   return {
     L1,
@@ -147,6 +178,8 @@ export async function setupCrossChainEnvironment() {
       controller: l2Controller,
       datastore: l2Datastore,
       metadata: l2Metadata,
+      priceOracle: l2PriceOracle,
+      ethRegistrar: l2ETHRegistrar,
     },
     // Safe shutdown function to properly terminate WebSocket connections
     shutdown: async () => {
