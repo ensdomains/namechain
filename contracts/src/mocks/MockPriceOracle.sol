@@ -12,11 +12,11 @@ contract MockPriceOracle is IPriceOracle {
         premiumPrice = _premiumPrice;
     }
 
-    function price(
-        string calldata /*name*/,
-        uint256 /*expires*/,
-        uint256 /*duration*/
-    ) external view returns (Price memory) {
+    function price(string calldata, /*name*/ uint256, /*expires*/ uint256 /*duration*/ )
+        external
+        view
+        returns (Price memory)
+    {
         return Price(basePrice, premiumPrice);
     }
 }

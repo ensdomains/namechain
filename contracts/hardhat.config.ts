@@ -1,11 +1,18 @@
-import fs from 'node:fs'
-import type { HardhatUserConfig } from "hardhat/config";
+import { configVariable, type HardhatUserConfig } from "hardhat/config";
+import fs from 'node:fs';
 
+import HardhatChaiMatchersViemPlugin from "@ensdomains/hardhat-chai-matchers-viem";
+import HardhatKeystore from "@nomicfoundation/hardhat-keystore";
+import HardhatNetworkHelpersPlugin from "@nomicfoundation/hardhat-network-helpers";
 import HardhatViem from "@nomicfoundation/hardhat-viem";
 import HardhatDeploy from "hardhat-deploy";
 
-// Define the config object with the HardhatUserConfig interface
-const config: HardhatUserConfig = {
+const realAccounts = [
+  configVariable("DEPLOYER_KEY"),
+  configVariable("OWNER_KEY"),
+];
+
+const config = {
   networks: {
     "l1-local": {
       url: "http://127.0.0.1:8545",
@@ -17,6 +24,21 @@ const config: HardhatUserConfig = {
       type: "http",
       chainId: 33333,
     },
+    mainnet: {
+      url: configVariable("MAINNET_RPC_URL"),
+      type: "http",
+      accounts: realAccounts,
+    },
+    sepolia: {
+      url: configVariable("SEPOLIA_RPC_URL"),
+      type: "http",
+      accounts: realAccounts,
+    },
+    holesky: {
+      url: configVariable("HOLESKY_RPC_URL"),
+      type: "http",
+      accounts: realAccounts,
+    },
   },
   solidity: {
     version: "0.8.25",
@@ -26,17 +48,24 @@ const config: HardhatUserConfig = {
         runs: 1000,
       },
       evmVersion: "cancun",
-      metadata: {
-        useLiteralContent: true, // required for @ensdomains/hardhat-chai-matchers-viem/behaviour
-      },
     },
     remappings: fs.readFileSync("./remappings.txt", "utf-8").split("\n").map(line => line.trim()).filter(line => line.length > 0),
   },
   paths: {
-    sources: "./src",
-    tests: "./test",
+    sources: [
+      "./src",
+      "./lib/verifiable-factory/src",
+      "./lib/ens-contracts/contracts/resolvers/profiles/",
+      "./lib/openzeppelin-contracts/contracts/utils/introspection/",
+    ],
   },
-  plugins: [HardhatViem, HardhatDeploy],
-};
+  plugins: [
+    HardhatNetworkHelpersPlugin,
+    HardhatChaiMatchersViemPlugin,
+    HardhatViem,
+    HardhatDeploy,
+    HardhatKeystore,
+  ],
+} satisfies HardhatUserConfig;
 
 export default config;
