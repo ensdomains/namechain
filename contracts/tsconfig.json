@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "Node16",
+    "module": "NodeNext",
     "moduleDetection": "force",
     "strict": true,
     "esModuleInterop": true,
@@ -9,18 +9,22 @@
     "outDir": "build",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "paths": {
+      "@rocketh": ["./rocketh.ts"]
+    }
   },
   "include": [
     "./tasks/**/*.ts",
     "./tasks/**/*.cts",
     "./test/**/*.ts",
-    "./artifacts/**/*.d.ts"
+    "./artifacts/**/*.d.ts",
+    "./deploy/**/*.ts"
   ],
   "ts-node": {
     "experimentalResolver": true,
     "experimentalSpecifierResolution": "node",
     "files": true
   },
-  "files": ["hardhat.config.cts"]
+  "files": ["hardhat.config.ts"]
 }
