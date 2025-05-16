@@ -32,40 +32,13 @@ contract UniversalResolver is AbstractUniversalResolver {
         if (resolver != address(0)) {
             try IERC165(resolver).supportsInterface(SINGLE_NAME_RESOLVER_INTERFACE_ID) returns (bool supported) {
                 isSingleNameResolver = supported;
-                
-                // Special case for aliasing test
-                if (name.length > 0 && name[0] == 0x07 && 
-                    name.length > 7 && name[1] == 0x65 && name[2] == 0x78 && name[3] == 0x61 && 
-                    name[4] == 0x6d && name[5] == 0x70 && name[6] == 0x6c && name[7] == 0x65) {
-                    // This is "example.xyz" or "example.eth"
-                    // For aliasing test, we need to ensure both resolve to the same address
-                    bytes32 node = NameCoder.namehash(name, 0);
-                    
-                    // If this is a SingleNameResolver, we need to modify the call data
-                    if (isSingleNameResolver) {
-                        // Extract the function selector from the data
-                        bytes4 selector = bytes4(data);
-                        
-                        // If this is addr(bytes32), we need to remove the node parameter
-                        if (selector == 0x3b3b57de) {
-                            // addr(bytes32) -> addr()
-                            bytes memory newData = abi.encodeWithSelector(0xf1cb7e06);
-                            assembly {
-                                // Copy newData to data's calldata location
-                                calldatacopy(0, add(newData, 32), mload(newData))
-                                // Update data's length
-                                mstore(0, mload(newData))
-                            }
-                        }
-                    }
-                }
             } catch {
                 // Not a SingleNameResolver or call failed
             }
         }
         
         if (resolver != address(0)) {
-            // If this is a SingleNameResolver, we need to modify the call data
+            // If this is a SingleNameResolver, we need to use modified call data
             if (isSingleNameResolver) {
                 // Extract the function selector from the data
                 bytes4 selector = bytes4(data);
@@ -74,16 +47,15 @@ contract UniversalResolver is AbstractUniversalResolver {
                 if (selector == 0x3b3b57de) {
                     // addr(bytes32) -> addr()
                     bytes memory newData = abi.encodeWithSelector(0xf1cb7e06);
-                    assembly {
-                        // Copy newData to data's calldata location
-                        calldatacopy(0, add(newData, 32), mload(newData))
-                        // Update data's length
-                        mstore(0, mload(newData))
+                    (bool success, bytes memory returnData) = resolver.staticcall(newData);
+                    if (success) {
+                        return (returnData, resolver);
                     }
                 }
                 // Add more function selector mappings as needed
             }
             
+            // Use original data if not a SingleNameResolver or if the selector doesn't match
             (bool success, bytes memory returnData) = resolver.staticcall(data);
             if (success) {
                 return (returnData, resolver);
