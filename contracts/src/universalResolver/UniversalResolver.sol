@@ -25,7 +25,7 @@ contract UniversalResolver is AbstractUniversalResolver {
         bytes calldata name,
         bytes calldata data
     ) external view override returns (bytes memory result, address resolver) {
-        (resolver, , uint256 offset) = findResolver(name);
+        (resolver, , ) = findResolver(name);
         
         // Check if this is a SingleNameResolver
         bool isSingleNameResolver = false;

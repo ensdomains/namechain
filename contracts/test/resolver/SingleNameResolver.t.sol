@@ -32,7 +32,7 @@ contract SingleNameResolverTest is Test {
     }
 
     function testSetCoinAddr() public {
-        bytes memory ethAddr = hex"0x1234567890abcdef";
+        bytes memory ethAddr = hex"1234567890abcdef";
         vm.prank(owner);
         resolver.setAddr(60, ethAddr);
         assertEq(resolver.addr(60), ethAddr);
