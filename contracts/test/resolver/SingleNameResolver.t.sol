@@ -83,4 +83,52 @@ contract OwnedResolverTest is Test {
         // Test for unsupported interface
         assertFalse(resolver.supportsInterface(0xffffffff), "Should not support random interface");
     }
+
+    function test_multicall() public {
+        vm.startPrank(owner);
+        
+        // Prepare test data
+        bytes memory ethAddress = abi.encodePacked(address(0x123));
+        string memory testKey = "url";
+        string memory testValue = "https://example.com";
+        bytes memory testHash = abi.encodePacked(keccak256("test"));
+        
+        // Create multicall data
+        bytes[] memory data = new bytes[](3);
+        data[0] = abi.encodeWithSelector(bytes4(keccak256("setAddr(address)")), address(0x123));
+        data[1] = abi.encodeWithSelector(SingleNameResolver.setText.selector, testKey, testValue);
+        data[2] = abi.encodeWithSelector(SingleNameResolver.setContenthash.selector, testHash);
+        
+        // Execute multicall
+        bytes[] memory results = resolver.multicall(data);
+        
+        // Verify results
+        assertEq(resolver.addr(), payable(address(0x123)), "Address not set correctly");
+        assertEq(resolver.text(testKey), testValue, "Text record not set correctly");
+        assertEq(resolver.contenthash(), testHash, "Content hash not set correctly");
+        
+        vm.stopPrank();
+    }
+
+    function test_multicall_reverts_if_not_owner() public {
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeWithSelector(bytes4(keccak256("setAddr(address)")), address(0x123));
+        
+        vm.startPrank(makeAddr("notOwner"));
+        vm.expectRevert();
+        resolver.multicall(data);
+        vm.stopPrank();
+    }
+
+    function test_multicall_with_invalid_selector() public {
+        vm.startPrank(owner);
+        
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeWithSelector(bytes4(0x12345678)); // Invalid selector
+        
+        vm.expectRevert();
+        resolver.multicall(data);
+        
+        vm.stopPrank();
+    }
 } 
