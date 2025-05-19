@@ -8,6 +8,7 @@
     "typescript": "^5.4.5"
   },
   "patchedDependencies": {
-    "@nomicfoundation/hardhat-viem@3.0.0-next.8": "patches/@nomicfoundation%2Fhardhat-viem@3.0.0-next.8.patch"
+    "@nomicfoundation/hardhat-viem@3.0.0-next.8": "patches/@nomicfoundation%2Fhardhat-viem@3.0.0-next.8.patch",
+    "rocketh@0.11.20": "patches/rocketh@0.11.20.patch"
   }
 }

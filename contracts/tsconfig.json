@@ -18,13 +18,15 @@
     "./tasks/**/*.ts",
     "./tasks/**/*.cts",
     "./test/**/*.ts",
+    "./e2e/**/*.ts",
     "./artifacts/**/*.d.ts",
-    "./deploy/**/*.ts"
+    "./deploy/**/*.ts",
+    "./script/**/*.ts"
   ],
   "ts-node": {
     "experimentalResolver": true,
     "experimentalSpecifierResolution": "node",
     "files": true
   },
-  "files": ["hardhat.config.ts"]
+  "files": ["hardhat.config.ts", "rocketh.ts", "vitest.config.ts"]
 }

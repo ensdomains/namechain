@@ -1,5 +1,5 @@
 import { configVariable, type HardhatUserConfig } from "hardhat/config";
-import fs from 'node:fs';
+import fs from "node:fs";
 
 import HardhatChaiMatchersViemPlugin from "@ensdomains/hardhat-chai-matchers-viem";
 import HardhatKeystore from "@nomicfoundation/hardhat-keystore";
@@ -20,9 +20,9 @@ const config = {
       chainId: 31337,
     },
     "l2-local": {
-      url: "http://127.0.0.1:9545",
+      url: "http://127.0.0.1:8546",
       type: "http",
-      chainId: 33333,
+      chainId: 31338,
     },
     mainnet: {
       url: configVariable("MAINNET_RPC_URL"),
@@ -49,7 +49,11 @@ const config = {
       },
       evmVersion: "cancun",
     },
-    remappings: fs.readFileSync("./remappings.txt", "utf-8").split("\n").map(line => line.trim()).filter(line => line.length > 0),
+    remappings: fs
+      .readFileSync("./remappings.txt", "utf-8")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0),
   },
   paths: {
     sources: [

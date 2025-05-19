@@ -10,8 +10,19 @@ const deploymentsPath = resolve(
 );
 
 export default execute(
-  async ({ deploy, config, namedAccounts }) => {
+  async ({ deploy, config, get, namedAccounts, network }) => {
     const { deployer, owner } = namedAccounts;
+
+    if (network.name.endsWith("-local")) {
+      const universalResolver =
+        get<(typeof artifacts.UniversalResolver)["abi"]>("UniversalResolver");
+      await deploy("UpgradableUniversalResolverProxy", {
+        account: deployer,
+        artifact: artifacts.UpgradableUniversalResolverProxy,
+        args: [owner, universalResolver.address],
+      });
+      return;
+    }
 
     const v1UniversalResolverDeployment = await readFile(
       resolve(deploymentsPath, `${config.network.name}/UniversalResolver.json`),

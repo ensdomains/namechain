@@ -12,5 +12,5 @@ export default execute(
     });
   },
   // finally you can pass tags and dependencies
-  { tags: ["RegistryDatastore", "shared"] }
+  { tags: ["RegistryDatastore", "shared"] },
 );

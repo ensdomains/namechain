@@ -1,7 +1,67 @@
 // setup.ts - Cross-chain ENS v2 testing with blocksmith.js
-import { Foundry } from "@adraffy/blocksmith";
-import { ethers } from "ethers";
-import { CrossChainRelayer } from "./CrossChainRelayer.js";
+import { anvil } from "prool/instances";
+import {
+  executeDeployScripts,
+  resolveConfig,
+  type Environment,
+  type UnknownDeployments,
+  type UnresolvedNetworkSpecificData,
+  type UnresolvedUnknownNamedAccounts,
+} from "rocketh";
+import {
+  createClient,
+  getContract,
+  webSocket,
+  type Abi,
+  type Account,
+  type Chain,
+  type Client,
+  type GetContractReturnType,
+  type Transport,
+} from "viem";
+
+import type { artifacts } from "@rocketh";
+import { mnemonicToAccount } from "viem/accounts";
+import { readConfig } from "./readConfig.js";
+
+const l1Config = {
+  port: 8545,
+  chainId: 31337,
+};
+
+const l2Config = {
+  port: 8546,
+  chainId: 31338,
+};
+
+function createDeploymentGetter<
+  transport extends Transport = Transport,
+  chain extends Chain | undefined = Chain | undefined,
+  account extends Account | undefined = Account | undefined,
+  client extends Client<transport, chain, account> = Client<
+    transport,
+    chain,
+    account
+  >,
+>(
+  environment: Environment<
+    UnresolvedUnknownNamedAccounts,
+    UnresolvedNetworkSpecificData,
+    UnknownDeployments
+  >,
+  client: client,
+) {
+  return <TAbi extends Abi>(
+    name: string,
+  ): GetContractReturnType<TAbi, client> => {
+    const deployment = environment.get(name);
+    return getContract({
+      abi: deployment.abi,
+      address: deployment.address,
+      client,
+    }) as unknown as GetContractReturnType<TAbi, client>;
+  };
+}
 
 /**
  * Sets up the cross-chain testing environment using blocksmith.js
@@ -12,172 +72,141 @@ export async function setupCrossChainEnvironment() {
   console.log("Setting up cross-chain ENS v2 environment...");
 
   // Launch two separate Anvil instances for L1 and L2
-  const [L1, L2] = await Promise.all([
-    Foundry.launch({
-      chain: 31337,
-      port: 8545,
-    }),
-    Foundry.launch({
-      chain: 31338,
-      port: 8546,
-    }),
-  ]);
+  const l1 = anvil(l1Config);
+  const l2 = anvil(l2Config);
 
-  console.log(`L1: Chain ID ${L1.chain}, URL: ${L1.endpoint}`);
-  console.log(`L2: Chain ID ${L2.chain}, URL: ${L2.endpoint}`);
+  await l1.start();
+  await l2.start();
+
+  console.log(`L1: Chain ID ${l1Config.chainId}, URL: ${l1.host}:${l1.port}`);
+  console.log(`L2: Chain ID ${l2Config.chainId}, URL: ${l2.host}:${l2.port}`);
 
   // Deploy contracts to both chains
   console.log("Deploying contracts...");
 
-  // Deploy registry datastores for L1 and L2
-  const l1Datastore = await L1.deploy({
-    file: "RegistryDatastore",
-  });
-
-  const l2Datastore = await L2.deploy({
-    file: "RegistryDatastore",
-  });
-
-  // Deploy metadata providers for L1 and L2
-  const l1Metadata = await L1.deploy({
-    file: "SimpleRegistryMetadata",
-  });
-
-  const l2Metadata = await L2.deploy({
-    file: "SimpleRegistryMetadata",
-  });
-
-  // Deploy bridge helpers first
-  const l1BridgeHelper = await L1.deploy({
-    file: "MockBridgeHelper",
-  });
-
-  const l2BridgeHelper = await L2.deploy({
-    file: "MockBridgeHelper",
-  });
-
-  // Define ALL_ROLES as a BigInt - used for granting all roles to the admin
-  const ALL_ROLES = ethers.MaxUint256;
-
-  // Deploy the unified PermissionedRegistry for both L1 and L2
-  const l1Registry = await L1.deploy({
-    file: "PermissionedRegistry",
-    args: [
-      await l1Datastore.getAddress(),
-      await l1Metadata.getAddress(),
-      ALL_ROLES
-    ],
-  });
-
-  const l2Registry = await L2.deploy({
-    file: "PermissionedRegistry",
-    args: [
-      await l2Datastore.getAddress(), 
-      await l2Metadata.getAddress(),
-      ALL_ROLES
-    ],
-  });
-
-  // Deploy bridges with bridge helpers
-  const l1Bridge = await L1.deploy({
-    file: "MockL1Bridge",
-    args: [await l1BridgeHelper.getAddress()],
-  });
-
-  const l2Bridge = await L2.deploy({
-    file: "MockL2Bridge",
-    args: [await l2BridgeHelper.getAddress()],
-  });
-
-  // Deploy controllers with proper connections
-  const l1Controller = await L1.deploy({
-    file: "MockL1EjectionController",
-    args: [
-      await l1Registry.getAddress(),
-      await l1Bridge.getAddress(),
-    ],
-  });
-
-  const l2Controller = await L2.deploy({
-    file: "MockL2EjectionController",
-    args: [
-      await l2Registry.getAddress(),
-      await l2Bridge.getAddress(),
-    ],
-  });
-
-  // Set the correct target controllers for the bridges
-  await L1.confirm(
-    l1Bridge.setTargetController(await l1Controller.getAddress())
-  );
-  await L2.confirm(
-    l2Bridge.setTargetController(await l2Controller.getAddress())
+  const l1Deploy = await executeDeployScripts(
+    resolveConfig(
+      await readConfig({
+        askBeforeProceeding: false,
+        network: "l1-local",
+      }),
+    ),
   );
 
-  // Grant registrar and renew roles to controllers
-  const ROLE_REGISTRAR = 1n << 0n;
-  const ROLE_RENEW = 1n << 1n;
-  
-  // Grant roles to controllers
-  await L1.confirm(
-    l1Registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, await l1Controller.getAddress())
-  );
-  await L2.confirm(
-    l2Registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, await l2Controller.getAddress())
+  const l2Deploy = await executeDeployScripts(
+    resolveConfig(
+      await readConfig({
+        askBeforeProceeding: false,
+        network: "l2-local",
+      }),
+    ),
   );
 
   console.log("Cross-chain environment setup complete!");
 
+  const account = mnemonicToAccount(
+    "test test test test test test test test test test test junk",
+  );
+
+  const l1Client = createClient({
+    transport: webSocket(`ws://127.0.0.1:${l1.port}`, {
+      retryCount: 0,
+    }),
+    account,
+    chain: l1Deploy.network.chain,
+  });
+  const l1Contracts = createDeploymentGetter(l1Deploy, l1Client);
+
+  const l2Client = createClient({
+    transport: webSocket(`ws://127.0.0.1:${l2.port}`, {
+      retryCount: 0,
+    }),
+    account,
+    chain: l2Deploy.network.chain,
+  });
+  const l2Contracts = createDeploymentGetter(l2Deploy, l2Client);
+
   // Return all deployed contracts, providers, and the relayer
   return {
-    L1,
-    L2,
     l1: {
-      registry: l1Registry,
-      bridge: l1Bridge,
-      bridgeHelper: l1BridgeHelper,
-      controller: l1Controller,
-      datastore: l1Datastore,
-      metadata: l1Metadata,
+      client: l1Client,
+      accounts: {
+        deployer: account,
+      },
+      contracts: {
+        ejectionController: l1Contracts<
+          (typeof artifacts.MockL1EjectionController)["abi"]
+        >("L1EjectionController"),
+        ethRegistry:
+          l1Contracts<(typeof artifacts.PermissionedRegistry)["abi"]>(
+            "L1ETHRegistry",
+          ),
+        mockBridgeHelper:
+          l1Contracts<(typeof artifacts.MockBridgeHelper)["abi"]>(
+            "MockBridgeHelper",
+          ),
+        mockBridge:
+          l1Contracts<(typeof artifacts.MockL1Bridge)["abi"]>("MockL1Bridge"),
+        registryDatastore:
+          l1Contracts<(typeof artifacts.RegistryDatastore)["abi"]>(
+            "RegistryDatastore",
+          ),
+        rootRegistry:
+          l1Contracts<(typeof artifacts.PermissionedRegistry)["abi"]>(
+            "RootRegistry",
+          ),
+        simpleRegistryMetadata: l1Contracts<
+          (typeof artifacts.SimpleRegistryMetadata)["abi"]
+        >("SimpleRegistryMetadata"),
+        universalResolver:
+          l1Contracts<(typeof artifacts.UniversalResolver)["abi"]>(
+            "UniversalResolver",
+          ),
+      },
     },
     l2: {
-      registry: l2Registry,
-      bridge: l2Bridge,
-      bridgeHelper: l2BridgeHelper,
-      controller: l2Controller,
-      datastore: l2Datastore,
-      metadata: l2Metadata,
+      client: l2Client,
+      accounts: {
+        deployer: account,
+      },
+      contracts: {
+        ethRegistrar:
+          l2Contracts<(typeof artifacts.ETHRegistrar)["abi"]>("ETHRegistrar"),
+        ethRegistry:
+          l2Contracts<(typeof artifacts.PermissionedRegistry)["abi"]>(
+            "ETHRegistry",
+          ),
+        ejectionController: l2Contracts<
+          (typeof artifacts.MockL2EjectionController)["abi"]
+        >("L2EjectionController"),
+        mockBridgeHelper:
+          l2Contracts<(typeof artifacts.MockBridgeHelper)["abi"]>(
+            "MockBridgeHelper",
+          ),
+        mockBridge:
+          l2Contracts<(typeof artifacts.MockL2Bridge)["abi"]>("MockL2Bridge"),
+        priceOracle:
+          l2Contracts<(typeof artifacts.IPriceOracle)["abi"]>("PriceOracle"),
+        registryDatastore:
+          l2Contracts<(typeof artifacts.RegistryDatastore)["abi"]>(
+            "RegistryDatastore",
+          ),
+        simpleRegistryMetadata: l2Contracts<
+          (typeof artifacts.SimpleRegistryMetadata)["abi"]
+        >("SimpleRegistryMetadata"),
+      },
     },
     // Safe shutdown function to properly terminate WebSocket connections
     shutdown: async () => {
-      console.log("Shutting down environment...");
-
-      const safeShutdown = async (instance) => {
-        try {
-          // First terminate any WebSocket connections cleanly
-          if (instance.provider instanceof ethers.WebSocketProvider) {
-            // Access internal provider properties if available
-            const websocket = instance.provider._websocket;
-            if (websocket && typeof websocket.terminate === "function") {
-              websocket.terminate();
-            }
-          }
-
-          // Then call the shutdown method
-          await instance.shutdown();
-        } catch (error) {
-          console.error(`Error shutting down instance: ${error.message}`);
-        }
-      };
-
-      // Sequential shutdown to avoid race conditions
-      await safeShutdown(L1);
-      await safeShutdown(L2);
-
-      console.log("Environment shutdown complete");
+      await l1.stop();
+      await l2.stop();
     },
   };
 }
-
-// Re-export CrossChainRelayer for convenience
-export { CrossChainRelayer };
+export type CrossChainEnvironment = Awaited<
+  ReturnType<typeof setupCrossChainEnvironment>
+>;
+export type L1Contracts = CrossChainEnvironment["l1"]["contracts"];
+export type L2Contracts = CrossChainEnvironment["l2"]["contracts"];
+export type L1Client = CrossChainEnvironment["l1"]["client"];
+export type L2Client = CrossChainEnvironment["l2"]["client"];

@@ -5,12 +5,12 @@ export default execute(
   async ({ deploy, namedAccounts }) => {
     const { deployer } = namedAccounts;
 
-    await deploy("EjectionController", {
+    await deploy("MockBridgeHelper", {
       account: deployer,
-      artifact: artifacts.MockEjectionController,
+      artifact: artifacts.MockBridgeHelper,
       args: [],
     });
   },
   // finally you can pass tags and dependencies
-  { tags: ["EjectionController", "registry", "l2"] }
+  { tags: ["MockBridgeHelper", "shared"] },
 );
