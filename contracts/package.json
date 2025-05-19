@@ -4,13 +4,13 @@
   "scripts": {
     "deploy": "hardhat deploy",
     "compile:hardhat": "hardhat compile",
-    "test:hardhat": "vitest",
+    "test:hardhat": "hardhat compile && vitest",
     "test:forge": "forge test",
+    "test:bridge": "bun test ./e2e/bridge.test.ts",
     "test": "bun run test:forge && bun run test:hardhat",
     "coverage": "forge coverage --report lcov && bun run test:hardhat",
     "clean": "forge clean && hardhat clean",
-    "devnet": "bun ./script/runDevnet.ts",
-    "test:bridge": "bun test ./e2e/bridge.test.ts"
+    "devnet": "bun ./script/runDevnet.ts"
   },
   "devDependencies": {
     "@ensdomains/hardhat-chai-matchers-viem": "^0.1.4",
