@@ -89,13 +89,12 @@ test("name ejection", async () => {
     1n,
     encodedData,
   ]);
+  const ejectionEvents = await waitForEvent(
+    l1.contracts.ejectionController.watchEvent.NameEjected,
+  );
   await expectTransactionSuccess(l2.client, transferTx);
   console.log(
     `Token transferred to L2EjectionController, tx hash: ${transferTx}`,
-  );
-
-  const ejectionEvents = await waitForEvent(
-    l1.contracts.ejectionController.watchEvent.NameEjected,
   );
 
   if (ejectionEvents.length === 0) {
@@ -161,13 +160,12 @@ test("round trip", async () => {
     1n,
     encodedDataToL1,
   ]);
+  const ejectionEvents = await waitForEvent(
+    l1.contracts.ejectionController.watchEvent.NameEjected,
+  );
   await expectTransactionSuccess(l2.client, transferTxToL1);
   console.log(
     `Token transferred to L2EjectionController, tx hash: ${transferTxToL1}`,
-  );
-
-  const ejectionEvents = await waitForEvent(
-    l1.contracts.ejectionController.watchEvent.NameEjected,
   );
 
   if (ejectionEvents.length === 0) {
@@ -204,13 +202,12 @@ test("round trip", async () => {
     1n,
     encodedDataToL2,
   ]);
+  const migrationEvents = await waitForEvent(
+    l2.contracts.ejectionController.watchEvent.NameMigrated,
+  );
   await expectTransactionSuccess(l1.client, transferTxToL2);
   console.log(
     `Token transferred to L1EjectionController, tx hash: ${transferTxToL2}`,
-  );
-
-  const migrationEvents = await waitForEvent(
-    l2.contracts.ejectionController.watchEvent.NameMigrated,
   );
 
   if (migrationEvents.length === 0) {
