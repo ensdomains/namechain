@@ -8,7 +8,7 @@
     "test:forge": "forge test",
     "test:bridge": "bun test ./e2e/bridge.test.ts",
     "test": "bun run test:forge && bun run test:hardhat",
-    "coverage": "forge coverage --report lcov && bun run test:hardhat",
+    "coverage": "forge coverage --report lcov && bun run test:hardhat && bun run test:bridge",
     "clean": "forge clean && hardhat clean",
     "devnet": "bun ./script/runDevnet.ts"
   },
