@@ -10,6 +10,12 @@ jobs:
     name: Contract tests
     runs-on: ubuntu-latest
     steps:
+      - name: Cache git folder
+        uses: actions/cache@v4
+        with:
+          path: .git
+          key: git-folder
+
       - uses: actions/checkout@v4
         with:
           submodules: "recursive"
@@ -17,10 +23,10 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Use Node 23
+      - name: Use Node 24
         uses: actions/setup-node@v4
         with:
-          node-version: 23
+          node-version: 24
 
       - name: Use Bun 1.2.2
         uses: oven-sh/setup-bun@v1
