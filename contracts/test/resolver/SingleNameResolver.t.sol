@@ -14,6 +14,7 @@ contract OwnedResolverTest is Test {
     address public owner;
     SingleNameResolver resolver;
     uint256 constant ETH_COIN_TYPE = 60;
+    bytes32 constant TEST_NODE = bytes32(uint256(1)); // Test node for getter functions
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -42,7 +43,7 @@ contract OwnedResolverTest is Test {
         resolver.setAddr(ETH_COIN_TYPE, ethAddress);
         vm.stopPrank();
 
-        bytes memory retrievedAddr = resolver.addr(ETH_COIN_TYPE);
+        bytes memory retrievedAddr = resolver.addr(TEST_NODE, ETH_COIN_TYPE);
         assertEq(retrievedAddr, ethAddress);
     }
 
@@ -62,11 +63,11 @@ contract OwnedResolverTest is Test {
         vm.startPrank(owner);
         // Set initial address
         resolver.setAddr(ETH_COIN_TYPE, addr1);
-        assertEq(resolver.addr(ETH_COIN_TYPE), addr1);
+        assertEq(resolver.addr(TEST_NODE, ETH_COIN_TYPE), addr1);
         
         // Update address
         resolver.setAddr(ETH_COIN_TYPE, addr2);
-        assertEq(resolver.addr(ETH_COIN_TYPE), addr2);
+        assertEq(resolver.addr(TEST_NODE, ETH_COIN_TYPE), addr2);
         vm.stopPrank();
     }
 
@@ -103,9 +104,9 @@ contract OwnedResolverTest is Test {
         bytes[] memory results = resolver.multicall(data);
         
         // Verify results
-        assertEq(resolver.addr(), payable(address(0x123)), "Address not set correctly");
-        assertEq(resolver.text(testKey), testValue, "Text record not set correctly");
-        assertEq(resolver.contenthash(), testHash, "Content hash not set correctly");
+        assertEq(resolver.addr(TEST_NODE), payable(address(0x123)), "Address not set correctly");
+        assertEq(resolver.text(TEST_NODE, testKey), testValue, "Text record not set correctly");
+        assertEq(resolver.contenthash(TEST_NODE), testHash, "Content hash not set correctly");
         
         vm.stopPrank();
     }
@@ -129,6 +130,41 @@ contract OwnedResolverTest is Test {
         vm.expectRevert();
         resolver.multicall(data);
         
+        vm.stopPrank();
+    }
+
+    function test_pubkey() public {
+        bytes32 x = bytes32(uint256(1));
+        bytes32 y = bytes32(uint256(2));
+        
+        vm.startPrank(owner);
+        resolver.setPubkey(x, y);
+        (bytes32 retrievedX, bytes32 retrievedY) = resolver.pubkey(TEST_NODE);
+        assertEq(retrievedX, x);
+        assertEq(retrievedY, y);
+        vm.stopPrank();
+    }
+
+    function test_abi() public {
+        uint256 contentType = 1;
+        bytes memory abiData = abi.encodePacked(keccak256("test"));
+        
+        vm.startPrank(owner);
+        resolver.setABI(contentType, abiData);
+        (uint256 retrievedContentType, bytes memory retrievedData) = resolver.ABI(TEST_NODE, contentType);
+        assertEq(retrievedContentType, contentType);
+        assertEq(retrievedData, abiData);
+        vm.stopPrank();
+    }
+
+    function test_interface_implementer() public {
+        bytes4 interfaceId = bytes4(keccak256("test"));
+        address implementer = address(0x123);
+        
+        vm.startPrank(owner);
+        resolver.setInterface(interfaceId, implementer);
+        address retrievedImplementer = resolver.interfaceImplementer(TEST_NODE, interfaceId);
+        assertEq(retrievedImplementer, implementer);
         vm.stopPrank();
     }
 } 

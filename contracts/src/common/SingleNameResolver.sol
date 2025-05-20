@@ -54,6 +54,7 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      * @param owner The owner of the resolver
      */
     function initialize(address owner) public initializer {
+        emit AddrChanged(owner);
         __Ownable_init(owner);
     }
 
@@ -68,9 +69,10 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
 
     /**
      * @dev Gets the address for the associated name
+     * @param node The node to get the address for (ignored in SingleNameResolver)
      * @return The address for the associated name
      */
-    function addr() external view returns (address payable) {
+    function addr(bytes32 node) external view returns (address payable) {
         return _addr;
     }
 
@@ -86,10 +88,11 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
 
     /**
      * @dev Gets the address for a specific coin type
+     * @param node The node to get the address for (ignored in SingleNameResolver)
      * @param coinType The coin type to get the address for
      * @return The address for the specified coin type
      */
-    function addr(uint coinType) external view returns (bytes memory) {
+    function addr(bytes32 node, uint coinType) external view returns (bytes memory) {
         return _coinAddresses[coinType];
     }
 
@@ -105,10 +108,11 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
 
     /**
      * @dev Gets a text record for the associated name
+     * @param node The node to get the text record for (ignored in SingleNameResolver)
      * @param key The key to get
      * @return The value for the specified key
      */
-    function text(string calldata key) external view returns (string memory) {
+    function text(bytes32 node, string calldata key) external view returns (string memory) {
         return _textRecords[key];
     }
 
@@ -123,9 +127,10 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
 
     /**
      * @dev Gets the content hash for the associated name
+     * @param node The node to get the content hash for (ignored in SingleNameResolver)
      * @return The content hash for the associated name
      */
-    function contenthash() external view returns (bytes memory) {
+    function contenthash(bytes32 node) external view returns (bytes memory) {
         return _contenthash;
     }
 
@@ -142,10 +147,11 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
 
     /**
      * @dev Gets the public key for the associated name
+     * @param node The node to get the public key for (ignored in SingleNameResolver)
      * @return x The x coordinate of the public key
      * @return y The y coordinate of the public key
      */
-    function pubkey() external view returns (bytes32 x, bytes32 y) {
+    function pubkey(bytes32 node) external view returns (bytes32 x, bytes32 y) {
         return (_pubkeyX, _pubkeyY);
     }
 
@@ -161,10 +167,11 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
 
     /**
      * @dev Gets the ABI for the associated name
+     * @param node The node to get the ABI for (ignored in SingleNameResolver)
      * @param contentType The content type of the ABI
      * @return The ABI data
      */
-    function ABI(uint256 contentType) external view returns (uint256, bytes memory) {
+    function ABI(bytes32 node, uint256 contentType) external view returns (uint256, bytes memory) {
         return (contentType, _abis[contentType]);
     }
 
@@ -180,10 +187,11 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
 
     /**
      * @dev Gets the implementer for an interface
+     * @param node The node to get the implementer for (ignored in SingleNameResolver)
      * @param interfaceID The interface ID
      * @return The implementer address
      */
-    function interfaceImplementer(bytes4 interfaceID) external view returns (address) {
+    function interfaceImplementer(bytes32 node, bytes4 interfaceID) external view returns (address) {
         return _interfaces[interfaceID];
     }
 
@@ -193,8 +201,7 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      * @return True if the interface is supported
      */
     function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, Multicallable) returns (bool) {
-        return
-            interfaceId == ADDR_INTERFACE_ID ||
+        bool supported = interfaceId == ADDR_INTERFACE_ID ||
             interfaceId == ADDRESS_INTERFACE_ID ||
             interfaceId == TEXT_INTERFACE_ID ||
             interfaceId == CONTENTHASH_INTERFACE_ID ||
@@ -203,5 +210,6 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
             interfaceId == INTERFACE_INTERFACE_ID ||
             interfaceId == MULTICALL_INTERFACE_ID ||
             interfaceId == type(IERC165).interfaceId;
+        return supported;
     }
 }
