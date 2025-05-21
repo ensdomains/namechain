@@ -350,7 +350,7 @@ describe("ETHFallbackResolver", () => {
       const F = await loadFixture(fixture);
       await F.namechain.setupName(kp);
       await F.namechain.singleNameResolver.write.multicall([
-        makeResolutionsV2(kp).map((res) => res.write),
+        makeResolutionsV2(kp).map((x) => x.write),
       ]);
       const bundle = bundleCalls(makeResolutionsV2({ ...kp, errors }));
       const [answer, resolver] =
@@ -365,7 +365,7 @@ describe("ETHFallbackResolver", () => {
       const F = await loadFixture(fixture);
       await F.namechain.setupName(kp);
       await F.namechain.singleNameResolver.write.multicall([
-        makeResolutionsV2(kp).map((res) => res.write),
+        makeResolutionsV2(kp).map((x) => x.write),
       ]);
       const bundle = bundleCalls(makeResolutionsV2({ ...kp, errors }));
       // the UR doesn't yet support direct resolve(multicall)
