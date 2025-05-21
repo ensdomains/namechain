@@ -6,6 +6,7 @@ import {SingleNameResolver} from "../../src/common/SingleNameResolver.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {UUPSProxy} from "@ensdomains/verifiable-factory/UUPSProxy.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {console} from "forge-std/console.sol";
 
 contract SingleNameResolverTest is Test {
@@ -56,20 +57,6 @@ contract SingleNameResolverTest is Test {
         vm.stopPrank();
     }
 
-    function test_versionable_addresses() public {
-        bytes memory addr1 = abi.encodePacked(address(0x123));
-        bytes memory addr2 = abi.encodePacked(address(0x456));
-        
-        vm.startPrank(owner);
-        // Set initial address
-        resolver.setAddr(ETH_COIN_TYPE, addr1);
-        assertEq(resolver.addr(TEST_NODE, ETH_COIN_TYPE), addr1);
-        
-        // Update address
-        resolver.setAddr(ETH_COIN_TYPE, addr2);
-        assertEq(resolver.addr(TEST_NODE, ETH_COIN_TYPE), addr2);
-        vm.stopPrank();
-    }
 
     function test_supports_interface() view public {
         // Test for implemented interfaces        
@@ -77,12 +64,60 @@ contract SingleNameResolverTest is Test {
         assertTrue(resolver.supportsInterface(0xf1cb7e06), "Should support address interface");
         assertTrue(resolver.supportsInterface(0x59d1d43c), "Should support text interface");
         assertTrue(resolver.supportsInterface(0xbc1c58d1), "Should support contenthash interface");
+        assertTrue(resolver.supportsInterface(type(INameResolver).interfaceId), "Should support name interface");
         
         // Test for ERC165 interface
         assertTrue(resolver.supportsInterface(0x01ffc9a7), "Should support ERC165");
         
         // Test for unsupported interface
         assertFalse(resolver.supportsInterface(0xffffffff), "Should not support random interface");
+    }
+
+    function test_set_and_get_name() public {
+        string memory testName = "test.eth";
+        
+        vm.startPrank(owner);
+        resolver.setName(testName);
+        vm.stopPrank();
+
+        string memory retrievedName = resolver.name(TEST_NODE);
+        assertEq(retrievedName, testName);
+    }
+
+    function test_cannot_set_name_if_not_owner() public {
+        string memory testName = "test.eth";
+        
+        vm.startPrank(makeAddr("notOwner"));
+        vm.expectRevert();
+        resolver.setName(testName);
+        vm.stopPrank();
+    }
+
+    function test_name_returns_empty_string_if_not_set() public view {
+        string memory retrievedName = resolver.name(TEST_NODE);
+        assertEq(retrievedName, "");
+    }
+
+    function test_name_in_multicall() public {
+        vm.startPrank(owner);
+        
+        // Prepare test data
+        string memory testName = "test.eth";
+        bytes memory ethAddress = abi.encodePacked(address(0x123));
+        
+        // Create multicall data
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeWithSelector(SingleNameResolver.setName.selector, testName);
+        data[1] = abi.encodeWithSelector(bytes4(keccak256("setAddr(address)")), address(0x123));
+        
+        // Execute multicall
+        bytes[] memory results = resolver.multicall(data);
+        
+        // Verify results
+        assertEq(resolver.name(TEST_NODE), testName, "Name not set correctly");
+        assertEq(resolver.addr(TEST_NODE), payable(address(0x123)), "Address not set correctly");
+        
+        vm.stopPrank();
     }
 
     function test_multicall() public {

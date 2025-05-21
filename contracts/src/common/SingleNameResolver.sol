@@ -5,30 +5,33 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Multicallable} from "@ens/contracts/resolvers/Multicallable.sol";
 
+// Resolver profile interfaces
+import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
+import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
+import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
+import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
+import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
+import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
+import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
+
 /**
  * @title SingleNameResolver
  * @dev A resolver tied to a specific registry/name without node parameters
  */
-contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
-    bytes4 constant private ADDR_INTERFACE_ID = 0x3b3b57de;
-    bytes4 constant private ADDRESS_INTERFACE_ID = 0xf1cb7e06;
-    bytes4 constant private TEXT_INTERFACE_ID = 0x59d1d43c;
-    bytes4 constant private CONTENTHASH_INTERFACE_ID = 0xbc1c58d1;
-    bytes4 constant private PUBKEY_INTERFACE_ID = 0xc8690233;
-    bytes4 constant private ABI_INTERFACE_ID = 0x2203ab56;
-    bytes4 constant private INTERFACE_INTERFACE_ID = 0x01ffc9a7;
-    bytes4 constant private MULTICALL_INTERFACE_ID = 0x5a05180f;
-    uint256 constant private ETH_COIN_TYPE = 60;
-
-    event AddrChanged(bytes32 indexed node, address a);
-    event AddressChanged(bytes32 indexed node, uint256 coinType, bytes newAddress);
-    event TextChanged(bytes32 indexed node, string indexed indexedKey, string key, string value);
-    event ContenthashChanged(bytes32 indexed node, bytes hash);
-    event PubkeyChanged(bytes32 indexed node, bytes32 x, bytes32 y);
-    event ABIChanged(bytes32 indexed node, uint256 indexed contentType);
-    event InterfaceChanged(bytes32 indexed node, bytes4 indexed interfaceID, address implementer);
-    event NameChanged(bytes32 indexed node, string name);
-
+contract SingleNameResolver is 
+    IERC165, 
+    Multicallable, 
+    OwnableUpgradeable,
+    IAddrResolver,
+    IAddressResolver,
+    ITextResolver,
+    IContentHashResolver,
+    IPubkeyResolver,
+    INameResolver,
+    IABIResolver,
+    IInterfaceResolver
+{
     // Mapping from coin type to address
     mapping(uint => bytes) private _coinAddresses;
 
@@ -39,14 +42,22 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
     bytes private _contenthash;
 
     // Public key
-    bytes32 private _pubkeyX;
-    bytes32 private _pubkeyY;
+    struct PublicKey {
+        bytes32 x;
+        bytes32 y;
+    }
+    PublicKey private _pubkey;
 
     // Mapping from content type to ABI
     mapping(uint256 => bytes) private _abis;
 
     // Mapping from interface ID to implementer
     mapping(bytes4 => address) private _interfaces;
+
+    // Name
+    string private _name;
+
+    uint256 constant private ETH_COIN_TYPE = 60;
 
     /**
      * @dev Initializes the contract with an owner and associated name
@@ -71,10 +82,10 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      * @param node The node to get the address for (ignored in SingleNameResolver)
      * @return The address for the associated name
      */
-    function addr(bytes32 node) external view returns (address) {
+    function addr(bytes32 node) external view returns (address payable) {
         bytes memory addrBytes = _coinAddresses[ETH_COIN_TYPE];
-        if (addrBytes.length == 0) return address(0);
-        return bytesToAddress(addrBytes);
+        if (addrBytes.length == 0) return payable(address(0));
+        return payable(bytesToAddress(addrBytes));
     }
 
     /**
@@ -141,8 +152,7 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      * @param y The y coordinate of the public key
      */
     function setPubkey(bytes32 x, bytes32 y) external onlyOwner {
-        _pubkeyX = x;
-        _pubkeyY = y;
+        _pubkey = PublicKey(x, y);
         emit PubkeyChanged(bytes32(0), x, y);
     }
 
@@ -153,7 +163,7 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      * @return y The y coordinate of the public key
      */
     function pubkey(bytes32 node) external view returns (bytes32 x, bytes32 y) {
-        return (_pubkeyX, _pubkeyY);
+        return (_pubkey.x, _pubkey.y);
     }
 
     /**
@@ -197,6 +207,24 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
     }
 
     /**
+     * @dev Sets the name for the associated name
+     * @param name The name to set
+     */
+    function setName(string calldata name) external onlyOwner {
+        _name = name;
+        emit NameChanged(bytes32(0), name);
+    }
+
+    /**
+     * @dev Gets the name for the associated name
+     * @param node The node to get the name for (ignored in SingleNameResolver)
+     * @return The name for the associated name
+     */
+    function name(bytes32 node) external view returns (string memory) {
+        return _name;
+    }
+
+    /**
      * @dev Converts an address to bytes
      * @param addr The address to convert
      * @return The address as bytes
@@ -229,15 +257,14 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      * @return True if the interface is supported
      */
     function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, Multicallable) returns (bool) {
-        bool supported = interfaceId == ADDR_INTERFACE_ID ||
-            interfaceId == ADDRESS_INTERFACE_ID ||
-            interfaceId == TEXT_INTERFACE_ID ||
-            interfaceId == CONTENTHASH_INTERFACE_ID ||
-            interfaceId == PUBKEY_INTERFACE_ID ||
-            interfaceId == ABI_INTERFACE_ID ||
-            interfaceId == INTERFACE_INTERFACE_ID ||
-            interfaceId == MULTICALL_INTERFACE_ID ||
+        return interfaceId == type(IAddrResolver).interfaceId ||
+            interfaceId == type(IAddressResolver).interfaceId ||
+            interfaceId == type(ITextResolver).interfaceId ||
+            interfaceId == type(IContentHashResolver).interfaceId ||
+            interfaceId == type(IPubkeyResolver).interfaceId ||
+            interfaceId == type(IABIResolver).interfaceId ||
+            interfaceId == type(IInterfaceResolver).interfaceId ||
+            interfaceId == type(INameResolver).interfaceId ||
             interfaceId == type(IERC165).interfaceId;
-        return supported;
     }
 }
