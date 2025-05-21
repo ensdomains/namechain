@@ -8,7 +8,7 @@ import {UUPSProxy} from "@ensdomains/verifiable-factory/UUPSProxy.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {console} from "forge-std/console.sol";
 
-contract OwnedResolverTest is Test {
+contract SingleNameResolverTest is Test {
     VerifiableFactory factory;
     uint256 constant SALT = 12345;
     address public owner;

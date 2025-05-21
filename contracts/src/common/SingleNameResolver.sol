@@ -18,14 +18,16 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
     bytes4 constant private ABI_INTERFACE_ID = 0x2203ab56;
     bytes4 constant private INTERFACE_INTERFACE_ID = 0x01ffc9a7;
     bytes4 constant private MULTICALL_INTERFACE_ID = 0x5a05180f;
+    uint256 constant private ETH_COIN_TYPE = 60;
 
-    event AddrChanged(address addr);
-    event AddressChanged(uint coinType, bytes newAddress);
-    event TextChanged(string indexed key, string value);
-    event ContenthashChanged(bytes hash);
-    event PubkeyChanged(bytes32 x, bytes32 y);
-    event ABIChanged(uint256 indexed contentType);
-    event InterfaceChanged(bytes4 indexed interfaceID, address implementer);
+    event AddrChanged(bytes32 indexed node, address a);
+    event AddressChanged(bytes32 indexed node, uint256 coinType, bytes newAddress);
+    event TextChanged(bytes32 indexed node, string indexed indexedKey, string key, string value);
+    event ContenthashChanged(bytes32 indexed node, bytes hash);
+    event PubkeyChanged(bytes32 indexed node, bytes32 x, bytes32 y);
+    event ABIChanged(bytes32 indexed node, uint256 indexed contentType);
+    event InterfaceChanged(bytes32 indexed node, bytes4 indexed interfaceID, address implementer);
+    event NameChanged(bytes32 indexed node, string name);
 
     // Mapping from coin type to address
     mapping(uint => bytes) private _coinAddresses;
@@ -35,9 +37,6 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
 
     // Content hash
     bytes private _contenthash;
-
-    // ETH address (for backward compatibility)
-    address payable private _addr;
 
     // Public key
     bytes32 private _pubkeyX;
@@ -54,7 +53,7 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      * @param owner The owner of the resolver
      */
     function initialize(address owner) public initializer {
-        emit AddrChanged(owner);
+        emit AddrChanged(bytes32(0), owner);
         __Ownable_init(owner);
     }
 
@@ -63,8 +62,8 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      * @param addr The address to set
      */
     function setAddr(address addr) external onlyOwner {
-        _addr = payable(addr);
-        emit AddrChanged(addr);
+        _coinAddresses[ETH_COIN_TYPE] = addressToBytes(addr);
+        emit AddrChanged(bytes32(0), addr);
     }
 
     /**
@@ -72,8 +71,10 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      * @param node The node to get the address for (ignored in SingleNameResolver)
      * @return The address for the associated name
      */
-    function addr(bytes32 node) external view returns (address payable) {
-        return _addr;
+    function addr(bytes32 node) external view returns (address) {
+        bytes memory addrBytes = _coinAddresses[ETH_COIN_TYPE];
+        if (addrBytes.length == 0) return address(0);
+        return bytesToAddress(addrBytes);
     }
 
     /**
@@ -83,7 +84,7 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      */
     function setAddr(uint coinType, bytes calldata addr) external onlyOwner {
         _coinAddresses[coinType] = addr;
-        emit AddressChanged(coinType, addr);
+        emit AddressChanged(bytes32(0), coinType, addr);
     }
 
     /**
@@ -103,7 +104,7 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      */
     function setText(string calldata key, string calldata value) external onlyOwner {
         _textRecords[key] = value;
-        emit TextChanged(key, value);
+        emit TextChanged(bytes32(0), key, key, value);
     }
 
     /**
@@ -122,7 +123,7 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      */
     function setContenthash(bytes calldata hash) external onlyOwner {
         _contenthash = hash;
-        emit ContenthashChanged(hash);
+        emit ContenthashChanged(bytes32(0), hash);
     }
 
     /**
@@ -142,7 +143,7 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
     function setPubkey(bytes32 x, bytes32 y) external onlyOwner {
         _pubkeyX = x;
         _pubkeyY = y;
-        emit PubkeyChanged(x, y);
+        emit PubkeyChanged(bytes32(0), x, y);
     }
 
     /**
@@ -162,7 +163,7 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      */
     function setABI(uint256 contentType, bytes calldata data) external onlyOwner {
         _abis[contentType] = data;
-        emit ABIChanged(contentType);
+        emit ABIChanged(bytes32(0), contentType);
     }
 
     /**
@@ -182,7 +183,7 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      */
     function setInterface(bytes4 interfaceID, address implementer) external onlyOwner {
         _interfaces[interfaceID] = implementer;
-        emit InterfaceChanged(interfaceID, implementer);
+        emit InterfaceChanged(bytes32(0), interfaceID, implementer);
     }
 
     /**
@@ -193,6 +194,33 @@ contract SingleNameResolver is IERC165, Multicallable, OwnableUpgradeable {
      */
     function interfaceImplementer(bytes32 node, bytes4 interfaceID) external view returns (address) {
         return _interfaces[interfaceID];
+    }
+
+    /**
+     * @dev Converts an address to bytes
+     * @param addr The address to convert
+     * @return The address as bytes
+     */
+    function addressToBytes(address addr) internal pure returns (bytes memory) {
+        bytes memory b = new bytes(20);
+        assembly {
+            mstore(add(b, 32), mul(addr, exp(256, 12)))
+        }
+        return b;
+    }
+
+    /**
+     * @dev Converts bytes to an address
+     * @param b The bytes to convert
+     * @return The address
+     */
+    function bytesToAddress(bytes memory b) internal pure returns (address) {
+        require(b.length == 20, "Invalid address length");
+        address a;
+        assembly {
+            a := div(mload(add(b, 32)), exp(256, 12))
+        }
+        return a;
     }
 
     /**
