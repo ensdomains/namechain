@@ -322,9 +322,7 @@ export function makeResolutionsV1(p: KnownProfile): KnownResolution[] {
           result: [contentType, value],
         }),
         expect(data) {
-          console.log('***data', data)
           const actual = decodeFunctionResult({ abi, functionName, data });
-          console.log('***actual', actual)
           expect(actual, this.desc).toStrictEqual([contentType, value]);
         },
       });
@@ -547,5 +545,3 @@ export function makeResolutionsV2(p: KnownProfile): KnownResolution[] {
   return resolutions;
 }
 
-// For backward compatibility
-export const makeResolutions = makeResolutionsV2;
