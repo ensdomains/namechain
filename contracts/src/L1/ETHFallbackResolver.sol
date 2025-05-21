@@ -40,15 +40,14 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;
 
-    /// @dev Storage layout of OwnedResolver.
-    uint256 constant SLOT_PR_VERSIONS = 0;
-    uint256 constant SLOT_PR_ABIS = 1;
-    uint256 constant SLOT_PR_ADDRESSES = 2;
-    uint256 constant SLOT_PR_CONTENTHASHES = 3;
-    uint256 constant SLOT_PR_INTERFACES = 7;
-    uint256 constant SLOT_PR_NAMES = 8;
-    uint256 constant SLOT_PR_PUBKEYS = 9;
-    uint256 constant SLOT_PR_TEXTS = 10;
+    /// @dev Storage layout of SingleNameResolver.
+    uint256 constant SLOT_SNR_COIN_ADDRESSES = 0;  // _coinAddresses
+    uint256 constant SLOT_SNR_TEXT_RECORDS = 1;    // _textRecords
+    uint256 constant SLOT_SNR_CONTENTHASH = 2;     // _contenthash
+    uint256 constant SLOT_SNR_PUBKEY = 3;          // _pubkey (PublicKey struct)
+    uint256 constant SLOT_SNR_ABIS = 5;            // _abis
+    uint256 constant SLOT_SNR_INTERFACES = 6;      // _interfaces
+    uint256 constant SLOT_SNR_NAMES = 7;           // _names
 
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
 
@@ -236,7 +235,6 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         }
         req.evalLoop(EvalFlag.STOP_ON_FAILURE); // outputs = [registry, resolver]
         req.pushOutput(1).requireNonzero(EXIT_CODE_NO_RESOLVER).target(); // target resolver
-        req.setSlot(SLOT_PR_VERSIONS);
         req.push(node); // leave on stack at offset 0
         req.dup().follow(); // recordVersions[node]
         req.read(); // version, leave on stack at offset 1
@@ -252,44 +250,42 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
             //     continue;
             // }
             if (selector == IAddrResolver.addr.selector) {
-                req.setSlot(SLOT_PR_ADDRESSES);
-                req.dup2().follow().follow().push(60).follow(); // versionable_addresses[version][node][60]
+                req.setSlot(SLOT_SNR_COIN_ADDRESSES);  // Set to SingleNameResolver's storage slot
+                req.dup2().push(60).follow();  // _coinAddresses[60]
                 req.readBytes().shl(0); // convert to word
             } else if (selector == IAddressResolver.addr.selector) {
                 uint256 coinType = uint256(BytesUtils.readBytes32(v, 36));
-                req.setSlot(SLOT_PR_ADDRESSES);
-                req.dup2().follow().follow().push(coinType).follow(); // versionable_addresses[version][node][coinType]
+                req.setSlot(SLOT_SNR_COIN_ADDRESSES);
+                req.dup2().push(coinType).follow(); // _coinAddresses[coinType]
                 req.readBytes();
             } else if (selector == ITextResolver.text.selector) {
                 (, string memory key) = abi.decode(BytesUtils.substring(v, 4, v.length - 4), (bytes32, string));
                 // uint256 jump = 4 + uint256(BytesUtils.readBytes32(v, 36));
                 // uint256 size = uint256(BytesUtils.readBytes32(v, jump));
                 // bytes memory key = BytesUtils.substring(v, jump + 32, size);
-                req.setSlot(SLOT_PR_TEXTS);
-                req.dup2().follow().follow().push(key).follow(); // versionable_texts[version][node][key]
+                req.setSlot(SLOT_SNR_TEXT_RECORDS);
+                req.dup2().push(key).follow(); // _textRecords[key]
                 req.readBytes();
             } else if (selector == IContentHashResolver.contenthash.selector) {
-                req.setSlot(SLOT_PR_CONTENTHASHES);
-                req.dup2().follow().follow(); // versionable_hashes[version][node]
+                req.setSlot(SLOT_SNR_CONTENTHASH);
+                req.dup2(); // _contenthash
                 req.readBytes();
             } else if (selector == INameResolver.name.selector) {
-                req.setSlot(SLOT_PR_NAMES);
-                req.dup2().follow().follow(); // versionable_names[version][node]
+                req.setSlot(SLOT_SNR_NAMES);
+                req.dup2(); // _names
                 req.readBytes();
             } else if (selector == IPubkeyResolver.pubkey.selector) {
-                req.setSlot(SLOT_PR_PUBKEYS);
-                req.dup2().follow().follow(); // versionable_pubkeys[version][node]
-                req.read(2);
+                req.setSlot(SLOT_SNR_PUBKEY);
+                req.dup2(); // _pubkey
+                req.read(2); // read both x and y from the struct
             } else if (selector == IInterfaceResolver.interfaceImplementer.selector) {
                 bytes4 interfaceID = bytes4(BytesUtils.readBytes32(v, 36));
-                req.setSlot(SLOT_PR_INTERFACES);
-                req.dup2().follow().follow().push(interfaceID).follow(); // versionable_interfaces[version][node][interfaceID]
+                req.setSlot(SLOT_SNR_INTERFACES);
+                req.dup2().push(interfaceID).follow(); // _interfaces[interfaceID]
                 req.read();
-            } else if (selector == IVersionableResolver.recordVersions.selector) {
-                req.dup(); // recordVersions[node]
             } else if (selector == IABIResolver.ABI.selector) {
-                req.setSlot(SLOT_PR_ABIS);
-                req.dup2().follow().follow(); // versionable_abis[version][node]
+                req.setSlot(SLOT_SNR_ABIS);
+                req.dup2(); // _abis
                 uint256 bits = uint256(BytesUtils.readBytes32(v, 36));
                 uint256 count;
                 for (uint256 contentType = 1 << 255; contentType > 0; contentType >>= 1) {
