@@ -81,8 +81,8 @@ export async function deployV2Fixture(enableCcipRead = false) {
   const verifiableFactory = await hre.viem.deployContract(
     "@ensdomains/verifiable-factory/VerifiableFactory.sol:VerifiableFactory",
   );
-  const ownedResolverImpl = await hre.viem.deployContract("OwnedResolver");
-  const ownedResolver = await deployOwnedResolver({
+  const dedicatedResolverImpl = await hre.viem.deployContract("DedicatedResolver");
+  const dedicatedResolver = await deployDedicatedResolver({
     owner: walletClient.account.address,
   });
   return {
@@ -93,11 +93,11 @@ export async function deployV2Fixture(enableCcipRead = false) {
     ethRegistry,
     universalResolver,
     verifiableFactory,
-    ownedResolver,
-    deployOwnedResolver,
+    dedicatedResolver,
+    deployDedicatedResolver,
     setupName,
   };
-  async function deployOwnedResolver({
+  async function deployDedicatedResolver({
     owner,
     salt = BigInt(labelhash(new Date().toISOString())),
   }: {
@@ -106,10 +106,10 @@ export async function deployV2Fixture(enableCcipRead = false) {
   }) {
     const wallet = await hre.viem.getWalletClient(owner);
     const hash = await verifiableFactory.write.deployProxy([
-      ownedResolverImpl.address,
+      dedicatedResolverImpl.address,
       salt,
       encodeFunctionData({
-        abi: ownedResolverImpl.abi,
+        abi: dedicatedResolverImpl.abi,
         functionName: "initialize",
         args: [owner],
       }),
@@ -122,7 +122,7 @@ export async function deployV2Fixture(enableCcipRead = false) {
       eventName: "ProxyDeployed",
       logs: receipt.logs,
     });
-    return hre.viem.getContractAt("OwnedResolver", log.args.proxyAddress, {
+    return hre.viem.getContractAt("DedicatedResolver", log.args.proxyAddress, {
       client: {
         wallet,
       },
@@ -134,7 +134,7 @@ export async function deployV2Fixture(enableCcipRead = false) {
     owner = walletClient.account.address,
     expiry = MAX_EXPIRY,
     roles = ROLES.ALL,
-    resolverAddress = ownedResolver.address,
+    resolverAddress = dedicatedResolver.address,
     metadataAddress = zeroAddress,
     exact = false,
   }: {
