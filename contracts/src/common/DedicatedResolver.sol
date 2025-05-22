@@ -16,12 +16,12 @@ import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
 import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
 
 /**
- * @title SingleNameResolver
- * @dev A resolver tied to a specific registry/name without node parameters
+ * @title DedicatedResolver
+ * @notice A resolver that is dedicated to a single name
  */
-contract SingleNameResolver is 
-    IERC165, 
-    Multicallable, 
+contract DedicatedResolver is
+    IERC165,
+    Multicallable,
     OwnableUpgradeable,
     IAddrResolver,
     IAddressResolver,

@@ -41,13 +41,13 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     uint256 constant SLOT_RD_ENTRIES = 0;
 
     /// @dev Storage layout of SingleNameResolver.
-    uint256 constant SLOT_SNR_COIN_ADDRESSES = 0;  // _coinAddresses
-    uint256 constant SLOT_SNR_TEXT_RECORDS = 1;    // _textRecords
-    uint256 constant SLOT_SNR_CONTENTHASH = 2;     // _contenthash
-    uint256 constant SLOT_SNR_PUBKEY = 3;          // _pubkey (PublicKey struct)
-    uint256 constant SLOT_SNR_ABIS = 5;            // _abis
-    uint256 constant SLOT_SNR_INTERFACES = 6;      // _interfaces
-    uint256 constant SLOT_SNR_NAMES = 7;           // _names
+    uint256 constant SLOT_DR_COIN_ADDRESSES = 0;  // _coinAddresses
+    uint256 constant SLOT_DR_TEXT_RECORDS = 1;    // _textRecords
+    uint256 constant SLOT_DR_CONTENTHASH = 2;     // _contenthash
+    uint256 constant SLOT_DR_PUBKEY = 3;          // _pubkey (PublicKey struct)
+    uint256 constant SLOT_DR_ABIS = 5;            // _abis
+    uint256 constant SLOT_DR_INTERFACES = 6;      // _interfaces
+    uint256 constant SLOT_DR_NAMES = 7;           // _names
 
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
 
@@ -250,12 +250,12 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
             //     continue;
             // }
             if (selector == IAddrResolver.addr.selector) {
-                req.setSlot(SLOT_SNR_COIN_ADDRESSES);  // Set to SingleNameResolver's storage slot
+                req.setSlot(SLOT_DR_COIN_ADDRESSES);  // Set to SingleNameResolver's storage slot
                 req.dup2().push(60).follow();  // _coinAddresses[60]
                 req.readBytes().shl(0); // convert to word
             } else if (selector == IAddressResolver.addr.selector) {
                 uint256 coinType = uint256(BytesUtils.readBytes32(v, 36));
-                req.setSlot(SLOT_SNR_COIN_ADDRESSES);
+                req.setSlot(SLOT_DR_COIN_ADDRESSES);
                 req.dup2().push(coinType).follow(); // _coinAddresses[coinType]
                 req.readBytes();
             } else if (selector == ITextResolver.text.selector) {
@@ -263,28 +263,28 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
                 // uint256 jump = 4 + uint256(BytesUtils.readBytes32(v, 36));
                 // uint256 size = uint256(BytesUtils.readBytes32(v, jump));
                 // bytes memory key = BytesUtils.substring(v, jump + 32, size);
-                req.setSlot(SLOT_SNR_TEXT_RECORDS);
+                req.setSlot(SLOT_DR_TEXT_RECORDS);
                 req.dup2().push(key).follow(); // _textRecords[key]
                 req.readBytes();
             } else if (selector == IContentHashResolver.contenthash.selector) {
-                req.setSlot(SLOT_SNR_CONTENTHASH);
+                req.setSlot(SLOT_DR_CONTENTHASH);
                 req.dup2(); // _contenthash
                 req.readBytes();
             } else if (selector == INameResolver.name.selector) {
-                req.setSlot(SLOT_SNR_NAMES);
+                req.setSlot(SLOT_DR_NAMES);
                 req.dup2(); // _names
                 req.readBytes();
             } else if (selector == IPubkeyResolver.pubkey.selector) {
-                req.setSlot(SLOT_SNR_PUBKEY);
+                req.setSlot(SLOT_DR_PUBKEY);
                 req.dup2(); // _pubkey
                 req.read(2); // read both x and y from the struct
             } else if (selector == IInterfaceResolver.interfaceImplementer.selector) {
                 bytes4 interfaceID = bytes4(BytesUtils.readBytes32(v, 36));
-                req.setSlot(SLOT_SNR_INTERFACES);
+                req.setSlot(SLOT_DR_INTERFACES);
                 req.dup2().push(interfaceID).follow(); // _interfaces[interfaceID]
                 req.read();
             } else if (selector == IABIResolver.ABI.selector) {
-                req.setSlot(SLOT_SNR_ABIS);
+                req.setSlot(SLOT_DR_ABIS);
                 req.dup2(); // _abis
                 uint256 bits = uint256(BytesUtils.readBytes32(v, 36));
                 uint256 count;

@@ -2,18 +2,18 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {SingleNameResolver} from "../../src/common/SingleNameResolver.sol";
+import {DedicatedResolver} from "../../src/common/DedicatedResolver.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {UUPSProxy} from "@ensdomains/verifiable-factory/UUPSProxy.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {console} from "forge-std/console.sol";
 
-contract SingleNameResolverTest is Test {
+contract DedicatedResolverTest is Test {
     VerifiableFactory factory;
     uint256 constant SALT = 12345;
     address public owner;
-    SingleNameResolver resolver;
+    DedicatedResolver resolver;
     uint256 constant ETH_COIN_TYPE = 60;
     bytes32 constant TEST_NODE = bytes32(uint256(1)); // Test node for getter functions
 
@@ -21,13 +21,13 @@ contract SingleNameResolverTest is Test {
         owner = makeAddr("owner");
         factory = new VerifiableFactory();
         
-        address implementation = address(new SingleNameResolver());
-        bytes memory initData = abi.encodeWithSelector(SingleNameResolver.initialize.selector, owner);
+        address implementation = address(new DedicatedResolver());
+        bytes memory initData = abi.encodeWithSelector(DedicatedResolver.initialize.selector, owner);
         vm.startPrank(owner);
         address deployed = factory.deployProxy(implementation, SALT, initData);
         vm.stopPrank();
         
-        resolver = SingleNameResolver(deployed);
+        resolver = DedicatedResolver(deployed);
     }
 
     function test_deploy() public view {
@@ -107,7 +107,7 @@ contract SingleNameResolverTest is Test {
         
         // Create multicall data
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeWithSelector(SingleNameResolver.setName.selector, testName);
+        data[0] = abi.encodeWithSelector(DedicatedResolver.setName.selector, testName);
         data[1] = abi.encodeWithSelector(bytes4(keccak256("setAddr(address)")), address(0x123));
         
         // Execute multicall
@@ -132,8 +132,8 @@ contract SingleNameResolverTest is Test {
         // Create multicall data
         bytes[] memory data = new bytes[](3);
         data[0] = abi.encodeWithSelector(bytes4(keccak256("setAddr(address)")), address(0x123));
-        data[1] = abi.encodeWithSelector(SingleNameResolver.setText.selector, testKey, testValue);
-        data[2] = abi.encodeWithSelector(SingleNameResolver.setContenthash.selector, testHash);
+        data[1] = abi.encodeWithSelector(DedicatedResolver.setText.selector, testKey, testValue);
+        data[2] = abi.encodeWithSelector(DedicatedResolver.setContenthash.selector, testHash);
         
         // Execute multicall
         bytes[] memory results = resolver.multicall(data);
