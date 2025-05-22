@@ -170,7 +170,7 @@ export function bundleCalls(resolutions: KnownResolution[]): KnownBundle {
   };
 }
 
-export function makeResolutionsV1(p: KnownProfile): KnownResolution[] {
+export function makePublicResolverResolutions(p: KnownProfile): KnownResolution[] {
   const resolutions: KnownResolution[] = [];
   const node = namehash(p.name);
   if (p.addresses) {
@@ -364,7 +364,7 @@ export function makeResolutionsV1(p: KnownProfile): KnownResolution[] {
   }
   return resolutions;
 }
-export function makeResolutionsV2(p: KnownProfile): KnownResolution[] {
+export function makeDedicatedResolverResolutions(p: KnownProfile): KnownResolution[] {
   const resolutions: KnownResolution[] = [];
   const node = namehash(p.name);
   if (p.addresses) {
