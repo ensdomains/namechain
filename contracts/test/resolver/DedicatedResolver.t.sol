@@ -9,6 +9,10 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {console} from "forge-std/console.sol";
 
+interface IUniversalResolverV2 {
+    function findResolver(string memory name) external view returns (address);
+}
+
 contract DedicatedResolverTest is Test {
     VerifiableFactory factory;
     uint256 constant SALT = 12345;
@@ -16,18 +20,27 @@ contract DedicatedResolverTest is Test {
     DedicatedResolver resolver;
     uint256 constant ETH_COIN_TYPE = 60;
     bytes32 constant TEST_NODE = bytes32(uint256(1)); // Test node for getter functions
+    address public universalResolver;
+    address public alice;
 
     function setUp() public {
         owner = makeAddr("owner");
         factory = new VerifiableFactory();
         
         address implementation = address(new DedicatedResolver());
-        bytes memory initData = abi.encodeWithSelector(DedicatedResolver.initialize.selector, owner);
+        bytes memory initData = abi.encodeWithSelector(
+            DedicatedResolver.initialize.selector,
+            owner,
+            true, // wildcard
+            address(0x456) // universalResolver
+        );
         vm.startPrank(owner);
         address deployed = factory.deployProxy(implementation, SALT, initData);
         vm.stopPrank();
         
         resolver = DedicatedResolver(deployed);
+        universalResolver = address(0x456);
+        alice = makeAddr("alice");
     }
 
     function test_deploy() public view {
@@ -35,6 +48,8 @@ contract DedicatedResolverTest is Test {
         bytes32 outerSalt = keccak256(abi.encode(owner, SALT));
         assertEq(proxy.getVerifiableProxySalt(), outerSalt);
         assertEq(resolver.owner(), owner);
+        assertTrue(resolver.wildcard(), "Wildcard should be true");
+        assertEq(resolver.universalResolver(), address(0x456), "Universal resolver address should match");
     }
 
     function test_set_and_get_addr() public {
@@ -201,5 +216,138 @@ contract DedicatedResolverTest is Test {
         address retrievedImplementer = resolver.interfaceImplementer(TEST_NODE, interfaceId);
         assertEq(retrievedImplementer, implementer);
         vm.stopPrank();
+    }
+
+    function test_set_universal_resolver() public {
+        address newUniversalResolver = address(0x789);
+        
+        vm.startPrank(owner);
+        resolver.setUniversalResolver(newUniversalResolver);
+        vm.stopPrank();
+
+        assertEq(resolver.universalResolver(), newUniversalResolver, "Universal resolver address should be updated");
+    }
+
+    function test_cannot_set_universal_resolver_if_not_owner() public {
+        address newUniversalResolver = address(0x789);
+        
+        vm.startPrank(makeAddr("notOwner"));
+        vm.expectRevert();
+        resolver.setUniversalResolver(newUniversalResolver);
+        vm.stopPrank();
+    }
+
+    function test_Addr_WithWildcardEnabled() public {
+        // Deploy a new resolver instance
+        address implementation = address(new DedicatedResolver());
+        bytes memory initData = abi.encodeWithSelector(
+            DedicatedResolver.initialize.selector,
+            owner,
+            true, // wildcard
+            address(universalResolver)
+        );
+        vm.startPrank(owner);
+        address deployed = factory.deployProxy(implementation, SALT + 1, initData);
+        DedicatedResolver testResolver = DedicatedResolver(deployed);
+        testResolver.setAddr(alice);
+        vm.stopPrank();
+
+        // Should return stored address regardless of UniversalResolver state
+        vm.mockCall(
+            address(universalResolver),
+            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, "test.eth"),
+            abi.encode(address(testResolver))
+        );
+        assertEq(testResolver.addr(bytes32(0)), alice);
+
+        vm.mockCall(
+            address(universalResolver),
+            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, "test.eth"),
+            abi.encode(address(1))
+        );
+        assertEq(testResolver.addr(bytes32(0)), alice);
+    }
+
+    function test_Addr_WithWildcardDisabled() public {
+        console.log("Starting test_Addr_WithWildcardDisabled");
+        
+        // Deploy a new resolver instance
+        console.log("Deploying new resolver instance");
+        address implementation = address(new DedicatedResolver());
+        bytes memory initData = abi.encodeWithSelector(
+            DedicatedResolver.initialize.selector,
+            owner,
+            false, // wildcard
+            address(universalResolver)
+        );
+        vm.startPrank(owner);
+        console.log("Deploying proxy");
+        address deployed = factory.deployProxy(implementation, SALT + 2, initData);
+        DedicatedResolver testResolver = DedicatedResolver(deployed);
+        console.log("Setting name to test.eth");
+        testResolver.setName("test.eth");
+        console.log("Setting addr to alice");
+        testResolver.setAddr(alice);
+        vm.stopPrank();
+
+        // Verify initial state
+        console.log("Verifying initial state");
+        assertFalse(testResolver.wildcard(), "Wildcard should be false");
+        assertEq(testResolver.universalResolver(), address(universalResolver), "Universal resolver address should match");
+
+        // Should return stored address when this resolver is the current resolver
+        console.log("Testing when resolver is current resolver");
+        vm.mockCall(
+            address(universalResolver),
+            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, "test.eth"),
+            abi.encode(address(testResolver))
+        );
+        address result = testResolver.addr(bytes32(0));
+        assertEq(result, alice, "Should return alice when resolver is current resolver");
+
+        // Should return zero address when this resolver is not the current resolver
+        console.log("Testing when resolver is not current resolver");
+        vm.mockCall(
+            address(universalResolver),
+            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, "test.eth"),
+            abi.encode(address(1))
+        );
+        result = testResolver.addr(bytes32(0));
+        assertEq(result, address(0), "Should return zero address when resolver is not current resolver");
+        console.log("Test completed successfully");
+    }
+
+    function test_Addr_WithWildcardDisabled_NoUniversalResolver() public {
+        console.log("Starting test_Addr_WithWildcardDisabled_NoUniversalResolver");
+        
+        // Deploy a new resolver instance
+        console.log("Deploying new resolver instance");
+        address implementation = address(new DedicatedResolver());
+        bytes memory initData = abi.encodeWithSelector(
+            DedicatedResolver.initialize.selector,
+            owner,
+            false, // wildcard
+            address(0) // no universal resolver
+        );
+        vm.startPrank(owner);
+        console.log("Deploying proxy");
+        address deployed = factory.deployProxy(implementation, SALT + 3, initData);
+        DedicatedResolver testResolver = DedicatedResolver(deployed);
+        console.log("Setting name to test.eth");
+        testResolver.setName("test.eth");
+        console.log("Setting addr to alice");
+        testResolver.setAddr(alice);
+        vm.stopPrank();
+
+        // Verify initial state
+        console.log("Verifying initial state");
+        assertFalse(testResolver.wildcard(), "Wildcard should be false");
+        assertEq(testResolver.universalResolver(), address(0), "Universal resolver should be zero address");
+
+        // Should return zero address when UniversalResolver is not set
+        console.log("Testing addr with no UniversalResolver");
+        address result = testResolver.addr(bytes32(0));
+        assertEq(result, address(0), "Should return zero address when UniversalResolver is not set");
+        console.log("Test completed successfully");
     }
 } 

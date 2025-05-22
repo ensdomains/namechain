@@ -111,7 +111,7 @@ export async function deployV2Fixture(enableCcipRead = false) {
       encodeFunctionData({
         abi: dedicatedResolverImpl.abi,
         functionName: "initialize",
-        args: [owner],
+        args: [owner, true, universalResolver.address],
       }),
     ]);
     const receipt = await publicClient.getTransactionReceipt({

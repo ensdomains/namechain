@@ -14,6 +14,12 @@ import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
 import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
+/**
+ * @dev Interface for V2 UniversalResolver
+ */
+interface IUniversalResolverV2 {
+    function findResolver(string memory name) external view returns (address);
+}
 
 /**
  * @title DedicatedResolver
@@ -57,15 +63,69 @@ contract DedicatedResolver is
     // Name
     string private _name;
 
+    // Wildcard and UniversalResolver
+    bool private _wildcard;
+    address private _universalResolver;
+
     uint256 constant private ETH_COIN_TYPE = 60;
+
+    /**
+     * @dev Checks if this resolver can return its stored values
+     * Returns true if either:
+     * 1. Wildcard mode is enabled, or
+     * 2. This resolver is the current resolver for the name
+     * @param node The node to check
+     * @return bool Whether stored values can be returned
+     */
+    function canReturnStoredValue(bytes32 node) internal view returns (bool) {
+        if (!_wildcard) {
+            if (_universalResolver == address(0)) {
+                // No universal resolver set, so we cannot return stored value
+                return false;
+            }
+            // findResolver takes a name, not a node
+            address resolver = IUniversalResolverV2(_universalResolver).findResolver(node);
+            return resolver == address(this);
+        }
+        return true;
+    }
 
     /**
      * @dev Initializes the contract with an owner and associated name
      * @param owner The owner of the resolver
+     * @param wildcard The wildcard value
+     * @param universalResolver The address of the universal resolver
      */
-    function initialize(address owner) public initializer {
+    function initialize(address owner, bool wildcard, address universalResolver) public initializer {
         emit AddrChanged(bytes32(0), owner);
         __Ownable_init(owner);
+        _wildcard = wildcard;
+        _universalResolver = universalResolver;
+    }
+
+    /**
+     * @dev Gets the wildcard value
+     * @return The wildcard value
+     */
+    function wildcard() external view returns (bool) {
+        return _wildcard;
+    }
+
+    /**
+     * @dev Gets the universal resolver address
+     * @return The universal resolver address
+     */
+    function universalResolver() external view returns (address) {
+        return _universalResolver;
+    }
+
+    /**
+     * @dev Sets the universal resolver address
+     * @param newUniversalResolver The new universal resolver address
+     */
+    function setUniversalResolver(address newUniversalResolver) external onlyOwner {
+        _universalResolver = newUniversalResolver;
+        emit UniversalResolverChanged(newUniversalResolver);
     }
 
     /**
@@ -79,13 +139,16 @@ contract DedicatedResolver is
 
     /**
      * @dev Gets the address for the associated name
-     * @param node The node to get the address for (ignored in SingleNameResolver)
+     * @param node The node to get the address for (ignored in DedicatedResolver)
      * @return The address for the associated name
      */
     function addr(bytes32 node) external view returns (address payable) {
-        bytes memory addrBytes = _coinAddresses[ETH_COIN_TYPE];
-        if (addrBytes.length == 0) return payable(address(0));
-        return payable(bytesToAddress(addrBytes));
+        if (canReturnStoredValue(node)) {
+            bytes memory addrBytes = _coinAddresses[ETH_COIN_TYPE];
+            if (addrBytes.length == 0) return payable(address(0));
+            return payable(bytesToAddress(addrBytes));
+        }
+        return payable(address(0));
     }
 
     /**
@@ -100,12 +163,15 @@ contract DedicatedResolver is
 
     /**
      * @dev Gets the address for a specific coin type
-     * @param node The node to get the address for (ignored in SingleNameResolver)
+     * @param node The node to get the address for (ignored in DedicatedResolver)
      * @param coinType The coin type to get the address for
      * @return The address for the specified coin type
      */
     function addr(bytes32 node, uint coinType) external view returns (bytes memory) {
-        return _coinAddresses[coinType];
+        if (canReturnStoredValue(node)) {
+            return _coinAddresses[coinType];
+        }
+        return "";
     }
 
     /**
@@ -120,12 +186,15 @@ contract DedicatedResolver is
 
     /**
      * @dev Gets a text record for the associated name
-     * @param node The node to get the text record for (ignored in SingleNameResolver)
+     * @param node The node to get the text record for (ignored in DedicatedResolver)
      * @param key The key to get
      * @return The value for the specified key
      */
     function text(bytes32 node, string calldata key) external view returns (string memory) {
-        return _textRecords[key];
+        if (canReturnStoredValue(node)) {
+            return _textRecords[key];
+        }
+        return "";
     }
 
     /**
@@ -139,11 +208,14 @@ contract DedicatedResolver is
 
     /**
      * @dev Gets the content hash for the associated name
-     * @param node The node to get the content hash for (ignored in SingleNameResolver)
+     * @param node The node to get the content hash for (ignored in DedicatedResolver)
      * @return The content hash for the associated name
      */
     function contenthash(bytes32 node) external view returns (bytes memory) {
-        return _contenthash;
+        if (canReturnStoredValue(node)) {
+            return _contenthash;
+        }
+        return "";
     }
 
     /**
@@ -158,12 +230,15 @@ contract DedicatedResolver is
 
     /**
      * @dev Gets the public key for the associated name
-     * @param node The node to get the public key for (ignored in SingleNameResolver)
+     * @param node The node to get the public key for (ignored in DedicatedResolver)
      * @return x The x coordinate of the public key
      * @return y The y coordinate of the public key
      */
     function pubkey(bytes32 node) external view returns (bytes32 x, bytes32 y) {
-        return (_pubkey.x, _pubkey.y);
+        if (canReturnStoredValue(node)) {
+            return (_pubkey.x, _pubkey.y);
+        }
+        return (bytes32(0), bytes32(0));
     }
 
     /**
@@ -178,12 +253,15 @@ contract DedicatedResolver is
 
     /**
      * @dev Gets the ABI for the associated name
-     * @param node The node to get the ABI for (ignored in SingleNameResolver)
+     * @param node The node to get the ABI for (ignored in DedicatedResolver)
      * @param contentType The content type of the ABI
      * @return The ABI data
      */
     function ABI(bytes32 node, uint256 contentType) external view returns (uint256, bytes memory) {
-        return (contentType, _abis[contentType]);
+        if (canReturnStoredValue(node)) {
+            return (contentType, _abis[contentType]);
+        }
+        return (contentType, "");
     }
 
     /**
@@ -198,12 +276,15 @@ contract DedicatedResolver is
 
     /**
      * @dev Gets the implementer for an interface
-     * @param node The node to get the implementer for (ignored in SingleNameResolver)
+     * @param node The node to get the implementer for (ignored in DedicatedResolver)
      * @param interfaceID The interface ID
      * @return The implementer address
      */
     function interfaceImplementer(bytes32 node, bytes4 interfaceID) external view returns (address) {
-        return _interfaces[interfaceID];
+        if (canReturnStoredValue(node)) {
+            return _interfaces[interfaceID];
+        }
+        return address(0);
     }
 
     /**
@@ -217,11 +298,14 @@ contract DedicatedResolver is
 
     /**
      * @dev Gets the name for the associated name
-     * @param node The node to get the name for (ignored in SingleNameResolver)
+     * @param node The node to get the name for (ignored in DedicatedResolver)
      * @return The name for the associated name
      */
     function name(bytes32 node) external view returns (string memory) {
-        return _name;
+        if (canReturnStoredValue(node)) {
+            return _name;
+        }
+        return "";
     }
 
     /**
@@ -267,4 +351,10 @@ contract DedicatedResolver is
             interfaceId == type(INameResolver).interfaceId ||
             interfaceId == type(IERC165).interfaceId;
     }
+
+    /**
+     * @dev Emitted when the universal resolver address is changed
+     * @param newUniversalResolver The new universal resolver address
+     */
+    event UniversalResolverChanged(address indexed newUniversalResolver);
 }
