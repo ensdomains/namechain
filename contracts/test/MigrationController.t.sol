@@ -9,6 +9,7 @@ import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Hol
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {MigrationController} from "../src/common/MigrationController.sol";
@@ -206,7 +207,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
 
     function test_Revert_setStrategy_not_owner() public {
         vm.prank(user);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         migrationController.setStrategy(migrationStrategy);
     }
 
@@ -259,7 +260,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         bytes memory data = abi.encode(migrationData);
         
         // Try to transfer from wrong registry
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(MigrationController.CallerNotEthRegistryV1.selector, address(this)));
         migrationController.onERC721Received(address(this), user, testTokenId, data);
     }
 
@@ -274,8 +275,26 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         });
         bytes memory data = abi.encode(migrationData);
         
-        // Try to call onERC721Received when controller doesn't own the token
-        vm.expectRevert();
+        // Try to call onERC721Received directly when migration controller doesn't own the token
+        // This should fail with CallerNotEthRegistryV1 because we're calling it directly
+        vm.expectRevert(abi.encodeWithSelector(MigrationController.CallerNotEthRegistryV1.selector, address(this)));
+        migrationController.onERC721Received(address(this), user, testTokenId, data);
+    }
+
+    function test_Revert_migrateUnwrappedEthName_controller_not_owner() public {
+        // Register a name in the v1 registrar but don't transfer it to migration controller
+        vm.prank(controller);
+        ethRegistryV1.register(testTokenId, user, 86400);
+        
+        // Create migration data
+        MigrationData memory migrationData = MigrationData({
+            label: testLabel
+        });
+        bytes memory data = abi.encode(migrationData);
+        
+        // Mock the call as if it came from ethRegistryV1 but migration controller doesn't own the token
+        vm.prank(address(ethRegistryV1));
+        vm.expectRevert(abi.encodeWithSelector(MigrationController.NotOwner.selector, testTokenId));
         migrationController.onERC721Received(address(ethRegistryV1), user, testTokenId, data);
     }
 
@@ -374,6 +393,10 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
     function test_Revert_migrateWrappedEthName_no_strategy() public {
         // Don't set migration strategy
         
+        // First wrap a name so the user actually owns it
+        vm.prank(user);
+        nameWrapper.wrapETH2LD(testLabel, user, 0, address(0));
+        
         // Create migration data
         MigrationData memory migrationData = MigrationData({
             label: testLabel
@@ -382,12 +405,16 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         
         // Try to transfer without strategy set
         vm.prank(user);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(MigrationController.NoMigrationStrategySet.selector));
         nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
     }
 
     function test_Revert_migrateWrappedEthName_batch_no_strategy() public {
         // Don't set migration strategy
+        
+        // First wrap a name so the user actually owns it
+        vm.prank(user);
+        nameWrapper.wrapETH2LD(testLabel, user, 0, address(0));
         
         // Prepare batch data
         uint256[] memory tokenIds = new uint256[](1);
@@ -403,7 +430,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         
         // Try to batch transfer without strategy set
         vm.prank(user);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(MigrationController.NoMigrationStrategySet.selector));
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
     }
 
