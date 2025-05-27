@@ -1,4 +1,4 @@
-FROM oven/bun:1.0.35
+FROM oven/bun:1.2.13
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -10,7 +10,9 @@ RUN apt-get update && apt-get install -y \
 # Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
-    && npm install -g tsx
+    && npm install -g tsx \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Install Foundry
 RUN curl -L https://foundry.paradigm.xyz | bash
@@ -20,16 +22,29 @@ RUN foundryup
 # Set working directory
 WORKDIR /app
 
-# Copy all source files
+# Copy the root package.json and bun.lockb
+COPY package.json bun.lockb ./
+
+# Copy the package.json for each workspace.
+COPY contracts/package.json ./contracts/
+
+# Copy patches for post script execution
+COPY /patches ./patches
+
+# Install all dependencies
+RUN bun i
+
+# Copy the rest of the application source
 COPY . .
 
-# Install dependencies
-RUN bun i && \
-    cd contracts && \
+# Build Contracts
+WORKDIR /app/contracts
+
+# Initialize git in contracts dir and install forge dependencies
+RUN git config --global init.defaultBranch main && \
     git init && \
-    forge i && \
-    forge build && \
-    cd ..
+    forge i
+
 
 # Expose ports for L1 and L2
 EXPOSE 8545
