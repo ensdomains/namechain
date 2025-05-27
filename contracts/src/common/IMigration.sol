@@ -17,5 +17,5 @@ struct MigrationData {
  * @dev Interface for the migration strategies that get used by MigrationController instances.
  */
 interface IMigrationStrategy {
-  function migrateWrappedEthNames(address registry, uint256[] memory tokenIds, MigrationData[] memory migrationDataArray) external;
+  function migrateLockedEthName(address registry, uint256 tokenId, MigrationData memory migrationData) external;
 }

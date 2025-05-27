@@ -2,6 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
+import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
@@ -13,9 +14,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * @dev Base contract for the v1-to-v2 migration controller.
  */
 abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
-    uint256 internal constant ROLE_ADMIN = 1 << 0;
-    uint256 internal constant ROLE_ADMIN_ADMIN = ROLE_ADMIN << 128;
-
     error CallerNotEthRegistryV1(address caller);   
     error NoMigrationStrategySet();
     error MigrationFailed();
@@ -51,10 +49,6 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
      * Implements ERC1155Receiver.onERC1155Received
      */
     function onERC1155Received(address /*operator*/, address /*from*/, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual returns (bytes4) {
-        if (address(strategy) == address(0)) {
-            revert NoMigrationStrategySet();
-        }
-
         (MigrationData memory migrationData) = abi.decode(data, (MigrationData));
         MigrationData[] memory migrationDataArray = new MigrationData[](1);
         migrationDataArray[0] = migrationData;
@@ -103,17 +97,27 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
 
     /**
      * @dev Called when wrapped .eth names are being migrated to v2.
+     * Checks if names are locked (have CANNOT_UNWRAP burned) and routes accordingly.
      *
      * @param registry The address of the registry.
      * @param tokenIds The token IDs of the .eth names.
      * @param migrationDataArray The migration data for each .eth name.
      */
     function _migrateWrappedEthNames(address registry, uint256[] memory tokenIds, MigrationData[] memory migrationDataArray) internal {
-        if (address(strategy) == address(0)) {
-            revert NoMigrationStrategySet();
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            (, uint32 fuses, ) = INameWrapper(registry).getData(tokenIds[i]);
+            
+            if (fuses & CANNOT_UNWRAP != 0) { // Name is locked
+                if (address(strategy) == address(0)) {
+                    revert NoMigrationStrategySet();
+                }
+                // Name is locked, migrate through strategy
+                strategy.migrateLockedEthName(registry, tokenIds[i], migrationDataArray[i]);
+            } else {
+                // Name is unlocked, migrate directly
+                _migrateUnlockedEthName(registry, tokenIds[i], migrationDataArray[i]);
+            }
         }
-
-        strategy.migrateWrappedEthNames(registry, tokenIds, migrationDataArray);
     }
 
     /**
@@ -124,4 +128,13 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
      * @param migrationData The migration data.
      */
     function _migrateUnwrappedEthName(address registry, uint256 tokenId, MigrationData memory migrationData) internal virtual;
+
+    /**
+     * @dev Called when an unlocked wrapped .eth name is being migrated to v2.
+     *
+     * @param registry The address of the registry.
+     * @param tokenId The token ID of the .eth name.
+     * @param migrationData The migration data.
+     */
+    function _migrateUnlockedEthName(address registry, uint256 tokenId, MigrationData memory migrationData) internal virtual;
 }

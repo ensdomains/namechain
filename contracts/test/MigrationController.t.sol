@@ -8,10 +8,15 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
+import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {MigrationController} from "../src/common/MigrationController.sol";
 import {IMigrationStrategy, MigrationData} from "../src/common/IMigration.sol";
 
@@ -82,6 +87,7 @@ contract MockBaseRegistrar is ERC721, IBaseRegistrar {
 // Mock ERC1155 contract for wrapped names
 contract MockNameWrapper is ERC1155 {
     mapping(uint256 => address) private _tokenOwners;
+    mapping(uint256 => uint32) private _tokenFuses; // Added to store fuses
     
     constructor() ERC1155("https://metadata.ens.domains/") {}
 
@@ -93,6 +99,14 @@ contract MockNameWrapper is ERC1155 {
 
     function ownerOf(uint256 tokenId) external view returns (address) {
         return _tokenOwners[tokenId];
+    }
+
+    function getData(uint256 tokenId) external view returns (address, uint32, uint64) {
+        return (_tokenOwners[tokenId], _tokenFuses[tokenId], 0); // Return owner, fuses, and 0 for expiry
+    }
+
+    function setFuses(uint256 tokenId, uint32 fuses) external {
+        _tokenFuses[tokenId] = fuses;
     }
     
     function safeTransferFrom(
@@ -122,6 +136,7 @@ contract MockNameWrapper is ERC1155 {
 
 contract MockMigrationController is MigrationController {
     event MockUnwrappedEthNameMigrated(uint256 tokenId, string label, address owner);
+    event MockUnlockedEthNameMigrated(uint256 tokenId, string label, address owner);
 
     constructor(IBaseRegistrar _ethRegistryV1) MigrationController(_ethRegistryV1) {}
 
@@ -132,17 +147,25 @@ contract MockMigrationController is MigrationController {
     ) internal override {
         emit MockUnwrappedEthNameMigrated(tokenId, migrationData.label, msg.sender);
     }
+
+    function _migrateUnlockedEthName(
+        address /*registry*/,
+        uint256 tokenId,
+        MigrationData memory migrationData
+    ) internal override {
+        emit MockUnlockedEthNameMigrated(tokenId, migrationData.label, msg.sender);
+    }
 }
 
 contract MockMigrationStrategy is IMigrationStrategy {
-    event MockWrappedMigrationCalled(address registry, uint256[] tokenIds, MigrationData[] migrationDataArray);
+    event MockLockedMigrationCalled(address registry, uint256 tokenId, MigrationData migrationData);
 
-    function migrateWrappedEthNames(
+    function migrateLockedEthName(
         address registry, 
-        uint256[] memory tokenIds, 
-        MigrationData[] memory migrationDataArray
+        uint256 tokenId, 
+        MigrationData memory migrationData
     ) external override {
-        emit MockWrappedMigrationCalled(registry, tokenIds, migrationDataArray);
+        emit MockLockedMigrationCalled(registry, tokenId, migrationData);
     }
 }
 
@@ -298,13 +321,15 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         migrationController.onERC721Received(address(ethRegistryV1), user, testTokenId, data);
     }
 
-    function test_migrateWrappedEthName_single() public {
-        // Set migration strategy first
+    function test_migrateUnlockedWrappedEthName_single() public {
+        // Set migration strategy first (though not strictly needed for unlocked)
         migrationController.setStrategy(migrationStrategy);
         
         // Wrap a name (simulate)
         vm.prank(user);
         nameWrapper.wrapETH2LD(testLabel, user, 0, address(0));
+        // Ensure fuses are 0 (unlocked)
+        nameWrapper.setFuses(testTokenId, 0);
         
         // Create migration data
         MigrationData memory migrationData = MigrationData({
@@ -318,84 +343,29 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         vm.prank(user);
         nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
         
-        // Check for strategy call event
+        // Check for unlocked migration event
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundStrategyEvent = false;
-        bytes32 expectedSig = keccak256("MockWrappedMigrationCalled(address,uint256[],(string)[])");
+        bool foundMigrationEvent = false;
+        bytes32 expectedSig = keccak256("MockUnlockedEthNameMigrated(uint256,string,address)");
         
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == expectedSig) {
-                foundStrategyEvent = true;
+                foundMigrationEvent = true;
                 break;
             }
         }
-        assertTrue(foundStrategyEvent, "MockWrappedMigrationCalled event not found");
+        assertTrue(foundMigrationEvent, "MockUnlockedEthNameMigrated event not found");
     }
 
-    function test_migrateWrappedEthName_batch() public {
+    function test_migrateLockedWrappedEthName_single() public {
         // Set migration strategy first
         migrationController.setStrategy(migrationStrategy);
         
-        // Wrap multiple names
-        string memory testLabel1 = "test1";
-        string memory testLabel2 = "test2";
-        string memory testLabel3 = "test3";
-        
-        uint256 tokenId1 = uint256(keccak256(bytes(testLabel1)));
-        uint256 tokenId2 = uint256(keccak256(bytes(testLabel2)));
-        uint256 tokenId3 = uint256(keccak256(bytes(testLabel3)));
-        
-        // Wrap the names
-        vm.startPrank(user);
-        nameWrapper.wrapETH2LD(testLabel1, user, 0, address(0));
-        nameWrapper.wrapETH2LD(testLabel2, user, 0, address(0));
-        nameWrapper.wrapETH2LD(testLabel3, user, 0, address(0));
-        vm.stopPrank();
-        
-        // Prepare batch transfer data
-        uint256[] memory tokenIds = new uint256[](3);
-        tokenIds[0] = tokenId1;
-        tokenIds[1] = tokenId2;
-        tokenIds[2] = tokenId3;
-        
-        uint256[] memory amounts = new uint256[](3);
-        amounts[0] = 1;
-        amounts[1] = 1;
-        amounts[2] = 1;
-        
-        MigrationData[] memory migrationDataArray = new MigrationData[](3);
-        migrationDataArray[0] = MigrationData({label: testLabel1});
-        migrationDataArray[1] = MigrationData({label: testLabel2});
-        migrationDataArray[2] = MigrationData({label: testLabel3});
-        
-        bytes memory data = abi.encode(migrationDataArray);
-        
-        vm.recordLogs();
-        
-        // Batch transfer to migration controller
-        vm.prank(user);
-        nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
-        
-        // Check for strategy call event
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundStrategyEvent = false;
-        bytes32 expectedSig = keccak256("MockWrappedMigrationCalled(address,uint256[],(string)[])");
-        
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == expectedSig) {
-                foundStrategyEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundStrategyEvent, "MockWrappedMigrationCalled event not found");
-    }
-
-    function test_Revert_migrateWrappedEthName_no_strategy() public {
-        // Don't set migration strategy
-        
-        // First wrap a name so the user actually owns it
+        // Wrap a name (simulate)
         vm.prank(user);
         nameWrapper.wrapETH2LD(testLabel, user, 0, address(0));
+        // Set fuses to indicate locked (CANNOT_UNWRAP)
+        nameWrapper.setFuses(testTokenId, CANNOT_UNWRAP);
         
         // Create migration data
         MigrationData memory migrationData = MigrationData({
@@ -403,18 +373,153 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         });
         bytes memory data = abi.encode(migrationData);
         
-        // Try to transfer without strategy set
+        vm.recordLogs();
+        
+        // Transfer wrapped token to migration controller
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(MigrationController.NoMigrationStrategySet.selector));
         nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
+        
+        // Check for strategy call event for locked names
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        bool foundStrategyEvent = false;
+        bytes32 expectedSig = keccak256("MockLockedMigrationCalled(address,uint256,(string))");
+        
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].topics[0] == expectedSig) {
+                foundStrategyEvent = true;
+                break;
+            }
+        }
+        assertTrue(foundStrategyEvent, "MockLockedMigrationCalled event not found");
     }
 
-    function test_Revert_migrateWrappedEthName_batch_no_strategy() public {
+    function test_migrateWrappedEthName_batch_allUnlocked() public {
+        // Set migration strategy (though not strictly needed for all unlocked)
+        migrationController.setStrategy(migrationStrategy);
+        
+        string memory label1 = "unlocked1";
+        string memory label2 = "unlocked2";
+        uint256 tokenId1 = uint256(keccak256(bytes(label1)));
+        uint256 tokenId2 = uint256(keccak256(bytes(label2)));
+
+        vm.startPrank(user);
+        nameWrapper.wrapETH2LD(label1, user, 0, address(0));
+        nameWrapper.setFuses(tokenId1, 0); // Unlocked
+        nameWrapper.wrapETH2LD(label2, user, 0, address(0));
+        nameWrapper.setFuses(tokenId2, 0); // Unlocked
+        vm.stopPrank();
+        
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = tokenId1;
+        tokenIds[1] = tokenId2;
+        
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+        
+        MigrationData[] memory migrationDataArray = new MigrationData[](2);
+        migrationDataArray[0] = MigrationData({label: label1});
+        migrationDataArray[1] = MigrationData({label: label2});
+        
+        bytes memory data = abi.encode(migrationDataArray);
+        
+        vm.recordLogs();
+        
+        vm.prank(user);
+        nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
+        
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        uint256 unlockedEventCount = 0;
+        bytes32 unlockedSig = keccak256("MockUnlockedEthNameMigrated(uint256,string,address)");
+
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].topics[0] == unlockedSig) {
+                (uint256 eventTokenId,,) = abi.decode(entries[i].data, (uint256, string, address));
+                if (eventTokenId == tokenId1 || eventTokenId == tokenId2) {
+                    unlockedEventCount++;
+                }
+            }
+        }
+        assertEq(unlockedEventCount, 2, "Incorrect number of MockUnlockedEthNameMigrated events");
+    }
+
+    function test_migrateWrappedEthName_batch_allLocked() public {
+        migrationController.setStrategy(migrationStrategy);
+        
+        string memory label1 = "locked1";
+        string memory label2 = "locked2";
+        uint256 tokenId1 = uint256(keccak256(bytes(label1)));
+        uint256 tokenId2 = uint256(keccak256(bytes(label2)));
+
+        vm.startPrank(user);
+        nameWrapper.wrapETH2LD(label1, user, 0, address(0));
+        nameWrapper.setFuses(tokenId1, CANNOT_UNWRAP); // Locked
+        nameWrapper.wrapETH2LD(label2, user, 0, address(0));
+        nameWrapper.setFuses(tokenId2, CANNOT_UNWRAP); // Locked
+        vm.stopPrank();
+        
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = tokenId1;
+        tokenIds[1] = tokenId2;
+        
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+        
+        MigrationData[] memory migrationDataArray = new MigrationData[](2);
+        migrationDataArray[0] = MigrationData({label: label1});
+        migrationDataArray[1] = MigrationData({label: label2});
+        
+        bytes memory data = abi.encode(migrationDataArray);
+        
+        vm.recordLogs();
+        
+        vm.prank(user);
+        nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
+        
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        uint256 lockedEventCount = 0;
+        bytes32 lockedSig = keccak256("MockLockedMigrationCalled(address,uint256,(string))");
+
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].topics[0] == lockedSig) {
+                (,,MigrationData memory mData) = abi.decode(entries[i].data, (address, uint256, MigrationData));
+                uint256 currentTokenId = uint256(keccak256(bytes(mData.label)));
+                 if (currentTokenId == tokenId1 || currentTokenId == tokenId2) {
+                    lockedEventCount++;
+                }
+            }
+        }
+        assertEq(lockedEventCount, 2, "Incorrect number of MockLockedMigrationCalled events");
+    }
+
+    function test_Revert_migrateWrappedEthName_no_strategy_locked() public {
         // Don't set migration strategy
         
         // First wrap a name so the user actually owns it
         vm.prank(user);
         nameWrapper.wrapETH2LD(testLabel, user, 0, address(0));
+        nameWrapper.setFuses(testTokenId, CANNOT_UNWRAP); // Mark as locked
+        
+        // Create migration data
+        MigrationData memory migrationData = MigrationData({
+            label: testLabel
+        });
+        bytes memory data = abi.encode(migrationData);
+        
+        // Try to transfer without strategy set (should revert for locked name)
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(MigrationController.NoMigrationStrategySet.selector));
+        nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
+    }
+
+    function test_Revert_migrateWrappedEthName_batch_no_strategy_locked() public {
+        // Don't set migration strategy
+        
+        // First wrap a name so the user actually owns it
+        vm.prank(user);
+        nameWrapper.wrapETH2LD(testLabel, user, 0, address(0));
+        nameWrapper.setFuses(testTokenId, CANNOT_UNWRAP); // Mark as locked
         
         // Prepare batch data
         uint256[] memory tokenIds = new uint256[](1);
@@ -428,15 +533,15 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         
         bytes memory data = abi.encode(migrationDataArray);
         
-        // Try to batch transfer without strategy set
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(MigrationController.NoMigrationStrategySet.selector));
+        vm.expectRevert(abi.encodeWithSelector(IERC1155Errors.ERC1155InvalidReceiver.selector, address(migrationController)));
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
     }
 
     function test_supportsInterface() public view {
-        assertTrue(migrationController.supportsInterface(0x01ffc9a7)); // ERC165
-        assertTrue(migrationController.supportsInterface(0x150b7a02)); // ERC721Receiver
-        // Note: ERC1155Receiver interface support depends on implementation details
+        assertTrue(migrationController.supportsInterface(type(IERC165).interfaceId));
+        assertTrue(migrationController.supportsInterface(type(IERC721Receiver).interfaceId));
+        assertTrue(migrationController.supportsInterface(type(IERC1155Receiver).interfaceId));
+        assertTrue(migrationController.supportsInterface(type(Ownable).interfaceId));
     }
 } 
