@@ -18,7 +18,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {MigrationController} from "../src/common/MigrationController.sol";
-import {IMigrationStrategy, MigrationData} from "../src/common/IMigration.sol";
+import {IMigrationStrategy} from "../src/common/IMigration.sol";
+import {TransferData} from "../src/common/TransferData.sol";
 
 // Simple mock that implements IBaseRegistrar without the compilation issues
 contract MockBaseRegistrar is ERC721, IBaseRegistrar {
@@ -143,7 +144,7 @@ contract MockMigrationController is MigrationController {
     function _migrateUnwrappedEthName(
         address /*registry*/, 
         uint256 tokenId, 
-        MigrationData memory migrationData
+        TransferData memory migrationData
     ) internal override {
         emit MockUnwrappedEthNameMigrated(tokenId, migrationData.label, msg.sender);
     }
@@ -151,19 +152,19 @@ contract MockMigrationController is MigrationController {
     function _migrateUnlockedEthName(
         address /*registry*/,
         uint256 tokenId,
-        MigrationData memory migrationData
+        TransferData memory migrationData
     ) internal override {
         emit MockUnlockedEthNameMigrated(tokenId, migrationData.label, msg.sender);
     }
 }
 
 contract MockMigrationStrategy is IMigrationStrategy {
-    event MockLockedMigrationCalled(address registry, uint256 tokenId, MigrationData migrationData);
+    event MockLockedMigrationCalled(address registry, uint256 tokenId, TransferData migrationData);
 
     function migrateLockedEthName(
         address registry, 
         uint256 tokenId, 
-        MigrationData memory migrationData
+        TransferData memory migrationData
     ) external override {
         emit MockLockedMigrationCalled(registry, tokenId, migrationData);
     }
@@ -180,6 +181,34 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
     
     string testLabel = "test";
     uint256 testTokenId;
+
+    /**
+     * Helper method to create properly encoded migration data for transfers
+     */
+    function _createMigrationData(string memory label) internal pure returns (TransferData memory) {
+        return TransferData({
+            label: label,
+            owner: address(0),
+            subregistry: address(0),
+            resolver: address(0),
+            roleBitmap: 0,
+            expires: 0
+        });
+    }
+
+    /**
+     * Helper method to create properly encoded migration data with custom owner
+     */
+    function _createMigrationDataWithOwner(string memory label, address owner) internal pure returns (TransferData memory) {
+        return TransferData({
+            label: label,
+            owner: owner,
+            subregistry: address(0),
+            resolver: address(0),
+            roleBitmap: 0,
+            expires: 0
+        });
+    }
 
     function setUp() public {
         // Deploy mock base registrar
@@ -243,9 +272,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         assertEq(ethRegistryV1.ownerOf(testTokenId), user);
         
         // Create migration data
-        MigrationData memory migrationData = MigrationData({
-            label: testLabel
-        });
+        TransferData memory migrationData = _createMigrationData(testLabel);
         bytes memory data = abi.encode(migrationData);
         
         vm.recordLogs();
@@ -277,9 +304,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         ethRegistryV1.register(testTokenId, user, 86400);
         
         // Create migration data
-        MigrationData memory migrationData = MigrationData({
-            label: testLabel
-        });
+        TransferData memory migrationData = _createMigrationData(testLabel);
         bytes memory data = abi.encode(migrationData);
         
         // Try to transfer from wrong registry
@@ -293,9 +318,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         ethRegistryV1.register(testTokenId, user, 86400);
         
         // Create migration data
-        MigrationData memory migrationData = MigrationData({
-            label: testLabel
-        });
+        TransferData memory migrationData = _createMigrationData(testLabel);
         bytes memory data = abi.encode(migrationData);
         
         // Try to call onERC721Received directly when migration controller doesn't own the token
@@ -310,9 +333,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         ethRegistryV1.register(testTokenId, user, 86400);
         
         // Create migration data
-        MigrationData memory migrationData = MigrationData({
-            label: testLabel
-        });
+        TransferData memory migrationData = _createMigrationData(testLabel);
         bytes memory data = abi.encode(migrationData);
         
         // Mock the call as if it came from ethRegistryV1 but migration controller doesn't own the token
@@ -332,9 +353,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         nameWrapper.setFuses(testTokenId, 0);
         
         // Create migration data
-        MigrationData memory migrationData = MigrationData({
-            label: testLabel
-        });
+        TransferData memory migrationData = _createMigrationData(testLabel);
         bytes memory data = abi.encode(migrationData);
         
         vm.recordLogs();
@@ -368,9 +387,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         nameWrapper.setFuses(testTokenId, CANNOT_UNWRAP);
         
         // Create migration data
-        MigrationData memory migrationData = MigrationData({
-            label: testLabel
-        });
+        TransferData memory migrationData = _createMigrationData(testLabel);
         bytes memory data = abi.encode(migrationData);
         
         vm.recordLogs();
@@ -382,7 +399,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Check for strategy call event for locked names
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundStrategyEvent = false;
-        bytes32 expectedSig = keccak256("MockLockedMigrationCalled(address,uint256,(string))");
+        bytes32 expectedSig = keccak256("MockLockedMigrationCalled(address,uint256,(string,address,address,address,uint256,uint64))");
         
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == expectedSig) {
@@ -417,9 +434,9 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         amounts[0] = 1;
         amounts[1] = 1;
         
-        MigrationData[] memory migrationDataArray = new MigrationData[](2);
-        migrationDataArray[0] = MigrationData({label: label1});
-        migrationDataArray[1] = MigrationData({label: label2});
+        TransferData[] memory migrationDataArray = new TransferData[](2);
+        migrationDataArray[0] = _createMigrationData(label1);
+        migrationDataArray[1] = _createMigrationData(label2);
         
         bytes memory data = abi.encode(migrationDataArray);
         
@@ -466,9 +483,9 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         amounts[0] = 1;
         amounts[1] = 1;
         
-        MigrationData[] memory migrationDataArray = new MigrationData[](2);
-        migrationDataArray[0] = MigrationData({label: label1});
-        migrationDataArray[1] = MigrationData({label: label2});
+        TransferData[] memory migrationDataArray = new TransferData[](2);
+        migrationDataArray[0] = _createMigrationData(label1);
+        migrationDataArray[1] = _createMigrationData(label2);
         
         bytes memory data = abi.encode(migrationDataArray);
         
@@ -479,11 +496,11 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         
         Vm.Log[] memory entries = vm.getRecordedLogs();
         uint256 lockedEventCount = 0;
-        bytes32 lockedSig = keccak256("MockLockedMigrationCalled(address,uint256,(string))");
+        bytes32 lockedSig = keccak256("MockLockedMigrationCalled(address,uint256,(string,address,address,address,uint256,uint64))");
 
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == lockedSig) {
-                (,,MigrationData memory mData) = abi.decode(entries[i].data, (address, uint256, MigrationData));
+                (,,TransferData memory mData) = abi.decode(entries[i].data, (address, uint256, TransferData));
                 uint256 currentTokenId = uint256(keccak256(bytes(mData.label)));
                  if (currentTokenId == tokenId1 || currentTokenId == tokenId2) {
                     lockedEventCount++;
@@ -502,9 +519,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         nameWrapper.setFuses(testTokenId, CANNOT_UNWRAP); // Mark as locked
         
         // Create migration data
-        MigrationData memory migrationData = MigrationData({
-            label: testLabel
-        });
+        TransferData memory migrationData = _createMigrationData(testLabel);
         bytes memory data = abi.encode(migrationData);
         
         // Try to transfer without strategy set (should revert for locked name)
@@ -528,13 +543,13 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1;
         
-        MigrationData[] memory migrationDataArray = new MigrationData[](1);
-        migrationDataArray[0] = MigrationData({label: testLabel});
+        TransferData[] memory migrationDataArray = new TransferData[](1);
+        migrationDataArray[0] = _createMigrationData(testLabel);
         
         bytes memory data = abi.encode(migrationDataArray);
         
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(IERC1155Errors.ERC1155InvalidReceiver.selector, address(migrationController)));
+        vm.expectRevert(abi.encodeWithSelector(MigrationController.NoMigrationStrategySet.selector));
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
     }
 

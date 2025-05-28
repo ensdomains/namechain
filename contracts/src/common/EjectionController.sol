@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {TransferData} from "./TransferData.sol";
 
 /**
  * @title EjectionController
@@ -13,15 +14,6 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
     error CallerNotRegistry(address caller);
 
     IPermissionedRegistry public immutable registry;
-
-    struct TransferData {
-        string label;
-        address owner;
-        address subregistry;
-        address resolver;
-        uint256 roleBitmap;
-        uint64 expires;
-    }
 
     constructor(IPermissionedRegistry _registry) {
         registry = _registry;

@@ -6,7 +6,8 @@ import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.s
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {IMigrationStrategy, MigrationData} from "./IMigration.sol";
+import {IMigrationStrategy} from "./IMigration.sol";
+import {TransferData} from "./TransferData.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
@@ -49,8 +50,8 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
      * Implements ERC1155Receiver.onERC1155Received
      */
     function onERC1155Received(address /*operator*/, address /*from*/, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual returns (bytes4) {
-        (MigrationData memory migrationData) = abi.decode(data, (MigrationData));
-        MigrationData[] memory migrationDataArray = new MigrationData[](1);
+        (TransferData memory migrationData) = abi.decode(data, (TransferData));
+        TransferData[] memory migrationDataArray = new TransferData[](1);
         migrationDataArray[0] = migrationData;
 
         uint256[] memory tokenIds = new uint256[](1);
@@ -65,7 +66,7 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
      * Implements ERC1155Receiver.onERC1155BatchReceived
      */
     function onERC1155BatchReceived(address /*operator*/, address /*from*/, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual returns (bytes4) {
-        (MigrationData[] memory migrationDataArray) = abi.decode(data, (MigrationData[]));
+        (TransferData[] memory migrationDataArray) = abi.decode(data, (TransferData[]));
 
         _migrateWrappedEthNames(msg.sender, tokenIds, migrationDataArray);
 
@@ -86,7 +87,7 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
             revert NotOwner(tokenId);
         }
         
-        (MigrationData memory migrationData) = abi.decode(data, (MigrationData));
+        (TransferData memory migrationData) = abi.decode(data, (TransferData));
 
         _migrateUnwrappedEthName(msg.sender, tokenId, migrationData);
 
@@ -103,7 +104,7 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
      * @param tokenIds The token IDs of the .eth names.
      * @param migrationDataArray The migration data for each .eth name.
      */
-    function _migrateWrappedEthNames(address registry, uint256[] memory tokenIds, MigrationData[] memory migrationDataArray) internal {
+    function _migrateWrappedEthNames(address registry, uint256[] memory tokenIds, TransferData[] memory migrationDataArray) internal {
         for (uint256 i = 0; i < tokenIds.length; i++) {
             (, uint32 fuses, ) = INameWrapper(registry).getData(tokenIds[i]);
             
@@ -127,7 +128,7 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
      * @param tokenId The token ID of the .eth name.
      * @param migrationData The migration data.
      */
-    function _migrateUnwrappedEthName(address registry, uint256 tokenId, MigrationData memory migrationData) internal virtual;
+    function _migrateUnwrappedEthName(address registry, uint256 tokenId, TransferData memory migrationData) internal virtual;
 
     /**
      * @dev Called when an unlocked wrapped .eth name is being migrated to v2.
@@ -136,5 +137,5 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
      * @param tokenId The token ID of the .eth name.
      * @param migrationData The migration data.
      */
-    function _migrateUnlockedEthName(address registry, uint256 tokenId, MigrationData memory migrationData) internal virtual;
+    function _migrateUnlockedEthName(address registry, uint256 tokenId, TransferData memory migrationData) internal virtual;
 }
