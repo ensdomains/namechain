@@ -17,12 +17,12 @@ export const config = {
   networks: {
     "l1-local": {
       scripts: ["deploy/l1", "deploy/shared"],
-      tags: ["l1"],
+      tags: ["l1", "local"],
       rpcUrl: "http://127.0.0.1:8545",
     },
     "l2-local": {
       scripts: ["deploy/l2", "deploy/shared"],
-      tags: ["l2"],
+      tags: ["l2", "local"],
       rpcUrl: "http://127.0.0.1:8546",
     },
     mainnet: {

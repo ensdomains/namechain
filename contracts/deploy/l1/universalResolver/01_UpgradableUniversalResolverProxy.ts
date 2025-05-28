@@ -13,7 +13,7 @@ export default execute(
   async ({ deploy, config, get, namedAccounts, network }) => {
     const { deployer, owner } = namedAccounts;
 
-    if (network.name.endsWith("-local")) {
+    if (network.tags.local) {
       const universalResolver =
         get<(typeof artifacts.UniversalResolver)["abi"]>("UniversalResolver");
       await deploy("UpgradableUniversalResolverProxy", {
