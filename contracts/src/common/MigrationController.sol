@@ -15,18 +15,19 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * @dev Base contract for the v1-to-v2 migration controller.
  */
 abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
-    error CallerNotEthRegistryV1(address caller);   
+    error UnauthorizedCaller(address caller);   
     error NoMigrationStrategySet();
     error MigrationFailed();
-    error NotOwner(uint256 tokenId);
 
     event StrategySet(IMigrationStrategy strategy);
 
     IBaseRegistrar public immutable ethRegistryV1;
+    INameWrapper public immutable nameWrapper;
     IMigrationStrategy public strategy;
 
-    constructor(IBaseRegistrar _ethRegistryV1) Ownable(msg.sender) {
+    constructor(IBaseRegistrar _ethRegistryV1, INameWrapper _nameWrapper) Ownable(msg.sender) {
         ethRegistryV1 = _ethRegistryV1;
+        nameWrapper = _nameWrapper;
     }
 
     /**
@@ -43,13 +44,21 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
      * Implements ERC165.supportsInterface
      */
     function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(MigrationController).interfaceId || interfaceId == type(Ownable).interfaceId || interfaceId == type(IERC1155Receiver).interfaceId || interfaceId == type(IERC721Receiver).interfaceId || super.supportsInterface(interfaceId);
+        return interfaceId == type(MigrationController).interfaceId 
+            || interfaceId == type(Ownable).interfaceId 
+            || interfaceId == type(IERC1155Receiver).interfaceId 
+            || interfaceId == type(IERC721Receiver).interfaceId 
+            || super.supportsInterface(interfaceId);
     }
 
     /**
      * Implements ERC1155Receiver.onERC1155Received
      */
     function onERC1155Received(address /*operator*/, address /*from*/, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual returns (bytes4) {
+        if (msg.sender != address(nameWrapper)) {
+            revert UnauthorizedCaller(msg.sender);
+        }
+
         (MigrationData memory migrationData) = abi.decode(data, (MigrationData));
         MigrationData[] memory migrationDataArray = new MigrationData[](1);
         migrationDataArray[0] = migrationData;
@@ -57,7 +66,7 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenId;
 
-        _migrateWrappedEthNames(msg.sender, tokenIds, migrationDataArray);
+        _migrateWrappedEthNames(tokenIds, migrationDataArray);
         
         return this.onERC1155Received.selector;
     }
@@ -66,9 +75,13 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
      * Implements ERC1155Receiver.onERC1155BatchReceived
      */
     function onERC1155BatchReceived(address /*operator*/, address /*from*/, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual returns (bytes4) {
+        if (msg.sender != address(nameWrapper)) {
+            revert UnauthorizedCaller(msg.sender);
+        }
+
         (MigrationData[] memory migrationDataArray) = abi.decode(data, (MigrationData[]));
 
-        _migrateWrappedEthNames(msg.sender, tokenIds, migrationDataArray);
+        _migrateWrappedEthNames(tokenIds, migrationDataArray);
 
         return this.onERC1155BatchReceived.selector;
     }
@@ -80,16 +93,12 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
      */
     function onERC721Received(address /*operator*/, address /*from*/, uint256 tokenId, bytes calldata data) external virtual returns (bytes4) {
         if (msg.sender != address(ethRegistryV1)) {
-            revert CallerNotEthRegistryV1(msg.sender);
-        }
-
-        if (ethRegistryV1.ownerOf(tokenId) != address(this)) {
-            revert NotOwner(tokenId);
+            revert UnauthorizedCaller(msg.sender);
         }
         
         (MigrationData memory migrationData) = abi.decode(data, (MigrationData));
 
-        _migrateUnwrappedEthName(msg.sender, tokenId, migrationData);
+        _migrateUnwrappedEthName(tokenId, migrationData);
 
         return this.onERC721Received.selector;
     }
@@ -100,23 +109,22 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
      * @dev Called when wrapped .eth names are being migrated to v2.
      * Checks if names are locked (have CANNOT_UNWRAP burned) and routes accordingly.
      *
-     * @param registry The address of the registry.
      * @param tokenIds The token IDs of the .eth names.
      * @param migrationDataArray The migration data for each .eth name.
      */
-    function _migrateWrappedEthNames(address registry, uint256[] memory tokenIds, MigrationData[] memory migrationDataArray) internal {
+    function _migrateWrappedEthNames(uint256[] memory tokenIds, MigrationData[] memory migrationDataArray) internal {                
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            (, uint32 fuses, ) = INameWrapper(registry).getData(tokenIds[i]);
+            (, uint32 fuses, ) = nameWrapper.getData(tokenIds[i]);
             
             if (fuses & CANNOT_UNWRAP != 0) { // Name is locked
                 if (address(strategy) == address(0)) {
                     revert NoMigrationStrategySet();
                 }
                 // Name is locked, migrate through strategy
-                strategy.migrateLockedEthName(registry, tokenIds[i], migrationDataArray[i]);
+                strategy.migrateLockedEthName(address(nameWrapper), tokenIds[i], migrationDataArray[i]);
             } else {
                 // Name is unlocked, migrate directly
-                _migrateUnlockedEthName(registry, tokenIds[i], migrationDataArray[i]);
+                _migrateUnlockedEthName(tokenIds[i], migrationDataArray[i]);
             }
         }
     }
@@ -124,18 +132,16 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
     /**
      * @dev Called when an unwrapped .eth name is being migrated to v2.
      *
-     * @param registry The address of the registry.
      * @param tokenId The token ID of the .eth name.
      * @param migrationData The migration data.
      */
-    function _migrateUnwrappedEthName(address registry, uint256 tokenId, MigrationData memory migrationData) internal virtual;
+    function _migrateUnwrappedEthName(uint256 tokenId, MigrationData memory migrationData) internal virtual;
 
     /**
      * @dev Called when an unlocked wrapped .eth name is being migrated to v2.
      *
-     * @param registry The address of the registry.
      * @param tokenId The token ID of the .eth name.
      * @param migrationData The migration data.
      */
-    function _migrateUnlockedEthName(address registry, uint256 tokenId, MigrationData memory migrationData) internal virtual;
+    function _migrateUnlockedEthName(uint256 tokenId, MigrationData memory migrationData) internal virtual;
 }

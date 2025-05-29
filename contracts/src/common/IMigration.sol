@@ -7,5 +7,5 @@ import {MigrationData} from "./TransferData.sol";
  * @dev Interface for the migration strategies that get used by MigrationController instances.
  */
 interface IMigrationStrategy {
-  function migrateLockedEthName(address registry, uint256 tokenId, MigrationData memory migrationData) external;
+  function migrateLockedEthName(address nameWrapperRegistry, uint256 tokenId, MigrationData memory migrationData) external;
 }
