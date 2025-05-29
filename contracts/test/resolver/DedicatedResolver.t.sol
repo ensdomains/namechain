@@ -7,10 +7,17 @@ import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactor
 import {UUPSProxy} from "@ensdomains/verifiable-factory/UUPSProxy.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
+import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
+import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
+import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
+import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
+import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {console} from "forge-std/console.sol";
 
 interface IUniversalResolverV2 {
-    function findResolver(string memory name) external view returns (address);
+    function findResolver(bytes memory name) external view returns (address);
 }
 
 contract DedicatedResolverTest is Test {
@@ -22,6 +29,7 @@ contract DedicatedResolverTest is Test {
     bytes32 constant TEST_NODE = bytes32(uint256(1)); // Test node for getter functions
     address public universalResolver;
     address public alice;
+    bytes public encodedName;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -41,6 +49,7 @@ contract DedicatedResolverTest is Test {
         resolver = DedicatedResolver(deployed);
         universalResolver = address(0x456);
         alice = makeAddr("alice");
+        encodedName = NameCoder.encode("test.eth");
     }
 
     function test_deploy() public view {
@@ -59,7 +68,8 @@ contract DedicatedResolverTest is Test {
         resolver.setAddr(ETH_COIN_TYPE, ethAddress);
         vm.stopPrank();
 
-        bytes memory retrievedAddr = resolver.addr(TEST_NODE, ETH_COIN_TYPE);
+        bytes memory result = resolver.resolve(encodedName, abi.encodeWithSelector(IAddressResolver.addr.selector, ETH_COIN_TYPE));
+        bytes memory retrievedAddr = abi.decode(result, (bytes));
         assertEq(retrievedAddr, ethAddress);
     }
 
@@ -95,7 +105,8 @@ contract DedicatedResolverTest is Test {
         resolver.setName(testName);
         vm.stopPrank();
 
-        string memory retrievedName = resolver.name(TEST_NODE);
+        bytes memory result = resolver.resolve(encodedName, abi.encodeWithSelector(INameResolver.name.selector));
+        string memory retrievedName = abi.decode(result, (string));
         assertEq(retrievedName, testName);
     }
 
@@ -109,7 +120,8 @@ contract DedicatedResolverTest is Test {
     }
 
     function test_name_returns_empty_string_if_not_set() public view {
-        string memory retrievedName = resolver.name(TEST_NODE);
+        bytes memory result = resolver.resolve(encodedName, abi.encodeWithSelector(INameResolver.name.selector));
+        string memory retrievedName = abi.decode(result, (string));
         assertEq(retrievedName, "");
     }
 
@@ -129,8 +141,13 @@ contract DedicatedResolverTest is Test {
         bytes[] memory results = resolver.multicall(data);
         
         // Verify results
-        assertEq(resolver.name(TEST_NODE), testName, "Name not set correctly");
-        assertEq(resolver.addr(TEST_NODE), payable(address(0x123)), "Address not set correctly");
+        bytes memory nameResult = resolver.resolve(encodedName, abi.encodeWithSelector(INameResolver.name.selector));
+        string memory retrievedName = abi.decode(nameResult, (string));
+        assertEq(retrievedName, testName, "Name not set correctly");
+
+        bytes memory addrResult = resolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
+        address retrievedAddr = abi.decode(addrResult, (address));
+        assertEq(retrievedAddr, address(0x123), "Address not set correctly");
         
         vm.stopPrank();
     }
@@ -154,9 +171,17 @@ contract DedicatedResolverTest is Test {
         bytes[] memory results = resolver.multicall(data);
         
         // Verify results
-        assertEq(resolver.addr(TEST_NODE), payable(address(0x123)), "Address not set correctly");
-        assertEq(resolver.text(TEST_NODE, testKey), testValue, "Text record not set correctly");
-        assertEq(resolver.contenthash(TEST_NODE), testHash, "Content hash not set correctly");
+        bytes memory addrResult = resolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
+        address retrievedAddr = abi.decode(addrResult, (address));
+        assertEq(retrievedAddr, address(0x123), "Address not set correctly");
+
+        bytes memory textResult = resolver.resolve(encodedName, abi.encodeWithSelector(ITextResolver.text.selector, testKey));
+        string memory retrievedText = abi.decode(textResult, (string));
+        assertEq(retrievedText, testValue, "Text record not set correctly");
+
+        bytes memory hashResult = resolver.resolve(encodedName, abi.encodeWithSelector(IContentHashResolver.contenthash.selector));
+        bytes memory retrievedHash = abi.decode(hashResult, (bytes));
+        assertEq(retrievedHash, testHash, "Content hash not set correctly");
         
         vm.stopPrank();
     }
@@ -189,7 +214,8 @@ contract DedicatedResolverTest is Test {
         
         vm.startPrank(owner);
         resolver.setPubkey(x, y);
-        (bytes32 retrievedX, bytes32 retrievedY) = resolver.pubkey(TEST_NODE);
+        bytes memory result = resolver.resolve(encodedName, abi.encodeWithSelector(IPubkeyResolver.pubkey.selector));
+        (bytes32 retrievedX, bytes32 retrievedY) = abi.decode(result, (bytes32, bytes32));
         assertEq(retrievedX, x);
         assertEq(retrievedY, y);
         vm.stopPrank();
@@ -201,7 +227,8 @@ contract DedicatedResolverTest is Test {
         
         vm.startPrank(owner);
         resolver.setABI(contentType, abiData);
-        (uint256 retrievedContentType, bytes memory retrievedData) = resolver.ABI(TEST_NODE, contentType);
+        bytes memory result = resolver.resolve(encodedName, abi.encodeWithSelector(IABIResolver.ABI.selector, contentType));
+        (uint256 retrievedContentType, bytes memory retrievedData) = abi.decode(result, (uint256, bytes));
         assertEq(retrievedContentType, contentType);
         assertEq(retrievedData, abiData);
         vm.stopPrank();
@@ -255,17 +282,21 @@ contract DedicatedResolverTest is Test {
         // Should return stored address regardless of UniversalResolver state
         vm.mockCall(
             address(universalResolver),
-            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, "test.eth"),
+            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, encodedName),
             abi.encode(address(testResolver))
         );
-        assertEq(testResolver.addr(bytes32(0)), alice);
+        bytes memory result = testResolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
+        address retrievedAddr = abi.decode(result, (address));
+        assertEq(retrievedAddr, alice);
 
         vm.mockCall(
             address(universalResolver),
-            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, "test.eth"),
+            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, encodedName),
             abi.encode(address(1))
         );
-        assertEq(testResolver.addr(bytes32(0)), alice);
+        result = testResolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
+        retrievedAddr = abi.decode(result, (address));
+        assertEq(retrievedAddr, alice);
     }
 
     function test_Addr_WithWildcardDisabled() public {
@@ -299,21 +330,23 @@ contract DedicatedResolverTest is Test {
         console.log("Testing when resolver is current resolver");
         vm.mockCall(
             address(universalResolver),
-            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, "test.eth"),
+            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, encodedName),
             abi.encode(address(testResolver))
         );
-        address result = testResolver.addr(bytes32(0));
-        assertEq(result, alice, "Should return alice when resolver is current resolver");
+        bytes memory result = testResolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
+        address retrievedAddr = abi.decode(result, (address));
+        assertEq(retrievedAddr, alice, "Should return alice when resolver is current resolver");
 
         // Should return zero address when this resolver is not the current resolver
         console.log("Testing when resolver is not current resolver");
         vm.mockCall(
             address(universalResolver),
-            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, "test.eth"),
+            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, encodedName),
             abi.encode(address(1))
         );
-        result = testResolver.addr(bytes32(0));
-        assertEq(result, address(0), "Should return zero address when resolver is not current resolver");
+        result = testResolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
+        retrievedAddr = abi.decode(result, (address));
+        assertEq(retrievedAddr, address(0), "Should return zero address when resolver is not current resolver");
         console.log("Test completed successfully");
     }
 
@@ -346,8 +379,9 @@ contract DedicatedResolverTest is Test {
 
         // Should return zero address when UniversalResolver is not set
         console.log("Testing addr with no UniversalResolver");
-        address result = testResolver.addr(bytes32(0));
-        assertEq(result, address(0), "Should return zero address when UniversalResolver is not set");
+        bytes memory result = testResolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
+        address retrievedAddr = abi.decode(result, (address));
+        assertEq(retrievedAddr, address(0), "Should return zero address when UniversalResolver is not set");
         console.log("Test completed successfully");
     }
 } 
