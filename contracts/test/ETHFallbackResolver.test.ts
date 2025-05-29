@@ -1,9 +1,8 @@
-import hre from "hardhat";
-import {
-  loadFixture,
-  mine,
-} from "@nomicfoundation/hardhat-toolbox-viem/network-helpers.js";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
+import { serve } from "@namestone/ezccip/serve";
+import { expect } from "chai";
+import { BrowserProvider } from "ethers/providers";
+import hre from "hardhat";
 import {
   concat,
   encodeErrorResult,
@@ -14,37 +13,39 @@ import {
   parseAbi,
   toHex,
 } from "viem";
-import { expect } from "chai";
-import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
-import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
-import { deployArtifact } from "./fixtures/deployArtifact.js";
-import { urgArtifact } from "./fixtures/externalArtifacts.js";
+import { afterAll, describe, it } from "vitest";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
-import { dnsEncodeName, expectVar, getLabelAt } from "./utils/utils.js";
-import { serve } from "@namestone/ezccip/serve";
-import { BrowserProvider } from "ethers/providers";
+import { deployArtifact } from "./fixtures/deployArtifact.js";
+import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
+import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
+import { urgArtifact } from "./fixtures/externalArtifacts.js";
 import {
+  COIN_TYPE_ETH,
+  EVM_BIT,
   type KnownProfile,
   type KnownResolution,
   bundleCalls,
   makeResolutions,
-  COIN_TYPE_ETH,
-  EVM_BIT,
 } from "./utils/resolutions.js";
+import { dnsEncodeName, expectVar, getLabelAt } from "./utils/utils.js";
+
+const networkConnection = await hre.network.connect();
 
 async function fixture() {
-  const mainnetV1 = await deployV1Fixture(true); // CCIP on UR
-  const mainnetV2 = await deployV2Fixture(true); // CCIP on UR
-  const namechain = await deployV2Fixture();
+  const mainnetV1 = await deployV1Fixture(networkConnection, true); // CCIP on UR
+  const mainnetV2 = await deployV2Fixture(networkConnection, true); // CCIP on UR
+  const namechain = await deployV2Fixture(networkConnection);
   const gateway = new Gateway(
-    new UncheckedRollup(new BrowserProvider(hre.network.provider)),
+    new UncheckedRollup(new BrowserProvider(networkConnection.provider)),
   );
   gateway.disableCache();
   const ccip = await serve(gateway, { protocol: "raw", log: false }); // enable to see gateway calls
-  after(ccip.shutdown);
-  const GatewayVM = await deployArtifact({ file: urgArtifact("GatewayVM") });
-  const verifierAddress = await deployArtifact({
+  afterAll(ccip.shutdown);
+  const GatewayVM = await deployArtifact(networkConnection, {
+    file: urgArtifact("GatewayVM"),
+  });
+  const verifierAddress = await deployArtifact(networkConnection, {
     file: urgArtifact("UncheckedVerifier"),
     args: [[ccip.endpoint]],
     libs: { GatewayVM },
@@ -53,7 +54,7 @@ async function fixture() {
     owner: mainnetV2.walletClient.account.address,
   });
   const burnAddressV1 = "0x000000000000000000000000000000000000FadE";
-  const ethFallbackResolver = await hre.viem.deployContract(
+  const ethFallbackResolver = await networkConnection.viem.deployContract(
     "ETHFallbackResolver",
     [
       mainnetV1.ethRegistrar.address,
@@ -81,6 +82,8 @@ async function fixture() {
     namechain,
   } as const;
 }
+const loadFixture = async () =>
+  networkConnection.networkHelpers.loadFixture(fixture);
 
 const dummySelector = "0x12345678";
 const testAddress = "0x8000000000000000000000000000000000000001";
@@ -88,12 +91,12 @@ const testNames = ["test.eth", "a.b.c.test.eth"];
 
 describe("ETHFallbackResolver", () => {
   shouldSupportInterfaces({
-    contract: () => loadFixture(fixture).then((F) => F.ethFallbackResolver),
+    contract: () => loadFixture().then((F) => F.ethFallbackResolver),
     interfaces: ["IERC165", "IExtendedResolver"],
   });
 
   it("eth", async () => {
-    const F = await loadFixture(fixture);
+    const F = await loadFixture();
     const kp: KnownProfile = {
       name: "eth",
       addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
@@ -110,19 +113,26 @@ describe("ETHFallbackResolver", () => {
   describe("unregistered", () => {
     for (const name of testNames) {
       it(name, async () => {
-        const F = await loadFixture(fixture);
+        const F = await loadFixture();
         const [res] = makeResolutions({
           name,
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
         });
-        await expect(F.mainnetV1.universalResolver)
-          .read("resolve", [dnsEncodeName(name), res.call])
-          .toBeRevertedWithCustomError("ResolverNotFound");
+        await expect(
+          F.mainnetV1.universalResolver.read.resolve([
+            dnsEncodeName(name),
+            res.call,
+          ]),
+        ).toBeRevertedWithCustomError("ResolverNotFound");
         // the errors are different because:
         // V1: requireResolver() fails
         // V2: gateway to namechain, no resolver found
-        await expect(F.mainnetV2.universalResolver)
-          .read("resolve", [dnsEncodeName(name), res.call])
+        await expect(
+          F.mainnetV2.universalResolver.read.resolve([
+            dnsEncodeName(name),
+            res.call,
+          ]),
+        )
           .toBeRevertedWithCustomError("ResolverError")
           .withArgs(
             encodeErrorResult({
@@ -138,7 +148,7 @@ describe("ETHFallbackResolver", () => {
   describe("still registered on V1", () => {
     for (const name of testNames) {
       it(name, async () => {
-        const F = await loadFixture(fixture);
+        const F = await loadFixture();
         const kp: KnownProfile = {
           name,
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
@@ -163,7 +173,7 @@ describe("ETHFallbackResolver", () => {
   describe("migrated from V1", () => {
     for (const name of testNames) {
       it(name, async () => {
-        const F = await loadFixture(fixture);
+        const F = await loadFixture();
         const kp: KnownProfile = {
           name,
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
@@ -196,7 +206,7 @@ describe("ETHFallbackResolver", () => {
   describe("ejected from Namechain", () => {
     for (const name of testNames) {
       it(name, async () => {
-        const F = await loadFixture(fixture);
+        const F = await loadFixture();
         const kp: KnownProfile = {
           name,
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
@@ -220,7 +230,7 @@ describe("ETHFallbackResolver", () => {
   describe("registered on Namechain", () => {
     for (const name of testNames) {
       it(name, async () => {
-        const F = await loadFixture(fixture);
+        const F = await loadFixture();
         const kp: KnownProfile = {
           name,
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
@@ -242,7 +252,7 @@ describe("ETHFallbackResolver", () => {
   describe("expired", () => {
     for (const name of testNames) {
       it(name, async () => {
-        const F = await loadFixture(fixture);
+        const F = await loadFixture();
         const kp: KnownProfile = {
           name,
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
@@ -260,10 +270,13 @@ describe("ETHFallbackResolver", () => {
           res.call,
         ]);
         res.expect(answer);
-        await mine(2, { interval }); // wait for the name to expire
-        await expect(F.ethFallbackResolver)
-          .read("resolve", [dnsEncodeName(kp.name), res.call])
-          .toBeRevertedWithCustomError("UnreachableName");
+        await networkConnection.networkHelpers.mine(2, { interval }); // wait for the name to expire
+        await expect(
+          F.ethFallbackResolver.read.resolve([
+            dnsEncodeName(kp.name),
+            res.call,
+          ]),
+        ).toBeRevertedWithCustomError("UnreachableName");
       });
     }
   });
@@ -293,14 +306,18 @@ describe("ETHFallbackResolver", () => {
       },
     ];
     it("unsupported", async () => {
-      const F = await loadFixture(fixture);
-      await expect(F.mainnetV2.universalResolver)
-        .read("resolve", [dnsEncodeName(kp.name), dummySelector])
+      const F = await loadFixture();
+      await expect(
+        F.mainnetV2.universalResolver.read.resolve([
+          dnsEncodeName(kp.name),
+          dummySelector,
+        ]),
+      )
         .toBeRevertedWithCustomError("UnsupportedResolverProfile")
         .withArgs(dummySelector);
     });
     it("recordVersions", async () => {
-      const F = await loadFixture(fixture);
+      const F = await loadFixture();
       await F.namechain.setupName(kp);
       await check(0n);
       await F.namechain.ownedResolver.write.clearRecords([namehash(kp.name)]);
@@ -321,7 +338,7 @@ describe("ETHFallbackResolver", () => {
     });
     for (const res of makeResolutions(kp)) {
       it(res.desc, async () => {
-        const F = await loadFixture(fixture);
+        const F = await loadFixture();
         await F.namechain.setupName(kp);
         await F.namechain.ownedResolver.write.multicall([[res.write]]);
         const [answer, resolver] =
@@ -343,7 +360,7 @@ describe("ETHFallbackResolver", () => {
         ],
       };
       const [nul, ty1, ty8] = makeResolutions(kp);
-      const F = await loadFixture(fixture);
+      const F = await loadFixture();
       await F.namechain.setupName(kp);
       await F.namechain.ownedResolver.write.multicall([[ty1.write, ty8.write]]);
       await check(1n, ty1);
@@ -366,7 +383,7 @@ describe("ETHFallbackResolver", () => {
       }
     });
     it(`multicall()`, async () => {
-      const F = await loadFixture(fixture);
+      const F = await loadFixture();
       await F.namechain.setupName(kp);
       await F.namechain.ownedResolver.write.multicall([
         makeResolutions(kp).map((x) => x.write),
@@ -381,7 +398,7 @@ describe("ETHFallbackResolver", () => {
       bundle.expect(answer);
     });
     it("resolve(multicall)", async () => {
-      const F = await loadFixture(fixture);
+      const F = await loadFixture();
       await F.namechain.setupName(kp);
       await F.namechain.ownedResolver.write.multicall([
         makeResolutions(kp).map((x) => x.write),
@@ -397,7 +414,7 @@ describe("ETHFallbackResolver", () => {
     });
     it("zero multicalls", async () => {
       const kp: KnownProfile = { name: testNames[0] };
-      const F = await loadFixture(fixture);
+      const F = await loadFixture();
       const bundle = bundleCalls(makeResolutions(kp));
       const [answer] = await F.mainnetV2.universalResolver.read.resolve([
         dnsEncodeName(kp.name),
@@ -419,7 +436,7 @@ describe("ETHFallbackResolver", () => {
           };
         }),
       };
-      const F = await loadFixture(fixture);
+      const F = await loadFixture();
       const bundle = bundleCalls(makeResolutions(kp));
       const [answer] = await F.mainnetV2.universalResolver.read.resolve([
         dnsEncodeName(kp.name),

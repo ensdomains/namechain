@@ -1,11 +1,17 @@
 // import { labelhash, namehash } from "viem";
 
+import type { Fixture } from "@nomicfoundation/hardhat-network-helpers/types";
+import type {
+  DefaultChainType,
+  NetworkConnection,
+} from "hardhat/types/network";
+
 export { expectVar } from "../../lib/ens-contracts/test/fixtures/expectVar.js";
 
 export {
   dnsEncodeName,
-  packetToBytes,
   encodeLabelhash,
+  packetToBytes,
 } from "../../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
 
 // export function packetToBytes(packet: string) {
@@ -48,4 +54,13 @@ export function getParentName(name: string) {
 //          5 => ""
 export function getLabelAt(name: string, index: number) {
   return splitName(name).at(index) ?? "";
+}
+
+export function createFixture<T>(
+  networkConnection: NetworkConnection<DefaultChainType>,
+  fixture: (n: NetworkConnection<DefaultChainType>) => Fixture<T>,
+) {
+  const initialisedFixture = fixture(networkConnection);
+  return async () =>
+    networkConnection.networkHelpers.loadFixture(initialisedFixture);
 }
