@@ -20,7 +20,7 @@ import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.s
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {IMetadataService} from "@ens/contracts/wrapper/IMetadataService.sol";
 import {INameWrapperUpgrade} from "@ens/contracts/wrapper/INameWrapperUpgrade.sol";
-import {MigrationController} from "../src/common/MigrationController.sol";
+import {L1MigrationController} from "../src/L1/L1MigrationController.sol";
 import {IMigrationStrategy} from "../src/common/IMigration.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
 
@@ -138,11 +138,11 @@ contract MockNameWrapper is ERC1155 {
     }
 }
 
-contract MockMigrationController is MigrationController {
+contract MockL1MigrationController is L1MigrationController {
     event MockUnwrappedEthNameMigrated(uint256 tokenId, string label, address owner);
     event MockUnlockedEthNameMigrated(uint256 tokenId, string label, address owner);
 
-    constructor(IBaseRegistrar _ethRegistryV1, INameWrapper _nameWrapper) MigrationController(_ethRegistryV1, _nameWrapper) {}
+    constructor(IBaseRegistrar _ethRegistryV1, INameWrapper _nameWrapper) L1MigrationController(_ethRegistryV1, _nameWrapper) {}
 
     function _migrateUnwrappedEthName(
         uint256 tokenId, 
@@ -171,10 +171,10 @@ contract MockMigrationStrategy is IMigrationStrategy {
     }
 }
 
-contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
+contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
     MockBaseRegistrar ethRegistryV1;
     MockNameWrapper nameWrapper;
-    MockMigrationController migrationController;
+    MockL1MigrationController migrationController;
     MockMigrationStrategy migrationStrategy;
 
     address user = address(0x1234);
@@ -230,7 +230,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         nameWrapper = new MockNameWrapper();
         
         // Deploy migration controller
-        migrationController = new MockMigrationController(ethRegistryV1, INameWrapper(address(nameWrapper)));
+        migrationController = new MockL1MigrationController(ethRegistryV1, INameWrapper(address(nameWrapper)));
         
         // Deploy migration strategy
         migrationStrategy = new MockMigrationStrategy();
@@ -317,7 +317,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         bytes memory data = abi.encode(migrationData);
         
         // Try to transfer from wrong registry
-        vm.expectRevert(abi.encodeWithSelector(MigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(L1MigrationController.UnauthorizedCaller.selector, address(this)));
         migrationController.onERC721Received(address(this), user, testTokenId, data);
     }
 
@@ -332,7 +332,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         
         // Try to call onERC721Received directly when migration controller doesn't own the token
         // This should fail with UnauthorizedCaller because we're calling it directly
-        vm.expectRevert(abi.encodeWithSelector(MigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(L1MigrationController.UnauthorizedCaller.selector, address(this)));
         migrationController.onERC721Received(address(this), user, testTokenId, data);
     }
 
@@ -518,7 +518,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         
         // Try to transfer without strategy set (should revert for locked name)
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(MigrationController.NoMigrationStrategySet.selector));
+        vm.expectRevert(abi.encodeWithSelector(L1MigrationController.NoMigrationStrategySet.selector));
         nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
     }
 
@@ -554,7 +554,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         bytes memory data = abi.encode(migrationDataArray);
         
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(MigrationController.NoMigrationStrategySet.selector));
+        vm.expectRevert(abi.encodeWithSelector(L1MigrationController.NoMigrationStrategySet.selector));
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
     }
 
@@ -571,7 +571,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         bytes memory data = abi.encode(migrationData);
         
         // Try to call onERC1155Received from wrong contract (not nameWrapper)
-        vm.expectRevert(abi.encodeWithSelector(MigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(L1MigrationController.UnauthorizedCaller.selector, address(this)));
         migrationController.onERC1155Received(address(this), user, testTokenId, 1, data);
     }
 
@@ -588,7 +588,7 @@ contract TestMigrationController is Test, ERC1155Holder, ERC721Holder {
         bytes memory data = abi.encode(migrationDataArray);
         
         // Try to call onERC1155BatchReceived from wrong contract (not nameWrapper)
-        vm.expectRevert(abi.encodeWithSelector(MigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(L1MigrationController.UnauthorizedCaller.selector, address(this)));
         migrationController.onERC1155BatchReceived(address(this), user, tokenIds, amounts, data);
     }
 

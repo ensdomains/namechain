@@ -6,15 +6,15 @@ import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.s
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {IMigrationStrategy} from "./IMigration.sol";
-import {TransferData, MigrationData} from "./TransferData.sol";
+import {IMigrationStrategy} from "../common/IMigration.sol";
+import {TransferData, MigrationData} from "../common/TransferData.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @title MigrationController
+ * @title L1MigrationController
  * @dev Base contract for the v1-to-v2 migration controller.
  */
-abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
+abstract contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
     error UnauthorizedCaller(address caller);   
     error NoMigrationStrategySet();
     error MigrationFailed();
@@ -44,7 +44,7 @@ abstract contract MigrationController is IERC1155Receiver, IERC721Receiver, ERC1
      * Implements ERC165.supportsInterface
      */
     function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(MigrationController).interfaceId 
+        return interfaceId == type(L1MigrationController).interfaceId 
             || interfaceId == type(Ownable).interfaceId 
             || interfaceId == type(IERC1155Receiver).interfaceId 
             || interfaceId == type(IERC721Receiver).interfaceId 
