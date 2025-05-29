@@ -2,6 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {EjectionController} from "../common/EjectionController.sol";
+import {TransferData} from "../common/TransferData.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";

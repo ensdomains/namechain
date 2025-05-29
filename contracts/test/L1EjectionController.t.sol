@@ -10,6 +10,7 @@ import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistry.sol";
 import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
+import {TransferData} from "../src/common/TransferData.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 import "../src/common/IRegistryMetadata.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
@@ -50,7 +51,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         uint64 expiryTime,
         uint256 roleBitmap
     ) internal pure returns (bytes memory) {
-        EjectionController.TransferData memory transferData = EjectionController.TransferData({
+        TransferData memory transferData = TransferData({
             label: "",
             owner: l2Owner,
             subregistry: l2Subregistry,
@@ -77,10 +78,10 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
                 l2Owners.length == roleBitmaps.length, 
                 "Array lengths must match");
                 
-        EjectionController.TransferData[] memory transferDataArray = new EjectionController.TransferData[](l2Owners.length);
+        TransferData[] memory transferDataArray = new TransferData[](l2Owners.length);
         
         for (uint256 i = 0; i < l2Owners.length; i++) {
-            transferDataArray[i] = EjectionController.TransferData({
+            transferDataArray[i] = TransferData({
                 label: "",
                 owner: l2Owners[i],
                 subregistry: l2Subregistries[i],
@@ -447,7 +448,7 @@ contract MockL1EjectionController is L1EjectionController {
         uint256 roleBitmap,
         bytes memory /*data*/
     ) external {
-        EjectionController.TransferData memory transferData = EjectionController.TransferData({
+        TransferData memory transferData = TransferData({
             label: label,
             owner: l1Owner,
             subregistry: l1Subregistry,
@@ -467,12 +468,12 @@ contract MockL1EjectionController is L1EjectionController {
     /**
      * @dev Overridden to emit a mock event after calling the parent logic.
      */
-    function _onEject(uint256[] memory tokenIds, EjectionController.TransferData[] memory transferDataArray) internal override {
+    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal override {
         super._onEject(tokenIds, transferDataArray);
         
         // Emit events for each token that is ejected
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            EjectionController.TransferData memory transferData = transferDataArray[i];
+            TransferData memory transferData = transferDataArray[i];
             emit MockNameEjectedToL2(
                 tokenIds[i],
                 transferData.owner, 

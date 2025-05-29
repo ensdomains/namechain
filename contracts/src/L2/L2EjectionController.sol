@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 import {ITokenObserver} from "../common/ITokenObserver.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {EjectionController} from "../common/EjectionController.sol";
+import {TransferData} from "../common/TransferData.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {IRegistry} from "../common/IRegistry.sol";  
 
