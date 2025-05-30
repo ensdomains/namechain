@@ -17,9 +17,15 @@ At present the following contracts are implemented:
 
 ### Installation
 
-1. Install [Foundry](https://book.getfoundry.sh/getting-started/installation)
-1. Install [bun](https://bun.sh/)
-1. `bun i`
+1. Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation)
+2. Install [bun](https://bun.sh/)
+3. Install dependencies:
+
+```sh
+bun i
+cd contracts
+forge i
+```
 
 ### Build
 
@@ -30,6 +36,7 @@ forge build
 ### Test
 
 Testing is done using both Foundry and Hardhat.
+Run all test suites:
 
 ```sh
 bun run test         # ALL tests
@@ -38,10 +45,66 @@ bun run test:hardhat # Hardhat tests
 bun run test:hardhat test/Ens.t.ts # specific Hardhat test
 ```
 
+Or run specific test suites:
+
+```sh
+bun run test:hardhat  # Run Hardhat tests
+bun run test:forge    # Run Forge tests
+```
+
+## Running the Devnet
+
+There are two ways to run the devnet:
+
+### Using Docker Compose
+
+1. Make sure you have Docker and Docker Compose installed
+2. Run the devnet using either:
+
+   ```bash
+   # Using local build
+   docker compose up -d
+
+   # Or using pre-built image from GitHub Container Registry
+   docker pull ghcr.io/ensdomains/namechain:latest
+   docker compose up -d
+   ```
+
+3. The devnet will be available at:
+   - L1 Chain: http://localhost:8545 (Chain ID: 31337)
+   - L2 Chain: http://localhost:8546 (Chain ID: 31338)
+
+To view logs:
+
+```bash
+docker logs -f namechain-devnet-1
+```
+
+To stop the devnet:
+
+```bash
+docker compose down
+```
+
+### Local Development
+
+### Run Local Devnet
+
+Start a local devnet with L1 and L2 chains:
+
+```sh
+bun run devnet
+```
+
+This will start:
+
+- L1 chain at http://localhost:8545 (Chain ID: 31337)
+- L2 chain at http://localhost:8546 (Chain ID: 31338)
+
 ### Format
 
 ```shell
-$ forge fmt
+forge fmt
 ```
 
 ### Gas Snapshots

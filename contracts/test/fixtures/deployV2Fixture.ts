@@ -1,4 +1,7 @@
-import hre from "hardhat";
+import type {
+  DefaultChainType,
+  NetworkConnection,
+} from "hardhat/types/network";
 import {
   type Address,
   encodeFunctionData,
@@ -47,23 +50,25 @@ export const ROLES = {
   ALL: (1n << 256n) - 1n, // see: EnhancedAccessControl.sol
 } as const;
 
-export async function deployV2Fixture(enableCcipRead = false) {
-  const publicClient = await hre.viem.getPublicClient({
+export async function deployV2Fixture(
+  networkConnection: NetworkConnection<DefaultChainType>,
+  enableCcipRead = false,
+) {
+  const publicClient = await networkConnection.viem.getPublicClient({
     ccipRead: enableCcipRead ? undefined : false,
   });
-  const [walletClient] = await hre.viem.getWalletClients();
-  const datastore = await hre.viem.deployContract("RegistryDatastore");
-  const rootRegistry = await hre.viem.deployContract("PermissionedRegistry", [
-    datastore.address,
-    zeroAddress,
-    ROLES.ALL,
-  ]);
-  const ethRegistry = await hre.viem.deployContract("PermissionedRegistry", [
-    datastore.address,
-    zeroAddress,
-    ROLES.ALL,
-  ]);
-  const universalResolver = await hre.viem.deployContract(
+  const [walletClient] = await networkConnection.viem.getWalletClients();
+  const datastore =
+    await networkConnection.viem.deployContract("RegistryDatastore");
+  const rootRegistry = await networkConnection.viem.deployContract(
+    "PermissionedRegistry",
+    [datastore.address, zeroAddress, ROLES.ALL],
+  );
+  const ethRegistry = await networkConnection.viem.deployContract(
+    "PermissionedRegistry",
+    [datastore.address, zeroAddress, ROLES.ALL],
+  );
+  const universalResolver = await networkConnection.viem.deployContract(
     "UniversalResolver",
     [rootRegistry.address, ["x-batch-gateway:true"]],
     {
@@ -78,10 +83,10 @@ export async function deployV2Fixture(enableCcipRead = false) {
     ROLES.ALL,
     MAX_EXPIRY,
   ]);
-  const verifiableFactory = await hre.viem.deployContract(
-    "@ensdomains/verifiable-factory/VerifiableFactory.sol:VerifiableFactory",
-  );
-  const dedicatedResolverImpl = await hre.viem.deployContract("DedicatedResolver");
+  const verifiableFactory =
+    await networkConnection.viem.deployContract("VerifiableFactory");
+  const dedicatedResolverImpl =
+    await networkConnection.viem.deployContract("DedicatedResolver");
   const dedicatedResolver = await deployDedicatedResolver({
     owner: walletClient.account.address,
   });
@@ -104,7 +109,7 @@ export async function deployV2Fixture(enableCcipRead = false) {
     owner: Address;
     salt?: bigint;
   }) {
-    const wallet = await hre.viem.getWalletClient(owner);
+    const wallet = await networkConnection.viem.getWalletClient(owner);
     const hash = await verifiableFactory.write.deployProxy([
       dedicatedResolverImpl.address,
       salt,
@@ -122,11 +127,15 @@ export async function deployV2Fixture(enableCcipRead = false) {
       eventName: "ProxyDeployed",
       logs: receipt.logs,
     });
-    return hre.viem.getContractAt("DedicatedResolver", log.args.proxyAddress, {
-      client: {
-        wallet,
+    return networkConnection.viem.getContractAt(
+      "DedicatedResolver",
+      log.args.proxyAddress,
+      {
+        client: {
+          wallet,
+        },
       },
-    });
+    );
   }
   // creates registries up to the parent name
   async function setupName({
@@ -160,7 +169,7 @@ export async function deployV2Fixture(enableCcipRead = false) {
       if (!leaf || exact) {
         if (registryAddress === zeroAddress) {
           // registry does not exist, create it
-          const registry = await hre.viem.deployContract(
+          const registry = await networkConnection.viem.deployContract(
             "PermissionedRegistry",
             [datastore.address, metadataAddress, roles],
           );
@@ -175,7 +184,7 @@ export async function deployV2Fixture(enableCcipRead = false) {
           registries.push(registry);
         } else {
           registries.push(
-            await hre.viem.getContractAt(
+            await networkConnection.viem.getContractAt(
               "PermissionedRegistry",
               registryAddress,
             ),
