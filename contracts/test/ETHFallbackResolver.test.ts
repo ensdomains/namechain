@@ -355,7 +355,7 @@ describe("ETHFallbackResolver", () => {
         const [answer] = await F.mainnetV2.universalResolver.read.resolve([
           dnsEncodeName(kp.name),
           encodeFunctionData({
-            abi: F.namechain.dedicatedResolver.abi,
+            abi: parseAbi(["function ABI(bytes32, uint256 contentTypes) external view returns (uint256, bytes memory)"]),
             functionName: "ABI",
             args: [namehash(kp.name), contentType],
           }),
