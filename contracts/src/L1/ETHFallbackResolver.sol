@@ -16,7 +16,6 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
 // resolver profiles
-import {IVersionableResolver} from "@ens/contracts/resolvers/profiles/IVersionableResolver.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
@@ -195,7 +194,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     ///    registry = reg
     /// ````
     function resolve(bytes memory name, bytes calldata data) external view returns (bytes memory) {
-        (bytes32 node, uint256 labelCount, uint256 offset) = _countLabels(name);
+        (, uint256 labelCount, uint256 offset) = _countLabels(name);
         if (labelCount == 0) {
             ccipRead(ethResolver, data, this.resolveEthCallback.selector, "");
         }
@@ -235,9 +234,6 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         }
         req.evalLoop(EvalFlag.STOP_ON_FAILURE); // outputs = [registry, resolver]
         req.pushOutput(1).requireNonzero(EXIT_CODE_NO_RESOLVER).target(); // target resolver
-        req.push(node); // leave on stack at offset 0
-        req.dup().follow(); // recordVersions[node]
-        req.read(); // version, leave on stack at offset 1
         req.push(bytes("")).dup().setOutput(0).setOutput(1); // clear outputs
         uint256 errors;
         for (uint256 i; i < calls.length; i++) {
@@ -250,13 +246,13 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
             //     continue;
             // }
             if (selector == IAddrResolver.addr.selector) {
-                req.setSlot(SLOT_DR_COIN_ADDRESSES);  // Set to SingleNameResolver's storage slot
-                req.dup2().push(60).follow();  // _coinAddresses[60]
+                req.setSlot(SLOT_DR_COIN_ADDRESSES);
+                req.push(60).follow();  // _addresses[60]
                 req.readBytes().shl(0); // convert to word
             } else if (selector == IAddressResolver.addr.selector) {
                 uint256 coinType = uint256(BytesUtils.readBytes32(v, 36));
                 req.setSlot(SLOT_DR_COIN_ADDRESSES);
-                req.dup2().push(coinType).follow(); // _coinAddresses[coinType]
+                req.push(coinType).follow(); // _addresses[coinType]
                 req.readBytes();
             } else if (selector == ITextResolver.text.selector) {
                 (, string memory key) = abi.decode(BytesUtils.substring(v, 4, v.length - 4), (bytes32, string));
@@ -264,28 +260,24 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
                 // uint256 size = uint256(BytesUtils.readBytes32(v, jump));
                 // bytes memory key = BytesUtils.substring(v, jump + 32, size);
                 req.setSlot(SLOT_DR_TEXT_RECORDS);
-                req.dup2().push(key).follow(); // _textRecords[key]
+                req.push(key).follow(); // _textRecords[key]
                 req.readBytes();
             } else if (selector == IContentHashResolver.contenthash.selector) {
-                req.setSlot(SLOT_DR_CONTENTHASH);
-                req.dup2(); // _contenthash
+                req.setSlot(SLOT_DR_CONTENTHASH); // _contenthash
                 req.readBytes();
             } else if (selector == INameResolver.name.selector) {
-                req.setSlot(SLOT_DR_NAMES);
-                req.dup2(); // _names
+                req.setSlot(SLOT_DR_NAMES); // _names
                 req.readBytes();
             } else if (selector == IPubkeyResolver.pubkey.selector) {
-                req.setSlot(SLOT_DR_PUBKEY);
-                req.dup2(); // _pubkey
-                req.read(2); // read both x and y from the struct
+                req.setSlot(SLOT_DR_PUBKEY); // _pubkey
+                req.read(2); // read both x and y
             } else if (selector == IInterfaceResolver.interfaceImplementer.selector) {
                 bytes4 interfaceID = bytes4(BytesUtils.readBytes32(v, 36));
                 req.setSlot(SLOT_DR_INTERFACES);
-                req.dup2().push(interfaceID).follow(); // _interfaces[interfaceID]
+                req.push(interfaceID).follow(); // _interfaces[interfaceID]
                 req.read();
             } else if (selector == IABIResolver.ABI.selector) {
                 req.setSlot(SLOT_DR_ABIS);
-                req.dup2(); // _abis
                 uint256 bits = uint256(BytesUtils.readBytes32(v, 36));
                 uint256 count;
                 for (uint256 contentType = 1 << 255; contentType > 0; contentType >>= 1) {
@@ -386,7 +378,6 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         } else if (
             bytes4(data) == IAddrResolver.addr.selector
                 || bytes4(data) == IInterfaceResolver.interfaceImplementer.selector
-                || bytes4(data) == IVersionableResolver.recordVersions.selector
                 || bytes4(data) == IPubkeyResolver.pubkey.selector
         ) {
             return value;

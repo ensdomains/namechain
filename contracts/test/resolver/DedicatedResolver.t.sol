@@ -39,7 +39,7 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
     string testName = "test.eth";
     bytes testAddress = abi.encodePacked(address(0x123));
 
-    function setUp() public {
+    function setUp() external {
         factory = new VerifiableFactory();
         resolverImpl = new DedicatedResolver();
 
@@ -129,7 +129,7 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
         aliceResolver.setText("", "");
     }
 
-    function test_setName(string memory name) public {
+    function test_setName(string memory name) external {
         vm.startPrank(alice);
         aliceResolver.setName(name);
         vm.stopPrank();
@@ -139,7 +139,7 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
         assertEq(abi.decode(result, (string)), name, "extended");
     }
 
-    function test_setName_notOwner() public {
+    function test_setName_notOwner() external {
         vm.expectRevert();
         aliceResolver.setName("");
     }
