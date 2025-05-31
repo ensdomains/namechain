@@ -71,9 +71,7 @@ export async function deployV2Fixture(
   const universalResolver = await networkConnection.viem.deployContract(
     "UniversalResolver",
     [rootRegistry.address, ["x-batch-gateway:true"]],
-    {
-      client: { public: publicClient },
-    },
+    { client: { public: publicClient } },
   );
   await rootRegistry.write.register([
     "eth",
@@ -104,9 +102,11 @@ export async function deployV2Fixture(
   };
   async function deployDedicatedResolver({
     owner,
+    wildcard = true,
     salt = BigInt(labelhash(new Date().toISOString())),
   }: {
     owner: Address;
+    wildcard?: boolean;
     salt?: bigint;
   }) {
     const wallet = await networkConnection.viem.getWalletClient(owner);
@@ -116,12 +116,10 @@ export async function deployV2Fixture(
       encodeFunctionData({
         abi: dedicatedResolverImpl.abi,
         functionName: "initialize",
-        args: [owner, true, universalResolver.address],
+        args: [owner, wildcard, universalResolver.address],
       }),
     ]);
-    const receipt = await publicClient.getTransactionReceipt({
-      hash,
-    });
+    const receipt = await publicClient.getTransactionReceipt({ hash });
     const [log] = parseEventLogs({
       abi: verifiableFactory.abi,
       eventName: "ProxyDeployed",
@@ -130,11 +128,7 @@ export async function deployV2Fixture(
     return networkConnection.viem.getContractAt(
       "DedicatedResolver",
       log.args.proxyAddress,
-      {
-        client: {
-          wallet,
-        },
-      },
+      { client: { wallet } },
     );
   }
   // creates registries up to the parent name

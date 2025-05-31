@@ -2,10 +2,15 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
+import {console} from "forge-std/console.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {DedicatedResolver} from "../../src/common/DedicatedResolver.sol";
+import {IDedicatedResolver, NODE_ANY} from "../../src/common/IDedicatedResolver.sol";
+import {IRegistryTraversal} from "../../src/common/IRegistryTraversal.sol";
+import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {UUPSProxy} from "@ensdomains/verifiable-factory/UUPSProxy.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
@@ -13,375 +18,262 @@ import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
+import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
-import {console} from "forge-std/console.sol";
+import {COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
 
-interface IUniversalResolverV2 {
-    function findResolver(bytes memory name) external view returns (address);
-}
+contract DedicatedResolverTest is Test, IRegistryTraversal {
+    address foundResolver;
+    uint256 foundOffset;
 
-contract DedicatedResolverTest is Test {
+    function findResolver(bytes memory) external view returns (address, bytes32, uint256) {
+        return (foundResolver, 0, foundOffset);
+    }
+
     VerifiableFactory factory;
-    uint256 constant SALT = 12345;
-    address public owner;
-    DedicatedResolver resolver;
-    uint256 constant ETH_COIN_TYPE = 60;
-    bytes32 constant TEST_NODE = bytes32(uint256(1)); // Test node for getter functions
-    address public universalResolver;
-    address public alice;
-    bytes public encodedName;
+    DedicatedResolver resolverImpl;
+
+    address alice;
+    DedicatedResolver aliceResolver;
+
+    string testName = "test.eth";
+    bytes testAddress = abi.encodePacked(address(0x123));
 
     function setUp() public {
-        owner = makeAddr("owner");
         factory = new VerifiableFactory();
-        
-        address implementation = address(new DedicatedResolver());
-        bytes memory initData = abi.encodeWithSelector(
-            DedicatedResolver.initialize.selector,
-            owner,
-            true, // wildcard
-            address(0x456) // universalResolver
-        );
-        vm.startPrank(owner);
-        address deployed = factory.deployProxy(implementation, SALT, initData);
-        vm.stopPrank();
-        
-        resolver = DedicatedResolver(deployed);
-        universalResolver = address(0x456);
+        resolverImpl = new DedicatedResolver();
+
         alice = makeAddr("alice");
-        encodedName = NameCoder.encode("test.eth");
+        aliceResolver = _deployResolver(alice, true, address(0));
     }
 
-    function test_deploy() public view {
-        UUPSProxy proxy = UUPSProxy(payable(address(resolver)));
-        bytes32 outerSalt = keccak256(abi.encode(owner, SALT));
-        assertEq(proxy.getVerifiableProxySalt(), outerSalt);
-        assertEq(resolver.owner(), owner);
-        assertTrue(resolver.wildcard(), "Wildcard should be true");
-        assertEq(resolver.universalResolver(), address(0x456), "Universal resolver address should match");
-    }
-
-    function test_set_and_get_addr() public {
-        bytes memory ethAddress = abi.encodePacked(address(0x123));
-        
+    function _deployResolver(address owner, bool wildcard, address ur) internal returns (DedicatedResolver resolver) {
+        bytes memory initData = abi.encodeCall(DedicatedResolver.initialize, (owner, wildcard, ur));
         vm.startPrank(owner);
-        resolver.setAddr(ETH_COIN_TYPE, ethAddress);
+        resolver = DedicatedResolver(factory.deployProxy(address(resolverImpl), uint256(keccak256(initData)), initData));
+        vm.stopPrank();
+    }
+
+    function testFuzz_deploy(bool wildcard) external {
+        DedicatedResolver resolver = _deployResolver(alice, wildcard, address(1));
+        assertEq(resolver.owner(), alice, "owner");
+        assertEq(resolver.wildcard(), wildcard, "wildcard");
+        assertEq(resolver.universalResolver(), address(1), "ur");
+    }
+
+    function testFuzz_supportsInterface() external view {
+        assertTrue(aliceResolver.supportsInterface(type(IExtendedResolver).interfaceId), "IExtendedResolver");
+        assertTrue(aliceResolver.supportsInterface(type(IDedicatedResolver).interfaceId), "IDedicatedResolver");
+        assertTrue(aliceResolver.supportsInterface(DedicatedResolver.multicall.selector), "multicall()");
+        assertTrue(ERC165Checker.supportsERC165(address(aliceResolver)), "ERC165");
+    }
+
+    function test_supportsName_wildcard() external view {
+        assertTrue(aliceResolver.supportsName(""));
+        assertTrue(aliceResolver.supportsName(hex"FF"));
+    }
+
+    function test_supportsName_noWildcard_noUR() external {
+        DedicatedResolver resolver = _deployResolver(alice, false, address(0));
+        assertFalse(resolver.supportsName(""));
+    }
+
+    function test_supportsName_noWildcard_exact() external {
+        DedicatedResolver resolver = _deployResolver(alice, false, address(this));
+        foundResolver = address(resolver);
+        foundOffset = 0;
+        assertTrue(resolver.supportsName(""));
+    }
+
+    function test_supportsName_noWildcard_notExact() external {
+        DedicatedResolver resolver = _deployResolver(alice, false, address(this));
+        foundOffset = 1;
+        assertFalse(resolver.supportsName(""));
+    }
+
+    function testFuzz_setAddr(uint256 coinType, bytes memory addressBytes) external {
+        vm.startPrank(alice);
+        aliceResolver.setAddr(coinType, addressBytes);
         vm.stopPrank();
 
-        bytes memory result = resolver.resolve(encodedName, abi.encodeWithSelector(IAddressResolver.addr.selector, ETH_COIN_TYPE));
-        bytes memory retrievedAddr = abi.decode(result, (bytes));
-        assertEq(retrievedAddr, ethAddress);
+        assertEq(aliceResolver.addr(NODE_ANY, coinType), addressBytes, "immediate");
+        bytes memory result = aliceResolver.resolve("", abi.encodeCall(IAddressResolver.addr, (NODE_ANY, coinType)));
+        assertEq(abi.decode(result, (bytes)), addressBytes, "extended");
     }
 
-    function test_cannot_set_addr_if_not_owner() public {
-        bytes memory ethAddress = abi.encodePacked(address(0x123));
-        
-        vm.startPrank(makeAddr("notOwner"));
+    function test_setAddr_fallback(uint32 chain) external {
+        vm.assume(chain < EVM_BIT);
+        vm.startPrank(alice);
+        aliceResolver.setAddr(EVM_BIT, testAddress);
+        vm.stopPrank();
+        assertEq(aliceResolver.addr(NODE_ANY, chain == 1 ? COIN_TYPE_ETH : EVM_BIT | chain), testAddress);
+    }
+
+    function test_setAddr_notOwner() external {
         vm.expectRevert();
-        resolver.setAddr(ETH_COIN_TYPE, ethAddress);
-        vm.stopPrank();
+        aliceResolver.setAddr(0, "");
     }
 
-
-    function test_supports_interface() view public {
-        // Test for implemented interfaces        
-        assertTrue(resolver.supportsInterface(0x3b3b57de), "Should support addr interface");
-        assertTrue(resolver.supportsInterface(0xf1cb7e06), "Should support address interface");
-        assertTrue(resolver.supportsInterface(0x59d1d43c), "Should support text interface");
-        assertTrue(resolver.supportsInterface(0xbc1c58d1), "Should support contenthash interface");
-        assertTrue(resolver.supportsInterface(type(INameResolver).interfaceId), "Should support name interface");
-        
-        // Test for ERC165 interface
-        assertTrue(resolver.supportsInterface(0x01ffc9a7), "Should support ERC165");
-        
-        // Test for unsupported interface
-        assertFalse(resolver.supportsInterface(0xffffffff), "Should not support random interface");
-    }
-
-    function test_set_and_get_name() public {
-        string memory testName = "test.eth";
-        
-        vm.startPrank(owner);
-        resolver.setName(testName);
+    function testFuzz_setText(string memory key, string memory value) external {
+        vm.startPrank(alice);
+        aliceResolver.setText(key, value);
         vm.stopPrank();
 
-        bytes memory result = resolver.resolve(encodedName, abi.encodeWithSelector(INameResolver.name.selector));
-        string memory retrievedName = abi.decode(result, (string));
-        assertEq(retrievedName, testName);
+        assertEq(aliceResolver.text(NODE_ANY, key), value, "immediate");
+        bytes memory result = aliceResolver.resolve("", abi.encodeCall(ITextResolver.text, (NODE_ANY, key)));
+        assertEq(abi.decode(result, (string)), value, "extended");
     }
 
-    function test_cannot_set_name_if_not_owner() public {
-        string memory testName = "test.eth";
-        
-        vm.startPrank(makeAddr("notOwner"));
+    function test_setText_notOwner() external {
         vm.expectRevert();
-        resolver.setName(testName);
+        aliceResolver.setText("", "");
+    }
+
+    function test_setName(string memory name) public {
+        vm.startPrank(alice);
+        aliceResolver.setName(name);
         vm.stopPrank();
+
+        assertEq(aliceResolver.name(NODE_ANY), name, "immediate");
+        bytes memory result = aliceResolver.resolve("", abi.encodeCall(INameResolver.name, (NODE_ANY)));
+        assertEq(abi.decode(result, (string)), name, "extended");
     }
 
-    function test_name_returns_empty_string_if_not_set() public view {
-        bytes memory result = resolver.resolve(encodedName, abi.encodeWithSelector(INameResolver.name.selector));
-        string memory retrievedName = abi.decode(result, (string));
-        assertEq(retrievedName, "");
-    }
-
-    function test_name_in_multicall() public {
-        vm.startPrank(owner);
-        
-        // Prepare test data
-        string memory testName = "test.eth";
-        bytes memory ethAddress = abi.encodePacked(address(0x123));
-        
-        // Create multicall data
-        bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeWithSelector(DedicatedResolver.setName.selector, testName);
-        data[1] = abi.encodeWithSelector(bytes4(keccak256("setAddr(address)")), address(0x123));
-        
-        // Execute multicall
-        bytes[] memory results = resolver.multicall(data);
-        
-        // Verify results
-        bytes memory nameResult = resolver.resolve(encodedName, abi.encodeWithSelector(INameResolver.name.selector));
-        string memory retrievedName = abi.decode(nameResult, (string));
-        assertEq(retrievedName, testName, "Name not set correctly");
-
-        bytes memory addrResult = resolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
-        address retrievedAddr = abi.decode(addrResult, (address));
-        assertEq(retrievedAddr, address(0x123), "Address not set correctly");
-        
-        vm.stopPrank();
-    }
-
-    function test_multicall() public {
-        vm.startPrank(owner);
-        
-        // Prepare test data
-        bytes memory ethAddress = abi.encodePacked(address(0x123));
-        string memory testKey = "url";
-        string memory testValue = "https://example.com";
-        bytes memory testHash = abi.encodePacked(keccak256("test"));
-        
-        // Create multicall data
-        bytes[] memory data = new bytes[](3);
-        data[0] = abi.encodeWithSelector(bytes4(keccak256("setAddr(address)")), address(0x123));
-        data[1] = abi.encodeWithSelector(DedicatedResolver.setText.selector, testKey, testValue);
-        data[2] = abi.encodeWithSelector(DedicatedResolver.setContenthash.selector, testHash);
-        
-        // Execute multicall
-        bytes[] memory results = resolver.multicall(data);
-        
-        // Verify results
-        bytes memory addrResult = resolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
-        address retrievedAddr = abi.decode(addrResult, (address));
-        assertEq(retrievedAddr, address(0x123), "Address not set correctly");
-
-        bytes memory textResult = resolver.resolve(encodedName, abi.encodeWithSelector(ITextResolver.text.selector, testKey));
-        string memory retrievedText = abi.decode(textResult, (string));
-        assertEq(retrievedText, testValue, "Text record not set correctly");
-
-        bytes memory hashResult = resolver.resolve(encodedName, abi.encodeWithSelector(IContentHashResolver.contenthash.selector));
-        bytes memory retrievedHash = abi.decode(hashResult, (bytes));
-        assertEq(retrievedHash, testHash, "Content hash not set correctly");
-        
-        vm.stopPrank();
-    }
-
-    function test_multicall_reverts_if_not_owner() public {
-        bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSelector(bytes4(keccak256("setAddr(address)")), address(0x123));
-        
-        vm.startPrank(makeAddr("notOwner"));
+    function test_setName_notOwner() public {
         vm.expectRevert();
-        resolver.multicall(data);
-        vm.stopPrank();
+        aliceResolver.setName("");
     }
 
-    function test_multicall_with_invalid_selector() public {
-        vm.startPrank(owner);
-        
-        bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSelector(bytes4(0x12345678)); // Invalid selector
-        
+    function testFuzz_setContenthash(bytes memory v) external {
+        vm.startPrank(alice);
+        aliceResolver.setContenthash(v);
+        vm.stopPrank();
+
+        assertEq(aliceResolver.contenthash(NODE_ANY), v, "immediate");
+        bytes memory result = aliceResolver.resolve("", abi.encodeCall(IContentHashResolver.contenthash, (NODE_ANY)));
+        assertEq(abi.decode(result, (bytes)), v, "extended");
+    }
+
+    function test_setContenthash_notOwner() external {
         vm.expectRevert();
-        resolver.multicall(data);
-        
-        vm.stopPrank();
+        aliceResolver.setContenthash("");
     }
 
-    function test_pubkey() public {
-        bytes32 x = bytes32(uint256(1));
-        bytes32 y = bytes32(uint256(2));
-        
-        vm.startPrank(owner);
-        resolver.setPubkey(x, y);
-        bytes memory result = resolver.resolve(encodedName, abi.encodeWithSelector(IPubkeyResolver.pubkey.selector));
-        (bytes32 retrievedX, bytes32 retrievedY) = abi.decode(result, (bytes32, bytes32));
-        assertEq(retrievedX, x);
-        assertEq(retrievedY, y);
-        vm.stopPrank();
-    }
-
-    function test_abi() public {
-        uint256 contentType = 1;
-        bytes memory abiData = abi.encodePacked(keccak256("test"));
-        
-        vm.startPrank(owner);
-        resolver.setABI(contentType, abiData);
-        bytes memory result = resolver.resolve(encodedName, abi.encodeWithSelector(IABIResolver.ABI.selector, contentType));
-        (uint256 retrievedContentType, bytes memory retrievedData) = abi.decode(result, (uint256, bytes));
-        assertEq(retrievedContentType, contentType);
-        assertEq(retrievedData, abiData);
-        vm.stopPrank();
-    }
-
-    function test_interface_implementer() public {
-        bytes4 interfaceId = bytes4(keccak256("test"));
-        address implementer = address(0x123);
-        
-        vm.startPrank(owner);
-        resolver.setInterface(interfaceId, implementer);
-        address retrievedImplementer = resolver.interfaceImplementer(TEST_NODE, interfaceId);
-        assertEq(retrievedImplementer, implementer);
-        vm.stopPrank();
-    }
-
-    function test_set_universal_resolver() public {
-        address newUniversalResolver = address(0x789);
-        
-        vm.startPrank(owner);
-        resolver.setUniversalResolver(newUniversalResolver);
+    function testFuzz_setPubkey(bytes32 x, bytes32 y) external {
+        vm.startPrank(alice);
+        aliceResolver.setPubkey(x, y);
         vm.stopPrank();
 
-        assertEq(resolver.universalResolver(), newUniversalResolver, "Universal resolver address should be updated");
+        (bytes32 x_, bytes32 y_) = aliceResolver.pubkey(NODE_ANY);
+        assertEq(abi.encode(x_, y_), abi.encode(x, y), "immediate");
+        bytes memory result = aliceResolver.resolve("", abi.encodeCall(IPubkeyResolver.pubkey, (NODE_ANY)));
+        assertEq(result, abi.encode(x, y), "extended");
     }
 
-    function test_cannot_set_universal_resolver_if_not_owner() public {
-        address newUniversalResolver = address(0x789);
-        
-        vm.startPrank(makeAddr("notOwner"));
+    function test_setPubkey_notOwner() external {
         vm.expectRevert();
-        resolver.setUniversalResolver(newUniversalResolver);
+        aliceResolver.setPubkey(0, 0);
+    }
+
+    function testFuzz_setABI(uint8 bit, bytes memory data) external {
+        uint256 contentType = 1 << bit;
+
+        vm.startPrank(alice);
+        aliceResolver.setABI(contentType, data);
+        vm.stopPrank();
+
+        uint256 contentTypes = ~uint256(0);
+        (uint256 contentType_, bytes memory data_) = aliceResolver.ABI(NODE_ANY, contentTypes);
+        bytes memory expect = data.length > 0 ? abi.encode(contentType, data) : abi.encode(0, "");
+        assertEq(abi.encode(contentType_, data_), expect, "immediate");
+        bytes memory result = aliceResolver.resolve("", abi.encodeCall(IABIResolver.ABI, (NODE_ANY, contentTypes)));
+        assertEq(result, expect, "extended");
+    }
+
+    function test_setABI_invalidContentType() external {
+        vm.startPrank(alice);
+        vm.expectRevert();
+        aliceResolver.setABI(0, "");
+        vm.expectRevert();
+        aliceResolver.setABI(3, "");
         vm.stopPrank();
     }
 
-    function test_Addr_WithWildcardEnabled() public {
-        // Deploy a new resolver instance
-        address implementation = address(new DedicatedResolver());
-        bytes memory initData = abi.encodeWithSelector(
-            DedicatedResolver.initialize.selector,
-            owner,
-            true, // wildcard
-            address(universalResolver)
-        );
-        vm.startPrank(owner);
-        address deployed = factory.deployProxy(implementation, SALT + 1, initData);
-        DedicatedResolver testResolver = DedicatedResolver(deployed);
-        testResolver.setAddr(alice);
-        vm.stopPrank();
-
-        // Should return stored address regardless of UniversalResolver state
-        vm.mockCall(
-            address(universalResolver),
-            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, encodedName),
-            abi.encode(address(testResolver))
-        );
-        bytes memory result = testResolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
-        address retrievedAddr = abi.decode(result, (address));
-        assertEq(retrievedAddr, alice);
-
-        vm.mockCall(
-            address(universalResolver),
-            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, encodedName),
-            abi.encode(address(1))
-        );
-        result = testResolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
-        retrievedAddr = abi.decode(result, (address));
-        assertEq(retrievedAddr, alice);
+    function test_setABI_notOwner() external {
+        vm.expectRevert();
+        aliceResolver.setABI(1, "");
     }
 
-    function test_Addr_WithWildcardDisabled() public {
-        console.log("Starting test_Addr_WithWildcardDisabled");
-        
-        // Deploy a new resolver instance
-        console.log("Deploying new resolver instance");
-        address implementation = address(new DedicatedResolver());
-        bytes memory initData = abi.encodeWithSelector(
-            DedicatedResolver.initialize.selector,
-            owner,
-            false, // wildcard
-            address(universalResolver)
-        );
-        vm.startPrank(owner);
-        console.log("Deploying proxy");
-        address deployed = factory.deployProxy(implementation, SALT + 2, initData);
-        DedicatedResolver testResolver = DedicatedResolver(deployed);
-        console.log("Setting name to test.eth");
-        testResolver.setName("test.eth");
-        console.log("Setting addr to alice");
-        testResolver.setAddr(alice);
+    function testFuzz_setInterface(bytes4 iface, address impl) external {
+        vm.assume(!resolverImpl.supportsInterface(iface));
+
+        vm.startPrank(alice);
+        aliceResolver.setInterface(iface, impl);
         vm.stopPrank();
 
-        // Verify initial state
-        console.log("Verifying initial state");
-        assertFalse(testResolver.wildcard(), "Wildcard should be false");
-        assertEq(testResolver.universalResolver(), address(universalResolver), "Universal resolver address should match");
-
-        // Should return stored address when this resolver is the current resolver
-        console.log("Testing when resolver is current resolver");
-        vm.mockCall(
-            address(universalResolver),
-            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, encodedName),
-            abi.encode(address(testResolver))
-        );
-        bytes memory result = testResolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
-        address retrievedAddr = abi.decode(result, (address));
-        assertEq(retrievedAddr, alice, "Should return alice when resolver is current resolver");
-
-        // Should return zero address when this resolver is not the current resolver
-        console.log("Testing when resolver is not current resolver");
-        vm.mockCall(
-            address(universalResolver),
-            abi.encodeWithSelector(IUniversalResolverV2.findResolver.selector, encodedName),
-            abi.encode(address(1))
-        );
-        result = testResolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
-        retrievedAddr = abi.decode(result, (address));
-        assertEq(retrievedAddr, address(0), "Should return zero address when resolver is not current resolver");
-        console.log("Test completed successfully");
+        assertEq(aliceResolver.interfaceImplementer(NODE_ANY, iface), impl, "immediate");
+        bytes memory result =
+            aliceResolver.resolve("", abi.encodeCall(IInterfaceResolver.interfaceImplementer, (NODE_ANY, iface)));
+        assertEq(abi.decode(result, (address)), impl, "extended");
     }
 
-    function test_Addr_WithWildcardDisabled_NoUniversalResolver() public {
-        console.log("Starting test_Addr_WithWildcardDisabled_NoUniversalResolver");
-        
-        // Deploy a new resolver instance
-        console.log("Deploying new resolver instance");
-        address implementation = address(new DedicatedResolver());
-        bytes memory initData = abi.encodeWithSelector(
-            DedicatedResolver.initialize.selector,
-            owner,
-            false, // wildcard
-            address(0) // no universal resolver
+    function test_interfaceImplementer_overlap() external {
+        vm.startPrank(alice);
+        aliceResolver.setAddr(COIN_TYPE_ETH, abi.encodePacked(aliceResolver));
+        vm.stopPrank();
+        assertEq(
+            aliceResolver.interfaceImplementer(NODE_ANY, type(IExtendedResolver).interfaceId), address(aliceResolver)
         );
-        vm.startPrank(owner);
-        console.log("Deploying proxy");
-        address deployed = factory.deployProxy(implementation, SALT + 3, initData);
-        DedicatedResolver testResolver = DedicatedResolver(deployed);
-        console.log("Setting name to test.eth");
-        testResolver.setName("test.eth");
-        console.log("Setting addr to alice");
-        testResolver.setAddr(alice);
+        assertEq(
+            aliceResolver.interfaceImplementer(NODE_ANY, type(IDedicatedResolver).interfaceId), address(aliceResolver)
+        );
+        assertEq(
+            aliceResolver.interfaceImplementer(NODE_ANY, DedicatedResolver.multicall.selector), address(aliceResolver)
+        );
+    }
+
+    function test_setInterface_notOwner() external {
+        vm.expectRevert();
+        aliceResolver.setInterface(bytes4(0), address(0));
+    }
+
+    function test_multicall_setters() external {
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = abi.encodeCall(DedicatedResolver.setName, (testName));
+        calls[1] = abi.encodeCall(DedicatedResolver.setAddr, (COIN_TYPE_ETH, testAddress));
+        vm.startPrank(alice);
+        aliceResolver.multicall(calls);
         vm.stopPrank();
 
-        // Verify initial state
-        console.log("Verifying initial state");
-        assertFalse(testResolver.wildcard(), "Wildcard should be false");
-        assertEq(testResolver.universalResolver(), address(0), "Universal resolver should be zero address");
-
-        // Should return zero address when UniversalResolver is not set
-        console.log("Testing addr with no UniversalResolver");
-        bytes memory result = testResolver.resolve(encodedName, abi.encodeWithSelector(IAddrResolver.addr.selector));
-        address retrievedAddr = abi.decode(result, (address));
-        assertEq(retrievedAddr, address(0), "Should return zero address when UniversalResolver is not set");
-        console.log("Test completed successfully");
+        assertEq(aliceResolver.name(NODE_ANY), testName, "name()");
+        assertEq(aliceResolver.addr(NODE_ANY, COIN_TYPE_ETH), testAddress, "addr()");
     }
-} 
+
+    function test_multicall_setters_notOwner() external {
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = abi.encodeCall(DedicatedResolver.setName, (testName));
+        calls[1] = abi.encodeCall(DedicatedResolver.setAddr, (COIN_TYPE_ETH, testAddress));
+        vm.expectRevert();
+        aliceResolver.multicall(calls);
+    }
+
+    function test_multicall_getters() external {
+        vm.startPrank(alice);
+        aliceResolver.setName(testName);
+        aliceResolver.setAddr(COIN_TYPE_ETH, testAddress);
+        vm.stopPrank();
+
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = abi.encodeCall(INameResolver.name, (NODE_ANY));
+        calls[1] = abi.encodeCall(IAddressResolver.addr, (NODE_ANY, COIN_TYPE_ETH));
+
+        bytes[] memory answers = new bytes[](2);
+        answers[0] = abi.encode(testName);
+        answers[1] = abi.encode(testAddress);
+
+        bytes memory expect = abi.encode(answers);
+        assertEq(abi.encode(aliceResolver.multicall(calls)), expect, "immediate");
+        bytes memory result = aliceResolver.resolve("", abi.encodeCall(DedicatedResolver.multicall, (calls)));
+        assertEq(result, expect, "extended");
+    }
+}

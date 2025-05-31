@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {Multicallable} from "@ens/contracts/resolvers/Multicallable.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
+import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IDedicatedResolver, NODE_ANY} from "./IDedicatedResolver.sol";
+import {IRegistryTraversal} from "./IRegistryTraversal.sol";
+import {ENSIP19, COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
+import {AddrUtils} from "./AddrUtils.sol";
 
 // Resolver profile interfaces
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
@@ -15,28 +21,40 @@ import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
 import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
-/**
- * @dev Interface for V2 UniversalResolver
- */
-interface IUniversalResolverV2 {
-    function findResolver(bytes memory name) external view returns (address);
-}
 
-/**
- * @title DedicatedResolver
- * @notice A resolver that is dedicated to a single name
- */
+/// @title DedicatedResolver
+/// @notice An owned resolver that provides the same results for any name.
+///         If `wildcard` is false, it only supports names registered exactly with matching resolver.
+///         This is equivalent to `findResolver(name)` where `resolver == this && offset == 0`.
 contract DedicatedResolver is
-    IERC165,
-    Multicallable,
+    ERC165,
     OwnableUpgradeable,
+    IExtendedResolver,
+    IDedicatedResolver,
+    IAddrResolver,
+    IAddressResolver,
+    ITextResolver,
+    IContentHashResolver,
+    IPubkeyResolver,
+    INameResolver,
+    IABIResolver,
     IInterfaceResolver
 {
+    error UnreachableName(bytes name);
+
+    error UnsupportedResolverProfile(bytes4 selector);
+
+    error InvalidContentType(uint256 contentType);
+
+    /// @dev The UniversalResolver address was changed.
+    /// @param _universalResolver The new address.
+    event UniversalResolverChanged(address indexed _universalResolver);
+
     // Mapping from coin type to address
-    mapping(uint => bytes) private _coinAddresses;
+    mapping(uint256 => bytes) private _addresses;
 
     // Mapping from key to text value
-    mapping(string => string) private _textRecords;
+    mapping(string => string) private _texts;
 
     // Content hash
     bytes private _contenthash;
@@ -46,6 +64,7 @@ contract DedicatedResolver is
         bytes32 x;
         bytes32 y;
     }
+
     PublicKey private _pubkey;
 
     // Mapping from content type to ABI
@@ -55,315 +74,232 @@ contract DedicatedResolver is
     mapping(bytes4 => address) private _interfaces;
 
     // Name
-    string private _name;
+    string private _primary;
 
     // Wildcard and UniversalResolver
-    bool private _wildcard;
-    address private _universalResolver;
-
-    uint256 constant private ETH_COIN_TYPE = 60;
-
-    // Events
-    event AddrChanged(bytes32 indexed node, address a);
-    event AddressChanged(bytes32 indexed node, uint256 coinType, bytes newAddress);
-    event TextChanged(bytes32 indexed node, string indexed indexedKey, string key, string value);
-    event ContenthashChanged(bytes32 indexed node, bytes hash);
-    event PubkeyChanged(bytes32 indexed node, bytes32 x, bytes32 y);
-    event ABIChanged(bytes32 indexed node, uint256 indexed contentType);
-    event NameChanged(bytes32 indexed node, string name);
-
-    /**
-     * @dev Checks if this resolver can return its stored values
-     * Returns true if either:
-     * 1. Wildcard mode is enabled, or
-     * 2. This resolver is the current resolver for the name
-     * @param encodedname The encoded name to check
-     * @return bool Whether stored values can be returned
-     */
-    function canReturnStoredValue(bytes memory encodedname) internal view returns (bool) {
-        if (!_wildcard) {
-            if (_universalResolver == address(0)) {
-                // No universal resolver set, so we cannot return stored value
-                return false;
-            }
-            
-            address resolver = IUniversalResolverV2(_universalResolver).findResolver(encodedname);
-            return resolver == address(this);
-        }
-        return true;
-    }
+    bool public wildcard;
+    address public universalResolver;
 
     /**
      * @dev Initializes the contract with an owner and associated name
      * @param owner The owner of the resolver
-     * @param wildcard The wildcard value
-     * @param universalResolver The address of the universal resolver
+     * @param _wildcard True if the resolver should answer for any name.
+     * @param _universalResolver The address of the Universal Resolver.
      */
-    function initialize(address owner, bool wildcard, address universalResolver) public initializer {
-        emit AddrChanged(bytes32(0), owner);
+    function initialize(address owner, bool _wildcard, address _universalResolver) public initializer {
         __Ownable_init(owner);
-        _wildcard = wildcard;
-        _universalResolver = universalResolver;
+        wildcard = _wildcard;
+        _setUniversalResolver(_universalResolver);
     }
 
-    /**
-     * @dev Gets the wildcard value
-     * @return The wildcard value
-     */
-    function wildcard() external view returns (bool) {
-        return _wildcard;
+    /// @inheritdoc ERC165
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165) returns (bool) {
+        return interfaceId == type(IExtendedResolver).interfaceId || interfaceId == type(IDedicatedResolver).interfaceId
+            || interfaceId == this.multicall.selector || super.supportsInterface(interfaceId);
     }
 
-    /**
-     * @dev Gets the universal resolver address
-     * @return The universal resolver address
-     */
-    function universalResolver() external view returns (address) {
-        return _universalResolver;
+    function _setUniversalResolver(address ur) internal {
+        universalResolver = ur;
+        emit UniversalResolverChanged(ur);
     }
 
-    /**
-     * @dev Sets the universal resolver address
-     * @param newUniversalResolver The new universal resolver address
-     */
-    function setUniversalResolver(address newUniversalResolver) external onlyOwner {
-        _universalResolver = newUniversalResolver;
-        emit UniversalResolverChanged(newUniversalResolver);
+    /// @notice Set the Universal Resolver address.
+    /// @param _universalResolver The new address.
+    function setUniversalResolver(address _universalResolver) external onlyOwner {
+        _setUniversalResolver(_universalResolver);
     }
 
-    /**
-     * @dev Sets the address for the associated name
-     * @param addr The address to set
-     */
-    function setAddr(address addr) external onlyOwner {
-        _coinAddresses[ETH_COIN_TYPE] = addressToBytes(addr);
-        emit AddrChanged(bytes32(0), addr);
+    /// @notice Set address for the coin type.
+    /// @param coinType The coin type.
+    /// @param addressBytes The address to set.
+    function setAddr(uint256 coinType, bytes calldata addressBytes) external onlyOwner {
+        _addresses[coinType] = addressBytes;
+        emit AddressChanged(NODE_ANY, coinType, addressBytes);
+        if (coinType == COIN_TYPE_ETH) {
+            emit AddrChanged(NODE_ANY, AddrUtils.toAddr(addressBytes));
+        }
     }
 
-    /**
-     * @dev Gets the address for the associated name
-     * @param node The node to get the address for (ignored in DedicatedResolver)
-     * @return The address for the associated name
-     */
-    function addr(bytes32 node) private view returns (address payable) {
-        bytes memory addrBytes = _coinAddresses[ETH_COIN_TYPE];
-        if (addrBytes.length == 0) return payable(address(0));
-        return payable(bytesToAddress(addrBytes));
+    /// @notice Get the address for coin type.
+    ///         If an EVM and empty, defaults to `addr(EVM_BIT)`.
+    /// @param coinType The coin type.
+    /// @return addressBytes The address for the coin type.
+    function addr(bytes32, uint256 coinType) public view returns (bytes memory addressBytes) {
+        addressBytes = _addresses[coinType];
+        if (addressBytes.length == 0 && ENSIP19.chainFromCoinType(coinType) > 0) {
+            addressBytes = _addresses[EVM_BIT];
+        }
     }
 
-    /**
-     * @dev Sets the address for a specific coin type
-     * @param coinType The coin type to set the address for
-     * @param addr The address to set
-     */
-    function setAddr(uint coinType, bytes calldata addr) external onlyOwner {
-        _coinAddresses[coinType] = addr;
-        emit AddressChanged(bytes32(0), coinType, addr);
+    /// @notice `addr(60)` as `address`.
+    function addr(bytes32) public view returns (address payable) {
+        return payable(AddrUtils.toAddr(addr(NODE_ANY, COIN_TYPE_ETH)));
     }
 
-    /**
-     * @dev Gets the address for a specific coin type
-     * @param node The node to get the address for (ignored in DedicatedResolver)
-     * @param coinType The coin type to get the address for
-     * @return The address for the specified coin type
-     */
-    function addr(bytes32 node, uint coinType) private view returns (bytes memory) {
-        return _coinAddresses[coinType];
+    /// @notice Determine if coin type has been set.
+    function hasAddr(uint256 coinType) external view returns (bool) {
+        return _addresses[coinType].length > 0;
     }
 
-    /**
-     * @dev Sets a text record for the associated name
-     * @param key The key to set
-     * @param value The value to set
-     */
+    /// @notice Set a text record.
+    /// @param key The key to set.
+    /// @param value The value to set.
     function setText(string calldata key, string calldata value) external onlyOwner {
-        _textRecords[key] = value;
-        emit TextChanged(bytes32(0), key, key, value);
+        _texts[key] = value;
+        emit TextChanged(NODE_ANY, key, key, value);
     }
 
-    /**
-     * @dev Gets a text record for the associated name
-     * @param node The node to get the text record for (ignored in DedicatedResolver)
-     * @param key The key to get
-     * @return The value for the specified key
-     */
-    function text(bytes32 node, string memory key) private view returns (string memory) {
-        return _textRecords[key];
+    /// @notice Get the text value for key.
+    /// @param key The key.
+    /// @return value The text value.
+    function text(bytes32, string memory key) external view returns (string memory value) {
+        value = _texts[key];
     }
 
-    /**
-     * @dev Sets the content hash for the associated name
-     * @param hash The content hash to set
-     */
+    /// @notice Set the content hash.
+    /// @param hash The content hash.
     function setContenthash(bytes calldata hash) external onlyOwner {
         _contenthash = hash;
-        emit ContenthashChanged(bytes32(0), hash);
+        emit ContenthashChanged(NODE_ANY, hash);
     }
 
-    /**
-     * @dev Gets the content hash for the associated name
-     * @param node The node to get the content hash for (ignored in DedicatedResolver)
-     * @return The content hash for the associated name
-     */
-    function contenthash(bytes32 node) private view returns (bytes memory) {
+    /// @notice Get the content hash.
+    function contenthash(bytes32) external view returns (bytes memory) {
         return _contenthash;
     }
 
-    /**
-     * @dev Sets the public key for the associated name
-     * @param x The x coordinate of the public key
-     * @param y The y coordinate of the public key
-     */
+    /// @dev Sets the public key.
+    /// @param x The x coordinate of the pubkey.
+    /// @param y The y coordinate of the pubkey.
     function setPubkey(bytes32 x, bytes32 y) external onlyOwner {
         _pubkey = PublicKey(x, y);
-        emit PubkeyChanged(bytes32(0), x, y);
+        emit PubkeyChanged(NODE_ANY, x, y);
     }
 
-    /**
-     * @dev Gets the public key for the associated name
-     * @param node The node to get the public key for (ignored in DedicatedResolver)
-     * @return x The x coordinate of the public key
-     * @return y The y coordinate of the public key
-     */
-    function pubkey(bytes32 node) private view returns (bytes32 x, bytes32 y) {
-        return (_pubkey.x, _pubkey.y);
+    /// @dev Get the public key.
+    /// @return x The x coordinate of the public key.
+    /// @return y The y coordinate of the public key.
+    function pubkey(bytes32) external view returns (bytes32 x, bytes32 y) {
+        x = _pubkey.x;
+        y = _pubkey.y;
     }
 
-    /**
-     * @dev Sets the ABI for the associated name
-     * @param contentType The content type of the ABI
-     * @param data The ABI data
-     */
+    /// @dev Set the ABI for the content type.
+    /// @param contentType The content type.
+    /// @param data The ABI data.
     function setABI(uint256 contentType, bytes calldata data) external onlyOwner {
+        if (contentType == 0 || (contentType - 1) & contentType != 0) {
+            revert InvalidContentType(contentType);
+        }
         _abis[contentType] = data;
-        emit ABIChanged(bytes32(0), contentType);
+        emit ABIChanged(NODE_ANY, contentType);
     }
 
-    /**
-     * @dev Gets the ABI for the associated name
-     * @param node The node to get the ABI for (ignored in DedicatedResolver)
-     * @param contentType The content type of the ABI
-     * @return The ABI data
-     */
-    function ABI(bytes32 node, uint256 contentType) private view returns (uint256, bytes memory) {
-        return (contentType, _abis[contentType]);
+    /// @dev Get the first ABI for the specified content types.
+    /// @param contentTypes Union of desired contents types.
+    /// @return contentType The first matching content type (or 0 if no match).
+    /// @return data The encoded ABI.
+    function ABI(bytes32, uint256 contentTypes) public view returns (uint256 contentType, bytes memory data) {
+        for (contentType = 1; contentType > 0 && contentType <= contentTypes; contentType <<= 1) {
+            if ((contentType & contentTypes) != 0) {
+                data = _abis[contentType];
+                if (data.length > 0) {
+                    return (contentType, data);
+                }
+            }
+        }
+        return (0, "");
     }
 
     /**
      * @dev Sets the implementer for an interface
-     * @param interfaceID The interface ID
-     * @param implementer The implementer address
+     * @param interfaceId The interface ID.
+     * @param implementer The implementer address.
      */
-    function setInterface(bytes4 interfaceID, address implementer) external onlyOwner {
-        _interfaces[interfaceID] = implementer;
-        emit InterfaceChanged(bytes32(0), interfaceID, implementer);
+    function setInterface(bytes4 interfaceId, address implementer) external onlyOwner {
+        _interfaces[interfaceId] = implementer;
+        emit InterfaceChanged(NODE_ANY, interfaceId, implementer);
     }
 
-    /**
-     * @dev Gets the implementer for an interface
-     * @param node The node to get the implementer for (ignored in DedicatedResolver)
-     * @param interfaceID The interface ID
-     * @return The implementer address
-     */
-    function interfaceImplementer(bytes32 node, bytes4 interfaceID) external view returns (address) {
-        return _interfaces[interfaceID];
-    }
-
-    /**
-     * @dev Sets the name for the associated name
-     * @param name The name to set
-     */
-    function setName(string calldata name) external onlyOwner {
-        _name = name;
-        emit NameChanged(bytes32(0), name);
-    }
-
-    /**
-     * @dev Gets the name for the associated name
-     * @param node The node to get the name for (ignored in DedicatedResolver)
-     * @return The name for the associated name
-     */
-    function name(bytes32 node) private view returns (string memory) {
-        return _name;
-    }
-
-    /**
-     * @dev Converts an address to bytes
-     * @param addr The address to convert
-     * @return The address as bytes
-     */
-    function addressToBytes(address addr) internal pure returns (bytes memory) {
-        bytes memory b = new bytes(20);
-        assembly {
-            mstore(add(b, 32), mul(addr, exp(256, 12)))
+    /// @dev Gets the implementer for an interface.
+    /// @param interfaceId The interface ID.
+    /// @return implementer The implementer address.
+    function interfaceImplementer(bytes32, bytes4 interfaceId) public view returns (address implementer) {
+        implementer = _interfaces[interfaceId];
+        if (implementer == address(0) && ERC165Checker.supportsInterface(addr(NODE_ANY), interfaceId)) {
+            implementer = address(this);
         }
-        return b;
     }
 
-    /**
-     * @dev Converts bytes to an address
-     * @param b The bytes to convert
-     * @return The address
-     */
-    function bytesToAddress(bytes memory b) internal pure returns (address) {
-        require(b.length == 20, "Invalid address length");
-        address a;
-        assembly {
-            a := div(mload(add(b, 32)), exp(256, 12))
-        }
-        return a;
+    /// @dev Set the primary name.
+    /// @param _name The primary name.
+    function setName(string calldata _name) external onlyOwner {
+        _primary = _name;
+        emit NameChanged(NODE_ANY, _name);
     }
 
-    /**
-     * @dev Checks if the contract supports a specific interface
-     * @param interfaceId The interface ID to check
-     * @return True if the interface is supported
-     */
-    function supportsInterface(bytes4 interfaceId) public view virtual override(IERC165, Multicallable) returns (bool) {
-        return interfaceId == type(IAddrResolver).interfaceId ||
-            interfaceId == type(IAddressResolver).interfaceId ||
-            interfaceId == type(ITextResolver).interfaceId ||
-            interfaceId == type(IContentHashResolver).interfaceId ||
-            interfaceId == type(IPubkeyResolver).interfaceId ||
-            interfaceId == type(IABIResolver).interfaceId ||
-            interfaceId == type(IInterfaceResolver).interfaceId ||
-            interfaceId == type(INameResolver).interfaceId ||
-            interfaceId == type(IERC165).interfaceId;
+    /// @dev Get the primary name.
+    /// @return name_ The primary name.
+    function name(bytes32) external view returns (string memory name_) {
+        name_ = _primary;
     }
 
-    /**
-     * @dev Emitted when the universal resolver address is changed
-     * @param newUniversalResolver The new universal resolver address
-     */
-    event UniversalResolverChanged(address indexed newUniversalResolver);
+    /// @dev True if `wildcard` or this resolver is exact in the registry.
+    /// @inheritdoc IDedicatedResolver
+    function supportsName(bytes memory _name) public view returns (bool) {
+        if (wildcard) return true;
+        if (address(universalResolver) == address(0)) return false;
+        (address resolver,, uint256 offset) = IRegistryTraversal(universalResolver).findResolver(_name);
+        return resolver == address(this) && offset == 0;
+    }
 
-    function resolve(bytes calldata encodedname, bytes calldata data) external view returns (bytes memory) {
-        bytes32 node = NameCoder.namehash(encodedname, 0);
-        if (!canReturnStoredValue(encodedname)) {
-            return abi.encode(address(0));
+    function resolve(bytes calldata _name, bytes calldata data) external view returns (bytes memory) {
+        if (!supportsName(_name)) {
+            revert UnreachableName(_name);
         }
+        (bool ok, bytes memory v) = address(this).staticcall(data);
+        if (!ok) {
+            assembly {
+                revert(add(v, 32), mload(v))
+            }
+        } else if (v.length == 0) {
+            revert UnsupportedResolverProfile(bytes4(data));
+        }
+        return v;
+        // bytes4 selector = bytes4(data);
+        // if (selector == IAddrResolver.addr.selector) {
+        //     return abi.encode(_toAddr(addr(NODE_ANY, COIN_TYPE_ETH)));
+        // } else if (selector == IAddressResolver.addr.selector) {
+        //     (, uint256 coinType) = abi.decode(data[4:], (bytes32, uint256));
+        //     return abi.encode(addr(NODE_ANY, coinType));
+        // } else if (selector == ITextResolver.text.selector) {
+        //     (, string memory key) = abi.decode(data[4:], (bytes32, string));
+        //     return abi.encode(_texts[key]);
+        // } else if (selector == IContentHashResolver.contenthash.selector) {
+        //     return abi.encode(_contenthash);
+        // } else if (selector == IPubkeyResolver.pubkey.selector) {
+        //     return abi.encode(_pubkey);
+        // } else if (selector == INameResolver.name.selector) {
+        //     return abi.encode(_primary);
+        // } else if (selector == IInterfaceResolver.interfaceImplementer.selector) {
+        //     (, bytes4 interfaceId) = abi.decode(data[4:], (bytes32, bytes4));
+        //     return abi.encode(interfaceImplementer(NODE_ANY, interfaceId));
+        // } else if (selector == IABIResolver.ABI.selector) {
+        //     (, uint256 contentTypes) = abi.decode(data[4:], (bytes32, uint256));
+        //     (uint256 contentType, bytes memory v) = ABI(NODE_ANY, contentType);
+        //     return abi.encode(contentType, v);
+        // } else {
+        //     revert UnsupportedResolverProfile(selector);
+        // }
+    }
 
-        bytes4 selector = bytes4(data[:4]);
-        if (selector == IAddrResolver.addr.selector) {
-            return abi.encode(addr(node));
-        } else if (selector == IAddressResolver.addr.selector) {
-            uint256 coinType = abi.decode(data[4:], (uint256));
-            return abi.encode(addr(node, coinType));
-        } else if (selector == ITextResolver.text.selector) {
-            string memory str = abi.decode(data[4:], (string));
-            return abi.encode(text(node, str));
-        } else if (selector == IContentHashResolver.contenthash.selector) {
-            return abi.encode(contenthash(node));
-        } else if (selector == IPubkeyResolver.pubkey.selector) {
-            (bytes32 x, bytes32 y) = pubkey(node);
-            return abi.encode(x, y);
-        } else if (selector == INameResolver.name.selector) {
-            return abi.encode(name(node));
-        } else if (selector == IABIResolver.ABI.selector) {
-            uint256 contentType = abi.decode(data[4:], (uint256));
-            (uint256 ct, bytes memory abiData) = ABI(node, contentType);
-            return abi.encode(ct, abiData);
+    function multicall(bytes[] calldata calls) external returns (bytes[] memory results) {
+        results = new bytes[](calls.length);
+        for (uint256 i; i < calls.length; i++) {
+            (bool ok, bytes memory v) = address(this).delegatecall(calls[i]);
+            require(ok);
+            results[i] = v;
         }
-        revert("Unsupported resolver function");
+        return results;
     }
 }
