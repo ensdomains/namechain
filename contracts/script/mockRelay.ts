@@ -1,5 +1,6 @@
 import type { Client, Hash, Hex } from "viem";
 import { waitForTransactionReceipt } from "viem/actions";
+import { encodeAbiParameters, parseAbiParameters } from "viem";
 
 import type { L1Client, L1Contracts, L2Client, L2Contracts } from "./setup.js";
 
@@ -23,38 +24,82 @@ export const createMockRelay = ({
 }) => {
   console.log("Creating mock bridge...");
 
-  const unwatchL1 = l1Bridge.watchEvent.L1ToL2Message({
-    onLogs: async (logs) => {
+  // Listen for L1 bridge events (ejection/migration to L2)
+  const unwatchL1Ejection = l1Bridge.watchEvent.NameEjectedToL2({}, {
+    onLogs: async (logs: any[]) => {
       for (const log of logs) {
-        const message = log.args.message!;
-        console.log("Relaying message from L1 to L2");
-        console.log(`Message: ${message}`);
+        console.log("Relaying ejection message from L1 to L2");
+        console.log(`TokenId: ${log.args.tokenId}`);
         console.log(`Transaction: ${log.transactionHash}`);
 
-        await expectSuccess(
-          l2Client,
-          l2Bridge.write.receiveMessageFromL1([message]),
-        ).catch((e) => {
-          console.error(`Error relaying message to L2:`, e);
-        });
+        // Reconstruct the bridge message using the data from the event
+        const bridgeMessage: Hex = encodeAbiParameters(
+          parseAbiParameters("uint8, uint256, bytes"),
+          [1, log.args.tokenId, log.args.data] // BridgeMessageType.EJECTION = 1
+        );
+
+        try {
+          const receipt = await expectSuccess(
+            l2Client, 
+            (l2Bridge.write as any).receiveMessage([bridgeMessage])
+          );
+          console.log(`Message relayed to L2, tx hash: ${receipt.transactionHash}`);
+        } catch (error) {
+          console.error("Error relaying ejection message from L1 to L2:", error);
+        }
       }
     },
   });
 
-  const unwatchL2 = l2Bridge.watchEvent.L2ToL1Message({
-    onLogs: async (logs) => {
+  const unwatchL1Migration = l1Bridge.watchEvent.NameMigratedToL2({}, {
+    onLogs: async (logs: any[]) => {
       for (const log of logs) {
-        const message = log.args.message!;
-        console.log("Relaying message from L2 to L1");
-        console.log(`Message: ${message}`);
+        console.log("Relaying migration message from L1 to L2");
+        console.log(`TokenId: ${log.args.tokenId}`);
         console.log(`Transaction: ${log.transactionHash}`);
 
-        await expectSuccess(
-          l1Client,
-          l1Bridge.write.receiveMessageFromL2([message]),
-        ).catch((e) => {
-          console.error(`Error relaying message to L1:`, e);
-        });
+        // Reconstruct the bridge message using the data from the event
+        const bridgeMessage: Hex = encodeAbiParameters(
+          parseAbiParameters("uint8, uint256, bytes"),
+          [0, log.args.tokenId, log.args.data] // BridgeMessageType.MIGRATION = 0
+        );
+
+        try {
+          const receipt = await expectSuccess(
+            l2Client,
+            (l2Bridge.write as any).receiveMessage([bridgeMessage])
+          );
+          console.log(`Message relayed to L2, tx hash: ${receipt.transactionHash}`);
+        } catch (error) {
+          console.error("Error relaying migration message from L1 to L2:", error);
+        }
+      }
+    },
+  });
+
+  // Listen for L2 bridge events (ejection to L1)
+  const unwatchL2Ejection = l2Bridge.watchEvent.NameEjectedToL1({}, {
+    onLogs: async (logs: any[]) => {
+      for (const log of logs) {
+        console.log("Relaying ejection message from L2 to L1");
+        console.log(`TokenId: ${log.args.tokenId}`);
+        console.log(`Transaction: ${log.transactionHash}`);
+        
+        // Reconstruct the bridge message using the data from the event
+        const bridgeMessage: Hex = encodeAbiParameters(
+          parseAbiParameters("uint8, uint256, bytes"),
+          [1, log.args.tokenId, log.args.data] // BridgeMessageType.EJECTION = 1
+        );
+
+        try {
+          const receipt = await expectSuccess(
+            l1Client,
+            (l1Bridge.write as any).receiveMessage([bridgeMessage])
+          );
+          console.log(`Message relayed to L1, tx hash: ${receipt.transactionHash}`);
+        } catch (error) {
+          console.error("Error relaying ejection message from L2 to L1:", error);
+        }
       }
     },
   });
@@ -67,8 +112,8 @@ export const createMockRelay = ({
     message: Hex;
   }) =>
     (targetChain === "l1"
-      ? expectSuccess(l1Client, l1Bridge.write.receiveMessageFromL2([message]))
-      : expectSuccess(l2Client, l2Bridge.write.receiveMessageFromL1([message]))
+      ? expectSuccess(l1Client, (l1Bridge.write as any).receiveMessage([message]))
+      : expectSuccess(l2Client, (l2Bridge.write as any).receiveMessage([message]))
     )
       .then((receipt) => {
         console.log(
@@ -82,8 +127,9 @@ export const createMockRelay = ({
       });
 
   const removeListeners = () => {
-    unwatchL1();
-    unwatchL2();
+    unwatchL1Ejection();
+    unwatchL1Migration();
+    unwatchL2Ejection();
   };
 
   return {

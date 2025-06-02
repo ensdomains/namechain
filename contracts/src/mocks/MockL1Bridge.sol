@@ -1,79 +1,58 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {MockBridgeHelper} from "./MockBridgeHelper.sol";
-import {TransferData} from "../common/EjectionController.sol";
+import {TransferData, MigrationData} from "../common/TransferData.sol";
 import {MockL1EjectionController} from "./MockL1EjectionController.sol";
-import {IBridge} from "./IBridge.sol";
+import {MockBaseBridge} from "./MockBaseBridge.sol";
+import {BridgeMessageType, BridgeTarget, BridgeEncoder} from "../common/IBridge.sol";
 
 /**
  * @title MockL1Bridge
- * @dev Generic mock L1 bridge for testing cross-chain communication
+ * @dev Generic mock L1-to-L2 bridge for testing cross-chain communication
  * Accepts arbitrary messages as bytes and calls the appropriate controller methods
  */
-contract MockL1Bridge is IBridge {
-    // Event for outgoing messages from L1 to L2
-    event L1ToL2Message(bytes message);
+contract MockL1Bridge is MockBaseBridge {
+    // Ejection controller to call when receiving ejection messages
+    MockL1EjectionController public ejectionController;
     
-    // Event for message receipt acknowledgement
-    event MessageProcessed(bytes message);
-
-    // Target controller to call when receiving messages
-    MockL1EjectionController public targetController;
-    MockBridgeHelper public bridgeHelper;
+    // Type-specific events with tokenId and data
+    event NameEjectedToL2(uint256 indexed tokenId, bytes data);
+    event NameMigratedToL2(uint256 indexed tokenId, bytes data);
     
-    constructor(MockBridgeHelper _bridgeHelper) {
-        bridgeHelper = _bridgeHelper;
-    }
-    
-    function setTargetController(MockL1EjectionController _targetController) external {
-        targetController = _targetController;
+    function setEjectionController(MockL1EjectionController _ejectionController) external {
+        ejectionController = _ejectionController;
     }
     
     /**
-     * @dev Send a message from L1 to L2
-     * In a real bridge, this would initiate cross-chain communication
-     * For testing, it just emits an event that can be listened for
+     * @dev Override sendMessage to emit specific events based on message type
      */
-    function sendMessageToL2(uint256 tokenId, TransferData memory transferData) external override {
-        bytes memory message = bridgeHelper.encodeEjectionMessage(
-            tokenId,
-            transferData
-        );
-
-        // Simply emit the message for testing purposes
-        emit L1ToL2Message(message);
-    }
-
-    function sendMessageToL1(uint256 /*tokenId*/, TransferData memory /*transferData*/) external pure override {
-        revert("Not implemented");
-    }
-    
-    /**
-     * @dev Simulate receiving a message from L2
-     * Anyone can call this method with encoded message data
-     */
-    function receiveMessageFromL2(bytes calldata message) external {
-        // Determine the message type and call the appropriate controller method
-        bytes4 messageType = bytes4(message[:4]);
-        
-        if (messageType == bytes4(keccak256("NAME_EJECTION"))) {
-            // Decode the ejection message
-            try bridgeHelper.decodeEjectionMessage(message) returns (
-                uint256 /*tokenId*/,
-                TransferData memory _transferData
-            ) {
-                targetController.completeEjectionFromL2(_transferData);
-            } catch Error(string memory reason) {
-                // Handle known errors
-                revert(string(abi.encodePacked("L1Bridge decoding failed: ", reason)));
-            } catch (bytes memory /*lowLevelData*/) {
-                // Handle unknown errors
-                revert("L1Bridge decoding failed with unknown error");
-            }
+    function sendMessage(BridgeTarget target, bytes memory message) external override {
+        if (target != BridgeTarget.L2) {
+            revert BridgeTargetNotSupported();
         }
         
-        // Emit event for tracking
-        emit MessageProcessed(message);
+        (BridgeMessageType messageType, uint256 tokenId, bytes memory data) = BridgeEncoder.decode(message);
+        
+        if (messageType == BridgeMessageType.EJECTION) {
+            emit NameEjectedToL2(tokenId, data);
+        } else if (messageType == BridgeMessageType.MIGRATION) {
+            emit NameMigratedToL2(tokenId, data);
+        }
+    }
+    
+    /**
+     * @dev Handle decoded messages specific to L1 bridge
+     */
+    function _handleDecodedMessage(
+        BridgeMessageType messageType,
+        uint256 /*tokenId*/,
+        bytes memory data
+    ) internal override {
+        if (messageType == BridgeMessageType.EJECTION) {
+            TransferData memory _transferData = abi.decode(data, (TransferData));
+            ejectionController.completeEjectionFromL2(_transferData);
+        } else if (messageType == BridgeMessageType.MIGRATION) {
+            // TODO: handle migration messages
+        }
     }
 }

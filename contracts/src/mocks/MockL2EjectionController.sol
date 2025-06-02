@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {IBridge} from "./IBridge.sol";
+import {IBridge, BridgeTarget, BridgeEncoder, BridgeMessageType} from "../common/IBridge.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {L2EjectionController} from "../L2/L2EjectionController.sol";
@@ -26,7 +26,7 @@ contract MockL2EjectionController is L2EjectionController {
         super._onEject(tokenIds, transferDataArray);
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            bridge.sendMessageToL1(tokenIds[i], transferDataArray[i]);
+            bridge.sendMessage(BridgeTarget.L1, BridgeEncoder.encode(BridgeMessageType.EJECTION, tokenIds[i], abi.encode(transferDataArray[i])));
             emit NameEjected(tokenIds[i], transferDataArray[i].owner, transferDataArray[i].subregistry, transferDataArray[i].expires);
         }
     }
