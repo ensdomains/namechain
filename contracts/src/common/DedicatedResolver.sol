@@ -136,7 +136,7 @@ contract DedicatedResolver is
         return payable(AddrUtils.toAddr(addr(NODE_ANY, COIN_TYPE_ETH)));
     }
 
-    /// @notice Determine if coin type has been set.
+    /// @notice Determine if coin type has been set explicitly.
     function hasAddr(uint256 coinType) external view returns (bool) {
         return _addresses[coinType].length > 0;
     }

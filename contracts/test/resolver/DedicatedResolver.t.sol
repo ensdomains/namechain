@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {DedicatedResolver} from "../../src/common/DedicatedResolver.sol";
 import {IDedicatedResolver, NODE_ANY} from "../../src/common/IDedicatedResolver.sol";
@@ -10,9 +9,7 @@ import {IRegistryTraversal} from "../../src/common/IRegistryTraversal.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
-import {UUPSProxy} from "@ensdomains/verifiable-factory/UUPSProxy.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
-import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
@@ -87,6 +84,7 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
 
     function test_supportsName_noWildcard_notExact() external {
         DedicatedResolver resolver = _deployResolver(alice, false, address(this));
+        foundResolver = address(resolver);
         foundOffset = 1;
         assertFalse(resolver.supportsName(""));
     }

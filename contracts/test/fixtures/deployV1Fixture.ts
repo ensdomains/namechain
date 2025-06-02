@@ -29,9 +29,7 @@ export async function deployV1Fixture(
   const universalResolver = await networkConnection.viem.deployContract(
     universalResolverArtifact,
     [ensRegistry.address, ["x-batch-gateway:true"]],
-    {
-      client: { public: publicClient },
-    },
+    { client: { public: publicClient } },
   );
   await ethRegistrar.write.addController([walletClient.account.address]);
   await ensRegistry.write.setSubnodeRecord([
