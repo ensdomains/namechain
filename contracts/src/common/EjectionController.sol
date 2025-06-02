@@ -6,6 +6,15 @@ import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {TransferData} from "./TransferData.sol";
 
+struct TransferData {
+    string label;
+    address owner;
+    address subregistry;
+    address resolver;
+    uint256 roleBitmap;
+    uint64 expires;
+}
+
 /**
  * @title EjectionController
  * @dev Base contract for the ejection controllers.

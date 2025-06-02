@@ -45,16 +45,6 @@ abstract contract L2EjectionController is EjectionController, ITokenObserver {
     // Internal functions
 
     /**
-     * Implements ITokenObserver.onRenew
-     */
-    function _onRenew(uint256 tokenId, uint64 expires, address renewedBy) internal virtual;
-
-    /**
-     * Implements ITokenObserver.onRelinquish
-     */
-    function _onRelinquish(uint256 tokenId, address relinquishedBy) internal virtual;
-
-    /**
      * Overrides the EjectionController._onEject function.
      */
     function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal virtual override {

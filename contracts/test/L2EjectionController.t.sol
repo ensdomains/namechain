@@ -581,11 +581,13 @@ contract MockL2EjectionController is L2EjectionController {
 
     // Implement the required external methods
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {
-        _onRenew(tokenId, expires, renewedBy);
+        _onRenewCalled = true;
+        emit MockNameRenewed(tokenId, expires, renewedBy);
     }
     
     function onRelinquish(uint256 tokenId, address relinquishedBy) external override {
-        _onRelinquish(tokenId, relinquishedBy);
+        _onRelinquishCalled = true;
+        emit MockNameRelinquished(tokenId, relinquishedBy);
     }
 
     /**
@@ -633,22 +635,6 @@ contract MockL2EjectionController is L2EjectionController {
         emit MockNameMigratedFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver, newRoleBitmap);
     }
 
-    /**
-     * @dev Implementation of internal _onRenew method
-     */
-    function _onRenew(uint256 tokenId, uint64 expires, address renewedBy) internal override {
-        _onRenewCalled = true;
-        emit MockNameRenewed(tokenId, expires, renewedBy);
-    }
-
-    /**
-     * @dev Implementation of internal _onRelinquish method
-     */
-    function _onRelinquish(uint256 tokenId, address relinquishedBy) internal override {
-        _onRelinquishCalled = true;
-        emit MockNameRelinquished(tokenId, relinquishedBy);
-    }
-    
     // Helper functions for tests
     function resetTracking() external {
         _onRenewCalled = false;

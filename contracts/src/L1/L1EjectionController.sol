@@ -26,8 +26,8 @@ abstract contract L1EjectionController is EjectionController, RegistryRolesMixin
      */
     function _completeEjectionFromL2(
         TransferData memory transferData
-    ) internal virtual {
-        registry.register(transferData.label, transferData.owner, IRegistry(transferData.subregistry), transferData.resolver, transferData.roleBitmap, transferData.expires);
+    ) internal virtual returns (uint256 tokenId) {
+        tokenId = registry.register(transferData.label, transferData.owner, IRegistry(transferData.subregistry), transferData.resolver, transferData.roleBitmap, transferData.expires);
     }
 
     /**
