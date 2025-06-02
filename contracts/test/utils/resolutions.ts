@@ -118,14 +118,16 @@ export type KnownResolution = Expected & {
 };
 
 export type KnownBundle = Expected & {
-  unbundle: (data: Hex) => readonly Hex[];
+  resolutions: KnownResolution[];
+  unbundleAnswers: (data: Hex) => readonly Hex[];
 };
 
 export function bundleCalls(resolutions: KnownResolution[]): KnownBundle {
   if (resolutions.length == 1) {
     return {
       ...resolutions[0],
-      unbundle: (x) => [x],
+      resolutions,
+      unbundleAnswers: (x) => [x],
     };
   }
   return {
@@ -137,13 +139,14 @@ export function bundleCalls(resolutions: KnownResolution[]): KnownBundle {
       abi: RESOLVE_MULTICALL,
       result: resolutions.map((x) => x.answer),
     }),
-    unbundle: (data) =>
+    resolutions,
+    unbundleAnswers: (data) =>
       decodeFunctionResult({
         abi: RESOLVE_MULTICALL,
         data,
       }),
     expect(answer) {
-      const answers = this.unbundle(answer);
+      const answers = this.unbundleAnswers(answer);
       expect(answers).toHaveLength(resolutions.length);
       resolutions.forEach((x, i) => x.expect(answers[i]));
     },

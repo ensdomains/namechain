@@ -14,6 +14,7 @@ import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
+import {ENSIP19, COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
 
 // resolver profiles
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
@@ -209,10 +210,11 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
             );
         }
         (bool multi, bytes[] memory calls) = _parseCalls(data);
-        GatewayRequest memory req = GatewayFetcher.newRequest(uint8(calls.length < 3 ? 3 : calls.length));
+        GatewayRequest memory req = GatewayFetcher.newRequest(uint8(calls.length < 4 ? 4 : calls.length + 1));
         // output[0] = registry
         // output[1] = last non-zero resolver
         // output[2] = last resolver
+        // output[-1] = default address
         offset = 0; // reset to start
         for (uint256 i; i < labelCount; i++) {
             (labelHash, offset) = NameCoder.readLabel(name, offset);
@@ -242,25 +244,25 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         req.stackCount().isZero().pushOutput(2).isZero().isZero().and(); // is exact
         req.setSlot(SLOT_DR_WILDCARD).read().push(1).and().or().assertNonzero(EXIT_CODE_NO_RESOLVER); // require wildcard or exact
         req.push(bytes("")).dup().dup().setOutput(0).setOutput(1).setOutput(2); // clear outputs
-        uint256 errors;
+        uint256 errorCount;
         for (uint256 i; i < calls.length; i++) {
             bytes memory v = calls[i];
             bytes4 selector = bytes4(v);
             // NOTE: "node check" is NOT performed:
             // if (v.length < 36 || BytesUtils.readBytes32(v, 4) != node) {
             //     calls[i] = abi.encodeWithSelector(NodeMismatch.selector, node);
-            //     errors++;
+            //     errorCount++;
             //     continue;
             // }
-            if (selector == IAddrResolver.addr.selector) {
-                req.setSlot(SLOT_DR_ADDRESSES);
-                req.push(60).follow(); // _addresses[60]
-                req.readBytes().shl(0); // convert to word
-            } else if (selector == IAddressResolver.addr.selector) {
-                uint256 coinType = uint256(BytesUtils.readBytes32(v, 36));
+            if (selector == IAddrResolver.addr.selector || selector == IAddressResolver.addr.selector) {
+                uint256 coinType =
+                    selector == IAddrResolver.addr.selector ? COIN_TYPE_ETH : uint256(BytesUtils.readBytes32(v, 36));
                 req.setSlot(SLOT_DR_ADDRESSES);
                 req.push(coinType).follow(); // _addresses[coinType]
                 req.readBytes();
+                if (ENSIP19.chainFromCoinType(coinType) > 0) {
+                    req.dup().length().isZero().pushOutput(calls.length).plus().setOutput(uint8(calls.length));
+                }
             } else if (selector == ITextResolver.text.selector) {
                 (, string memory key) = abi.decode(BytesUtils.substring(v, 4, v.length - 4), (bytes32, string));
                 // uint256 jump = 4 + uint256(BytesUtils.readBytes32(v, 36));
@@ -305,12 +307,12 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
                 continue;
             } else {
                 calls[i] = abi.encodeWithSelector(UnsupportedResolverProfile.selector, selector);
-                errors++;
+                errorCount++;
                 continue;
             }
             req.setOutput(uint8(i));
         }
-        if (calls.length == errors) {
+        if (calls.length == errorCount) {
             if (multi) {
                 return abi.encode(calls); // every multicall failed
             } else {
@@ -320,6 +322,9 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
                 }
             }
         }
+        req.pushOutput(calls.length).requireNonzero(0); // any empty evm addresses, or stop
+        req.setSlot(SLOT_DR_ADDRESSES).push(EVM_BIT).follow().readBytes(); // _addresses[EVM_BIT]
+        req.setOutput(uint8(calls.length)); // save default address
         fetch(
             namechainVerifier,
             req,
@@ -365,13 +370,14 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         if (exitCode == EXIT_CODE_NO_RESOLVER) {
             revert UnreachableName(name);
         }
+        bytes memory defaultAddress = values[calls.length];
         if (multi) {
             for (uint256 i; i < calls.length; i++) {
-                calls[i] = _prepareResponse(calls[i], values[i]);
+                calls[i] = _prepareResponse(calls[i], values[i], defaultAddress);
             }
             return abi.encode(calls);
         } else {
-            return _prepareResponse(calls[0], values[0]);
+            return _prepareResponse(calls[0], values[0], defaultAddress);
         }
     }
 
@@ -379,13 +385,24 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     /// @param data The original request (or error).
     /// @param value The response from the gateway.
     /// @return response The abi-encoded response for the request.
-    function _prepareResponse(bytes memory data, bytes memory value) internal pure returns (bytes memory response) {
+    function _prepareResponse(bytes memory data, bytes memory value, bytes memory defaultAddress)
+        internal
+        pure
+        returns (bytes memory response)
+    {
         if (bytes4(data) == UnsupportedResolverProfile.selector) {
             return data;
+        } else if (bytes4(data) == IAddrResolver.addr.selector) {
+            if (value.length == 0) value = defaultAddress;
+            return abi.encode(address(bytes20(value)));
+        } else if (bytes4(data) == IAddressResolver.addr.selector) {
+            if (value.length == 0 && ENSIP19.chainFromCoinType(uint256(BytesUtils.readBytes32(data, 36))) > 0) {
+                value = defaultAddress;
+            }
+            return abi.encode(value);
         } else if (
-            bytes4(data) == IAddrResolver.addr.selector
+            bytes4(data) == IPubkeyResolver.pubkey.selector
                 || bytes4(data) == IInterfaceResolver.interfaceImplementer.selector
-                || bytes4(data) == IPubkeyResolver.pubkey.selector
         ) {
             return value;
         } else if (bytes4(data) == IABIResolver.ABI.selector) {
