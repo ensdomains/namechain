@@ -51,37 +51,21 @@ contract DedicatedResolver is
     /// @param _universalResolver The new address.
     event UniversalResolverChanged(address indexed _universalResolver);
 
-    // Mapping from coin type to address
+    // profile storage
     mapping(uint256 => bytes) private _addresses;
-
-    // Mapping from key to text value
     mapping(string => string) private _texts;
-
-    // Content hash
     bytes private _contenthash;
-
-    // Public key
-    struct PublicKey {
-        bytes32 x;
-        bytes32 y;
-    }
-
-    PublicKey private _pubkey;
-
-    // Mapping from content type to ABI
+    bytes32 private _pubkeyX;
+    bytes32 private _pubkeyY;
     mapping(uint256 => bytes) private _abis;
-
-    // Mapping from interface ID to implementer
     mapping(bytes4 => address) private _interfaces;
-
-    // Name
     string private _primary;
 
-    // Wildcard and UniversalResolver
+    // resolver behavior
     bool public wildcard;
     address public universalResolver;
 
-    /// @dev Initializes the contract with an owner and associated name.
+    /// @dev Initializes the contract.
     /// @param owner The owner of the resolver.
     /// @param _wildcard True if the resolver should support for any name.
     /// @param _universalResolver The address of the UniversalResolver.
@@ -109,7 +93,7 @@ contract DedicatedResolver is
     }
 
     /// @notice Set address for the coin type.
-    ///         If the coin type is EVM, require exactly 0 or 20 bytes and replace null with `bytes(0)`.
+    ///         If EVM, require exactly 0 or 20 bytes and replace empty 20 bytes with 0 bytes.
     /// @param coinType The coin type.
     /// @param addressBytes The address to set.
     function setAddr(uint256 coinType, bytes memory addressBytes) external onlyOwner {
@@ -179,7 +163,8 @@ contract DedicatedResolver is
     /// @param x The x coordinate of the pubkey.
     /// @param y The y coordinate of the pubkey.
     function setPubkey(bytes32 x, bytes32 y) external onlyOwner {
-        _pubkey = PublicKey(x, y);
+        _pubkeyX = x;
+        _pubkeyY = y;
         emit PubkeyChanged(NODE_ANY, x, y);
     }
 
@@ -187,8 +172,8 @@ contract DedicatedResolver is
     /// @return x The x coordinate of the public key.
     /// @return y The y coordinate of the public key.
     function pubkey(bytes32) external view returns (bytes32 x, bytes32 y) {
-        x = _pubkey.x;
-        y = _pubkey.y;
+        x = _pubkeyX;
+        y = _pubkeyY;
     }
 
     /// @dev Set the ABI for the content type.
@@ -218,11 +203,9 @@ contract DedicatedResolver is
         return (0, "");
     }
 
-    /**
-     * @dev Sets the implementer for an interface
-     * @param interfaceId The interface ID.
-     * @param implementer The implementer address.
-     */
+    /// @dev Sets the implementer for an interface.
+    /// @param interfaceId The interface ID.
+    /// @param implementer The implementer address.
     function setInterface(bytes4 interfaceId, address implementer) external onlyOwner {
         _interfaces[interfaceId] = implementer;
         emit InterfaceChanged(NODE_ANY, interfaceId, implementer);
@@ -273,31 +256,6 @@ contract DedicatedResolver is
             revert UnsupportedResolverProfile(bytes4(data));
         }
         return v;
-        // bytes4 selector = bytes4(data);
-        // if (selector == IAddrResolver.addr.selector) {
-        //     return abi.encode(_toAddr(addr(NODE_ANY, COIN_TYPE_ETH)));
-        // } else if (selector == IAddressResolver.addr.selector) {
-        //     (, uint256 coinType) = abi.decode(data[4:], (bytes32, uint256));
-        //     return abi.encode(addr(NODE_ANY, coinType));
-        // } else if (selector == ITextResolver.text.selector) {
-        //     (, string memory key) = abi.decode(data[4:], (bytes32, string));
-        //     return abi.encode(_texts[key]);
-        // } else if (selector == IContentHashResolver.contenthash.selector) {
-        //     return abi.encode(_contenthash);
-        // } else if (selector == IPubkeyResolver.pubkey.selector) {
-        //     return abi.encode(_pubkey);
-        // } else if (selector == INameResolver.name.selector) {
-        //     return abi.encode(_primary);
-        // } else if (selector == IInterfaceResolver.interfaceImplementer.selector) {
-        //     (, bytes4 interfaceId) = abi.decode(data[4:], (bytes32, bytes4));
-        //     return abi.encode(interfaceImplementer(NODE_ANY, interfaceId));
-        // } else if (selector == IABIResolver.ABI.selector) {
-        //     (, uint256 contentTypes) = abi.decode(data[4:], (bytes32, uint256));
-        //     (uint256 contentType, bytes memory v) = ABI(NODE_ANY, contentType);
-        //     return abi.encode(contentType, v);
-        // } else {
-        //     revert UnsupportedResolverProfile(selector);
-        // }
     }
 
     function multicall(bytes[] calldata calls) external returns (bytes[] memory results) {

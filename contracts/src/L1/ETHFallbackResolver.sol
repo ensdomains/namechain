@@ -63,7 +63,8 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     error UnsupportedResolverProfile(bytes4 selector);
 
     /// @dev Maximum number of calls in a `multicall()`.
-    //       Actual limit: gateway proof size and/or gas limit.
+    ///      Technical limit: 254.
+    ///      Actual limit: gateway proof size and/or gas limit.
     uint8 public immutable MAX_MULTICALLS = 32;
 
     /// @dev Error when the number of calls in a `multicall()` is too large.
@@ -261,30 +262,23 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
                 req.push(coinType).follow(); // _addresses[coinType]
                 req.readBytes();
                 if (ENSIP19.chainFromCoinType(coinType) > 0) {
-                    req.dup().length().isZero().pushOutput(calls.length).plus().setOutput(uint8(calls.length));
+                    req.dup().length().isZero().pushOutput(calls.length).plus().setOutput(uint8(calls.length)); // check if default needed
                 }
             } else if (selector == ITextResolver.text.selector) {
                 (, string memory key) = abi.decode(BytesUtils.substring(v, 4, v.length - 4), (bytes32, string));
                 // uint256 jump = 4 + uint256(BytesUtils.readBytes32(v, 36));
                 // uint256 size = uint256(BytesUtils.readBytes32(v, jump));
                 // bytes memory key = BytesUtils.substring(v, jump + 32, size);
-                req.setSlot(SLOT_DR_TEXTS);
-                req.push(key).follow(); // _textRecords[key]
-                req.readBytes();
+                req.setSlot(SLOT_DR_TEXTS).push(key).follow().readBytes(); // _textRecords[key]
             } else if (selector == IContentHashResolver.contenthash.selector) {
-                req.setSlot(SLOT_DR_CONTENTHASH); // _contenthash
-                req.readBytes();
+                req.setSlot(SLOT_DR_CONTENTHASH).readBytes(); // _contenthash
             } else if (selector == INameResolver.name.selector) {
-                req.setSlot(SLOT_DR_NAME); // _names
-                req.readBytes();
+                req.setSlot(SLOT_DR_NAME).readBytes(); // _primary
             } else if (selector == IPubkeyResolver.pubkey.selector) {
-                req.setSlot(SLOT_DR_PUBKEY); // _pubkey
-                req.read(2); // read both x and y
+                req.setSlot(SLOT_DR_PUBKEY).read(2); // _pubkey (x and y)
             } else if (selector == IInterfaceResolver.interfaceImplementer.selector) {
                 bytes4 interfaceID = bytes4(BytesUtils.readBytes32(v, 36));
-                req.setSlot(SLOT_DR_INTERFACES);
-                req.push(interfaceID).follow(); // _interfaces[interfaceID]
-                req.read();
+                req.setSlot(SLOT_DR_INTERFACES).push(interfaceID).follow().read(); // _interfaces[interfaceID]
             } else if (selector == IABIResolver.ABI.selector) {
                 req.setSlot(SLOT_DR_ABIS);
                 uint256 bits = uint256(BytesUtils.readBytes32(v, 36));
