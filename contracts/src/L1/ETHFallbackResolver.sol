@@ -39,7 +39,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;
 
-    /// @dev Storage layout of SingleNameResolver.
+    /// @dev Storage layout of DedicatedResolver.
     uint256 constant SLOT_DR_COIN_ADDRESSES = 0;  // _coinAddresses
     uint256 constant SLOT_DR_TEXT_RECORDS = 1;    // _textRecords
     uint256 constant SLOT_DR_CONTENTHASH = 2;     // _contenthash
