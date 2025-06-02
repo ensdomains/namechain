@@ -96,7 +96,7 @@ export async function deployV2Fixture(
     ethRegistry,
     universalResolver,
     verifiableFactory,
-    dedicatedResolver,
+    dedicatedResolver, // warning: this is owned by the default wallet
     deployDedicatedResolver,
     setupName,
   };

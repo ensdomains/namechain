@@ -71,13 +71,17 @@ async function fixture() {
     BigInt(labelhash("eth")),
     ethFallbackResolver.address,
   ]);
+  const dedicatedResolverExact = await namechain.deployDedicatedResolver({
+    owner: namechain.walletClient.account.address,
+    wildcard: false,
+  });
   return {
     ethFallbackResolver,
     ethResolver,
     mainnetV1,
     burnAddressV1,
     mainnetV2,
-    namechain,
+    namechain: { ...namechain, dedicatedResolverExact },
   } as const;
 }
 
@@ -189,7 +193,10 @@ describe("ETHFallbackResolver", () => {
           tokenId,
         ]);
         expectVar({ available }).toStrictEqual(false);
-        await F.namechain.setupName(kp);
+        await F.namechain.setupName({
+          name,
+          resolverAddress: F.namechain.dedicatedResolver.address,
+        });
         await F.namechain.dedicatedResolver.write.multicall([
           [res.writeDedicated],
         ]);
@@ -437,5 +444,67 @@ describe("ETHFallbackResolver", () => {
       ]);
       bundle.expect(answer);
     });
+  });
+
+  it("exact DedicatedResolver on Namechain", async () => {
+    const F = await loadFixture();
+    await F.namechain.setupName({
+      name: testNames[0],
+      resolverAddress: F.namechain.dedicatedResolverExact.address,
+    });
+    const kp: KnownProfile = {
+      name: testNames[0],
+      addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
+    };
+    await F.namechain.dedicatedResolverExact.write.multicall([
+      makeResolutions(kp).map((x) => x.writeDedicated),
+    ]);
+    // exact name should resolve
+    {
+      const res = bundleCalls(makeResolutions(kp));
+      const [answer] = await F.mainnetV2.universalResolver.read.resolve([
+        dnsEncodeName(kp.name),
+        res.call,
+      ]);
+      res.expect(answer);
+    }
+    const subname = `sub.${kp.name}`;
+    // inexact name should fail
+    {
+      const [res] = makeResolutions({
+        ...kp,
+        name: subname,
+      });
+      await expect(
+        F.mainnetV2.universalResolver.read.resolve([
+          dnsEncodeName(subname),
+          res.call,
+        ]),
+      )
+        .toBeRevertedWithCustomError("ResolverError")
+        .withArgs(
+          encodeErrorResult({
+            abi: F.namechain.dedicatedResolverExact.abi,
+            errorName: "UnreachableName",
+            args: [dnsEncodeName(subname)],
+          }),
+        );
+    }
+    // should work again once exact
+    await F.namechain.setupName({
+      name: subname,
+      resolverAddress: F.namechain.dedicatedResolverExact.address,
+    });
+    {
+      const [res] = makeResolutions({
+        ...kp,
+        name: subname,
+      });
+      const [answer] = await F.mainnetV2.universalResolver.read.resolve([
+        dnsEncodeName(subname),
+        res.call,
+      ]);
+      res.expect(answer);
+    }
   });
 });

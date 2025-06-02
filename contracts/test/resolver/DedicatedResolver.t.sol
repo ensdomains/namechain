@@ -17,7 +17,7 @@ import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver
 import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
 import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
-import {COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
+import {ENSIP19, COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
 
 contract DedicatedResolverTest is Test, IRegistryTraversal {
     address foundResolver;
@@ -90,6 +90,9 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
     }
 
     function testFuzz_setAddr(uint256 coinType, bytes memory addressBytes) external {
+        if (ENSIP19.isEVMCoinType(coinType)) {
+            addressBytes = vm.randomBool() ? vm.randomBytes(20) : new bytes(0);
+        }
         vm.startPrank(alice);
         aliceResolver.setAddr(coinType, addressBytes);
         vm.stopPrank();
@@ -101,10 +104,27 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
 
     function test_setAddr_fallback(uint32 chain) external {
         vm.assume(chain < EVM_BIT);
+        bytes memory a = vm.randomBytes(20);
         vm.startPrank(alice);
-        aliceResolver.setAddr(EVM_BIT, testAddress);
+        aliceResolver.setAddr(EVM_BIT, a);
         vm.stopPrank();
-        assertEq(aliceResolver.addr(NODE_ANY, chain == 1 ? COIN_TYPE_ETH : EVM_BIT | chain), testAddress);
+        assertEq(aliceResolver.addr(NODE_ANY, chain == 1 ? COIN_TYPE_ETH : EVM_BIT | chain), a);
+    }
+
+    function test_setAddr_zeroEVM() external {
+        vm.startPrank(alice);
+        aliceResolver.setAddr(COIN_TYPE_ETH, new bytes(20));
+        aliceResolver.setAddr(EVM_BIT, new bytes(20));
+        vm.stopPrank();
+        assertFalse(aliceResolver.hasAddr(COIN_TYPE_ETH));
+        assertFalse(aliceResolver.hasAddr(EVM_BIT));
+    }
+
+    function test_setAddr_invalidEVM() external {
+        vm.expectRevert();
+        aliceResolver.setAddr(COIN_TYPE_ETH, new bytes(1));
+        vm.expectRevert();
+        aliceResolver.setAddr(EVM_BIT, new bytes(21));
     }
 
     function test_setAddr_notOwner() external {

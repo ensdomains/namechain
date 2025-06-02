@@ -10,7 +10,6 @@ import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedReso
 import {IDedicatedResolver, NODE_ANY} from "./IDedicatedResolver.sol";
 import {IRegistryTraversal} from "./IRegistryTraversal.sol";
 import {ENSIP19, COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
-import {AddrUtils} from "./AddrUtils.sol";
 
 // Resolver profile interfaces
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
@@ -46,6 +45,8 @@ contract DedicatedResolver is
 
     error InvalidContentType(uint256 contentType);
 
+    error InvalidEVMAddress(bytes addressBytes);
+
     /// @dev The UniversalResolver address was changed.
     /// @param _universalResolver The new address.
     event UniversalResolverChanged(address indexed _universalResolver);
@@ -80,12 +81,10 @@ contract DedicatedResolver is
     bool public wildcard;
     address public universalResolver;
 
-    /**
-     * @dev Initializes the contract with an owner and associated name
-     * @param owner The owner of the resolver
-     * @param _wildcard True if the resolver should answer for any name.
-     * @param _universalResolver The address of the Universal Resolver.
-     */
+    /// @dev Initializes the contract with an owner and associated name.
+    /// @param owner The owner of the resolver.
+    /// @param _wildcard True if the resolver should support for any name.
+    /// @param _universalResolver The address of the UniversalResolver.
     function initialize(address owner, bool _wildcard, address _universalResolver) public initializer {
         __Ownable_init(owner);
         wildcard = _wildcard;
@@ -110,13 +109,21 @@ contract DedicatedResolver is
     }
 
     /// @notice Set address for the coin type.
+    ///         If the coin type is EVM, require exactly 0 or 20 bytes and replace null with `bytes(0)`.
     /// @param coinType The coin type.
     /// @param addressBytes The address to set.
-    function setAddr(uint256 coinType, bytes calldata addressBytes) external onlyOwner {
+    function setAddr(uint256 coinType, bytes memory addressBytes) external onlyOwner {
+        if (addressBytes.length != 0 && ENSIP19.isEVMCoinType(coinType)) {
+            if (addressBytes.length != 20) {
+                revert InvalidEVMAddress(addressBytes);
+            } else if (bytes20(addressBytes) == bytes20(0)) {
+                addressBytes = "";
+            }
+        }
         _addresses[coinType] = addressBytes;
         emit AddressChanged(NODE_ANY, coinType, addressBytes);
         if (coinType == COIN_TYPE_ETH) {
-            emit AddrChanged(NODE_ANY, AddrUtils.toAddr(addressBytes));
+            emit AddrChanged(NODE_ANY, address(bytes20(addressBytes)));
         }
     }
 
@@ -133,7 +140,7 @@ contract DedicatedResolver is
 
     /// @notice `addr(60)` as `address`.
     function addr(bytes32) public view returns (address payable) {
-        return payable(AddrUtils.toAddr(addr(NODE_ANY, COIN_TYPE_ETH)));
+        return payable(address(bytes20(addr(NODE_ANY, COIN_TYPE_ETH))));
     }
 
     /// @notice Determine if coin type has been set explicitly.
@@ -244,8 +251,8 @@ contract DedicatedResolver is
         name_ = _primary;
     }
 
-    /// @dev True if `wildcard` or this resolver is exact in the registry.
     /// @inheritdoc IDedicatedResolver
+    /// @dev True if `wildcard` or this resolver is exact in the registry.
     function supportsName(bytes memory _name) public view returns (bool) {
         if (wildcard) return true;
         if (address(universalResolver) == address(0)) return false;
