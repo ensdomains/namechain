@@ -42,7 +42,7 @@ library BridgeEncoder {
         uint256 tokenId,
         bytes memory data
     ) internal pure returns (bytes memory) {
-        return abi.encode(uint8(messageType), tokenId, data);
+        return abi.encode(uint(messageType), tokenId, data);
     }
 
     /**
@@ -53,8 +53,8 @@ library BridgeEncoder {
         uint256 tokenId,
         bytes memory data
     ) {
-        uint8 _messageType;
-        (_messageType, tokenId, data) = abi.decode(message, (uint8, uint256, bytes));
+        uint _messageType;
+        (_messageType, tokenId, data) = abi.decode(message, (uint, uint256, bytes));
         messageType = BridgeMessageType(_messageType);
     }
 }

@@ -17,12 +17,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
-import {ENS} from "@ens/contracts/registry/ENS.sol";
-import {IMetadataService} from "@ens/contracts/wrapper/IMetadataService.sol";
-import {INameWrapperUpgrade} from "@ens/contracts/wrapper/INameWrapperUpgrade.sol";
 import {L1MigrationController} from "../src/L1/L1MigrationController.sol";
 import {IMigrationStrategy} from "../src/common/IMigration.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
+import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
+import {IBridge, BridgeMessageType, BridgeEncoder, BridgeTarget} from "../src/common/IBridge.sol";
 
 // Simple mock that implements IBaseRegistrar without the compilation issues
 contract MockBaseRegistrar is ERC721, IBaseRegistrar {
@@ -77,7 +76,7 @@ contract MockBaseRegistrar is ERC721, IBaseRegistrar {
         return expiries[id];
     }
 
-    function reclaim(uint256 id, address /*owner*/) external override {
+    function reclaim(uint256 id, address /*owner*/) external override view {
         require(ownerOf(id) == msg.sender, "Not owner");
         // Mock implementation
     }
@@ -138,27 +137,6 @@ contract MockNameWrapper is ERC1155 {
     }
 }
 
-contract MockL1MigrationController is L1MigrationController {
-    event MockUnwrappedEthNameMigrated(uint256 tokenId, string label, address owner);
-    event MockUnlockedEthNameMigrated(uint256 tokenId, string label, address owner);
-
-    constructor(IBaseRegistrar _ethRegistryV1, INameWrapper _nameWrapper) L1MigrationController(_ethRegistryV1, _nameWrapper) {}
-
-    function _migrateUnwrappedEthName(
-        uint256 tokenId, 
-        MigrationData memory migrationData
-    ) internal override {
-        emit MockUnwrappedEthNameMigrated(tokenId, migrationData.transferData.label, msg.sender);
-    }
-
-    function _migrateUnlockedEthName(
-        uint256 tokenId,
-        MigrationData memory migrationData
-    ) internal override {
-        emit MockUnlockedEthNameMigrated(tokenId, migrationData.transferData.label, msg.sender);
-    }
-}
-
 contract MockMigrationStrategy is IMigrationStrategy {
     event MockLockedMigrationCalled(address registry, uint256 tokenId, MigrationData migrationData);
 
@@ -174,8 +152,9 @@ contract MockMigrationStrategy is IMigrationStrategy {
 contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
     MockBaseRegistrar ethRegistryV1;
     MockNameWrapper nameWrapper;
-    MockL1MigrationController migrationController;
+    L1MigrationController migrationController;
     MockMigrationStrategy migrationStrategy;
+    MockL1Bridge mockBridge;
 
     address user = address(0x1234);
     address controller = address(0x5678);
@@ -219,6 +198,53 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         });
     }
 
+    /**
+     * Helper method to verify that a NameMigratedToL2 event was emitted with correct data
+     */
+    function _assertBridgeMigrationEvent(uint256 expectedTokenId, string memory expectedLabel) internal {
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        bool foundMigrationEvent = false;
+        bytes32 expectedSig = keccak256("NameMigratedToL2(uint256,bytes)");
+        
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].emitter == address(mockBridge) && entries[i].topics[0] == expectedSig) {
+                uint256 emittedTokenId = uint256(entries[i].topics[1]);
+                if (emittedTokenId == expectedTokenId) {
+                    bytes memory data = abi.decode(entries[i].data, (bytes));
+                    MigrationData memory decodedMigrationData = abi.decode(data, (MigrationData));
+                    assertEq(keccak256(bytes(decodedMigrationData.transferData.label)), keccak256(bytes(expectedLabel)));
+                    foundMigrationEvent = true;
+                    break;
+                }
+            }
+        }
+        assertTrue(foundMigrationEvent, string(abi.encodePacked("NameMigratedToL2 event not found for token: ", expectedLabel)));
+    }
+
+    /**
+     * Helper method to count NameMigratedToL2 events for multiple tokens
+     */
+    function _countBridgeMigrationEvents(uint256[] memory expectedTokenIds) internal returns (uint256) {
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        uint256 migratedEventCount = 0;
+        bytes32 expectedSig = keccak256("NameMigratedToL2(uint256,bytes)");
+
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].emitter == address(mockBridge) && entries[i].topics[0] == expectedSig) {
+                uint256 emittedTokenId = uint256(entries[i].topics[1]);
+                
+                // Check if this tokenId is in our expected list
+                for (uint256 j = 0; j < expectedTokenIds.length; j++) {
+                    if (emittedTokenId == expectedTokenIds[j]) {
+                        migratedEventCount++;
+                        break;
+                    }
+                }
+            }
+        }
+        return migratedEventCount;
+    }
+
     function setUp() public {
         // Deploy mock base registrar
         ethRegistryV1 = new MockBaseRegistrar();
@@ -228,9 +254,12 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         
         // Deploy mock name wrapper
         nameWrapper = new MockNameWrapper();
+
+        // Deploy mock bridge
+        mockBridge = new MockL1Bridge();
         
         // Deploy migration controller
-        migrationController = new MockL1MigrationController(ethRegistryV1, INameWrapper(address(nameWrapper)));
+        migrationController = new L1MigrationController(ethRegistryV1, INameWrapper(address(nameWrapper)), mockBridge);
         
         // Deploy migration strategy
         migrationStrategy = new MockMigrationStrategy();
@@ -239,8 +268,10 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         testTokenId = uint256(keccak256(bytes(testLabel)));
     }
 
-    function test_constructor() public {
+    function test_constructor() public view {
         assertEq(address(migrationController.ethRegistryV1()), address(ethRegistryV1));
+        assertEq(address(migrationController.nameWrapper()), address(nameWrapper));
+        assertEq(address(migrationController.bridge()), address(mockBridge));
         assertEq(address(migrationController.strategy()), address(0));
         assertEq(migrationController.owner(), address(this));
     }
@@ -293,18 +324,8 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         // Verify the migration controller now owns the token
         assertEq(ethRegistryV1.ownerOf(testTokenId), address(migrationController));
         
-        // Check for migration event
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundMigrationEvent = false;
-        bytes32 expectedSig = keccak256("MockUnwrappedEthNameMigrated(uint256,string,address)");
-        
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == expectedSig) {
-                foundMigrationEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundMigrationEvent, "MockUnwrappedEthNameMigrated event not found");
+        // Check for migration event from the bridge
+        _assertBridgeMigrationEvent(testTokenId, testLabel);
     }
 
     function test_Revert_migrateUnwrappedEthName_wrong_caller() public {
@@ -332,6 +353,7 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         
         // Try to call onERC721Received directly when migration controller doesn't own the token
         // This should fail with UnauthorizedCaller because we're calling it directly
+        // and msg.sender is not ethRegistryV1
         vm.expectRevert(abi.encodeWithSelector(L1MigrationController.UnauthorizedCaller.selector, address(this)));
         migrationController.onERC721Received(address(this), user, testTokenId, data);
     }
@@ -356,18 +378,8 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         vm.prank(user);
         nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
         
-        // Check for unlocked migration event
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundMigrationEvent = false;
-        bytes32 expectedSig = keccak256("MockUnlockedEthNameMigrated(uint256,string,address)");
-        
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == expectedSig) {
-                foundMigrationEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundMigrationEvent, "MockUnlockedEthNameMigrated event not found");
+        // Check for migration event from the bridge
+        _assertBridgeMigrationEvent(testTokenId, testLabel);
     }
 
     function test_migrateLockedWrappedEthName_single() public {
@@ -439,19 +451,8 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         vm.prank(user);
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
         
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        uint256 unlockedEventCount = 0;
-        bytes32 unlockedSig = keccak256("MockUnlockedEthNameMigrated(uint256,string,address)");
-
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == unlockedSig) {
-                (uint256 eventTokenId,,) = abi.decode(entries[i].data, (uint256, string, address));
-                if (eventTokenId == tokenId1 || eventTokenId == tokenId2) {
-                    unlockedEventCount++;
-                }
-            }
-        }
-        assertEq(unlockedEventCount, 2, "Incorrect number of MockUnlockedEthNameMigrated events");
+        uint256 migratedEventCount = _countBridgeMigrationEvents(tokenIds);
+        assertEq(migratedEventCount, 2, "Incorrect number of NameMigratedToL2 events");
     }
 
     function test_migrateWrappedEthName_batch_allLocked() public {
@@ -488,6 +489,7 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         vm.prank(user);
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
         
+        // Check for strategy call events for locked names
         Vm.Log[] memory entries = vm.getRecordedLogs();
         uint256 lockedEventCount = 0;
         bytes32 lockedSig = keccak256("MockLockedMigrationCalled(address,uint256,((string,address,address,address,uint256,uint64),bool,bytes))");
@@ -562,7 +564,8 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         assertTrue(migrationController.supportsInterface(type(IERC165).interfaceId));
         assertTrue(migrationController.supportsInterface(type(IERC721Receiver).interfaceId));
         assertTrue(migrationController.supportsInterface(type(IERC1155Receiver).interfaceId));
-        assertTrue(migrationController.supportsInterface(type(Ownable).interfaceId));
+        // Ownable is not directly advertised via supportsInterface in L1MigrationController based on its ERC165 logic
+        // assertTrue(migrationController.supportsInterface(type(Ownable).interfaceId)); 
     }
 
     function test_Revert_onERC1155Received_wrong_caller() public {
@@ -582,6 +585,7 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1;
         
+        // For batch, data is MigrationData[]
         MigrationData[] memory migrationDataArray = new MigrationData[](1);
         migrationDataArray[0] = _createMigrationData(testLabel);
         
@@ -596,47 +600,41 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         // Set migration strategy
         migrationController.setStrategy(migrationStrategy);
         
-        // Create migration data
+        // Create migration data (single item)
         MigrationData memory migrationData = _createMigrationData(testLabel);
-        bytes memory data = abi.encode(migrationData);
+        bytes memory data = abi.encode(migrationData); // onERC1155Received expects a single MigrationData
         
         vm.recordLogs();
         
         // Call onERC1155Received as nameWrapper (should work)
+        // Operator and from can be arbitrary for this test as they are not used by the mock nameWrapper or the controller logic itself
         vm.prank(address(nameWrapper));
         bytes4 result = migrationController.onERC1155Received(address(this), user, testTokenId, 1, data);
         
         // Should return the correct selector
         assertEq(result, IERC1155Receiver.onERC1155Received.selector);
         
-        // Check for migration event (either unlocked since we didn't set fuses to CANNOT_UNWRAP)
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundMigrationEvent = false;
-        bytes32 expectedSig = keccak256("MockUnlockedEthNameMigrated(uint256,string,address)");
-        
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == expectedSig) {
-                foundMigrationEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundMigrationEvent, "MockUnlockedEthNameMigrated event not found");
+        // Check for migration event from the bridge (assuming unlocked, as fuses are not CANNOT_UNWRAP by default in mock)
+        _assertBridgeMigrationEvent(testTokenId, testLabel);
     }
 
     function test_onERC1155BatchReceived_nameWrapper_authorization() public {
         // Set migration strategy
         migrationController.setStrategy(migrationStrategy);
         
+        string memory label1 = "batchAuth1";
+        uint256 tokenId1 = uint256(keccak256(bytes(label1)));
+
         uint256[] memory tokenIds = new uint256[](1);
-        tokenIds[0] = testTokenId;
+        tokenIds[0] = tokenId1;
         
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1;
         
         MigrationData[] memory migrationDataArray = new MigrationData[](1);
-        migrationDataArray[0] = _createMigrationData(testLabel);
+        migrationDataArray[0] = _createMigrationData(label1);
         
-        bytes memory data = abi.encode(migrationDataArray);
+        bytes memory data = abi.encode(migrationDataArray); // onERC1155BatchReceived expects MigrationData[]
         
         vm.recordLogs();
         
@@ -647,17 +645,7 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         // Should return the correct selector
         assertEq(result, IERC1155Receiver.onERC1155BatchReceived.selector);
         
-        // Check for migration event
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundMigrationEvent = false;
-        bytes32 expectedSig = keccak256("MockUnlockedEthNameMigrated(uint256,string,address)");
-        
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == expectedSig) {
-                foundMigrationEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundMigrationEvent, "MockUnlockedEthNameMigrated event not found");
+        // Check for migration event from the bridge
+        _assertBridgeMigrationEvent(tokenId1, label1);
     }
 } 

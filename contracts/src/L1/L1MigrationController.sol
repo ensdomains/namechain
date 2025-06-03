@@ -9,12 +9,13 @@ import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC16
 import {IMigrationStrategy} from "../common/IMigration.sol";
 import {TransferData, MigrationData} from "../common/TransferData.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IBridge, BridgeMessageType, BridgeEncoder, BridgeTarget} from "../common/IBridge.sol";
 
 /**
  * @title L1MigrationController
  * @dev Base contract for the v1-to-v2 migration controller.
  */
-abstract contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
+contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
     error UnauthorizedCaller(address caller);   
     error NoMigrationStrategySet();
     error MigrationFailed();
@@ -24,10 +25,12 @@ abstract contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ER
     IBaseRegistrar public immutable ethRegistryV1;
     INameWrapper public immutable nameWrapper;
     IMigrationStrategy public strategy;
+    IBridge public immutable bridge;
 
-    constructor(IBaseRegistrar _ethRegistryV1, INameWrapper _nameWrapper) Ownable(msg.sender) {
+    constructor(IBaseRegistrar _ethRegistryV1, INameWrapper _nameWrapper, IBridge _bridge) Ownable(msg.sender) {
         ethRegistryV1 = _ethRegistryV1;
         nameWrapper = _nameWrapper;
+        bridge = _bridge;
     }
 
     /**
@@ -44,10 +47,8 @@ abstract contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ER
      * Implements ERC165.supportsInterface
      */
     function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(L1MigrationController).interfaceId 
-            || interfaceId == type(Ownable).interfaceId 
-            || interfaceId == type(IERC1155Receiver).interfaceId 
-            || interfaceId == type(IERC721Receiver).interfaceId 
+        return interfaceId == 0x4e2312e0 // IERC1155Receiver.onERC1155Received.selector ^ IERC1155Receiver.onERC1155BatchReceived.selector
+            || interfaceId == 0x150b7a02 // IERC721Receiver.onERC721Received.selector
             || super.supportsInterface(interfaceId);
     }
 
@@ -98,7 +99,7 @@ abstract contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ER
         
         (MigrationData memory migrationData) = abi.decode(data, (MigrationData));
 
-        _migrateUnwrappedEthName(tokenId, migrationData);
+        _migrateNameViaBridge(tokenId, migrationData);
 
         return this.onERC721Received.selector;
     }
@@ -124,24 +125,19 @@ abstract contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ER
                 strategy.migrateLockedEthName(address(nameWrapper), tokenIds[i], migrationDataArray[i]);
             } else {
                 // Name is unlocked, migrate directly
-                _migrateUnlockedEthName(tokenIds[i], migrationDataArray[i]);
+                _migrateNameViaBridge(tokenIds[i], migrationDataArray[i]);
             }
         }
     }
 
     /**
-     * @dev Called when an unwrapped .eth name is being migrated to v2.
+     * @dev Migrate a name via the bridge.
      *
      * @param tokenId The token ID of the .eth name.
      * @param migrationData The migration data.
      */
-    function _migrateUnwrappedEthName(uint256 tokenId, MigrationData memory migrationData) internal virtual;
-
-    /**
-     * @dev Called when an unlocked wrapped .eth name is being migrated to v2.
-     *
-     * @param tokenId The token ID of the .eth name.
-     * @param migrationData The migration data.
-     */
-    function _migrateUnlockedEthName(uint256 tokenId, MigrationData memory migrationData) internal virtual;
+    function _migrateNameViaBridge(uint256 tokenId, MigrationData memory migrationData) internal {
+        bytes memory message = BridgeEncoder.encode(BridgeMessageType.MIGRATION, tokenId, abi.encode(migrationData));
+        bridge.sendMessage(BridgeTarget.L2, message);
+    }
 }
