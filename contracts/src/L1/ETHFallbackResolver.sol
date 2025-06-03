@@ -44,11 +44,11 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
     uint256 constant SLOT_DR_ADDRESSES = 0; // _addresses
     uint256 constant SLOT_DR_TEXTS = 1; // _texts
     uint256 constant SLOT_DR_CONTENTHASH = 2; // _contenthash
-    uint256 constant SLOT_DR_PUBKEY = 3; // _pubkey (PublicKey struct)
+    uint256 constant SLOT_DR_PUBKEY = 3; // _pubkeyX and _pubkeyY
     uint256 constant SLOT_DR_ABIS = 5; // _abis
     uint256 constant SLOT_DR_INTERFACES = 6; // _interfaces
     uint256 constant SLOT_DR_NAME = 7; // _names
-    uint256 constant SLOT_DR_WILDCARD = 8; // pack(address(ur), bool(wildcard))
+    uint256 constant SLOT_DR_WILDCARD = 8; // wildcard
 
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
 
@@ -243,7 +243,7 @@ contract ETHFallbackResolver is IExtendedResolver, GatewayFetchTarget, CCIPReade
         req.evalLoop(EvalFlag.STOP_ON_FAILURE | EvalFlag.KEEP_ARGS); // outputs = [registry, resolver]
         req.pushOutput(1).requireNonzero(EXIT_CODE_NO_RESOLVER).target(); // target resolver
         req.stackCount().isZero().pushOutput(2).isZero().isZero().and(); // is exact
-        req.setSlot(SLOT_DR_WILDCARD).read().push(1).and().or().assertNonzero(EXIT_CODE_NO_RESOLVER); // require wildcard or exact
+        req.setSlot(SLOT_DR_WILDCARD).read().or().assertNonzero(EXIT_CODE_NO_RESOLVER); // require wildcard or exact
         req.push(bytes("")).dup().dup().setOutput(0).setOutput(1).setOutput(2); // clear outputs
         uint256 errorCount;
         for (uint256 i; i < calls.length; i++) {

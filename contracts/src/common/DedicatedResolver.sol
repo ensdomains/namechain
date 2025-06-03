@@ -4,14 +4,15 @@ pragma solidity >=0.8.13;
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
-import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
-import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {IDedicatedResolver, NODE_ANY} from "./IDedicatedResolver.sol";
+import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IRegistryTraversal} from "./IRegistryTraversal.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ENSIP19, COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
 
-// Resolver profile interfaces
+// resolver profiles
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
@@ -39,18 +40,6 @@ contract DedicatedResolver is
     IABIResolver,
     IInterfaceResolver
 {
-    error UnreachableName(bytes name);
-
-    error UnsupportedResolverProfile(bytes4 selector);
-
-    error InvalidContentType(uint256 contentType);
-
-    error InvalidEVMAddress(bytes addressBytes);
-
-    /// @dev The UniversalResolver address was changed.
-    /// @param _universalResolver The new address.
-    event UniversalResolverChanged(address indexed _universalResolver);
-
     // profile storage
     mapping(uint256 => bytes) private _addresses;
     mapping(string => string) private _texts;
@@ -61,39 +50,65 @@ contract DedicatedResolver is
     mapping(bytes4 => address) private _interfaces;
     string private _primary;
 
-    // resolver behavior
+    /// @notice True if the resolver supports any name.
     bool public wildcard;
-    address public universalResolver;
 
-    /// @dev Initializes the contract.
+    /// @notice Emit during initialization.
+    event NewDediciatedResolver(address owner, bool wildcard);
+
+    /// @notice The resolver profile cannot be answered.
+    /// @dev Error selector: `0x5fe9a5df`
+    error UnsupportedResolverProfile(bytes4 selector);
+
+    /// @notice The supplied name is not supported by this resolver.
+    /// @dev Error selector: `0x5fe9a5df`
+    error UnreachableName(bytes name);
+
+    /// @notice The coin type is not a power of 2.
+    /// @dev Error selector: `0xe7cf0ac4`
+    error InvalidContentType(uint256 contentType);
+
+    /// @notice The address could not be converted to `address`.
+    /// @dev Error selector: `0x8d666f60`
+    error InvalidEVMAddress(bytes addressBytes);
+
+    constructor(address owner, bool _wildcard, address findResolverImpl) {
+        initialize(owner, _wildcard, findResolverImpl);
+    }
+
+    /// @dev Initialize the contract.
     /// @param owner The owner of the resolver.
     /// @param _wildcard True if the resolver should support for any name.
-    /// @param _universalResolver The address of the UniversalResolver.
-    function initialize(address owner, bool _wildcard, address _universalResolver) public initializer {
+    /// @param findResolverImpl An optional contract that implements `IRegistryTraversal`.
+    function initialize(address owner, bool _wildcard, address findResolverImpl) public initializer {
         __Ownable_init(owner);
         wildcard = _wildcard;
-        _setUniversalResolver(_universalResolver);
+        emit NewDediciatedResolver(owner, _wildcard);
+        if (findResolverImpl != address(0)) {
+            _setInterface(type(IRegistryTraversal).interfaceId, findResolverImpl);
+        }
     }
 
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165) returns (bool) {
         return interfaceId == type(IExtendedResolver).interfaceId || interfaceId == type(IDedicatedResolver).interfaceId
-            || interfaceId == this.multicall.selector || super.supportsInterface(interfaceId);
+            || interfaceId == type(IMulticallable).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    function _setUniversalResolver(address ur) internal {
-        universalResolver = ur;
-        emit UniversalResolverChanged(ur);
-    }
-
-    /// @notice Set the Universal Resolver address.
-    /// @param _universalResolver The new address.
-    function setUniversalResolver(address _universalResolver) external onlyOwner {
-        _setUniversalResolver(_universalResolver);
+    /// @notice Get the `IRegistryTraversal` implementation.
+    ///         Defaults to the proxy implementation if unset.
+    function findResolverImplementation() public view returns (address impl) {
+        impl = interfaceImplementer(NODE_ANY, type(IRegistryTraversal).interfaceId);
+        if (impl == address(0)) {
+            address base = ERC1967Utils.getImplementation();
+            if (base != address(0)) {
+                impl = DedicatedResolver(base).findResolverImplementation();
+            }
+        }
     }
 
     /// @notice Set address for the coin type.
-    ///         If EVM, require exactly 0 or 20 bytes and replace empty 20 bytes with 0 bytes.
+    ///         If coin type is EVM, require exactly 0 or 20 bytes and replace empty 20 bytes with 0 bytes.
     /// @param coinType The coin type.
     /// @param addressBytes The address to set.
     function setAddr(uint256 coinType, bytes memory addressBytes) external onlyOwner {
@@ -112,7 +127,7 @@ contract DedicatedResolver is
     }
 
     /// @notice Get the address for coin type.
-    ///         If an EVM and empty, defaults to `addr(EVM_BIT)`.
+    ///         If coin type is EVM and empty, defaults to `addr(EVM_BIT)`.
     /// @param coinType The coin type.
     /// @return addressBytes The address for the coin type.
     function addr(bytes32, uint256 coinType) public view returns (bytes memory addressBytes) {
@@ -122,14 +137,17 @@ contract DedicatedResolver is
         }
     }
 
-    /// @notice `addr(60)` as `address`.
-    function addr(bytes32) public view returns (address payable) {
-        return payable(address(bytes20(addr(NODE_ANY, COIN_TYPE_ETH))));
+    /// @notice Get `addr(60)` as `address`.
+    /// @return addr_ The address for coin type 60.
+    function addr(bytes32) public view returns (address payable addr_) {
+        addr_ = payable(address(bytes20(addr(NODE_ANY, COIN_TYPE_ETH))));
     }
 
     /// @notice Determine if coin type has been set explicitly.
-    function hasAddr(uint256 coinType) external view returns (bool) {
-        return _addresses[coinType].length > 0;
+    /// @param coinType The coin type.
+    /// @return has True if `setAddr(node, coinType)` has been set.
+    function hasAddr(uint256 coinType) external view returns (bool has) {
+        has = _addresses[coinType].length > 0;
     }
 
     /// @notice Set a text record.
@@ -155,8 +173,9 @@ contract DedicatedResolver is
     }
 
     /// @notice Get the content hash.
-    function contenthash(bytes32) external view returns (bytes memory) {
-        return _contenthash;
+    /// @return contenthash_ The contenthash.
+    function contenthash(bytes32) external view returns (bytes memory contenthash_) {
+        contenthash_ = _contenthash;
     }
 
     /// @dev Sets the public key.
@@ -190,7 +209,7 @@ contract DedicatedResolver is
     /// @dev Get the first ABI for the specified content types.
     /// @param contentTypes Union of desired contents types.
     /// @return contentType The first matching content type (or 0 if no match).
-    /// @return data The encoded ABI.
+    /// @return data The ABI data.
     function ABI(bytes32, uint256 contentTypes) public view returns (uint256 contentType, bytes memory data) {
         for (contentType = 1; contentType > 0 && contentType <= contentTypes; contentType <<= 1) {
             if ((contentType & contentTypes) != 0) {
@@ -206,7 +225,11 @@ contract DedicatedResolver is
     /// @dev Sets the implementer for an interface.
     /// @param interfaceId The interface ID.
     /// @param implementer The implementer address.
-    function setInterface(bytes4 interfaceId, address implementer) external onlyOwner {
+    function setInterface(bytes4 interfaceId, address implementer) public onlyOwner {
+        _setInterface(interfaceId, implementer);
+    }
+
+    function _setInterface(bytes4 interfaceId, address implementer) private {
         _interfaces[interfaceId] = implementer;
         emit InterfaceChanged(NODE_ANY, interfaceId, implementer);
     }
@@ -238,8 +261,9 @@ contract DedicatedResolver is
     /// @dev True if `wildcard` or this resolver is exact in the registry.
     function supportsName(bytes memory _name) public view returns (bool) {
         if (wildcard) return true;
-        if (address(universalResolver) == address(0)) return false;
-        (address resolver,, uint256 offset) = IRegistryTraversal(universalResolver).findResolver(_name);
+        address impl = findResolverImplementation();
+        if (impl == address(0)) return false;
+        (address resolver,, uint256 offset) = IRegistryTraversal(impl).findResolver(_name);
         return resolver == address(this) && offset == 0;
     }
 
@@ -258,7 +282,7 @@ contract DedicatedResolver is
         return v;
     }
 
-    function multicall(bytes[] calldata calls) external returns (bytes[] memory results) {
+    function multicall(bytes[] calldata calls) public returns (bytes[] memory results) {
         results = new bytes[](calls.length);
         for (uint256 i; i < calls.length; i++) {
             (bool ok, bytes memory v) = address(this).delegatecall(calls[i]);
@@ -266,5 +290,10 @@ contract DedicatedResolver is
             results[i] = v;
         }
         return results;
+    }
+
+    /// @notice Warning: node check is ignored.
+    function multicallWithNodeCheck(bytes32, bytes[] calldata calls) external returns (bytes[] memory) {
+        return multicall(calls);
     }
 }

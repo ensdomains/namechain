@@ -473,15 +473,13 @@ describe("ETHFallbackResolver", () => {
       const F = await loadFixture();
       const kp: KnownProfile = {
         name: testNames[0],
+        texts: [{ key: "url", value: "https://ens.domains" }],
         addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
       };
       await F.namechain.setupName({
         name: kp.name,
         resolverAddress: F.namechain.dedicatedResolverExact.address,
       });
-      // await F.namechain.dedicatedResolverExact.write.multicall([
-      //   makeResolutions(kp).map((x) => x.writeDedicated),
-      // ]);
       // exact name should resolve
       {
         const res = bundleCalls(makeResolutions(kp));

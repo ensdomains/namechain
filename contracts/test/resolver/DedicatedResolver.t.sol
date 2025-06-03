@@ -16,6 +16,7 @@ import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHa
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
 import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
+import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ENSIP19, COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
 
@@ -38,14 +39,17 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
 
     function setUp() external {
         factory = new VerifiableFactory();
-        resolverImpl = new DedicatedResolver();
+        resolverImpl = new DedicatedResolver(address(this), false, address(0));
 
         alice = makeAddr("alice");
         aliceResolver = _deployResolver(alice, true, address(0));
     }
 
-    function _deployResolver(address owner, bool wildcard, address ur) internal returns (DedicatedResolver resolver) {
-        bytes memory initData = abi.encodeCall(DedicatedResolver.initialize, (owner, wildcard, ur));
+    function _deployResolver(address owner, bool wildcard, address findResolverImpl)
+        internal
+        returns (DedicatedResolver resolver)
+    {
+        bytes memory initData = abi.encodeCall(DedicatedResolver.initialize, (owner, wildcard, findResolverImpl));
         vm.startPrank(owner);
         resolver = DedicatedResolver(factory.deployProxy(address(resolverImpl), uint256(keccak256(initData)), initData));
         vm.stopPrank();
@@ -55,13 +59,19 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
         DedicatedResolver resolver = _deployResolver(alice, wildcard, address(1));
         assertEq(resolver.owner(), alice, "owner");
         assertEq(resolver.wildcard(), wildcard, "wildcard");
-        assertEq(resolver.universalResolver(), address(1), "ur");
+        assertEq(resolver.findResolverImplementation(), address(1), "ur");
+    }
+
+    function test_findResolverImplementation_fallback() external {
+        resolverImpl.setInterface(type(IRegistryTraversal).interfaceId, address(this));
+        DedicatedResolver resolver = _deployResolver(alice, false, address(0));
+        assertEq(resolver.findResolverImplementation(), address(this));
     }
 
     function testFuzz_supportsInterface() external view {
         assertTrue(aliceResolver.supportsInterface(type(IExtendedResolver).interfaceId), "IExtendedResolver");
         assertTrue(aliceResolver.supportsInterface(type(IDedicatedResolver).interfaceId), "IDedicatedResolver");
-        assertTrue(aliceResolver.supportsInterface(DedicatedResolver.multicall.selector), "multicall()");
+        assertTrue(aliceResolver.supportsInterface(type(IMulticallable).interfaceId), "IMulticallable");
         assertTrue(ERC165Checker.supportsERC165(address(aliceResolver)), "ERC165");
     }
 
@@ -245,9 +255,7 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
         assertEq(
             aliceResolver.interfaceImplementer(NODE_ANY, type(IDedicatedResolver).interfaceId), address(aliceResolver)
         );
-        assertEq(
-            aliceResolver.interfaceImplementer(NODE_ANY, DedicatedResolver.multicall.selector), address(aliceResolver)
-        );
+        assertEq(aliceResolver.interfaceImplementer(NODE_ANY, type(IMulticallable).interfaceId), address(aliceResolver));
     }
 
     function test_setInterface_notOwner() external {
