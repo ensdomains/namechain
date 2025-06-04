@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {DedicatedResolver} from "../../src/common/DedicatedResolver.sol";
 import {IDedicatedResolver, NODE_ANY} from "../../src/common/IDedicatedResolver.sol";
-import {IRegistryTraversal} from "../../src/common/IRegistryTraversal.sol";
+import {IFindResolver} from "../../src/common/IFindResolver.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
@@ -20,7 +20,7 @@ import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ENSIP19, COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
 
-contract DedicatedResolverTest is Test, IRegistryTraversal {
+contract DedicatedResolverTest is Test, IFindResolver {
     address foundResolver;
     uint256 foundOffset;
 
@@ -59,11 +59,11 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
         DedicatedResolver resolver = _deployResolver(alice, wildcard, address(1));
         assertEq(resolver.owner(), alice, "owner");
         assertEq(resolver.wildcard(), wildcard, "wildcard");
-        assertEq(resolver.findResolverImplementation(), address(1), "ur");
+        assertEq(resolver.findResolverImplementation(), address(1), "impl");
     }
 
     function test_findResolverImplementation_fallback() external {
-        resolverImpl.setInterface(type(IRegistryTraversal).interfaceId, address(this));
+        resolverImpl.setInterface(type(IFindResolver).interfaceId, address(this));
         DedicatedResolver resolver = _deployResolver(alice, false, address(0));
         assertEq(resolver.findResolverImplementation(), address(this));
     }
@@ -77,10 +77,10 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
 
     function test_supportsName_wildcard() external view {
         assertTrue(aliceResolver.supportsName(""));
-        assertTrue(aliceResolver.supportsName(hex"FF"));
+        assertTrue(aliceResolver.supportsName(hex"ff"));
     }
 
-    function test_supportsName_noWildcard_noUR() external {
+    function test_supportsName_noWildcard_noImpl() external {
         DedicatedResolver resolver = _deployResolver(alice, false, address(0));
         assertFalse(resolver.supportsName(""));
     }
@@ -96,7 +96,10 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
         DedicatedResolver resolver = _deployResolver(alice, false, address(this));
         foundResolver = address(resolver);
         foundOffset = 1;
-        assertFalse(resolver.supportsName(""));
+        assertFalse(resolver.supportsName(""), "offset");
+        foundResolver = address(0);
+        foundOffset = 0;
+        assertFalse(resolver.supportsName(""), "resolver");
     }
 
     function testFuzz_setAddr(uint256 coinType, bytes memory addressBytes) external {
@@ -249,6 +252,7 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
         vm.startPrank(alice);
         aliceResolver.setAddr(COIN_TYPE_ETH, abi.encodePacked(aliceResolver));
         vm.stopPrank();
+
         assertEq(
             aliceResolver.interfaceImplementer(NODE_ANY, type(IExtendedResolver).interfaceId), address(aliceResolver)
         );
@@ -267,6 +271,7 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
         bytes[] memory calls = new bytes[](2);
         calls[0] = abi.encodeCall(DedicatedResolver.setName, (testName));
         calls[1] = abi.encodeCall(DedicatedResolver.setAddr, (COIN_TYPE_ETH, testAddress));
+
         vm.startPrank(alice);
         aliceResolver.multicall(calls);
         vm.stopPrank();
@@ -279,6 +284,7 @@ contract DedicatedResolverTest is Test, IRegistryTraversal {
         bytes[] memory calls = new bytes[](2);
         calls[0] = abi.encodeCall(DedicatedResolver.setName, (testName));
         calls[1] = abi.encodeCall(DedicatedResolver.setAddr, (COIN_TYPE_ETH, testAddress));
+
         vm.expectRevert();
         aliceResolver.multicall(calls);
     }

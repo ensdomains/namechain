@@ -5,10 +5,11 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
+
 import {IDedicatedResolver, NODE_ANY} from "./IDedicatedResolver.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
-import {IRegistryTraversal} from "./IRegistryTraversal.sol";
+import {IFindResolver} from "./IFindResolver.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ENSIP19, COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
 
@@ -79,13 +80,13 @@ contract DedicatedResolver is
     /// @dev Initialize the contract.
     /// @param owner The owner of the resolver.
     /// @param _wildcard True if the resolver should support for any name.
-    /// @param findResolverImpl An optional contract that implements `IRegistryTraversal`.
+    /// @param findResolverImpl An optional contract that implements `IFindResolver`.
     function initialize(address owner, bool _wildcard, address findResolverImpl) public initializer {
         __Ownable_init(owner);
         wildcard = _wildcard;
         emit NewDediciatedResolver(owner, _wildcard);
         if (findResolverImpl != address(0)) {
-            _setInterface(type(IRegistryTraversal).interfaceId, findResolverImpl);
+            _setInterface(type(IFindResolver).interfaceId, findResolverImpl);
         }
     }
 
@@ -95,10 +96,10 @@ contract DedicatedResolver is
             || interfaceId == type(IMulticallable).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    /// @notice Get the `IRegistryTraversal` implementation.
+    /// @notice Get the `IFindResolver` implementation.
     ///         Defaults to the proxy implementation if unset.
     function findResolverImplementation() public view returns (address impl) {
-        impl = interfaceImplementer(NODE_ANY, type(IRegistryTraversal).interfaceId);
+        impl = interfaceImplementer(NODE_ANY, type(IFindResolver).interfaceId);
         if (impl == address(0)) {
             address base = ERC1967Utils.getImplementation();
             if (base != address(0)) {
@@ -263,7 +264,7 @@ contract DedicatedResolver is
         if (wildcard) return true;
         address impl = findResolverImplementation();
         if (impl == address(0)) return false;
-        (address resolver,, uint256 offset) = IRegistryTraversal(impl).findResolver(_name);
+        (address resolver,, uint256 offset) = IFindResolver(impl).findResolver(_name);
         return resolver == address(this) && offset == 0;
     }
 
