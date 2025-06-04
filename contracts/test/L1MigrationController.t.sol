@@ -138,14 +138,13 @@ contract MockNameWrapper is ERC1155 {
 }
 
 contract MockMigrationStrategy is IMigrationStrategy {
-    event MockLockedMigrationCalled(address registry, uint256 tokenId, MigrationData migrationData);
+    event MockLockedMigrationCalled(uint256 tokenId, MigrationData migrationData);
 
     function migrateLockedEthName(
-        address registry, 
         uint256 tokenId, 
         MigrationData memory migrationData
     ) external {
-        emit MockLockedMigrationCalled(registry, tokenId, migrationData);
+        emit MockLockedMigrationCalled(tokenId, migrationData);
     }
 }
 
@@ -405,7 +404,7 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         // Check for strategy call event for locked names
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundStrategyEvent = false;
-        bytes32 expectedSig = keccak256("MockLockedMigrationCalled(address,uint256,((string,address,address,address,uint256,uint64),bool,bytes))");
+        bytes32 expectedSig = keccak256("MockLockedMigrationCalled(uint256,((string,address,address,address,uint256,uint64),bool,bytes))");
         
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == expectedSig) {
@@ -492,13 +491,12 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         // Check for strategy call events for locked names
         Vm.Log[] memory entries = vm.getRecordedLogs();
         uint256 lockedEventCount = 0;
-        bytes32 lockedSig = keccak256("MockLockedMigrationCalled(address,uint256,((string,address,address,address,uint256,uint64),bool,bytes))");
+        bytes32 lockedSig = keccak256("MockLockedMigrationCalled(uint256,((string,address,address,address,uint256,uint64),bool,bytes))");
 
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == lockedSig) {
-                (,,MigrationData memory mData) = abi.decode(entries[i].data, (address, uint256, MigrationData));
-                uint256 currentTokenId = uint256(keccak256(bytes(mData.transferData.label)));
-                 if (currentTokenId == tokenId1 || currentTokenId == tokenId2) {
+                (uint256 emittedTokenId, MigrationData memory mData) = abi.decode(entries[i].data, (uint256, MigrationData));
+                if (emittedTokenId == tokenId1 || emittedTokenId == tokenId2) {
                     lockedEventCount++;
                 }
             }
@@ -647,5 +645,80 @@ contract TestL1MigrationController is Test, ERC1155Holder, ERC721Holder {
         
         // Check for migration event from the bridge
         _assertBridgeMigrationEvent(tokenId1, label1);
+    }
+
+    function test_Revert_migrateUnwrappedEthName_tokenId_mismatch() public {
+        // Register a name in the v1 registrar
+        vm.prank(controller);
+        ethRegistryV1.register(testTokenId, user, 86400);
+        
+        // Create migration data with wrong label
+        MigrationData memory migrationData = _createMigrationData("wronglabel");
+        bytes memory data = abi.encode(migrationData);
+        
+        // Calculate expected tokenId for the wrong label
+        uint256 expectedTokenId = uint256(keccak256(bytes("wronglabel")));
+        
+        // Try to transfer with mismatched tokenId and label
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(L1MigrationController.TokenIdMismatch.selector, testTokenId, expectedTokenId));
+        ethRegistryV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
+    }
+
+    function test_Revert_migrateWrappedEthName_tokenId_mismatch() public {
+        migrationController.setStrategy(migrationStrategy);
+        
+        // Wrap a name (simulate)
+        vm.prank(user);
+        nameWrapper.wrapETH2LD(testLabel, user, 0, address(0));
+        
+        // Create migration data with wrong label
+        MigrationData memory migrationData = _createMigrationData("wronglabel");
+        bytes memory data = abi.encode(migrationData);
+        
+        // Calculate expected tokenId for the wrong label
+        uint256 expectedTokenId = uint256(keccak256(bytes("wronglabel")));
+        
+        // Try to transfer with mismatched tokenId and label
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(L1MigrationController.TokenIdMismatch.selector, testTokenId, expectedTokenId));
+        nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
+    }
+
+    function test_Revert_migrateWrappedEthName_batch_tokenId_mismatch() public {
+        migrationController.setStrategy(migrationStrategy);
+        
+        string memory label1 = "correct1";
+        string memory wrongLabel2 = "wrong2";
+        uint256 tokenId1 = uint256(keccak256(bytes(label1)));
+        uint256 tokenId2 = uint256(keccak256(bytes("correct2"))); // This is the correct tokenId
+        
+        vm.startPrank(user);
+        nameWrapper.wrapETH2LD(label1, user, 0, address(0));
+        nameWrapper.wrapETH2LD("correct2", user, 0, address(0));
+        vm.stopPrank();
+        
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = tokenId1;
+        tokenIds[1] = tokenId2;
+        
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+        
+        // Create migration data with one wrong label
+        MigrationData[] memory migrationDataArray = new MigrationData[](2);
+        migrationDataArray[0] = _createMigrationData(label1); // correct
+        migrationDataArray[1] = _createMigrationData(wrongLabel2); // wrong label for tokenId2
+        
+        bytes memory data = abi.encode(migrationDataArray);
+        
+        // Calculate expected tokenId for the wrong label
+        uint256 expectedTokenId = uint256(keccak256(bytes(wrongLabel2)));
+        
+        // Should revert when processing the second token with mismatched data
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(L1MigrationController.TokenIdMismatch.selector, tokenId2, expectedTokenId));
+        nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
     }
 } 

@@ -14,10 +14,7 @@ import {BridgeMessageType, BridgeTarget, BridgeEncoder} from "../common/IBridge.
 contract MockL2Bridge is MockBaseBridge {
     // Ejection controller to call when receiving ejection messages
     MockL2EjectionController public ejectionController;
-    
-    // Custom errors
-    error MigrationNotSupported();
-    
+        
     // Type-specific events with tokenId and data
     event NameEjectedToL1(uint256 indexed tokenId, bytes data);
     

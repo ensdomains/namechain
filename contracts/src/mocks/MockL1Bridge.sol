@@ -52,7 +52,7 @@ contract MockL1Bridge is MockBaseBridge {
             TransferData memory _transferData = abi.decode(data, (TransferData));
             ejectionController.completeEjectionFromL2(_transferData);
         } else if (messageType == BridgeMessageType.MIGRATION) {
-            // TODO: handle migration messages
+            revert MigrationNotSupported();
         }
     }
 }

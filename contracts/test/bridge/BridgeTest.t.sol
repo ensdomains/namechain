@@ -137,8 +137,18 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, 12345, migrationData);
         
         // Should revert with MigrationNotSupported error
-        vm.expectRevert(MockL2Bridge.MigrationNotSupported.selector);
+        vm.expectRevert(MockBaseBridge.MigrationNotSupported.selector);
         l2Bridge.sendMessage(BridgeTarget.L1, migrationMessage);
+    }
+    
+    function testL1BridgeRevertsMigrationMessages() public {
+        // Test that L1 bridge properly rejects migration message types when receiving them
+        bytes memory migrationData = abi.encode("test migration data");
+        bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, 12345, migrationData);
+        
+        // Should revert with MigrationNotSupported error when receiving migration messages
+        vm.expectRevert(MockBaseBridge.MigrationNotSupported.selector);
+        l1Bridge.receiveMessage(migrationMessage);
     }
     
     function testL1BridgeMigrationEvents() public {
@@ -165,7 +175,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         
         vm.recordLogs();
         
-        // Trigger the migration message
+        // Trigger the migration message via sendMessage (this should work and emit event)
         l1Bridge.sendMessage(BridgeTarget.L2, migrationMessage);
         
         // Check for NameMigratedToL2 event from L1 bridge

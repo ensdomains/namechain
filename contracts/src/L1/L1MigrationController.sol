@@ -19,6 +19,7 @@ contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Own
     error UnauthorizedCaller(address caller);   
     error NoMigrationStrategySet();
     error MigrationFailed();
+    error TokenIdMismatch(uint256 tokenId, uint256 expectedTokenId);
 
     event StrategySet(IMigrationStrategy strategy);
 
@@ -47,8 +48,8 @@ contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Own
      * Implements ERC165.supportsInterface
      */
     function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, IERC165) returns (bool) {
-        return interfaceId == 0x4e2312e0 // IERC1155Receiver.onERC1155Received.selector ^ IERC1155Receiver.onERC1155BatchReceived.selector
-            || interfaceId == 0x150b7a02 // IERC721Receiver.onERC721Received.selector
+        return interfaceId == type(IERC1155Receiver).interfaceId
+            || interfaceId == type(IERC721Receiver).interfaceId
             || super.supportsInterface(interfaceId);
     }
 
@@ -122,7 +123,7 @@ contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Own
                     revert NoMigrationStrategySet();
                 }
                 // Name is locked, migrate through strategy
-                strategy.migrateLockedEthName(address(nameWrapper), tokenIds[i], migrationDataArray[i]);
+                strategy.migrateLockedEthName(tokenIds[i], migrationDataArray[i]);
             } else {
                 // Name is unlocked, migrate directly
                 _migrateNameViaBridge(tokenIds[i], migrationDataArray[i]);
@@ -137,6 +138,12 @@ contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Own
      * @param migrationData The migration data.
      */
     function _migrateNameViaBridge(uint256 tokenId, MigrationData memory migrationData) internal {
+        // Validate that tokenId matches the label hash
+        uint256 expectedTokenId = uint256(keccak256(bytes(migrationData.transferData.label)));
+        if (tokenId != expectedTokenId) {
+            revert TokenIdMismatch(tokenId, expectedTokenId);
+        }
+        
         bytes memory message = BridgeEncoder.encode(BridgeMessageType.MIGRATION, tokenId, abi.encode(migrationData));
         bridge.sendMessage(BridgeTarget.L2, message);
     }

@@ -12,6 +12,7 @@ import {IBridge, BridgeTarget, BridgeEncoder, BridgeMessageType} from "../common
 abstract contract MockBaseBridge is IBridge {
     // Custom errors
     error BridgeTargetNotSupported();
+    error MigrationNotSupported();
     
     // Event for message receipt acknowledgement
     event MessageProcessed(bytes message);
