@@ -40,9 +40,6 @@ Run all test suites:
 
 ```sh
 bun run test         # ALL tests
-forge test           # Foundry tests
-bun run test:hardhat # Hardhat tests
-bun run test:hardhat test/Ens.t.ts # specific Hardhat test
 ```
 
 Or run specific test suites:
@@ -50,6 +47,7 @@ Or run specific test suites:
 ```sh
 bun run test:hardhat  # Run Hardhat tests
 bun run test:forge    # Run Forge tests
+bun run test:hardhat test/Ens.t.ts # specific Hardhat test
 ```
 
 ## Running the Devnet
