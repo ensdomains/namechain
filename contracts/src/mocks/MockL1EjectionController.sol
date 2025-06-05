@@ -1,25 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {IBridge, BridgeTarget, BridgeEncoder, BridgeMessageType} from "../common/IBridge.sol";
+import {BridgeEncoder, BridgeMessageType} from "../common/IBridge.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {L1EjectionController} from "../L1/L1EjectionController.sol";
 import {TransferData} from "../common/EjectionController.sol";
+import {MockL1Bridge} from "./MockL1Bridge.sol";
 
 /**
  * @title MockL1EjectionController
  * @dev Controller for handling L1 ENS operations with PermissionedRegistry
  */
 contract MockL1EjectionController is L1EjectionController {
-    IBridge public bridge;
+    MockL1Bridge public bridge;
     
     // Events for tracking actions
     event NameEjected(uint256 labelHash, address owner, address subregistry, uint64 expires);
     event NameMigrated(uint256 tokenId, address l2Owner, address l2Subregistry);
     event RenewalSynced(uint256 tokenId, uint64 newExpiry);
     
-    constructor(IPermissionedRegistry _registry, IBridge _bridge) L1EjectionController(_registry) {
+    constructor(IPermissionedRegistry _registry, MockL1Bridge _bridge) L1EjectionController(_registry) {
         bridge = _bridge;
     }
 
@@ -27,7 +28,7 @@ contract MockL1EjectionController is L1EjectionController {
         super._onEject(tokenIds, transferDataArray);
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            bridge.sendMessage(BridgeTarget.L2, BridgeEncoder.encode(BridgeMessageType.EJECTION, tokenIds[i], abi.encode(transferDataArray[i])));
+            bridge.sendMessage(BridgeEncoder.encode(BridgeMessageType.EJECTION, tokenIds[i], abi.encode(transferDataArray[i])));
             emit NameMigrated(tokenIds[i], transferDataArray[i].owner, transferDataArray[i].subregistry);
         }
     }

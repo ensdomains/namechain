@@ -5,19 +5,10 @@ import {TransferData, MigrationData} from "./TransferData.sol";
 
 
 /**
- * @dev The target of a bridge message.
- */
-enum BridgeTarget {
-    L1,
-    L2
-}
-
-/**
  * @dev Interface for the bridge contract.
  */
 interface IBridge {
-    function sendMessage(BridgeTarget target, bytes memory message) external;
-    function receiveMessage(bytes memory message) external;
+    function sendMessage(bytes memory message) external;
 }
 
 

@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {TransferData} from "../common/TransferData.sol";
 import {MockL2EjectionController} from "./MockL2EjectionController.sol";
 import {MockBaseBridge} from "./MockBaseBridge.sol";
-import {BridgeMessageType, BridgeTarget, BridgeEncoder} from "../common/IBridge.sol";
+import {BridgeMessageType, BridgeEncoder} from "../common/IBridge.sol";
 
 /**
  * @title MockL2Bridge
@@ -25,11 +25,7 @@ contract MockL2Bridge is MockBaseBridge {
     /**
      * @dev Send a message.
      */
-    function sendMessage(BridgeTarget target, bytes memory message) external override {
-        if (target != BridgeTarget.L1) {
-            revert BridgeTargetNotSupported();
-        }
-        
+    function sendMessage(bytes memory message) external override {
         (BridgeMessageType messageType, uint256 tokenId, bytes memory data) = BridgeEncoder.decode(message);
         
         if (messageType == BridgeMessageType.MIGRATION) {

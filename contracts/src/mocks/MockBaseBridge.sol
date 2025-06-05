@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {TransferData} from "../common/TransferData.sol";
-import {IBridge, BridgeTarget, BridgeEncoder, BridgeMessageType} from "../common/IBridge.sol";
+import {IBridge, BridgeEncoder, BridgeMessageType} from "../common/IBridge.sol";
 
 /**
  * @title MockBaseBridge
@@ -11,7 +11,6 @@ import {IBridge, BridgeTarget, BridgeEncoder, BridgeMessageType} from "../common
  */
 abstract contract MockBaseBridge is IBridge {
     // Custom errors
-    error BridgeTargetNotSupported();
     error MigrationNotSupported();
     
     // Event for message receipt acknowledgement

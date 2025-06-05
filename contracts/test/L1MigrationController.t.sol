@@ -21,7 +21,7 @@ import {L1MigrationController} from "../src/L1/L1MigrationController.sol";
 import {IMigrationStrategy} from "../src/common/IMigration.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
 import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
-import {IBridge, BridgeMessageType, BridgeEncoder, BridgeTarget} from "../src/common/IBridge.sol";
+import {IBridge, BridgeMessageType, BridgeEncoder} from "../src/common/IBridge.sol";
 
 // Simple mock that implements IBaseRegistrar without the compilation issues
 contract MockBaseRegistrar is ERC721, IBaseRegistrar {

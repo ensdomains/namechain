@@ -9,7 +9,7 @@ import "../../src/mocks/MockL2Bridge.sol";
 import "../../src/mocks/MockL1EjectionController.sol";
 import "../../src/mocks/MockL2EjectionController.sol";
 import "../../src/mocks/MockBaseBridge.sol";
-import {BridgeTarget, BridgeEncoder, BridgeMessageType} from "../../src/common/IBridge.sol";
+import {BridgeEncoder, BridgeMessageType} from "../../src/common/IBridge.sol";
 import {TransferData, MigrationData} from "../../src/common/TransferData.sol";
 
 import { IRegistry } from "../../src/common/IRegistry.sol";
@@ -138,7 +138,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         
         // Should revert with MigrationNotSupported error
         vm.expectRevert(MockBaseBridge.MigrationNotSupported.selector);
-        l2Bridge.sendMessage(BridgeTarget.L1, migrationMessage);
+        l2Bridge.sendMessage(migrationMessage);
     }
     
     function testL1BridgeRevertsMigrationMessages() public {
@@ -176,7 +176,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         vm.recordLogs();
         
         // Trigger the migration message via sendMessage (this should work and emit event)
-        l1Bridge.sendMessage(BridgeTarget.L2, migrationMessage);
+        l1Bridge.sendMessage(migrationMessage);
         
         // Check for NameMigratedToL2 event from L1 bridge
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -205,23 +205,5 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         assertEq(eventMigrationData.transferData.subregistry, transferData.subregistry);
         assertEq(eventMigrationData.transferData.expires, transferData.expires);
         assertEq(eventMigrationData.toL1, false);
-    }
-    
-    function testL1BridgeRejectsInvalidTarget() public {
-        // Test that L1 bridge rejects L1 target (should only accept L2)
-        bytes memory testData = abi.encode("test data");
-        bytes memory testMessage = BridgeEncoder.encode(BridgeMessageType.EJECTION, 12345, testData);
-        
-        vm.expectRevert(MockBaseBridge.BridgeTargetNotSupported.selector);
-        l1Bridge.sendMessage(BridgeTarget.L1, testMessage);
-    }
-    
-    function testL2BridgeRejectsInvalidTarget() public {
-        // Test that L2 bridge rejects L2 target (should only accept L1)
-        bytes memory testData = abi.encode("test data");
-        bytes memory testMessage = BridgeEncoder.encode(BridgeMessageType.EJECTION, 12345, testData);
-        
-        vm.expectRevert(MockBaseBridge.BridgeTargetNotSupported.selector);
-        l2Bridge.sendMessage(BridgeTarget.L2, testMessage);
     }
 }

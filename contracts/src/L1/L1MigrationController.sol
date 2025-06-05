@@ -9,7 +9,7 @@ import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC16
 import {IMigrationStrategy} from "../common/IMigration.sol";
 import {TransferData, MigrationData} from "../common/TransferData.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IBridge, BridgeMessageType, BridgeEncoder, BridgeTarget} from "../common/IBridge.sol";
+import {IBridge, BridgeMessageType, BridgeEncoder} from "../common/IBridge.sol";
 
 /**
  * @title L1MigrationController
@@ -145,6 +145,6 @@ contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Own
         }
         
         bytes memory message = BridgeEncoder.encode(BridgeMessageType.MIGRATION, tokenId, abi.encode(migrationData));
-        bridge.sendMessage(BridgeTarget.L2, message);
+        bridge.sendMessage(message);
     }
 }
