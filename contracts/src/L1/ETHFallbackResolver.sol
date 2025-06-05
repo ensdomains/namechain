@@ -14,11 +14,12 @@ import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
-import {ENSIP19, COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
+import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 
 // resolver profiles
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
+import {IHasAddressResolver} from "@ens/contracts/resolvers/profiles/IHasAddressResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
@@ -54,7 +55,6 @@ contract ETHFallbackResolver is
     uint256 constant SLOT_DR_ABIS = 5; // _abis
     uint256 constant SLOT_DR_INTERFACES = 6; // _interfaces
     uint256 constant SLOT_DR_NAME = 7; // _names
-    uint256 constant SLOT_DR_WILDCARD = 8; // wildcard
 
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
 
@@ -233,11 +233,10 @@ contract ETHFallbackResolver is
         }
         (bool multi, bytes[] memory calls) = _parseCalls(data);
         GatewayRequest memory req = GatewayFetcher.newRequest(
-            uint8(calls.length < 4 ? 4 : calls.length + 1)
+            uint8(calls.length < 3 ? 3 : calls.length + 1)
         );
         // output[0] = registry
         // output[1] = last non-zero resolver
-        // output[2] = last resolver
         // output[-1] = default address
         offset = 0; // reset to start
         for (uint256 i; i < labelCount; i++) {
@@ -257,7 +256,6 @@ contract ETHFallbackResolver is
             cmd.push(block.timestamp).gt().assertNonzero(1); // require expiry > timestamp
             cmd.shl(96).shr(96); // extract registry
             cmd.offset(1).read().shl(96).shr(96); // read resolverData => extract resolver
-            cmd.dup().setOutput(2); // save last resolver
             cmd.push(
                 GatewayFetcher.newCommand().requireNonzero(1).setOutput(1)
             ); // save resolver if set
@@ -267,11 +265,7 @@ contract ETHFallbackResolver is
         }
         req.evalLoop(EvalFlag.STOP_ON_FAILURE | EvalFlag.KEEP_ARGS); // outputs = [registry, resolver]
         req.pushOutput(1).requireNonzero(EXIT_CODE_NO_RESOLVER).target(); // target resolver
-        req.stackCount().isZero().pushOutput(2).isZero().isZero().and(); // is exact
-        req.setSlot(SLOT_DR_WILDCARD).read().or().assertNonzero(
-            EXIT_CODE_NO_RESOLVER
-        ); // require wildcard or exact
-        req.push(bytes("")).dup().dup().setOutput(0).setOutput(1).setOutput(2); // clear outputs
+        req.push(bytes("")).dup().dup().setOutput(0).setOutput(1); // clear outputs
         uint256 errorCount;
         for (uint256 i; i < calls.length; i++) {
             bytes memory v = calls[i];
@@ -289,9 +283,7 @@ contract ETHFallbackResolver is
                 uint256 coinType = selector == IAddrResolver.addr.selector
                     ? COIN_TYPE_ETH
                     : uint256(BytesUtils.readBytes32(v, 36));
-                req.setSlot(SLOT_DR_ADDRESSES);
-                req.push(coinType).follow(); // _addresses[coinType]
-                req.readBytes();
+                req.setSlot(SLOT_DR_ADDRESSES).push(coinType).follow().readBytes(); // _addresses[coinType]
                 if (ENSIP19.chainFromCoinType(coinType) > 0) {
                     req
                         .dup()
@@ -301,6 +293,9 @@ contract ETHFallbackResolver is
                         .plus()
                         .setOutput(uint8(calls.length)); // count missing
                 }
+            } else if (selector == IHasAddressResolver.hasAddr.selector) {
+                uint256 coinType = uint256(BytesUtils.readBytes32(v, 36));
+                req.setSlot(SLOT_DR_ADDRESSES).push(coinType).follow().read(); // _addresses[coinType] head slot
             } else if (selector == ITextResolver.text.selector) {
                 (, string memory key) = abi.decode(
                     BytesUtils.substring(v, 4, v.length - 4),
@@ -369,8 +364,8 @@ contract ETHFallbackResolver is
                 }
             }
         }
-        req.pushOutput(calls.length).requireNonzero(0); // stop if none missing
-        req.setSlot(SLOT_DR_ADDRESSES).push(EVM_BIT).follow().readBytes(); // _addresses[EVM_BIT]
+        req.pushOutput(calls.length).requireNonzero(0); // stop if no missing
+        req.setSlot(SLOT_DR_ADDRESSES).push(COIN_TYPE_DEFAULT).follow().readBytes(); // _addresses[COIN_TYPE_DEFAULT]
         req.setOutput(uint8(calls.length)); // save default address
         fetch(
             namechainVerifier,
@@ -446,7 +441,9 @@ contract ETHFallbackResolver is
         if (selector == UnsupportedResolverProfile.selector) {
             return data;
         } else if (selector == IAddrResolver.addr.selector) {
-            if (value.length == 0) value = defaultAddress;
+            if (value.length == 0) {
+                value = defaultAddress;
+            }
             return abi.encode(address(bytes20(value)));
         } else if (selector == IAddressResolver.addr.selector) {
             if (
@@ -459,6 +456,8 @@ contract ETHFallbackResolver is
                 value = defaultAddress;
             }
             return abi.encode(value);
+        } else if (selector == IHasAddressResolver.hasAddr.selector) {
+            return abi.encode(bytes32(value) != bytes32(0));
         } else if (
             selector == IPubkeyResolver.pubkey.selector ||
             selector == IInterfaceResolver.interfaceImplementer.selector

@@ -83,10 +83,8 @@ export async function deployV2Fixture(
   ]);
   const verifiableFactory =
     await networkConnection.viem.deployContract("VerifiableFactory");
-  const dedicatedResolverImpl = await networkConnection.viem.deployContract(
-    "DedicatedResolver",
-    [walletClient.account.address, true, universalResolver.address],
-  );
+  const dedicatedResolverImpl =
+    await networkConnection.viem.deployContract("DedicatedResolver");
   const dedicatedResolver = await deployDedicatedResolver({
     owner: walletClient.account.address,
   });
@@ -106,8 +104,6 @@ export async function deployV2Fixture(
   async function deployDedicatedResolver({
     owner,
     salt = BigInt(labelhash(new Date().toISOString())),
-    wildcard = true,
-    findResolverAddress = zeroAddress,
   }: {
     owner: Address;
     salt?: bigint;
@@ -121,7 +117,7 @@ export async function deployV2Fixture(
       encodeFunctionData({
         abi: dedicatedResolverImpl.abi,
         functionName: "initialize",
-        args: [owner, wildcard, findResolverAddress],
+        args: [owner],
       }),
     ]);
     const receipt = await publicClient.getTransactionReceipt({ hash });

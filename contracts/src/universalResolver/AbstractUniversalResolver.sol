@@ -5,7 +5,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
-import {IResolverFinder} from "../common/IResolverFinder.sol";
 import {CCIPBatcher} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
@@ -18,7 +17,6 @@ import {ENSIP19, COIN_TYPE_ETH} from "@ens/contracts/utils/ENSIP19.sol";
 
 abstract contract AbstractUniversalResolver is
     IUniversalResolver,
-    IResolverFinder,
     CCIPBatcher,
     Ownable,
     ERC165
@@ -35,7 +33,6 @@ abstract contract AbstractUniversalResolver is
     ) public view virtual override(ERC165) returns (bool) {
         return
             type(IUniversalResolver).interfaceId == interfaceId ||
-            type(IResolverFinder).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -45,19 +42,13 @@ abstract contract AbstractUniversalResolver is
         batchGateways = gateways;
     }
 
-    /// @dev Find the resolver address for `name`.
-    ///      Does not perform any validity checks.
-    /// @param name The name to search.
-    /// @return resolver The resolver responsible for this name, or `address(0)` if none.
-    /// @return node The namehash of name corresponding to the resolver.
-    /// @return offset The byte-offset into `name` of the name corresponding to the resolver.
+    /// @inheritdoc IUniversalResolver
     function findResolver(
         bytes memory name
     )
         public
         view
         virtual
-        override(IUniversalResolver, IResolverFinder)
         returns (address resolver, bytes32 node, uint256 offset);
 
     /// @dev A valid resolver and its relevant properties.

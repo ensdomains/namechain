@@ -5,6 +5,7 @@ import { BrowserProvider } from "ethers/providers";
 import hre from "hardhat";
 import {
   concat,
+  decodeFunctionResult,
   encodeErrorResult,
   encodeFunctionData,
   keccak256,
@@ -22,11 +23,12 @@ import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
 import { urgArtifact } from "./fixtures/externalArtifacts.js";
 import {
   COIN_TYPE_ETH,
-  EVM_BIT,
+  COIN_TYPE_DEFAULT,
   type KnownProfile,
   type KnownResolution,
   bundleCalls,
   makeResolutions,
+  shortCoin,
 } from "./utils/resolutions.js";
 import { dnsEncodeName, expectVar, getLabelAt } from "./utils/utils.js";
 import { injectRPCCounter } from "./utils/hardhat.js";
@@ -37,28 +39,29 @@ const chains = [chain1, chain2];
 
 async function sync() {
   const blocks = await Promise.all(
-    chains.map((x) => x.viem.getPublicClient().then((c) => c.getBlock())),
+    chains.map(async (c) => {
+      const { count } = c; // save call count
+      const client = await c.viem.getPublicClient();
+      const { number: b, timestamp: t } = await client.getBlock();
+      return { b, t, count };
+    }),
   );
-  const bMax = blocks.reduce((a, x) => (x.number > a ? x.number : a), 0n);
-  const bMin = blocks.reduce((a, x) => (x.number < a ? x.number : a), bMax);
-  const tMax = blocks.reduce((a, x) => (x.timestamp > a ? x.timestamp : a), 0n);
-  const tFuture = tMax + (bMax - bMin) + 1n;
+  const bMax = blocks.reduce((a, x) => (x.b > a ? x.b : a), 0n);
+  const bMin = blocks.reduce((a, x) => (x.b < a ? x.b : a), bMax);
+  const tMax = blocks.reduce((a, x) => (x.t > a ? x.t : a), 0n);
+  const tNext = tMax + (bMax - bMin) + 1n;
   await Promise.all(
-    chains.map(async (x, i) => {
-      if (bMax > blocks[i].number) await x.networkHelpers.mineUpTo(bMax);
-      await x.networkHelpers.time.setNextBlockTimestamp(tFuture);
-      await x.networkHelpers.mine(1);
+    chains.map(async (c, i) => {
+      if (bMax > blocks[i].b) await c.networkHelpers.mineUpTo(bMax);
+      await c.networkHelpers.time.setNextBlockTimestamp(tNext);
+      await c.networkHelpers.mine(1);
+      c.count = blocks[i].count; // restore call count
     }),
   );
 }
 
-async function namechainFixture() {
-  const namechain = await deployV2Fixture(chain2);
-  const dedicatedResolverExact = await namechain.deployDedicatedResolver({
-    owner: namechain.walletClient.account.address,
-    wildcard: false,
-  });
-  return { ...namechain, dedicatedResolverExact };
+function namechainFixture() {
+  return deployV2Fixture(chain2);
 }
 
 async function fixture() {
@@ -338,7 +341,7 @@ describe("ETHFallbackResolver", () => {
       primary: { value: testNames[0] },
       addresses: [
         { coinType: COIN_TYPE_ETH, value: testAddress },
-        { coinType: 1n | EVM_BIT, value: testAddress },
+        { coinType: 1n | COIN_TYPE_DEFAULT, value: testAddress },
         { coinType: 2n, value: concat([keccak256("0x0"), "0x01"]) },
       ],
       texts: [{ key: "url", value: "https://ens.domains" }],
@@ -385,6 +388,62 @@ describe("ETHFallbackResolver", () => {
         res.expect(answer);
       });
     }
+    it("hasAddr()", async () => {
+      const F = await loadFixture();
+      const kp: KnownProfile = {
+        name: testNames[0],
+        addresses: [{ coinType: COIN_TYPE_DEFAULT, value: testAddress }],
+      };
+      await F.namechain.setupName(kp);
+      const [res] = makeResolutions(kp);
+      await F.namechain.dedicatedResolver.write.multicall([
+        [res.writeDedicated],
+      ]);
+      await check(COIN_TYPE_DEFAULT, true);
+      await check(COIN_TYPE_ETH, false);
+      await check(0n, false);
+      async function check(coinType: bigint, has: boolean) {
+        await sync();
+        const [data] = await F.mainnetV2.universalResolver.read.resolve([
+          dnsEncodeName(kp.name),
+          encodeFunctionData({
+            abi: F.namechain.dedicatedResolver.abi,
+            functionName: "hasAddr",
+            args: [namehash(kp.name), coinType],
+          }),
+        ]);
+        expect(
+          decodeFunctionResult({
+            abi: F.namechain.dedicatedResolver.abi,
+            functionName: "hasAddr",
+            data,
+          }),
+          shortCoin(coinType),
+        ).toStrictEqual(has);
+      }
+    });
+    it("addr() w/fallback", async () => {
+      const F = await loadFixture();
+      const kp: KnownProfile = {
+        name: testNames[0],
+        addresses: [
+          { coinType: COIN_TYPE_DEFAULT, value: testAddress },
+          { coinType: COIN_TYPE_ETH, value: testAddress },
+          { coinType: COIN_TYPE_DEFAULT + 1n, value: testAddress },
+        ],
+      };
+      await F.namechain.setupName(kp);
+      const bundle = bundleCalls(makeResolutions(kp));
+      await F.namechain.dedicatedResolver.write.multicall([
+        [bundle.resolutions[0].writeDedicated], // only set default
+      ]);
+      await sync();
+      const [answer] = await F.mainnetV2.universalResolver.read.resolve([
+        dnsEncodeName(kp.name),
+        bundle.call,
+      ]);
+      bundle.expect(answer);
+    });
     it("multiple ABI contentTypes", async () => {
       const kp: KnownProfile = {
         name: testNames[0],
@@ -487,97 +546,6 @@ describe("ETHFallbackResolver", () => {
         bundle.call,
       ]);
       bundle.expect(answer);
-    });
-  });
-
-  describe("DedicatedResolver", () => {
-    it("addr() w/fallback", async () => {
-      const F = await loadFixture();
-      const kp: KnownProfile = {
-        name: testNames[0],
-        addresses: [
-          { coinType: EVM_BIT, value: testAddress },
-          { coinType: COIN_TYPE_ETH, value: testAddress },
-          { coinType: EVM_BIT + 1n, value: testAddress },
-        ],
-      };
-      await F.namechain.setupName(kp);
-      const bundle = bundleCalls(makeResolutions(kp));
-      await F.namechain.dedicatedResolver.write.multicall([
-        [bundle.resolutions[0].writeDedicated], // only default is set
-      ]);
-      await sync();
-      const [answer] = await F.mainnetV2.universalResolver.read.resolve([
-        dnsEncodeName(kp.name),
-        bundle.call,
-      ]);
-      bundle.expect(answer);
-    });
-
-    it("exact on Namechain", async () => {
-      const F = await loadFixture();
-      const kp: KnownProfile = {
-        name: testNames[0],
-        texts: [{ key: "url", value: "https://ens.domains" }],
-        addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
-      };
-      await F.namechain.setupName({
-        name: kp.name,
-        resolverAddress: F.namechain.dedicatedResolverExact.address,
-      });
-      // exact name should resolve
-      {
-        const res = bundleCalls(makeResolutions(kp));
-        await F.namechain.walletClient.sendTransaction({
-          to: F.namechain.dedicatedResolverExact.address,
-          data: res.writeDedicated,
-        });
-        await sync();
-        const [answer] = await F.mainnetV2.universalResolver.read.resolve([
-          dnsEncodeName(kp.name),
-          res.call,
-        ]);
-        res.expect(answer);
-      }
-      const subname = `sub.${kp.name}`;
-      // inexact name should fail
-      {
-        const [res] = makeResolutions({
-          ...kp,
-          name: subname,
-        });
-        await expect(
-          F.mainnetV2.universalResolver.read.resolve([
-            dnsEncodeName(subname),
-            res.call,
-          ]),
-        )
-          .toBeRevertedWithCustomError("ResolverError")
-          .withArgs(
-            encodeErrorResult({
-              abi: F.namechain.dedicatedResolverExact.abi,
-              errorName: "UnreachableName",
-              args: [dnsEncodeName(subname)],
-            }),
-          );
-      }
-      // should work again once exact
-      await F.namechain.setupName({
-        name: subname,
-        resolverAddress: F.namechain.dedicatedResolverExact.address,
-      });
-      {
-        const [res] = makeResolutions({
-          ...kp,
-          name: subname,
-        });
-        await sync();
-        const [answer] = await F.mainnetV2.universalResolver.read.resolve([
-          dnsEncodeName(subname),
-          res.call,
-        ]);
-        res.expect(answer);
-      }
     });
   });
 });
