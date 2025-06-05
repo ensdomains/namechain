@@ -91,6 +91,7 @@ export async function deployV2Fixture(
     owner: walletClient.account.address,
   });
   return {
+    networkConnection,
     publicClient,
     walletClient,
     datastore,

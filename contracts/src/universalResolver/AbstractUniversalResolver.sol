@@ -5,6 +5,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
+import {IResolverFinder} from "../common/IResolverFinder.sol";
 import {CCIPBatcher} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
@@ -17,6 +18,7 @@ import {ENSIP19, COIN_TYPE_ETH} from "@ens/contracts/utils/ENSIP19.sol";
 
 abstract contract AbstractUniversalResolver is
     IUniversalResolver,
+    IResolverFinder,
     CCIPBatcher,
     Ownable,
     ERC165
@@ -29,11 +31,12 @@ abstract contract AbstractUniversalResolver is
 
     /// @inheritdoc ERC165
     function supportsInterface(
-        bytes4 interfaceID
+        bytes4 interfaceId
     ) public view virtual override(ERC165) returns (bool) {
         return
-            type(IUniversalResolver).interfaceId == interfaceID ||
-            super.supportsInterface(interfaceID);
+            type(IUniversalResolver).interfaceId == interfaceId ||
+            type(IResolverFinder).interfaceId == interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
     /// @dev Set the default batch gateways, see: `resolve()` and `reverse()`.
@@ -54,6 +57,7 @@ abstract contract AbstractUniversalResolver is
         public
         view
         virtual
+        override(IUniversalResolver, IResolverFinder)
         returns (address resolver, bytes32 node, uint256 offset);
 
     /// @dev A valid resolver and its relevant properties.
@@ -147,14 +151,14 @@ abstract contract AbstractUniversalResolver is
 
     /// @notice Same as `reverseWithGateways()` but uses default batch gateways.
     function reverse(
-        bytes memory encodedAddress,
+        bytes memory lookupAddress,
         uint256 coinType
     ) external view returns (string memory, address /* resolver */, address) {
-        return reverseWithGateways(encodedAddress, coinType, batchGateways);
+        return reverseWithGateways(lookupAddress, coinType, batchGateways);
     }
 
     struct ReverseArgs {
-        bytes encodedAddress;
+        bytes lookupAddress;
         uint256 coinType;
         string[] gateways;
     }
@@ -162,24 +166,24 @@ abstract contract AbstractUniversalResolver is
     /// @notice Performs ENS reverse resolution for the supplied address and coin type.
     /// @notice Callers should enable EIP-3668.
     /// @dev This function executes over multiple steps (step 1 of 3).
-    /// @param encodedAddress The input address.
+    /// @param lookupAddress The input address.
     /// @param coinType The coin type.
     /// @param gateways The list of batch gateway URLs to use.
     function reverseWithGateways(
-        bytes memory encodedAddress,
+        bytes memory lookupAddress,
         uint256 coinType,
         string[] memory gateways
     ) public view returns (string memory, address /* resolver */, address) {
         // https://docs.ens.domains/ensip/19
         ResolverInfo memory info = requireResolver(
-            NameCoder.encode(ENSIP19.reverseName(encodedAddress, coinType)) // reverts EmptyAddress
+            NameCoder.encode(ENSIP19.reverseName(lookupAddress, coinType)) // reverts EmptyAddress
         );
         _resolveBatch(
             info,
             _oneCall(abi.encodeCall(INameResolver.name, (info.node))),
             gateways,
             this.reverseNameCallback.selector,
-            abi.encode(ReverseArgs(encodedAddress, coinType, gateways))
+            abi.encode(ReverseArgs(lookupAddress, coinType, gateways))
         );
     }
 
@@ -210,7 +214,7 @@ abstract contract AbstractUniversalResolver is
             ),
             args.gateways,
             this.reverseAddressCallback.selector,
-            abi.encode(args.encodedAddress, primary, infoRev.resolver)
+            abi.encode(args.lookupAddress, primary, infoRev.resolver)
         );
     }
 

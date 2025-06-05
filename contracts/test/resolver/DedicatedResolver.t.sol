@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {DedicatedResolver} from "../../src/common/DedicatedResolver.sol";
 import {IDedicatedResolver, NODE_ANY} from "../../src/common/IDedicatedResolver.sol";
-import {IFindResolver} from "../../src/common/IFindResolver.sol";
+import {IResolverFinder} from "../../src/common/IResolverFinder.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
@@ -20,11 +20,13 @@ import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ENSIP19, COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
 
-contract DedicatedResolverTest is Test, IFindResolver {
+contract DedicatedResolverTest is Test, IResolverFinder {
     address foundResolver;
     uint256 foundOffset;
 
-    function findResolver(bytes memory) external view returns (address, bytes32, uint256) {
+    function findResolver(
+        bytes memory
+    ) external view returns (address, bytes32, uint256) {
         return (foundResolver, 0, foundOffset);
     }
 
@@ -45,34 +47,58 @@ contract DedicatedResolverTest is Test, IFindResolver {
         aliceResolver = _deployResolver(alice, true, address(0));
     }
 
-    function _deployResolver(address owner, bool wildcard, address findResolverImpl)
-        internal
-        returns (DedicatedResolver resolver)
-    {
-        bytes memory initData = abi.encodeCall(DedicatedResolver.initialize, (owner, wildcard, findResolverImpl));
+    function _deployResolver(
+        address owner,
+        bool wildcard,
+        address resolverFinder
+    ) internal returns (DedicatedResolver resolver) {
+        bytes memory initData = abi.encodeCall(
+            DedicatedResolver.initialize,
+            (owner, wildcard, resolverFinder)
+        );
         vm.startPrank(owner);
-        resolver = DedicatedResolver(factory.deployProxy(address(resolverImpl), uint256(keccak256(initData)), initData));
+        resolver = DedicatedResolver(
+            factory.deployProxy(
+                address(resolverImpl),
+                uint256(keccak256(initData)),
+                initData
+            )
+        );
         vm.stopPrank();
     }
 
     function testFuzz_deploy(bool wildcard) external {
-        DedicatedResolver resolver = _deployResolver(alice, wildcard, address(1));
+        DedicatedResolver resolver = _deployResolver(
+            alice,
+            wildcard,
+            address(1)
+        );
         assertEq(resolver.owner(), alice, "owner");
         assertEq(resolver.wildcard(), wildcard, "wildcard");
-        assertEq(resolver.findResolverImplementation(), address(1), "impl");
-    }
-
-    function test_findResolverImplementation_fallback() external {
-        resolverImpl.setInterface(type(IFindResolver).interfaceId, address(this));
-        DedicatedResolver resolver = _deployResolver(alice, false, address(0));
-        assertEq(resolver.findResolverImplementation(), address(this));
+        assertEq(address(resolver.resolverFinder()), address(1), "impl");
     }
 
     function testFuzz_supportsInterface() external view {
-        assertTrue(aliceResolver.supportsInterface(type(IExtendedResolver).interfaceId), "IExtendedResolver");
-        assertTrue(aliceResolver.supportsInterface(type(IDedicatedResolver).interfaceId), "IDedicatedResolver");
-        assertTrue(aliceResolver.supportsInterface(type(IMulticallable).interfaceId), "IMulticallable");
-        assertTrue(ERC165Checker.supportsERC165(address(aliceResolver)), "ERC165");
+        assertTrue(
+            aliceResolver.supportsInterface(
+                type(IExtendedResolver).interfaceId
+            ),
+            "IExtendedResolver"
+        );
+        assertTrue(
+            aliceResolver.supportsInterface(
+                type(IDedicatedResolver).interfaceId
+            ),
+            "IDedicatedResolver"
+        );
+        assertTrue(
+            aliceResolver.supportsInterface(type(IMulticallable).interfaceId),
+            "IMulticallable"
+        );
+        assertTrue(
+            ERC165Checker.supportsERC165(address(aliceResolver)),
+            "ERC165"
+        );
     }
 
     function test_supportsName_wildcard() external view {
@@ -80,20 +106,40 @@ contract DedicatedResolverTest is Test, IFindResolver {
         assertTrue(aliceResolver.supportsName(hex"ff"));
     }
 
-    function test_supportsName_noWildcard_noImpl() external {
+    function test_supportsName_noWildcard_noFinder() external {
         DedicatedResolver resolver = _deployResolver(alice, false, address(0));
-        assertFalse(resolver.supportsName(""));
+        vm.expectRevert();
+        resolver.supportsName("");
     }
 
     function test_supportsName_noWildcard_exact() external {
-        DedicatedResolver resolver = _deployResolver(alice, false, address(this));
+        DedicatedResolver resolver = _deployResolver(
+            alice,
+            false,
+            address(this)
+        );
+        foundResolver = address(resolver);
+        foundOffset = 0;
+        assertTrue(resolver.supportsName(""));
+    }
+
+    function test_supportsName_noWildcard_exact_parentFinder() external {
+        resolverImpl.setInterface(
+            type(IResolverFinder).interfaceId,
+            address(this)
+        );
+        DedicatedResolver resolver = _deployResolver(alice, false, address(0));
         foundResolver = address(resolver);
         foundOffset = 0;
         assertTrue(resolver.supportsName(""));
     }
 
     function test_supportsName_noWildcard_notExact() external {
-        DedicatedResolver resolver = _deployResolver(alice, false, address(this));
+        DedicatedResolver resolver = _deployResolver(
+            alice,
+            false,
+            address(this)
+        );
         foundResolver = address(resolver);
         foundOffset = 1;
         assertFalse(resolver.supportsName(""), "offset");
@@ -102,7 +148,10 @@ contract DedicatedResolverTest is Test, IFindResolver {
         assertFalse(resolver.supportsName(""), "resolver");
     }
 
-    function testFuzz_setAddr(uint256 coinType, bytes memory addressBytes) external {
+    function testFuzz_setAddr(
+        uint256 coinType,
+        bytes memory addressBytes
+    ) external {
         if (ENSIP19.isEVMCoinType(coinType)) {
             addressBytes = vm.randomBool() ? vm.randomBytes(20) : new bytes(0);
         }
@@ -110,27 +159,66 @@ contract DedicatedResolverTest is Test, IFindResolver {
         aliceResolver.setAddr(coinType, addressBytes);
         vm.stopPrank();
 
-        assertEq(aliceResolver.addr(NODE_ANY, coinType), addressBytes, "immediate");
-        bytes memory result = aliceResolver.resolve("", abi.encodeCall(IAddressResolver.addr, (NODE_ANY, coinType)));
+        assertEq(
+            aliceResolver.addr(NODE_ANY, coinType),
+            addressBytes,
+            "immediate"
+        );
+        bytes memory result = aliceResolver.resolve(
+            "",
+            abi.encodeCall(IAddressResolver.addr, (NODE_ANY, coinType))
+        );
         assertEq(abi.decode(result, (bytes)), addressBytes, "extended");
     }
 
     function test_setAddr_fallback(uint32 chain) external {
         vm.assume(chain < EVM_BIT);
         bytes memory a = vm.randomBytes(20);
+
         vm.startPrank(alice);
         aliceResolver.setAddr(EVM_BIT, a);
         vm.stopPrank();
-        assertEq(aliceResolver.addr(NODE_ANY, chain == 1 ? COIN_TYPE_ETH : EVM_BIT | chain), a);
+
+        assertEq(
+            aliceResolver.addr(
+                NODE_ANY,
+                chain == 1 ? COIN_TYPE_ETH : EVM_BIT | chain
+            ),
+            a
+        );
     }
 
     function test_setAddr_zeroEVM() external {
         vm.startPrank(alice);
-        aliceResolver.setAddr(COIN_TYPE_ETH, new bytes(20));
-        aliceResolver.setAddr(EVM_BIT, new bytes(20));
+        aliceResolver.setAddr(COIN_TYPE_ETH, abi.encodePacked(address(0)));
         vm.stopPrank();
-        assertFalse(aliceResolver.hasAddr(COIN_TYPE_ETH));
-        assertFalse(aliceResolver.hasAddr(EVM_BIT));
+
+        assertTrue(aliceResolver.hasAddr(NODE_ANY, COIN_TYPE_ETH), "null");
+        assertFalse(aliceResolver.hasAddr(NODE_ANY, EVM_BIT), "unset");
+    }
+
+    function test_setAddr_zeroEVM_fallbacks() external {
+        vm.startPrank(alice);
+        aliceResolver.setAddr(EVM_BIT, abi.encodePacked(address(1)));
+        aliceResolver.setAddr(EVM_BIT | 1, abi.encodePacked(address(0)));
+        aliceResolver.setAddr(EVM_BIT | 2, abi.encodePacked(address(2)));
+        vm.stopPrank();
+
+        assertEq(
+            aliceResolver.addr(NODE_ANY, EVM_BIT | 1),
+            abi.encodePacked(address(0)),
+            "block"
+        );
+        assertEq(
+            aliceResolver.addr(NODE_ANY, EVM_BIT | 2),
+            abi.encodePacked(address(2)),
+            "override"
+        );
+        assertEq(
+            aliceResolver.addr(NODE_ANY, EVM_BIT | 3),
+            abi.encodePacked(address(1)),
+            "fallback"
+        );
     }
 
     function test_setAddr_invalidEVM() external {
@@ -151,7 +239,10 @@ contract DedicatedResolverTest is Test, IFindResolver {
         vm.stopPrank();
 
         assertEq(aliceResolver.text(NODE_ANY, key), value, "immediate");
-        bytes memory result = aliceResolver.resolve("", abi.encodeCall(ITextResolver.text, (NODE_ANY, key)));
+        bytes memory result = aliceResolver.resolve(
+            "",
+            abi.encodeCall(ITextResolver.text, (NODE_ANY, key))
+        );
         assertEq(abi.decode(result, (string)), value, "extended");
     }
 
@@ -166,7 +257,10 @@ contract DedicatedResolverTest is Test, IFindResolver {
         vm.stopPrank();
 
         assertEq(aliceResolver.name(NODE_ANY), name, "immediate");
-        bytes memory result = aliceResolver.resolve("", abi.encodeCall(INameResolver.name, (NODE_ANY)));
+        bytes memory result = aliceResolver.resolve(
+            "",
+            abi.encodeCall(INameResolver.name, (NODE_ANY))
+        );
         assertEq(abi.decode(result, (string)), name, "extended");
     }
 
@@ -181,7 +275,10 @@ contract DedicatedResolverTest is Test, IFindResolver {
         vm.stopPrank();
 
         assertEq(aliceResolver.contenthash(NODE_ANY), v, "immediate");
-        bytes memory result = aliceResolver.resolve("", abi.encodeCall(IContentHashResolver.contenthash, (NODE_ANY)));
+        bytes memory result = aliceResolver.resolve(
+            "",
+            abi.encodeCall(IContentHashResolver.contenthash, (NODE_ANY))
+        );
         assertEq(abi.decode(result, (bytes)), v, "extended");
     }
 
@@ -197,7 +294,10 @@ contract DedicatedResolverTest is Test, IFindResolver {
 
         (bytes32 x_, bytes32 y_) = aliceResolver.pubkey(NODE_ANY);
         assertEq(abi.encode(x_, y_), abi.encode(x, y), "immediate");
-        bytes memory result = aliceResolver.resolve("", abi.encodeCall(IPubkeyResolver.pubkey, (NODE_ANY)));
+        bytes memory result = aliceResolver.resolve(
+            "",
+            abi.encodeCall(IPubkeyResolver.pubkey, (NODE_ANY))
+        );
         assertEq(result, abi.encode(x, y), "extended");
     }
 
@@ -214,10 +314,18 @@ contract DedicatedResolverTest is Test, IFindResolver {
         vm.stopPrank();
 
         uint256 contentTypes = ~uint256(0);
-        (uint256 contentType_, bytes memory data_) = aliceResolver.ABI(NODE_ANY, contentTypes);
-        bytes memory expect = data.length > 0 ? abi.encode(contentType, data) : abi.encode(0, "");
+        (uint256 contentType_, bytes memory data_) = aliceResolver.ABI(
+            NODE_ANY,
+            contentTypes
+        );
+        bytes memory expect = data.length > 0
+            ? abi.encode(contentType, data)
+            : abi.encode(0, "");
         assertEq(abi.encode(contentType_, data_), expect, "immediate");
-        bytes memory result = aliceResolver.resolve("", abi.encodeCall(IABIResolver.ABI, (NODE_ANY, contentTypes)));
+        bytes memory result = aliceResolver.resolve(
+            "",
+            abi.encodeCall(IABIResolver.ABI, (NODE_ANY, contentTypes))
+        );
         assertEq(result, expect, "extended");
     }
 
@@ -242,10 +350,27 @@ contract DedicatedResolverTest is Test, IFindResolver {
         aliceResolver.setInterface(iface, impl);
         vm.stopPrank();
 
-        assertEq(aliceResolver.interfaceImplementer(NODE_ANY, iface), impl, "immediate");
-        bytes memory result =
-            aliceResolver.resolve("", abi.encodeCall(IInterfaceResolver.interfaceImplementer, (NODE_ANY, iface)));
+        assertEq(
+            aliceResolver.interfaceImplementer(NODE_ANY, iface),
+            impl,
+            "immediate"
+        );
+        bytes memory result = aliceResolver.resolve(
+            "",
+            abi.encodeCall(
+                IInterfaceResolver.interfaceImplementer,
+                (NODE_ANY, iface)
+            )
+        );
         assertEq(abi.decode(result, (address)), impl, "extended");
+    }
+
+    function test_setInterface_resolverFinder() external {
+        resolverImpl.setInterface(
+            type(IResolverFinder).interfaceId,
+            address(1)
+        );
+        assertEq(address(aliceResolver.resolverFinder()), address(1));
     }
 
     function test_interfaceImplementer_overlap() external {
@@ -254,12 +379,29 @@ contract DedicatedResolverTest is Test, IFindResolver {
         vm.stopPrank();
 
         assertEq(
-            aliceResolver.interfaceImplementer(NODE_ANY, type(IExtendedResolver).interfaceId), address(aliceResolver)
+            aliceResolver.interfaceImplementer(
+                NODE_ANY,
+                type(IExtendedResolver).interfaceId
+            ),
+            address(aliceResolver),
+            "IExtendedResolver"
         );
         assertEq(
-            aliceResolver.interfaceImplementer(NODE_ANY, type(IDedicatedResolver).interfaceId), address(aliceResolver)
+            aliceResolver.interfaceImplementer(
+                NODE_ANY,
+                type(IDedicatedResolver).interfaceId
+            ),
+            address(aliceResolver),
+            "IDedicatedResolver"
         );
-        assertEq(aliceResolver.interfaceImplementer(NODE_ANY, type(IMulticallable).interfaceId), address(aliceResolver));
+        assertEq(
+            aliceResolver.interfaceImplementer(
+                NODE_ANY,
+                type(IMulticallable).interfaceId
+            ),
+            address(aliceResolver),
+            "IMulticallable"
+        );
     }
 
     function test_setInterface_notOwner() external {
@@ -270,20 +412,30 @@ contract DedicatedResolverTest is Test, IFindResolver {
     function test_multicall_setters() external {
         bytes[] memory calls = new bytes[](2);
         calls[0] = abi.encodeCall(DedicatedResolver.setName, (testName));
-        calls[1] = abi.encodeCall(DedicatedResolver.setAddr, (COIN_TYPE_ETH, testAddress));
+        calls[1] = abi.encodeCall(
+            DedicatedResolver.setAddr,
+            (COIN_TYPE_ETH, testAddress)
+        );
 
         vm.startPrank(alice);
         aliceResolver.multicall(calls);
         vm.stopPrank();
 
         assertEq(aliceResolver.name(NODE_ANY), testName, "name()");
-        assertEq(aliceResolver.addr(NODE_ANY, COIN_TYPE_ETH), testAddress, "addr()");
+        assertEq(
+            aliceResolver.addr(NODE_ANY, COIN_TYPE_ETH),
+            testAddress,
+            "addr()"
+        );
     }
 
     function test_multicall_setters_notOwner() external {
         bytes[] memory calls = new bytes[](2);
         calls[0] = abi.encodeCall(DedicatedResolver.setName, (testName));
-        calls[1] = abi.encodeCall(DedicatedResolver.setAddr, (COIN_TYPE_ETH, testAddress));
+        calls[1] = abi.encodeCall(
+            DedicatedResolver.setAddr,
+            (COIN_TYPE_ETH, testAddress)
+        );
 
         vm.expectRevert();
         aliceResolver.multicall(calls);
@@ -297,15 +449,25 @@ contract DedicatedResolverTest is Test, IFindResolver {
 
         bytes[] memory calls = new bytes[](2);
         calls[0] = abi.encodeCall(INameResolver.name, (NODE_ANY));
-        calls[1] = abi.encodeCall(IAddressResolver.addr, (NODE_ANY, COIN_TYPE_ETH));
+        calls[1] = abi.encodeCall(
+            IAddressResolver.addr,
+            (NODE_ANY, COIN_TYPE_ETH)
+        );
 
         bytes[] memory answers = new bytes[](2);
         answers[0] = abi.encode(testName);
         answers[1] = abi.encode(testAddress);
 
         bytes memory expect = abi.encode(answers);
-        assertEq(abi.encode(aliceResolver.multicall(calls)), expect, "immediate");
-        bytes memory result = aliceResolver.resolve("", abi.encodeCall(DedicatedResolver.multicall, (calls)));
+        assertEq(
+            abi.encode(aliceResolver.multicall(calls)),
+            expect,
+            "immediate"
+        );
+        bytes memory result = aliceResolver.resolve(
+            "",
+            abi.encodeCall(DedicatedResolver.multicall, (calls))
+        );
         assertEq(result, expect, "extended");
     }
 }
