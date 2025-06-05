@@ -13,7 +13,7 @@ import {
   parseAbi,
   toHex,
 } from "viem";
-import { afterAll, describe, it } from "vitest";
+import { afterEach, afterAll, describe, it } from "vitest";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { deployArtifact } from "./fixtures/deployArtifact.js";
@@ -120,11 +120,11 @@ const testAddress = "0x8000000000000000000000000000000000000001";
 const testNames = ["test.eth", "a.b.c.test.eth"];
 
 describe("ETHFallbackResolver", () => {
+  const rpcs: Record<string, number[]> = {};
+  afterEach(({ expect: { getState } }) => {
+    rpcs[getState().currentTestName!] = chains.map((x) => x.reset());
+  });
   // enable to print rpc call counts:
-  // const rpcs: Record<string, number[]> = {};
-  // afterEach(({ expect: { getState } }) => {
-  //   rpcs[getState().currentTestName ?? ""] = chains.map((x) => x.reset());
-  // });
   // afterAll(() => console.log(rpcs));
 
   shouldSupportInterfaces({
