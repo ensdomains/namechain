@@ -13,7 +13,7 @@ import {
   parseAbi,
   toHex,
 } from "viem";
-import { afterEach, afterAll, describe, it } from "vitest";
+import { afterAll, describe, it } from "vitest";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { deployArtifact } from "./fixtures/deployArtifact.js";
@@ -39,13 +39,14 @@ async function sync() {
   const blocks = await Promise.all(
     chains.map((x) => x.viem.getPublicClient().then((c) => c.getBlock())),
   );
-  const max = (a: bigint, b: bigint) => (a > b ? a : b);
-  const b = blocks.reduce((a, x) => max(a, x.number), 0n);
-  const t = blocks.reduce((a, x) => max(a, x.timestamp), 0n);
+  const bMax = blocks.reduce((a, x) => (x.number > a ? x.number : a), 0n);
+  const bMin = blocks.reduce((a, x) => (x.number < a ? x.number : a), bMax);
+  const tMax = blocks.reduce((a, x) => (x.timestamp > a ? x.timestamp : a), 0n);
+  const tFuture = tMax + (bMax - bMin) + 1n;
   await Promise.all(
     chains.map(async (x, i) => {
-      if (b > blocks[i].number) await x.networkHelpers.mineUpTo(b);
-      await x.networkHelpers.time.setNextBlockTimestamp(t + 1n);
+      if (bMax > blocks[i].number) await x.networkHelpers.mineUpTo(bMax);
+      await x.networkHelpers.time.setNextBlockTimestamp(tFuture);
       await x.networkHelpers.mine(1);
     }),
   );
