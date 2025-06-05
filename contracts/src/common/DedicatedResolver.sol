@@ -45,14 +45,14 @@ contract DedicatedResolver is
     IInterfaceResolver
 {
     // profile storage
-    mapping(uint256 => bytes) private _addresses;
-    mapping(string => string) private _texts;
-    bytes private _contenthash;
-    bytes32 private _pubkeyX;
-    bytes32 private _pubkeyY;
-    mapping(uint256 => bytes) private _abis;
-    mapping(bytes4 => address) private _interfaces;
-    string private _primary;
+    mapping(uint256 => bytes) _addresses;
+    mapping(string => string) _texts;
+    bytes _contenthash;
+    bytes32 _pubkeyX;
+    bytes32 _pubkeyY;
+    mapping(uint256 => bytes) _abis;
+    mapping(bytes4 => address) _interfaces;
+    string _primary;
 
     /// @notice True if the resolver supports any name.
     bool public wildcard;
@@ -287,7 +287,7 @@ contract DedicatedResolver is
         _setInterface(interfaceId, implementer);
     }
 
-    function _setInterface(bytes4 interfaceId, address implementer) private {
+    function _setInterface(bytes4 interfaceId, address implementer) internal {
         _interfaces[interfaceId] = implementer;
         emit InterfaceChanged(NODE_ANY, interfaceId, implementer);
     }

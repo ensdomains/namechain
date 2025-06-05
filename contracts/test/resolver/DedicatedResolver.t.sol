@@ -10,7 +10,9 @@ import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedReso
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
+import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
+import {IHasAddressResolver} from "../../src/common/IHasAddressResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
@@ -21,6 +23,29 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ENSIP19, COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol";
 
 contract DedicatedResolverTest is Test, IResolverFinder {
+    struct I {
+        bytes4 interfaceId;
+        string name;
+    }
+    function _supportedInterfaces() internal pure returns (I[] memory v) {
+        v = new I[](12);
+        v[0] = I(type(IExtendedResolver).interfaceId, "IExtendedResolver");
+        v[1] = I(type(IDedicatedResolver).interfaceId, "IDedicatedResolver");
+        v[2] = I(type(IMulticallable).interfaceId, "IMulticallable");
+        v[3] = I(type(IAddrResolver).interfaceId, "IAddrResolver");
+        v[4] = I(type(IAddressResolver).interfaceId, "IAddressResolver");
+        v[5] = I(type(IHasAddressResolver).interfaceId, "IHasAddressResolver");
+        v[6] = I(type(ITextResolver).interfaceId, "ITextResolver");
+        v[7] = I(
+            type(IContentHashResolver).interfaceId,
+            "IContentHashResolver"
+        );
+        v[8] = I(type(IPubkeyResolver).interfaceId, "IPubkeyResolver");
+        v[9] = I(type(INameResolver).interfaceId, "INameResolver");
+        v[10] = I(type(IABIResolver).interfaceId, "IABIResolver");
+        v[11] = I(type(IInterfaceResolver).interfaceId, "IInterfaceResolver");
+    }
+
     address foundResolver;
     uint256 foundOffset;
 
@@ -80,25 +105,19 @@ contract DedicatedResolverTest is Test, IResolverFinder {
 
     function testFuzz_supportsInterface() external view {
         assertTrue(
-            aliceResolver.supportsInterface(
-                type(IExtendedResolver).interfaceId
-            ),
-            "IExtendedResolver"
-        );
-        assertTrue(
-            aliceResolver.supportsInterface(
-                type(IDedicatedResolver).interfaceId
-            ),
-            "IDedicatedResolver"
-        );
-        assertTrue(
-            aliceResolver.supportsInterface(type(IMulticallable).interfaceId),
-            "IMulticallable"
-        );
-        assertTrue(
             ERC165Checker.supportsERC165(address(aliceResolver)),
             "ERC165"
         );
+        I[] memory v = _supportedInterfaces();
+        for (uint256 i; i < v.length; i++) {
+            assertTrue(
+                ERC165Checker.supportsERC165InterfaceUnchecked(
+                    address(aliceResolver),
+                    v[i].interfaceId
+                ),
+                v[i].name
+            );
+        }
     }
 
     function test_supportsName_wildcard() external view {
@@ -343,15 +362,15 @@ contract DedicatedResolverTest is Test, IResolverFinder {
         aliceResolver.setABI(1, "");
     }
 
-    function testFuzz_setInterface(bytes4 iface, address impl) external {
-        vm.assume(!resolverImpl.supportsInterface(iface));
+    function testFuzz_setInterface(bytes4 interfaceId, address impl) external {
+        vm.assume(!resolverImpl.supportsInterface(interfaceId));
 
         vm.startPrank(alice);
-        aliceResolver.setInterface(iface, impl);
+        aliceResolver.setInterface(interfaceId, impl);
         vm.stopPrank();
 
         assertEq(
-            aliceResolver.interfaceImplementer(NODE_ANY, iface),
+            aliceResolver.interfaceImplementer(NODE_ANY, interfaceId),
             impl,
             "immediate"
         );
@@ -359,7 +378,7 @@ contract DedicatedResolverTest is Test, IResolverFinder {
             "",
             abi.encodeCall(
                 IInterfaceResolver.interfaceImplementer,
-                (NODE_ANY, iface)
+                (NODE_ANY, interfaceId)
             )
         );
         assertEq(abi.decode(result, (address)), impl, "extended");
@@ -378,30 +397,14 @@ contract DedicatedResolverTest is Test, IResolverFinder {
         aliceResolver.setAddr(COIN_TYPE_ETH, abi.encodePacked(aliceResolver));
         vm.stopPrank();
 
-        assertEq(
-            aliceResolver.interfaceImplementer(
-                NODE_ANY,
-                type(IExtendedResolver).interfaceId
-            ),
-            address(aliceResolver),
-            "IExtendedResolver"
-        );
-        assertEq(
-            aliceResolver.interfaceImplementer(
-                NODE_ANY,
-                type(IDedicatedResolver).interfaceId
-            ),
-            address(aliceResolver),
-            "IDedicatedResolver"
-        );
-        assertEq(
-            aliceResolver.interfaceImplementer(
-                NODE_ANY,
-                type(IMulticallable).interfaceId
-            ),
-            address(aliceResolver),
-            "IMulticallable"
-        );
+        I[] memory v = _supportedInterfaces();
+        for (uint256 i; i < v.length; i++) {
+            assertEq(
+                aliceResolver.interfaceImplementer(NODE_ANY, v[i].interfaceId),
+                address(aliceResolver),
+                v[i].name
+            );
+        }
     }
 
     function test_setInterface_notOwner() external {
