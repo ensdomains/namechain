@@ -16,6 +16,7 @@ import {ENSIP19, COIN_TYPE_ETH, EVM_BIT} from "@ens/contracts/utils/ENSIP19.sol"
 // resolver profiles
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
+import {IHasAddressResolver} from "./IHasAddressResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
@@ -25,15 +26,17 @@ import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceRe
 
 /// @title DedicatedResolver
 /// @notice An owned resolver that provides the same results for any name.
-///         If `wildcard` is false, it only supports names registered exactly with matching resolver.
+///         If `wildcard` is false, it only supports names registered exactly.
 ///         This is equivalent to `findResolver(name)` where `resolver == this && offset == 0`.
 contract DedicatedResolver is
     ERC165,
     OwnableUpgradeable,
     IExtendedResolver,
     IDedicatedResolver,
+    IMulticallable,
     IAddrResolver,
     IAddressResolver,
+    IHasAddressResolver,
     ITextResolver,
     IContentHashResolver,
     IPubkeyResolver,
@@ -107,6 +110,15 @@ contract DedicatedResolver is
             type(IExtendedResolver).interfaceId == interfaceId ||
             type(IDedicatedResolver).interfaceId == interfaceId ||
             type(IMulticallable).interfaceId == interfaceId ||
+            type(IAddrResolver).interfaceId == interfaceId ||
+            type(IAddressResolver).interfaceId == interfaceId ||
+            type(IHasAddressResolver).interfaceId == interfaceId ||
+            type(ITextResolver).interfaceId == interfaceId ||
+            type(IContentHashResolver).interfaceId == interfaceId ||
+            type(IPubkeyResolver).interfaceId == interfaceId ||
+            type(INameResolver).interfaceId == interfaceId ||
+            type(IABIResolver).interfaceId == interfaceId ||
+            type(IInterfaceResolver).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -172,9 +184,7 @@ contract DedicatedResolver is
         return payable(address(bytes20(addr(NODE_ANY, COIN_TYPE_ETH))));
     }
 
-    /// @notice Determine if coin type has been set explicitly.
-    /// @param coinType The coin type.
-    /// @return True if `setAddr(node, coinType)` has been set.
+    /// @inheritdoc IHasAddressResolver
     function hasAddr(bytes32, uint256 coinType) external view returns (bool) {
         return _addresses[coinType].length > 0;
     }
