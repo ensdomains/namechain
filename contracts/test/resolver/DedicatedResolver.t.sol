@@ -60,7 +60,6 @@ contract DedicatedResolverTest is Test {
             DedicatedResolver.initialize,
             (owner)
         );
-        vm.startPrank(owner);
         resolver = DedicatedResolver(
             factory.deployProxy(
                 address(resolverImpl),
@@ -68,10 +67,9 @@ contract DedicatedResolverTest is Test {
                 initData
             )
         );
-        vm.stopPrank();
     }
 
-    function test_owner() external {
+    function test_owner() external view {
         assertEq(resolver.owner(), owner);
     }
 

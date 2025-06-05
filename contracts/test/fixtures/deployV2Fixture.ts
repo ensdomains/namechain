@@ -1,7 +1,4 @@
-import type {
-  DefaultChainType,
-  NetworkConnection,
-} from "hardhat/types/network";
+import type { NetworkConnection } from "hardhat/types/network";
 import {
   type Address,
   encodeFunctionData,
@@ -48,10 +45,10 @@ export const ROLES = {
   OWNER: FLAGS,
   ADMIN: mapFlags(FLAGS, (x) => x << 128n),
   ALL: (1n << 256n) - 1n, // see: EnhancedAccessControl.sol
-} as const;
+} as const satisfies Flags;
 
-export async function deployV2Fixture(
-  networkConnection: NetworkConnection<DefaultChainType>,
+export async function deployV2Fixture<C extends NetworkConnection>(
+  networkConnection: C,
   enableCcipRead = false,
 ) {
   const publicClient = await networkConnection.viem.getPublicClient({
@@ -107,8 +104,6 @@ export async function deployV2Fixture(
   }: {
     owner: Address;
     salt?: bigint;
-    wildcard?: boolean;
-    findResolverAddress?: Address;
   }) {
     const wallet = await networkConnection.viem.getWalletClient(owner);
     const hash = await verifiableFactory.write.deployProxy([

@@ -1,7 +1,4 @@
-import type {
-  DefaultChainType,
-  NetworkConnection,
-} from "hardhat/types/network";
+import type { NetworkConnection } from "hardhat/types/network";
 import { labelhash, namehash } from "viem";
 import { splitName } from "../utils/utils.js";
 import { baseRegistrarImplementationArtifact } from "./ens-contracts/BaseRegistrarImplementation.js";
@@ -9,8 +6,8 @@ import { ensRegistryArtifact } from "./ens-contracts/ENSRegistry.js";
 import { ownedResolverArtifact } from "./ens-contracts/OwnedResolver.js";
 import { universalResolverArtifact } from "./ens-contracts/UniversalResolver.js";
 
-export async function deployV1Fixture(
-  networkConnection: NetworkConnection<DefaultChainType>,
+export async function deployV1Fixture<C extends NetworkConnection>(
+  networkConnection: C,
   enableCcipRead = false,
 ) {
   const publicClient = await networkConnection.viem.getPublicClient({

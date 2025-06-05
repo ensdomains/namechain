@@ -9,7 +9,7 @@ interface IDedicatedResolver {
     error InvalidEVMAddress(bytes addressBytes);
 
     /// @notice Set address for the coin type.
-    ///         If coin type is EVM, require exactly 0 or 20 bytes.
+    ///         Reverts `InvalidEVMAddress` if coin type is EVM and address is not 0 or 20 bytes.
     /// @param coinType The coin type.
     /// @param addressBytes The address to set.
     function setAddr(uint256 coinType, bytes calldata addressBytes) external;
