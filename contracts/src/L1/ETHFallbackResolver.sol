@@ -299,7 +299,7 @@ contract ETHFallbackResolver is
                         .isZero()
                         .pushOutput(calls.length)
                         .plus()
-                        .setOutput(uint8(calls.length)); // check if default needed
+                        .setOutput(uint8(calls.length)); // count missing
                 }
             } else if (selector == ITextResolver.text.selector) {
                 (, string memory key) = abi.decode(
@@ -369,7 +369,7 @@ contract ETHFallbackResolver is
                 }
             }
         }
-        req.pushOutput(calls.length).requireNonzero(0); // any empty evm addresses, or stop
+        req.pushOutput(calls.length).requireNonzero(0); // stop if none missing
         req.setSlot(SLOT_DR_ADDRESSES).push(EVM_BIT).follow().readBytes(); // _addresses[EVM_BIT]
         req.setOutput(uint8(calls.length)); // save default address
         fetch(

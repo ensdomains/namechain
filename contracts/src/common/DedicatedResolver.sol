@@ -105,7 +105,7 @@ contract DedicatedResolver is
     /// @inheritdoc ERC165
     function supportsInterface(
         bytes4 interfaceId
-    ) public view virtual override(ERC165) returns (bool) {
+    ) public view override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
             type(IDedicatedResolver).interfaceId == interfaceId ||
@@ -126,10 +126,7 @@ contract DedicatedResolver is
     ///         Defaults to the proxy implementation if unset.
     /// @return The `IResolverFinder` implementation.
     function resolverFinder() public view returns (IResolverFinder) {
-        address impl = interfaceImplementer(
-            NODE_ANY,
-            type(IResolverFinder).interfaceId
-        );
+        address impl = _interfaces[type(IResolverFinder).interfaceId];
         if (impl != address(0)) {
             return IResolverFinder(impl);
         }
@@ -247,11 +244,15 @@ contract DedicatedResolver is
         uint256 contentType,
         bytes calldata data
     ) external onlyOwner {
-        if (contentType == 0 || (contentType - 1) & contentType != 0) {
+        if (!_isPowerOf2(contentType)) {
             revert InvalidContentType(contentType);
         }
         _abis[contentType] = data;
         emit ABIChanged(NODE_ANY, contentType);
+    }
+
+    function _isPowerOf2(uint256 x) internal pure returns (bool) {
+        return x > 0 && (x - 1) & x == 0;
     }
 
     /// @dev Get the first ABI for the specified content types.
@@ -261,7 +262,7 @@ contract DedicatedResolver is
     function ABI(
         bytes32,
         uint256 contentTypes
-    ) public view returns (uint256 contentType, bytes memory data) {
+    ) external view returns (uint256 contentType, bytes memory data) {
         for (
             contentType = 1;
             contentType > 0 && contentType <= contentTypes;
@@ -283,7 +284,7 @@ contract DedicatedResolver is
     function setInterface(
         bytes4 interfaceId,
         address implementer
-    ) public onlyOwner {
+    ) external onlyOwner {
         _setInterface(interfaceId, implementer);
     }
 
@@ -298,7 +299,7 @@ contract DedicatedResolver is
     function interfaceImplementer(
         bytes32,
         bytes4 interfaceId
-    ) public view returns (address implementer) {
+    ) external view returns (address implementer) {
         implementer = _interfaces[interfaceId];
         if (
             implementer == address(0) &&
