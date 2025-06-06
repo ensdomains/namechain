@@ -2,13 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {
-    ETHFallbackResolver,
-    IBaseRegistrar,
-    IUniversalResolver,
-    IGatewayVerifier,
-    NameCoder
-} from "../src/L1/ETHFallbackResolver.sol";
+import {ETHFallbackResolver, IBaseRegistrar, IUniversalResolver, IGatewayVerifier, NameCoder} from "../src/L1/ETHFallbackResolver.sol";
 
 contract MockETHFallbackResolver is ETHFallbackResolver {
     constructor()
@@ -23,7 +17,9 @@ contract MockETHFallbackResolver is ETHFallbackResolver {
         )
     {}
 
-    function countLabels(bytes calldata v) external pure returns (bytes32, uint256, uint256) {
+    function countLabels(
+        bytes calldata v
+    ) external pure returns (bytes32, uint256, uint256) {
         return _countLabels(v);
     }
 }
@@ -36,11 +32,19 @@ contract TestETHFallbackResolver is Test {
         efr = new MockETHFallbackResolver();
     }
 
-    function _countLabels(string memory ens, uint256 expectCount, uint256 size2LD) internal view {
+    function _countLabels(
+        string memory ens,
+        uint256 expectCount,
+        uint256 size2LD
+    ) internal view {
         bytes memory dns = NameCoder.encode(ens);
         (, uint256 count, uint256 offset) = efr.countLabels(dns);
         assertEq(count, expectCount, "count");
-        assertEq(offset, expectCount > 0 ? dns.length - (6 + size2LD) : 0, "offset"); // u8(1) + u8(3) + "eth" + u8(0)
+        assertEq(
+            offset,
+            expectCount > 0 ? dns.length - (6 + size2LD) : 0,
+            "offset"
+        ); // u8(1) + u8(3) + "eth" + u8(0)
     }
 
     function test_countLabels_dotEth() external view {
@@ -71,7 +75,18 @@ contract TestETHFallbackResolver is Test {
     // vm.randomUint(uint256, uint256) is not available in hardhat so we do this instead!
     function _randomUint(uint256 min, uint256 max) internal returns (uint256) {
         randSeed++;
-        uint256 randomNumber = uint256(keccak256(abi.encodePacked(block.timestamp, block.prevrandao, block.coinbase, block.number, block.gaslimit, randSeed)));
+        uint256 randomNumber = uint256(
+            keccak256(
+                abi.encodePacked(
+                    block.timestamp,
+                    block.prevrandao,
+                    block.coinbase,
+                    block.number,
+                    block.gaslimit,
+                    randSeed
+                )
+            )
+        );
         return min + (randomNumber % (max - min + 1));
     }
 

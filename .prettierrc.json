@@ -1,4 +1,13 @@
 {
   "tabWidth": 2,
-  "trailingComma": "all"
+  "printWidth": 80,
+  "trailingComma": "all",
+  "overrides": [
+    {
+      "files": "*.sol",
+      "options": {
+        "tabWidth": 4
+      }
+    }
+  ]
 }
