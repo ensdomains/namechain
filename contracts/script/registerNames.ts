@@ -204,14 +204,9 @@ async function registerNames() {
       client: l2Client,
     });
 
-    console.log(`Setting ETH address for ${name}...`);
-    await dedicatedResolver.write.setAddr(
-      [60n, account.address],
-      { account }
-    );
 
     // Register the name
-    console.log(`\nRegistering ${name} on L2...`);
+    console.log(`\nRegistering ${name} on L2...`, ethRegistry.address, resolverAddress);
     const tx = await ethRegistry.write.register(
       [
         name,
@@ -228,6 +223,14 @@ async function registerNames() {
     console.log(`Transaction hash: ${tx}`);
     const result = await ethRegistry.read.getNameData([name]) as [bigint, bigint, number];
     const [tokenId, expiry, tokenIdVersion] = result;
+
+
+    console.log(`Setting ETH address for ${name}...`);
+    await dedicatedResolver.write.setAddr(
+      [60n, account.address],
+      { account }
+    );
+
     console.log(`Token ID: ${tokenId}`);
     console.log(`Expiry: ${expiry}`);
     console.log(`Token ID Version: ${tokenIdVersion}`);
