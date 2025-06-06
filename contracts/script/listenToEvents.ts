@@ -1,4 +1,4 @@
-import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog } from "viem";
+import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType } from "viem";
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -49,256 +49,27 @@ const l1RegistryDatastoreDeployment = JSON.parse(readFileSync(l1RegistryDatastor
 const l2RegistryDatastoreDeployment = JSON.parse(readFileSync(l2RegistryDatastorePath, "utf8"));
 const dedicatedResolverImplDeployment = JSON.parse(readFileSync(dedicatedResolverImplPath, "utf8"));
 
-// Event ABIs
-const registryEvents = [
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "oldTokenId", type: "uint256" },
-      { indexed: true, name: "newTokenId", type: "uint256" }
-    ],
-    name: "TokenRegenerated",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "tokenId", type: "uint256" },
-      { indexed: false, name: "label", type: "string" }
-    ],
-    name: "NewSubname",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "tokenId", type: "uint256" },
-      { indexed: false, name: "expires", type: "uint64" },
-      { indexed: true, name: "sender", type: "address" }
-    ],
-    name: "NameRenewed",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "tokenId", type: "uint256" },
-      { indexed: true, name: "sender", type: "address" }
-    ],
-    name: "NameRelinquished",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "tokenId", type: "uint256" },
-      { indexed: true, name: "observer", type: "address" }
-    ],
-    name: "TokenObserverSet",
-    type: "event"
-  },
-  // ERC1155 Events
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "operator", type: "address" },
-      { indexed: true, name: "from", type: "address" },
-      { indexed: true, name: "to", type: "address" },
-      { indexed: false, name: "id", type: "uint256" },
-      { indexed: false, name: "value", type: "uint256" }
-    ],
-    name: "TransferSingle",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "operator", type: "address" },
-      { indexed: true, name: "from", type: "address" },
-      { indexed: true, name: "to", type: "address" },
-      { indexed: false, name: "ids", type: "uint256[]" },
-      { indexed: false, name: "values", type: "uint256[]" }
-    ],
-    name: "TransferBatch",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "account", type: "address" },
-      { indexed: true, name: "operator", type: "address" },
-      { indexed: false, name: "approved", type: "bool" }
-    ],
-    name: "ApprovalForAll",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: false, name: "value", type: "string" },
-      { indexed: true, name: "id", type: "uint256" }
-    ],
-    name: "URI",
-    type: "event"
-  },
-  // ETHRegistrar Events
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: false, name: "name", type: "string" },
-      { indexed: true, name: "owner", type: "address" },
-      { indexed: false, name: "subregistry", type: "address" },
-      { indexed: false, name: "resolver", type: "address" },
-      { indexed: false, name: "duration", type: "uint64" },
-      { indexed: false, name: "tokenId", type: "uint256" }
-    ],
-    name: "NameRegistered",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: false, name: "name", type: "string" },
-      { indexed: false, name: "duration", type: "uint64" },
-      { indexed: false, name: "tokenId", type: "uint256" },
-      { indexed: false, name: "newExpiry", type: "uint64" }
-    ],
-    name: "NameRenewed",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: false, name: "commitment", type: "bytes32" }
-    ],
-    name: "CommitmentMade",
-    type: "event"
-  }
-] as const;
-
-const datastoreEvents = [
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "registry", type: "address" },
-      { indexed: true, name: "id", type: "uint256" },
-      { indexed: false, name: "subregistry", type: "address" },
-      { indexed: false, name: "expiry", type: "uint64" },
-      { indexed: false, name: "data", type: "uint32" }
-    ],
-    name: "SubregistryUpdate",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "registry", type: "address" },
-      { indexed: true, name: "id", type: "uint256" },
-      { indexed: false, name: "resolver", type: "address" },
-      { indexed: false, name: "expiry", type: "uint64" },
-      { indexed: false, name: "data", type: "uint32" }
-    ],
-    name: "ResolverUpdate",
-    type: "event"
-  }
-] as const;
-
-const dedicatedResolverEvents = [
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: false, name: "coinType", type: "uint256" },
-      { indexed: false, name: "newAddress", type: "bytes" }
-    ],
-    name: "AddressChanged",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: false, name: "x", type: "bytes32" },
-      { indexed: false, name: "y", type: "bytes32" }
-    ],
-    name: "PubkeyChanged",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: false, name: "hash", type: "bytes" }
-    ],
-    name: "ContenthashChanged",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: false, name: "name", type: "string" }
-    ],
-    name: "NameChanged",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: false, name: "key", type: "string" },
-      { indexed: false, name: "indexedKey", type: "string" },
-      { indexed: false, name: "value", type: "string" }
-    ],
-    name: "TextChanged",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: false, name: "contentType", type: "uint256" }
-    ],
-    name: "ABIChanged",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: true, name: "interfaceID", type: "bytes4" },
-      { indexed: false, name: "implementer", type: "address" }
-    ],
-    name: "InterfaceChanged",
-    type: "event"
-  }
-] as const;
+// Extract ABIs from deployment files
+const registryEvents = l1EthRegistryDeployment.abi.filter((item: any) => item.type === "event");
+const datastoreEvents = l1RegistryDatastoreDeployment.abi.filter((item: any) => item.type === "event");
+const dedicatedResolverEvents = dedicatedResolverImplDeployment.abi.filter((item: any) => item.type === "event");
 
 // Get the datastore address from RootRegistry
-const rootRegistryABI = [
-  {
-    inputs: [],
-    name: "datastore",
-    outputs: [{ type: "address", name: "" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
+const rootRegistryABI = rootRegistryDeployment.abi;
 
-function decodeEvent(log: Log, events: typeof registryEvents | typeof datastoreEvents | typeof dedicatedResolverEvents) {
+function decodeEvent(log: Log, events: Abi): DecodeEventLogReturnType | null {
   try {
-    const decoded = decodeEventLog({
+    return decodeEventLog({
       abi: events,
       data: log.data,
       topics: log.topics,
     });
-    return decoded;
   } catch (error) {
     return null;
   }
 }
 
-function formatEventLog(log: Log, events: typeof registryEvents | typeof datastoreEvents | typeof dedicatedResolverEvents, chain: string, contractName: string, contractAddress: string) {
+function formatEventLog(log: Log, events: Abi, chain: string, contractName: string, contractAddress: string) {
   const decoded = decodeEvent(log, events);
   if (!decoded) {
     return {
@@ -642,4 +413,4 @@ async function listenToEvents() {
   }, 5000);
 }
 
-listenToEvents().catch(console.error); 
+listenToEvents().catch(console.error);
