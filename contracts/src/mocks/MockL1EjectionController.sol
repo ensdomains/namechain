@@ -7,17 +7,16 @@ import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {L1EjectionController} from "../L1/L1EjectionController.sol";
 import {TransferData} from "../common/EjectionController.sol";
 import {MockL1Bridge} from "./MockL1Bridge.sol";
+import {IL1Migrator} from "../L1/IL1Migrator.sol";
+import {NameEjectedToL1, NameEjectedToL2} from "./MockEjectionControllerEvents.sol";
 
 /**
  * @title MockL1EjectionController
  * @dev Controller for handling L1 ENS operations with PermissionedRegistry
  */
-contract MockL1EjectionController is L1EjectionController {
+contract MockL1EjectionController is L1EjectionController, IL1Migrator {
     MockL1Bridge public bridge;
     
-    // Events for tracking actions
-    event NameEjected(uint256 labelHash, address owner, address subregistry, uint64 expires);
-    event NameMigrated(uint256 tokenId, address l2Owner, address l2Subregistry);
     event RenewalSynced(uint256 tokenId, uint64 newExpiry);
     
     constructor(IPermissionedRegistry _registry, MockL1Bridge _bridge) L1EjectionController(_registry) {
@@ -29,8 +28,15 @@ contract MockL1EjectionController is L1EjectionController {
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
             bridge.sendMessage(BridgeEncoder.encode(BridgeMessageType.EJECTION, tokenIds[i], abi.encode(transferDataArray[i])));
-            emit NameMigrated(tokenIds[i], transferDataArray[i].owner, transferDataArray[i].subregistry);
+            emit NameEjectedToL2(tokenIds[i], transferDataArray[i].owner, transferDataArray[i].subregistry);
         }
+    }
+
+    /**
+     * @dev Migrates a name from v1 to v2 on L1
+     */
+    function migrateFromV1(TransferData memory transferData) external {
+        completeEjectionFromL2(transferData);
     }
     
     /**
@@ -38,9 +44,9 @@ contract MockL1EjectionController is L1EjectionController {
      */
     function completeEjectionFromL2(
         TransferData memory transferData
-    ) external returns (uint256 tokenId) {
+    ) public returns (uint256 tokenId) {
         tokenId = _completeEjectionFromL2(transferData);
-        emit NameEjected(tokenId, transferData.owner, transferData.subregistry, transferData.expires);
+        emit NameEjectedToL1(tokenId, transferData.owner, transferData.subregistry, transferData.expires);
     }
 
     /**

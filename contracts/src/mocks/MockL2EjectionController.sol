@@ -7,6 +7,7 @@ import {IRegistry} from "../common/IRegistry.sol";
 import {L2EjectionController} from "../L2/L2EjectionController.sol";
 import {TransferData} from "../common/EjectionController.sol";
 import {MockL2Bridge} from "./MockL2Bridge.sol";
+import {NameEjectedToL1, NameEjectedToL2} from "./MockEjectionControllerEvents.sol";
 
 /**
  * @title MockL2EjectionController
@@ -14,10 +15,6 @@ import {MockL2Bridge} from "./MockL2Bridge.sol";
  */
 contract MockL2EjectionController is L2EjectionController {
     MockL2Bridge public bridge;
-    
-    // Events for tracking actions
-    event NameMigrated(uint256 labelHash, address owner, address subregistry);
-    event NameEjected(uint256 tokenId, address l1Owner, address l1Subregistry, uint64 expires);
     
     constructor(IPermissionedRegistry _registry, MockL2Bridge _bridge) L2EjectionController(_registry) {
         bridge = _bridge;
@@ -28,7 +25,7 @@ contract MockL2EjectionController is L2EjectionController {
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
             bridge.sendMessage(BridgeEncoder.encode(BridgeMessageType.EJECTION, tokenIds[i], abi.encode(transferDataArray[i])));
-            emit NameEjected(tokenIds[i], transferDataArray[i].owner, transferDataArray[i].subregistry, transferDataArray[i].expires);
+            emit NameEjectedToL1(tokenIds[i], transferDataArray[i].owner, transferDataArray[i].subregistry, transferDataArray[i].expires);
         }
     }
 
@@ -42,7 +39,7 @@ contract MockL2EjectionController is L2EjectionController {
 
         _completeMigrationFromL1(tokenId, transferData);
 
-        emit NameMigrated(tokenId, transferData.owner, transferData.subregistry);
+        emit NameEjectedToL2(tokenId, transferData.owner, transferData.subregistry);
     }    
 
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {

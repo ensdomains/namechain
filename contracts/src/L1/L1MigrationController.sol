@@ -10,6 +10,8 @@ import {IMigrationStrategy} from "../common/IMigration.sol";
 import {TransferData, MigrationData} from "../common/TransferData.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBridge, BridgeMessageType, BridgeEncoder} from "../common/IBridge.sol";
+import {L1EjectionController} from "../L1/L1EjectionController.sol";
+import {IL1Migrator} from "../L1/IL1Migrator.sol";
 
 /**
  * @title L1MigrationController
@@ -27,11 +29,13 @@ contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Own
     INameWrapper public immutable nameWrapper;
     IMigrationStrategy public strategy;
     IBridge public immutable bridge;
+    IL1Migrator public immutable l1Migrator;
 
-    constructor(IBaseRegistrar _ethRegistryV1, INameWrapper _nameWrapper, IBridge _bridge) Ownable(msg.sender) {
+    constructor(IBaseRegistrar _ethRegistryV1, INameWrapper _nameWrapper, IBridge _bridge, IL1Migrator _l1Migrator) Ownable(msg.sender) {
         ethRegistryV1 = _ethRegistryV1;
         nameWrapper = _nameWrapper;
         bridge = _bridge;
+        l1Migrator = _l1Migrator;
     }
 
     /**
@@ -144,7 +148,13 @@ contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Own
             revert TokenIdMismatch(tokenId, expectedTokenId);
         }
         
+        // send migration data to L2
         bytes memory message = BridgeEncoder.encode(BridgeMessageType.MIGRATION, tokenId, abi.encode(migrationData));
         bridge.sendMessage(message);
+
+        // if migrated to L1 then also setup the name on the L1
+        if (migrationData.toL1) {
+            l1Migrator.migrateFromV1(migrationData.transferData);
+        }
     }
 }
