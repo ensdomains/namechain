@@ -20,7 +20,7 @@ export default execute(
     });
 
     await write(l2Bridge, {
-      functionName: "setTargetController",
+      functionName: "setEjectionController",
       args: [l2BridgeController.address],
       account: deployer,
     });
