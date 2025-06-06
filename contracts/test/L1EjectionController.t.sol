@@ -9,7 +9,8 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistry.sol";
 import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
-import {EjectionController, TransferData} from "../src/common/EjectionController.sol";
+import {EjectionController} from "../src/common/EjectionController.sol";
+import {TransferData} from "../src/common/TransferData.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 import "../src/common/IRegistryMetadata.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
