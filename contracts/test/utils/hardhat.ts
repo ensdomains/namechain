@@ -6,7 +6,7 @@ type RPCCounter = {
 };
 
 export function injectRPCCounter<C extends NetworkConnection>(
-  chain: C extends RPCCounter ? never : C,
+  chain: Exclude<C, RPCCounter>,
 ): C & RPCCounter {
   const impl = Object.assign(chain, {
     count: 0,
