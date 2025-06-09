@@ -54,6 +54,19 @@ bun run test:hardhat test/Ens.t.ts # specific Hardhat test
 
 There are two ways to run the devnet:
 
+### Native Local Devnet (recommended)
+
+Start a local devnet with L1 and L2 chains:
+
+```sh
+bun run devnet
+```
+
+This will start:
+
+- L1 chain at http://localhost:8545 (Chain ID: 31337)
+- L2 chain at http://localhost:8546 (Chain ID: 31338)
+
 ### Using Docker Compose
 
 1. Make sure you have Docker and Docker Compose installed
@@ -84,20 +97,9 @@ To stop the devnet:
 docker compose down
 ```
 
-### Local Development
+## Miscellaneous
 
-### Run Local Devnet
-
-Start a local devnet with L1 and L2 chains:
-
-```sh
-bun run devnet
-```
-
-This will start:
-
-- L1 chain at http://localhost:8545 (Chain ID: 31337)
-- L2 chain at http://localhost:8546 (Chain ID: 31338)
+Foundry also comes with cast, anvil, and chisel, all of which are useful for local development ([docs](https://book.getfoundry.sh/))
 
 ### Format
 
@@ -110,7 +112,3 @@ forge fmt
 ```shell
 $ forge snapshot
 ```
-
-### Miscellaneous
-
-Foundry also comes with cast, anvil, and chisel, all of which are useful for local development ([docs](https://book.getfoundry.sh/))
