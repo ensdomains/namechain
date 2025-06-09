@@ -44,6 +44,8 @@ RUN git config --global init.defaultBranch main && \
     git init && \
     forge i
 
+# Build Contracts
+RUN bun run compile:hardhat
 
 # Expose ports for L1 and L2
 EXPOSE 8545
