@@ -1,9 +1,20 @@
-import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog, encodeFunctionData, parseEventLogs } from "viem";
+import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType, encodeFunctionData, parseEventLogs,  } from "viem";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { mnemonicToAccount } from "viem/accounts";
+import { privateKeyToAccount, mnemonicToAccount } from "viem/accounts";
+import { deployContract } from "./utils/deploy.js";
 
-// Define L2 chain
+// Define chain types
+const l1Chain: Chain = {
+  id: 31337,
+  name: "Local L1",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["http://127.0.0.1:8545"] },
+    public: { http: ["http://127.0.0.1:8545"] },
+  },
+};
+
 const l2Chain: Chain = {
   id: 31338,
   name: "Local L2",
@@ -14,17 +25,26 @@ const l2Chain: Chain = {
   },
 };
 
-// Connect to L2 network
+// Connect to the networks
+const l1Client = createPublicClient({
+  chain: l1Chain,
+  transport: http(),
+});
+
 const l2Client = createPublicClient({
   chain: l2Chain,
   transport: http(),
 });
 
 // Read deployment files
+const rootRegistryPath = join(process.cwd(), "deployments", "l1-local", "RootRegistry.json");
+const l1EthRegistryPath = join(process.cwd(), "deployments", "l1-local", "L1ETHRegistry.json");
 const ethRegistryPath = join(process.cwd(), "deployments", "l2-local", "ETHRegistry.json");
 const verifiableFactoryPath = join(process.cwd(), "deployments", "l2-local", "VerifiableFactory.json");
 const dedicatedResolverImplPath = join(process.cwd(), "deployments", "l2-local", "DedicatedResolverImpl.json");
 
+const rootRegistryDeployment = JSON.parse(readFileSync(rootRegistryPath, "utf8"));
+const l1EthRegistryDeployment = JSON.parse(readFileSync(l1EthRegistryPath, "utf8"));
 const ethRegistryDeployment = JSON.parse(readFileSync(ethRegistryPath, "utf8"));
 const verifiableFactoryDeployment = JSON.parse(readFileSync(verifiableFactoryPath, "utf8"));
 const dedicatedResolverImplDeployment = JSON.parse(readFileSync(dedicatedResolverImplPath, "utf8"));
@@ -180,8 +200,8 @@ async function registerNames() {
   const account = mnemonicToAccount("test test test test test test test test test test test junk");
 
   // Define the names to register
-  const names = ["test1", "test2", "test3"];
-
+  // const names = ["test1", "test2", "test3"];
+  const names = ["test1"]; 
   // Get the L2 registry
   const ethRegistry = getContract({
     address: ethRegistryDeployment.address,
@@ -204,15 +224,18 @@ async function registerNames() {
       client: l2Client,
     });
 
+  // Get the resolver address (you might want to deploy a dedicated resolver)
+  const zeroAddress = "0x0000000000000000000000000000000000000000";
 
-    // Register the name
-    console.log(`\nRegistering ${name} on L2...`, ethRegistry.address, resolverAddress);
+  // Register names
+
+  console.log(`Registering ${name}...`);
     const tx = await ethRegistry.write.register(
       [
         name,
         account.address,
-        ethRegistry.address,
-        resolverAddress,
+        zeroAddress,
+        zeroAddress,
         0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn, // All roles
         0xffffffffffffffffn, // MAX_EXPIRY
       ],
@@ -237,4 +260,4 @@ async function registerNames() {
   }
 }
 
-registerNames().catch(console.error); 
+registerNames();
