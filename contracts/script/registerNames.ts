@@ -200,8 +200,8 @@ async function registerNames() {
   const account = mnemonicToAccount("test test test test test test test test test test test junk");
 
   // Define the names to register
-  // const names = ["test1", "test2", "test3"];
-  const names = ["test1"]; 
+  const names = ["test1", "test2", "test3"];
+  // const names = ["test1"]; 
   // Get the L2 registry
   const ethRegistry = getContract({
     address: ethRegistryDeployment.address,
