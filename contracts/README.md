@@ -19,7 +19,12 @@ At present the following contracts are implemented:
 
 1. Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation)
 2. Install [bun](https://bun.sh/)
-3. Install dependencies:
+3. Make sure to have the proper node.js version installed. See [/package.json#engines](../package.json#engines)
+```sh
+node --version
+```
+
+4. Install dependencies:
 
 ```sh
 bun i
