@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {DedicatedResolver} from "../../src/common/DedicatedResolver.sol";
-import {IDedicatedResolver, NODE_ANY} from "../../src/common/IDedicatedResolver.sol";
+import {IDedicatedResolverManager, NODE_ANY} from "../../src/common/IDedicatedResolverManager.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
@@ -18,7 +18,6 @@ import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver
 import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
 import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 
 contract DedicatedResolverTest is Test {
@@ -29,7 +28,10 @@ contract DedicatedResolverTest is Test {
     function _supportedInterfaces() internal pure returns (I[] memory v) {
         v = new I[](12);
         v[0] = I(type(IExtendedResolver).interfaceId, "IExtendedResolver");
-        v[1] = I(type(IDedicatedResolver).interfaceId, "IDedicatedResolver");
+        v[1] = I(
+            type(IDedicatedResolverManager).interfaceId,
+            "IDedicatedResolverManager"
+        );
         v[2] = I(type(IMulticallable).interfaceId, "IMulticallable");
         v[3] = I(type(IAddrResolver).interfaceId, "IAddrResolver");
         v[4] = I(type(IAddressResolver).interfaceId, "IAddressResolver");

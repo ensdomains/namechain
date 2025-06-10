@@ -4,12 +4,10 @@ pragma solidity >=0.8.13;
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
-import {IDedicatedResolver, NODE_ANY} from "./IDedicatedResolver.sol";
+import {IDedicatedResolverManager, NODE_ANY} from "./IDedicatedResolverManager.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 
 // resolver profiles
@@ -29,7 +27,7 @@ contract DedicatedResolver is
     ERC165,
     OwnableUpgradeable,
     IExtendedResolver,
-    IDedicatedResolver,
+    IDedicatedResolverManager,
     IMulticallable,
     IAddrResolver,
     IAddressResolver,
@@ -51,9 +49,6 @@ contract DedicatedResolver is
     mapping(bytes4 => address) _interfaces;
     string _primary;
 
-    /// @notice True if the resolver supports any name.
-    bool public wildcard;
-
     /// @notice The resolver profile cannot be answered.
     /// @dev Error selector: `0x5fe9a5df`
     error UnsupportedResolverProfile(bytes4 selector);
@@ -74,7 +69,7 @@ contract DedicatedResolver is
     ) public view override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
-            type(IDedicatedResolver).interfaceId == interfaceId ||
+            type(IDedicatedResolverManager).interfaceId == interfaceId ||
             type(IMulticallable).interfaceId == interfaceId ||
             type(IAddrResolver).interfaceId == interfaceId ||
             type(IAddressResolver).interfaceId == interfaceId ||
@@ -88,7 +83,7 @@ contract DedicatedResolver is
             super.supportsInterface(interfaceId);
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverManager
     function setAddr(
         uint256 coinType,
         bytes calldata addressBytes
@@ -134,7 +129,7 @@ contract DedicatedResolver is
         return _addresses[coinType].length > 0;
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverManager
     function setText(
         string calldata key,
         string calldata value
@@ -153,7 +148,7 @@ contract DedicatedResolver is
         return _texts[key];
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverManager
     function setContenthash(bytes calldata hash) external onlyOwner {
         _contenthash = hash;
         emit ContenthashChanged(NODE_ANY, hash);
@@ -165,7 +160,7 @@ contract DedicatedResolver is
         return _contenthash;
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverManager
     function setPubkey(bytes32 x, bytes32 y) external onlyOwner {
         _pubkeyX = x;
         _pubkeyY = y;
@@ -180,7 +175,7 @@ contract DedicatedResolver is
         y = _pubkeyY;
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverManager
     function setABI(
         uint256 contentType,
         bytes calldata data
@@ -219,7 +214,7 @@ contract DedicatedResolver is
         return (0, "");
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverManager
     function setInterface(
         bytes4 interfaceId,
         address implementer
@@ -248,7 +243,7 @@ contract DedicatedResolver is
         }
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverManager
     function setName(string calldata _name) external onlyOwner {
         _primary = _name;
         emit NameChanged(NODE_ANY, _name);

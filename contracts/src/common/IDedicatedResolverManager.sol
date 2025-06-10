@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 bytes32 constant NODE_ANY = 0;
 
-interface IDedicatedResolver {
+interface IDedicatedResolverManager {
     /// @notice The address could not be converted to `address`.
     /// @dev Error selector: `0x8d666f60`
     error InvalidEVMAddress(bytes addressBytes);
