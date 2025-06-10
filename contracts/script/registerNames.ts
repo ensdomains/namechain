@@ -235,7 +235,7 @@ async function registerNames() {
         name,
         account.address,
         zeroAddress,
-        zeroAddress,
+        dedicatedResolver.address,
         0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn, // All roles
         0xffffffffffffffffn, // MAX_EXPIRY
       ],
