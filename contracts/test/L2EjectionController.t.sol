@@ -120,7 +120,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         // Grant roles
         registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(this));
         
-        // Register a test name
+        // Register a test name with ALL_ROLES
         uint64 expires = uint64(block.timestamp + expiryDuration);
         tokenId = registry.register(label, user, registry, address(0), ALL_ROLES, expires);
     }
@@ -177,8 +177,8 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     }
 
     function test_completeMigrationFromL1() public {
-        // Use specific roles instead of ALL_ROLES
-        uint256 originalRoles = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY | ROLE_SET_TOKEN_OBSERVER;
+        // Use specific roles that include ROLE_CAN_EJECT so ejection can succeed
+        uint256 originalRoles = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY | ROLE_SET_TOKEN_OBSERVER | ROLE_CAN_EJECT;
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
 
         string memory label2 = "test2";
@@ -268,7 +268,6 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     }
 
     function test_onERC1155BatchReceived() public {
-        // Register two more names
         uint64 expires = uint64(block.timestamp + expiryDuration);
         string memory label2 = "test2";
         string memory label3 = "test3";
@@ -456,6 +455,80 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
     }
 
+    function test_Revert_eject_unauthorized() public {
+        // Create a new user without ROLE_CAN_EJECT
+        address unauthorizedUser = address(0x999);
+        
+        // Register a new token for the unauthorized user WITHOUT ROLE_CAN_EJECT
+        string memory testLabel = "unauthorized";
+        uint64 expires = uint64(block.timestamp + expiryDuration);
+        uint256 rolesWithoutEject = ALL_ROLES & ~ROLE_CAN_EJECT; // Remove ROLE_CAN_EJECT from ALL_ROLES
+        uint256 testTokenId = registry.register(testLabel, unauthorizedUser, registry, address(0), rolesWithoutEject, expires);
+        
+        // Explicitly check that the user does NOT have ROLE_CAN_EJECT
+        bytes32 tokenResource = registry.getTokenIdResource(testTokenId);
+        assertFalse(registry.hasRoles(tokenResource, ROLE_CAN_EJECT, unauthorizedUser), "User should not have ROLE_CAN_EJECT");
+        
+        // Prepare the data for ejection
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        uint256 roleBitmap = ALL_ROLES;
+        bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        
+        // User tries to transfer to ejection controller, should revert with UnauthorizedEjection
+        vm.prank(unauthorizedUser);
+        vm.expectRevert(abi.encodeWithSelector(L2EjectionController.UnauthorizedEjection.selector, testTokenId, address(controller)));
+        registry.safeTransferFrom(unauthorizedUser, address(controller), testTokenId, 1, ejectionData);
+    }
+
+    function test_eject_with_role_succeeds() public {
+        // Create a new user and grant them ROLE_CAN_EJECT
+        address authorizedUser = address(0x888);
+        
+        // Register a new token for the authorized user with ALL_ROLES (which includes ROLE_CAN_EJECT)
+        string memory testLabel = "authorized";
+        uint64 expires = uint64(block.timestamp + expiryDuration);
+        uint256 testTokenId = registry.register(testLabel, authorizedUser, registry, address(0), ALL_ROLES, expires);
+        
+        // Verify the user has ROLE_CAN_EJECT (from ALL_ROLES)
+        bytes32 tokenResource = registry.getTokenIdResource(testTokenId);
+        assertTrue(registry.hasRoles(tokenResource, ROLE_CAN_EJECT, authorizedUser), "User should have ROLE_CAN_EJECT");
+        
+        // Prepare the data for ejection
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        uint256 roleBitmap = ALL_ROLES;
+        bytes memory ejectionData = _createEjectionData(testLabel, authorizedUser, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        
+        // User should be able to transfer to ejection controller successfully
+        vm.recordLogs();
+        vm.prank(authorizedUser);
+        registry.safeTransferFrom(authorizedUser, address(controller), testTokenId, 1, ejectionData);
+        
+        // Verify the token is now owned by the controller
+        assertEq(registry.ownerOf(testTokenId), address(controller), "Token should be owned by the controller");
+        
+        // Verify subregistry is cleared
+        (address subregAddr, , ) = datastore.getSubregistry(testTokenId);
+        assertEq(subregAddr, address(0), "Subregistry not cleared after ejection");
+        
+        // Check for MockNameEjectedToL1 event
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool foundEvent = false;
+        bytes32 eventSig = keccak256("MockNameEjectedToL1(uint256,bytes)");
+        
+        for (uint i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(controller) && 
+                logs[i].topics[0] == eventSig) {
+                
+                if (logs[i].topics.length > 1) {
+                    assertEq(uint256(logs[i].topics[1]), testTokenId);
+                }
+                foundEvent = true;
+                break;
+            }
+        }
+        assertTrue(foundEvent, "MockNameEjectedToL1 event not found");
+    }
+
     function test_Revert_onERC1155Received_CallerNotRegistry() public {
         // Prepare valid data for ejection
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
@@ -514,9 +587,9 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         uint256 allRoles = ALL_ROLES;
         uint256 noRoles = 0;
         
-        bytes memory data1 = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, basicRoles);
-        bytes memory data2 = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, allRoles);
-        bytes memory data3 = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, noRoles);
+        bytes memory data1 = _createEjectionData(label, user, l1Subregistry, l1Resolver, expiryTime, basicRoles);
+        bytes memory data2 = _createEjectionData(label, user, l1Subregistry, l1Resolver, expiryTime, allRoles);
+        bytes memory data3 = _createEjectionData(label, user, l1Subregistry, l1Resolver, expiryTime, noRoles);
         
         // Verify the role bitmap is set correctly in the encoded data
         TransferData memory decoded1 = abi.decode(data1, (TransferData));
@@ -527,7 +600,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         assertEq(decoded2.roleBitmap, allRoles, "All roles not set correctly");
         assertEq(decoded3.roleBitmap, noRoles, "No roles not set correctly");
         
-        // Test the ejection with a role bitmap
+        // Test the ejection with a role bitmap (user already has ROLE_CAN_EJECT from setUp)
         vm.prank(user);
         registry.safeTransferFrom(user, address(controller), tokenId, 1, data2);
         

@@ -17,4 +17,7 @@ abstract contract RegistryRolesMixin {
 
     uint256 internal constant ROLE_SET_TOKEN_OBSERVER = 1 << 4;
     uint256 internal constant ROLE_SET_TOKEN_OBSERVER_ADMIN = ROLE_SET_TOKEN_OBSERVER << 128;
+
+    uint256 internal constant ROLE_CAN_EJECT = 1 << 5;
+    uint256 internal constant ROLE_CAN_EJECT_ADMIN = ROLE_CAN_EJECT << 128;
 }
