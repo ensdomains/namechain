@@ -233,6 +233,17 @@ for (const log of l2DatastoreLogs) {
       labelHashToParentRegistry.set(labelHash, registryKey);
     }
   }
+  if (decoded && decoded.eventName === "ResolverUpdate" && typeof decoded.args === 'object' && decoded.args !== null) {
+    const args = decoded.args as unknown as ResolverUpdateEventArgs;
+    const registryKey = createRegistryKey(l2Chain.id, args.registry);
+    const labelHash = args.id.toString();
+    const registryNode = registryTree.get(registryKey)!;
+    registryNode.labels.set(labelHash, {
+      registry: toNullIfZeroAddress(args.subregistry) as string | null,
+      resolver: toNullIfZeroAddress(args.resolver) as string | null,
+      label: labelHashToLabel.get(labelHash) || ''
+    });
+  }
 }
 
 // Convert registry tree to plain object for logging
@@ -273,6 +284,13 @@ interface SubregistryUpdateEventArgs {
 interface NewSubnameEventArgs {
   labelHash: bigint;
   label: string;
+}
+
+interface ResolverUpdateEventArgs {
+  registry: `0x${string}`;
+  id: bigint;
+  resolver: `0x${string}`;
+  expiry: bigint;
 }
 
 type LabelHash = string;
