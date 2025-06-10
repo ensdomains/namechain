@@ -68,6 +68,7 @@ abstract contract L2EjectionController is EjectionController, ITokenObserver, Re
                 revert UnauthorizedEjection(tokenId, address(this));
             }
 
+            //  NOTE: subnames no longer work, but we keep the resolver in place so that there is no resolution downtime
             registry.setSubregistry(tokenId, IRegistry(address(0)));
 
             // listen for events
