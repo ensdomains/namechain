@@ -43,16 +43,17 @@ const l1EthRegistryPath = join(process.cwd(), "deployments", "l1-local", "L1ETHR
 const ethRegistryPath = join(process.cwd(), "deployments", "l2-local", "ETHRegistry.json");
 const l1RegistryDatastorePath = join(process.cwd(), "deployments", "l1-local", "RegistryDatastore.json");
 const l2RegistryDatastorePath = join(process.cwd(), "deployments", "l2-local", "RegistryDatastore.json");
-
+const dedicatedResolverPath = join(process.cwd(), "deployments", "l2-local", "DedicatedResolverImpl.json");
 const rootRegistryDeployment = JSON.parse(readFileSync(rootRegistryPath, "utf8"));
 const l1EthRegistryDeployment = JSON.parse(readFileSync(l1EthRegistryPath, "utf8"));
 const ethRegistryDeployment = JSON.parse(readFileSync(ethRegistryPath, "utf8"));
 const l1RegistryDatastoreDeployment = JSON.parse(readFileSync(l1RegistryDatastorePath, "utf8"));
 const l2RegistryDatastoreDeployment = JSON.parse(readFileSync(l2RegistryDatastorePath, "utf8"));
-
+const dedicatedResolverDeployment = JSON.parse(readFileSync(dedicatedResolverPath, "utf8"));
 // Extract ABIs for events
 const registryEvents = l1EthRegistryDeployment.abi.filter((item: any) => item.type === "event");
 const datastoreEvents = l1RegistryDatastoreDeployment.abi.filter((item: any) => item.type === "event");
+const resolverEvents = dedicatedResolverDeployment.abi.filter((item: any) => item.type === "event");
 
 // Helper function to create registry key
 function createRegistryKey(chainId: number, address: string): string {
@@ -63,6 +64,11 @@ function createRegistryKey(chainId: number, address: string): string {
 const labelHashToLabel = new Map<string, string>();
 const labelHashToParentRegistry = new Map<string, string>();
 const allRegistries = new Set<string>();
+const allResolvers = new Map<string, {
+  address: string;
+  addresses: Map<string, string>;
+  texts: Map<string, string>;
+}>();
 
 // Add initial registries
 allRegistries.add(createRegistryKey(l1Chain.id, rootRegistryDeployment.address));
@@ -237,12 +243,47 @@ for (const log of l2DatastoreLogs) {
     const args = decoded.args as unknown as ResolverUpdateEventArgs;
     const registryKey = createRegistryKey(l2Chain.id, args.registry);
     const labelHash = args.id.toString();
-    const registryNode = registryTree.get(registryKey)!;
-    registryNode.labels.set(labelHash, {
-      registry: toNullIfZeroAddress(args.subregistry) as string | null,
-      resolver: toNullIfZeroAddress(args.resolver) as string | null,
-      label: labelHashToLabel.get(labelHash) || ''
-    });
+    const resolver = args.resolver.toLowerCase();
+    
+    if (resolver && resolver !== "0x0000000000000000000000000000000000000000") {
+      // Track resolver
+      allResolvers.set(resolver, {
+        address: resolver,
+        addresses: new Map(),
+        texts: new Map()
+      });
+
+      // Update registry node
+      const registryNode = registryTree.get(registryKey)!;
+      const label = labelHashToLabel.get(labelHash) || '';
+      registryNode.labels.set(labelHash, {
+        registry: toNullIfZeroAddress(args.registry) as string | null,
+        resolver: resolver,
+        label: label
+      });
+
+      // Fetch AddressChanged events for this resolver
+      const resolverLogs = await l2Client.getLogs({
+        address: resolver as `0x${string}`,
+        fromBlock: 0n,
+        toBlock: await l2Client.getBlockNumber(),
+      });
+      console.log("*** Resolver logs:", resolverLogs);
+      for (const log of resolverLogs) {
+        const decodedEvent = decodeEvent(log, resolverEvents);
+        console.log("*** Decoded event:", decodedEvent);
+        if (decodedEvent && decodedEvent.eventName === "AddressChanged" && typeof decodedEvent.args === 'object' && decodedEvent.args !== null) {
+          const addressArgs = decodedEvent.args as unknown as AddressChangedEventArgs;
+          const resolverInfo = allResolvers.get(resolver)!;
+          resolverInfo.addresses.set(addressArgs.coinType?.toString() || "60", addressArgs.newAddress);
+        }
+        if (decodedEvent && decodedEvent.eventName === "TextChanged" && typeof decodedEvent.args === 'object' && decodedEvent.args !== null) {
+          const textArgs = decodedEvent.args as unknown as TextChangedEventArgs;
+          const resolverInfo = allResolvers.get(resolver)!;
+          resolverInfo.texts.set(textArgs.key, textArgs.value);
+        }
+      }
+    }
   }
 }
 
@@ -291,6 +332,17 @@ interface ResolverUpdateEventArgs {
   id: bigint;
   resolver: `0x${string}`;
   expiry: bigint;
+}
+
+interface AddressChangedEventArgs {
+  node: `0x${string}`;
+  newAddress: `0x${string}`;
+}
+
+interface TextChangedEventArgs {
+  node: `0x${string}`;
+  key: string;
+  value: string;
 }
 
 type LabelHash = string;
@@ -465,7 +517,7 @@ function convertToPlainObject(obj: any): any {
   return obj;
 }
 
-// New RegistryNode interface
+// Update RegistryNode interface
 interface RegistryNode {
   subregistries: Set<string>;
   chainId: number;
@@ -510,10 +562,45 @@ const allNames = collectNames(
   `${l1Chain.id}-${rootRegistryDeployment.address}`,
   registryTree
 ).filter(name => name != 'eth');
-console.log("\nAll Registered Names:");
-console.log("----------------");
-allNames.forEach(name => console.log(`- ${name}`));
-console.log("----------------");
+console.log("\nAll Registered Names with Resolver Information:");
+console.log("--------------------------------");
+allNames.forEach(name => {
+  console.log(`\nName: ${name}`);
+  
+  // Find the labelHash for this name
+  const labelHash = Array.from(labelHashToLabel.entries())
+    .find(([_, label]) => name === `${label}.eth`)?.[0];
+  
+  if (labelHash) {
+    // Find the resolver for this label
+    const labelResolver = Array.from(registryTree.values())
+      .find(node => node.labels.has(labelHash))
+      ?.labels.get(labelHash)?.resolver;
+    
+    if (labelResolver) {
+      // Only show info for the matching resolver
+      const resolverInfo = allResolvers.get(labelResolver);
+      if (resolverInfo) {
+        console.log(`  Resolver: ${labelResolver}`);
+        
+        if (resolverInfo.addresses.size > 0) {
+          console.log("  Addresses:");
+          for (const [coinType, address] of resolverInfo.addresses.entries()) {
+            console.log(`    CoinType ${coinType}: ${address}`);
+          }
+        }
+        
+        if (resolverInfo.texts.size > 0) {
+          console.log("  Text Records:");
+          for (const [key, value] of resolverInfo.texts.entries()) {
+            console.log(`    ${key}: ${value}`);
+          }
+        }
+      }
+    }
+  }
+});
+console.log("--------------------------------");
 console.log(`Total unique names: ${allNames.length}`);
 
 function toNullIfZeroAddress(addr: string): string | null {
@@ -521,4 +608,22 @@ function toNullIfZeroAddress(addr: string): string | null {
     return null;
   }
   return addr;
-} 
+}
+
+// Add before the final console.log
+console.log("allResolvers", allResolvers);
+console.log("\nAll Resolvers and their Addresses:");
+console.log("--------------------------------");
+for (const [resolver, info] of allResolvers.entries()) {
+  console.log(`\nResolver: ${resolver}`);
+  if (info.addresses.size > 0) {
+    console.log("Addresses:");
+    for (const [node, address] of info.addresses.entries()) {
+      console.log(`  Node: ${node} -> Address: ${address}`);
+    }
+  } else {
+    console.log("No addresses set");
+  }
+}
+console.log("--------------------------------");
+console.log(`Total resolvers: ${allResolvers.size}`); 
