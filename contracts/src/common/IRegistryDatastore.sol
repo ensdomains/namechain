@@ -9,9 +9,6 @@ pragma solidity >=0.8.13;
  *      means that two label hashes that differ only in the least-significant 32 bits will resolve to the same name.
  */
 interface IRegistryDatastore {
-    event SubregistryUpdate(address indexed registry, uint256 indexed id, address subregistry, uint64 expiry, uint32 data);
-    event ResolverUpdate(address indexed registry, uint256 indexed id, address resolver, uint64 expiry, uint32 data);
-
     function getSubregistry(address registry, uint256 id)
         external
         view
