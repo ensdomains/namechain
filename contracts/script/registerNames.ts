@@ -121,6 +121,8 @@ const dedicatedResolverEvents = [
   }
 ] as const;
 
+const resolverAddresses = new Set<string>();
+
 async function waitForTransaction(hash: `0x${string}`) {
   while (true) {
     try {
@@ -140,6 +142,13 @@ function decodeEvent(log: Log, events: typeof dedicatedResolverEvents) {
       data: log.data,
       topics: log.topics,
     });
+    if (decoded && decoded.eventName === "ResolverUpdate" && typeof decoded.args === 'object' && decoded.args !== null) {
+      const args = decoded.args as { resolver: string };
+      const resolver = args.resolver.toLowerCase();
+      if (resolver && resolver !== "0x0000000000000000000000000000000000000000") {
+        resolverAddresses.add(resolver);
+      }
+    }
     return decoded;
   } catch (error) {
     return null;
@@ -253,11 +262,29 @@ async function registerNames() {
       [60n, account.address],
       { account }
     );
+    console.log("*** Set TEXT record for ${name}...");
+    await dedicatedResolver.write.setText(
+      ["domain", name],
+      { account }
+    );
+
 
     console.log(`Token ID: ${tokenId}`);
     console.log(`Expiry: ${expiry}`);
     console.log(`Token ID Version: ${tokenIdVersion}`);
   }
+
+  console.log("\\nAll Resolver Addresses Set via ResolverUpdate:");
+  console.log("----------------");
+  if (resolverAddresses.size === 0) {
+    console.log("No resolver addresses found.");
+  } else {
+    resolverAddresses.forEach(resolver => {
+      console.log(`- ${resolver}`);
+    });
+  }
+  console.log("----------------");
+  console.log(`Total unique resolver addresses: ${resolverAddresses.size}`);
 }
 
 registerNames();
