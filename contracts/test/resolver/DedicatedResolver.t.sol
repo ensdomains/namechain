@@ -4,7 +4,9 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {DedicatedResolver} from "../../src/common/DedicatedResolver.sol";
-import {IDedicatedResolverManager, NODE_ANY} from "../../src/common/IDedicatedResolverManager.sol";
+import {ISingularResolver, NODE_ANY} from "../../src/common/ISingularResolver.sol";
+import {IExtendedResolverWithMulticall} from "../../src/common/IExtendedResolverWithMulticall.sol";
+import {IDedicatedResolverManager} from "../../src/common/IDedicatedResolverManager.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
@@ -26,25 +28,34 @@ contract DedicatedResolverTest is Test {
         string name;
     }
     function _supportedInterfaces() internal pure returns (I[] memory v) {
-        v = new I[](12);
-        v[0] = I(type(IExtendedResolver).interfaceId, "IExtendedResolver");
-        v[1] = I(
+        v = new I[](14);
+        uint256 i;
+        v[i++] = I(type(IExtendedResolver).interfaceId, "IExtendedResolver");
+        v[i++] = I(type(ISingularResolver).interfaceId, "ISingularResolver");
+        v[i++] = I(
+            type(IExtendedResolverWithMulticall).interfaceId,
+            "IExtendedResolverWithMulticall"
+        );
+        v[i++] = I(
             type(IDedicatedResolverManager).interfaceId,
             "IDedicatedResolverManager"
         );
-        v[2] = I(type(IMulticallable).interfaceId, "IMulticallable");
-        v[3] = I(type(IAddrResolver).interfaceId, "IAddrResolver");
-        v[4] = I(type(IAddressResolver).interfaceId, "IAddressResolver");
-        v[5] = I(type(IHasAddressResolver).interfaceId, "IHasAddressResolver");
-        v[6] = I(type(ITextResolver).interfaceId, "ITextResolver");
-        v[7] = I(
+        v[i++] = I(type(IMulticallable).interfaceId, "IMulticallable");
+        v[i++] = I(type(IAddrResolver).interfaceId, "IAddrResolver");
+        v[i++] = I(type(IAddressResolver).interfaceId, "IAddressResolver");
+        v[i++] = I(
+            type(IHasAddressResolver).interfaceId,
+            "IHasAddressResolver"
+        );
+        v[i++] = I(type(ITextResolver).interfaceId, "ITextResolver");
+        v[i++] = I(
             type(IContentHashResolver).interfaceId,
             "IContentHashResolver"
         );
-        v[8] = I(type(IPubkeyResolver).interfaceId, "IPubkeyResolver");
-        v[9] = I(type(INameResolver).interfaceId, "INameResolver");
-        v[10] = I(type(IABIResolver).interfaceId, "IABIResolver");
-        v[11] = I(type(IInterfaceResolver).interfaceId, "IInterfaceResolver");
+        v[i++] = I(type(IPubkeyResolver).interfaceId, "IPubkeyResolver");
+        v[i++] = I(type(INameResolver).interfaceId, "INameResolver");
+        v[i++] = I(type(IABIResolver).interfaceId, "IABIResolver");
+        v[i++] = I(type(IInterfaceResolver).interfaceId, "IInterfaceResolver");
     }
 
     address owner;

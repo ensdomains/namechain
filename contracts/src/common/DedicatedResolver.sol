@@ -5,8 +5,10 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import {IDedicatedResolverManager, NODE_ANY} from "./IDedicatedResolverManager.sol";
+import {IDedicatedResolverManager} from "./IDedicatedResolverManager.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IExtendedResolverWithMulticall} from "./IExtendedResolverWithMulticall.sol";
+import {ISingularResolver, NODE_ANY} from "./ISingularResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 
@@ -26,8 +28,8 @@ import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceRe
 contract DedicatedResolver is
     ERC165,
     OwnableUpgradeable,
-    IExtendedResolver,
     IDedicatedResolverManager,
+    IExtendedResolver,
     IMulticallable,
     IAddrResolver,
     IAddressResolver,
@@ -69,6 +71,8 @@ contract DedicatedResolver is
     ) public view override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
+            type(ISingularResolver).interfaceId == interfaceId ||
+            type(IExtendedResolverWithMulticall).interfaceId == interfaceId ||
             type(IDedicatedResolverManager).interfaceId == interfaceId ||
             type(IMulticallable).interfaceId == interfaceId ||
             type(IAddrResolver).interfaceId == interfaceId ||

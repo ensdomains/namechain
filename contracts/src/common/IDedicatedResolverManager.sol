@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-bytes32 constant NODE_ANY = 0;
-
 interface IDedicatedResolverManager {
     /// @notice The address could not be converted to `address`.
     /// @dev Error selector: `0x8d666f60`
     error InvalidEVMAddress(bytes addressBytes);
 
     /// @notice Set address for the coin type.
-    ///         Reverts `InvalidEVMAddress` if coin type is EVM and address is not 0 or 20 bytes.
+    ///         Should revert `InvalidEVMAddress` if coin type is EVM and address is not 0 or 20 bytes.
     /// @param coinType The coin type.
     /// @param addressBytes The address to set.
     function setAddr(uint256 coinType, bytes calldata addressBytes) external;
