@@ -1,6 +1,7 @@
 {
-  "name": "contracts",
+  "name": "@ensdomains/namechain",
   "type": "module",
+  "version": "0.0.0",
   "scripts": {
     "deploy": "hardhat deploy",
     "compile:hardhat": "hardhat compile",
@@ -10,7 +11,8 @@
     "test": "bun run test:forge && bun run test:hardhat",
     "coverage": "forge coverage --report lcov && bun run test:hardhat && bun run test:bridge",
     "clean": "forge clean && hardhat clean",
-    "devnet": "bun ./script/runDevnet.ts"
+    "devnet": "bun ./script/runDevnet.ts",
+    "prepublishOnly": "forge compile && bun compile:hardhat"
   },
   "devDependencies": {
     "@ensdomains/hardhat-chai-matchers-viem": "^0.1.4",
