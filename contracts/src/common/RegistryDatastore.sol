@@ -41,12 +41,10 @@ contract RegistryDatastore is IRegistryDatastore {
     function setSubregistry(uint256 id, address subregistry, uint64 expiry, uint32 data) external {
         id = NameUtils.getCanonicalId(id);
         entries[msg.sender][id].registryData = DatastoreUtils.pack(subregistry, expiry, data);
-        emit SubregistryUpdate(msg.sender, id, subregistry, expiry, data);
     }
 
     function setResolver(uint256 id, address resolver, uint64 expiry, uint32 data) external {
         id = NameUtils.getCanonicalId(id);
         entries[msg.sender][id].resolverData = DatastoreUtils.pack(resolver, expiry, data);
-        emit ResolverUpdate(msg.sender, id, resolver, expiry, data);
     }
 }
