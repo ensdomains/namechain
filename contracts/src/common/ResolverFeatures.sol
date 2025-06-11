@@ -8,6 +8,6 @@ library ResolverFeatures {
         bytes6(keccak256("ens.resolver.extended.multicall"));
 
     /// @notice Returns the same records independent of name or node.
-    /// @dev Feature: `0xd45afd822f9c`
-    bytes6 constant DEDICATED = bytes6(keccak256("ens.resolver.dedicated"));
+    /// @dev Feature: `0xfaa33450d7bc`
+    bytes6 constant SINGULAR = bytes6(keccak256("ens.resolver.singular"));
 }

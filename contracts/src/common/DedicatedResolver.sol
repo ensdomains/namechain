@@ -93,7 +93,7 @@ contract DedicatedResolver is
     function supportsFeature(bytes6 feature) public pure returns (bool) {
         return
             ResolverFeatures.RESOLVE_MULTICALL == feature ||
-            ResolverFeatures.DEDICATED == feature;
+            ResolverFeatures.SINGULAR == feature;
     }
 
     /// @inheritdoc IDedicatedResolverManager

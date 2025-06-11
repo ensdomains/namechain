@@ -103,8 +103,8 @@ contract DedicatedResolverTest is Test {
             "RESOLVE_MULTICALL"
         );
         assertTrue(
-            resolver.supportsFeature(ResolverFeatures.DEDICATED),
-            "DEDICATED"
+            resolver.supportsFeature(ResolverFeatures.SINGULAR),
+            "SINGULAR"
         );
     }
 
