@@ -44,12 +44,15 @@ const ethRegistryPath = join(process.cwd(), "deployments", "l2-local", "ETHRegis
 const l1RegistryDatastorePath = join(process.cwd(), "deployments", "l1-local", "RegistryDatastore.json");
 const l2RegistryDatastorePath = join(process.cwd(), "deployments", "l2-local", "RegistryDatastore.json");
 const dedicatedResolverPath = join(process.cwd(), "deployments", "l2-local", "DedicatedResolverImpl.json");
+const l1RootRegistryPath = join(process.cwd(), "deployments", "l1-local", "RootRegistry.json");
 const rootRegistryDeployment = JSON.parse(readFileSync(rootRegistryPath, "utf8"));
 const l1EthRegistryDeployment = JSON.parse(readFileSync(l1EthRegistryPath, "utf8"));
 const ethRegistryDeployment = JSON.parse(readFileSync(ethRegistryPath, "utf8"));
 const l1RegistryDatastoreDeployment = JSON.parse(readFileSync(l1RegistryDatastorePath, "utf8"));
 const l2RegistryDatastoreDeployment = JSON.parse(readFileSync(l2RegistryDatastorePath, "utf8"));
 const dedicatedResolverDeployment = JSON.parse(readFileSync(dedicatedResolverPath, "utf8"));
+const l1RootRegistryDeployment = JSON.parse(readFileSync(l1RootRegistryPath, "utf8"));
+
 // Extract ABIs for events
 const registryEvents = l1EthRegistryDeployment.abi.filter((item: any) => item.type === "event");
 const datastoreEvents = l1RegistryDatastoreDeployment.abi.filter((item: any) => item.type === "event");
@@ -136,151 +139,297 @@ if (l1EthRegistry) {
   l1EthRegistry.subregistries.add(createRegistryKey(l2Chain.id, ethRegistryDeployment.address));
 }
 
-
-// Fetch historical logs from L1 RegistryDatastore
-const l1DatastoreLogs = await l1Client.getLogs({
-  address: l1RegistryDatastoreDeployment.address,
+// Fetch historical logs from L1 Registry
+const l1RegistryLogs = await l1Client.getLogs({
+  address: l1EthRegistryDeployment.address,
   fromBlock: 0n,
   toBlock: await l1Client.getBlockNumber(),
 });
 
-console.log("L1 Datastore logs:", l1DatastoreLogs.length);
+console.log("L1 Registry logs:", l1RegistryLogs.length);
 
-// Process L1 RegistryDatastore events
-for (const log of l1DatastoreLogs) {
-  const decoded = decodeEvent(log, datastoreEvents);
+// Process L1 Registry events
+for (const log of l1RegistryLogs) {
+  const decoded = decodeEvent(log, registryEvents);
   console.log("Decoded L1 event:", decoded?.eventName, decoded?.args);
   
-  if (decoded && decoded.eventName === "SubregistryUpdate" && typeof decoded.args === 'object' && decoded.args !== null) {
-    const args = decoded.args as unknown as SubregistryUpdateEventArgs;
-    const registryKey = createRegistryKey(l1Chain.id, args.registry);
-    const subregistryKey = createRegistryKey(l1Chain.id, args.subregistry);
-    const labelHash = args.id.toString();
-    const expiry = Number(args.expiry);
-    
-    if (expiry > Math.floor(Date.now() / 1000)) {
-      if (!registryTree.has(registryKey)) {
-        registryTree.set(registryKey, {
-          subregistries: new Set(),
-          chainId: l1Chain.id,
-          expiry: 0,
-          labels: new Map()
-        });
+  if (decoded && typeof decoded.args === 'object' && decoded.args !== null) {
+    if (decoded.eventName === "SubregistryUpdate") {
+      const args = decoded.args as unknown as SubregistryUpdateEventArgs;
+      const registryKey = createRegistryKey(l1Chain.id, args.registry);
+      const subregistryKey = createRegistryKey(l1Chain.id, args.subregistry);
+      const labelHash = args.id.toString();
+      const expiry = Number(args.expiry);
+      
+      if (expiry > Math.floor(Date.now() / 1000)) {
+        if (!registryTree.has(registryKey)) {
+          registryTree.set(registryKey, {
+            subregistries: new Set(),
+            chainId: l1Chain.id,
+            expiry: 0,
+            labels: new Map()
+          });
+        }
+        
+        const registryNode = registryTree.get(registryKey)!;
+        registryNode.subregistries.add(subregistryKey);
+        registryNode.expiry = expiry;
+        
+        // Add label information
+        const label = labelHashToLabel.get(labelHash);
+        if (label) {
+          registryNode.labels.set(labelHash, {
+            registry: args.subregistry.toLowerCase(),
+            resolver: "0x0000000000000000000000000000000000000000",
+            label: label
+          });
+        }
+        
+        allRegistries.add(registryKey);
+        allRegistries.add(subregistryKey);
+        labelHashToParentRegistry.set(labelHash, registryKey);
       }
+    } else if (decoded.eventName === "ResolverUpdate") {
+      const args = decoded.args as unknown as ResolverUpdateEventArgs;
+      const registryKey = createRegistryKey(l1Chain.id, args.registry);
+      const labelHash = args.id.toString();
+      const resolver = args.resolver.toLowerCase();
       
-      const registryNode = registryTree.get(registryKey)!;
-      registryNode.subregistries.add(subregistryKey);
-      registryNode.expiry = expiry;
-      
-      // Add label information
-      const label = labelHashToLabel.get(labelHash);
-      if (label) {
-        registryNode.labels.set(labelHash, {
-          registry: toNullIfZeroAddress(args.subregistry) as string | null,
-          resolver: toNullIfZeroAddress("0x0000000000000000000000000000000000000000") as string | null,
-          label: label
+      if (resolver && resolver !== "0x0000000000000000000000000000000000000000") {
+        // Track resolver
+        allResolvers.set(resolver, {
+          address: resolver,
+          addresses: new Map(),
+          texts: new Map()
         });
+
+        // Update registry node
+        const registryNode = registryTree.get(registryKey);
+        if (registryNode) {
+          const label = labelHashToLabel.get(labelHash) || '';
+          registryNode.labels.set(labelHash, {
+            registry: args.registry.toLowerCase(),
+            resolver: resolver,
+            label: label
+          });
+        }
+
+        // Fetch AddressChanged events for this resolver
+        const resolverLogs = await l1Client.getLogs({
+          address: resolver as `0x${string}`,
+          fromBlock: 0n,
+          toBlock: await l1Client.getBlockNumber(),
+        });
+        for (const log of resolverLogs) {
+          const decodedEvent = decodeEvent(log, resolverEvents);
+          if (decodedEvent && decodedEvent.eventName === "AddressChanged" && typeof decodedEvent.args === 'object' && decodedEvent.args !== null) {
+            const addressArgs = decodedEvent.args as unknown as AddressChangedEventArgs;
+            const resolverInfo = allResolvers.get(resolver)!;
+            resolverInfo.addresses.set(addressArgs.coinType?.toString() || "60", addressArgs.newAddress);
+          }
+          if (decodedEvent && decodedEvent.eventName === "TextChanged" && typeof decodedEvent.args === 'object' && decodedEvent.args !== null) {
+            const textArgs = decodedEvent.args as unknown as TextChangedEventArgs;
+            const resolverInfo = allResolvers.get(resolver)!;
+            resolverInfo.texts.set(textArgs.key, textArgs.value);
+          }
+        }
       }
-      
-      allRegistries.add(registryKey);
-      allRegistries.add(subregistryKey);
-      labelHashToParentRegistry.set(labelHash, registryKey);
     }
   }
 }
 
-// Fetch historical logs from L2 RegistryDatastore
-const l2DatastoreLogs = await l2Client.getLogs({
-  address: l2RegistryDatastoreDeployment.address,
+// Fetch historical logs from L2 Registry
+const l2RegistryLogs = await l2Client.getLogs({
+  address: ethRegistryDeployment.address,
   fromBlock: 0n,
   toBlock: await l2Client.getBlockNumber(),
 });
 
-console.log("L2 Datastore logs:", l2DatastoreLogs.length);
+console.log("L2 Registry logs:", l2RegistryLogs.length);
 
-// Process L2 RegistryDatastore events
-for (const log of l2DatastoreLogs) {
-  const decoded = decodeEvent(log, datastoreEvents);
+// Process L2 Registry events
+for (const log of l2RegistryLogs) {
+  const decoded = decodeEvent(log, registryEvents);
   console.log("Decoded L2 event:", decoded?.eventName, decoded?.args);
   
-  if (decoded && decoded.eventName === "SubregistryUpdate" && typeof decoded.args === 'object' && decoded.args !== null) {
-    const args = decoded.args as unknown as SubregistryUpdateEventArgs;
-    const registryKey = createRegistryKey(l2Chain.id, args.registry);
-    const subregistryKey = createRegistryKey(l2Chain.id, args.subregistry);
-    const labelHash = args.id.toString();
-    const expiry = Number(args.expiry);
-    
-    if (expiry > Math.floor(Date.now() / 1000)) {
-      if (!registryTree.has(registryKey)) {
-        registryTree.set(registryKey, {
-          subregistries: new Set(),
-          chainId: l2Chain.id,
-          expiry: 0,
-          labels: new Map()
-        });
+  if (decoded && typeof decoded.args === 'object' && decoded.args !== null) {
+    if (decoded.eventName === "SubregistryUpdate") {
+      const args = decoded.args as unknown as SubregistryUpdateEventArgs;
+      const registryKey = createRegistryKey(l2Chain.id, args.registry);
+      const subregistryKey = createRegistryKey(l2Chain.id, args.subregistry);
+      const labelHash = args.id.toString();
+      const expiry = Number(args.expiry);
+      
+      if (expiry > Math.floor(Date.now() / 1000)) {
+        if (!registryTree.has(registryKey)) {
+          registryTree.set(registryKey, {
+            subregistries: new Set(),
+            chainId: l2Chain.id,
+            expiry: 0,
+            labels: new Map()
+          });
+        }
+        
+        const registryNode = registryTree.get(registryKey)!;
+        registryNode.subregistries.add(subregistryKey);
+        registryNode.expiry = expiry;
+        
+        // Add label information
+        const label = labelHashToLabel.get(labelHash);
+        if (label) {
+          registryNode.labels.set(labelHash, {
+            registry: args.subregistry.toLowerCase(),
+            resolver: "0x0000000000000000000000000000000000000000",
+            label: label
+          });
+        }
+        
+        allRegistries.add(registryKey);
+        allRegistries.add(subregistryKey);
+        labelHashToParentRegistry.set(labelHash, registryKey);
       }
+    } else if (decoded.eventName === "ResolverUpdate") {
+      const args = decoded.args as unknown as ResolverUpdateEventArgs;
+      const registryKey = createRegistryKey(l2Chain.id, args.registry);
+      const labelHash = args.id.toString();
+      const resolver = args.resolver.toLowerCase();
       
-      const registryNode = registryTree.get(registryKey)!;
-      registryNode.subregistries.add(subregistryKey);
-      registryNode.expiry = expiry;
-      
-      // Add label information
-      const label = labelHashToLabel.get(labelHash);
-      if (label) {
-        registryNode.labels.set(labelHash, {
-          registry: toNullIfZeroAddress(args.subregistry) as string | null,
-          resolver: toNullIfZeroAddress("0x0000000000000000000000000000000000000000") as string | null,
-          label: label
+      if (resolver && resolver !== "0x0000000000000000000000000000000000000000") {
+        // Track resolver
+        allResolvers.set(resolver, {
+          address: resolver,
+          addresses: new Map(),
+          texts: new Map()
         });
+
+        // Update registry node
+        const registryNode = registryTree.get(registryKey);
+        if (registryNode) {
+          const label = labelHashToLabel.get(labelHash) || '';
+          registryNode.labels.set(labelHash, {
+            registry: args.registry.toLowerCase(),
+            resolver: resolver,
+            label: label
+          });
+        }
+
+        // Fetch AddressChanged events for this resolver
+        const resolverLogs = await l2Client.getLogs({
+          address: resolver as `0x${string}`,
+          fromBlock: 0n,
+          toBlock: await l2Client.getBlockNumber(),
+        });
+        for (const log of resolverLogs) {
+          const decodedEvent = decodeEvent(log, resolverEvents);
+          if (decodedEvent && decodedEvent.eventName === "AddressChanged" && typeof decodedEvent.args === 'object' && decodedEvent.args !== null) {
+            const addressArgs = decodedEvent.args as unknown as AddressChangedEventArgs;
+            const resolverInfo = allResolvers.get(resolver)!;
+            resolverInfo.addresses.set(addressArgs.coinType?.toString() || "60", addressArgs.newAddress);
+          }
+          if (decodedEvent && decodedEvent.eventName === "TextChanged" && typeof decodedEvent.args === 'object' && decodedEvent.args !== null) {
+            const textArgs = decodedEvent.args as unknown as TextChangedEventArgs;
+            const resolverInfo = allResolvers.get(resolver)!;
+            resolverInfo.texts.set(textArgs.key, textArgs.value);
+          }
+        }
       }
-      
-      allRegistries.add(registryKey);
-      allRegistries.add(subregistryKey);
-      labelHashToParentRegistry.set(labelHash, registryKey);
     }
   }
-  if (decoded && decoded.eventName === "ResolverUpdate" && typeof decoded.args === 'object' && decoded.args !== null) {
-    const args = decoded.args as unknown as ResolverUpdateEventArgs;
-    const registryKey = createRegistryKey(l2Chain.id, args.registry);
-    const labelHash = args.id.toString();
-    const resolver = args.resolver.toLowerCase();
-    
-    if (resolver && resolver !== "0x0000000000000000000000000000000000000000") {
-      // Track resolver
-      allResolvers.set(resolver, {
-        address: resolver,
-        addresses: new Map(),
-        texts: new Map()
-      });
+}
 
-      // Update registry node
-      const registryNode = registryTree.get(registryKey)!;
-      const label = labelHashToLabel.get(labelHash) || '';
-      registryNode.labels.set(labelHash, {
-        registry: toNullIfZeroAddress(args.registry) as string | null,
-        resolver: resolver,
-        label: label
-      });
+// Fetch historical logs from L1 RootRegistry
+const l1RootRegistryLogs = await l1Client.getLogs({
+  address: l1RootRegistryDeployment.address,
+  fromBlock: 0n,
+  toBlock: await l1Client.getBlockNumber(),
+});
 
-      // Fetch AddressChanged events for this resolver
-      const resolverLogs = await l2Client.getLogs({
-        address: resolver as `0x${string}`,
-        fromBlock: 0n,
-        toBlock: await l2Client.getBlockNumber(),
-      });
-      console.log("*** Resolver logs:", resolverLogs);
-      for (const log of resolverLogs) {
-        const decodedEvent = decodeEvent(log, resolverEvents);
-        console.log("*** Decoded event:", decodedEvent);
-        if (decodedEvent && decodedEvent.eventName === "AddressChanged" && typeof decodedEvent.args === 'object' && decodedEvent.args !== null) {
-          const addressArgs = decodedEvent.args as unknown as AddressChangedEventArgs;
-          const resolverInfo = allResolvers.get(resolver)!;
-          resolverInfo.addresses.set(addressArgs.coinType?.toString() || "60", addressArgs.newAddress);
+console.log("L1 RootRegistry logs:", l1RootRegistryLogs.length);
+
+// Process L1 RootRegistry events
+for (const log of l1RootRegistryLogs) {
+  const decoded = decodeEvent(log, registryEvents);
+  console.log("Decoded L1 RootRegistry event:", decoded?.eventName, decoded?.args);
+  
+  if (decoded && typeof decoded.args === 'object' && decoded.args !== null) {
+    if (decoded.eventName === "SubregistryUpdate") {
+      const args = decoded.args as unknown as SubregistryUpdateEventArgs;
+      const registryKey = createRegistryKey(l1Chain.id, args.registry);
+      const subregistryKey = createRegistryKey(l1Chain.id, args.subregistry);
+      const labelHash = args.id.toString();
+      const expiry = Number(args.expiry);
+      
+      if (expiry > Math.floor(Date.now() / 1000)) {
+        if (!registryTree.has(registryKey)) {
+          registryTree.set(registryKey, {
+            subregistries: new Set(),
+            chainId: l1Chain.id,
+            expiry: 0,
+            labels: new Map()
+          });
         }
-        if (decodedEvent && decodedEvent.eventName === "TextChanged" && typeof decodedEvent.args === 'object' && decodedEvent.args !== null) {
-          const textArgs = decodedEvent.args as unknown as TextChangedEventArgs;
-          const resolverInfo = allResolvers.get(resolver)!;
-          resolverInfo.texts.set(textArgs.key, textArgs.value);
+        
+        const registryNode = registryTree.get(registryKey)!;
+        registryNode.subregistries.add(subregistryKey);
+        registryNode.expiry = expiry;
+        
+        // Add label information
+        const label = labelHashToLabel.get(labelHash);
+        if (label) {
+          registryNode.labels.set(labelHash, {
+            registry: args.subregistry.toLowerCase(),
+            resolver: "0x0000000000000000000000000000000000000000",
+            label: label
+          });
+        }
+        
+        allRegistries.add(registryKey);
+        allRegistries.add(subregistryKey);
+        labelHashToParentRegistry.set(labelHash, registryKey);
+      }
+    } else if (decoded.eventName === "ResolverUpdate") {
+      const args = decoded.args as unknown as ResolverUpdateEventArgs;
+      const registryKey = createRegistryKey(l1Chain.id, args.registry);
+      const labelHash = args.id.toString();
+      const resolver = args.resolver.toLowerCase();
+      
+      if (resolver && resolver !== "0x0000000000000000000000000000000000000000") {
+        // Track resolver
+        allResolvers.set(resolver, {
+          address: resolver,
+          addresses: new Map(),
+          texts: new Map()
+        });
+
+        // Update registry node
+        const registryNode = registryTree.get(registryKey);
+        if (registryNode) {
+          const label = labelHashToLabel.get(labelHash) || '';
+          registryNode.labels.set(labelHash, {
+            registry: args.registry.toLowerCase(),
+            resolver: resolver,
+            label: label
+          });
+        }
+
+        // Fetch AddressChanged events for this resolver
+        const resolverLogs = await l1Client.getLogs({
+          address: resolver as `0x${string}`,
+          fromBlock: 0n,
+          toBlock: await l1Client.getBlockNumber(),
+        });
+        for (const log of resolverLogs) {
+          const decodedEvent = decodeEvent(log, resolverEvents);
+          if (decodedEvent && decodedEvent.eventName === "AddressChanged" && typeof decodedEvent.args === 'object' && decodedEvent.args !== null) {
+            const addressArgs = decodedEvent.args as unknown as AddressChangedEventArgs;
+            const resolverInfo = allResolvers.get(resolver)!;
+            resolverInfo.addresses.set(addressArgs.coinType?.toString() || "60", addressArgs.newAddress);
+          }
+          if (decodedEvent && decodedEvent.eventName === "TextChanged" && typeof decodedEvent.args === 'object' && decodedEvent.args !== null) {
+            const textArgs = decodedEvent.args as unknown as TextChangedEventArgs;
+            const resolverInfo = allResolvers.get(resolver)!;
+            resolverInfo.texts.set(textArgs.key, textArgs.value);
+          }
         }
       }
     }
@@ -332,10 +481,12 @@ interface ResolverUpdateEventArgs {
   id: bigint;
   resolver: `0x${string}`;
   expiry: bigint;
+  data: number;
 }
 
 interface AddressChangedEventArgs {
   node: `0x${string}`;
+  coinType: bigint;
   newAddress: `0x${string}`;
 }
 
