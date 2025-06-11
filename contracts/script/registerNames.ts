@@ -1,8 +1,7 @@
-import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType, encodeFunctionData, parseEventLogs,  } from "viem";
+import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType, encodeFunctionData, parseEventLogs } from "viem";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { privateKeyToAccount, mnemonicToAccount } from "viem/accounts";
-import { deployContract } from "./utils/deploy.js";
 
 // Define chain types
 const l1Chain: Chain = {
@@ -49,78 +48,6 @@ const ethRegistryDeployment = JSON.parse(readFileSync(ethRegistryPath, "utf8"));
 const verifiableFactoryDeployment = JSON.parse(readFileSync(verifiableFactoryPath, "utf8"));
 const dedicatedResolverImplDeployment = JSON.parse(readFileSync(dedicatedResolverImplPath, "utf8"));
 
-// DedicatedResolver events
-const dedicatedResolverEvents = [
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: false, name: "coinType", type: "uint256" },
-      { indexed: false, name: "newAddress", type: "bytes" }
-    ],
-    name: "AddressChanged",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: false, name: "x", type: "bytes32" },
-      { indexed: false, name: "y", type: "bytes32" }
-    ],
-    name: "PubkeyChanged",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: false, name: "hash", type: "bytes" }
-    ],
-    name: "ContenthashChanged",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: false, name: "name", type: "string" }
-    ],
-    name: "NameChanged",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: false, name: "key", type: "string" },
-      { indexed: false, name: "indexedKey", type: "string" },
-      { indexed: false, name: "value", type: "string" }
-    ],
-    name: "TextChanged",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: false, name: "contentType", type: "uint256" }
-    ],
-    name: "ABIChanged",
-    type: "event"
-  },
-  {
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "node", type: "bytes32" },
-      { indexed: true, name: "interfaceID", type: "bytes4" },
-      { indexed: false, name: "implementer", type: "address" }
-    ],
-    name: "InterfaceChanged",
-    type: "event"
-  }
-] as const;
-
 const resolverAddresses = new Set<string>();
 
 async function waitForTransaction(hash: `0x${string}`) {
@@ -135,28 +62,20 @@ async function waitForTransaction(hash: `0x${string}`) {
   }
 }
 
-function decodeEvent(log: Log, events: typeof dedicatedResolverEvents) {
+function decodeEvent(log: Log, abi: Abi) {
   try {
-    const decoded = decodeEventLog({
-      abi: events,
+    return decodeEventLog({
+      abi,
       data: log.data,
       topics: log.topics,
     });
-    if (decoded && decoded.eventName === "ResolverUpdate" && typeof decoded.args === 'object' && decoded.args !== null) {
-      const args = decoded.args as { resolver: string };
-      const resolver = args.resolver.toLowerCase();
-      if (resolver && resolver !== "0x0000000000000000000000000000000000000000") {
-        resolverAddresses.add(resolver);
-      }
-    }
-    return decoded;
   } catch (error) {
     return null;
   }
 }
 
-function formatEventLog(log: Log, events: typeof dedicatedResolverEvents) {
-  const decoded = decodeEvent(log, events);
+function formatEventLog(log: Log, abi: Abi) {
+  const decoded = decodeEvent(log, abi);
   if (!decoded) {
     return {
       eventName: "Unknown Event",
@@ -210,7 +129,7 @@ async function registerNames() {
 
   // Define the names to register
   const names = ["test1", "test2", "test3"];
-  // const names = ["test1"]; 
+  
   // Get the L2 registry
   const ethRegistry = getContract({
     address: ethRegistryDeployment.address,
@@ -233,12 +152,11 @@ async function registerNames() {
       client: l2Client,
     });
 
-  // Get the resolver address (you might want to deploy a dedicated resolver)
-  const zeroAddress = "0x0000000000000000000000000000000000000000";
+    // Get the resolver address (you might want to deploy a dedicated resolver)
+    const zeroAddress = "0x0000000000000000000000000000000000000000";
 
-  // Register names
-
-  console.log(`Registering ${name}...`);
+    // Register names
+    console.log(`Registering ${name}...`);
     const tx = await ethRegistry.write.register(
       [
         name,
@@ -256,25 +174,23 @@ async function registerNames() {
     const result = await ethRegistry.read.getNameData([name]) as [bigint, bigint, number];
     const [tokenId, expiry, tokenIdVersion] = result;
 
-
     console.log(`Setting ETH address for ${name}...`);
     await dedicatedResolver.write.setAddr(
       [60n, account.address],
       { account }
     );
-    console.log("*** Set TEXT record for ${name}...");
+    console.log(`Setting TEXT record for ${name}...`);
     await dedicatedResolver.write.setText(
       ["domain", name],
       { account }
     );
-
 
     console.log(`Token ID: ${tokenId}`);
     console.log(`Expiry: ${expiry}`);
     console.log(`Token ID Version: ${tokenIdVersion}`);
   }
 
-  console.log("\\nAll Resolver Addresses Set via ResolverUpdate:");
+  console.log("\nAll Resolver Addresses Set via ResolverUpdate:");
   console.log("----------------");
   if (resolverAddresses.size === 0) {
     console.log("No resolver addresses found.");
