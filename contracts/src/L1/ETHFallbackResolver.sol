@@ -112,7 +112,7 @@ contract ETHFallbackResolver is
     }
 
     /// @inheritdoc IFeatureSupporter
-    function supportsFeature(bytes6 feature) public pure returns (bool) {
+    function supportsFeature(bytes4 feature) public pure returns (bool) {
         return ResolverFeatures.RESOLVE_MULTICALL == feature;
     }
 
