@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+/// @dev Placeholder node for compatibility with standard resolver behavior.
+bytes32 constant NODE_ANY = 0;
+
+/// @notice Interface for a resolver that returns the same results for all nodes.
+/// @dev Interface selector: `0x92349baa`
 interface IDedicatedResolverManager {
     /// @notice The address could not be converted to `address`.
     /// @dev Error selector: `0x8d666f60`

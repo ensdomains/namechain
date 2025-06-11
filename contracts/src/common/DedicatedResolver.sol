@@ -5,12 +5,14 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import {IDedicatedResolverManager} from "./IDedicatedResolverManager.sol";
+import {IDedicatedResolverManager, NODE_ANY} from "./IDedicatedResolverManager.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
-import {IExtendedResolverWithMulticall} from "./IExtendedResolverWithMulticall.sol";
-import {ISingularResolver, NODE_ANY} from "./ISingularResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
+
+// resolver features
+import {IFeatureSupporter} from "./IFeatureSupporter.sol";
+import {ResolverFeatures} from "./ResolverFeatures.sol";
 
 // resolver profiles
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
@@ -29,6 +31,7 @@ contract DedicatedResolver is
     ERC165,
     OwnableUpgradeable,
     IDedicatedResolverManager,
+    IFeatureSupporter,
     IExtendedResolver,
     IMulticallable,
     IAddrResolver,
@@ -71,8 +74,6 @@ contract DedicatedResolver is
     ) public view override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
-            type(ISingularResolver).interfaceId == interfaceId ||
-            type(IExtendedResolverWithMulticall).interfaceId == interfaceId ||
             type(IDedicatedResolverManager).interfaceId == interfaceId ||
             type(IMulticallable).interfaceId == interfaceId ||
             type(IAddrResolver).interfaceId == interfaceId ||
@@ -84,7 +85,15 @@ contract DedicatedResolver is
             type(INameResolver).interfaceId == interfaceId ||
             type(IABIResolver).interfaceId == interfaceId ||
             type(IInterfaceResolver).interfaceId == interfaceId ||
+            type(IFeatureSupporter).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
+    }
+
+    /// @inheritdoc IFeatureSupporter
+    function supportsFeature(bytes6 feature) public pure returns (bool) {
+        return
+            ResolverFeatures.RESOLVE_MULTICALL == feature ||
+            ResolverFeatures.DEDICATED == feature;
     }
 
     /// @inheritdoc IDedicatedResolverManager

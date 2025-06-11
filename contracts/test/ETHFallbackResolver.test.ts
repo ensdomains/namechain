@@ -32,6 +32,7 @@ import {
 } from "./utils/resolutions.js";
 import { dnsEncodeName, expectVar, getLabelAt } from "./utils/utils.js";
 import { injectRPCCounter } from "./utils/hardhat.js";
+import { FEATURES } from "./utils/features.js";
 
 const chain1 = injectRPCCounter(await hre.network.connect());
 const chain2 = injectRPCCounter(await hre.network.connect());
@@ -132,7 +133,16 @@ describe("ETHFallbackResolver", () => {
 
   shouldSupportInterfaces({
     contract: () => loadFixture().then((F) => F.ethFallbackResolver),
-    interfaces: ["IERC165", "IExtendedResolver"],
+    interfaces: ["IERC165", "IExtendedResolver", "IFeatureSupporter"],
+  });
+
+  it("supportsFeature: resolve(multicall)", async () => {
+    const F = await loadFixture();
+    await expect(
+      F.ethFallbackResolver.read.supportsFeature([
+        FEATURES.RESOLVER.RESOLVE_MULTICALL,
+      ]),
+    ).resolves.toStrictEqual(true);
   });
 
   it("eth", async () => {

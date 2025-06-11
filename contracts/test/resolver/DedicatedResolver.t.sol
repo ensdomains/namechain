@@ -4,9 +4,9 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {DedicatedResolver} from "../../src/common/DedicatedResolver.sol";
-import {ISingularResolver, NODE_ANY} from "../../src/common/ISingularResolver.sol";
-import {IExtendedResolverWithMulticall} from "../../src/common/IExtendedResolverWithMulticall.sol";
-import {IDedicatedResolverManager} from "../../src/common/IDedicatedResolverManager.sol";
+import {IDedicatedResolverManager, NODE_ANY} from "../../src/common/IDedicatedResolverManager.sol";
+import {IFeatureSupporter} from "../../src/common/IFeatureSupporter.sol";
+import {ResolverFeatures} from "../../src/common/ResolverFeatures.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
@@ -28,14 +28,9 @@ contract DedicatedResolverTest is Test {
         string name;
     }
     function _supportedInterfaces() internal pure returns (I[] memory v) {
-        v = new I[](14);
         uint256 i;
+        v = new I[](13);
         v[i++] = I(type(IExtendedResolver).interfaceId, "IExtendedResolver");
-        v[i++] = I(type(ISingularResolver).interfaceId, "ISingularResolver");
-        v[i++] = I(
-            type(IExtendedResolverWithMulticall).interfaceId,
-            "IExtendedResolverWithMulticall"
-        );
         v[i++] = I(
             type(IDedicatedResolverManager).interfaceId,
             "IDedicatedResolverManager"
@@ -56,6 +51,8 @@ contract DedicatedResolverTest is Test {
         v[i++] = I(type(INameResolver).interfaceId, "INameResolver");
         v[i++] = I(type(IABIResolver).interfaceId, "IABIResolver");
         v[i++] = I(type(IInterfaceResolver).interfaceId, "IInterfaceResolver");
+        v[i++] = I(type(IFeatureSupporter).interfaceId, "IFeatureSupporter");
+        assertEq(v.length, i);
     }
 
     address owner;
@@ -98,6 +95,17 @@ contract DedicatedResolverTest is Test {
                 v[i].name
             );
         }
+    }
+
+    function test_supportsFeature() external view {
+        assertTrue(
+            resolver.supportsFeature(ResolverFeatures.RESOLVE_MULTICALL),
+            "RESOLVE_MULTICALL"
+        );
+        assertTrue(
+            resolver.supportsFeature(ResolverFeatures.DEDICATED),
+            "DEDICATED"
+        );
     }
 
     function testFuzz_setAddr(

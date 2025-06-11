@@ -16,6 +16,10 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 
+// resolver features
+import {IFeatureSupporter} from "../../src/common/IFeatureSupporter.sol";
+import {ResolverFeatures} from "../../src/common/ResolverFeatures.sol";
+
 // resolver profiles
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
@@ -29,6 +33,7 @@ import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceRe
 
 contract ETHFallbackResolver is
     IExtendedResolver,
+    IFeatureSupporter,
     GatewayFetchTarget,
     CCIPReader,
     Ownable,
@@ -102,7 +107,13 @@ contract ETHFallbackResolver is
     ) public view virtual override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
+            type(IFeatureSupporter).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
+    }
+
+    /// @inheritdoc IFeatureSupporter
+    function supportsFeature(bytes6 feature) public pure returns (bool) {
+        return ResolverFeatures.RESOLVE_MULTICALL == feature;
     }
 
     /// @dev Set the Namechain verifier.
@@ -283,7 +294,11 @@ contract ETHFallbackResolver is
                 uint256 coinType = selector == IAddrResolver.addr.selector
                     ? COIN_TYPE_ETH
                     : uint256(BytesUtils.readBytes32(v, 36));
-                req.setSlot(SLOT_DR_ADDRESSES).push(coinType).follow().readBytes(); // _addresses[coinType]
+                req
+                    .setSlot(SLOT_DR_ADDRESSES)
+                    .push(coinType)
+                    .follow()
+                    .readBytes(); // _addresses[coinType]
                 if (ENSIP19.chainFromCoinType(coinType) > 0) {
                     req
                         .dup()
@@ -365,7 +380,11 @@ contract ETHFallbackResolver is
             }
         }
         req.pushOutput(calls.length).requireNonzero(0); // stop if no missing
-        req.setSlot(SLOT_DR_ADDRESSES).push(COIN_TYPE_DEFAULT).follow().readBytes(); // _addresses[COIN_TYPE_DEFAULT]
+        req
+            .setSlot(SLOT_DR_ADDRESSES)
+            .push(COIN_TYPE_DEFAULT)
+            .follow()
+            .readBytes(); // _addresses[COIN_TYPE_DEFAULT]
         req.setOutput(uint8(calls.length)); // save default address
         fetch(
             namechainVerifier,
