@@ -41,12 +41,18 @@ const l1EthRegistryPath = join(process.cwd(), "deployments", "l1-local", "L1ETHR
 const ethRegistryPath = join(process.cwd(), "deployments", "l2-local", "ETHRegistry.json");
 const verifiableFactoryPath = join(process.cwd(), "deployments", "l2-local", "VerifiableFactory.json");
 const dedicatedResolverImplPath = join(process.cwd(), "deployments", "l2-local", "DedicatedResolverImpl.json");
+const userRegistryImplPath = join(process.cwd(), "deployments", "l2-local", "UserRegistryImpl.json");
+const registryDatastorePath = join(process.cwd(), "deployments", "l2-local", "RegistryDatastore.json");
+const registryMetadataPath = join(process.cwd(), "deployments", "l2-local", "SimpleRegistryMetadata.json");
 
 const rootRegistryDeployment = JSON.parse(readFileSync(rootRegistryPath, "utf8"));
 const l1EthRegistryDeployment = JSON.parse(readFileSync(l1EthRegistryPath, "utf8"));
 const ethRegistryDeployment = JSON.parse(readFileSync(ethRegistryPath, "utf8"));
 const verifiableFactoryDeployment = JSON.parse(readFileSync(verifiableFactoryPath, "utf8"));
 const dedicatedResolverImplDeployment = JSON.parse(readFileSync(dedicatedResolverImplPath, "utf8"));
+const userRegistryImplDeployment = JSON.parse(readFileSync(userRegistryImplPath, "utf8"));
+const registryDatastoreDeployment = JSON.parse(readFileSync(registryDatastorePath, "utf8"));
+const registryMetadataDeployment = JSON.parse(readFileSync(registryMetadataPath, "utf8"));
 
 const resolverAddresses = new Set<string>();
 
@@ -63,6 +69,7 @@ async function waitForTransaction(hash: `0x${string}`) {
 }
 
 function decodeEvent(log: Log, abi: Abi) {
+
   try {
     return decodeEventLog({
       abi,
@@ -123,6 +130,45 @@ async function deployDedicatedResolver(name: string, owner: `0x${string}`, accou
   return logs[0].args.proxyAddress;
 }
 
+async function deployUserRegistry(name: string, owner: `0x${string}`, account: any) {
+  const verifiableFactory = getContract({
+    address: verifiableFactoryDeployment.address,
+    abi: verifiableFactoryDeployment.abi,
+    client: l2Client,
+  });
+
+  const salt = BigInt(Date.now());
+  const initData = encodeFunctionData({
+    abi: userRegistryImplDeployment.abi,
+    functionName: "initialize",
+    args: [
+      registryDatastoreDeployment.address,
+      registryMetadataDeployment.address,
+      0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn, // All roles
+      owner
+    ],
+  });
+
+  const hash = await verifiableFactory.write.deployProxy(
+    [userRegistryImplDeployment.address, salt, initData],
+    { account }
+  );
+
+  // Wait for the transaction to be mined
+  const receipt = await waitForTransaction(hash);
+  const logs = parseEventLogs({
+    abi: verifiableFactoryDeployment.abi,
+    eventName: "ProxyDeployed",
+    logs: receipt.logs,
+  }) as unknown as [{ args: { proxyAddress: `0x${string}` } }];
+
+  if (!logs.length) {
+    throw new Error("No ProxyDeployed event found");
+  }
+
+  return logs[0].args.proxyAddress;
+}
+
 async function registerNames() {
   // Create an account from the default mnemonic
   const account = mnemonicToAccount("test test test test test test test test test test test junk");
@@ -145,6 +191,17 @@ async function registerNames() {
     const resolverAddress = await deployDedicatedResolver(name, account.address, account);
     console.log(`DedicatedResolver deployed at ${resolverAddress}`);
 
+    // Deploy a UserRegistry for this name
+    console.log(`Deploying UserRegistry for ${name}...`);
+    const userRegistryAddress = await deployUserRegistry(name, account.address, account);
+    console.log(`UserRegistry deployed at ${userRegistryAddress}`);
+
+    const userRegistry = getContract({
+      address: userRegistryAddress,
+      abi: userRegistryImplDeployment.abi,
+      client: l2Client,
+    });
+
     // Set the ETH address in the resolver
     const dedicatedResolver = getContract({
       address: resolverAddress,
@@ -161,7 +218,7 @@ async function registerNames() {
       [
         name,
         account.address,
-        zeroAddress,
+        userRegistryAddress,
         dedicatedResolver.address,
         0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn, // All roles
         0xffffffffffffffffn, // MAX_EXPIRY
@@ -182,6 +239,45 @@ async function registerNames() {
     console.log(`Setting TEXT record for ${name}...`);
     await dedicatedResolver.write.setText(
       ["domain", name],
+      { account }
+    );
+    const subname = 'a'
+    console.log(`Deploying subname DedicatedResolver for ${subname}.${name}...`);
+    const subnameResolverAddress = await deployDedicatedResolver(subname, account.address, account);
+    console.log(`DedicatedResolver deployed at ${subnameResolverAddress}`);
+
+
+    // Set the ETH address in the resolver
+    const subnameDedicatedResolver = getContract({
+      address: subnameResolverAddress,
+      abi: dedicatedResolverImplDeployment.abi,
+      client: l2Client,
+    });
+
+    // Create subname 'a.{name}.eth'
+    console.log(`Creating subname a.${name}.eth... with ${subnameDedicatedResolver.address}`);
+    const subnameTx = await userRegistry.write.register(
+      [
+        subname,
+        account.address,
+        zeroAddress,
+        subnameDedicatedResolver.address,
+        0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn, // All roles
+        0xffffffffffffffffn, // MAX_EXPIRY
+      ],
+      { account }
+    );
+    await waitForTransaction(subnameTx);
+
+    // Set resolver and records for subname
+    console.log(`Setting ETH address for ${subname}.${name}...`);
+    await subnameDedicatedResolver.write.setAddr(
+      [60n, account.address],
+      { account }
+    );
+    console.log(`Setting TEXT record for ${subname}.${name}...`);
+    await subnameDedicatedResolver.write.setText(
+      ["subdomain", `a.${name}`],
       { account }
     );
 

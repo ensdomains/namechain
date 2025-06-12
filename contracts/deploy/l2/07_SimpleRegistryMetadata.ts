@@ -4,13 +4,13 @@ export default execute(
   async ({ deploy, namedAccounts }) => {
     const { deployer } = namedAccounts;
 
-    await deploy("DedicatedResolverImpl", {
+    await deploy("SimpleRegistryMetadata", {
       account: deployer,
-      artifact: artifacts.DedicatedResolver,
+      artifact: artifacts.SimpleRegistryMetadata,
     });
   },
   {
-    tags: ["DedicatedResolverImpl", "l2"],
+    tags: ["SimpleRegistryMetadata", "l2"],
     dependencies: [],
   },
 );
