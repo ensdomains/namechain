@@ -1,4 +1,4 @@
-import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType } from "viem";
+import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType, PublicClient } from "viem";
 import { readFileSync } from "fs";
 import { join } from "path";
 import * as ethers from "ethers";
@@ -56,7 +56,6 @@ const dedicatedResolverDeployment = JSON.parse(readFileSync(dedicatedResolverPat
 const registryEvents = l1EthRegistryDeployment.abi.filter((item: any) => item.type === "event");
 const resolverEvents = dedicatedResolverDeployment.abi.filter((item: any) => item.type === "event");
 const userRegistryEvents = userRegistryImplDeployment.abi.filter((item: any) => item.type === "event");
-
 // Add type definitions for event arguments
 type TransferEventArgs = {
   tokenId: bigint;
@@ -113,6 +112,8 @@ function createRegistryKey(chainId: number, address: string): string {
 const registryTree = new Map<string, RegistryNode>();
 const labelHashToLabel = new Map<string, string>();
 const labelHashToSubregistry = new Map<string, string>();
+const resolverRecords = new Map<string, ResolverRecord[]>();
+const processedResolvers = new Set<string>();
 
 // Add this function before the main event processing
 async function processRegistryEvents(
@@ -126,13 +127,13 @@ async function processRegistryEvents(
   if (processedRegistries.has(registryKey)) return;
   processedRegistries.add(registryKey);
 
-  console.log(`Processing events for registry ${registryAddress} on chain ${chainId}...`);
 
   const logs = await client.getLogs({
     address: registryAddress as `0x${string}`,
     fromBlock: 0n,
     toBlock: await client.getBlockNumber(),
   });
+  console.log(`Processing events for registry ${registryAddress} on chain ${chainId}... ${logs.length} logs`);
 
   for (const log of logs) {
     const decoded = decodeEvent(log, registryEvents);
@@ -191,14 +192,39 @@ async function processRegistryEvents(
       const args = decoded.args as unknown as ResolverUpdateEventArgs;
       const labelHash = args.id.toString();
       const resolver = args.resolver.toLowerCase();
-      const registryNode = registryTree.get(registryKey);
-      if (registryNode) {
-        const labelInfo = registryNode.labels.get(labelHash);
-        if (labelInfo) {
-          labelInfo.resolver = resolver;
-          registryNode.labels.set(labelHash, labelInfo)
-          registryTree.set(registryKey, registryNode);
-        }
+      
+      // Process resolver events for the new resolver
+      if (resolver && resolver !== "0x0000000000000000000000000000000000000000") {
+        await processResolverEvents(client, resolver, chainId, resolverEvents);
+      }
+      
+      // Update the registry node
+      const registryKey = createRegistryKey(chainId, registryAddress);
+      let registryNode = registryTree.get(registryKey);
+      if (!registryNode) {
+        registryNode = {
+          chainId,
+          expiry: 0,
+          labels: new Map()
+        };
+        registryTree.set(registryKey, registryNode);
+      }
+      
+      const labelInfo = registryNode.labels.get(labelHash);
+      if (labelInfo) {
+        labelInfo.resolver = resolver;
+        registryNode.labels.set(labelHash, labelInfo);
+        registryTree.set(registryKey, registryNode);
+      } else {
+        // Create a new labelInfo if it doesn't exist
+        const newLabelInfo: LabelInfo = {
+          label: labelHashToLabel.get(labelHash) ?? "",
+          resolver: resolver,
+          registry: null,
+          chainId: chainId
+        };
+        registryNode.labels.set(labelHash, newLabelInfo);
+        registryTree.set(registryKey, registryNode);
       }
     }
   }
@@ -269,11 +295,9 @@ console.log("Final registry tree:", JSON.stringify(registryTreePlain, null, 2));
 
 // Event types
 interface ResolverUpdateEventArgs {
-  registry: `0x${string}`;
   id: bigint;
-  resolver: `0x${string}`;
-  expiry: bigint;
-  data: number;
+  resolver: string;
+  record?: string;
 }
 
 interface TextChangedEventArgs {
@@ -460,50 +484,36 @@ for (const [registryKey, registry] of registryTree.entries()) {
   }
 }
 
-// Display all names with their resolver information
-for (const [name, { resolver, info }] of allNamesWithResolvers) {
-  console.log(`\nName: ${name}`);
-  console.log(`  Resolver: ${resolver}`);
-  
-  if (info.addresses.size > 0) {
-    console.log("  Addresses:");
-    for (const [coinType, address] of info.addresses.entries()) {
-      console.log(`    CoinType ${coinType}: ${address}`);
-    }
-  }
-  
-  if (info.texts.size > 0) {
-    console.log("  Text Records:");
-    for (const [key, value] of info.texts.entries()) {
-      console.log(`    ${key}: ${value}`);
-    }
-  }
-}
+
 
 console.log("--------------------------------");
 console.log(`Total unique names: ${allNamesWithResolvers.size}`);
 
-// Recursively traverse from a given registry node, building full names
+// Update the traverseRegistry function to look up records by resolver address
 function traverseRegistry(
   registryKey: string,
   currentPath: string[] = [],
-  names: string[] = []
-): string[] {
+  names: Array<{ name: string; records: ResolverRecord[] }> = []
+): Array<{ name: string; records: ResolverRecord[] }> {
   const registry = registryTree.get(registryKey);
   if (!registry) return names;
 
   for (const [labelHash, labelInfo] of registry.labels) {
-    const label = labelHashToLabel.get(labelHash) || labelInfo.label;
+    if (!labelInfo) continue;
     
+    const label = labelHashToLabel.get(labelHash) ?? labelInfo.label ?? "";
     const newPath = [...currentPath, label];
     const fullName = newPath.filter((l) => l !== "").reverse().join(".");
     
     if (labelInfo.resolver) {
-      names.push(fullName);
+      names.push({
+        name: fullName,
+        records: resolverRecords.get(labelInfo.resolver) || []
+      });
     }
     
     if (labelInfo.registry && labelInfo.registry !== "0x0000000000000000000000000000000000000000") {
-      const subRegistryKey = createRegistryKey(labelInfo.chainId || registry.chainId, labelInfo.registry);
+      const subRegistryKey = createRegistryKey(labelInfo.chainId, labelInfo.registry);
       traverseRegistry(subRegistryKey, newPath, names);
     }
   }
@@ -515,4 +525,91 @@ function traverseRegistry(
 const rootKey = createRegistryKey(l1Chain.id, rootRegistryDeployment.address.toLowerCase());
 const allNames = traverseRegistry(rootKey);
 console.log("All names:", allNames);
+
+console.log('resolverRecords', resolverRecords)
+
+// Update the final output section
+console.log("\nAll names with resolver records:");
+const allNamesWithRecords = traverseRegistry(rootKey);
+allNamesWithRecords.forEach(({ name, records }) => {
+  const recordStr = records.length > 0 
+    ? ` -> ${records.map(r => `${r.type}:${r.value}`).join(', ')}`
+    : '';
+  console.log(`${name}${recordStr}`);
+});
+
+// Type definitions
+interface LabelInfo {
+  label: string;
+  resolver: string | null;
+  registry: string | null;
+  chainId: number;
+  subregistry?: string;
+}
+
+interface RegistryNode {
+  chainId: number;
+  expiry: number;
+  labels: Map<string, LabelInfo>;
+}
+
+interface ResolverRecord {
+  type: 'address' | 'text';
+  value: string;
+}
+
+interface AddressChangedEventArgs {
+  id: bigint;
+  coinType: bigint;
+  newAddress: string;
+}
+
+interface TextChangedEventArgs {
+  id: bigint;
+  indexedKey: string;
+  key: string;
+  value: string;
+}
+
+// Add resolver event tracking
+async function processResolverEvents(
+  client: PublicClient,
+  resolverAddress: string,
+  chainId: number,
+  resolverEvents: any[]
+) {
+  if (processedResolvers.has(resolverAddress)) return;
+  processedResolvers.add(resolverAddress);
+  
+  const logs = await client.getLogs({
+    address: resolverAddress as `0x${string}`,
+    fromBlock: 0n,
+    toBlock: 'latest'
+  });
+  console.log(`Processing resolver events for ${resolverAddress} on chain ${chainId} ${logs.length} logs`);
+  
+  for (const log of logs) {
+    const decoded = decodeEvent(log, resolverEvents);
+    console.log({decoded});
+    if (!decoded || !decoded.eventName || !decoded.args) continue;
+
+    if (["AddressChanged", "AddrChanged"].includes(decoded.eventName)) {
+      const args = decoded.args as unknown as AddressChangedEventArgs;
+      const records = resolverRecords.get(resolverAddress) || [];
+      records.push({
+        type: 'address',
+        value: args.a || `${args.coinType}:${args.newAddress}`
+      });
+      resolverRecords.set(resolverAddress, records);
+    } else if (decoded.eventName === "TextChanged") {
+      const args = decoded.args as unknown as TextChangedEventArgs;
+      const records = resolverRecords.get(resolverAddress) || [];
+      records.push({
+        type: 'text',
+        value: `${args.key}=${args.value}`
+      });
+      resolverRecords.set(resolverAddress, records);
+    }
+  }
+}
 
