@@ -30,10 +30,10 @@ library BridgeEncoder {
      */
     function encode(
         BridgeMessageType messageType,
-        uint256 tokenId,
+        bytes memory dnsEncodedName,
         bytes memory data
     ) internal pure returns (bytes memory) {
-        return abi.encode(uint(messageType), tokenId, data);
+        return abi.encode(uint(messageType), dnsEncodedName, data);
     }
 
     /**
@@ -41,11 +41,11 @@ library BridgeEncoder {
      */
     function decode(bytes memory message) internal pure returns (
         BridgeMessageType messageType,
-        uint256 tokenId,
+        bytes memory dnsEncodedName,
         bytes memory data
     ) {
         uint _messageType;
-        (_messageType, tokenId, data) = abi.decode(message, (uint, uint256, bytes));
+        (_messageType, dnsEncodedName, data) = abi.decode(message, (uint, bytes, bytes));
         messageType = BridgeMessageType(_messageType);
     }
 }

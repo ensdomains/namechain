@@ -21,8 +21,8 @@ abstract contract MockBaseBridge is IBridge {
      * Anyone can call this method with encoded message data
      */
     function receiveMessage(bytes calldata message) external {
-        (BridgeMessageType _messageType, uint256 _tokenId, bytes memory _data) = BridgeEncoder.decode(message);
-        _handleDecodedMessage(_messageType, _tokenId, _data);
+        (BridgeMessageType _messageType, bytes memory _dnsEncodedName, bytes memory _data) = BridgeEncoder.decode(message);
+        _handleDecodedMessage(_messageType, _dnsEncodedName, _data);
         // Emit event for tracking
         emit MessageProcessed(message);
     }
@@ -33,7 +33,7 @@ abstract contract MockBaseBridge is IBridge {
      */
     function _handleDecodedMessage(
         BridgeMessageType messageType,
-        uint256 tokenId,
+        bytes memory dnsEncodedName,
         bytes memory data
     ) internal virtual;
 } 

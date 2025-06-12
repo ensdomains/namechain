@@ -11,6 +11,7 @@ import "../../src/mocks/MockL2EjectionController.sol";
 import "../../src/mocks/MockBaseBridge.sol";
 import {BridgeEncoder, BridgeMessageType} from "../../src/common/IBridge.sol";
 import {TransferData, MigrationData} from "../../src/common/TransferData.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 import { IRegistry } from "../../src/common/IRegistry.sol";
 import { IPermissionedRegistry } from "../../src/common/IPermissionedRegistry.sol";
@@ -78,7 +79,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         
         // Check for NameEjectedToL1 event from L2 bridge
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        bytes32 ejectionEventSig = keccak256("NameEjectedToL1(uint256,bytes)");
+        bytes32 ejectionEventSig = keccak256("NameEjectedToL1(bytes,bytes)");
         
         uint256 ejectionEventIndex = 0;
         for (ejectionEventIndex = 0; ejectionEventIndex < entries.length; ejectionEventIndex++) {
@@ -89,12 +90,13 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
 
         assertTrue(ejectionEventIndex < entries.length, "NameEjectedToL1 event not found");
         
-        // Decode the NameEjectedToL1 event - tokenId in topics, data in data
-        uint256 eventTokenId = uint256(entries[ejectionEventIndex].topics[1]);
+        // Decode the NameEjectedToL1 event - dnsEncodedName in topics, data in data
+        bytes32 eventDnsEncodedNameHash = entries[ejectionEventIndex].topics[1];
         bytes memory eventData = abi.decode(entries[ejectionEventIndex].data, (bytes));
         
-        // Verify the tokenId matches
-        assertEq(eventTokenId, tokenId);
+        // Verify the DNS encoded name hash matches
+        bytes memory expectedDnsEncodedName = NameCoder.encode(string.concat(name, ".eth"));
+        assertEq(eventDnsEncodedNameHash, keccak256(expectedDnsEncodedName));
         
         // The event data should be the raw TransferData
         TransferData memory eventTransferData = abi.decode(eventData, (TransferData));
@@ -106,7 +108,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         vm.recordLogs();    
 
         // Reconstruct the bridge message to simulate what the relay would do
-        bytes memory bridgeMessage = BridgeEncoder.encode(BridgeMessageType.EJECTION, tokenId, eventData);
+        bytes memory bridgeMessage = BridgeEncoder.encode(BridgeMessageType.EJECTION, expectedDnsEncodedName, eventData);
         l1Bridge.receiveMessage(bridgeMessage);
 
         entries = vm.getRecordedLogs();
@@ -134,7 +136,8 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     function testL2BridgeRevertsMigrationMessages() public {
         // Test that L2 bridge properly rejects migration message types
         bytes memory migrationData = abi.encode("test migration data");
-        bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, 12345, migrationData);
+        bytes memory dnsEncodedName = NameCoder.encode("test.eth");
+        bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, dnsEncodedName, migrationData);
         
         // Should revert with MigrationNotSupported error
         vm.expectRevert(MockBaseBridge.MigrationNotSupported.selector);
@@ -144,7 +147,8 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     function testL1BridgeRevertsMigrationMessages() public {
         // Test that L1 bridge properly rejects migration message types when receiving them
         bytes memory migrationData = abi.encode("test migration data");
-        bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, 12345, migrationData);
+        bytes memory dnsEncodedName = NameCoder.encode("test.eth");
+        bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, dnsEncodedName, migrationData);
         
         // Should revert with MigrationNotSupported error when receiving migration messages
         vm.expectRevert(MockBaseBridge.MigrationNotSupported.selector);
@@ -153,10 +157,10 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     
     function testL1BridgeMigrationEvents() public {
         // Test that L1 bridge properly emits migration events with simplified parameters
-        uint256 tokenId = 12345;
+        string memory label = "migrationtest";
         
         TransferData memory transferData = TransferData({
-            label: "migrationtest.eth",
+            label: label,
             owner: user1,
             subregistry: address(0x111),
             resolver: address(0x222),
@@ -171,7 +175,8 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         });
         
         bytes memory encodedMigrationData = abi.encode(migrationData);
-        bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, tokenId, encodedMigrationData);
+        bytes memory dnsEncodedName = NameCoder.encode(string.concat(label, ".eth"));
+        bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, dnsEncodedName, encodedMigrationData);
         
         vm.recordLogs();
         
@@ -180,7 +185,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         
         // Check for NameMigratedToL2 event from L1 bridge
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        bytes32 migrationEventSig = keccak256("NameMigratedToL2(uint256,bytes)");
+        bytes32 migrationEventSig = keccak256("NameMigratedToL2(bytes,bytes)");
         
         uint256 migrationEventIndex = 0;
         for (migrationEventIndex = 0; migrationEventIndex < entries.length; migrationEventIndex++) {
@@ -191,12 +196,12 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
 
         assertTrue(migrationEventIndex < entries.length, "NameMigratedToL2 event not found");
         
-        // Decode the NameMigratedToL2 event - tokenId in topics, data in data
-        uint256 eventTokenId = uint256(entries[migrationEventIndex].topics[1]);
+        // Decode the NameMigratedToL2 event - dnsEncodedName in topics, data in data
+        bytes32 eventDnsEncodedNameHash = entries[migrationEventIndex].topics[1];
         bytes memory eventData = abi.decode(entries[migrationEventIndex].data, (bytes));
         
-        // Verify the tokenId matches
-        assertEq(eventTokenId, tokenId);
+        // Verify the DNS encoded name hash matches
+        assertEq(eventDnsEncodedNameHash, keccak256(dnsEncodedName));
         
         // The event data should be the raw MigrationData
         MigrationData memory eventMigrationData = abi.decode(eventData, (MigrationData));

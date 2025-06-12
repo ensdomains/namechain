@@ -16,7 +16,7 @@ contract MockL2Bridge is MockBaseBridge {
     MockL2EjectionController public ejectionController;
         
     // Type-specific events with tokenId and data
-    event NameEjectedToL1(uint256 indexed tokenId, bytes data);
+    event NameEjectedToL1(bytes indexed dnsEncodedName, bytes data);
     
     function setEjectionController(MockL2EjectionController _ejectionController) external {
         ejectionController = _ejectionController;
@@ -26,13 +26,13 @@ contract MockL2Bridge is MockBaseBridge {
      * @dev Send a message.
      */
     function sendMessage(bytes memory message) external override {
-        (BridgeMessageType messageType, uint256 tokenId, bytes memory data) = BridgeEncoder.decode(message);
+        (BridgeMessageType messageType, bytes memory dnsEncodedName, bytes memory data) = BridgeEncoder.decode(message);
         
         if (messageType == BridgeMessageType.MIGRATION) {
             // Migration messages are not supported in L2 bridge
             revert MigrationNotSupported();
         } else if (messageType == BridgeMessageType.EJECTION) {
-            emit NameEjectedToL1(tokenId, data);
+            emit NameEjectedToL1(dnsEncodedName, data);
         }
     }
     
@@ -41,12 +41,12 @@ contract MockL2Bridge is MockBaseBridge {
      */
     function _handleDecodedMessage(
         BridgeMessageType messageType,
-        uint256 tokenId,
+        bytes memory /*dnsEncodedName*/,
         bytes memory data
     ) internal override {
         if (messageType == BridgeMessageType.EJECTION) {
             TransferData memory _transferData = abi.decode(data, (TransferData));
-            ejectionController.completeMigrationFromL1(tokenId, _transferData);
+            ejectionController.completeMigrationFromL1(_transferData);
         } else if (messageType == BridgeMessageType.MIGRATION) {
             // TODO: handle migration messages
         }

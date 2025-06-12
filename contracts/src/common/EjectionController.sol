@@ -5,6 +5,7 @@ import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Re
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {TransferData} from "./TransferData.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 /**
  * @title EjectionController
@@ -63,6 +64,16 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
     }
 
     // Internal functions
+
+    /**
+     * @dev DNS encodes a label, assuming it's a ETH 2LD.
+     *
+     * @param label The label to encode.
+     * @return The encoded label.
+     */
+    function _dnsEncodeLabel(string memory label) internal pure returns (bytes memory) {
+        return NameCoder.encode(string.concat(label, ".eth"));
+    }
 
     /**
      * @dev Called when names are ejected.

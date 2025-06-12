@@ -5,7 +5,8 @@ import {IBridge, BridgeEncoder, BridgeMessageType} from "../common/IBridge.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {L2EjectionController} from "../L2/L2EjectionController.sol";
-import {TransferData} from "../common/EjectionController.sol";
+import {TransferData} from "../common/TransferData.sol";
+import {NameUtils} from "../common/NameUtils.sol";
 import {MockL2Bridge} from "./MockL2Bridge.sol";
 import {NameEjectedToL1, NameEjectedToL2} from "./MockEjectionControllerEvents.sol";
 
@@ -24,22 +25,25 @@ contract MockL2EjectionController is L2EjectionController {
         super._onEject(tokenIds, transferDataArray);
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            bridge.sendMessage(BridgeEncoder.encode(BridgeMessageType.EJECTION, tokenIds[i], abi.encode(transferDataArray[i])));
-            emit NameEjectedToL1(tokenIds[i], transferDataArray[i].owner, transferDataArray[i].subregistry, transferDataArray[i].expires);
+            bytes memory dnsEncodedName = _dnsEncodeLabel(transferDataArray[i].label);
+            bridge.sendMessage(BridgeEncoder.encode(BridgeMessageType.EJECTION, dnsEncodedName, abi.encode(transferDataArray[i])));
+            emit NameEjectedToL1(dnsEncodedName, transferDataArray[i].owner, transferDataArray[i].subregistry, transferDataArray[i].expires);
         }
     }
 
     function completeMigrationFromL1(
-        uint256 tokenId,
         TransferData memory transferData
     ) external {
         transferData.resolver = address(0);
         transferData.roleBitmap = 0xF;
         transferData.expires = uint64(block.timestamp + 365 days);
 
+        uint256 tokenId = NameUtils.labelToCanonicalId(transferData.label);
+
         _completeMigrationFromL1(tokenId, transferData);
 
-        emit NameEjectedToL2(tokenId, transferData.owner, transferData.subregistry);
+        bytes memory dnsEncodedName = _dnsEncodeLabel(transferData.label);
+        emit NameEjectedToL2(dnsEncodedName, transferData.owner, transferData.subregistry);
     }    
 
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {

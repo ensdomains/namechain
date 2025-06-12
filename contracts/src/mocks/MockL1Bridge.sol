@@ -16,8 +16,8 @@ contract MockL1Bridge is MockBaseBridge {
     MockL1EjectionController public ejectionController;
     
     // Type-specific events with tokenId and data
-    event NameEjectedToL2(uint256 indexed tokenId, bytes data);
-    event NameMigratedToL2(uint256 indexed tokenId, bytes data);
+    event NameEjectedToL2(bytes indexed dnsEncodedName, bytes data);
+    event NameMigratedToL2(bytes indexed dnsEncodedName, bytes data);
     
     function setEjectionController(MockL1EjectionController _ejectionController) external {
         ejectionController = _ejectionController;
@@ -27,12 +27,12 @@ contract MockL1Bridge is MockBaseBridge {
      * @dev Override sendMessage to emit specific events based on message type
      */
     function sendMessage(bytes memory message) external override {
-        (BridgeMessageType messageType, uint256 tokenId, bytes memory data) = BridgeEncoder.decode(message);
+        (BridgeMessageType messageType, bytes memory dnsEncodedName, bytes memory data) = BridgeEncoder.decode(message);
         
         if (messageType == BridgeMessageType.EJECTION) {
-            emit NameEjectedToL2(tokenId, data);
+            emit NameEjectedToL2(dnsEncodedName, data);
         } else if (messageType == BridgeMessageType.MIGRATION) {
-            emit NameMigratedToL2(tokenId, data);
+            emit NameMigratedToL2(dnsEncodedName, data);
         }
     }
     
@@ -41,7 +41,7 @@ contract MockL1Bridge is MockBaseBridge {
      */
     function _handleDecodedMessage(
         BridgeMessageType messageType,
-        uint256 /*tokenId*/,
+        bytes memory /*dnsEncodedName*/,
         bytes memory data
     ) internal override {
         if (messageType == BridgeMessageType.EJECTION) {

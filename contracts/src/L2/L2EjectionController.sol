@@ -60,6 +60,7 @@ abstract contract L2EjectionController is EjectionController, ITokenObserver {
                 revert InvalidLabel(tokenId, transferData.label);
             }
 
+            // NOTE: we don't nullify the resolver here, so that there is no resolution downtime
             registry.setSubregistry(tokenId, IRegistry(address(0)));
 
             // listen for events

@@ -5,7 +5,7 @@ import {BridgeEncoder, BridgeMessageType} from "../common/IBridge.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {L1EjectionController} from "../L1/L1EjectionController.sol";
-import {TransferData} from "../common/EjectionController.sol";
+import {TransferData} from "../common/TransferData.sol";
 import {MockL1Bridge} from "./MockL1Bridge.sol";
 import {IL1Migrator} from "../L1/IL1Migrator.sol";
 import {NameEjectedToL1, NameEjectedToL2} from "./MockEjectionControllerEvents.sol";
@@ -27,8 +27,9 @@ contract MockL1EjectionController is L1EjectionController, IL1Migrator {
         super._onEject(tokenIds, transferDataArray);
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            bridge.sendMessage(BridgeEncoder.encode(BridgeMessageType.EJECTION, tokenIds[i], abi.encode(transferDataArray[i])));
-            emit NameEjectedToL2(tokenIds[i], transferDataArray[i].owner, transferDataArray[i].subregistry);
+            bytes memory dnsEncodedName = _dnsEncodeLabel(transferDataArray[i].label);
+            bridge.sendMessage(BridgeEncoder.encode(BridgeMessageType.EJECTION, dnsEncodedName, abi.encode(transferDataArray[i])));
+            emit NameEjectedToL2(dnsEncodedName, transferDataArray[i].owner, transferDataArray[i].subregistry);
         }
     }
 
@@ -46,7 +47,8 @@ contract MockL1EjectionController is L1EjectionController, IL1Migrator {
         TransferData memory transferData
     ) public returns (uint256 tokenId) {
         tokenId = _completeEjectionFromL2(transferData);
-        emit NameEjectedToL1(tokenId, transferData.owner, transferData.subregistry, transferData.expires);
+        bytes memory dnsEncodedName = _dnsEncodeLabel(transferData.label);
+        emit NameEjectedToL1(dnsEncodedName, transferData.owner, transferData.subregistry, transferData.expires);
     }
 
     /**
