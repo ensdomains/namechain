@@ -15,7 +15,6 @@ import {IRegistry} from "../common/IRegistry.sol";
  */
 abstract contract L2EjectionController is EjectionController, ITokenObserver {
     error NotTokenOwner(uint256 tokenId);
-    error InvalidLabel(uint256 tokenId, string label);
 
     constructor(IPermissionedRegistry _registry) EjectionController(_registry) {}
 
@@ -56,9 +55,7 @@ abstract contract L2EjectionController is EjectionController, ITokenObserver {
             transferData = transferDataArray[i];
 
             // check that the label matches the token id
-            if (NameUtils.labelToCanonicalId(transferData.label) != NameUtils.getCanonicalId(tokenId)) {
-                revert InvalidLabel(tokenId, transferData.label);
-            }
+            _assertTokenIdMatchesLabel(tokenId, transferData.label);
 
             // NOTE: we don't nullify the resolver here, so that there is no resolution downtime
             registry.setSubregistry(tokenId, IRegistry(address(0)));

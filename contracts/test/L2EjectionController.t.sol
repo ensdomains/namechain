@@ -470,7 +470,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         
         // User transfers the token to the ejection controller, should revert with InvalidLabel
         vm.prank(user);
-        vm.expectRevert(abi.encodeWithSelector(L2EjectionController.InvalidLabel.selector, tokenId, invalidLabel));
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId, invalidLabel));
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
     }
 

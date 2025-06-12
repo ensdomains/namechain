@@ -6,6 +6,7 @@ import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {TransferData} from "./TransferData.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {NameUtils} from "./NameUtils.sol";
 
 /**
  * @title EjectionController
@@ -13,6 +14,7 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
  */
 abstract contract EjectionController is IERC1155Receiver, ERC165 {
     error CallerNotRegistry(address caller);
+    error InvalidLabel(uint256 tokenId, string label);
 
     IPermissionedRegistry public immutable registry;
 
@@ -73,6 +75,18 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
      */
     function _dnsEncodeLabel(string memory label) internal pure returns (bytes memory) {
         return NameCoder.encode(string.concat(label, ".eth"));
+    }
+
+    /**
+     * @dev Asserts that the label matches the token ID.
+     *
+     * @param tokenId The token ID to check
+     * @param label The label to check
+     */
+    function _assertTokenIdMatchesLabel(uint256 tokenId, string memory label) internal pure {
+        if (NameUtils.labelToCanonicalId(label) != NameUtils.getCanonicalId(tokenId)) {
+            revert InvalidLabel(tokenId, label);
+        }
     }
 
     /**

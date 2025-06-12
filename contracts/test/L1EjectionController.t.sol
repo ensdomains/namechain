@@ -64,6 +64,28 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
     }
     
     /**
+     * Helper method to create properly encoded data for the ERC1155 transfers with custom label
+     */
+    function _createEjectionDataWithLabel(
+        string memory label,
+        address l2Owner,
+        address l2Subregistry,
+        address l2Resolver,
+        uint64 expiryTime,
+        uint256 roleBitmap
+    ) internal pure returns (bytes memory) {
+        TransferData memory transferData = TransferData({
+            label: label,
+            owner: l2Owner,
+            subregistry: l2Subregistry,
+            resolver: l2Resolver,
+            expires: expiryTime,
+            roleBitmap: roleBitmap
+        });
+        return abi.encode(transferData);
+    }
+    
+    /**
      * Helper method to create properly encoded batch data for the ERC1155 batch transfers
      */
     function _createBatchEjectionData(
@@ -316,7 +338,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         ejectionController.syncRenewal(tokenId, newExpiry);
     }
 
-    function test_migrateToNamechain() public {
+    function test_ejectToNamechain() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         uint256 roleBitmap = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
         
@@ -325,7 +347,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
 
         (uint256 tokenId,,) = registry.getNameData(testLabel);
 
-        // Setup migration data
+        // Setup ejection data
         address expectedOwner = address(1);
         address expectedSubregistry = address(2);
         address expectedResolver = address(3);
@@ -344,12 +366,12 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         registry.safeTransferFrom(address(this), address(ejectionController), tokenId, 1, data);
 
         // Check that the token is now owned by address(0)
-        assertEq(registry.ownerOf(tokenId), address(0), "Token should have no owner after migration");
+        assertEq(registry.ownerOf(tokenId), address(0), "Token should have no owner after ejection");
 
-        _verifyMigrationEvent(expectedOwner, expectedSubregistry, expectedResolver, expectedExpiry);
+        _verifyEjectionEvent(expectedOwner, expectedSubregistry, expectedResolver, expectedExpiry);
     }
     
-    function _verifyMigrationEvent(address expectedOwner, address expectedSubregistry, address expectedResolver, uint64 expectedExpiry) internal {
+    function _verifyEjectionEvent(address expectedOwner, address expectedSubregistry, address expectedResolver, uint64 expectedExpiry) internal {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool eventReceived = false;
         bytes32 expectedSig = keccak256("MockNameEjectedToL2(bytes,address,address,address,uint64)");
@@ -372,6 +394,37 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             }
         }
         assertTrue(eventReceived, "MockNameEjectedToL2 event not found");
+    }
+
+    function test_Revert_ejectToNamechain_invalid_label() public {
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        uint256 roleBitmap = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
+        
+        // Register the name directly using the registry
+        registry.register(testLabel, address(this), registry, MOCK_RESOLVER, roleBitmap, expiryTime);
+
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
+
+        // Setup ejection data with invalid label
+        string memory invalidLabel = "invalid";
+        address expectedOwner = address(1);
+        address expectedSubregistry = address(2);
+        address expectedResolver = address(3);
+        uint64 expectedExpiry = uint64(block.timestamp + 86400);
+        uint256 expectedRoleBitmap = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
+        
+        bytes memory data = _createEjectionDataWithLabel(
+            invalidLabel,
+            expectedOwner, 
+            expectedSubregistry, 
+            expectedResolver, 
+            expectedExpiry,
+            expectedRoleBitmap
+        );
+
+        // Transfer should revert due to invalid label
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId, invalidLabel));
+        registry.safeTransferFrom(address(this), address(ejectionController), tokenId, 1, data);
     }
 
     
@@ -461,6 +514,86 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         }
         
         assertEq(batchEventsCount, 3, "Should have emitted 3 MockNameEjectedToL2 events");
+    }
+
+    function test_Revert_onERC1155BatchReceived_invalid_label() public {
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        
+        // Register names
+        registry.register("test1", address(this), registry, MOCK_RESOLVER, ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY, expiryTime);
+        registry.register("test2", address(this), registry, MOCK_RESOLVER, ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY, expiryTime);
+        
+        // Get token IDs
+        (uint256 tokenId1,,) = registry.getNameData("test1");
+        (uint256 tokenId2,,) = registry.getNameData("test2");
+        
+        // Setup arrays with one invalid label
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = tokenId1;
+        ids[1] = tokenId2;
+        
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+        
+        // Create batch data with one invalid label
+        string[] memory labels = new string[](2);
+        labels[0] = "test1";      // valid
+        labels[1] = "invalid";    // invalid for tokenId2
+        
+        address[] memory owners = new address[](2);
+        address[] memory subregistries = new address[](2);
+        address[] memory resolvers = new address[](2);
+        uint64[] memory expiries = new uint64[](2);
+        uint256[] memory roleBitmaps = new uint256[](2);
+        
+        for (uint256 i = 0; i < 2; i++) {
+            owners[i] = address(uint160(i + 1));
+            subregistries[i] = address(uint160(i + 10));
+            resolvers[i] = address(uint160(i + 100));
+            expiries[i] = uint64(block.timestamp + 86400);
+            roleBitmaps[i] = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
+        }
+        
+        bytes memory data = _createBatchEjectionDataWithLabels(labels, owners, subregistries, resolvers, expiries, roleBitmaps);
+        
+        // Should revert due to invalid label for tokenId2
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId2, "invalid"));
+        registry.safeBatchTransferFrom(address(this), address(ejectionController), ids, amounts, data);
+    }
+    
+    /**
+     * Helper method to create properly encoded batch data for the ERC1155 batch transfers with custom labels
+     */
+    function _createBatchEjectionDataWithLabels(
+        string[] memory labels,
+        address[] memory l2Owners,
+        address[] memory l2Subregistries,
+        address[] memory l2Resolvers,
+        uint64[] memory expiryTimes,
+        uint256[] memory roleBitmaps
+    ) internal pure returns (bytes memory) {
+        require(labels.length == l2Owners.length && 
+                l2Owners.length == l2Subregistries.length && 
+                l2Owners.length == l2Resolvers.length && 
+                l2Owners.length == expiryTimes.length &&
+                l2Owners.length == roleBitmaps.length, 
+                "Array lengths must match");
+                
+        TransferData[] memory transferDataArray = new TransferData[](l2Owners.length);
+        
+        for (uint256 i = 0; i < l2Owners.length; i++) {
+            transferDataArray[i] = TransferData({
+                label: labels[i],
+                owner: l2Owners[i],
+                subregistry: l2Subregistries[i],
+                resolver: l2Resolvers[i],
+                expires: expiryTimes[i],
+                roleBitmap: roleBitmaps[i]
+            });
+        }
+        
+        return abi.encode(transferDataArray);
     }
 }
 
