@@ -6,7 +6,6 @@ import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.s
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {IMigrationStrategy} from "../common/IMigration.sol";
 import {TransferData, MigrationData} from "../common/TransferData.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBridge, BridgeMessageType, BridgeEncoder} from "../common/IBridge.sol";
@@ -15,20 +14,17 @@ import {IL1Migrator} from "../L1/IL1Migrator.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 /**
- * @title L1MigrationController
- * @dev Base contract for the v1-to-v2 migration controller.
+ * @title L1UnlockedMigrationController
+ * @dev Base contract for the v1-to-v2 migration controller that only handles unlocked names.
  */
-contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
+contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
     error UnauthorizedCaller(address caller);   
-    error NoMigrationStrategySet();
     error MigrationFailed();
     error TokenIdMismatch(uint256 tokenId, uint256 expectedTokenId);
-
-    event StrategySet(IMigrationStrategy strategy);
+    error MigrationNotSupported();
 
     IBaseRegistrar public immutable ethRegistryV1;
     INameWrapper public immutable nameWrapper;
-    IMigrationStrategy public strategy;
     IBridge public immutable bridge;
     IL1Migrator public immutable l1Migrator;
 
@@ -37,16 +33,6 @@ contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Own
         nameWrapper = _nameWrapper;
         bridge = _bridge;
         l1Migrator = _l1Migrator;
-    }
-
-    /**
-     * @dev Sets the migration strategy.
-     *
-     * @param _strategy The migration strategy.
-     */
-    function setStrategy(IMigrationStrategy _strategy) external onlyOwner {
-        strategy = _strategy;
-        emit StrategySet(_strategy);
     }
 
     /**
@@ -114,7 +100,7 @@ contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Own
 
     /**
      * @dev Called when wrapped .eth names are being migrated to v2.
-     * Checks if names are locked (have CANNOT_UNWRAP burned) and routes accordingly.
+     * Only supports unlocked names - reverts for locked names.
      *
      * @param tokenIds The token IDs of the .eth names.
      * @param migrationDataArray The migration data for each .eth name.
@@ -124,13 +110,13 @@ contract L1MigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Own
             (, uint32 fuses, ) = nameWrapper.getData(tokenIds[i]);
             
             if (fuses & CANNOT_UNWRAP != 0) { // Name is locked
-                if (address(strategy) == address(0)) {
-                    revert NoMigrationStrategySet();
-                }
-                // Name is locked, migrate through strategy
-                strategy.migrateLockedEthName(tokenIds[i], migrationDataArray[i]);
+                revert MigrationNotSupported();
             } else {
-                // Name is unlocked, migrate directly
+                // Name is unlocked, unwrap it first then migrate
+                bytes32 labelHash = bytes32(tokenIds[i]);
+                bytes32 ethNode = 0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae; // keccak256("eth")
+                bytes32 node = keccak256(abi.encodePacked(ethNode, labelHash));
+                nameWrapper.unwrap(node, labelHash, address(this));
                 _migrateNameViaBridge(tokenIds[i], migrationDataArray[i]);
             }
         }
