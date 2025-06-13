@@ -11,5 +11,9 @@
   "patchedDependencies": {
     "@nomicfoundation/hardhat-viem@3.0.0-next.8": "patches/@nomicfoundation%2Fhardhat-viem@3.0.0-next.8.patch",
     "rocketh@0.11.20": "patches/rocketh@0.11.20.patch"
+  },
+  "resolutions": {
+    "@nomicfoundation/hardhat-viem": "3.0.0-next.8",
+    "hardhat": "3.0.0-next.8"
   }
 }

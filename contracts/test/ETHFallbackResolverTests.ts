@@ -1,16 +1,13 @@
 import type { NamedContractReturnType } from "@ensdomains/hardhat-chai-matchers-viem";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
+import { expect, it } from "vitest";
 import { FEATURES } from "./utils/features.js";
-import { describe, it } from "vitest";
 import {
   COIN_TYPE_ETH,
   KnownProfile,
   makeResolutions,
 } from "./utils/resolutions.js";
 import { dnsEncodeName, expectVar } from "./utils/utils.js";
-import { ArtifactMap } from "hardhat/types/artifacts";
-import { Client, GetContractReturnType } from "viem";
-import { expect } from "chai";
 
 type Deployment = Readonly<{
   ethFallbackResolver: NamedContractReturnType<"ETHFallbackResolver">;
@@ -30,7 +27,6 @@ const testNames = ["test.eth", "a.b.c.test.eth"];
 
 export function createETHFallbackTests(loadFixture: () => Promise<Deployment>) {
   return () => {
-   
     shouldSupportInterfaces({
       contract: () => loadFixture().then((F) => F.ethFallbackResolver),
       interfaces: ["IERC165", "IExtendedResolver", "IFeatureSupporter"],
@@ -44,7 +40,6 @@ export function createETHFallbackTests(loadFixture: () => Promise<Deployment>) {
         ]),
       ).resolves.toStrictEqual(true);
     });
-    
 
     it("eth", async () => {
       const F = await loadFixture();
