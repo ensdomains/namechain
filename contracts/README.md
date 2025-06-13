@@ -117,3 +117,7 @@ forge fmt
 ```shell
 $ forge snapshot
 ```
+
+## Publishing
+
+Run `bun publish`. If there is a version bump, run `bun version <patch|minor|major>`.
