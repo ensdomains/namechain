@@ -3,7 +3,8 @@ pragma solidity >=0.8.13;
 
 import {ITokenObserver} from "../common/ITokenObserver.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
-import {EjectionController, TransferData} from "../common/EjectionController.sol";
+import {EjectionController} from "../common/EjectionController.sol";
+import {TransferData} from "../common/TransferData.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {IRegistry} from "../common/IRegistry.sol";  
 
@@ -14,7 +15,6 @@ import {IRegistry} from "../common/IRegistry.sol";
  */
 abstract contract L2EjectionController is EjectionController, ITokenObserver {
     error NotTokenOwner(uint256 tokenId);
-    error InvalidLabel(uint256 tokenId, string label);
 
     constructor(IPermissionedRegistry _registry) EjectionController(_registry) {}
 
@@ -55,10 +55,9 @@ abstract contract L2EjectionController is EjectionController, ITokenObserver {
             transferData = transferDataArray[i];
 
             // check that the label matches the token id
-            if (NameUtils.labelToCanonicalId(transferData.label) != NameUtils.getCanonicalId(tokenId)) {
-                revert InvalidLabel(tokenId, transferData.label);
-            }
+            _assertTokenIdMatchesLabel(tokenId, transferData.label);
 
+            // NOTE: we don't nullify the resolver here, so that there is no resolution downtime
             registry.setSubregistry(tokenId, IRegistry(address(0)));
 
             // listen for events

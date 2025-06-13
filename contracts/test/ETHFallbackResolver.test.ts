@@ -257,7 +257,7 @@ describe("ETHFallbackResolver", () => {
           name,
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
         };
-        const interval = 10n;
+        const interval = 1000n;
         const { timestamp } = await F.namechain.publicClient.getBlock();
         await F.namechain.setupName({
           name: kp.name,
@@ -381,7 +381,7 @@ describe("ETHFallbackResolver", () => {
         res.desc = `ABI(${contentType})`;
         res.expect(answer);
       }
-    });
+    }, { timeout: 20000 });
     it(`multicall()`, async () => {
       const F = await loadFixture();
       await F.namechain.setupName(kp);

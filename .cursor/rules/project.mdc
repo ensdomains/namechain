@@ -8,3 +8,4 @@ alwaysApply: true
 
 - When running tests they should be run from the contracts/ subfolder.
 - When testing for event emission never use vm.expectEmit, always use vm.recordLogs and actually check the logs properly.
+- Do not use --via-ir when compiling contrats and tests. If there are Solidity stack too deep errors then fix them through code refactoring.

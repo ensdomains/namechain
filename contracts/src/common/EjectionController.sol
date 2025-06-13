@@ -4,15 +4,9 @@ pragma solidity >=0.8.13;
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-
-struct TransferData {
-    string label;
-    address owner;
-    address subregistry;
-    address resolver;
-    uint256 roleBitmap;
-    uint64 expires;
-}
+import {TransferData} from "./TransferData.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {NameUtils} from "./NameUtils.sol";
 
 /**
  * @title EjectionController
@@ -20,6 +14,7 @@ struct TransferData {
  */
 abstract contract EjectionController is IERC1155Receiver, ERC165 {
     error CallerNotRegistry(address caller);
+    error InvalidLabel(uint256 tokenId, string label);
 
     IPermissionedRegistry public immutable registry;
 
@@ -71,6 +66,28 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
     }
 
     // Internal functions
+
+    /**
+     * @dev DNS encodes a label, assuming it's a ETH 2LD.
+     *
+     * @param label The label to encode.
+     * @return The encoded label.
+     */
+    function _dnsEncodeLabel(string memory label) internal pure returns (bytes memory) {
+        return NameCoder.encode(string.concat(label, ".eth"));
+    }
+
+    /**
+     * @dev Asserts that the label matches the token ID.
+     *
+     * @param tokenId The token ID to check
+     * @param label The label to check
+     */
+    function _assertTokenIdMatchesLabel(uint256 tokenId, string memory label) internal pure {
+        if (NameUtils.labelToCanonicalId(label) != NameUtils.getCanonicalId(tokenId)) {
+            revert InvalidLabel(tokenId, label);
+        }
+    }
 
     /**
      * @dev Called when names are ejected.
