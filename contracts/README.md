@@ -17,8 +17,9 @@ At present the following contracts are implemented:
 
 ### Installation
 
+1. Install [Node.js](https://nodejs.org/) 24+
 1. Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation)
-2. Install [bun](https://bun.sh/)
+2. Install [bun](https://bun.sh/) 1.2+
 3. Install dependencies:
 
 ```sh
