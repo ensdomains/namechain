@@ -5,7 +5,7 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import {IDedicatedResolverManager, NODE_ANY} from "./IDedicatedResolverManager.sol";
+import {IDedicatedResolverSetters, NODE_ANY} from "./IDedicatedResolverSetters.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
@@ -30,7 +30,7 @@ import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceRe
 contract DedicatedResolver is
     ERC165,
     OwnableUpgradeable,
-    IDedicatedResolverManager,
+    IDedicatedResolverSetters,
     IFeatureSupporter,
     IExtendedResolver,
     IMulticallable,
@@ -74,7 +74,7 @@ contract DedicatedResolver is
     ) public view override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
-            type(IDedicatedResolverManager).interfaceId == interfaceId ||
+            type(IDedicatedResolverSetters).interfaceId == interfaceId ||
             type(IMulticallable).interfaceId == interfaceId ||
             type(IAddrResolver).interfaceId == interfaceId ||
             type(IAddressResolver).interfaceId == interfaceId ||
@@ -96,7 +96,7 @@ contract DedicatedResolver is
             ResolverFeatures.SINGULAR == feature;
     }
 
-    /// @inheritdoc IDedicatedResolverManager
+    /// @inheritdoc IDedicatedResolverSetters
     function setAddr(
         uint256 coinType,
         bytes calldata addressBytes
@@ -142,7 +142,7 @@ contract DedicatedResolver is
         return _addresses[coinType].length > 0;
     }
 
-    /// @inheritdoc IDedicatedResolverManager
+    /// @inheritdoc IDedicatedResolverSetters
     function setText(
         string calldata key,
         string calldata value
@@ -161,7 +161,7 @@ contract DedicatedResolver is
         return _texts[key];
     }
 
-    /// @inheritdoc IDedicatedResolverManager
+    /// @inheritdoc IDedicatedResolverSetters
     function setContenthash(bytes calldata hash) external onlyOwner {
         _contenthash = hash;
         emit ContenthashChanged(NODE_ANY, hash);
@@ -173,7 +173,7 @@ contract DedicatedResolver is
         return _contenthash;
     }
 
-    /// @inheritdoc IDedicatedResolverManager
+    /// @inheritdoc IDedicatedResolverSetters
     function setPubkey(bytes32 x, bytes32 y) external onlyOwner {
         _pubkeyX = x;
         _pubkeyY = y;
@@ -188,7 +188,7 @@ contract DedicatedResolver is
         y = _pubkeyY;
     }
 
-    /// @inheritdoc IDedicatedResolverManager
+    /// @inheritdoc IDedicatedResolverSetters
     function setABI(
         uint256 contentType,
         bytes calldata data
@@ -227,7 +227,7 @@ contract DedicatedResolver is
         return (0, "");
     }
 
-    /// @inheritdoc IDedicatedResolverManager
+    /// @inheritdoc IDedicatedResolverSetters
     function setInterface(
         bytes4 interfaceId,
         address implementer
@@ -256,7 +256,7 @@ contract DedicatedResolver is
         }
     }
 
-    /// @inheritdoc IDedicatedResolverManager
+    /// @inheritdoc IDedicatedResolverSetters
     function setName(string calldata _name) external onlyOwner {
         _primary = _name;
         emit NameChanged(NODE_ANY, _name);

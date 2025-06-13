@@ -6,7 +6,7 @@ bytes32 constant NODE_ANY = 0;
 
 /// @notice Interface for a resolver that returns the same results for all nodes.
 /// @dev Interface selector: `0x92349baa`
-interface IDedicatedResolverManager {
+interface IDedicatedResolverSetters {
     /// @notice The address could not be converted to `address`.
     /// @dev Error selector: `0x8d666f60`
     error InvalidEVMAddress(bytes addressBytes);

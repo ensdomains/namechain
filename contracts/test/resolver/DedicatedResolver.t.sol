@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {DedicatedResolver} from "../../src/common/DedicatedResolver.sol";
-import {IDedicatedResolverManager, NODE_ANY} from "../../src/common/IDedicatedResolverManager.sol";
+import {IDedicatedResolverSetters, NODE_ANY} from "../../src/common/IDedicatedResolverSetters.sol";
 import {IFeatureSupporter} from "../../src/common/IFeatureSupporter.sol";
 import {ResolverFeatures} from "../../src/common/ResolverFeatures.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
@@ -32,8 +32,8 @@ contract DedicatedResolverTest is Test {
         v = new I[](13);
         v[i++] = I(type(IExtendedResolver).interfaceId, "IExtendedResolver");
         v[i++] = I(
-            type(IDedicatedResolverManager).interfaceId,
-            "IDedicatedResolverManager"
+            type(IDedicatedResolverSetters).interfaceId,
+            "IDedicatedResolverSetters"
         );
         v[i++] = I(type(IMulticallable).interfaceId, "IMulticallable");
         v[i++] = I(type(IAddrResolver).interfaceId, "IAddrResolver");
