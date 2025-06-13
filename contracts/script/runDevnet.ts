@@ -1,6 +1,13 @@
+import { Address } from "viem";
 import { setupCrossChainEnvironment } from "./setup.js";
 
 const env = await setupCrossChainEnvironment();
+
+process.on("SIGINT", async () => {
+  console.log("\nShutting down...");
+  await env.shutdown();
+  process.exit();
+});
 
 console.log("\nAvailable Test Accounts:");
 console.log("=======================");
@@ -17,6 +24,24 @@ l2Accounts.forEach((address: string, index: number) => {
   console.log("---");
 });
 
-console.log("\nChain Info:");
-console.log(`L1 Chain ID: ${env.l1.client.chain.id}`);
-console.log(`L2 Chain ID: ${env.l2.client.chain.id}`);
+console.log({
+  urg: env.urg,
+  l1: dump(env.l1),
+  l2: dump(env.l2),
+});
+
+function dump(deployment: typeof env.l1 | typeof env.l2) {
+  const { client, accounts, contracts, ...rest } = deployment;
+  return {
+    chain: client.chain.id,
+    accounts: extractAddresses(accounts),
+    contracts: extractAddresses(contracts),
+    ...rest,
+  };
+}
+
+function extractAddresses(obj: Record<string, { address: Address }>) {
+  return Object.fromEntries(
+    Object.entries(obj).map(([k, v]) => [k, v.address]),
+  );
+}

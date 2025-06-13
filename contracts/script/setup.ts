@@ -10,7 +10,10 @@ import {
 } from "rocketh";
 import {
   createClient,
+  encodeFunctionData,
   getContract,
+  parseAbi,
+  walletActions,
   webSocket,
   type Abi,
   type Account,
@@ -23,6 +26,14 @@ import {
 import type { artifacts } from "@rocketh";
 import { mnemonicToAccount } from "viem/accounts";
 import { readConfig } from "./readConfig.js";
+import { deployArtifact } from "../test/fixtures/deployArtifact.js";
+import { urgArtifact } from "../test/fixtures/externalArtifacts.js";
+import { InteractiveRollup } from "../lib/unruggable-gateways/src/InteractiveRollup.js";
+import { EthProver } from "../lib/unruggable-gateways/src/eth/EthProver.js";
+import { WebSocketProvider } from "ethers/providers";
+import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
+import { serve } from "@namestone/ezccip/serve";
+import { getBlock, sendTransaction } from "viem/actions";
 
 const l1Config = {
   port: 8545,
@@ -123,11 +134,58 @@ export async function setupCrossChainEnvironment() {
     }),
     account,
     chain: l2Deploy.network.chain,
-  });
+  }).extend(walletActions);
   const l2Contracts = createDeploymentGetter(l2Deploy, l2Client);
+
+  const walletClient = l1Client.extend(walletActions);
+  const GatewayVM = await deployArtifact(walletClient, {
+    file: urgArtifact("GatewayVM"),
+  });
+  const hooksAddress = await deployArtifact(walletClient, {
+    file: urgArtifact("EthVerifierHooks"),
+  });
+  const verifierAddress = await deployArtifact(walletClient, {
+    file: urgArtifact("InteractiveVerifier"),
+    args: [[], 1000, hooksAddress],
+    libs: { GatewayVM },
+  });
+  const gateway = new Gateway(
+    new InteractiveRollup(
+      {
+        provider1: new WebSocketProvider(
+          `ws://127.0.0.1:${l1.port}`,
+          l1Config.chainId,
+          { staticNetwork: true },
+        ),
+        provider2: new WebSocketProvider(
+          `ws://127.0.0.1:${l2.port}`,
+          l2Config.chainId,
+          { staticNetwork: true },
+        ),
+      },
+      verifierAddress,
+      EthProver,
+    ),
+  );
+  gateway.disableCache();  
+  const ccip = await serve(gateway, { protocol: "raw" });
+
+  await sendTransaction(l1Client, {
+    to: verifierAddress,
+    data: encodeFunctionData({
+      abi: parseAbi(["function setGatewayURLs(string[])"]),
+      args: [[ccip.endpoint]],
+    }),
+  });
+
+  await sync();
 
   // Return all deployed contracts, providers, and the relayer
   return {
+    urg: {
+      gatewayURL: ccip.endpoint,
+      verifierAddress,
+    },
     l1: {
       client: l1Client,
       accounts: {
@@ -196,13 +254,32 @@ export async function setupCrossChainEnvironment() {
         >("SimpleRegistryMetadata"),
       },
     },
+    sync,
     // Safe shutdown function to properly terminate WebSocket connections
-    shutdown: async () => {
-      await l1.stop();
-      await l2.stop();
+    async shutdown() {
+      await ccip.shutdown();
+      await Promise.allSettled([l1.stop, l2.stop]);
     },
   };
+
+  async function sync() {
+    const [last, block] = await Promise.all([
+      gateway.rollup.fetchLatestCommitIndex(),
+      getBlock(l2Client),
+    ]);
+    if (block.number > last) {
+      await sendTransaction(l1Client, {
+        to: verifierAddress,
+        data: encodeFunctionData({
+          abi: parseAbi(["function setStateRoot(uint256, bytes32)"]),
+          args: [block.number, block.stateRoot],
+        }),
+      });
+      console.log(new Date(), "Sync", block.number);
+    }
+  }
 }
+
 export type CrossChainEnvironment = Awaited<
   ReturnType<typeof setupCrossChainEnvironment>
 >;

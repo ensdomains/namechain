@@ -13,7 +13,7 @@
     "devnet": "bun ./script/runDevnet.ts"
   },
   "devDependencies": {
-    "@ensdomains/hardhat-chai-matchers-viem": "^0.1.4",
+    "@ensdomains/hardhat-chai-matchers-viem": "^0.1.5",
     "@namestone/ezccip": "^0.1.0",
     "@nomicfoundation/hardhat-foundry": "^1.1.1",
     "@nomicfoundation/hardhat-keystore": "^3.0.0-next.5",
@@ -37,5 +37,9 @@
   },
   "peerDependencies": {
     "typescript": "^5.4.5"
+  },
+  "resolutions": {
+    "@nomicfoundation/hardhat-viem": "3.0.0-next.8",
+    "hardhat": "3.0.0-next.8"
   }
 }

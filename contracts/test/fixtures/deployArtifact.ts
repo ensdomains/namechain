@@ -1,15 +1,16 @@
-import type {
-  DefaultChainType,
-  NetworkConnection,
-} from "hardhat/types/network";
 import { readFile } from "node:fs/promises";
 import {
   type Abi,
+  type Account,
   type Address,
+  type Chain,
   concat,
   getContractAddress,
   type Hex,
+  publicActions,
   sliceHex,
+  type Transport,
+  type WalletClient,
 } from "viem";
 
 type LinkReferences = Record<
@@ -32,10 +33,9 @@ type HardhatArtifact = {
 };
 
 export async function deployArtifact(
-  networkConnection: NetworkConnection<DefaultChainType>,
+  walletClient: WalletClient<Transport, Chain, Account>,
   options: {
     file: string | URL;
-    from?: Hex;
     args?: any[];
     libs?: Record<string, Address>;
   },
@@ -65,10 +65,7 @@ export async function deployArtifact(
       }
     }
   }
-  const walletClient = options.from
-    ? await networkConnection.viem.getWalletClient(options.from)
-    : await networkConnection.viem.getWalletClients().then((x) => x[0]);
-  const publicClient = await networkConnection.viem.getPublicClient();
+  const publicClient = walletClient.extend(publicActions);
   const nonce = BigInt(
     await publicClient.getTransactionCount(walletClient.account),
   );
