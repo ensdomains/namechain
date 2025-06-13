@@ -2,6 +2,7 @@ import { createPublicClient, http, type Chain, getContract, type Log, decodeEven
 import { readFileSync } from "fs";
 import { join } from "path";
 import * as ethers from "ethers";
+import { ResolverRecord, LabelInfo, RegistryNode, ResolverUpdateEventArgs, TextChangedEventArgs, AddressChangedEventArgs, SubregistryUpdateEventArgs, NewSubnameEventArgs } from './types.js';
 
 // Add debug flag at the top of the file
 const DEBUG = false;
@@ -56,19 +57,11 @@ const dedicatedResolverDeployment = JSON.parse(readFileSync(dedicatedResolverPat
 const registryEvents = l1EthRegistryDeployment.abi.filter((item: any) => item.type === "event");
 const resolverEvents = dedicatedResolverDeployment.abi.filter((item: any) => item.type === "event");
 const userRegistryEvents = userRegistryImplDeployment.abi.filter((item: any) => item.type === "event");
+
 // Add type definitions for event arguments
 type TransferEventArgs = {
   tokenId: bigint;
 };
-
-interface NewSubnameEventArgs {
-  labelHash: string;
-  label: string;
-  resolver: string;
-  chainId: bigint;
-  subregistry: string;
-  registry: string;
-}
 
 // Update event argument types
 interface RegistryAddressChangedEventArgs {
@@ -537,39 +530,6 @@ allNamesWithRecords.forEach(({ name, records }) => {
     : '';
   console.log(`${name}${recordStr}`);
 });
-
-// Type definitions
-interface LabelInfo {
-  label: string;
-  resolver: string | null;
-  registry: string | null;
-  chainId: number;
-  subregistry?: string;
-}
-
-interface RegistryNode {
-  chainId: number;
-  expiry: number;
-  labels: Map<string, LabelInfo>;
-}
-
-interface ResolverRecord {
-  type: 'address' | 'text';
-  value: string;
-}
-
-interface AddressChangedEventArgs {
-  id: bigint;
-  coinType: bigint;
-  newAddress: string;
-}
-
-interface TextChangedEventArgs {
-  id: bigint;
-  indexedKey: string;
-  key: string;
-  value: string;
-}
 
 // Add resolver event tracking
 async function processResolverEvents(
