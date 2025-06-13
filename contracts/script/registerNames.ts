@@ -173,9 +173,6 @@ async function registerNames() {
   // Create an account from the default mnemonic
   const account = mnemonicToAccount("test test test test test test test test test test test junk");
 
-  // Define the names to register
-  const names = ["test1", "test2", "test3"];
-  
   // Get the L2 registry
   const ethRegistry = getContract({
     address: ethRegistryDeployment.address,
@@ -183,6 +180,9 @@ async function registerNames() {
     client: l2Client,
   });
 
+  // Define the names to register
+  const names = ["test1", "test2", "test3"];
+  
   // Register names on L2
   console.log("Registering names on L2...");
   for (const name of names) {
@@ -208,9 +208,6 @@ async function registerNames() {
       abi: dedicatedResolverImplDeployment.abi,
       client: l2Client,
     });
-
-    // Get the resolver address (you might want to deploy a dedicated resolver)
-    const zeroAddress = "0x0000000000000000000000000000000000000000";
 
     // Register names
     console.log(`Registering ${name}...`);
@@ -241,49 +238,114 @@ async function registerNames() {
       ["domain", name],
       { account }
     );
-    const subname = 'a'
-    console.log(`Deploying subname DedicatedResolver for ${subname}.${name}...`);
-    const subnameResolverAddress = await deployDedicatedResolver(subname, account.address, account);
-    console.log(`DedicatedResolver deployed at ${subnameResolverAddress}`);
-
-
-    // Set the ETH address in the resolver
-    const subnameDedicatedResolver = getContract({
-      address: subnameResolverAddress,
-      abi: dedicatedResolverImplDeployment.abi,
-      client: l2Client,
-    });
-
-    // Create subname 'a.{name}.eth'
-    console.log(`Creating subname a.${name}.eth... with ${subnameDedicatedResolver.address}`);
-    const subnameTx = await userRegistry.write.register(
-      [
-        subname,
-        account.address,
-        zeroAddress,
-        subnameDedicatedResolver.address,
-        0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn, // All roles
-        0xffffffffffffffffn, // MAX_EXPIRY
-      ],
-      { account }
-    );
-    await waitForTransaction(subnameTx);
-
-    // Set resolver and records for subname
-    console.log(`Setting ETH address for ${subname}.${name}...`);
-    await subnameDedicatedResolver.write.setAddr(
-      [60n, account.address],
-      { account }
-    );
-    console.log(`Setting TEXT record for ${subname}.${name}...`);
-    await subnameDedicatedResolver.write.setText(
-      ["subdomain", `a.${name}`],
-      { account }
-    );
 
     console.log(`Token ID: ${tokenId}`);
     console.log(`Expiry: ${expiry}`);
     console.log(`Token ID Version: ${tokenIdVersion}`);
+
+    // For test1, create the subdomain structure
+    if (name === "test1") {
+      const subname = 'a';
+      console.log(`Deploying subname DedicatedResolver for ${subname}.${name}...`);
+      const subnameResolverAddress = await deployDedicatedResolver(subname, account.address, account);
+      console.log(`DedicatedResolver deployed at ${subnameResolverAddress}`);
+
+      // Deploy a UserRegistry for a.test1
+      console.log(`Deploying UserRegistry for ${subname}.${name}...`);
+      const subnameUserRegistryAddress = await deployUserRegistry(`${subname}.${name}`, account.address, account);
+      console.log(`UserRegistry deployed at ${subnameUserRegistryAddress}`);
+
+      const subnameUserRegistry = getContract({
+        address: subnameUserRegistryAddress,
+        abi: userRegistryImplDeployment.abi,
+        client: l2Client,
+      });
+
+      // Set the ETH address in the resolver
+      const subnameDedicatedResolver = getContract({
+        address: subnameResolverAddress,
+        abi: dedicatedResolverImplDeployment.abi,
+        client: l2Client,
+      });
+
+      // Create subname 'a.test1.eth'
+      console.log(`Creating subname a.${name}.eth... with ${subnameDedicatedResolver.address}`);
+      const subnameTx = await userRegistry.write.register(
+        [
+          subname,
+          account.address,
+          subnameUserRegistryAddress,
+          subnameDedicatedResolver.address,
+          0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn, // All roles
+          0xffffffffffffffffn, // MAX_EXPIRY
+        ],
+        { account }
+      );
+      await waitForTransaction(subnameTx);
+
+      // Set records for a.test1.eth
+      console.log(`Setting ETH address for ${subname}.${name}...`);
+      await subnameDedicatedResolver.write.setAddr(
+        [60n, account.address],
+        { account }
+      );
+      console.log(`Setting TEXT record for ${subname}.${name}...`);
+      await subnameDedicatedResolver.write.setText(
+        ["subdomain", `a.${name}`],
+        { account }
+      );
+
+      // Create aa.a.test1.eth
+      const subsubname = 'aa';
+      console.log(`Deploying subname DedicatedResolver for ${subsubname}.${subname}.${name}...`);
+      const subsubnameResolverAddress = await deployDedicatedResolver(subsubname, account.address, account);
+      console.log(`DedicatedResolver deployed at ${subsubnameResolverAddress}`);
+
+      // Deploy a UserRegistry for aa.a.test1
+      console.log(`Deploying UserRegistry for ${subsubname}.${subname}.${name}...`);
+      const subsubnameUserRegistryAddress = await deployUserRegistry(`${subsubname}.${subname}.${name}`, account.address, account);
+      console.log(`UserRegistry deployed at ${subsubnameUserRegistryAddress}`);
+
+      const subsubnameUserRegistry = getContract({
+        address: subsubnameUserRegistryAddress,
+        abi: userRegistryImplDeployment.abi,
+        client: l2Client,
+      });
+
+      // Set the ETH address in the resolver
+      const subsubnameDedicatedResolver = getContract({
+        address: subsubnameResolverAddress,
+        abi: dedicatedResolverImplDeployment.abi,
+        client: l2Client,
+      });
+
+      // Create subname 'aa.a.test1.eth'
+      console.log(`Creating subname aa.${subname}.${name}.eth... with ${subsubnameDedicatedResolver.address}`);
+      const subsubnameTx = await subnameUserRegistry.write.register(
+        [
+          subsubname,
+          account.address,
+          subsubnameUserRegistryAddress,
+          subsubnameDedicatedResolver.address,
+          0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn, // All roles
+          0xffffffffffffffffn, // MAX_EXPIRY
+        ],
+        { account }
+      );
+      await waitForTransaction(subsubnameTx);
+
+      // Set records for aa.a.test1.eth
+      console.log(`Setting ETH address for ${subsubname}.${subname}.${name}...`);
+      await subsubnameDedicatedResolver.write.setAddr(
+        [60n, account.address],
+        { account }
+      );
+      console.log(`Setting TEXT record for ${subsubname}.${subname}.${name}...`);
+      await subsubnameDedicatedResolver.write.setText(
+        ["subsubdomain", `${subsubname}.${subname}.${name}`],
+        { account }
+      );
+    }
   }
 
   console.log("\nAll Resolver Addresses Set via ResolverUpdate:");
