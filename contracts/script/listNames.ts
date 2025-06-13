@@ -2,7 +2,7 @@ import { createPublicClient, http, type Chain, getContract, type Log, decodeEven
 import { readFileSync } from "fs";
 import { join } from "path";
 import * as ethers from "ethers";
-import { ResolverRecord, LabelInfo, RegistryNode, ResolverUpdateEventArgs, TextChangedEventArgs, AddressChangedEventArgs, SubregistryUpdateEventArgs, NewSubnameEventArgs } from './types.js';
+import { ResolverRecord, LabelInfo, RegistryNode, ResolverUpdateEventArgs, TextChangedEventArgs, AddressChangedEventArgs, SubregistryUpdateEventArgs, NewSubnameEventArgs, LabelHash, RegistryAddress, DecodedEvent, Log, Abi } from './types.js';
 
 // Add debug flag at the top of the file
 const DEBUG = false;
@@ -264,28 +264,6 @@ await processRegistryEvents(l2Client, ethRegistryDeployment.address, l2Chain.id,
 const registryTreePlain = convertToPlainObject(registryTree);
 console.log("Final registry tree:", JSON.stringify(registryTreePlain, null, 2));
 
-// // Convert labelHashToLabel to plain object and log
-// const labelHashToLabelPlain = Object.fromEntries(labelHashToLabel);
-// console.log("\nLabel Hash to Label Mappings:", JSON.stringify(labelHashToLabelPlain, null, 2));
-
-// // After the registry tree is built, add this debug section
-// console.log("\nConstructing full names:");
-// for (const [registryKey, registry] of registryTree.entries()) {
-//   for (const [labelHash, labelInfo] of registry.labels.entries()) {
-//     const fullName = buildFullName(registryKey, labelHash, registryTree, labelHashToLabel);
-//     if (fullName) {
-//       console.log(`Registry ${registryKey}: ${fullName}`);
-//       console.log(`  Label: ${labelInfo.label}`);
-//       console.log(`  Resolver: ${labelInfo.resolver || 'none'}`);
-//       console.log(`  Registry: ${labelInfo.registry || 'none'}`);
-//       if (labelInfo.subregistry) {
-//         console.log(`  Subregistry: ${labelInfo.subregistry}`);
-//       }
-//       console.log('---');
-//     }
-//   }
-// }
-
 // Event types
 interface ResolverUpdateEventArgs {
   id: bigint;
@@ -298,9 +276,6 @@ interface TextChangedEventArgs {
   key: string;
   value: string;
 }
-
-type LabelHash = string;
-type RegistryAddress = string;
 
 function decodeEvent(log: Log, abi: Abi): DecodedEvent {
   try {
@@ -347,76 +322,6 @@ interface RegistryNode {
     subregistry?: string;  // Optional subregistry for special labels
   }>;
 }
-
-// Update collectNames function to not use subregistries
-function collectNames(registryKey: string, registryTree: Map<string, RegistryNode>, labelHashToLabel: Map<string, string>, visited: Set<string> = new Set()): string[] {
-  if (visited.has(registryKey)) return [];
-  visited.add(registryKey);
-
-  const registry = registryTree.get(registryKey);
-  if (!registry) return [];
-
-  const names: string[] = [];
-
-  // Process labels in this registry
-  for (const [labelHash, labelInfo] of registry.labels) {
-    const label = labelHashToLabel.get(labelHash) || labelInfo.label;
-    if (label) {
-      const fullName = buildFullName(registryKey, labelHash, registryTree, labelHashToLabel);
-      if (fullName) {
-        names.push(fullName);
-      }
-    }
-  }
-
-  // Process special labels with subregistries
-  for (const [_, labelInfo] of registry.labels) {
-    if (labelInfo.subregistry) {
-      const subregistryKey = createRegistryKey(labelInfo.chainId || registry.chainId, labelInfo.subregistry);
-      const subNames = collectNames(subregistryKey, registryTree, labelHashToLabel, visited);
-      names.push(...subNames);
-    }
-  }
-
-  return names;
-}
-
-// Update printRegistryTree function to not use subregistries
-function printRegistryTree(registryKey: string, registryTree: Map<string, RegistryNode>, labelHashToLabel: Map<string, string>, depth: number = 0, visited: Set<string> = new Set()) {
-  if (visited.has(registryKey)) return;
-  visited.add(registryKey);
-
-  const registry = registryTree.get(registryKey);
-  if (!registry) return;
-
-  const indent = '  '.repeat(depth);
-  console.log(`${indent}Registry: ${registryKey}`);
-  console.log(`${indent}Chain ID: ${registry.chainId}`);
-
-  // Print labels
-  for (const [labelHash, labelInfo] of registry.labels) {
-    const label = labelHashToLabel.get(labelHash) || labelInfo.label;
-    if (label) {
-      const fullName = buildFullName(registryKey, labelHash, registryTree, labelHashToLabel);
-      console.log(`${indent}  Label: ${label} (${fullName})`);
-      console.log(`${indent}    Registry: ${labelInfo.registry || 'null'}`);
-      console.log(`${indent}    Resolver: ${labelInfo.resolver}`);
-      if (labelInfo.subregistry) {
-        console.log(`${indent}    Subregistry: ${labelInfo.subregistry}`);
-        console.log(`${indent}    Chain ID: ${labelInfo.chainId}`);
-      }
-    }
-  }
-
-  // Process special labels with subregistries
-  for (const [_, labelInfo] of registry.labels) {
-    if (labelInfo.subregistry) {
-      const subregistryKey = createRegistryKey(labelInfo.chainId || registry.chainId, labelInfo.subregistry);
-      printRegistryTree(subregistryKey, registryTree, labelHashToLabel, depth + 1, visited);
-    }
-  }
-}
-
 // Function to build full name from registry tree
 function buildFullName(registryKey: string, labelHash: string, registryTree: Map<string, RegistryNode>, labelHashToLabel: Map<string, string>, visited: Set<string> = new Set()): string | null {
   if (visited.has(`${registryKey}:${labelHash}`)) return null;

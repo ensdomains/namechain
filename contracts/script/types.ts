@@ -45,4 +45,22 @@ export interface SubregistryUpdateEventArgs {
 export interface NewSubnameEventArgs {
   labelHash: bigint;
   label: string;
+}
+
+// Additional types from listNames.ts
+export type LabelHash = string;
+export type RegistryAddress = string;
+
+export interface DecodedEvent {
+  eventName: string;
+  args: any;
+}
+
+export interface Log {
+  data: string;
+  topics: string[];
+}
+
+export interface Abi {
+  // Define your ABI structure here if needed
 } 
