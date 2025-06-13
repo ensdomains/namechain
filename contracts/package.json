@@ -1,5 +1,5 @@
 {
-  "name": "@ensdomains/namechain",
+  "name": "@ensdomains/namechain-contracts",
   "type": "module",
   "version": "0.0.0",
   "scripts": {
