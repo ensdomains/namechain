@@ -1,6 +1,7 @@
 import type { Client, Hash, Hex } from "viem";
 import { waitForTransactionReceipt } from "viem/actions";
 import { encodeAbiParameters, parseAbiParameters } from "viem";
+import { dnsEncodeName } from "../lib/ens-contracts/test/fixtures/dnsEncodeName";
 
 import type { L1Client, L1Contracts, L2Client, L2Contracts } from "./setup.js";
 
@@ -29,18 +30,14 @@ export const createMockRelay = ({
     onLogs: async (logs: any[]) => {
       for (const log of logs) {
         console.log("Relaying ejection message from L1 to L2");
-        console.log(`TokenId: ${log.args.tokenId}`);
-        console.log(`Transaction: ${log.transactionHash}`);
-
-        // Reconstruct the bridge message using the data from the event
-        const bridgeMessage: Hex = encodeAbiParameters(
-          parseAbiParameters("uint8, uint256, bytes"),
-          [1, log.args.tokenId, log.args.data] // BridgeMessageType.EJECTION = 1
+        // log.args: { dnsEncodedName, data }
+        const bridgeMessage = encodeAbiParameters(
+          parseAbiParameters("uint8, bytes, bytes"),
+          [1, log.args.dnsEncodedName, log.args.data] // 1 = EJECTION
         );
-
         try {
           const receipt = await expectSuccess(
-            l2Client, 
+            l2Client,
             (l2Bridge.write as any).receiveMessage([bridgeMessage])
           );
           console.log(`Message relayed to L2, tx hash: ${receipt.transactionHash}`);
@@ -55,15 +52,10 @@ export const createMockRelay = ({
     onLogs: async (logs: any[]) => {
       for (const log of logs) {
         console.log("Relaying migration message from L1 to L2");
-        console.log(`TokenId: ${log.args.tokenId}`);
-        console.log(`Transaction: ${log.transactionHash}`);
-
-        // Reconstruct the bridge message using the data from the event
-        const bridgeMessage: Hex = encodeAbiParameters(
-          parseAbiParameters("uint8, uint256, bytes"),
-          [0, log.args.tokenId, log.args.data] // BridgeMessageType.MIGRATION = 0
+        const bridgeMessage = encodeAbiParameters(
+          parseAbiParameters("uint8, bytes, bytes"),
+          [0, log.args.dnsEncodedName, log.args.data] // 0 = MIGRATION
         );
-
         try {
           const receipt = await expectSuccess(
             l2Client,
@@ -82,15 +74,10 @@ export const createMockRelay = ({
     onLogs: async (logs: any[]) => {
       for (const log of logs) {
         console.log("Relaying ejection message from L2 to L1");
-        console.log(`TokenId: ${log.args.tokenId}`);
-        console.log(`Transaction: ${log.transactionHash}`);
-        
-        // Reconstruct the bridge message using the data from the event
-        const bridgeMessage: Hex = encodeAbiParameters(
-          parseAbiParameters("uint8, uint256, bytes"),
-          [1, log.args.tokenId, log.args.data] // BridgeMessageType.EJECTION = 1
+        const bridgeMessage = encodeAbiParameters(
+          parseAbiParameters("uint8, bytes, bytes"),
+          [1, log.args.dnsEncodedName, log.args.data] // 1 = EJECTION
         );
-
         try {
           const receipt = await expectSuccess(
             l1Client,

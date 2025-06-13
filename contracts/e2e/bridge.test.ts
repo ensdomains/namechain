@@ -14,6 +14,7 @@ import {
   labelToCanonicalId,
   waitForEvent,
 } from "./utils.js";
+import { dnsEncodeName } from "../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
 
 const { l1, l2, shutdown } = await setupCrossChainEnvironment();
 afterAll(shutdown);
@@ -64,6 +65,7 @@ test("name ejection", async () => {
   console.log(`Does it match resource? ${labelHash === canonicalId}`);
   expect(labelHash).toBe(canonicalId);
 
+  const dnsEncodedName = dnsEncodeName(label + ".eth");
   const transferDataParameters = [
     label,
     l1Owner,
@@ -72,8 +74,7 @@ test("name ejection", async () => {
     roleBitmap,
     expiryTime,
   ] as const;
-
-  const encodedData = encodeAbiParameters(
+  const encodedTransferData = encodeAbiParameters(
     parseAbiParameters("(string,address,address,address,uint256,uint64)"),
     [transferDataParameters],
   );
@@ -87,7 +88,7 @@ test("name ejection", async () => {
     l2.contracts.ejectionController.address,
     tokenId,
     1n,
-    encodedData,
+    encodedTransferData,
   ], {} as any);
 
   // Wait for the NameEjectedToL1 event from L2 bridge (indicating ejection message sent)
@@ -117,6 +118,8 @@ test("name ejection", async () => {
   console.log(`Owner on L1: ${actualL1Owner}`);
   console.log("✓ Name successfully registered on L1");
   expect(actualL1Owner).toBe(l1Owner);
+
+  // In assertions, use bridgeEvents[0].args.dnsEncodedName and bridgeEvents[0].args.data
 });
 
 test("round trip", async () => {
@@ -145,6 +148,7 @@ test("round trip", async () => {
   const [tokenId] = await l2.contracts.ethRegistry.read.getNameData([label]);
   console.log(`TokenID from registry: ${tokenId}`);
 
+  const dnsEncodedName = dnsEncodeName(label + ".eth");
   const transferDataParametersToL1 = [
     label,
     l1User,
@@ -153,8 +157,7 @@ test("round trip", async () => {
     roleBitmap,
     expiryTime,
   ] as const;
-
-  const encodedDataToL1 = encodeAbiParameters(
+  const encodedTransferDataToL1 = encodeAbiParameters(
     parseAbiParameters("(string,address,address,address,uint256,uint64)"),
     [transferDataParametersToL1],
   );
@@ -164,7 +167,7 @@ test("round trip", async () => {
     l2.contracts.ejectionController.address,
     tokenId,
     1n,
-    encodedDataToL1,
+    encodedTransferDataToL1,
   ], {} as any);
 
   // Wait for the NameEjectedToL1 event from L2 bridge (indicating ejection message sent)
@@ -202,7 +205,7 @@ test("round trip", async () => {
     expiryTime,
   ] as const;
 
-  const encodedDataToL2 = encodeAbiParameters(
+  const encodedTransferDataToL2 = encodeAbiParameters(
     parseAbiParameters("(string,address,address,address,uint256,uint64)"),
     [transferDataParametersToL2],
   );
@@ -212,7 +215,7 @@ test("round trip", async () => {
     l1.contracts.ejectionController.address,
     tokenId,
     1n,
-    encodedDataToL2,
+    encodedTransferDataToL2,
   ], {} as any);
 
   // Wait for the NameEjectedToL2 event from L1 bridge (indicating ejection message sent)
@@ -247,4 +250,6 @@ test("round trip", async () => {
   ]);
   console.log(`Subregistry on L2: ${subregistry}`);
   expect(subregistry).toBe(getAddress(l2Subregistry));
+
+  // In assertions, use ejectionEvents[0].args.dnsEncodedName and ejectionEvents[0].args.data
 });
