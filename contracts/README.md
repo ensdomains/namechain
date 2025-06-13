@@ -18,9 +18,9 @@ At present the following contracts are implemented:
 ### Installation
 
 1. Install [Node.js](https://nodejs.org/) 24+
-1. Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation)
-2. Install [bun](https://bun.sh/) 1.2+
-3. Install dependencies:
+2. Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation)
+3. Install [bun](https://bun.sh/) 1.2+
+4. Install dependencies:
 
 ```sh
 bun i
@@ -41,9 +41,6 @@ Run all test suites:
 
 ```sh
 bun run test         # ALL tests
-forge test           # Foundry tests
-bun run test:hardhat # Hardhat tests
-bun run test:hardhat test/Ens.t.ts # specific Hardhat test
 ```
 
 Or run specific test suites:
@@ -51,11 +48,25 @@ Or run specific test suites:
 ```sh
 bun run test:hardhat  # Run Hardhat tests
 bun run test:forge    # Run Forge tests
+bun run test:hardhat test/Ens.t.ts # specific Hardhat test
 ```
 
 ## Running the Devnet
 
 There are two ways to run the devnet:
+
+### Native Local Devnet (recommended)
+
+Start a local devnet with L1 and L2 chains:
+
+```sh
+bun run devnet
+```
+
+This will start:
+
+- L1 chain at http://localhost:8545 (Chain ID: 31337)
+- L2 chain at http://localhost:8546 (Chain ID: 31338)
 
 ### Using Docker Compose
 
@@ -87,20 +98,9 @@ To stop the devnet:
 docker compose down
 ```
 
-### Local Development
+## Miscellaneous
 
-### Run Local Devnet
-
-Start a local devnet with L1 and L2 chains:
-
-```sh
-bun run devnet
-```
-
-This will start:
-
-- L1 chain at http://localhost:8545 (Chain ID: 31337)
-- L2 chain at http://localhost:8546 (Chain ID: 31338)
+Foundry also comes with cast, anvil, and chisel, all of which are useful for local development ([docs](https://book.getfoundry.sh/))
 
 ### Format
 
@@ -113,7 +113,3 @@ forge fmt
 ```shell
 $ forge snapshot
 ```
-
-### Miscellaneous
-
-Foundry also comes with cast, anvil, and chisel, all of which are useful for local development ([docs](https://book.getfoundry.sh/))
