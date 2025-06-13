@@ -117,6 +117,9 @@ async function processRegistryEvents(
       }
       labelHashToSubregistry.set(labelHash, subregistry);
       const labelEntry = registryNode.labels.get(labelHash);
+      if(labelEntry){
+        console.log("***labelEntry", registryKey, labelEntry, decoded);
+      }
       registryNode.labels.set(labelHash, {
         label:labelEntry?.label,
         resolver: null,
@@ -335,8 +338,14 @@ console.log(`Total unique names: ${allNamesWithResolvers.size}`);
 function traverseRegistry(
   registryKey: string,
   currentPath: string[] = [],
-  names: Array<{ name: string; records: ResolverRecord[] }> = []
+  names: Array<{ name: string; records: ResolverRecord[] }> = [],
+  visited: Set<string> = new Set()
 ): Array<{ name: string; records: ResolverRecord[] }> {
+  if (visited.has(registryKey)) {
+    console.warn('Cycle detected! Registry key:', registryKey, 'Path:', currentPath.join('.'));
+  }
+  visited.add(registryKey);
+
   const registry = registryTree.get(registryKey);
   if (!registry) return names;
 
@@ -356,7 +365,12 @@ function traverseRegistry(
     
     if (labelInfo.registry && labelInfo.registry !== "0x0000000000000000000000000000000000000000") {
       const subRegistryKey = createRegistryKey(labelInfo.chainId, labelInfo.registry);
-      traverseRegistry(subRegistryKey, newPath, names);
+      // Need more sophisyticated logic to handle so that it won't loop forever
+      if (subRegistryKey === registryKey) {
+        console.warn('Warning: Registry is trying to set its own address as a subregistry:', registryKey);
+      }else{
+        traverseRegistry(subRegistryKey, newPath, names, visited);
+      }
     }
   }
   

@@ -41,6 +41,8 @@ const ethRegistryPath = join(process.cwd(), "deployments", "l2-local", "ETHRegis
 const l1RegistryDatastorePath = join(process.cwd(), "deployments", "l1-local", "RegistryDatastore.json");
 const l2RegistryDatastorePath = join(process.cwd(), "deployments", "l2-local", "RegistryDatastore.json");
 const dedicatedResolverImplPath = join(process.cwd(), "deployments", "l2-local", "DedicatedResolverImpl.json");
+const l1EjectionControllerPath = join(process.cwd(), "deployments", "l1-local", "L1EjectionController.json");
+const l2EjectionControllerPath = join(process.cwd(), "deployments", "l2-local", "L2EjectionController.json");
 
 const rootRegistryDeployment = JSON.parse(readFileSync(rootRegistryPath, "utf8"));
 const l1EthRegistryDeployment = JSON.parse(readFileSync(l1EthRegistryPath, "utf8"));
@@ -48,11 +50,14 @@ const ethRegistryDeployment = JSON.parse(readFileSync(ethRegistryPath, "utf8"));
 const l1RegistryDatastoreDeployment = JSON.parse(readFileSync(l1RegistryDatastorePath, "utf8"));
 const l2RegistryDatastoreDeployment = JSON.parse(readFileSync(l2RegistryDatastorePath, "utf8"));
 const dedicatedResolverImplDeployment = JSON.parse(readFileSync(dedicatedResolverImplPath, "utf8"));
+const l1EjectionControllerDeployment = JSON.parse(readFileSync(l1EjectionControllerPath, "utf8"));
+const l2EjectionControllerDeployment = JSON.parse(readFileSync(l2EjectionControllerPath, "utf8"));
 
 // Extract ABIs from deployment files
 const registryEvents = l1EthRegistryDeployment.abi.filter((item: any) => item.type === "event");
 const datastoreEvents = l1RegistryDatastoreDeployment.abi.filter((item: any) => item.type === "event");
 const dedicatedResolverEvents = dedicatedResolverImplDeployment.abi.filter((item: any) => item.type === "event");
+const ejectionControllerEvents = l1EjectionControllerDeployment.abi.filter((item: any) => item.type === "event");
 
 // Get the datastore address from RootRegistry
 const rootRegistryABI = rootRegistryDeployment.abi;
@@ -105,6 +110,8 @@ async function listenToEvents() {
   console.log(`L1 RegistryDatastore: ${l1RegistryDatastoreDeployment.address}`);
   console.log(`L2 RegistryDatastore: ${l2RegistryDatastoreDeployment.address}`);
   console.log(`DedicatedResolverImpl: ${dedicatedResolverImplDeployment.address}`);
+  console.log(`L1EjectionController: ${l1EjectionControllerDeployment.address}`);
+  console.log(`L2EjectionController: ${l2EjectionControllerDeployment.address}`);
 
   // Get the datastore address from RootRegistry
   const rootRegistry = getContract({
@@ -159,6 +166,13 @@ async function listenToEvents() {
       console.log(`- Transaction: ${log.transactionHash}`);
       console.log(`- Block: ${log.blockNumber}`);
       console.log(`- Arguments:`, args);
+
+      // Track NameRelinquished events
+      if (eventName === "NameRelinquished") {
+        console.log("✓ NameRelinquished event detected");
+        console.log(`  Token ID: ${args.tokenId}`);
+        console.log(`  Relinquished by: ${args.relinquishedBy}`);
+      }
     });
   }
 
@@ -177,6 +191,13 @@ async function listenToEvents() {
       console.log(`- Transaction: ${log.transactionHash}`);
       console.log(`- Block: ${log.blockNumber}`);
       console.log(`- Arguments:`, args);
+
+      // Track NameRelinquished events
+      if (eventName === "NameRelinquished") {
+        console.log("✓ NameRelinquished event detected");
+        console.log(`  Token ID: ${args.tokenId}`);
+        console.log(`  Relinquished by: ${args.relinquishedBy}`);
+      }
     });
   }
 
@@ -246,6 +267,42 @@ async function listenToEvents() {
     }
   }
 
+  // L1EjectionController historical events
+  const l1EjectionControllerLogs = await l1Client.getLogs({
+    address: l1EjectionControllerDeployment.address,
+    fromBlock: 0n,
+    toBlock: l1Block,
+  });
+  if (l1EjectionControllerLogs.length > 0) {
+    console.log(`\nHistorical L1EjectionController Events: ${l1EjectionControllerLogs.length}`);
+    l1EjectionControllerLogs.forEach(log => {
+      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, ejectionControllerEvents, "L1", "L1EjectionController", l1EjectionControllerDeployment.address);
+      console.log(`- Event: ${eventName}`);
+      console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
+      console.log(`- Transaction: ${log.transactionHash}`);
+      console.log(`- Block: ${log.blockNumber}`);
+      console.log(`- Arguments:`, args);
+    });
+  }
+
+  // L2EjectionController historical events
+  const l2EjectionControllerLogs = await l2Client.getLogs({
+    address: l2EjectionControllerDeployment.address,
+    fromBlock: 0n,
+    toBlock: l2Block,
+  });
+  if (l2EjectionControllerLogs.length > 0) {
+    console.log(`\nHistorical L2EjectionController Events: ${l2EjectionControllerLogs.length}`);
+    l2EjectionControllerLogs.forEach(log => {
+      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, ejectionControllerEvents, "L2", "L2EjectionController", l2EjectionControllerDeployment.address);
+      console.log(`- Event: ${eventName}`);
+      console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
+      console.log(`- Transaction: ${log.transactionHash}`);
+      console.log(`- Block: ${log.blockNumber}`);
+      console.log(`- Arguments:`, args);
+    });
+  }
+
   console.log("\nNow listening for new events...\n");
 
   // Start listening for new events
@@ -301,6 +358,13 @@ async function listenToEvents() {
           console.log(`- Transaction: ${log.transactionHash}`);
           console.log(`- Block: ${log.blockNumber}`);
           console.log(`- Arguments:`, args);
+
+          // Track NameRelinquished events
+          if (eventName === "NameRelinquished") {
+            console.log("✓ NameRelinquished event detected");
+            console.log(`  Token ID: ${args.tokenId}`);
+            console.log(`  Relinquished by: ${args.relinquishedBy}`);
+          }
         });
       }
       lastL1EthRegistryBlock = latestL1EthRegistryBlock;
@@ -323,6 +387,13 @@ async function listenToEvents() {
           console.log(`- Transaction: ${log.transactionHash}`);
           console.log(`- Block: ${log.blockNumber}`);
           console.log(`- Arguments:`, args);
+
+          // Track NameRelinquished events
+          if (eventName === "NameRelinquished") {
+            console.log("✓ NameRelinquished event detected");
+            console.log(`  Token ID: ${args.tokenId}`);
+            console.log(`  Relinquished by: ${args.relinquishedBy}`);
+          }
         });
       }
       lastEthRegistryBlock = latestEthRegistryBlock;

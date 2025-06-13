@@ -1,4 +1,4 @@
-import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType, encodeFunctionData, parseEventLogs } from "viem";
+import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType, encodeFunctionData, parseEventLogs, encodeAbiParameters, parseAbiParameters } from "viem";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { privateKeyToAccount, mnemonicToAccount } from "viem/accounts";
@@ -44,6 +44,8 @@ const dedicatedResolverImplPath = join(process.cwd(), "deployments", "l2-local",
 const userRegistryImplPath = join(process.cwd(), "deployments", "l2-local", "UserRegistryImpl.json");
 const registryDatastorePath = join(process.cwd(), "deployments", "l2-local", "RegistryDatastore.json");
 const registryMetadataPath = join(process.cwd(), "deployments", "l2-local", "SimpleRegistryMetadata.json");
+const l1EjectionControllerPath = join(process.cwd(), "deployments", "l1-local", "L1EjectionController.json");
+const l2EjectionControllerPath = join(process.cwd(), "deployments", "l2-local", "L2EjectionController.json");
 
 const rootRegistryDeployment = JSON.parse(readFileSync(rootRegistryPath, "utf8"));
 const l1EthRegistryDeployment = JSON.parse(readFileSync(l1EthRegistryPath, "utf8"));
@@ -53,6 +55,8 @@ const dedicatedResolverImplDeployment = JSON.parse(readFileSync(dedicatedResolve
 const userRegistryImplDeployment = JSON.parse(readFileSync(userRegistryImplPath, "utf8"));
 const registryDatastoreDeployment = JSON.parse(readFileSync(registryDatastorePath, "utf8"));
 const registryMetadataDeployment = JSON.parse(readFileSync(registryMetadataPath, "utf8"));
+const l1EjectionControllerDeployment = JSON.parse(readFileSync(l1EjectionControllerPath, "utf8"));
+const l2EjectionControllerDeployment = JSON.parse(readFileSync(l2EjectionControllerPath, "utf8"));
 
 const resolverAddresses = new Set<string>();
 
@@ -181,7 +185,7 @@ async function registerNames() {
   });
 
   // Define the names to register
-  const names = ["test1", "test2", "test3"];
+  const names = ["test1", "test2", "test3", "ejected"];
   
   // Store UserRegistry addresses for aliasing
   const userRegistryAddresses = new Map<string, string>();
@@ -246,6 +250,58 @@ async function registerNames() {
     console.log(`Token ID: ${tokenId}`);
     console.log(`Expiry: ${expiry}`);
     console.log(`Token ID Version: ${tokenIdVersion}`);
+
+    // For ejected.eth, transfer to L2EjectionController
+    if (name === "ejected") {
+      console.log("\nPreparing to eject ejected.eth...");
+      
+      // Get L1 registry and controller addresses
+      const l1EthRegistry = getContract({
+        address: l1EthRegistryDeployment.address,
+        abi: l1EthRegistryDeployment.abi,
+        client: l1Client,
+      });
+
+      const l2EjectionController = getContract({
+        address: l2EjectionControllerDeployment.address,
+        abi: l2EjectionControllerDeployment.abi,
+        client: l2Client,
+      });
+
+      // Prepare transfer data
+      const transferDataParameters = [
+        name,
+        account.address, // L1 owner
+        l1EthRegistry.address, // L1 subregistry
+        "0x0000000000000000000000000000000000000000", // L1 resolver
+        0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn, // All roles
+        0xffffffffffffffffn, // MAX_EXPIRY
+      ] as const;
+      console.log("***transferDataParameters", transferDataParameters);
+      const encodedData = encodeAbiParameters(
+        parseAbiParameters("(string,address,address,address,uint256,uint64)"),
+        [transferDataParameters],
+      );
+
+      console.log("Transferring ejected.eth to L2EjectionController...");
+      const transferTx = await ethRegistry.write.safeTransferFrom(
+        [
+          account.address,
+          l2EjectionController.address,
+          tokenId,
+          1n,
+          encodedData,
+        ],
+        { account }
+      );
+      await waitForTransaction(transferTx);
+      console.log(`Token transferred to L2EjectionController, tx hash: ${transferTx}`);
+
+      // Verify the transfer
+      const newOwner = await l1EthRegistry.read.ownerOf([tokenId]);
+      console.log(`New owner on L1: ${newOwner}`);
+      console.log("✓ Name successfully ejected to L1");
+    }
 
     // For test1, create the subdomain structure
     if (name === "test1") {
