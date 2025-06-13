@@ -15,7 +15,7 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 /**
  * @title L1UnlockedMigrationController
- * @dev Base contract for the v1-to-v2 migration controller that only handles unlocked names.
+ * @dev Base contract for the v1-to-v2 migration controller that only handles unlocked .eth 2LD names.
  */
 contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
     error UnauthorizedCaller(address caller);   
@@ -99,7 +99,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     // Internal functions
 
     /**
-     * @dev Called when wrapped .eth names are being migrated to v2.
+     * @dev Called when wrapped .eth 2LD names are being migrated to v2.
      * Only supports unlocked names - reverts for locked names.
      *
      * @param tokenIds The token IDs of the .eth names.
@@ -114,9 +114,8 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
             } else {
                 // Name is unlocked, unwrap it first then migrate
                 bytes32 labelHash = bytes32(tokenIds[i]);
-                bytes32 ethNode = 0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae; // keccak256("eth")
-                bytes32 node = keccak256(abi.encodePacked(ethNode, labelHash));
-                nameWrapper.unwrap(node, labelHash, address(this));
+                nameWrapper.unwrapETH2LD(labelHash, address(this), address(this));
+                // now migrate
                 _migrateNameViaBridge(tokenIds[i], migrationDataArray[i]);
             }
         }

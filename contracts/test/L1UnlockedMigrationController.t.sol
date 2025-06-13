@@ -112,13 +112,6 @@ contract MockNameWrapper is ERC1155 {
         _tokenFuses[tokenId] = fuses;
     }
     
-    function unwrap(bytes32 /*node*/, bytes32 label, address owner) external {
-        uint256 tokenId = uint256(label);
-        // Mock unwrap by burning the ERC1155 token from the caller (migration controller)
-        // This is a simplified mock implementation
-        _burn(msg.sender, tokenId, 1);
-        _tokenOwners[tokenId] = owner;
-    }
     
     function safeTransferFrom(
         address from,
@@ -142,6 +135,13 @@ contract MockNameWrapper is ERC1155 {
         for (uint256 i = 0; i < ids.length; i++) {
             _tokenOwners[ids[i]] = to;
         }
+    }
+
+    function unwrapETH2LD(bytes32 label, address newRegistrant, address newController) external {
+        uint256 tokenId = uint256(label);
+        // Mock unwrap by burning the ERC1155 token from the caller (migration controller)
+        _burn(msg.sender, tokenId, 1);
+        _tokenOwners[tokenId] = newRegistrant;
     }
 }
 
