@@ -264,19 +264,6 @@ await processRegistryEvents(l2Client, ethRegistryDeployment.address, l2Chain.id,
 const registryTreePlain = convertToPlainObject(registryTree);
 console.log("Final registry tree:", JSON.stringify(registryTreePlain, null, 2));
 
-// Event types
-interface ResolverUpdateEventArgs {
-  id: bigint;
-  resolver: string;
-  record?: string;
-}
-
-interface TextChangedEventArgs {
-  node: `0x${string}`;
-  key: string;
-  value: string;
-}
-
 function decodeEvent(log: Log, abi: Abi): DecodedEvent {
   try {
     return decodeEventLog({
@@ -310,18 +297,6 @@ function convertToPlainObject(obj: any): any {
   return obj;
 }
 
-// Update RegistryNode interface to remove subregistries
-interface RegistryNode {
-  chainId: number;
-  expiry: number;
-  labels: Map<string, {
-    label: string;
-    resolver: string | null;
-    registry: string | null;
-    chainId?: number;  // Optional chainId for special labels
-    subregistry?: string;  // Optional subregistry for special labels
-  }>;
-}
 // Function to build full name from registry tree
 function buildFullName(registryKey: string, labelHash: string, registryTree: Map<string, RegistryNode>, labelHashToLabel: Map<string, string>, visited: Set<string> = new Set()): string | null {
   if (visited.has(`${registryKey}:${labelHash}`)) return null;
