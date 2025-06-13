@@ -183,6 +183,9 @@ async function registerNames() {
   // Define the names to register
   const names = ["test1", "test2", "test3"];
   
+  // Store UserRegistry addresses for aliasing
+  const userRegistryAddresses = new Map<string, string>();
+  
   // Register names on L2
   console.log("Registering names on L2...");
   for (const name of names) {
@@ -195,6 +198,7 @@ async function registerNames() {
     console.log(`Deploying UserRegistry for ${name}...`);
     const userRegistryAddress = await deployUserRegistry(name, account.address, account);
     console.log(`UserRegistry deployed at ${userRegistryAddress}`);
+    userRegistryAddresses.set(name, userRegistryAddress);
 
     const userRegistry = getContract({
       address: userRegistryAddress,
@@ -254,6 +258,7 @@ async function registerNames() {
       console.log(`Deploying UserRegistry for ${subname}.${name}...`);
       const subnameUserRegistryAddress = await deployUserRegistry(`${subname}.${name}`, account.address, account);
       console.log(`UserRegistry deployed at ${subnameUserRegistryAddress}`);
+      userRegistryAddresses.set(`${subname}.${name}`, subnameUserRegistryAddress);
 
       const subnameUserRegistry = getContract({
         address: subnameUserRegistryAddress,
@@ -346,6 +351,30 @@ async function registerNames() {
         { account }
       );
     }
+  }
+
+  // Create alias for a.test2.eth by setting its subregistry to a.test1.eth's UserRegistry
+  if (userRegistryAddresses.has("test2") && userRegistryAddresses.has("a.test1")) {
+    const test2UserRegistry = getContract({
+      address: userRegistryAddresses.get("test2")!,
+      abi: userRegistryImplDeployment.abi,
+      client: l2Client,
+    });
+
+    console.log("\nCreating alias for a.test2.eth...");
+    const aliasTx = await test2UserRegistry.write.register(
+      [
+        "a",
+        account.address,
+        userRegistryAddresses.get("a.test1")!, // Use a.test1.eth's UserRegistry
+        "0x0000000000000000000000000000000000000000" as `0x${string}`, // No dedicated resolver needed for alias
+        0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn, // All roles
+        0xffffffffffffffffn, // MAX_EXPIRY
+      ],
+      { account }
+    );
+    await waitForTransaction(aliasTx);
+    console.log("Alias created successfully!");
   }
 
   console.log("\nAll Resolver Addresses Set via ResolverUpdate:");
