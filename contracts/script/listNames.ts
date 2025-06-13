@@ -1,8 +1,7 @@
-import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType, PublicClient } from "viem";
+import { createPublicClient, http, type Chain, type Log, decodeEventLog, type Abi, PublicClient } from "viem";
 import { readFileSync } from "fs";
 import { join } from "path";
-import * as ethers from "ethers";
-import { ResolverRecord, LabelInfo, RegistryNode, ResolverUpdateEventArgs, TextChangedEventArgs, AddressChangedEventArgs, SubregistryUpdateEventArgs, NewSubnameEventArgs, LabelHash, RegistryAddress, DecodedEvent, Log, Abi } from './types.js';
+import { ResolverRecord, LabelInfo, RegistryNode, ResolverUpdateEventArgs, TextChangedEventArgs, AddressChangedEventArgs, SubregistryUpdateEventArgs, NewSubnameEventArgs, DecodedEvent, Log, Abi } from './types.js';
 
 // Add debug flag at the top of the file
 const DEBUG = false;
@@ -58,42 +57,12 @@ const registryEvents = l1EthRegistryDeployment.abi.filter((item: any) => item.ty
 const resolverEvents = dedicatedResolverDeployment.abi.filter((item: any) => item.type === "event");
 const userRegistryEvents = userRegistryImplDeployment.abi.filter((item: any) => item.type === "event");
 
-// Add type definitions for event arguments
-type TransferEventArgs = {
-  tokenId: bigint;
-};
-
-// Update event argument types
-interface RegistryAddressChangedEventArgs {
-  node: string;
-  labelHash: string;
-}
-
-interface ResolverAddressChangedEventArgs {
-  node: `0x${string}`;
-  coinType: bigint;
-  newAddress: string;
-}
-
-// Add these type definitions at the top with other types
-type DecodedEvent = {
-  eventName: string;
-  args: any;
-} | undefined;
 
 // Add at the top of the file, after imports
 interface ResolverInfo {
   address: string;
   addresses: Map<string, string>;
   texts: Map<string, string>;
-}
-
-// Add after the ResolverInfo interface
-interface SubregistryUpdateEventArgs {
-  id: bigint;
-  registry: string;
-  subregistry: string;
-  expiry: bigint;
 }
 
 // Helper function to create registry key
