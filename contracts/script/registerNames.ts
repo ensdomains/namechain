@@ -1,4 +1,4 @@
-import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType, encodeFunctionData, parseEventLogs, encodeAbiParameters, parseAbiParameters } from "viem";
+import { createPublicClient, http, type Chain, type PublicClient, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType, encodeFunctionData, parseEventLogs, encodeAbiParameters, parseAbiParameters } from "viem";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { privateKeyToAccount, mnemonicToAccount } from "viem/accounts";
@@ -39,8 +39,10 @@ const l2Client = createPublicClient({
 const rootRegistryPath = join(process.cwd(), "deployments", "l1-local", "RootRegistry.json");
 const l1EthRegistryPath = join(process.cwd(), "deployments", "l1-local", "L1ETHRegistry.json");
 const ethRegistryPath = join(process.cwd(), "deployments", "l2-local", "ETHRegistry.json");
-const verifiableFactoryPath = join(process.cwd(), "deployments", "l2-local", "VerifiableFactory.json");
-const dedicatedResolverImplPath = join(process.cwd(), "deployments", "l2-local", "DedicatedResolverImpl.json");
+const l1VerifiableFactoryPath = join(process.cwd(), "deployments", "l1-local", "VerifiableFactory.json");
+const l1DedicatedResolverImplPath = join(process.cwd(), "deployments", "l1-local", "DedicatedResolverImpl.json");
+const l2VerifiableFactoryPath = join(process.cwd(), "deployments", "l2-local", "VerifiableFactory.json");
+const l2DedicatedResolverImplPath = join(process.cwd(), "deployments", "l2-local", "DedicatedResolverImpl.json");
 const userRegistryImplPath = join(process.cwd(), "deployments", "l2-local", "UserRegistryImpl.json");
 const registryDatastorePath = join(process.cwd(), "deployments", "l2-local", "RegistryDatastore.json");
 const registryMetadataPath = join(process.cwd(), "deployments", "l2-local", "SimpleRegistryMetadata.json");
@@ -50,8 +52,10 @@ const l2EjectionControllerPath = join(process.cwd(), "deployments", "l2-local", 
 const rootRegistryDeployment = JSON.parse(readFileSync(rootRegistryPath, "utf8"));
 const l1EthRegistryDeployment = JSON.parse(readFileSync(l1EthRegistryPath, "utf8"));
 const ethRegistryDeployment = JSON.parse(readFileSync(ethRegistryPath, "utf8"));
-const verifiableFactoryDeployment = JSON.parse(readFileSync(verifiableFactoryPath, "utf8"));
-const dedicatedResolverImplDeployment = JSON.parse(readFileSync(dedicatedResolverImplPath, "utf8"));
+const l1VerifiableFactoryDeployment = JSON.parse(readFileSync(l1VerifiableFactoryPath, "utf8"));
+const l1dedicatedResolverImplDeployment = JSON.parse(readFileSync(l1DedicatedResolverImplPath, "utf8"));
+const l2VerifiableFactoryDeployment = JSON.parse(readFileSync(l2VerifiableFactoryPath, "utf8"));
+const l2dedicatedResolverImplDeployment = JSON.parse(readFileSync(l2DedicatedResolverImplPath, "utf8"));
 const userRegistryImplDeployment = JSON.parse(readFileSync(userRegistryImplPath, "utf8"));
 const registryDatastoreDeployment = JSON.parse(readFileSync(registryDatastorePath, "utf8"));
 const registryMetadataDeployment = JSON.parse(readFileSync(registryMetadataPath, "utf8"));
@@ -60,16 +64,8 @@ const l2EjectionControllerDeployment = JSON.parse(readFileSync(l2EjectionControl
 
 const resolverAddresses = new Set<string>();
 
-async function waitForTransaction(hash: `0x${string}`) {
-  while (true) {
-    try {
-      const receipt = await l2Client.getTransactionReceipt({ hash });
-      if (receipt) return receipt;
-    } catch (error) {
-      // Transaction not found yet, wait and retry
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
+async function waitForTransaction(hash: `0x${string}`, client: PublicClient) {
+  return await client.waitForTransactionReceipt({ hash });
 }
 
 function decodeEvent(log: Log, abi: Abi) {
@@ -100,11 +96,23 @@ function formatEventLog(log: Log, abi: Abi) {
   };
 }
 
-async function deployDedicatedResolver(name: string, owner: `0x${string}`, account: any) {
+async function deployDedicatedResolver(name: string, owner: `0x${string}`, account: any, chain: string) {
+  let verifiableFactoryDeployment;
+  let dedicatedResolverImplDeployment;
+  let client;
+  if(chain === "l1"){
+    verifiableFactoryDeployment = l1VerifiableFactoryDeployment;
+    dedicatedResolverImplDeployment = l1dedicatedResolverImplDeployment;
+    client = l1Client;
+  }else{
+    verifiableFactoryDeployment = l2VerifiableFactoryDeployment;
+    dedicatedResolverImplDeployment = l2dedicatedResolverImplDeployment;
+    client = l2Client;
+  }
   const verifiableFactory = getContract({
     address: verifiableFactoryDeployment.address,
     abi: verifiableFactoryDeployment.abi,
-    client: l2Client,
+    client: client,
   });
 
   const salt = BigInt(Date.now());
@@ -118,26 +126,27 @@ async function deployDedicatedResolver(name: string, owner: `0x${string}`, accou
     [dedicatedResolverImplDeployment.address, salt, initData],
     { account }
   );
-
+  console.log("***1", hash);
   // Wait for the transaction to be mined
-  const receipt = await waitForTransaction(hash);
+  const receipt = await waitForTransaction(hash, client);
+  console.log("***2", receipt);
   const logs = parseEventLogs({
     abi: verifiableFactoryDeployment.abi,
     eventName: "ProxyDeployed",
     logs: receipt.logs,
   }) as unknown as [{ args: { proxyAddress: `0x${string}` } }];
-
+  console.log("***3", logs);
   if (!logs.length) {
     throw new Error("No ProxyDeployed event found");
   }
-
+  console.log("***4", logs[0].args.proxyAddress);
   return logs[0].args.proxyAddress;
 }
 
 async function deployUserRegistry(name: string, owner: `0x${string}`, account: any) {
   const verifiableFactory = getContract({
-    address: verifiableFactoryDeployment.address,
-    abi: verifiableFactoryDeployment.abi,
+    address: l2VerifiableFactoryDeployment.address,
+    abi: l2VerifiableFactoryDeployment.abi,
     client: l2Client,
   });
 
@@ -159,9 +168,9 @@ async function deployUserRegistry(name: string, owner: `0x${string}`, account: a
   );
 
   // Wait for the transaction to be mined
-  const receipt = await waitForTransaction(hash);
+  const receipt = await waitForTransaction(hash, l2Client);
   const logs = parseEventLogs({
-    abi: verifiableFactoryDeployment.abi,
+    abi: l2VerifiableFactoryDeployment.abi,
     eventName: "ProxyDeployed",
     logs: receipt.logs,
   }) as unknown as [{ args: { proxyAddress: `0x${string}` } }];
@@ -195,7 +204,7 @@ async function registerNames() {
   for (const name of names) {
     // Deploy a DedicatedResolver for this name
     console.log(`Deploying DedicatedResolver for ${name}...`);
-    const resolverAddress = await deployDedicatedResolver(name, account.address, account);
+    const resolverAddress = await deployDedicatedResolver(name, account.address, account, "l2");
     console.log(`DedicatedResolver deployed at ${resolverAddress}`);
 
     // Deploy a UserRegistry for this name
@@ -213,7 +222,7 @@ async function registerNames() {
     // Set the ETH address in the resolver
     const dedicatedResolver = getContract({
       address: resolverAddress,
-      abi: dedicatedResolverImplDeployment.abi,
+      abi: l2dedicatedResolverImplDeployment.abi,
       client: l2Client,
     });
 
@@ -230,7 +239,7 @@ async function registerNames() {
       ],
       { account }
     );
-    await waitForTransaction(tx);
+    await waitForTransaction(tx, l2Client);
 
     console.log(`Transaction hash: ${tx}`);
     const result = await ethRegistry.read.getNameData([name]) as [bigint, bigint, number];
@@ -254,7 +263,8 @@ async function registerNames() {
     // For ejected.eth, transfer to L2EjectionController
     if (name === "ejected") {
       console.log("\nPreparing to eject ejected.eth...");
-      
+      const l2nameData = await ethRegistry.read.getNameData([name]) as { tokenId: bigint };
+      console.log("***l2nameData", l2nameData);
       // Get L1 registry and controller addresses
       const l1EthRegistry = getContract({
         address: l1EthRegistryDeployment.address,
@@ -268,12 +278,21 @@ async function registerNames() {
         client: l2Client,
       });
 
+
+      // Deploy L1 Dedicated Resolver for ejected.eth
+      console.log("\nDeploying L1 Dedicated Resolver for ejected.eth...");
+      const l1ResolverAddress = await deployDedicatedResolver(name, account.address, account, "l1");
+      console.log("***3", l1ResolverAddress);
+
+      console.log(`L1 Dedicated Resolver deployed at ${l1ResolverAddress}`);
+      
+
       // Prepare transfer data
       const transferDataParameters = [
         name,
         account.address, // L1 owner
         l1EthRegistry.address, // L1 subregistry
-        "0x0000000000000000000000000000000000000000", // L1 resolver
+        l1ResolverAddress, // L1 resolver
         0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn, // All roles
         0xffffffffffffffffn, // MAX_EXPIRY
       ] as const;
@@ -294,20 +313,54 @@ async function registerNames() {
         ],
         { account }
       );
-      await waitForTransaction(transferTx);
+      await waitForTransaction(transferTx, l2Client);
       console.log(`Token transferred to L2EjectionController, tx hash: ${transferTx}`);
 
       // Verify the transfer
       const newOwner = await l1EthRegistry.read.ownerOf([tokenId]);
       console.log(`New owner on L1: ${newOwner}`);
       console.log("✓ Name successfully ejected to L1");
+      
+
+      // Set the resolver for ejected.eth on L1
+      // console.log("Setting resolver for ejected.eth on L1...");
+      // const nameData = await l1EthRegistry.read.getNameData([name]) as { tokenId: bigint };
+      // console.log("***nameData", nameData);
+      // const setResolverTx = await l1EthRegistry.write.setResolver(
+      //   [nameData.tokenId, l1ResolverAddress],
+      //   { account }
+      // );
+      // console.log("***setResolverTx", setResolverTx);
+      // await waitForTransaction(setResolverTx, l1Client);
+      // console.log("Resolver set successfully on L1");
+
+      // Set records in the L1 resolver
+      const l1Resolver = getContract({
+        address: l1ResolverAddress,
+        abi: l1dedicatedResolverImplDeployment.abi,
+        client: l1Client,
+      });
+
+      console.log("Setting ETH address for ejected.eth on L1...");
+      const setAddrTx = await l1Resolver.write.setAddr(
+        [60n, account.address],
+        { account }
+      );
+      await waitForTransaction(setAddrTx, l1Client);
+      console.log("Setting TEXT record for ejected.eth on L1...");
+      const setTextTx = await l1Resolver.write.setText(
+        ["domain", "ejected on l1"],
+        { account }
+      );
+      await waitForTransaction(setTextTx, l1Client);
+      console.log("✓ L1 records set successfully");
     }
 
     // For test1, create the subdomain structure
     if (name === "test1") {
       const subname = 'a';
       console.log(`Deploying subname DedicatedResolver for ${subname}.${name}...`);
-      const subnameResolverAddress = await deployDedicatedResolver(subname, account.address, account);
+      const subnameResolverAddress = await deployDedicatedResolver(subname, account.address, account, "l");
       console.log(`DedicatedResolver deployed at ${subnameResolverAddress}`);
 
       // Deploy a UserRegistry for a.test1
@@ -325,7 +378,7 @@ async function registerNames() {
       // Set the ETH address in the resolver
       const subnameDedicatedResolver = getContract({
         address: subnameResolverAddress,
-        abi: dedicatedResolverImplDeployment.abi,
+        abi: l2dedicatedResolverImplDeployment.abi,
         client: l2Client,
       });
 
@@ -342,7 +395,7 @@ async function registerNames() {
         ],
         { account }
       );
-      await waitForTransaction(subnameTx);
+      await waitForTransaction(subnameTx, l2Client);
 
       // Set records for a.test1.eth
       console.log(`Setting ETH address for ${subname}.${name}...`);
@@ -359,7 +412,7 @@ async function registerNames() {
       // Create aa.a.test1.eth
       const subsubname = 'aa';
       console.log(`Deploying subname DedicatedResolver for ${subsubname}.${subname}.${name}...`);
-      const subsubnameResolverAddress = await deployDedicatedResolver(subsubname, account.address, account);
+      const subsubnameResolverAddress = await deployDedicatedResolver(subsubname, account.address, account, "l2");
       console.log(`DedicatedResolver deployed at ${subsubnameResolverAddress}`);
 
       // Deploy a UserRegistry for aa.a.test1
@@ -376,7 +429,7 @@ async function registerNames() {
       // Set the ETH address in the resolver
       const subsubnameDedicatedResolver = getContract({
         address: subsubnameResolverAddress,
-        abi: dedicatedResolverImplDeployment.abi,
+        abi: l2dedicatedResolverImplDeployment.abi,
         client: l2Client,
       });
 
@@ -393,7 +446,7 @@ async function registerNames() {
         ],
         { account }
       );
-      await waitForTransaction(subsubnameTx);
+      await waitForTransaction(subsubnameTx, l2Client);
 
       // Set records for aa.a.test1.eth
       console.log(`Setting ETH address for ${subsubname}.${subname}.${name}...`);
@@ -429,7 +482,7 @@ async function registerNames() {
       ],
       { account }
     );
-    await waitForTransaction(aliasTx);
+    await waitForTransaction(aliasTx, l2Client);
     console.log("Alias created successfully!");
   }
 

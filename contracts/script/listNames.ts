@@ -1,7 +1,7 @@
 import { createPublicClient, http, type Chain, type Log, decodeEventLog, type Abi, PublicClient } from "viem";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { ResolverRecord, LabelInfo, RegistryNode, ResolverUpdateEventArgs, TextChangedEventArgs, AddressChangedEventArgs, SubregistryUpdateEventArgs, NewSubnameEventArgs, DecodedEvent, Log, Abi } from './types.js';
+import { ResolverRecord, LabelInfo, RegistryNode, ResolverUpdateEventArgs, TextChangedEventArgs, AddressChangedEventArgs, SubregistryUpdateEventArgs, NewSubnameEventArgs, DecodedEvent } from './types.js';
 
 // Add debug flag at the top of the file
 const DEBUG = false;
