@@ -200,6 +200,7 @@ contract DedicatedResolver is
         emit ABIChanged(NODE_ANY, contentType);
     }
 
+    /// @dev Returns true if `x` has a single bit set.
     function _isPowerOf2(uint256 x) internal pure returns (bool) {
         return x > 0 && (x - 1) & x == 0;
     }
@@ -235,6 +236,7 @@ contract DedicatedResolver is
         _setInterface(interfaceId, implementer);
     }
 
+    /// @dev `setInterface()` w/o an owner check.
     function _setInterface(bytes4 interfaceId, address implementer) internal {
         _interfaces[interfaceId] = implementer;
         emit InterfaceChanged(NODE_ANY, interfaceId, implementer);
@@ -268,6 +270,10 @@ contract DedicatedResolver is
         return _primary;
     }
 
+    /// @notice Resolve records independent of name.
+    /// @dev Revert `UnsupportedResolverProfile` if the record is not supported.
+    /// @param data The resolution data, as specified in ENSIP-10..
+    /// @return The result of the resolution.
     function resolve(
         bytes calldata,
         bytes calldata data
@@ -295,7 +301,9 @@ contract DedicatedResolver is
         return results;
     }
 
-    /// @notice Warning: node check is ignored.
+    /// @dev The purpose of node check is to prevent a trusted operator from modifying
+    ///      multiple names. Since the sole operator of this resolver is the owner and it
+    ///      only stores records for a single name, the node check can be elided.
     function multicallWithNodeCheck(
         bytes32,
         bytes[] calldata calls
