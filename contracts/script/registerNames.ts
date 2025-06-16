@@ -321,19 +321,6 @@ async function registerNames() {
       console.log(`New owner on L1: ${newOwner}`);
       console.log("✓ Name successfully ejected to L1");
       
-
-      // Set the resolver for ejected.eth on L1
-      // console.log("Setting resolver for ejected.eth on L1...");
-      // const nameData = await l1EthRegistry.read.getNameData([name]) as { tokenId: bigint };
-      // console.log("***nameData", nameData);
-      // const setResolverTx = await l1EthRegistry.write.setResolver(
-      //   [nameData.tokenId, l1ResolverAddress],
-      //   { account }
-      // );
-      // console.log("***setResolverTx", setResolverTx);
-      // await waitForTransaction(setResolverTx, l1Client);
-      // console.log("Resolver set successfully on L1");
-
       // Set records in the L1 resolver
       const l1Resolver = getContract({
         address: l1ResolverAddress,
@@ -342,15 +329,16 @@ async function registerNames() {
       });
 
       console.log("Setting ETH address for ejected.eth on L1...");
+      const nonce = await l1Client.getTransactionCount({ address: account.address });
       const setAddrTx = await l1Resolver.write.setAddr(
         [60n, account.address],
-        { account }
+        { account, nonce:nonce + 1 }
       );
       await waitForTransaction(setAddrTx, l1Client);
       console.log("Setting TEXT record for ejected.eth on L1...");
       const setTextTx = await l1Resolver.write.setText(
         ["domain", "ejected on l1"],
-        { account }
+        { account, nonce:nonce + 2 }
       );
       await waitForTransaction(setTextTx, l1Client);
       console.log("✓ L1 records set successfully");
