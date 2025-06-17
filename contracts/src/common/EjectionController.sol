@@ -74,7 +74,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
      * @return The encoded label.
      */
     function _dnsEncodeLabel(string memory label) internal pure returns (bytes memory) {
-        return NameCoder.encode(string.concat(label, ".eth"));
+        return abi.encodePacked(bytes1(label.length), label, "\x03eth\x00");
     }
 
     /**
