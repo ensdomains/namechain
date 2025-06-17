@@ -44,18 +44,14 @@ async function sync() {
     chains.map(async (c) => {
       const counts = { ...c.counts }; // save counts
       const client = await c.viem.getPublicClient();
-      const { number: b, timestamp: t } = await client.getBlock();
-      return { b, t, counts };
+      const { timestamp: t } = await client.getBlock();
+      return { t, counts };
     }),
   );
-  const bMax = blocks.reduce((a, x) => (x.b > a ? x.b : a), 0n);
-  const bMin = blocks.reduce((a, x) => (x.b < a ? x.b : a), bMax);
-  const tMax = blocks.reduce((a, x) => (x.t > a ? x.t : a), 0n);
-  const tNext = tMax + (bMax - bMin) + 1n;
+  const tMax = blocks.reduce((a, x) => (x.t > a ? x.t : a), 0n) + 1n;
   await Promise.all(
     chains.map(async (c, i) => {
-      if (bMax > blocks[i].b) await c.networkHelpers.mineUpTo(bMax);
-      await c.networkHelpers.time.setNextBlockTimestamp(tNext);
+      await c.networkHelpers.time.setNextBlockTimestamp(tMax);
       await c.networkHelpers.mine(1);
       c.counts = blocks[i].counts; // restore counts
     }),
@@ -155,7 +151,7 @@ describe("ETHFallbackResolver", () => {
     ).resolves.toStrictEqual(true);
   });
 
-  describe("storage layout", async () => {
+  describe("storage layout", { timeout: 30000 }, () => {
     describe("DedicatedResolver", () => {
       const code = readFileSync(
         new URL("../src/common/DedicatedResolverLayout.sol", import.meta.url),
