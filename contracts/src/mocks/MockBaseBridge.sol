@@ -9,7 +9,7 @@ import {IBridge, BridgeEncoder, BridgeMessageType} from "../common/IBridge.sol";
  * @dev Abstract base class for mock bridge contracts
  * Contains common functionality for message encoding/decoding and event emission
  */
-abstract contract MockBaseBridge is IBridge {
+abstract contract MockBridgeBase is IBridge {
     // Custom errors
     error MigrationNotSupported();
     
