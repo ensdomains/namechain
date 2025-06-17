@@ -5,7 +5,7 @@ import {TransferData} from "../common/TransferData.sol";
 import {IBridge, BridgeEncoder, BridgeMessageType} from "../common/IBridge.sol";
 
 /**
- * @title MockBaseBridge
+ * @title MockBridgeBase
  * @dev Abstract base class for mock bridge contracts
  * Contains common functionality for message encoding/decoding and event emission
  */

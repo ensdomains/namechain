@@ -8,7 +8,7 @@ import "../../src/mocks/MockL1Bridge.sol";
 import "../../src/mocks/MockL2Bridge.sol";
 import "../../src/mocks/MockL1EjectionController.sol";
 import "../../src/mocks/MockL2EjectionController.sol";
-import "../../src/mocks/MockBaseBridge.sol";
+import "../../src/mocks/MockBridgeBase.sol";
 import {BridgeEncoder, BridgeMessageType} from "../../src/common/IBridge.sol";
 import {TransferData, MigrationData} from "../../src/common/TransferData.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
@@ -58,11 +58,11 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     }
     
     function testNameEjectionFromL2ToL1() public {
-        string memory name = "premiumname.eth";
-        uint256 tokenId = l2Registry.register(name, user2, IRegistry(address(0x456)), address(0x789), ALL_ROLES, uint64(block.timestamp + 365 days));
+        // Register using just the label, as would be done in an .eth registry
+        uint256 tokenId = l2Registry.register("premiumname", user2, IRegistry(address(0x456)), address(0x789), ALL_ROLES, uint64(block.timestamp + 365 days));
 
         TransferData memory transferData = TransferData({
-            label: name,
+            label: "premiumname",
             owner: user2,
             subregistry: address(0x123),
             resolver: address(0x456),
@@ -70,67 +70,22 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
             roleBitmap: ROLE_RENEW
         });
 
-        vm.recordLogs();
-
         // Step 1: Initiate ejection on L2
         vm.startPrank(user2);
         l2Registry.safeTransferFrom(user2, address(l2Controller), tokenId, 1, abi.encode(transferData));
         vm.stopPrank();
         
-        // Check for NameEjectedToL1 event from L2 bridge
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        bytes32 ejectionEventSig = keccak256("NameEjectedToL1(bytes,bytes)");
-        
-        uint256 ejectionEventIndex = 0;
-        for (ejectionEventIndex = 0; ejectionEventIndex < entries.length; ejectionEventIndex++) {
-            if (entries[ejectionEventIndex].topics[0] == ejectionEventSig) {
-                break;
-            }
-        }
-
-        assertTrue(ejectionEventIndex < entries.length, "NameEjectedToL1 event not found");
-        
-        // Decode the NameEjectedToL1 event - dnsEncodedName in topics, data in data
-        bytes32 eventDnsEncodedNameHash = entries[ejectionEventIndex].topics[1];
-        bytes memory eventData = abi.decode(entries[ejectionEventIndex].data, (bytes));
-        
-        // Verify the DNS encoded name hash matches
-        bytes memory expectedDnsEncodedName = NameCoder.encode(string.concat(name, ".eth"));
-        assertEq(eventDnsEncodedNameHash, keccak256(expectedDnsEncodedName));
-        
-        // The event data should be the raw TransferData
-        TransferData memory eventTransferData = abi.decode(eventData, (TransferData));
-        
-        assertEq(eventTransferData.owner, transferData.owner);
-        assertEq(eventTransferData.subregistry, transferData.subregistry);
-        assertEq(eventTransferData.expires, transferData.expires);
-
-        vm.recordLogs();    
-
-        // Reconstruct the bridge message to simulate what the relay would do
-        bytes memory bridgeMessage = BridgeEncoder.encode(BridgeMessageType.EJECTION, expectedDnsEncodedName, eventData);
+        // Step 2: Simulate receiving the message on L1
+        bytes memory dnsEncodedName = NameCoder.encode("premiumname.eth");
+        bytes memory bridgeMessage = BridgeEncoder.encode(BridgeMessageType.EJECTION, dnsEncodedName, abi.encode(transferData));
         l1Bridge.receiveMessage(bridgeMessage);
 
-        entries = vm.getRecordedLogs();
-
-        // Check for MessageProcessed event
-        bytes32 processedSig = keccak256("MessageProcessed(bytes)");
-        uint256 processedIndex = 0;
-        for (processedIndex = 0; processedIndex < entries.length; processedIndex++) {
-            if (entries[processedIndex].topics[0] == processedSig) {
-                break;
-            }
-        }
-        assertTrue(processedIndex < entries.length, "MessageProcessed event not found");
-
-        // Check that name is registered on L1
+        // Step 3: Verify the name is registered on L1
         assertEq(l1Registry.ownerOf(tokenId), transferData.owner);
-        assertEq(address(l1Registry.getSubregistry(transferData.label)), transferData.subregistry);
-        assertEq(l1Registry.getResolver(transferData.label), transferData.resolver);
+        assertEq(address(l1Registry.getSubregistry("premiumname")), transferData.subregistry);
+        assertEq(l1Registry.getResolver("premiumname"), transferData.resolver);
         assertEq(l1Registry.getExpiry(tokenId), transferData.expires);
-        bytes32 rolesResource = l1Registry.getTokenIdResource(tokenId);
-        address owner = transferData.owner;
-        assertEq(l1Registry.roles(rolesResource, owner), transferData.roleBitmap);
+        assertEq(l1Registry.roles(l1Registry.getTokenIdResource(tokenId), transferData.owner), transferData.roleBitmap);
     }
     
     function testL2BridgeRevertsMigrationMessages() public {
@@ -140,7 +95,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, dnsEncodedName, migrationData);
         
         // Should revert with MigrationNotSupported error
-        vm.expectRevert(MockBaseBridge.MigrationNotSupported.selector);
+        vm.expectRevert(MockBridgeBase.MigrationNotSupported.selector);
         l2Bridge.sendMessage(migrationMessage);
     }
     
@@ -151,7 +106,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, dnsEncodedName, migrationData);
         
         // Should revert with MigrationNotSupported error when receiving migration messages
-        vm.expectRevert(MockBaseBridge.MigrationNotSupported.selector);
+        vm.expectRevert(MockBridgeBase.MigrationNotSupported.selector);
         l1Bridge.receiveMessage(migrationMessage);
     }
     

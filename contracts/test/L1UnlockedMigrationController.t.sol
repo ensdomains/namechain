@@ -137,7 +137,7 @@ contract MockNameWrapper is ERC1155 {
         }
     }
 
-    function unwrapETH2LD(bytes32 label, address newRegistrant, address newController) external {
+    function unwrapETH2LD(bytes32 label, address newRegistrant, address /*newController*/) external {
         uint256 tokenId = uint256(label);
         // Mock unwrap by burning the ERC1155 token from the caller (migration controller)
         _burn(msg.sender, tokenId, 1);

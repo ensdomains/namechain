@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {TransferData, MigrationData} from "../common/TransferData.sol";
 import {MockL1EjectionController} from "./MockL1EjectionController.sol";
-import {MockBaseBridge} from "./MockBaseBridge.sol";
+import {MockBridgeBase} from "./MockBridgeBase.sol";
 import {BridgeMessageType, BridgeEncoder} from "../common/IBridge.sol";
 
 /**
@@ -11,7 +10,7 @@ import {BridgeMessageType, BridgeEncoder} from "../common/IBridge.sol";
  * @dev Generic mock L1-to-L2 bridge for testing cross-chain communication
  * Accepts arbitrary messages as bytes and calls the appropriate controller methods
  */
-contract MockL1Bridge is MockBaseBridge {
+contract MockL1Bridge is MockBridgeBase {
     // Ejection controller to call when receiving ejection messages
     MockL1EjectionController public ejectionController;
     
@@ -45,8 +44,7 @@ contract MockL1Bridge is MockBaseBridge {
         bytes memory data
     ) internal override {
         if (messageType == BridgeMessageType.EJECTION) {
-            TransferData memory _transferData = abi.decode(data, (TransferData));
-            ejectionController.completeEjectionFromL2(_transferData);
+            ejectionController.completeEjectionFromL2(data);
         } else if (messageType == BridgeMessageType.MIGRATION) {
             revert MigrationNotSupported();
         }

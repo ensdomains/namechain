@@ -44,6 +44,16 @@ contract MockL2EjectionController is L2EjectionController {
 
         bytes memory dnsEncodedName = _dnsEncodeLabel(transferData.label);
         emit NameEjectedToL2(dnsEncodedName, transferData.owner, transferData.subregistry);
+    }
+
+    /**
+     * @dev Handles completion of migration from L1 by decoding raw data
+     */
+    function completeMigrationFromL1(
+        bytes memory data
+    ) external {
+        TransferData memory transferData = abi.decode(data, (TransferData));
+        this.completeMigrationFromL1(transferData);
     }    
 
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {

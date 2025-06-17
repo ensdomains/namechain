@@ -52,6 +52,16 @@ contract MockL1EjectionController is L1EjectionController, IL1Migrator {
     }
 
     /**
+     * @dev Handles completion of ejection from L2
+     */
+    function completeEjectionFromL2(
+        bytes memory data
+    ) public returns (uint256 tokenId) {
+        TransferData memory transferData = abi.decode(data, (TransferData));
+        return completeEjectionFromL2(transferData);
+    }
+
+    /**
      * @dev Handles synchronization of renewals from L2
      */
     function syncRenewalFromL2(uint256 tokenId, uint64 newExpiry) external {
