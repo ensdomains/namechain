@@ -1,7 +1,8 @@
 import hre from "hardhat";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
 import { expect } from "chai";
-import { afterEach, afterAll, describe, it } from "vitest";
+import { afterEach, afterAll, describe, it, assert } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   concat,
   decodeFunctionResult,
@@ -31,7 +32,7 @@ import {
   shortCoin,
 } from "./utils/resolutions.js";
 import { dnsEncodeName, expectVar, getLabelAt } from "./utils/utils.js";
-import { injectRPCCounter } from "./utils/hardhat.js";
+import { getRawArtifact, injectRPCCounter } from "./utils/hardhat.js";
 import { FEATURES } from "./utils/features.js";
 
 const chain1 = injectRPCCounter(await hre.network.connect());
@@ -41,10 +42,10 @@ const chains = [chain1, chain2];
 async function sync() {
   const blocks = await Promise.all(
     chains.map(async (c) => {
-      const { count } = c; // save call count
+      const counts = { ...c.counts }; // save counts
       const client = await c.viem.getPublicClient();
       const { number: b, timestamp: t } = await client.getBlock();
-      return { b, t, count };
+      return { b, t, counts };
     }),
   );
   const bMax = blocks.reduce((a, x) => (x.b > a ? x.b : a), 0n);
@@ -56,7 +57,7 @@ async function sync() {
       if (bMax > blocks[i].b) await c.networkHelpers.mineUpTo(bMax);
       await c.networkHelpers.time.setNextBlockTimestamp(tNext);
       await c.networkHelpers.mine(1);
-      c.count = blocks[i].count; // restore call count
+      c.counts = blocks[i].counts; // restore counts
     }),
   );
 }
@@ -75,12 +76,15 @@ async function fixture() {
   gateway.disableCache();
   const ccip = await serve(gateway, { protocol: "raw", log: false }); // enable to see gateway calls
   afterAll(ccip.shutdown);
-  const GatewayVM = await deployArtifact(chain1, {
+  const GatewayVM = await deployArtifact(mainnetV2.walletClient, {
     file: urgArtifact("GatewayVM"),
   });
-  const verifierAddress = await deployArtifact(chain1, {
+  const hooksAddress = await deployArtifact(mainnetV2.walletClient, {
+    file: urgArtifact("UncheckedVerifierHooks"),
+  });
+  const verifierAddress = await deployArtifact(mainnetV2.walletClient, {
     file: urgArtifact("UncheckedVerifier"),
-    args: [[ccip.endpoint]],
+    args: [[ccip.endpoint], 0, hooksAddress],
     libs: { GatewayVM },
   });
   const ethResolver = await mainnetV2.deployDedicatedResolver({
@@ -124,12 +128,18 @@ const testAddress = "0x8000000000000000000000000000000000000001";
 const testNames = ["test.eth", "a.b.c.test.eth"];
 
 describe("ETHFallbackResolver", () => {
-  const rpcs: Record<string, number[]> = {};
+  const rpcs: Record<string, any> = {};
   afterEach(({ expect: { getState } }) => {
-    rpcs[getState().currentTestName!] = chains.map((x) => x.reset());
+    rpcs[getState().currentTestName!] = [
+      chain1.counts.eth_call,
+      chain2.counts.eth_call,
+      chain2.counts.eth_getStorageAt,
+    ].map((x) => x || 0);
+    chain1.counts = {};
+    chain2.counts = {};
   });
   // enable to print rpc call counts:
-  // afterAll(() => console.log(rpcs));
+  //afterAll(() => console.log(rpcs));
 
   shouldSupportInterfaces({
     contract: () => loadFixture().then((F) => F.ethFallbackResolver),
@@ -143,6 +153,34 @@ describe("ETHFallbackResolver", () => {
         FEATURES.RESOLVER.RESOLVE_MULTICALL,
       ]),
     ).resolves.toStrictEqual(true);
+  });
+
+  describe("storage layout", async () => {
+    describe("DedicatedResolver", () => {
+      const code = readFileSync(
+        new URL("../src/common/DedicatedResolverLayout.sol", import.meta.url),
+        "utf8",
+      );
+      for (const match of code.matchAll(/constant (SLOT_\S+) = (\S+);/g)) {
+        it(`${match[1]} = ${match[2]}`, async () => {
+          const { storageLayout } = await getRawArtifact("DedicatedResolver");
+          const label = match[1].slice(4).toLowerCase(); // "SLOT_ABC" => "_abc"
+          const ref = storageLayout.storage.find((x) =>
+            x.label.startsWith(label),
+          );
+          assert(ref?.slot === match[2]);
+        });
+      }
+    });
+    it("SLOT_RD_ENTRIES = 0", async () => {
+      const {
+        storageLayout: {
+          storage: [{ slot, label }],
+        },
+      } = await getRawArtifact("RegistryDatastore");
+      expectVar({ slot }).toStrictEqual("0");
+      expectVar({ label }).toStrictEqual("entries");
+    });
   });
 
   it("eth", async () => {

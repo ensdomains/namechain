@@ -289,6 +289,8 @@ contract DedicatedResolver is
         return v;
     }
 
+    /// @notice Perform multiple read or write operations.
+    /// @dev Reverts if any call fails.
     function multicall(
         bytes[] calldata calls
     ) public returns (bytes[] memory results) {
@@ -301,9 +303,10 @@ contract DedicatedResolver is
         return results;
     }
 
+    /// @notice Same as `multicall()`.
     /// @dev The purpose of node check is to prevent a trusted operator from modifying
     ///      multiple names. Since the sole operator of this resolver is the owner and it
-    ///      only stores records for a single name, the node check can be elided.
+    ///      only stores records for a single name, the node check logic can be elided.
     function multicallWithNodeCheck(
         bytes32,
         bytes[] calldata calls

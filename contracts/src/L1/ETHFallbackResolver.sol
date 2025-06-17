@@ -15,10 +15,11 @@ import {NameUtils} from "../common/NameUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
+import {DedicatedResolverLayout} from "../common/DedicatedResolverLayout.sol";
 
 // resolver features
-import {IFeatureSupporter} from "../../src/common/IFeatureSupporter.sol";
-import {ResolverFeatures} from "../../src/common/ResolverFeatures.sol";
+import {IFeatureSupporter} from "../common/IFeatureSupporter.sol";
+import {ResolverFeatures} from "../common/ResolverFeatures.sol";
 
 // resolver profiles
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
@@ -52,15 +53,7 @@ contract ETHFallbackResolver is
     /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;
 
-    /// @dev Storage layout of DedicatedResolver.
-    uint256 constant SLOT_DR_ADDRESSES = 0; // _addresses
-    uint256 constant SLOT_DR_TEXTS = 1; // _texts
-    uint256 constant SLOT_DR_CONTENTHASH = 2; // _contenthash
-    uint256 constant SLOT_DR_PUBKEY = 3; // _pubkeyX and _pubkeyY
-    uint256 constant SLOT_DR_ABIS = 5; // _abis
-    uint256 constant SLOT_DR_INTERFACES = 6; // _interfaces
-    uint256 constant SLOT_DR_NAME = 7; // _names
-
+    /// @dev `GatewayRequest` exit code which indicates no resolver was found.
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
 
     /// @dev `name` does not exist.
@@ -295,7 +288,7 @@ contract ETHFallbackResolver is
                     ? COIN_TYPE_ETH
                     : uint256(BytesUtils.readBytes32(v, 36));
                 req
-                    .setSlot(SLOT_DR_ADDRESSES)
+                    .setSlot(DedicatedResolverLayout.SLOT_ADDRESSES)
                     .push(coinType)
                     .follow()
                     .readBytes(); // _addresses[coinType]
@@ -310,7 +303,11 @@ contract ETHFallbackResolver is
                 }
             } else if (selector == IHasAddressResolver.hasAddr.selector) {
                 uint256 coinType = uint256(BytesUtils.readBytes32(v, 36));
-                req.setSlot(SLOT_DR_ADDRESSES).push(coinType).follow().read(); // _addresses[coinType] head slot
+                req
+                    .setSlot(DedicatedResolverLayout.SLOT_ADDRESSES)
+                    .push(coinType)
+                    .follow()
+                    .read(); // _addresses[coinType] head slot
             } else if (selector == ITextResolver.text.selector) {
                 (, string memory key) = abi.decode(
                     BytesUtils.substring(v, 4, v.length - 4),
@@ -319,24 +316,30 @@ contract ETHFallbackResolver is
                 // uint256 jump = 4 + uint256(BytesUtils.readBytes32(v, 36));
                 // uint256 size = uint256(BytesUtils.readBytes32(v, jump));
                 // bytes memory key = BytesUtils.substring(v, jump + 32, size);
-                req.setSlot(SLOT_DR_TEXTS).push(key).follow().readBytes(); // _textRecords[key]
+                req
+                    .setSlot(DedicatedResolverLayout.SLOT_TEXTS)
+                    .push(key)
+                    .follow()
+                    .readBytes(); // _textRecords[key]
             } else if (selector == IContentHashResolver.contenthash.selector) {
-                req.setSlot(SLOT_DR_CONTENTHASH).readBytes(); // _contenthash
+                req
+                    .setSlot(DedicatedResolverLayout.SLOT_CONTENTHASH)
+                    .readBytes(); // _contenthash
             } else if (selector == INameResolver.name.selector) {
-                req.setSlot(SLOT_DR_NAME).readBytes(); // _primary
+                req.setSlot(DedicatedResolverLayout.SLOT_PRIMARY).readBytes(); // _primary
             } else if (selector == IPubkeyResolver.pubkey.selector) {
-                req.setSlot(SLOT_DR_PUBKEY).read(2); // _pubkey (x and y)
+                req.setSlot(DedicatedResolverLayout.SLOT_PUBKEY).read(2); // _pubkey (x and y)
             } else if (
                 selector == IInterfaceResolver.interfaceImplementer.selector
             ) {
                 bytes4 interfaceID = bytes4(BytesUtils.readBytes32(v, 36));
                 req
-                    .setSlot(SLOT_DR_INTERFACES)
+                    .setSlot(DedicatedResolverLayout.SLOT_INTERFACES)
                     .push(interfaceID)
                     .follow()
                     .read(); // _interfaces[interfaceID]
             } else if (selector == IABIResolver.ABI.selector) {
-                req.setSlot(SLOT_DR_ABIS);
+                req.setSlot(DedicatedResolverLayout.SLOT_ABIS);
                 uint256 bits = uint256(BytesUtils.readBytes32(v, 36));
                 uint256 count;
                 for (
@@ -381,7 +384,7 @@ contract ETHFallbackResolver is
         }
         req.pushOutput(calls.length).requireNonzero(0); // stop if no missing
         req
-            .setSlot(SLOT_DR_ADDRESSES)
+            .setSlot(DedicatedResolverLayout.SLOT_ADDRESSES)
             .push(COIN_TYPE_DEFAULT)
             .follow()
             .readBytes(); // _addresses[COIN_TYPE_DEFAULT]

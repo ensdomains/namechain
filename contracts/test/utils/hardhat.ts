@@ -1,27 +1,27 @@
 import type { NetworkConnection } from "hardhat/types/network";
 
 type RPCCounter = {
-  count: number;
-  reset(): number;
+  counts: Record<string, number>;
 };
 
 export function injectRPCCounter<C extends NetworkConnection>(
   chain: Exclude<C, RPCCounter>,
 ): C & RPCCounter {
   const impl = Object.assign(chain, {
-    count: 0,
-    reset() {
-      const { count } = this;
-      this.count = 0;
-      return count;
-    },
-  });
+    counts: {},
+  } as RPCCounter);
   const old = chain.provider.request.bind(chain.provider);
   impl.provider.request = async (...a: Parameters<typeof old>) => {
-    impl.count++;
+    const { method } = a[0];
+    impl.counts[method] = (impl.counts[method] ?? 0) + 1;
     return old(...a);
   };
   return impl;
+}
+
+export async function getRawArtifact<N extends keyof typeof A>(name: N) {
+  const { default: A } = await import("../../generated/artifacts.js");
+  return A[name];
 }
 
 // export function createFixture<T>(
