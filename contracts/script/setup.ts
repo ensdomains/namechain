@@ -34,6 +34,11 @@ const l2Config = {
   chainId: 31338,
 };
 
+const otherL2Config = {
+  port: 8547,
+  chainId: 31339,
+};
+
 function createDeploymentGetter<
   transport extends Transport = Transport,
   chain extends Chain | undefined = Chain | undefined,
@@ -74,13 +79,15 @@ export async function setupCrossChainEnvironment() {
   // Launch two separate Anvil instances for L1 and L2
   const l1 = anvil(l1Config);
   const l2 = anvil(l2Config);
+  const otherL2 = anvil(otherL2Config);
 
   await l1.start();
   await l2.start();
+  await otherL2.start();
 
   console.log(`L1: Chain ID ${l1Config.chainId}, URL: ${l1.host}:${l1.port}`);
   console.log(`L2: Chain ID ${l2Config.chainId}, URL: ${l2.host}:${l2.port}`);
-
+  console.log(`OtherL2: Chain ID ${otherL2Config.chainId}, URL: ${otherL2.host}:${otherL2.port}`);
   // Deploy contracts to both chains
   console.log("Deploying contracts...");
 
@@ -98,6 +105,15 @@ export async function setupCrossChainEnvironment() {
       await readConfig({
         askBeforeProceeding: false,
         network: "l2-local",
+      }),
+    ),
+  );
+
+  const otherL2Deploy = await executeDeployScripts(
+    resolveConfig(
+      await readConfig({
+        askBeforeProceeding: false,
+        network: "otherl2-local",
       }),
     ),
   );
@@ -126,6 +142,14 @@ export async function setupCrossChainEnvironment() {
   });
   const l2Contracts = createDeploymentGetter(l2Deploy, l2Client);
 
+  const otherL2Client = createClient({
+    transport: webSocket(`ws://127.0.0.1:${otherL2.port}`, {
+      retryCount: 0,
+    }),
+    account,
+    chain: otherL2Deploy.network.chain,
+  });
+  const otherL2Contracts = createDeploymentGetter(otherL2Deploy, otherL2Client);
   // Return all deployed contracts, providers, and the relayer
   return {
     l1: {
@@ -196,10 +220,17 @@ export async function setupCrossChainEnvironment() {
         >("SimpleRegistryMetadata"),
       },
     },
+    otherL2: {
+      client: otherL2Client,
+      accounts: {
+        deployer: account,
+      },
+    },
     // Safe shutdown function to properly terminate WebSocket connections
     shutdown: async () => {
       await l1.stop();
       await l2.stop();
+      await otherL2.stop();
     },
   };
 }
@@ -208,5 +239,8 @@ export type CrossChainEnvironment = Awaited<
 >;
 export type L1Contracts = CrossChainEnvironment["l1"]["contracts"];
 export type L2Contracts = CrossChainEnvironment["l2"]["contracts"];
+  export type OtherL2Contracts = CrossChainEnvironment["otherL2"]["contracts"];
 export type L1Client = CrossChainEnvironment["l1"]["client"];
 export type L2Client = CrossChainEnvironment["l2"]["client"];
+export type OtherL2Client = CrossChainEnvironment["otherL2"]["client"];
+

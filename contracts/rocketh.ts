@@ -25,6 +25,11 @@ export const config = {
       tags: ["l2", "local"],
       rpcUrl: "http://127.0.0.1:8546",
     },
+    "otherl2-local": {
+      scripts: ["deploy/otherl2", "deploy/shared"],
+      tags: ["otherl2", "local"],
+      rpcUrl: "http://127.0.0.1:8547",
+    },
     mainnet: {
       scripts: ["deploy/l1/universalResolver"],
       tags: ["hasDao"],

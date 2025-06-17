@@ -412,14 +412,14 @@ async function registerNames() {
     client: l2Client,
   });
 
-  const names = ["test1", "test2", "test3", "ejected"];
+  const names = ["test1", "test2", "test3", "ejected", "otherl2"];
   const userRegistryAddresses = new Map<string, string>();
 
   // Register base names
   for (const name of names) {
     const { tokenId, userRegistry } = await registerBaseName(name, account, ethRegistry, userRegistryAddresses);
 
-    if (name === "ejected") {
+    if (name === "ejected" || name === "otherl2") {
       await ejectName(name, tokenId, account, ethRegistry);
     }
 

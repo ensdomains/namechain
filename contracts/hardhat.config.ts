@@ -24,6 +24,11 @@ const config = {
       type: "http",
       chainId: 31338,
     },
+    "otherl2-local": {
+      url: "http://127.0.0.1:8547",
+      type: "http",
+      chainId: 31339,
+    },
     mainnet: {
       url: configVariable("MAINNET_RPC_URL"),
       type: "http",
