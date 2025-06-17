@@ -8,6 +8,6 @@ export function makeFeature(s: string) {
 export const FEATURES = {
   RESOLVER: {
     RESOLVE_MULTICALL: makeFeature("ens.resolver.extended.multicall"),
-    DEDICATED: makeFeature("ens.resolver.dedicated"),
+    SINGULAR: makeFeature("ens.resolver.singular"),
   },
 } as const;
