@@ -3,7 +3,9 @@ pragma solidity ^0.8.13;
 
 import {MockL2EjectionController} from "./MockL2EjectionController.sol";
 import {MockBridgeBase} from "./MockBridgeBase.sol";
-import {BridgeMessageType, BridgeEncoder} from "../common/IBridge.sol";
+import {BridgeMessageType} from "../common/IBridge.sol";
+import {BridgeEncoder} from "../common/BridgeEncoder.sol";
+import {TransferData, MigrationData} from "../common/TransferData.sol";
 
 /**
  * @title MockL2Bridge
@@ -25,28 +27,34 @@ contract MockL2Bridge is MockBridgeBase {
      * @dev Send a message.
      */
     function sendMessage(bytes memory message) external override {
-        (BridgeMessageType messageType, bytes memory dnsEncodedName, bytes memory data) = BridgeEncoder.decode(message);
+        BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
         
         if (messageType == BridgeMessageType.MIGRATION) {
             // Migration messages are not supported in L2 bridge
             revert MigrationNotSupported();
         } else if (messageType == BridgeMessageType.EJECTION) {
-            emit NameEjectedToL1(dnsEncodedName, data);
+            (bytes memory dnsEncodedName, TransferData memory transferData) = BridgeEncoder.decodeEjection(message);
+            emit NameEjectedToL1(dnsEncodedName, abi.encode(transferData));
         }
     }
     
     /**
-     * @dev Handle decoded messages specific to L2 bridge
+     * @dev Handle ejection messages specific to L2 bridge
      */
-    function _handleDecodedMessage(
-        BridgeMessageType messageType,
+    function _handleEjectionMessage(
         bytes memory /*dnsEncodedName*/,
-        bytes memory data
+        TransferData memory transferData
     ) internal override {
-        if (messageType == BridgeMessageType.EJECTION) {
-            ejectionController.completeMigrationFromL1(data);
-        } else if (messageType == BridgeMessageType.MIGRATION) {
-            // TODO: handle migration messages
-        }
+        ejectionController.completeMigrationFromL1(transferData);
+    }
+    
+    /**
+     * @dev Handle migration messages specific to L2 bridge
+     */
+    function _handleMigrationMessage(
+        bytes memory /*dnsEncodedName*/,
+        MigrationData memory /*migrationData*/
+    ) internal override {
+        // TODO: handle migration messages
     }
 }

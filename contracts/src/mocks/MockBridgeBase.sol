@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {TransferData} from "../common/TransferData.sol";
-import {IBridge, BridgeEncoder, BridgeMessageType} from "../common/IBridge.sol";
+import {TransferData, MigrationData} from "../common/TransferData.sol";
+import {IBridge, BridgeMessageType} from "../common/IBridge.sol";
+import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 
 /**
  * @title MockBridgeBase
@@ -21,19 +22,35 @@ abstract contract MockBridgeBase is IBridge {
      * Anyone can call this method with encoded message data
      */
     function receiveMessage(bytes calldata message) external {
-        (BridgeMessageType _messageType, bytes memory _dnsEncodedName, bytes memory _data) = BridgeEncoder.decode(message);
-        _handleDecodedMessage(_messageType, _dnsEncodedName, _data);
+        BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
+        
+        if (messageType == BridgeMessageType.EJECTION) {
+            (bytes memory dnsEncodedName, TransferData memory transferData) = BridgeEncoder.decodeEjection(message);
+            _handleEjectionMessage(dnsEncodedName, transferData);
+        } else if (messageType == BridgeMessageType.MIGRATION) {
+            (bytes memory dnsEncodedName, MigrationData memory migrationData) = BridgeEncoder.decodeMigration(message);
+            _handleMigrationMessage(dnsEncodedName, migrationData);
+        }
+        
         // Emit event for tracking
         emit MessageProcessed(message);
     }
     
     /**
-     * @dev Abstract method for handling decoded messages
+     * @dev Abstract method for handling ejection messages
      * Must be implemented by concrete bridge contracts
      */
-    function _handleDecodedMessage(
-        BridgeMessageType messageType,
+    function _handleEjectionMessage(
         bytes memory dnsEncodedName,
-        bytes memory data
+        TransferData memory transferData
+    ) internal virtual;
+    
+    /**
+     * @dev Abstract method for handling migration messages
+     * Must be implemented by concrete bridge contracts
+     */
+    function _handleMigrationMessage(
+        bytes memory dnsEncodedName,
+        MigrationData memory migrationData
     ) internal virtual;
 } 

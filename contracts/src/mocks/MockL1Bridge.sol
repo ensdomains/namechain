@@ -3,7 +3,9 @@ pragma solidity ^0.8.13;
 
 import {MockL1EjectionController} from "./MockL1EjectionController.sol";
 import {MockBridgeBase} from "./MockBridgeBase.sol";
-import {BridgeMessageType, BridgeEncoder} from "../common/IBridge.sol";
+import {BridgeMessageType} from "../common/IBridge.sol";
+import {BridgeEncoder} from "../common/BridgeEncoder.sol";
+import {TransferData, MigrationData} from "../common/TransferData.sol";
 
 /**
  * @title MockL1Bridge
@@ -26,27 +28,34 @@ contract MockL1Bridge is MockBridgeBase {
      * @dev Override sendMessage to emit specific events based on message type
      */
     function sendMessage(bytes memory message) external override {
-        (BridgeMessageType messageType, bytes memory dnsEncodedName, bytes memory data) = BridgeEncoder.decode(message);
+        BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
         
         if (messageType == BridgeMessageType.EJECTION) {
-            emit NameEjectedToL2(dnsEncodedName, data);
+            (bytes memory dnsEncodedName, TransferData memory transferData) = BridgeEncoder.decodeEjection(message);
+            emit NameEjectedToL2(dnsEncodedName, abi.encode(transferData));
         } else if (messageType == BridgeMessageType.MIGRATION) {
-            emit NameMigratedToL2(dnsEncodedName, data);
+            (bytes memory dnsEncodedName, MigrationData memory migrationData) = BridgeEncoder.decodeMigration(message);
+            emit NameMigratedToL2(dnsEncodedName, abi.encode(migrationData));
         }
     }
     
     /**
-     * @dev Handle decoded messages specific to L1 bridge
+     * @dev Handle ejection messages specific to L1 bridge
      */
-    function _handleDecodedMessage(
-        BridgeMessageType messageType,
+    function _handleEjectionMessage(
         bytes memory /*dnsEncodedName*/,
-        bytes memory data
+        TransferData memory transferData
     ) internal override {
-        if (messageType == BridgeMessageType.EJECTION) {
-            ejectionController.completeEjectionFromL2(data);
-        } else if (messageType == BridgeMessageType.MIGRATION) {
-            revert MigrationNotSupported();
-        }
+        ejectionController.completeEjectionFromL2(transferData);
+    }
+    
+    /**
+     * @dev Handle migration messages specific to L1 bridge
+     */
+    function _handleMigrationMessage(
+        bytes memory /*dnsEncodedName*/,
+        MigrationData memory /*migrationData*/
+    ) pure internal override {
+        revert MigrationNotSupported();
     }
 }

@@ -8,7 +8,8 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {TransferData, MigrationData} from "../common/TransferData.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IBridge, BridgeMessageType, BridgeEncoder} from "../common/IBridge.sol";
+import {IBridge} from "../common/IBridge.sol";
+import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {L1EjectionController} from "../L1/L1EjectionController.sol";
 import {IL1Migrator} from "../L1/IL1Migrator.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
@@ -136,7 +137,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
         
         // send migration data to L2
         bytes memory dnsEncodedName = NameCoder.encode(string.concat(migrationData.transferData.label, ".eth"));
-        bytes memory message = BridgeEncoder.encode(BridgeMessageType.MIGRATION, dnsEncodedName, abi.encode(migrationData));
+        bytes memory message = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
         bridge.sendMessage(message);
 
         // if migrated to L1 then also setup the name on the L1

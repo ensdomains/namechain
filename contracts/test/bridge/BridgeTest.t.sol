@@ -9,7 +9,8 @@ import "../../src/mocks/MockL2Bridge.sol";
 import "../../src/mocks/MockL1EjectionController.sol";
 import "../../src/mocks/MockL2EjectionController.sol";
 import "../../src/mocks/MockBridgeBase.sol";
-import {BridgeEncoder, BridgeMessageType} from "../../src/common/IBridge.sol";
+import {BridgeMessageType} from "../../src/common/IBridge.sol";
+import {BridgeEncoder} from "../../src/common/BridgeEncoder.sol";
 import {TransferData, MigrationData} from "../../src/common/TransferData.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
@@ -77,7 +78,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         
         // Step 2: Simulate receiving the message on L1
         bytes memory dnsEncodedName = NameCoder.encode("premiumname.eth");
-        bytes memory bridgeMessage = BridgeEncoder.encode(BridgeMessageType.EJECTION, dnsEncodedName, abi.encode(transferData));
+        bytes memory bridgeMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);
         l1Bridge.receiveMessage(bridgeMessage);
 
         // Step 3: Verify the name is registered on L1
@@ -90,9 +91,20 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     
     function testL2BridgeRevertsMigrationMessages() public {
         // Test that L2 bridge properly rejects migration message types
-        bytes memory migrationData = abi.encode("test migration data");
+        MigrationData memory migrationData = MigrationData({
+            transferData: TransferData({
+                label: "test",
+                owner: user1,
+                subregistry: address(0),
+                resolver: address(0),
+                expires: uint64(block.timestamp + 365 days),
+                roleBitmap: 0
+            }),
+            toL1: false,
+            data: abi.encode("test migration data")
+        });
         bytes memory dnsEncodedName = NameCoder.encode("test.eth");
-        bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, dnsEncodedName, migrationData);
+        bytes memory migrationMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
         
         // Should revert with MigrationNotSupported error
         vm.expectRevert(MockBridgeBase.MigrationNotSupported.selector);
@@ -101,9 +113,20 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     
     function testL1BridgeRevertsMigrationMessages() public {
         // Test that L1 bridge properly rejects migration message types when receiving them
-        bytes memory migrationData = abi.encode("test migration data");
+        MigrationData memory migrationData = MigrationData({
+            transferData: TransferData({
+                label: "test",
+                owner: user1,
+                subregistry: address(0),
+                resolver: address(0),
+                expires: uint64(block.timestamp + 365 days),
+                roleBitmap: 0
+            }),
+            toL1: false,
+            data: abi.encode("test migration data")
+        });
         bytes memory dnsEncodedName = NameCoder.encode("test.eth");
-        bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, dnsEncodedName, migrationData);
+        bytes memory migrationMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
         
         // Should revert with MigrationNotSupported error when receiving migration messages
         vm.expectRevert(MockBridgeBase.MigrationNotSupported.selector);
@@ -129,9 +152,8 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
             data: abi.encode("additional migration data")
         });
         
-        bytes memory encodedMigrationData = abi.encode(migrationData);
         bytes memory dnsEncodedName = NameCoder.encode(string.concat(label, ".eth"));
-        bytes memory migrationMessage = BridgeEncoder.encode(BridgeMessageType.MIGRATION, dnsEncodedName, encodedMigrationData);
+        bytes memory migrationMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
         
         vm.recordLogs();
         
