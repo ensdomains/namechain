@@ -16,7 +16,8 @@ import "../src/common/IRegistryMetadata.sol";
 import "../src/common/NameUtils.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
-import {EjectionController, TransferData} from "../src/common/EjectionController.sol";
+import {EjectionController} from "../src/common/EjectionController.sol";
+import {TransferData} from "../src/common/TransferData.sol";
 
 // Mock implementation of IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
