@@ -233,11 +233,6 @@ contract DedicatedResolver is
         bytes4 interfaceId,
         address implementer
     ) external onlyOwner {
-        _setInterface(interfaceId, implementer);
-    }
-
-    /// @dev `setInterface()` w/o an owner check.
-    function _setInterface(bytes4 interfaceId, address implementer) internal {
         _interfaces[interfaceId] = implementer;
         emit InterfaceChanged(NODE_ANY, interfaceId, implementer);
     }
@@ -305,8 +300,10 @@ contract DedicatedResolver is
 
     /// @notice Same as `multicall()`.
     /// @dev The purpose of node check is to prevent a trusted operator from modifying
-    ///      multiple names. Since the sole operator of this resolver is the owner and it
-    ///      only stores records for a single name, the node check logic can be elided.
+    ///      multiple names.  Since the sole operator of this resolver is the owner and
+    ///      it only stores records for a single name, the node check logic can be elided.
+    ///
+    ///      Additionally, the setters of this resolver do not have `node` as an argument.
     function multicallWithNodeCheck(
         bytes32,
         bytes[] calldata calls
