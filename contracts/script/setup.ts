@@ -113,7 +113,6 @@ export async function setupCrossChainEnvironment() {
       retryCount: 0,
     }),
     account,
-    chain: l1Deploy.network.chain,
   });
   const l1Contracts = createDeploymentGetter(l1Deploy, l1Client);
 
@@ -122,7 +121,6 @@ export async function setupCrossChainEnvironment() {
       retryCount: 0,
     }),
     account,
-    chain: l2Deploy.network.chain,
   });
   const l2Contracts = createDeploymentGetter(l2Deploy, l2Client);
 
@@ -140,10 +138,6 @@ export async function setupCrossChainEnvironment() {
         ethRegistry:
           l1Contracts<(typeof artifacts.PermissionedRegistry)["abi"]>(
             "L1ETHRegistry",
-          ),
-        mockBridgeHelper:
-          l1Contracts<(typeof artifacts.MockBridgeHelper)["abi"]>(
-            "MockBridgeHelper",
           ),
         mockBridge:
           l1Contracts<(typeof artifacts.MockL1Bridge)["abi"]>("MockL1Bridge"),
@@ -179,10 +173,6 @@ export async function setupCrossChainEnvironment() {
         ejectionController: l2Contracts<
           (typeof artifacts.MockL2EjectionController)["abi"]
         >("L2EjectionController"),
-        mockBridgeHelper:
-          l2Contracts<(typeof artifacts.MockBridgeHelper)["abi"]>(
-            "MockBridgeHelper",
-          ),
         mockBridge:
           l2Contracts<(typeof artifacts.MockL2Bridge)["abi"]>("MockL2Bridge"),
         priceOracle:
