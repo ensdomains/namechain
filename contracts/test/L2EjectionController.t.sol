@@ -14,7 +14,7 @@ import "../src/common/ITokenObserver.sol";
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistryDatastore.sol";
 import "../src/common/IRegistryMetadata.sol";
-import "../src/common/NameUtils.sol";
+import {NameUtils} from "../src/common/NameUtils.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
@@ -127,6 +127,8 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         tokenId = registry.register(label, user, registry, address(0), ALL_ROLES, expires);
     }
 
+
+
     function test_constructor() public view {
         assertEq(address(controller.registry()), address(registry));
     }
@@ -150,18 +152,22 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         bool foundEvent = false;
         
         bytes32 eventSig = keccak256("MockNameEjectedToL1(bytes,bytes)");
-        bytes memory expectedDnsEncodedName = NameCoder.encode(string.concat(label, ".eth"));
-        bytes32 expectedDnsEncodedNameHash = keccak256(expectedDnsEncodedName);
+        bytes memory expectedDnsEncodedName = NameUtils.dnsEncodeEthLabel(label);
         
         for (uint i = 0; i < logs.length; i++) {
             // Check if this log is our event (emitter and first topic match)
             if (logs[i].emitter == address(controller) && 
                 logs[i].topics[0] == eventSig) {
                 
-                // For indexed bytes parameters, the topic contains the keccak256 hash of the bytes
-                if (logs[i].topics.length > 1 && logs[i].topics[1] == expectedDnsEncodedNameHash) {
-                    foundEvent = true;
-                    break;
+                // Since the parameters are not indexed, decode the data to check the DNS encoded name
+                if (logs[i].data.length > 0) {
+                    (bytes memory emittedDnsEncodedName, bytes memory emittedData) = 
+                        abi.decode(logs[i].data, (bytes, bytes));
+                    
+                    if (keccak256(emittedDnsEncodedName) == keccak256(expectedDnsEncodedName)) {
+                        foundEvent = true;
+                        break;
+                    }
                 }
             }
         }
@@ -197,7 +203,15 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         // Try to migrate with different roles than the original ones - these should be ignored
         uint256 differentRoles = ROLE_RENEW | ROLE_REGISTRAR;
         vm.recordLogs();
-        controller.call_completeMigrationFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver, differentRoles);
+        TransferData memory migrationData = TransferData({
+            label: label2,
+            owner: l2Owner,
+            subregistry: l2Subregistry,
+            resolver: l2Resolver,
+            expires: 0,
+            roleBitmap: differentRoles
+        });
+        controller.completeMigrationFromL1(tokenId, migrationData);
         
         // Verify migration results
         _verifyMigrationResults(tokenId, label2, originalRoles, differentRoles);
@@ -227,39 +241,45 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
         
-        bytes32 eventSig = keccak256("MockNameMigratedFromL1(uint256,address,address,address,uint256)");
+        bytes32 eventSig = keccak256("NameEjectedToL2(bytes,address,address)");
         
         for (uint i = 0; i < logs.length; i++) {
             if (logs[i].emitter == address(controller) && 
-                logs[i].topics[0] == eventSig &&
-                logs[i].topics.length > 1 &&
-                uint256(logs[i].topics[1]) == _tokenId) {
+                logs[i].topics[0] == eventSig) {
                 
                 foundEvent = true;
                 
                 // Only decode data if there is data to decode
                 if (logs[i].data.length > 0) {
-                    (address emittedL2Owner, address emittedL2Subregistry, address emittedL2Resolver, uint256 emittedRoleBitmap) = 
-                        abi.decode(logs[i].data, (address, address, address, uint256));
+                    (bytes memory emittedDnsEncodedName, address emittedL2Owner, address emittedL2Subregistry) = 
+                        abi.decode(logs[i].data, (bytes, address, address));
                     
                     // Verify all data fields match expected values
                     assertEq(emittedL2Owner, l2Owner);
                     assertEq(emittedL2Subregistry, l2Subregistry);
-                    assertEq(emittedL2Resolver, l2Resolver);
-                    assertEq(emittedRoleBitmap, expectedRoleBitmap);
+                    // We can also verify the DNS encoded name if needed
+                    assertTrue(emittedDnsEncodedName.length > 0, "DNS encoded name should not be empty");
                 }
                 break;
             }
         }
         
-        assertTrue(foundEvent, "MockNameMigratedFromL1 event not found");
+        assertTrue(foundEvent, "NameEjectedToL2 event not found");
     }
 
     function test_Revert_completeMigrationFromL1_notOwner() public {
         // Expect revert with NotTokenOwner error from the L2EjectionController logic
         vm.expectRevert(abi.encodeWithSelector(L2EjectionController.NotTokenOwner.selector, tokenId));
-        // Call the public wrapper which invokes the internal logic that should revert
-        controller.call_completeMigrationFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver, ALL_ROLES);
+        // Call the external method which should revert
+        TransferData memory migrationData = TransferData({
+            label: label,
+            owner: l2Owner,
+            subregistry: l2Subregistry,
+            resolver: l2Resolver,
+            expires: 0,
+            roleBitmap: ALL_ROLES
+        });
+        controller.completeMigrationFromL1(tokenId, migrationData);
     }
 
     function test_supportsInterface() public view {
@@ -342,16 +362,24 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         uint256 ejectionEventsCount = 0;
         bytes32 expectedSig = keccak256("MockNameEjectedToL1(bytes,bytes)");
         
-        bytes32 expectedHash2 = keccak256(NameCoder.encode("test2.eth"));
-        bytes32 expectedHash3 = keccak256(NameCoder.encode("test3.eth"));
+        bytes memory expectedDnsEncodedName2 = NameUtils.dnsEncodeEthLabel("test2");
+        bytes memory expectedDnsEncodedName3 = NameUtils.dnsEncodeEthLabel("test3");
+        bytes32 expectedHash2 = keccak256(expectedDnsEncodedName2);
+        bytes32 expectedHash3 = keccak256(expectedDnsEncodedName3);
         
         for (uint i = 0; i < logs.length; i++) {
             if (logs[i].emitter == address(controller) && 
                 logs[i].topics[0] == expectedSig) {
                 
-                if (logs[i].topics.length > 1 && 
-                    (logs[i].topics[1] == expectedHash2 || logs[i].topics[1] == expectedHash3)) {
-                    ejectionEventsCount++;
+                // Since the parameters are not indexed, decode the data to check the DNS encoded name
+                if (logs[i].data.length > 0) {
+                    (bytes memory emittedDnsEncodedName, bytes memory emittedData) = 
+                        abi.decode(logs[i].data, (bytes, bytes));
+                    
+                    bytes32 emittedHash = keccak256(emittedDnsEncodedName);
+                    if (emittedHash == expectedHash2 || emittedHash == expectedHash3) {
+                        ejectionEventsCount++;
+                    }
                 }
             }
         }
@@ -585,16 +613,25 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
 // Mock implementation of L2EjectionController for testing
 contract MockL2EjectionController is L2EjectionController {
     // Define event signatures exactly as they will be emitted
-    event MockNameEjectedToL1(bytes indexed dnsEncodedName, bytes data);
-    event MockNameMigratedFromL1(uint256 indexed tokenId, address l2Owner, address l2Subregistry, address l2Resolver, uint256 roleBitmap);
+    event MockNameEjectedToL1(bytes dnsEncodedName, bytes data);
     event MockNameRenewed(uint256 indexed tokenId, uint64 expires, address renewedBy);
     event MockNameRelinquished(uint256 indexed tokenId, address relinquishedBy);
+    event NameEjectedToL2(bytes dnsEncodedName, address owner, address subregistry);
 
     // Tracking flags for callback tests
     bool private _onRenewCalled;
     bool private _onRelinquishCalled;
 
     constructor(IPermissionedRegistry _registry) L2EjectionController(_registry) {}
+
+    function completeMigrationFromL1(
+        uint256 tokenId,
+        TransferData memory transferData
+    ) public override {
+        super.completeMigrationFromL1(tokenId, transferData);
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
+        emit NameEjectedToL2(dnsEncodedName, transferData.owner, transferData.subregistry);
+    }
 
     // Implement the required external methods
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {
@@ -616,7 +653,7 @@ contract MockL2EjectionController is L2EjectionController {
         // Emit events for each token ID processed with DNS encoded names
         for (uint256 i = 0; i < tokenIds.length; i++) {
             TransferData memory transferData = transferDataArray[i];
-            bytes memory dnsEncodedName = _dnsEncodeLabel(transferData.label);
+            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
             emit MockNameEjectedToL1(
                 dnsEncodedName, 
                 abi.encode(
@@ -630,28 +667,7 @@ contract MockL2EjectionController is L2EjectionController {
         }
     }
 
-    /**
-     * @dev Public wrapper to call the internal _completeMigrationFromL1 for testing.
-     */
-    function call_completeMigrationFromL1(
-        uint256 tokenId,
-        address l2Owner,
-        address l2Subregistry,
-        address l2Resolver,
-        uint256 newRoleBitmap
-    ) public {
-        TransferData memory transferData = TransferData({
-            label: "",
-            owner: l2Owner,
-            subregistry: l2Subregistry,
-            resolver: l2Resolver,
-            expires: 0,
-            roleBitmap: newRoleBitmap
-        });
-        
-        _completeMigrationFromL1(tokenId, transferData);
-        emit MockNameMigratedFromL1(tokenId, l2Owner, l2Subregistry, l2Resolver, newRoleBitmap);
-    }
+
 
     // Helper functions for tests
     function resetTracking() external {

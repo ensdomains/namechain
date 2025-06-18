@@ -136,15 +136,15 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
 
     function test_eject_from_namechain_unlocked() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
-        ejectionController.completeEjectionFromNamechain(
-            testLabel, 
-            address(this), 
-            address(registry), 
-            MOCK_RESOLVER, 
-            expiryTime, 
-            ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY,
-            ""
-        );
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+        });
+        ejectionController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), address(this));
@@ -154,15 +154,15 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         uint256 expectedRoles = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
         address subregistry = address(0x1234);
-        ejectionController.completeEjectionFromNamechain(
-            testLabel, 
-            user, 
-            subregistry, 
-            MOCK_RESOLVER, 
-            expiryTime, 
-            expectedRoles,
-            ""
-        );
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: user,
+            subregistry: subregistry,
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: expectedRoles
+        });
+        ejectionController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), user);
@@ -179,73 +179,65 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         vm.recordLogs();
         
         uint64 expiryTime = uint64(block.timestamp) + 86400;
-        ejectionController.completeEjectionFromNamechain(
-            testLabel, 
-            address(this), 
-            address(registry), 
-            MOCK_RESOLVER, 
-            expiryTime, 
-            ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY,
-            ""
-        );
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+        });
+        ejectionController.completeEjectionFromL2(transferData);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundNewSubname = false;
-        bool foundMockNameEjectedFromL2 = false;
+        bool foundNameEjectedToL1 = false;
         
         bytes32 newSubnameSig = keccak256("NewSubname(uint256,string)");
-        bytes32 mockEjectedSig = keccak256("MockNameEjectedFromL2(string,address,address,address,uint64)");
+        bytes32 ejectedSig = keccak256("NameEjectedToL1(bytes,address,address,uint64)");
         
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == newSubnameSig) {
                 foundNewSubname = true;
             }
-            if (entries[i].topics[0] == mockEjectedSig) {
-                foundMockNameEjectedFromL2 = true;
+            if (entries[i].topics[0] == ejectedSig) {
+                foundNameEjectedToL1 = true;
             }
         }
         
         assertTrue(foundNewSubname, "NewSubname event not found");
-        assertTrue(foundMockNameEjectedFromL2, "MockNameEjectedFromL2 event not found");
+        assertTrue(foundNameEjectedToL1, "NameEjectedToL1 event not found");
     }
 
     function test_Revert_eject_from_namechain_not_expired() public {
         // First register the name
         uint64 expiryTime = uint64(block.timestamp) + 86400;
-        ejectionController.completeEjectionFromNamechain(
-            testLabel, 
-            address(this), 
-            address(registry), 
-            MOCK_RESOLVER, 
-            expiryTime, 
-            ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY,
-            ""
-        );
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+        });
+        ejectionController.completeEjectionFromL2(transferData);
         
         // Try to eject again while not expired
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameAlreadyRegistered.selector, testLabel));
-        ejectionController.completeEjectionFromNamechain(
-            testLabel, 
-            address(this), 
-            address(registry), 
-            MOCK_RESOLVER, 
-            expiryTime, 
-            ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY,
-            ""
-        );
+        ejectionController.completeEjectionFromL2(transferData);
     }
 
     function test_updateExpiration() public {
         uint64 expiryTime = uint64(block.timestamp) + 100;
-        ejectionController.completeEjectionFromNamechain(
-            testLabel, 
-            address(this), 
-            address(registry), 
-            MOCK_RESOLVER, 
-            expiryTime, 
-            ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY,
-            ""
-        );
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+        });
+        ejectionController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -264,15 +256,15 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
 
     function test_updateExpiration_emits_event() public {
         uint64 expiryTime = uint64(block.timestamp) + 100;
-        ejectionController.completeEjectionFromNamechain(
-            testLabel, 
-            address(this), 
-            address(registry), 
-            MOCK_RESOLVER, 
-            expiryTime, 
-            ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY,
-            ""
-        );
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+        });
+        ejectionController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -284,27 +276,32 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundNameRenewed = false;
-        bytes32 expectedSig = keccak256("NameRenewed(uint256,uint64,address)");
+        bool foundRenewalSynced = false;
+        bytes32 nameRenewedSig = keccak256("NameRenewed(uint256,uint64,address)");
+        bytes32 renewalSyncedSig = keccak256("RenewalSynced(uint256,uint64)");
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == expectedSig) {
+            if (entries[i].topics[0] == nameRenewedSig) {
                 foundNameRenewed = true;
-                break;
+            }
+            if (entries[i].topics[0] == renewalSyncedSig) {
+                foundRenewalSynced = true;
             }
         }
         assertTrue(foundNameRenewed, "NameRenewed event not found");
+        assertTrue(foundRenewalSynced, "RenewalSynced event not found");
     }
 
     function test_Revert_updateExpiration_expired_name() public {
         uint64 expiryTime = uint64(block.timestamp) + 100;
-        ejectionController.completeEjectionFromNamechain(
-            testLabel, 
-            address(this), 
-            address(registry), 
-            MOCK_RESOLVER, 
-            expiryTime, 
-            ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY,
-            ""
-        );
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+        });
+        ejectionController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -316,15 +313,15 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
 
     function test_Revert_updateExpiration_reduce_expiry() public {
         uint64 initialExpiry = uint64(block.timestamp) + 200;
-        ejectionController.completeEjectionFromNamechain(
-            testLabel, 
-            address(this), 
-            address(registry), 
-            MOCK_RESOLVER, 
-            initialExpiry, 
-            ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY,
-            ""
-        );
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: initialExpiry,
+            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+        });
+        ejectionController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -599,34 +596,16 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
 
 contract MockL1EjectionController is L1EjectionController {
     event MockNameEjectedToL2(bytes dnsEncodedName, address l1Owner, address l1Subregistry, address l1Resolver, uint64 expires);
-    event MockNameEjectedFromL2(string label, address l1Owner, address l1Subregistry, address l1Resolver, uint64 expires);
+    event NameEjectedToL1(bytes dnsEncodedName, address owner, address subregistry, uint64 expires);
     
     constructor(IPermissionedRegistry _registry) L1EjectionController(_registry) {}
-    
-    function completeEjectionFromNamechain(
-        string memory label,
-        address l1Owner,
-        address l1Subregistry,
-        address l1Resolver,
-        uint64 expires,
-        uint256 roleBitmap,
-        bytes memory /*data*/
-    ) external {
-        TransferData memory transferData = TransferData({
-            label: label,
-            owner: l1Owner,
-            subregistry: l1Subregistry,
-            resolver: l1Resolver,
-            expires: expires,
-            roleBitmap: roleBitmap
-        });
-        
-        _completeEjectionFromL2(transferData);
-        emit MockNameEjectedFromL2(label, l1Owner, l1Subregistry, l1Resolver, expires);
-    }
-    
-    function syncRenewal(uint256 tokenId, uint64 newExpiry) external {
-        _syncRenewal(tokenId, newExpiry);
+
+    function completeEjectionFromL2(
+        TransferData memory transferData
+    ) public override returns (uint256 tokenId) {
+        tokenId = super.completeEjectionFromL2(transferData);
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
+        emit NameEjectedToL1(dnsEncodedName, transferData.owner, transferData.subregistry, transferData.expires);
     }
     
     /**
@@ -638,7 +617,7 @@ contract MockL1EjectionController is L1EjectionController {
         // Emit events for each token that is ejected with DNS encoded names
         for (uint256 i = 0; i < tokenIds.length; i++) {
             TransferData memory transferData = transferDataArray[i];
-            bytes memory dnsEncodedName = _dnsEncodeLabel(transferData.label);
+            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
             emit MockNameEjectedToL2(
                 dnsEncodedName,
                 transferData.owner, 

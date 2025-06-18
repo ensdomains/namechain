@@ -164,21 +164,24 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bytes32 migrationEventSig = keccak256("NameMigratedToL2(bytes,bytes)");
         
+        bool foundMigrationEvent = false;
         uint256 migrationEventIndex = 0;
-        for (migrationEventIndex = 0; migrationEventIndex < entries.length; migrationEventIndex++) {
-            if (entries[migrationEventIndex].topics[0] == migrationEventSig) {
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].topics[0] == migrationEventSig) {
+                foundMigrationEvent = true;
+                migrationEventIndex = i;
                 break;
             }
         }
 
-        assertTrue(migrationEventIndex < entries.length, "NameMigratedToL2 event not found");
+        assertTrue(foundMigrationEvent, "NameMigratedToL2 event not found");
         
-        // Decode the NameMigratedToL2 event - dnsEncodedName in topics, data in data
-        bytes32 eventDnsEncodedNameHash = entries[migrationEventIndex].topics[1];
-        bytes memory eventData = abi.decode(entries[migrationEventIndex].data, (bytes));
+        // For NameMigratedToL2(bytes dnsEncodedName, bytes data) - parameters are NOT indexed
+        // so both dnsEncodedName and data are in the data field
+        (bytes memory eventDnsEncodedName, bytes memory eventData) = abi.decode(entries[migrationEventIndex].data, (bytes, bytes));
         
-        // Verify the DNS encoded name hash matches
-        assertEq(eventDnsEncodedNameHash, keccak256(dnsEncodedName));
+        // Verify the DNS encoded name matches
+        assertEq(keccak256(eventDnsEncodedName), keccak256(dnsEncodedName));
         
         // The event data should be the raw MigrationData
         MigrationData memory eventMigrationData = abi.decode(eventData, (MigrationData));

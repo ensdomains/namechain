@@ -65,7 +65,6 @@ test("name ejection", async () => {
   console.log(`Does it match resource? ${labelHash === canonicalId}`);
   expect(labelHash).toBe(canonicalId);
 
-  const dnsEncodedName = dnsEncodeName(label + ".eth");
   const transferDataParameters = [
     label,
     l1Owner,
@@ -148,7 +147,6 @@ test("round trip", async () => {
   const [tokenId] = await l2.contracts.ethRegistry.read.getNameData([label]);
   console.log(`TokenID from registry: ${tokenId}`);
 
-  const dnsEncodedName = dnsEncodeName(label + ".eth");
   const transferDataParametersToL1 = [
     label,
     l1User,

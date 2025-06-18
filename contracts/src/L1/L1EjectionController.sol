@@ -17,6 +17,8 @@ abstract contract L1EjectionController is EjectionController, RegistryRolesMixin
     error NotTokenOwner(uint256 tokenId);
     error NameNotExpired(uint256 tokenId, uint64 expires);
 
+    event RenewalSynced(uint256 tokenId, uint64 newExpiry);
+
     constructor(IPermissionedRegistry _registry) EjectionController(_registry) {}
 
     /**
@@ -24,9 +26,9 @@ abstract contract L1EjectionController is EjectionController, RegistryRolesMixin
      *
      * @param transferData The transfer data for the name being ejected
      */
-    function _completeEjectionFromL2(
+    function completeEjectionFromL2(
         TransferData memory transferData
-    ) internal virtual returns (uint256 tokenId) {
+    ) public virtual returns (uint256 tokenId) {
         tokenId = registry.register(transferData.label, transferData.owner, IRegistry(transferData.subregistry), transferData.resolver, transferData.roleBitmap, transferData.expires);
     }
 
@@ -36,8 +38,9 @@ abstract contract L1EjectionController is EjectionController, RegistryRolesMixin
      * @param tokenId The token ID of the name
      * @param newExpiry The new expiration timestamp
      */
-    function _syncRenewal(uint256 tokenId, uint64 newExpiry) internal virtual {
+    function syncRenewal(uint256 tokenId, uint64 newExpiry) external virtual {
         registry.renew(tokenId, newExpiry);
+        emit RenewalSynced(tokenId, newExpiry);
     }
 
     // Internal functions

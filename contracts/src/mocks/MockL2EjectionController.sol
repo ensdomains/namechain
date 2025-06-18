@@ -22,40 +22,24 @@ contract MockL2EjectionController is L2EjectionController {
         bridge = _bridge;
     }
 
+    function completeMigrationFromL1(
+        uint256 tokenId,
+        TransferData memory transferData
+    ) public override {
+        super.completeMigrationFromL1(tokenId, transferData);
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
+        emit NameEjectedToL2(dnsEncodedName, transferData.owner, transferData.subregistry);
+    }
+
     function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal override virtual {
         super._onEject(tokenIds, transferDataArray);
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            bytes memory dnsEncodedName = _dnsEncodeLabel(transferDataArray[i].label);
-            bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferDataArray[i]));
-            emit NameEjectedToL1(dnsEncodedName, transferDataArray[i].owner, transferDataArray[i].subregistry, transferDataArray[i].expires);
+                    bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferDataArray[i].label);
+        bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferDataArray[i]));
+        emit NameEjectedToL1(dnsEncodedName, transferDataArray[i].owner, transferDataArray[i].subregistry, transferDataArray[i].expires);
         }
     }
-
-    function completeMigrationFromL1(
-        TransferData memory transferData
-    ) external {
-        transferData.resolver = address(0);
-        transferData.roleBitmap = 0xF;
-        transferData.expires = uint64(block.timestamp + 365 days);
-
-        uint256 tokenId = NameUtils.labelToCanonicalId(transferData.label);
-
-        _completeMigrationFromL1(tokenId, transferData);
-
-        bytes memory dnsEncodedName = _dnsEncodeLabel(transferData.label);
-        emit NameEjectedToL2(dnsEncodedName, transferData.owner, transferData.subregistry);
-    }
-
-    /**
-     * @dev Handles completion of migration from L1 by decoding raw data
-     */
-    function completeMigrationFromL1(
-        bytes memory data
-    ) external {
-        TransferData memory transferData = abi.decode(data, (TransferData));
-        this.completeMigrationFromL1(transferData);
-    }    
 
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {
     }

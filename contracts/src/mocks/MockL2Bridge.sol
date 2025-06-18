@@ -17,7 +17,7 @@ contract MockL2Bridge is MockBridgeBase {
     MockL2EjectionController public ejectionController;
         
     // Type-specific events with tokenId and data
-    event NameEjectedToL1(bytes indexed dnsEncodedName, bytes data);
+    event NameEjectedToL1(bytes dnsEncodedName, bytes data);
     
     function setEjectionController(MockL2EjectionController _ejectionController) external {
         ejectionController = _ejectionController;
@@ -45,7 +45,8 @@ contract MockL2Bridge is MockBridgeBase {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        ejectionController.completeMigrationFromL1(transferData);
+        uint256 tokenId = uint256(keccak256(bytes(transferData.label)));
+        ejectionController.completeMigrationFromL1(tokenId, transferData);
     }
     
     /**

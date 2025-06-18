@@ -1,7 +1,6 @@
 import type { Client, Hash, Hex } from "viem";
 import { waitForTransactionReceipt } from "viem/actions";
 import { encodeAbiParameters, parseAbiParameters } from "viem";
-import { dnsEncodeName } from "../lib/ens-contracts/test/fixtures/dnsEncodeName";
 
 import type { L1Client, L1Contracts, L2Client, L2Contracts } from "./setup.js";
 
@@ -31,9 +30,11 @@ export const createMockRelay = ({
       for (const log of logs) {
         console.log("Relaying ejection message from L1 to L2");
         // log.args: { dnsEncodedName, data }
+        // Use the new BridgeEncoder format: first encode data individually, then encode the full message
+        const encodedData = log.args.data; // This is already abi.encode(transferData)
         const bridgeMessage = encodeAbiParameters(
-          parseAbiParameters("uint8, bytes, bytes"),
-          [1, log.args.dnsEncodedName, log.args.data] // 1 = EJECTION
+          parseAbiParameters("uint256, bytes, bytes"),
+          [1n, log.args.dnsEncodedName, encodedData] // 1 = EJECTION
         );
         try {
           const receipt = await expectSuccess(
@@ -52,9 +53,11 @@ export const createMockRelay = ({
     onLogs: async (logs: any[]) => {
       for (const log of logs) {
         console.log("Relaying migration message from L1 to L2");
+        // Use the new BridgeEncoder format: first encode data individually, then encode the full message
+        const encodedData = log.args.data; // This is already abi.encode(migrationData)
         const bridgeMessage = encodeAbiParameters(
-          parseAbiParameters("uint8, bytes, bytes"),
-          [0, log.args.dnsEncodedName, log.args.data] // 0 = MIGRATION
+          parseAbiParameters("uint256, bytes, bytes"),
+          [0n, log.args.dnsEncodedName, encodedData] // 0 = MIGRATION
         );
         try {
           const receipt = await expectSuccess(
@@ -74,9 +77,11 @@ export const createMockRelay = ({
     onLogs: async (logs: any[]) => {
       for (const log of logs) {
         console.log("Relaying ejection message from L2 to L1");
+        // Use the new BridgeEncoder format: first encode data individually, then encode the full message
+        const encodedData = log.args.data; // This is already abi.encode(transferData)
         const bridgeMessage = encodeAbiParameters(
-          parseAbiParameters("uint8, bytes, bytes"),
-          [1, log.args.dnsEncodedName, log.args.data] // 1 = EJECTION
+          parseAbiParameters("uint256, bytes, bytes"),
+          [1n, log.args.dnsEncodedName, encodedData] // 1 = EJECTION
         );
         try {
           const receipt = await expectSuccess(

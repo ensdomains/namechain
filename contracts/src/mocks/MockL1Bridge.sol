@@ -17,8 +17,8 @@ contract MockL1Bridge is MockBridgeBase {
     MockL1EjectionController public ejectionController;
     
     // Type-specific events with tokenId and data
-    event NameEjectedToL2(bytes indexed dnsEncodedName, bytes data);
-    event NameMigratedToL2(bytes indexed dnsEncodedName, bytes data);
+    event NameEjectedToL2(bytes dnsEncodedName, bytes data);
+    event NameMigratedToL2(bytes dnsEncodedName, bytes data);
     
     function setEjectionController(MockL1EjectionController _ejectionController) external {
         ejectionController = _ejectionController;

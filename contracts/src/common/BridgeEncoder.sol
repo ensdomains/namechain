@@ -8,6 +8,12 @@ import {TransferData, MigrationData} from "./TransferData.sol";
  * @dev Library for encoding and decoding bridge messages.
  */
 library BridgeEncoder {
+    /// @dev Error thrown when message type is invalid for migration
+    error InvalidMigrationMessageType();
+    
+    /// @dev Error thrown when message type is invalid for ejection
+    error InvalidEjectionMessageType();
+
     /**
      * @dev Encode a migration message.
      */
@@ -27,7 +33,9 @@ library BridgeEncoder {
     ) {
         uint _messageType;
         (_messageType, dnsEncodedName, data) = abi.decode(message, (uint, bytes, MigrationData));
-        require(_messageType == uint(BridgeMessageType.MIGRATION), "Invalid message type for migration");
+        if (_messageType != uint(BridgeMessageType.MIGRATION)) {
+            revert InvalidMigrationMessageType();
+        }
     }
 
     /**
@@ -49,7 +57,9 @@ library BridgeEncoder {
     ) {
         uint _messageType;
         (_messageType, dnsEncodedName, data) = abi.decode(message, (uint, bytes, TransferData));
-        require(_messageType == uint(BridgeMessageType.EJECTION), "Invalid message type for ejection");
+        if (_messageType != uint(BridgeMessageType.EJECTION)) {
+            revert InvalidEjectionMessageType();
+        }
     }
 
     /**
