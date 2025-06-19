@@ -1,6 +1,14 @@
+import { createMockRelay } from "./mockRelay.js";
 import { setupCrossChainEnvironment } from "./setup.js";
 
 const env = await setupCrossChainEnvironment();
+
+createMockRelay({
+  l1Bridge: env.l1.contracts.mockBridge,
+  l2Bridge: env.l2.contracts.mockBridge,
+  l1Client: env.l1.client,
+  l2Client: env.l2.client,
+});
 
 console.log("\nAvailable Test Accounts:");
 console.log("=======================");
