@@ -12,11 +12,12 @@
     "resolveJsonModule": true,
     "paths": {
       "@rocketh": ["./rocketh.ts"]
-    }
+    },
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   },
   "include": [
-    "./tasks/**/*.ts",
-    "./tasks/**/*.cts",
+    "./plugins/**/*.ts",
     "./test/**/*.ts",
     "./e2e/**/*.ts",
     "./artifacts/**/*.d.ts",
