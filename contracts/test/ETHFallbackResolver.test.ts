@@ -240,7 +240,7 @@ describe("ETHFallbackResolver", () => {
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
         };
         const [res] = makeResolutions(kp);
-        await F.mainnetV1.setupName(kp.name);
+        await F.mainnetV1.setupName(kp);
         await F.mainnetV1.walletClient.sendTransaction({
           to: F.mainnetV1.ownedResolver.address,
           data: res.write, // V1 OwnedResolver lacks multicall()
@@ -266,7 +266,7 @@ describe("ETHFallbackResolver", () => {
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
         };
         const [res] = makeResolutions(kp);
-        await F.mainnetV1.setupName(kp.name);
+        await F.mainnetV1.setupName(kp);
         const tokenId = BigInt(labelhash(getLabelAt(kp.name, -2)));
         await F.mainnetV1.ethRegistrar.write.safeTransferFrom([
           F.mainnetV1.walletClient.account.address,
