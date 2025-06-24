@@ -151,21 +151,23 @@ describe("ETHFallbackResolver", () => {
     ).resolves.toStrictEqual(true);
   });
 
-  describe("storage layout", { timeout: 30000 }, () => {
+  describe("storage layout", () => {
     describe("DedicatedResolver", () => {
       const code = readFileSync(
         new URL("../src/common/DedicatedResolverLayout.sol", import.meta.url),
         "utf8",
       );
-      for (const match of code.matchAll(/constant (SLOT_\S+) = (\S+);/g)) {
-        it(`${match[1]} = ${match[2]}`, async () => {
+      for (const [_, name, slot] of code.matchAll(
+        /constant (SLOT_\S+) = (\S+);/g,
+      )) {
+        it(`${name} = ${slot}`, async () => {
           const storageLayout =
             await hre.artifacts.getStorageLayout("DedicatedResolver");
-          const label = match[1].slice(4).toLowerCase(); // "SLOT_ABC" => "_abc"
+          const label = name.slice(4).toLowerCase(); // "SLOT_ABC" => "_abc"
           const ref = storageLayout.storage.find((x) =>
             x.label.startsWith(label),
           );
-          assert(ref?.slot === match[2]);
+          expect(ref?.slot).toEqual(slot);
         });
       }
     });
