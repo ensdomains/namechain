@@ -25,72 +25,38 @@ export const createMockRelay = ({
   console.log("Creating mock bridge...");
 
   // Listen for L1 bridge events (ejection/migration to L2)
-  const unwatchL1Ejection = l1Bridge.watchEvent.NameEjectedToL2({}, {
+  const unwatchL1Bridge = l1Bridge.watchEvent.NameBridgedToL2({}, {
     onLogs: async (logs: any[]) => {
       for (const log of logs) {
-        console.log("Relaying ejection message from L1 to L2");
-        // log.args: { dnsEncodedName, data }
-        // Use the new BridgeEncoder format: first encode data individually, then encode the full message
-        const encodedData = log.args.data; // This is already abi.encode(transferData)
-        const bridgeMessage = encodeAbiParameters(
-          parseAbiParameters("uint256, bytes, bytes"),
-          [1n, log.args.dnsEncodedName, encodedData] // 1 = EJECTION
-        );
+        console.log("Relaying bridged message from L1 to L2");
+        const { message } = log.args;
         try {
           const receipt = await expectSuccess(
             l2Client,
-            (l2Bridge.write as any).receiveMessage([bridgeMessage])
+            (l2Bridge.write as any).receiveMessage([message])
           );
           console.log(`Message relayed to L2, tx hash: ${receipt.transactionHash}`);
         } catch (error) {
-          console.error("Error relaying ejection message from L1 to L2:", error);
-        }
-      }
-    },
-  });
-
-  const unwatchL1Migration = l1Bridge.watchEvent.NameMigratedToL2({}, {
-    onLogs: async (logs: any[]) => {
-      for (const log of logs) {
-        console.log("Relaying migration message from L1 to L2");
-        // Use the new BridgeEncoder format: first encode data individually, then encode the full message
-        const encodedData = log.args.data; // This is already abi.encode(migrationData)
-        const bridgeMessage = encodeAbiParameters(
-          parseAbiParameters("uint256, bytes, bytes"),
-          [0n, log.args.dnsEncodedName, encodedData] // 0 = MIGRATION
-        );
-        try {
-          const receipt = await expectSuccess(
-            l2Client,
-            (l2Bridge.write as any).receiveMessage([bridgeMessage])
-          );
-          console.log(`Message relayed to L2, tx hash: ${receipt.transactionHash}`);
-        } catch (error) {
-          console.error("Error relaying migration message from L1 to L2:", error);
+          console.error("Error relaying bridged message from L1 to L2:", error);
         }
       }
     },
   });
 
   // Listen for L2 bridge events (ejection to L1)
-  const unwatchL2Ejection = l2Bridge.watchEvent.NameEjectedToL1({}, {
+  const unwatchL2Bridge = l2Bridge.watchEvent.NameBridgedToL1({}, {
     onLogs: async (logs: any[]) => {
       for (const log of logs) {
-        console.log("Relaying ejection message from L2 to L1");
-        // Use the new BridgeEncoder format: first encode data individually, then encode the full message
-        const encodedData = log.args.data; // This is already abi.encode(transferData)
-        const bridgeMessage = encodeAbiParameters(
-          parseAbiParameters("uint256, bytes, bytes"),
-          [1n, log.args.dnsEncodedName, encodedData] // 1 = EJECTION
-        );
+        console.log("Relaying bridged message from L2 to L1");
+        const { message } = log.args;
         try {
           const receipt = await expectSuccess(
             l1Client,
-            (l1Bridge.write as any).receiveMessage([bridgeMessage])
+            (l1Bridge.write as any).receiveMessage([message])
           );
           console.log(`Message relayed to L1, tx hash: ${receipt.transactionHash}`);
         } catch (error) {
-          console.error("Error relaying ejection message from L2 to L1:", error);
+          console.error("Error relaying bridged message from L2 to L1:", error);
         }
       }
     },
@@ -119,9 +85,8 @@ export const createMockRelay = ({
       });
 
   const removeListeners = () => {
-    unwatchL1Ejection();
-    unwatchL1Migration();
-    unwatchL2Ejection();
+    unwatchL1Bridge();
+    unwatchL2Bridge();
   };
 
   return {

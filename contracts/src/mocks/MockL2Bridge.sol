@@ -17,8 +17,8 @@ contract MockL2Bridge is MockBridgeBase {
     MockL2EjectionController public ejectionController;
         
     // Type-specific events with tokenId and data
-    event NameEjectedToL1(bytes dnsEncodedName, bytes data);
-    
+    event NameBridgedToL1(bytes message);
+        
     function setEjectionController(MockL2EjectionController _ejectionController) external {
         ejectionController = _ejectionController;
     }
@@ -33,8 +33,7 @@ contract MockL2Bridge is MockBridgeBase {
             // Migration messages are not supported in L2 bridge
             revert MigrationNotSupported();
         } else if (messageType == BridgeMessageType.EJECTION) {
-            (bytes memory dnsEncodedName, TransferData memory transferData) = BridgeEncoder.decodeEjection(message);
-            emit NameEjectedToL1(dnsEncodedName, abi.encode(transferData));
+            emit NameBridgedToL1(message);
         }
     }
     
@@ -45,8 +44,7 @@ contract MockL2Bridge is MockBridgeBase {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        uint256 tokenId = uint256(keccak256(bytes(transferData.label)));
-        ejectionController.completeMigrationFromL1(tokenId, transferData);
+        ejectionController.completeMigrationFromL1(transferData);
     }
     
     /**

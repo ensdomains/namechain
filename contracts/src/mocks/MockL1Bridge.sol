@@ -16,9 +16,7 @@ contract MockL1Bridge is MockBridgeBase {
     // Ejection controller to call when receiving ejection messages
     MockL1EjectionController public ejectionController;
     
-    // Type-specific events with tokenId and data
-    event NameEjectedToL2(bytes dnsEncodedName, bytes data);
-    event NameMigratedToL2(bytes dnsEncodedName, bytes data);
+    event NameBridgedToL2(bytes message);
     
     function setEjectionController(MockL1EjectionController _ejectionController) external {
         ejectionController = _ejectionController;
@@ -28,15 +26,7 @@ contract MockL1Bridge is MockBridgeBase {
      * @dev Override sendMessage to emit specific events based on message type
      */
     function sendMessage(bytes memory message) external override {
-        BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
-        
-        if (messageType == BridgeMessageType.EJECTION) {
-            (bytes memory dnsEncodedName, TransferData memory transferData) = BridgeEncoder.decodeEjection(message);
-            emit NameEjectedToL2(dnsEncodedName, abi.encode(transferData));
-        } else if (messageType == BridgeMessageType.MIGRATION) {
-            (bytes memory dnsEncodedName, MigrationData memory migrationData) = BridgeEncoder.decodeMigration(message);
-            emit NameMigratedToL2(dnsEncodedName, abi.encode(migrationData));
-        }
+        emit NameBridgedToL2(message);
     }
     
     /**

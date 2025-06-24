@@ -23,7 +23,7 @@ abstract contract MockBridgeBase is IBridge {
      */
     function receiveMessage(bytes calldata message) external {
         BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
-        
+
         if (messageType == BridgeMessageType.EJECTION) {
             (bytes memory dnsEncodedName, TransferData memory transferData) = BridgeEncoder.decodeEjection(message);
             _handleEjectionMessage(dnsEncodedName, transferData);

@@ -161,7 +161,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
                 
                 // Since the parameters are not indexed, decode the data to check the DNS encoded name
                 if (logs[i].data.length > 0) {
-                    (bytes memory emittedDnsEncodedName, bytes memory emittedData) = 
+                    (bytes memory emittedDnsEncodedName, ) = 
                         abi.decode(logs[i].data, (bytes, bytes));
                     
                     if (keccak256(emittedDnsEncodedName) == keccak256(expectedDnsEncodedName)) {
@@ -211,7 +211,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
             expires: 0,
             roleBitmap: differentRoles
         });
-        controller.completeMigrationFromL1(tokenId, migrationData);
+        controller.completeMigrationFromL1(migrationData);
         
         // Verify migration results
         _verifyMigrationResults(tokenId, label2, originalRoles, differentRoles);
@@ -237,7 +237,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     }
     
     // Helper function to check for event emission
-    function _verifyMigrationEvent(uint256 _tokenId, uint256 expectedRoleBitmap) internal {
+    function _verifyMigrationEvent(uint256 /* _tokenId */, uint256 /* expectedRoleBitmap */) internal {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
         
@@ -279,7 +279,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
             expires: 0,
             roleBitmap: ALL_ROLES
         });
-        controller.completeMigrationFromL1(tokenId, migrationData);
+        controller.completeMigrationFromL1(migrationData);
     }
 
     function test_supportsInterface() public view {
@@ -373,7 +373,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
                 
                 // Since the parameters are not indexed, decode the data to check the DNS encoded name
                 if (logs[i].data.length > 0) {
-                    (bytes memory emittedDnsEncodedName, bytes memory emittedData) = 
+                    (bytes memory emittedDnsEncodedName, ) = 
                         abi.decode(logs[i].data, (bytes, bytes));
                     
                     bytes32 emittedHash = keccak256(emittedDnsEncodedName);
@@ -625,10 +625,9 @@ contract MockL2EjectionController is L2EjectionController {
     constructor(IPermissionedRegistry _registry) L2EjectionController(_registry) {}
 
     function completeMigrationFromL1(
-        uint256 tokenId,
         TransferData memory transferData
     ) public override {
-        super.completeMigrationFromL1(tokenId, transferData);
+        super.completeMigrationFromL1(transferData);
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
         emit NameEjectedToL2(dnsEncodedName, transferData.owner, transferData.subregistry);
     }

@@ -21,13 +21,13 @@ abstract contract L2EjectionController is EjectionController, ITokenObserver {
     /**
      * @dev Should be called when a name is being migrated back to L2.
      *
-     * @param tokenId The token ID of the name being migrated
      * @param transferData The transfer data for the name being migrated
      */
     function completeMigrationFromL1(
-        uint256 tokenId,
         TransferData memory transferData
     ) public virtual {
+        (uint256 tokenId,,) = registry.getNameData(transferData.label);
+
         if (registry.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
         }

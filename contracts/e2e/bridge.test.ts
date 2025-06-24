@@ -14,7 +14,6 @@ import {
   labelToCanonicalId,
   waitForEvent,
 } from "./utils.js";
-import { dnsEncodeName } from "../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
 
 const { l1, l2, shutdown } = await setupCrossChainEnvironment();
 afterAll(shutdown);
@@ -90,9 +89,9 @@ test("name ejection", async () => {
     encodedTransferData,
   ], {} as any);
 
-  // Wait for the NameEjectedToL1 event from L2 bridge (indicating ejection message sent)
+  // Wait for the NameBridgedToL1 event from L2 bridge (indicating ejection message sent)
   const bridgeEvents = await waitForEvent(
-    ({ onLogs }) => l2.contracts.mockBridge.watchEvent.NameEjectedToL1({}, { onLogs }),
+    ({ onLogs }) => l2.contracts.mockBridge.watchEvent.NameBridgedToL1({}, { onLogs }),
   );
   await expectTransactionSuccess(l2.client, transferTx);
   console.log(
@@ -100,12 +99,12 @@ test("name ejection", async () => {
   );
 
   if ((bridgeEvents as any[]).length === 0) {
-    console.log("No NameEjectedToL1 event found on L2, manual relay might be needed");
+    console.log("No NameBridgedToL1 event found on L2, manual relay might be needed");
     throw new Error(
-      "No NameEjectedToL1 event found on L2, manual relay might be needed",
+      "No NameBridgedToL1 event found on L2, manual relay might be needed",
     );
   } else {
-    console.log("NameEjectedToL1 event found on L2, automatic relay should work");
+    console.log("NameBridgedToL1 event found on L2, automatic relay should work");
   }
 
   // Add a delay to allow the relay transaction to complete
@@ -115,8 +114,8 @@ test("name ejection", async () => {
   console.log("Verifying registration on L1...");
   const actualL1Owner = await l1.contracts.ethRegistry.read.ownerOf([tokenId]);
   console.log(`Owner on L1: ${actualL1Owner}`);
-  console.log("✓ Name successfully registered on L1");
   expect(actualL1Owner).toBe(l1Owner);
+  console.log("✓ Name successfully registered on L1");
 
   // In assertions, use bridgeEvents[0].args.dnsEncodedName and bridgeEvents[0].args.data
 });
@@ -168,9 +167,9 @@ test("round trip", async () => {
     encodedTransferDataToL1,
   ], {} as any);
 
-  // Wait for the NameEjectedToL1 event from L2 bridge (indicating ejection message sent)
+  // Wait for the NameBridgedToL1 event from L2 bridge (indicating ejection message sent)
   const ejectionEvents = await waitForEvent(
-    ({ onLogs }) => l2.contracts.mockBridge.watchEvent.NameEjectedToL1({}, { onLogs }),
+    ({ onLogs }) => l2.contracts.mockBridge.watchEvent.NameBridgedToL1({}, { onLogs }),
   );
   await expectTransactionSuccess(l2.client, transferTxToL1);
   console.log(
@@ -179,10 +178,10 @@ test("round trip", async () => {
 
   if ((ejectionEvents as any[]).length === 0) {
     throw new Error(
-      "No NameEjectedToL1 event found on L2, manual relay might be needed",
+      "No NameBridgedToL1 event found on L2, manual relay might be needed",
     );
   } else {
-    console.log("NameEjectedToL1 event found on L2, automatic relay should work");
+    console.log("NameBridgedToL1 event found on L2, automatic relay should work");
   }
 
   // Add a delay to allow the relay transaction to complete
@@ -216,9 +215,9 @@ test("round trip", async () => {
     encodedTransferDataToL2,
   ], {} as any);
 
-  // Wait for the NameEjectedToL2 event from L1 bridge (indicating ejection message sent)
+  // Wait for the NameBridgedToL2 event from L1 bridge (indicating ejection message sent)
   const migrationEvents = await waitForEvent(
-    ({ onLogs }) => l1.contracts.mockBridge.watchEvent.NameEjectedToL2({}, { onLogs }),
+    ({ onLogs }) => l1.contracts.mockBridge.watchEvent.NameBridgedToL2({}, { onLogs }),
   );
   await expectTransactionSuccess(l1.client, transferTxToL2);
   console.log(
@@ -227,10 +226,10 @@ test("round trip", async () => {
 
   if ((migrationEvents as any[]).length === 0) {
     throw new Error(
-      "No NameEjectedToL2 event found on L1, manual relay might be needed",
+      "No NameBridgedToL2 event found on L1, manual relay might be needed",
     );
   } else {
-    console.log("NameEjectedToL2 event found on L1, automatic relay should work");
+    console.log("NameBridgedToL2 event found on L1, automatic relay should work");
   }
 
   // Add a delay to allow the relay transaction to complete

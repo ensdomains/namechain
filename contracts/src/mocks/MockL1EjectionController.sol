@@ -33,9 +33,9 @@ contract MockL1EjectionController is L1EjectionController {
         super._onEject(tokenIds, transferDataArray);
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
-                    bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferDataArray[i].label);
-        bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferDataArray[i]));
-        emit NameEjectedToL2(dnsEncodedName, transferDataArray[i].owner, transferDataArray[i].subregistry);
+            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferDataArray[i].label);
+            bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferDataArray[i]));
+            emit NameEjectedToL2(dnsEncodedName, transferDataArray[i].owner, transferDataArray[i].subregistry);
         }
     }
 }

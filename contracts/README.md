@@ -32,6 +32,7 @@ forge i
 
 ```sh
 forge build
+bun run compile:hardhat
 ```
 
 ### Test

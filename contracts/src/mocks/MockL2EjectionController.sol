@@ -23,10 +23,9 @@ contract MockL2EjectionController is L2EjectionController {
     }
 
     function completeMigrationFromL1(
-        uint256 tokenId,
         TransferData memory transferData
     ) public override {
-        super.completeMigrationFromL1(tokenId, transferData);
+        super.completeMigrationFromL1(transferData);
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
         emit NameEjectedToL2(dnsEncodedName, transferData.owner, transferData.subregistry);
     }
@@ -35,9 +34,9 @@ contract MockL2EjectionController is L2EjectionController {
         super._onEject(tokenIds, transferDataArray);
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
-                    bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferDataArray[i].label);
-        bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferDataArray[i]));
-        emit NameEjectedToL1(dnsEncodedName, transferDataArray[i].owner, transferDataArray[i].subregistry, transferDataArray[i].expires);
+            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferDataArray[i].label);
+            bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferDataArray[i]));
+            emit NameEjectedToL1(dnsEncodedName, transferDataArray[i].owner, transferDataArray[i].subregistry, transferDataArray[i].expires);
         }
     }
 

@@ -208,7 +208,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
     }
 
     /**
-     * Helper method to verify that a NameMigratedToL2 event was emitted with correct data
+     * Helper method to verify that a NameBridgedToL2 event was emitted with correct data
      */
     function _assertBridgeMigrationEvent(string memory expectedLabel) internal {
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -216,29 +216,30 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
     }
 
     /**
-     * Helper method to verify that a NameMigratedToL2 event was emitted with correct data using provided logs
+     * Helper method to verify that a NameBridgedToL2 event was emitted with correct data using provided logs
      */
     function _assertBridgeMigrationEventWithLogs(string memory expectedLabel, Vm.Log[] memory entries) internal view {
         bool foundMigrationEvent = false;
-        bytes32 expectedSig = keccak256("NameMigratedToL2(bytes,bytes)");
+        bytes32 expectedSig = keccak256("NameBridgedToL2(bytes)");
         
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].emitter == address(mockBridge) && entries[i].topics[0] == expectedSig) {
-                // For NameMigratedToL2(bytes dnsEncodedName, bytes data) - parameters are NOT indexed
-                // so both dnsEncodedName and data are in the data field
-                (bytes memory dnsEncodedName, bytes memory migrationDataBytes) = abi.decode(entries[i].data, (bytes, bytes));
-                MigrationData memory decodedMigrationData = abi.decode(migrationDataBytes, (MigrationData));
+                // For NameBridgedToL2(bytes message) - single parameter is NOT indexed
+                // so the message is in the data field
+                (bytes memory message) = abi.decode(entries[i].data, (bytes));
+                // Decode the migration message to get the migration data
+                (, MigrationData memory decodedMigrationData) = BridgeEncoder.decodeMigration(message);
                 if (keccak256(bytes(decodedMigrationData.transferData.label)) == keccak256(bytes(expectedLabel))) {
                     foundMigrationEvent = true;
                     break;  
                 }
             }
         }
-        assertTrue(foundMigrationEvent, string(abi.encodePacked("NameMigratedToL2 event not found for token: ", expectedLabel)));
+        assertTrue(foundMigrationEvent, string(abi.encodePacked("NameBridgedToL2 event not found for token: ", expectedLabel)));
     }
 
     /**
-     * Helper method to count NameMigratedToL2 events for multiple tokens
+     * Helper method to count NameBridgedToL2 events for multiple tokens
      */
     function _countBridgeMigrationEvents(uint256[] memory expectedTokenIds) internal returns (uint256) {
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -246,18 +247,19 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
     }
 
     /**
-     * Helper method to count NameMigratedToL2 events for multiple tokens using provided logs
+     * Helper method to count NameBridgedToL2 events for multiple tokens using provided logs
      */
     function _countBridgeMigrationEventsWithLogs(uint256[] memory expectedTokenIds, Vm.Log[] memory entries) internal view returns (uint256) {
         uint256 migratedEventCount = 0;
-        bytes32 expectedSig = keccak256("NameMigratedToL2(bytes,bytes)");
+        bytes32 expectedSig = keccak256("NameBridgedToL2(bytes)");
 
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].emitter == address(mockBridge) && entries[i].topics[0] == expectedSig) {
-                // For NameMigratedToL2(bytes dnsEncodedName, bytes data) - parameters are NOT indexed
-                // so both dnsEncodedName and data are in the data field
-                (bytes memory dnsEncodedName, bytes memory migrationDataBytes) = abi.decode(entries[i].data, (bytes, bytes));
-                MigrationData memory decodedMigrationData = abi.decode(migrationDataBytes, (MigrationData));
+                // For NameBridgedToL2(bytes message) - single parameter is NOT indexed
+                // so the message is in the data field
+                (bytes memory message) = abi.decode(entries[i].data, (bytes));
+                // Decode the migration message to get the migration data
+                (, MigrationData memory decodedMigrationData) = BridgeEncoder.decodeMigration(message);
                 uint256 emittedTokenId = uint256(keccak256(bytes(decodedMigrationData.transferData.label)));
                 
                 // Check if this tokenId is in our expected list
@@ -495,7 +497,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
         
         uint256 migratedEventCount = _countBridgeMigrationEvents(tokenIds);
-        assertEq(migratedEventCount, 2, "Incorrect number of NameMigratedToL2 events");
+        assertEq(migratedEventCount, 2, "Incorrect number of NameBridgedToL2 events");
     }
 
     function test_migrateWrappedEthName_batch_mixedL1Flags() public {
@@ -537,7 +539,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         
         // Check that both names were migrated to L2
         uint256 migratedEventCount = _countBridgeMigrationEventsWithLogs(tokenIds, entries);
-        assertEq(migratedEventCount, 2, "Incorrect number of NameMigratedToL2 events");
+        assertEq(migratedEventCount, 2, "Incorrect number of NameBridgedToL2 events");
         
         // Check that only the second name was migrated to L1
         _assertL1MigratorEvent(label2, entries);

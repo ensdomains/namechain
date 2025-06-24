@@ -134,7 +134,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     }
     
     function testL1BridgeMigrationEvents() public {
-        // Test that L1 bridge properly emits migration events with simplified parameters
+        // Test that L1 bridge properly emits NameBridgedToL2 events
         string memory label = "migrationtest";
         
         TransferData memory transferData = TransferData({
@@ -160,35 +160,35 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         // Trigger the migration message via sendMessage (this should work and emit event)
         l1Bridge.sendMessage(migrationMessage);
         
-        // Check for NameMigratedToL2 event from L1 bridge
+        // Check for NameBridgedToL2 event from L1 bridge
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        bytes32 migrationEventSig = keccak256("NameMigratedToL2(bytes,bytes)");
+        bytes32 bridgeEventSig = keccak256("NameBridgedToL2(bytes)");
         
-        bool foundMigrationEvent = false;
-        uint256 migrationEventIndex = 0;
+        bool foundBridgeEvent = false;
+        uint256 bridgeEventIndex = 0;
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == migrationEventSig) {
-                foundMigrationEvent = true;
-                migrationEventIndex = i;
+            if (entries[i].topics[0] == bridgeEventSig) {
+                foundBridgeEvent = true;
+                bridgeEventIndex = i;
                 break;
             }
         }
 
-        assertTrue(foundMigrationEvent, "NameMigratedToL2 event not found");
+        assertTrue(foundBridgeEvent, "NameBridgedToL2 event not found");
         
-        // For NameMigratedToL2(bytes dnsEncodedName, bytes data) - parameters are NOT indexed
-        // so both dnsEncodedName and data are in the data field
-        (bytes memory eventDnsEncodedName, bytes memory eventData) = abi.decode(entries[migrationEventIndex].data, (bytes, bytes));
+        // For NameBridgedToL2(bytes message) - single parameter is NOT indexed
+        // so the message is in the data field
+        (bytes memory eventMessage) = abi.decode(entries[bridgeEventIndex].data, (bytes));
         
-        // Verify the DNS encoded name matches
-        assertEq(keccak256(eventDnsEncodedName), keccak256(dnsEncodedName));
+        // Verify the message matches what we sent
+        assertEq(keccak256(eventMessage), keccak256(migrationMessage));
         
-        // The event data should be the raw MigrationData
-        MigrationData memory eventMigrationData = abi.decode(eventData, (MigrationData));
-        
-        assertEq(eventMigrationData.transferData.owner, transferData.owner);
-        assertEq(eventMigrationData.transferData.subregistry, transferData.subregistry);
-        assertEq(eventMigrationData.transferData.expires, transferData.expires);
-        assertEq(eventMigrationData.toL1, false);
+        // Verify we can decode the message back to get the original data
+        (bytes memory decodedDnsEncodedName, MigrationData memory decodedMigrationData) = BridgeEncoder.decodeMigration(eventMessage);
+        assertEq(keccak256(decodedDnsEncodedName), keccak256(dnsEncodedName));
+        assertEq(decodedMigrationData.transferData.owner, transferData.owner);
+        assertEq(decodedMigrationData.transferData.subregistry, transferData.subregistry);
+        assertEq(decodedMigrationData.transferData.expires, transferData.expires);
+        assertEq(decodedMigrationData.toL1, false);
     }
 }
