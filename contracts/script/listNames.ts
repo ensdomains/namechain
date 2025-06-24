@@ -1,8 +1,8 @@
 import { createPublicClient, http, type Chain, type Log, decodeEventLog, type Abi, PublicClient } from "viem";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { ResolverRecord, LabelInfo, RegistryNode, ResolverUpdateEventArgs, TextChangedEventArgs, AddressChangedEventArgs, SubregistryUpdateEventArgs, NewSubnameEventArgs, DecodedEvent } from './types.js';
-
+import { ResolverRecord, LabelInfo, RegistryNode, ResolverUpdateEventArgs, TextChangedEventArgs, AddressChangedEventArgs, SubregistryUpdateEventArgs, NewSubnameEventArgs, DecodedEvent, MetadataChangedEventArgs } from './types.js';
+import { dnsDecodeName } from "../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
 // Add debug flag at the top of the file
 const DEBUG = false;
 
@@ -26,6 +26,15 @@ const l2Chain: Chain = {
     public: { http: ["http://127.0.0.1:8546"] },
   },
 };
+const otherl2Chain: Chain = {
+  id: 31339,
+  name: "Other Local L2",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["http://127.0.0.1:8547"] },
+    public: { http: ["http://127.0.0.1:8547"] },
+  },
+};
 
 // Connect to the networks
 const l1Client = createPublicClient({
@@ -38,12 +47,18 @@ const l2Client = createPublicClient({
   transport: http(),
 });
 
+const otherl2Client = createPublicClient({
+  chain: otherl2Chain,
+  transport: http(),
+});
+
 // Remove datastore-related imports and variables
 const l1RootRegistryPath = join(process.cwd(), "deployments", "l1-local", "RootRegistry.json");
 const l1EthRegistryPath = join(process.cwd(), "deployments", "l1-local", "L1ETHRegistry.json");
 const l2EthRegistryPath = join(process.cwd(), "deployments", "l2-local", "ETHRegistry.json");
 const userRegistryImplPath = join(process.cwd(), "deployments", "l2-local", "UserRegistryImpl.json");
 const dedicatedResolverPath = join(process.cwd(), "deployments", "l2-local", "DedicatedResolverImpl.json");
+const mockDurinL1ResolverPath = join(process.cwd(), "deployments", "l1-local", "MockDurinL1ResolverImpl.json");
 
 // Load deployment artifacts
 const rootRegistryDeployment = JSON.parse(readFileSync(l1RootRegistryPath, "utf8"));
@@ -51,12 +66,14 @@ const l1EthRegistryDeployment = JSON.parse(readFileSync(l1EthRegistryPath, "utf8
 const ethRegistryDeployment = JSON.parse(readFileSync(l2EthRegistryPath, "utf8"));
 const userRegistryImplDeployment = JSON.parse(readFileSync(userRegistryImplPath, "utf8"));
 const dedicatedResolverDeployment = JSON.parse(readFileSync(dedicatedResolverPath, "utf8"));
+const mockDurinL1ResolverDeployment = JSON.parse(readFileSync(mockDurinL1ResolverPath, "utf8"));
 
 // Extract ABIs for events
 const registryEvents = l1EthRegistryDeployment.abi.filter((item: any) => item.type === "event");
-const resolverEvents = dedicatedResolverDeployment.abi.filter((item: any) => item.type === "event");
+const dedicatedResolverEvents = dedicatedResolverDeployment.abi.filter((item: any) => item.type === "event");
 const userRegistryEvents = userRegistryImplDeployment.abi.filter((item: any) => item.type === "event");
-
+const mockDurinL1ResolverEvents = mockDurinL1ResolverDeployment.abi.filter((item: any) => item.type === "event");
+const resolverEvents = [...dedicatedResolverEvents, ...mockDurinL1ResolverEvents];
 
 // Add at the top of the file, after imports
 interface ResolverInfo {
@@ -76,31 +93,29 @@ const labelHashToLabel = new Map<string, string>();
 const labelHashToSubregistry = new Map<string, string>();
 const resolverRecords = new Map<string, ResolverRecord[]>();
 const processedResolvers = new Set<string>();
-
+const metadataRecords = new Map<string, MetadataChangedEventArgs>();
 // Add this function before the main event processing
 async function processRegistryEvents(
   client: any,
   registryAddress: string,
   chainId: number,
   registryEvents: any[],
-  processedRegistries: Set<string> = new Set()
+  processedRegistries: Set<string> = new Set(),
+  metadataChanged: MetadataChangedEventArgs | null = null
 ) {
   const registryKey = createRegistryKey(chainId, registryAddress);
   if (processedRegistries.has(registryKey)) return;
   processedRegistries.add(registryKey);
-
 
   const logs = await client.getLogs({
     address: registryAddress as `0x${string}`,
     fromBlock: 0n,
     toBlock: await client.getBlockNumber(),
   });
-  console.log(`Processing events for registry ${registryAddress} on chain ${chainId}... ${logs.length} logs`);
 
   for (const log of logs) {
     const decoded = decodeEvent(log, registryEvents);
     if (!decoded || !decoded.eventName || !decoded.args) continue;
-    // console.log("decoded", registryKey, decoded.eventName, decoded);
     if (decoded.eventName === "SubregistryUpdate") {
       const args = decoded.args as unknown as SubregistryUpdateEventArgs;
       const labelHash = args.id.toString();
@@ -117,11 +132,8 @@ async function processRegistryEvents(
       }
       labelHashToSubregistry.set(labelHash, subregistry);
       const labelEntry = registryNode.labels.get(labelHash);
-      if(labelEntry){
-        console.log("***labelEntry", registryKey, labelEntry, decoded);
-      }
       registryNode.labels.set(labelHash, {
-        label:labelEntry?.label,
+        label: labelEntry?.label || "",
         resolver: null,
         registry: subregistry,
         chainId: chainId
@@ -150,8 +162,16 @@ async function processRegistryEvents(
       const labelInfo = registryNode.labels.get(labelHash); 
       if (labelInfo) {
         labelInfo.label = label;
+        registryNode.labels.set(labelHash, labelInfo);
+      } else {
+        // Create a new labelInfo if it doesn't exist
+        registryNode.labels.set(labelHash, {
+          label: label,
+          resolver: null,
+          registry: null,
+          chainId: chainId
+        });
       }
-      registryNode.labels.set(labelHash, labelInfo);
       registryTree.set(registryKey, registryNode);
     } else if (decoded.eventName === "ResolverUpdate") {
       const args = decoded.args as unknown as ResolverUpdateEventArgs;
@@ -160,7 +180,7 @@ async function processRegistryEvents(
       
       // Process resolver events for the new resolver
       if (resolver && resolver !== "0x0000000000000000000000000000000000000000") {
-        await processResolverEvents(client, resolver, chainId, resolverEvents);
+        await processResolverEvents(client, resolver, chainId, resolverEvents, metadataChanged);
       }
       
       // Update the registry node
@@ -195,10 +215,10 @@ async function processRegistryEvents(
   }
 }
 
+
 // Replace the existing event processing code with calls to processRegistryEvents
 console.log("Processing RootRegistry events...");
 await processRegistryEvents(l1Client, rootRegistryDeployment.address, l1Chain.id, registryEvents);
-console.log("RootRegistry processed", registryTree);
 // Step 2: Manually insert L1 ETH Registry to L2 ETH Registry link
 const l1EthRegistryKey = createRegistryKey(l1Chain.id, l1EthRegistryDeployment.address.toLowerCase());
 const l2EthRegistryKey = createRegistryKey(l2Chain.id, ethRegistryDeployment.address.toLowerCase());
@@ -214,7 +234,7 @@ if (!registryTree.has(l1EthRegistryKey)) {
 
 // Add L2 ETH Registry link to L1 ETH Registry as a special label
 const l1EthRegistry = registryTree.get(l1EthRegistryKey)!;
-console.log("ethRegistryDeployment", ethRegistryDeployment.address);
+
 l1EthRegistry.labels.set("", {
   label: "",
   resolver: null,
@@ -232,11 +252,13 @@ if (!registryTree.has(l2EthRegistryKey)) {
 }
 console.log("Processing L2 ETH Registry events...");
 await processRegistryEvents(l2Client, ethRegistryDeployment.address, l2Chain.id, registryEvents);
+
+
 // Convert registry tree to plain object for logging
 const registryTreePlain = convertToPlainObject(registryTree);
-console.log("Final registry tree:", JSON.stringify(registryTreePlain, null, 2));
+console.log("Registry tree:", JSON.stringify(registryTreePlain, null, 2));
 
-function decodeEvent(log: Log, abi: Abi): DecodedEvent {
+function decodeEvent(log: Log, abi: Abi): DecodedEvent | undefined {
   try {
     return decodeEventLog({
       abi,
@@ -338,9 +360,9 @@ console.log(`Total unique names: ${allNamesWithResolvers.size}`);
 function traverseRegistry(
   registryKey: string,
   currentPath: string[] = [],
-  names: Array<{ name: string; records: ResolverRecord[] }> = [],
+  names: Array<{ name: string; records: ResolverRecord[]; resolver: string | null }> = [],
   visited: Set<string> = new Set()
-): Array<{ name: string; records: ResolverRecord[] }> {
+): Array<{ name: string; records: ResolverRecord[]; resolver: string | null }> {
   if (visited.has(registryKey)) {
     console.warn('Cycle detected! Registry key:', registryKey, 'Path:', currentPath.join('.'));
   }
@@ -353,18 +375,19 @@ function traverseRegistry(
     if (!labelInfo) continue;
     
     const label = labelHashToLabel.get(labelHash) ?? labelInfo.label ?? "";
+    
     const newPath = [...currentPath, label];
     const fullName = newPath.filter((l) => l !== "").reverse().join(".");
-    
     if (labelInfo.resolver) {
       names.push({
         name: fullName,
-        records: resolverRecords.get(labelInfo.resolver) || []
+        records: resolverRecords.get(labelInfo.resolver) || [],
+        resolver: labelInfo.resolver
       });
     }
     
     if (labelInfo.registry && labelInfo.registry !== "0x0000000000000000000000000000000000000000") {
-      const subRegistryKey = createRegistryKey(labelInfo.chainId, labelInfo.registry);
+      const subRegistryKey = createRegistryKey(labelInfo.chainId || 0, labelInfo.registry);
       // Need more sophisyticated logic to handle so that it won't loop forever
       if (subRegistryKey === registryKey) {
         console.warn('Warning: Registry is trying to set its own address as a subregistry:', registryKey);
@@ -372,26 +395,28 @@ function traverseRegistry(
         traverseRegistry(subRegistryKey, newPath, names, visited);
       }
     }
+    const metadata = metadataRecords.get(fullName)
+    if(metadata){
+      const subRegistryKey = createRegistryKey(metadata.chainId, metadata.l2RegistryAddress)
+      traverseRegistry(subRegistryKey, newPath, names, visited);
+    }
   }
-  
   return names;
 }
 
 // Example usage after building the registryTree:
 const rootKey = createRegistryKey(l1Chain.id, rootRegistryDeployment.address.toLowerCase());
-const allNames = traverseRegistry(rootKey);
-console.log("All names:", allNames);
-
 console.log('resolverRecords', resolverRecords)
-
+console.log('metadataRecords', metadataRecords);
 // Update the final output section
 console.log("\nAll names with resolver records:");
 const allNamesWithRecords = traverseRegistry(rootKey);
-allNamesWithRecords.forEach(({ name, records }) => {
+allNamesWithRecords.forEach(({ name, records, resolver }) => {
   const recordStr = records.length > 0 
     ? ` -> ${records.map(r => `${r.type}:${r.value}`).join(', ')}`
     : '';
-  console.log(`${name}${recordStr}`);
+  const resolverStr = resolver ? ` [Resolver: ${resolver}]` : ' [No resolver]';
+  console.log(`${name}${resolverStr}${recordStr}`);
 });
 
 // Add resolver event tracking
@@ -399,7 +424,8 @@ async function processResolverEvents(
   client: PublicClient,
   resolverAddress: string,
   chainId: number,
-  resolverEvents: any[]
+  resolverEvents: any[],
+  metadataChanged: MetadataChangedEventArgs | null = null
 ) {
   if (processedResolvers.has(resolverAddress)) return;
   processedResolvers.add(resolverAddress);
@@ -410,16 +436,20 @@ async function processResolverEvents(
     toBlock: 'latest'
   });
   console.log(`Processing resolver events for ${resolverAddress} on chain ${chainId} ${logs.length} logs`);
-  
+  let suffix
+  if(metadataChanged){
+    suffix = dnsDecodeName(metadataChanged.name as `0x${string}`);
+  }
   for (const log of logs) {
     const decoded = decodeEvent(log, resolverEvents);
-    console.log({decoded});
     if (!decoded || !decoded.eventName || !decoded.args) continue;
 
-    if (["AddressChanged", "AddrChanged"].includes(decoded.eventName)) {
+    if (["AddrChanged"].includes(decoded.eventName)) {
       const args = decoded.args as unknown as AddressChangedEventArgs;
       const records = resolverRecords.get(resolverAddress) || [];
       records.push({
+        suffix,
+        node: args.node,
         type: 'address',
         value: args.a || `${args.coinType}:${args.newAddress}`
       });
@@ -428,10 +458,19 @@ async function processResolverEvents(
       const args = decoded.args as unknown as TextChangedEventArgs;
       const records = resolverRecords.get(resolverAddress) || [];
       records.push({
+        node: args.node,
+        suffix,
         type: 'text',
         value: `${args.key}=${args.value}`
       });
       resolverRecords.set(resolverAddress, records);
+    }else if (decoded.eventName === "MetadataChanged") {
+      const args = decoded.args as unknown as MetadataChangedEventArgs;
+      const otherChainId = parseInt(args.chainId);
+      if(otherChainId === otherl2Chain.id){
+        processRegistryEvents(otherl2Client, args.l2RegistryAddress, otherChainId, registryEvents, new Set(), args);
+      }
+      metadataRecords.set(dnsDecodeName(args.name as `0x${string}`) , args);
     }
   }
 }

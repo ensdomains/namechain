@@ -25,12 +25,15 @@ export interface ResolverUpdateEventArgs {
 
 export interface TextChangedEventArgs {
   node: `0x${string}`;
+  name?: string;
   key: string;
   value: string;
 }
 
 export interface AddressChangedEventArgs {
   id: bigint;
+  node: `0x${string}`;
+  suffix?: string;
   coinType: bigint;
   newAddress: string;
   a?: string;
@@ -45,6 +48,13 @@ export interface SubregistryUpdateEventArgs {
 export interface NewSubnameEventArgs {
   labelHash: bigint;
   label: string;
+}
+
+export interface MetadataChangedEventArgs {
+  name: string;
+  value: string;
+  chainId: number;
+  l2RegistryAddress: string;
 }
 
 // Additional types from listNames.ts

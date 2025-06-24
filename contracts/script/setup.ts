@@ -91,6 +91,19 @@ export async function setupCrossChainEnvironment() {
   // Deploy contracts to both chains
   console.log("Deploying contracts...");
 
+  // Deploy Other L2 first so L1 can reference its addresses
+  console.log("Deploying Other L2 contracts...");
+  const otherL2Deploy = await executeDeployScripts(
+    resolveConfig(
+      await readConfig({
+        askBeforeProceeding: false,
+        network: "otherl2-local",
+      }),
+    ),
+  );
+
+  // Deploy L1 contracts (which may reference Other L2 addresses)
+  console.log("Deploying L1 contracts...");
   const l1Deploy = await executeDeployScripts(
     resolveConfig(
       await readConfig({
@@ -100,20 +113,13 @@ export async function setupCrossChainEnvironment() {
     ),
   );
 
+  // Deploy L2 contracts
+  console.log("Deploying L2 contracts...");
   const l2Deploy = await executeDeployScripts(
     resolveConfig(
       await readConfig({
         askBeforeProceeding: false,
         network: "l2-local",
-      }),
-    ),
-  );
-
-  const otherL2Deploy = await executeDeployScripts(
-    resolveConfig(
-      await readConfig({
-        askBeforeProceeding: false,
-        network: "otherl2-local",
       }),
     ),
   );
@@ -239,7 +245,7 @@ export type CrossChainEnvironment = Awaited<
 >;
 export type L1Contracts = CrossChainEnvironment["l1"]["contracts"];
 export type L2Contracts = CrossChainEnvironment["l2"]["contracts"];
-  export type OtherL2Contracts = CrossChainEnvironment["otherL2"]["contracts"];
+export type OtherL2Contracts = CrossChainEnvironment["otherL2"]["contracts"];
 export type L1Client = CrossChainEnvironment["l1"]["client"];
 export type L2Client = CrossChainEnvironment["l2"]["client"];
 export type OtherL2Client = CrossChainEnvironment["otherL2"]["client"];

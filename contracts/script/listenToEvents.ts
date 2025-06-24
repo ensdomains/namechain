@@ -23,6 +23,16 @@ const l2Chain: Chain = {
   },
 };
 
+const otherl2Chain: Chain = {
+  id: 31339,
+  name: "Other L2",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["http://127.0.0.1:8547"] },
+    public: { http: ["http://127.0.0.1:8547"] },
+  },
+};
+
 // Connect to the networks
 const l1Client = createPublicClient({
   chain: l1Chain,
@@ -31,6 +41,11 @@ const l1Client = createPublicClient({
 
 const l2Client = createPublicClient({
   chain: l2Chain,
+  transport: http(),
+});
+
+const otherl2Client = createPublicClient({
+  chain: otherl2Chain,
   transport: http(),
 });
 
@@ -43,6 +58,8 @@ const l2RegistryDatastorePath = join(process.cwd(), "deployments", "l2-local", "
 const dedicatedResolverImplPath = join(process.cwd(), "deployments", "l2-local", "DedicatedResolverImpl.json");
 const l1EjectionControllerPath = join(process.cwd(), "deployments", "l1-local", "L1EjectionController.json");
 const l2EjectionControllerPath = join(process.cwd(), "deployments", "l2-local", "L2EjectionController.json");
+const mockDurinL2RegistryPath = join(process.cwd(), "deployments", "otherl2-local", "MockDurinL2Registry.json");
+const mockDurinL1ResolverImplPath = join(process.cwd(), "deployments", "l1-local", "MockDurinL1ResolverImpl.json");
 
 const rootRegistryDeployment = JSON.parse(readFileSync(rootRegistryPath, "utf8"));
 const l1EthRegistryDeployment = JSON.parse(readFileSync(l1EthRegistryPath, "utf8"));
@@ -52,13 +69,18 @@ const l2RegistryDatastoreDeployment = JSON.parse(readFileSync(l2RegistryDatastor
 const dedicatedResolverImplDeployment = JSON.parse(readFileSync(dedicatedResolverImplPath, "utf8"));
 const l1EjectionControllerDeployment = JSON.parse(readFileSync(l1EjectionControllerPath, "utf8"));
 const l2EjectionControllerDeployment = JSON.parse(readFileSync(l2EjectionControllerPath, "utf8"));
+const mockDurinL2RegistryDeployment = JSON.parse(readFileSync(mockDurinL2RegistryPath, "utf8"));
+const mockDurinL1ResolverImplDeployment = JSON.parse(readFileSync(mockDurinL1ResolverImplPath, "utf8"));
 
 // Extract ABIs from deployment files
 const registryEvents = l1EthRegistryDeployment.abi.filter((item: any) => item.type === "event");
 const datastoreEvents = l1RegistryDatastoreDeployment.abi.filter((item: any) => item.type === "event");
 const dedicatedResolverEvents = dedicatedResolverImplDeployment.abi.filter((item: any) => item.type === "event");
 const ejectionControllerEvents = l1EjectionControllerDeployment.abi.filter((item: any) => item.type === "event");
-
+const mockDurinL2RegistryEvents = mockDurinL2RegistryDeployment.abi.filter((item: any) => item.type === "event");
+const mockDurinL1ResolverEvents = mockDurinL1ResolverImplDeployment.abi.filter((item: any) => item.type === "event");
+const resolverEvents = dedicatedResolverEvents.concat(mockDurinL1ResolverEvents);
+console.log('***', {resolverEvents});
 // Get the datastore address from RootRegistry
 const rootRegistryABI = rootRegistryDeployment.abi;
 
@@ -96,7 +118,8 @@ function formatEventLog(log: Log, events: Abi, chain: string, contractName: stri
 }
 
 // Keep track of active resolvers
-const activeResolvers = new Set<`0x${string}`>();
+const l1ActiveResolvers = new Set<`0x${string}`>();
+const l2ActiveResolvers = new Set<`0x${string}`>();
 
 async function listenToEvents() {
   console.log("Starting to listen to registry and resolver events...\n");
@@ -112,6 +135,8 @@ async function listenToEvents() {
   console.log(`DedicatedResolverImpl: ${dedicatedResolverImplDeployment.address}`);
   console.log(`L1EjectionController: ${l1EjectionControllerDeployment.address}`);
   console.log(`L2EjectionController: ${l2EjectionControllerDeployment.address}`);
+  console.log(`MockDurinL2Registry: ${mockDurinL2RegistryDeployment.address}`);
+  console.log(`MockDurinL1ResolverImpl: ${mockDurinL1ResolverImplDeployment.address}`);
 
   // Get the datastore address from RootRegistry
   const rootRegistry = getContract({
@@ -127,8 +152,10 @@ async function listenToEvents() {
   // Get current block numbers
   const l1Block = await l1Client.getBlockNumber();
   const l2Block = await l2Client.getBlockNumber();
+  const otherl2Block = await otherl2Client.getBlockNumber();
   console.log(`Current L1 Block: ${l1Block}`);
-  console.log(`Current L2 Block: ${l2Block}\n`);
+  console.log(`Current L2 Block: ${l2Block}`);
+  console.log(`Current Other L2 Block: ${otherl2Block}\n`);
 
   // Fetch historical events
   console.log("Fetching historical events...\n");
@@ -140,7 +167,7 @@ async function listenToEvents() {
     toBlock: l1Block,
   });
   if (rootRegistryLogs.length > 0) {
-    console.log("\nHistorical RootRegistry Events:");
+    console.log("\n *** Historical RootRegistry Events:");
     rootRegistryLogs.forEach(log => {
       const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, registryEvents, "L1", "RootRegistry", rootRegistryDeployment.address);
       console.log(`- Event: ${eventName}`);
@@ -158,7 +185,7 @@ async function listenToEvents() {
     toBlock: l1Block,
   });
   if (l1EthRegistryLogs.length > 0) {
-    console.log("\nHistorical L1ETHRegistry Events:");
+    console.log("\n *** Historical L1ETHRegistry Events:");
     l1EthRegistryLogs.forEach(log => {
       const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, registryEvents, "L1", "L1ETHRegistry", l1EthRegistryDeployment.address);
       console.log(`- Event: ${eventName}`);
@@ -173,6 +200,11 @@ async function listenToEvents() {
         console.log(`  Token ID: ${args.tokenId}`);
         console.log(`  Relinquished by: ${args.relinquishedBy}`);
       }
+      if(eventName === "ResolverUpdate"){
+        console.log("✓ ResolverUpdate event detected");
+        console.log(`  Resolver: ${args.resolver}`);
+        l1ActiveResolvers.add(args.resolver as `0x${string}`);
+      }
     });
   }
 
@@ -183,7 +215,7 @@ async function listenToEvents() {
     toBlock: l2Block,
   });
   if (ethRegistryLogs.length > 0) {
-    console.log("\nHistorical ETHRegistry Events:");
+    console.log("\n *** Historical ETHRegistry Events:");
     ethRegistryLogs.forEach(log => {
       const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, registryEvents, "L2", "ETHRegistry", ethRegistryDeployment.address);
       console.log(`- Event: ${eventName}`);
@@ -201,69 +233,46 @@ async function listenToEvents() {
     });
   }
 
-  // RegistryDatastore historical events (L1)
-  const l1DatastoreLogs = await l1Client.getLogs({
-    address: l1RegistryDatastoreDeployment.address,
-    fromBlock: 0n,
-    toBlock: l1Block,
-  });
-  if (l1DatastoreLogs.length > 0) {
-    console.log("\nHistorical RegistryDatastore Events (L1):");
-    l1DatastoreLogs.forEach(log => {
-      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, datastoreEvents, "L1", "RegistryDatastore", l1RegistryDatastoreDeployment.address);
-      console.log(`- Event: ${eventName}`);
-      console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
-      console.log(`- Transaction: ${log.transactionHash}`);
-      console.log(`- Block: ${log.blockNumber}`);
-      console.log(`- Arguments:`, args);
-
-      // If this is a ResolverUpdate event, add the resolver to our tracking set
-      if (eventName === "ResolverUpdate" && typeof args === 'object' && args !== null && 'resolver' in args && typeof args.resolver === 'string') {
-        activeResolvers.add(args.resolver as `0x${string}`);
-      }
-    });
-  }
-
-  // RegistryDatastore historical events (L2)
-  const l2DatastoreLogs = await l2Client.getLogs({
-    address: l2RegistryDatastoreDeployment.address,
-    fromBlock: 0n,
-    toBlock: l2Block,
-  });
-  if (l2DatastoreLogs.length > 0) {
-    console.log("\nHistorical RegistryDatastore Events (L2):");
-    l2DatastoreLogs.forEach(log => {
-      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, datastoreEvents, "L2", "RegistryDatastore", l2RegistryDatastoreDeployment.address);
-      console.log(`- Event: ${eventName}`);
-      console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
-      console.log(`- Transaction: ${log.transactionHash}`);
-      console.log(`- Block: ${log.blockNumber}`);
-      console.log(`- Arguments:`, args);
-
-      // If this is a ResolverUpdate event, add the resolver to our tracking set
-      if (eventName === "ResolverUpdate" && typeof args === 'object' && args !== null && 'resolver' in args && typeof args.resolver === 'string') {
-        activeResolvers.add(args.resolver as `0x${string}`);
-      }
-    });
-  }
-
-  // Fetch historical events for all active resolvers
-  for (const resolverAddress of activeResolvers) {
-    const resolverLogs = await l2Client.getLogs({
+  for (const resolverAddress of l1ActiveResolvers) {
+    const resolverLogs = await l1Client.getLogs({
       address: resolverAddress,
       fromBlock: 0n,
-      toBlock: l2Block,
+      toBlock: l1Block,
     });
+    console.log(`\n *** Historical Events for L1 Resolver ${resolverAddress}:`);
     if (resolverLogs.length > 0) {
-      console.log(`\nHistorical Events for Resolver ${resolverAddress}:`);
       resolverLogs.forEach(log => {
-        const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, dedicatedResolverEvents, "L2", "DedicatedResolver", resolverAddress);
+        const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, resolverEvents, "L1", "DedicatedResolver", resolverAddress);
         console.log(`- Event: ${eventName}`);
         console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
         console.log(`- Transaction: ${log.transactionHash}`);
         console.log(`- Block: ${log.blockNumber}`);
         console.log(`- Arguments:`, args);
       });
+    }else{
+      console.log(`No historical events found for Resolver ${resolverAddress}`);
+    }
+  } 
+
+  // Fetch historical events for all active resolvers
+  for (const resolverAddress of l2ActiveResolvers) {
+    const resolverLogs = await l2Client.getLogs({
+      address: resolverAddress,
+      fromBlock: 0n,
+      toBlock: l2Block,
+    });
+    console.log(`\n *** Historical Events for L2 Resolver ${resolverAddress}:`);
+    if (resolverLogs.length > 0) {
+      resolverLogs.forEach(log => {
+        const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, resolverEvents, "L2", "DedicatedResolver", resolverAddress);
+        console.log(`- Event: ${eventName}`);
+        console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
+        console.log(`- Transaction: ${log.transactionHash}`);
+        console.log(`- Block: ${log.blockNumber}`);
+        console.log(`- Arguments:`, args);
+      });
+    }else{
+      console.log(`No historical events found for Resolver ${resolverAddress}`);
     }
   }
 
@@ -274,7 +283,7 @@ async function listenToEvents() {
     toBlock: l1Block,
   });
   if (l1EjectionControllerLogs.length > 0) {
-    console.log(`\nHistorical L1EjectionController Events: ${l1EjectionControllerLogs.length}`);
+    console.log(`\n *** Historical L1EjectionController Events: ${l1EjectionControllerLogs.length}`);
     l1EjectionControllerLogs.forEach(log => {
       const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, ejectionControllerEvents, "L1", "L1EjectionController", l1EjectionControllerDeployment.address);
       console.log(`- Event: ${eventName}`);
@@ -292,9 +301,27 @@ async function listenToEvents() {
     toBlock: l2Block,
   });
   if (l2EjectionControllerLogs.length > 0) {
-    console.log(`\nHistorical L2EjectionController Events: ${l2EjectionControllerLogs.length}`);
+    console.log(`\n *** Historical L2EjectionController Events: ${l2EjectionControllerLogs.length}`);
     l2EjectionControllerLogs.forEach(log => {
       const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, ejectionControllerEvents, "L2", "L2EjectionController", l2EjectionControllerDeployment.address);
+      console.log(`- Event: ${eventName}`);
+      console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
+      console.log(`- Transaction: ${log.transactionHash}`);
+      console.log(`- Block: ${log.blockNumber}`);
+      console.log(`- Arguments:`, args);
+    });
+  }
+
+  // MockDurinL2Registry historical events
+  const mockDurinL2RegistryLogs = await otherl2Client.getLogs({
+    address: mockDurinL2RegistryDeployment.address,
+    fromBlock: 0n,
+    toBlock: otherl2Block,
+  });
+  if (mockDurinL2RegistryLogs.length > 0) {
+    console.log(`\n *** Historical MockDurinL2Registry Events: ${mockDurinL2RegistryLogs.length}`);
+    mockDurinL2RegistryLogs.forEach(log => {
+      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, mockDurinL2RegistryEvents, "Other L2", "MockDurinL2Registry", mockDurinL2RegistryDeployment.address);
       console.log(`- Event: ${eventName}`);
       console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
       console.log(`- Transaction: ${log.transactionHash}`);
@@ -310,15 +337,20 @@ async function listenToEvents() {
   let lastL1EthRegistryBlock = l1Block;
   let lastEthRegistryBlock = l2Block;
   let lastL1DatastoreBlock = l1Block;
-  let lastL2DatastoreBlock = l2Block;
+  let lastMockDurinL2RegistryBlock = otherl2Block;
   const lastResolverBlocks = new Map<`0x${string}`, bigint>();
 
   // Initialize last block for each active resolver
-  for (const resolverAddress of activeResolvers) {
+  for (const resolverAddress of l1ActiveResolvers) {
+    lastResolverBlocks.set(resolverAddress, l1Block);
+  }
+  for (const resolverAddress of l2ActiveResolvers) {
     lastResolverBlocks.set(resolverAddress, l2Block);
   }
+  
 
   setInterval(async () => {
+    const activeResolvers = new Set<`0x${string}`>();
     // RootRegistry
     const latestRootRegistryBlock = await l1Client.getBlockNumber();
     if (latestRootRegistryBlock > lastRootRegistryBlock) {
@@ -399,64 +431,6 @@ async function listenToEvents() {
       lastEthRegistryBlock = latestEthRegistryBlock;
     }
 
-    // RegistryDatastore (L1)
-    const latestL1DatastoreBlock = await l1Client.getBlockNumber();
-    if (latestL1DatastoreBlock > lastL1DatastoreBlock) {
-      const logs = await l1Client.getLogs({
-        address: l1RegistryDatastoreDeployment.address,
-        fromBlock: lastL1DatastoreBlock + 1n,
-        toBlock: latestL1DatastoreBlock,
-      });
-      if (logs.length > 0) {
-        console.log("\nNew RegistryDatastore Events (L1):");
-        logs.forEach(log => {
-          const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, datastoreEvents, "L1", "RegistryDatastore", l1RegistryDatastoreDeployment.address);
-          console.log(`- Event: ${eventName}`);
-          console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
-          console.log(`- Transaction: ${log.transactionHash}`);
-          console.log(`- Block: ${log.blockNumber}`);
-          console.log(`- Arguments:`, args);
-
-          // If this is a ResolverUpdate event, add the resolver to our tracking set
-          if (eventName === "ResolverUpdate" && typeof args === 'object' && args !== null && 'resolver' in args && typeof args.resolver === 'string') {
-            const resolverAddress = args.resolver as `0x${string}`;
-            activeResolvers.add(resolverAddress);
-            lastResolverBlocks.set(resolverAddress, l2Block);
-          }
-        });
-      }
-      lastL1DatastoreBlock = latestL1DatastoreBlock;
-    }
-
-    // RegistryDatastore (L2)
-    const latestL2DatastoreBlock = await l2Client.getBlockNumber();
-    if (latestL2DatastoreBlock > lastL2DatastoreBlock) {
-      const logs = await l2Client.getLogs({
-        address: l2RegistryDatastoreDeployment.address,
-        fromBlock: lastL2DatastoreBlock + 1n,
-        toBlock: latestL2DatastoreBlock,
-      });
-      if (logs.length > 0) {
-        console.log("\nNew RegistryDatastore Events (L2):");
-        logs.forEach(log => {
-          const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, datastoreEvents, "L2", "RegistryDatastore", l2RegistryDatastoreDeployment.address);
-          console.log(`- Event: ${eventName}`);
-          console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
-          console.log(`- Transaction: ${log.transactionHash}`);
-          console.log(`- Block: ${log.blockNumber}`);
-          console.log(`- Arguments:`, args);
-
-          // If this is a ResolverUpdate event, add the resolver to our tracking set
-          if (eventName === "ResolverUpdate" && typeof args === 'object' && args !== null && 'resolver' in args && typeof args.resolver === 'string') {
-            const resolverAddress = args.resolver as `0x${string}`;
-            activeResolvers.add(resolverAddress);
-            lastResolverBlocks.set(resolverAddress, l2Block);
-          }
-        });
-      }
-      lastL2DatastoreBlock = latestL2DatastoreBlock;
-    }
-
     // Check for new events from all active resolvers
     const latestL2Block = await l2Client.getBlockNumber();
     for (const resolverAddress of activeResolvers) {
@@ -470,7 +444,7 @@ async function listenToEvents() {
         if (logs.length > 0) {
           console.log(`\nNew Events for Resolver ${resolverAddress}:`);
           logs.forEach(log => {
-            const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, dedicatedResolverEvents, "L2", "DedicatedResolver", resolverAddress);
+            const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, resolverEvents, "L2", "DedicatedResolver", resolverAddress);
             console.log(`- Event: ${eventName}`);
             console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
             console.log(`- Transaction: ${log.transactionHash}`);
@@ -480,6 +454,28 @@ async function listenToEvents() {
         }
         lastResolverBlocks.set(resolverAddress, latestL2Block);
       }
+    }
+
+    // MockDurinL2Registry (Other L2)
+    const latestOtherl2Block = await otherl2Client.getBlockNumber();
+    if (latestOtherl2Block > lastMockDurinL2RegistryBlock) {
+      const logs = await otherl2Client.getLogs({
+        address: mockDurinL2RegistryDeployment.address,
+        fromBlock: lastMockDurinL2RegistryBlock + 1n,
+        toBlock: latestOtherl2Block,
+      });
+      if (logs.length > 0) {
+        console.log("\nNew MockDurinL2Registry Events:");
+        logs.forEach(log => {
+          const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, mockDurinL2RegistryEvents, "Other L2", "MockDurinL2Registry", mockDurinL2RegistryDeployment.address);
+          console.log(`- Event: ${eventName}`);
+          console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
+          console.log(`- Transaction: ${log.transactionHash}`);
+          console.log(`- Block: ${log.blockNumber}`);
+          console.log(`- Arguments:`, args);
+        });
+      }
+      lastMockDurinL2RegistryBlock = latestOtherl2Block;
     }
   }, 5000);
 }

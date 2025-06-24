@@ -1,7 +1,8 @@
-import { createPublicClient, http, type Chain, type PublicClient, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType, encodeFunctionData, parseEventLogs, encodeAbiParameters, parseAbiParameters } from "viem";
+import { createPublicClient, http, type Chain, type PublicClient, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType, encodeFunctionData, parseEventLogs, encodeAbiParameters, parseAbiParameters, namehash } from "viem";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { privateKeyToAccount, mnemonicToAccount } from "viem/accounts";
+import { dnsEncodeName } from "../test/utils/utils.js";
 
 // Define chain types
 const l1Chain: Chain = {
@@ -24,6 +25,16 @@ const l2Chain: Chain = {
   },
 };
 
+const otherl2Chain: Chain = {
+  id: 31339,
+  name: "Other L2",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["http://127.0.0.1:8547"] },
+    public: { http: ["http://127.0.0.1:8547"] },
+  },
+};
+
 // Connect to the networks
 const l1Client = createPublicClient({
   chain: l1Chain,
@@ -32,6 +43,11 @@ const l1Client = createPublicClient({
 
 const l2Client = createPublicClient({
   chain: l2Chain,
+  transport: http(),
+});
+
+const otherl2Client = createPublicClient({
+  chain: otherl2Chain,
   transport: http(),
 });
 
@@ -48,7 +64,8 @@ const registryDatastorePath = join(process.cwd(), "deployments", "l2-local", "Re
 const registryMetadataPath = join(process.cwd(), "deployments", "l2-local", "SimpleRegistryMetadata.json");
 const l1EjectionControllerPath = join(process.cwd(), "deployments", "l1-local", "L1EjectionController.json");
 const l2EjectionControllerPath = join(process.cwd(), "deployments", "l2-local", "L2EjectionController.json");
-
+const mockDurinL1ResolverImplPath = join(process.cwd(), "deployments", "l1-local", "MockDurinL1ResolverImpl.json");
+const mockDurinL2RegistryPath = join(process.cwd(), "deployments", "otherl2-local", "MockDurinL2Registry.json");
 const rootRegistryDeployment = JSON.parse(readFileSync(rootRegistryPath, "utf8"));
 const l1EthRegistryDeployment = JSON.parse(readFileSync(l1EthRegistryPath, "utf8"));
 const ethRegistryDeployment = JSON.parse(readFileSync(ethRegistryPath, "utf8"));
@@ -56,12 +73,13 @@ const l1VerifiableFactoryDeployment = JSON.parse(readFileSync(l1VerifiableFactor
 const l1dedicatedResolverImplDeployment = JSON.parse(readFileSync(l1DedicatedResolverImplPath, "utf8"));
 const l2VerifiableFactoryDeployment = JSON.parse(readFileSync(l2VerifiableFactoryPath, "utf8"));
 const l2dedicatedResolverImplDeployment = JSON.parse(readFileSync(l2DedicatedResolverImplPath, "utf8"));
+const mockDurinL1ResolverImplDeployment = JSON.parse(readFileSync(mockDurinL1ResolverImplPath, "utf8"));
 const userRegistryImplDeployment = JSON.parse(readFileSync(userRegistryImplPath, "utf8"));
 const registryDatastoreDeployment = JSON.parse(readFileSync(registryDatastorePath, "utf8"));
 const registryMetadataDeployment = JSON.parse(readFileSync(registryMetadataPath, "utf8"));
 const l1EjectionControllerDeployment = JSON.parse(readFileSync(l1EjectionControllerPath, "utf8"));
 const l2EjectionControllerDeployment = JSON.parse(readFileSync(l2EjectionControllerPath, "utf8"));
-
+const mockDurinL2RegistryDeployment = JSON.parse(readFileSync(mockDurinL2RegistryPath, "utf8"));
 const resolverAddresses = new Set<string>();
 
 async function waitForTransaction(hash: `0x${string}`, client: PublicClient) {
@@ -95,6 +113,33 @@ function formatEventLog(log: Log, abi: Abi) {
     args: decoded.args,
   };
 }
+
+async function deployMockDurinL1Resolver(name: string, l2RegistryAddress: `0x${string}`, account: any) {
+  console.log(`Deploying MockDurinL1Resolver for ${l2RegistryAddress}...`);
+  const verifiableFactory = getContract({
+    address: l1VerifiableFactoryDeployment.address,
+    abi: l1VerifiableFactoryDeployment.abi,
+    client: l1Client,
+  });
+  const salt = BigInt(Date.now());
+  const initData = encodeFunctionData({
+    abi: mockDurinL1ResolverImplDeployment.abi,
+    functionName: "initialize",
+    args: [name, otherl2Chain.id, l2RegistryAddress],
+  });
+
+  const hash = await verifiableFactory.write.deployProxy(
+    [mockDurinL1ResolverImplDeployment.address, salt, initData],
+    { account }
+  );
+  const receipt = await waitForTransaction(hash, l1Client);
+  const logs = parseEventLogs({
+    abi: l1VerifiableFactoryDeployment.abi,
+    eventName: "ProxyDeployed",
+    logs: receipt.logs,
+  }) as unknown as [{ args: { proxyAddress: `0x${string}` } }];
+  return logs[0].args.proxyAddress;
+} 
 
 async function deployDedicatedResolver(name: string, owner: `0x${string}`, account: any, chain: string) {
   let verifiableFactoryDeployment;
@@ -220,8 +265,6 @@ async function registerBaseName(
   await waitForTransaction(tx, l2Client);
 
   console.log(`Transaction hash: ${tx}`);
-  const result = await ethRegistry.read.getNameData([name]) as [bigint, bigint, number];
-  const [tokenId, expiry, tokenIdVersion] = result;
 
   console.log(`Setting ETH address for ${name}...`);
   await dedicatedResolver.write.setAddr(
@@ -233,7 +276,7 @@ async function registerBaseName(
     ["domain", name],
     { account }
   );
-
+  const [tokenId, expiry, tokenIdVersion] = (await ethRegistry.read.getNameData([name])) as [bigint, bigint, number];
   console.log(`Token ID: ${tokenId}`);
   console.log(`Expiry: ${expiry}`);
   console.log(`Token ID Version: ${tokenIdVersion}`);
@@ -346,9 +389,14 @@ async function ejectName(
     { account }
   );
   await waitForTransaction(transferTx, l2Client);
-  console.log(`Token transferred to L2EjectionController, tx hash: ${transferTx}`);
+  console.log(`Token ${tokenId} transferred to L2EjectionController, tx hash: ${transferTx}`);
 
   const newOwner = await l1EthRegistry.read.ownerOf([tokenId]);
+  const nameData = (await l1EthRegistry.read.getNameData([tokenId])) as [bigint, bigint, number];
+  console.log(`Name data: ${nameData}`);
+  console.log(`L2 Token ID: ${tokenId}, L1 Token ID: ${nameData[0]}`);
+  const resolver = await l1EthRegistry.read.getResolver([tokenId]);
+  console.log(`Resolver: ${resolver}`);
   console.log(`New owner on L1: ${newOwner}`);
   console.log("✓ Name successfully ejected to L1");
 
@@ -406,6 +454,11 @@ async function createAlias(
 
 async function registerNames() {
   const account = mnemonicToAccount("test test test test test test test test test test test junk");
+  const l1EthRegistry = getContract({
+    address: l1EthRegistryDeployment.address,
+    abi: l1EthRegistryDeployment.abi,
+    client: l1Client,
+  });
   const ethRegistry = getContract({
     address: ethRegistryDeployment.address,
     abi: ethRegistryDeployment.abi,
@@ -421,6 +474,35 @@ async function registerNames() {
 
     if (name === "ejected" || name === "otherl2") {
       await ejectName(name, tokenId, account, ethRegistry);
+
+      const [otherl2tokenid] = (await l1EthRegistry.read.getNameData([name])) as [bigint, bigint, number];
+      console.log(`otherl2tokenid for ${name}`, otherl2tokenid);
+      const resolver = await l1EthRegistry.read.getResolver([otherl2tokenid]);
+      console.log(`Resolver for ${name}: ${resolver}`);
+      if(name === "otherl2") {
+        const encodedName = dnsEncodeName(`${name}.eth`);
+        const mockDurinL1ResolverDeployment = await deployMockDurinL1Resolver(encodedName, mockDurinL2RegistryDeployment.address, account);
+        console.log(`MockDurinL1Resolver deployed at ${mockDurinL1ResolverDeployment}`);
+        const tx = await l1EthRegistry.write.setResolver([otherl2tokenid, mockDurinL1ResolverDeployment], { account });
+        await waitForTransaction(tx, l1Client);
+        console.log(`Resolver for ${name} set to ${mockDurinL1ResolverDeployment}`);
+        const mockDurinL2Registry = getContract({
+          address: mockDurinL2RegistryDeployment.address,
+          abi: mockDurinL2RegistryDeployment.abi,
+          client: otherl2Client,
+        });
+        const sublabel = 'sub1'
+        const node = namehash(`${sublabel}.${name}.eth`);
+        const tx3 = await mockDurinL2Registry.write.createSubnode([node, sublabel, account.address, []], { account });
+        await waitForTransaction(tx3, otherl2Client);
+        console.log(`Subname created for ${name} on L2`);
+        const tx4 = await mockDurinL2Registry.write.setAddr([node, 60n, account.address], { account }); 
+        await waitForTransaction(tx4, otherl2Client);
+        console.log(`Address set for ${name} on L2`);
+        const tx5 = await mockDurinL2Registry.write.setText([node, "domain", `${sublabel}.${name}.eth on otherl2`], { account });
+        await waitForTransaction(tx5, otherl2Client);
+        console.log(`TEXT record set for ${name} on L2`);
+      }
     }
 
     if (name === "test1") {
