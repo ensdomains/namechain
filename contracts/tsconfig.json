@@ -29,5 +29,6 @@
     "experimentalSpecifierResolution": "node",
     "files": true
   },
-  "files": ["hardhat.config.ts", "rocketh.ts", "vitest.config.ts"]
+  "files": ["hardhat.config.ts", "rocketh.ts", "vitest.config.ts"],
+  "exclude": ["lib"]
 }

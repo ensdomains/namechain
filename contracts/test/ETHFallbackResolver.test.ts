@@ -1,6 +1,5 @@
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
 import { serve } from "@namestone/ezccip/serve";
-import { expect } from "chai";
 import { BrowserProvider } from "ethers/providers";
 import hre from "hardhat";
 import { readFileSync } from "node:fs";
@@ -15,7 +14,8 @@ import {
   parseAbi,
   toHex,
 } from "viem";
-import { afterAll, afterEach, assert, describe, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
+
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { deployArtifact } from "./fixtures/deployArtifact.js";
@@ -221,13 +221,13 @@ describe("ETHFallbackResolver", () => {
           ]),
         )
           .toBeRevertedWithCustomError("ResolverError")
-          .withArgs(
+          .withArgs([
             encodeErrorResult({
               abi: F.ethFallbackResolver.abi,
               errorName: "UnreachableName",
               args: [dnsEncodeName(name)],
             }),
-          );
+          ]);
       });
     }
   });
@@ -431,7 +431,7 @@ describe("ETHFallbackResolver", () => {
         ]),
       )
         .toBeRevertedWithCustomError("UnsupportedResolverProfile")
-        .withArgs(dummySelector);
+        .withArgs([dummySelector]);
     });
     for (const res of makeResolutions(kp)) {
       it(res.desc, async () => {

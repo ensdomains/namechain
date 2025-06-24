@@ -38,6 +38,9 @@ jobs:
       - name: Run tests with coverage
         run: bun --filter contracts coverage
 
+      - name: Check types
+        run: bun --filter contracts check:types
+
       - name: Generate coverage report
         run: bunx @lcov-viewer/cli lcov -o ./contracts/coverage ./contracts/lcov.info
 
