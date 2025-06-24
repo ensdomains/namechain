@@ -1,6 +1,7 @@
 import { createPublicClient, http, type Chain, getContract, type Log, decodeEventLog, type Abi, type DecodeEventLogReturnType } from "viem";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { deployments, eventABIs, resolverEvents } from "./shared/config.js";
 
 // Define chain types
 const l1Chain: Chain = {
@@ -49,40 +50,8 @@ const otherl2Client = createPublicClient({
   transport: http(),
 });
 
-// Read deployment files
-const rootRegistryPath = join(process.cwd(), "deployments", "l1-local", "RootRegistry.json");
-const l1EthRegistryPath = join(process.cwd(), "deployments", "l1-local", "L1ETHRegistry.json");
-const ethRegistryPath = join(process.cwd(), "deployments", "l2-local", "ETHRegistry.json");
-const l1RegistryDatastorePath = join(process.cwd(), "deployments", "l1-local", "RegistryDatastore.json");
-const l2RegistryDatastorePath = join(process.cwd(), "deployments", "l2-local", "RegistryDatastore.json");
-const dedicatedResolverImplPath = join(process.cwd(), "deployments", "l2-local", "DedicatedResolverImpl.json");
-const l1EjectionControllerPath = join(process.cwd(), "deployments", "l1-local", "L1EjectionController.json");
-const l2EjectionControllerPath = join(process.cwd(), "deployments", "l2-local", "L2EjectionController.json");
-const mockDurinL2RegistryPath = join(process.cwd(), "deployments", "otherl2-local", "MockDurinL2Registry.json");
-const mockDurinL1ResolverImplPath = join(process.cwd(), "deployments", "l1-local", "MockDurinL1ResolverImpl.json");
-
-const rootRegistryDeployment = JSON.parse(readFileSync(rootRegistryPath, "utf8"));
-const l1EthRegistryDeployment = JSON.parse(readFileSync(l1EthRegistryPath, "utf8"));
-const ethRegistryDeployment = JSON.parse(readFileSync(ethRegistryPath, "utf8"));
-const l1RegistryDatastoreDeployment = JSON.parse(readFileSync(l1RegistryDatastorePath, "utf8"));
-const l2RegistryDatastoreDeployment = JSON.parse(readFileSync(l2RegistryDatastorePath, "utf8"));
-const dedicatedResolverImplDeployment = JSON.parse(readFileSync(dedicatedResolverImplPath, "utf8"));
-const l1EjectionControllerDeployment = JSON.parse(readFileSync(l1EjectionControllerPath, "utf8"));
-const l2EjectionControllerDeployment = JSON.parse(readFileSync(l2EjectionControllerPath, "utf8"));
-const mockDurinL2RegistryDeployment = JSON.parse(readFileSync(mockDurinL2RegistryPath, "utf8"));
-const mockDurinL1ResolverImplDeployment = JSON.parse(readFileSync(mockDurinL1ResolverImplPath, "utf8"));
-
-// Extract ABIs from deployment files
-const registryEvents = l1EthRegistryDeployment.abi.filter((item: any) => item.type === "event");
-const datastoreEvents = l1RegistryDatastoreDeployment.abi.filter((item: any) => item.type === "event");
-const dedicatedResolverEvents = dedicatedResolverImplDeployment.abi.filter((item: any) => item.type === "event");
-const ejectionControllerEvents = l1EjectionControllerDeployment.abi.filter((item: any) => item.type === "event");
-const mockDurinL2RegistryEvents = mockDurinL2RegistryDeployment.abi.filter((item: any) => item.type === "event");
-const mockDurinL1ResolverEvents = mockDurinL1ResolverImplDeployment.abi.filter((item: any) => item.type === "event");
-const resolverEvents = dedicatedResolverEvents.concat(mockDurinL1ResolverEvents);
-console.log('***', {resolverEvents});
 // Get the datastore address from RootRegistry
-const rootRegistryABI = rootRegistryDeployment.abi;
+const rootRegistryABI = deployments.rootRegistry.abi;
 
 function decodeEvent(log: Log, events: Abi): DecodeEventLogReturnType | null {
   try {
@@ -127,20 +96,20 @@ async function listenToEvents() {
   // Display contract addresses
   console.log("Contract Addresses:");
   console.log("-------------------");
-  console.log(`RootRegistry: ${rootRegistryDeployment.address}`);
-  console.log(`L1ETHRegistry: ${l1EthRegistryDeployment.address}`);
-  console.log(`ETHRegistry: ${ethRegistryDeployment.address}`);
-  console.log(`L1 RegistryDatastore: ${l1RegistryDatastoreDeployment.address}`);
-  console.log(`L2 RegistryDatastore: ${l2RegistryDatastoreDeployment.address}`);
-  console.log(`DedicatedResolverImpl: ${dedicatedResolverImplDeployment.address}`);
-  console.log(`L1EjectionController: ${l1EjectionControllerDeployment.address}`);
-  console.log(`L2EjectionController: ${l2EjectionControllerDeployment.address}`);
-  console.log(`MockDurinL2Registry: ${mockDurinL2RegistryDeployment.address}`);
-  console.log(`MockDurinL1ResolverImpl: ${mockDurinL1ResolverImplDeployment.address}`);
+  console.log(`RootRegistry: ${deployments.rootRegistry.address}`);
+  console.log(`L1ETHRegistry: ${deployments.l1EthRegistry.address}`);
+  console.log(`ETHRegistry: ${deployments.ethRegistry.address}`);
+  console.log(`L1 RegistryDatastore: ${deployments.l1RegistryDatastore.address}`);
+  console.log(`L2 RegistryDatastore: ${deployments.l2RegistryDatastore.address}`);
+  console.log(`DedicatedResolverImpl: ${deployments.dedicatedResolverImpl.address}`);
+  console.log(`L1EjectionController: ${deployments.l1EjectionController.address}`);
+  console.log(`L2EjectionController: ${deployments.l2EjectionController.address}`);
+  console.log(`MockDurinL2Registry: ${deployments.mockDurinL2Registry.address}`);
+  console.log(`MockDurinL1ResolverImpl: ${deployments.mockDurinL1ResolverImpl.address}`);
 
   // Get the datastore address from RootRegistry
   const rootRegistry = getContract({
-    address: rootRegistryDeployment.address,
+    address: deployments.rootRegistry.address,
     abi: rootRegistryABI,
     client: l1Client,
   });
@@ -162,14 +131,14 @@ async function listenToEvents() {
 
   // RootRegistry historical events
   const rootRegistryLogs = await l1Client.getLogs({
-    address: rootRegistryDeployment.address,
+    address: deployments.rootRegistry.address,
     fromBlock: 0n,
     toBlock: l1Block,
   });
   if (rootRegistryLogs.length > 0) {
     console.log("\n *** Historical RootRegistry Events:");
     rootRegistryLogs.forEach(log => {
-      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, registryEvents, "L1", "RootRegistry", rootRegistryDeployment.address);
+      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, eventABIs.registryEvents, "L1", "RootRegistry", deployments.rootRegistry.address);
       console.log(`- Event: ${eventName}`);
       console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
       console.log(`- Transaction: ${log.transactionHash}`);
@@ -180,14 +149,14 @@ async function listenToEvents() {
 
   // L1ETHRegistry historical events
   const l1EthRegistryLogs = await l1Client.getLogs({
-    address: l1EthRegistryDeployment.address,
+    address: deployments.l1EthRegistry.address,
     fromBlock: 0n,
     toBlock: l1Block,
   });
   if (l1EthRegistryLogs.length > 0) {
     console.log("\n *** Historical L1ETHRegistry Events:");
     l1EthRegistryLogs.forEach(log => {
-      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, registryEvents, "L1", "L1ETHRegistry", l1EthRegistryDeployment.address);
+      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, eventABIs.registryEvents, "L1", "L1ETHRegistry", deployments.l1EthRegistry.address);
       console.log(`- Event: ${eventName}`);
       console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
       console.log(`- Transaction: ${log.transactionHash}`);
@@ -210,14 +179,14 @@ async function listenToEvents() {
 
   // ETHRegistry historical events
   const ethRegistryLogs = await l2Client.getLogs({
-    address: ethRegistryDeployment.address,
+    address: deployments.ethRegistry.address,
     fromBlock: 0n,
     toBlock: l2Block,
   });
   if (ethRegistryLogs.length > 0) {
     console.log("\n *** Historical ETHRegistry Events:");
     ethRegistryLogs.forEach(log => {
-      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, registryEvents, "L2", "ETHRegistry", ethRegistryDeployment.address);
+      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, eventABIs.registryEvents, "L2", "ETHRegistry", deployments.ethRegistry.address);
       console.log(`- Event: ${eventName}`);
       console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
       console.log(`- Transaction: ${log.transactionHash}`);
@@ -278,14 +247,14 @@ async function listenToEvents() {
 
   // L1EjectionController historical events
   const l1EjectionControllerLogs = await l1Client.getLogs({
-    address: l1EjectionControllerDeployment.address,
+    address: deployments.l1EjectionController.address,
     fromBlock: 0n,
     toBlock: l1Block,
   });
   if (l1EjectionControllerLogs.length > 0) {
     console.log(`\n *** Historical L1EjectionController Events: ${l1EjectionControllerLogs.length}`);
     l1EjectionControllerLogs.forEach(log => {
-      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, ejectionControllerEvents, "L1", "L1EjectionController", l1EjectionControllerDeployment.address);
+      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, eventABIs.ejectionControllerEvents, "L1", "L1EjectionController", deployments.l1EjectionController.address);
       console.log(`- Event: ${eventName}`);
       console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
       console.log(`- Transaction: ${log.transactionHash}`);
@@ -296,14 +265,14 @@ async function listenToEvents() {
 
   // L2EjectionController historical events
   const l2EjectionControllerLogs = await l2Client.getLogs({
-    address: l2EjectionControllerDeployment.address,
+    address: deployments.l2EjectionController.address,
     fromBlock: 0n,
     toBlock: l2Block,
   });
   if (l2EjectionControllerLogs.length > 0) {
     console.log(`\n *** Historical L2EjectionController Events: ${l2EjectionControllerLogs.length}`);
     l2EjectionControllerLogs.forEach(log => {
-      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, ejectionControllerEvents, "L2", "L2EjectionController", l2EjectionControllerDeployment.address);
+      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, eventABIs.ejectionControllerEvents, "L2", "L2EjectionController", deployments.l2EjectionController.address);
       console.log(`- Event: ${eventName}`);
       console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
       console.log(`- Transaction: ${log.transactionHash}`);
@@ -314,14 +283,14 @@ async function listenToEvents() {
 
   // MockDurinL2Registry historical events
   const mockDurinL2RegistryLogs = await otherl2Client.getLogs({
-    address: mockDurinL2RegistryDeployment.address,
+    address: deployments.mockDurinL2Registry.address,
     fromBlock: 0n,
     toBlock: otherl2Block,
   });
   if (mockDurinL2RegistryLogs.length > 0) {
     console.log(`\n *** Historical MockDurinL2Registry Events: ${mockDurinL2RegistryLogs.length}`);
     mockDurinL2RegistryLogs.forEach(log => {
-      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, mockDurinL2RegistryEvents, "Other L2", "MockDurinL2Registry", mockDurinL2RegistryDeployment.address);
+      const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, eventABIs.mockDurinL2RegistryEvents, "Other L2", "MockDurinL2Registry", deployments.mockDurinL2Registry.address);
       console.log(`- Event: ${eventName}`);
       console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
       console.log(`- Transaction: ${log.transactionHash}`);
@@ -355,14 +324,14 @@ async function listenToEvents() {
     const latestRootRegistryBlock = await l1Client.getBlockNumber();
     if (latestRootRegistryBlock > lastRootRegistryBlock) {
       const logs = await l1Client.getLogs({
-        address: rootRegistryDeployment.address,
+        address: deployments.rootRegistry.address,
         fromBlock: lastRootRegistryBlock + 1n,
         toBlock: latestRootRegistryBlock,
       });
       if (logs.length > 0) {
         console.log("\nNew RootRegistry Events:");
         logs.forEach(log => {
-          const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, registryEvents, "L1", "RootRegistry", rootRegistryDeployment.address);
+          const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, eventABIs.registryEvents, "L1", "RootRegistry", deployments.rootRegistry.address);
           console.log(`- Event: ${eventName}`);
           console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
           console.log(`- Transaction: ${log.transactionHash}`);
@@ -377,14 +346,14 @@ async function listenToEvents() {
     const latestL1EthRegistryBlock = await l1Client.getBlockNumber();
     if (latestL1EthRegistryBlock > lastL1EthRegistryBlock) {
       const logs = await l1Client.getLogs({
-        address: l1EthRegistryDeployment.address,
+        address: deployments.l1EthRegistry.address,
         fromBlock: lastL1EthRegistryBlock + 1n,
         toBlock: latestL1EthRegistryBlock,
       });
       if (logs.length > 0) {
         console.log("\nNew L1ETHRegistry Events:");
         logs.forEach(log => {
-          const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, registryEvents, "L1", "L1ETHRegistry", l1EthRegistryDeployment.address);
+          const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, eventABIs.registryEvents, "L1", "L1ETHRegistry", deployments.l1EthRegistry.address);
           console.log(`- Event: ${eventName}`);
           console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
           console.log(`- Transaction: ${log.transactionHash}`);
@@ -406,14 +375,14 @@ async function listenToEvents() {
     const latestEthRegistryBlock = await l2Client.getBlockNumber();
     if (latestEthRegistryBlock > lastEthRegistryBlock) {
       const logs = await l2Client.getLogs({
-        address: ethRegistryDeployment.address,
+        address: deployments.ethRegistry.address,
         fromBlock: lastEthRegistryBlock + 1n,
         toBlock: latestEthRegistryBlock,
       });
       if (logs.length > 0) {
         console.log("\nNew ETHRegistry Events:");
         logs.forEach(log => {
-          const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, registryEvents, "L2", "ETHRegistry", ethRegistryDeployment.address);
+          const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, eventABIs.registryEvents, "L2", "ETHRegistry", deployments.ethRegistry.address);
           console.log(`- Event: ${eventName}`);
           console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
           console.log(`- Transaction: ${log.transactionHash}`);
@@ -460,14 +429,14 @@ async function listenToEvents() {
     const latestOtherl2Block = await otherl2Client.getBlockNumber();
     if (latestOtherl2Block > lastMockDurinL2RegistryBlock) {
       const logs = await otherl2Client.getLogs({
-        address: mockDurinL2RegistryDeployment.address,
+        address: deployments.mockDurinL2Registry.address,
         fromBlock: lastMockDurinL2RegistryBlock + 1n,
         toBlock: latestOtherl2Block,
       });
       if (logs.length > 0) {
         console.log("\nNew MockDurinL2Registry Events:");
         logs.forEach(log => {
-          const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, mockDurinL2RegistryEvents, "Other L2", "MockDurinL2Registry", mockDurinL2RegistryDeployment.address);
+          const { eventName, args, chain, contractName, contractAddress } = formatEventLog(log, eventABIs.mockDurinL2RegistryEvents, "Other L2", "MockDurinL2Registry", deployments.mockDurinL2Registry.address);
           console.log(`- Event: ${eventName}`);
           console.log(`- Chain: ${chain} (${contractName} - ${contractAddress})`);
           console.log(`- Transaction: ${log.transactionHash}`);

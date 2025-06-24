@@ -3,6 +3,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { ResolverRecord, LabelInfo, RegistryNode, ResolverUpdateEventArgs, TextChangedEventArgs, AddressChangedEventArgs, SubregistryUpdateEventArgs, NewSubnameEventArgs, DecodedEvent, MetadataChangedEventArgs } from './types.js';
 import { dnsDecodeName } from "../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
+import { deployments, eventABIs, resolverEvents } from "./shared/config.js";
 // Add debug flag at the top of the file
 const DEBUG = false;
 
@@ -51,29 +52,6 @@ const otherl2Client = createPublicClient({
   chain: otherl2Chain,
   transport: http(),
 });
-
-// Remove datastore-related imports and variables
-const l1RootRegistryPath = join(process.cwd(), "deployments", "l1-local", "RootRegistry.json");
-const l1EthRegistryPath = join(process.cwd(), "deployments", "l1-local", "L1ETHRegistry.json");
-const l2EthRegistryPath = join(process.cwd(), "deployments", "l2-local", "ETHRegistry.json");
-const userRegistryImplPath = join(process.cwd(), "deployments", "l2-local", "UserRegistryImpl.json");
-const dedicatedResolverPath = join(process.cwd(), "deployments", "l2-local", "DedicatedResolverImpl.json");
-const mockDurinL1ResolverPath = join(process.cwd(), "deployments", "l1-local", "MockDurinL1ResolverImpl.json");
-
-// Load deployment artifacts
-const rootRegistryDeployment = JSON.parse(readFileSync(l1RootRegistryPath, "utf8"));
-const l1EthRegistryDeployment = JSON.parse(readFileSync(l1EthRegistryPath, "utf8"));
-const ethRegistryDeployment = JSON.parse(readFileSync(l2EthRegistryPath, "utf8"));
-const userRegistryImplDeployment = JSON.parse(readFileSync(userRegistryImplPath, "utf8"));
-const dedicatedResolverDeployment = JSON.parse(readFileSync(dedicatedResolverPath, "utf8"));
-const mockDurinL1ResolverDeployment = JSON.parse(readFileSync(mockDurinL1ResolverPath, "utf8"));
-
-// Extract ABIs for events
-const registryEvents = l1EthRegistryDeployment.abi.filter((item: any) => item.type === "event");
-const dedicatedResolverEvents = dedicatedResolverDeployment.abi.filter((item: any) => item.type === "event");
-const userRegistryEvents = userRegistryImplDeployment.abi.filter((item: any) => item.type === "event");
-const mockDurinL1ResolverEvents = mockDurinL1ResolverDeployment.abi.filter((item: any) => item.type === "event");
-const resolverEvents = [...dedicatedResolverEvents, ...mockDurinL1ResolverEvents];
 
 // Add at the top of the file, after imports
 interface ResolverInfo {
@@ -218,10 +196,10 @@ async function processRegistryEvents(
 
 // Replace the existing event processing code with calls to processRegistryEvents
 console.log("Processing RootRegistry events...");
-await processRegistryEvents(l1Client, rootRegistryDeployment.address, l1Chain.id, registryEvents);
+await processRegistryEvents(l1Client, deployments.rootRegistry.address, l1Chain.id, eventABIs.registryEvents);
 // Step 2: Manually insert L1 ETH Registry to L2 ETH Registry link
-const l1EthRegistryKey = createRegistryKey(l1Chain.id, l1EthRegistryDeployment.address.toLowerCase());
-const l2EthRegistryKey = createRegistryKey(l2Chain.id, ethRegistryDeployment.address.toLowerCase());
+const l1EthRegistryKey = createRegistryKey(l1Chain.id, deployments.l1EthRegistry.address.toLowerCase());
+const l2EthRegistryKey = createRegistryKey(l2Chain.id, deployments.ethRegistry.address.toLowerCase());
 
 // Initialize L1 ETH Registry if not exists
 if (!registryTree.has(l1EthRegistryKey)) {
@@ -239,7 +217,7 @@ l1EthRegistry.labels.set("", {
   label: "",
   resolver: null,
   chainId: l2Chain.id,
-  registry: ethRegistryDeployment.address.toLowerCase()
+  registry: deployments.ethRegistry.address.toLowerCase()
 });
 
 // Initialize L2 ETH Registry
@@ -251,8 +229,7 @@ if (!registryTree.has(l2EthRegistryKey)) {
   });
 }
 console.log("Processing L2 ETH Registry events...");
-await processRegistryEvents(l2Client, ethRegistryDeployment.address, l2Chain.id, registryEvents);
-
+await processRegistryEvents(l2Client, deployments.ethRegistry.address, l2Chain.id, eventABIs.registryEvents);
 
 // Convert registry tree to plain object for logging
 const registryTreePlain = convertToPlainObject(registryTree);
@@ -397,7 +374,7 @@ function traverseRegistry(
     }
     const metadata = metadataRecords.get(fullName)
     if(metadata){
-      const subRegistryKey = createRegistryKey(metadata.chainId, metadata.l2RegistryAddress)
+      const subRegistryKey = createRegistryKey(parseInt(metadata.chainId), metadata.l2RegistryAddress)
       traverseRegistry(subRegistryKey, newPath, names, visited);
     }
   }
@@ -405,7 +382,7 @@ function traverseRegistry(
 }
 
 // Example usage after building the registryTree:
-const rootKey = createRegistryKey(l1Chain.id, rootRegistryDeployment.address.toLowerCase());
+const rootKey = createRegistryKey(l1Chain.id, deployments.rootRegistry.address.toLowerCase());
 console.log('resolverRecords', resolverRecords)
 console.log('metadataRecords', metadataRecords);
 // Update the final output section
@@ -468,7 +445,7 @@ async function processResolverEvents(
       const args = decoded.args as unknown as MetadataChangedEventArgs;
       const otherChainId = parseInt(args.chainId);
       if(otherChainId === otherl2Chain.id){
-        processRegistryEvents(otherl2Client, args.l2RegistryAddress, otherChainId, registryEvents, new Set(), args);
+        processRegistryEvents(otherl2Client, args.l2RegistryAddress, otherChainId, eventABIs.registryEvents, new Set(), args);
       }
       metadataRecords.set(dnsDecodeName(args.name as `0x${string}`) , args);
     }

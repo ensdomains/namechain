@@ -1,6 +1,8 @@
 export interface ResolverRecord {
   type: 'address' | 'text';
   value: string;
+  node?: `0x${string}`;
+  suffix?: string;
 }
 
 export interface LabelInfo {
@@ -53,7 +55,7 @@ export interface NewSubnameEventArgs {
 export interface MetadataChangedEventArgs {
   name: string;
   value: string;
-  chainId: number;
+  chainId: string;
   l2RegistryAddress: string;
 }
 
