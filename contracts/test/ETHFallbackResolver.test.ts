@@ -354,10 +354,7 @@ describe("ETHFallbackResolver", () => {
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
         };
         const interval = 1000n;
-<<<<<<< HEAD
-=======
         await sync();
->>>>>>> main
         const { timestamp } = await F.namechain.publicClient.getBlock();
         await F.namechain.setupName({
           name: kp.name,
