@@ -10,7 +10,10 @@
     "test": "bun run test:forge && bun run test:hardhat",
     "coverage": "forge coverage --report lcov && bun run test:hardhat && bun run test:bridge",
     "clean": "forge clean && hardhat clean",
-    "devnet": "bun ./script/runDevnet.ts"
+    "devnet": "bun ./script/runDevnet.ts",
+    "listen": "bun ./script/listenToEvents.ts",
+    "listNames": "bun ./script/listNames.ts",
+    "registerNames": "bun ./script/registerNames.ts"
   },
   "devDependencies": {
     "@ensdomains/hardhat-chai-matchers-viem": "^0.1.4",
