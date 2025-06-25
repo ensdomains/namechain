@@ -41,9 +41,14 @@ WORKDIR /app/contracts
 
 # Initialize git in contracts dir and install forge dependencies
 RUN git config --global init.defaultBranch main && \
+    cd /app && \
     git init && \
+    git submodule update --init --recursive && \
+    cd contracts && \
     forge i
 
+# Build Contracts
+RUN bun run compile:hardhat
 
 # Expose ports for L1 and L2
 EXPOSE 8545
