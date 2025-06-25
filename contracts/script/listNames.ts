@@ -2,7 +2,7 @@ import { createPublicClient, http, type Chain, type Log, decodeEventLog, type Ab
 import { readFileSync } from "fs";
 import { join } from "path";
 import { ResolverRecord, LabelInfo, RegistryNode, ResolverUpdateEventArgs, TextChangedEventArgs, AddressChangedEventArgs, SubregistryUpdateEventArgs, NewSubnameEventArgs, DecodedEvent, MetadataChangedEventArgs } from './types.js';
-import { dnsDecodeName } from "../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
+import { dnsDecodeName } from "../lib/ens-contracts/test/fixtures/dnsDecodeName.js";
 import { deployments, eventABIs, resolverEvents } from "./shared/config.js";
 // Add debug flag at the top of the file
 const DEBUG = false;
