@@ -23,15 +23,15 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Use Node 24
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: ".node-version"
 
-      - name: Use Bun 1.2.17
-        uses: oven-sh/setup-bun@v1
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.2.17
+          bun-version-file: ".bun-version"
 
       - run: bun install --frozen-lockfile
 
