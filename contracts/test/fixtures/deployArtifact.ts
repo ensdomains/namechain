@@ -1,16 +1,17 @@
-import type {
-  DefaultChainType,
-  NetworkConnection,
-} from "hardhat/types/network";
 import { readFile } from "node:fs/promises";
 import {
   type Abi,
+  type Account,
   type Address,
+  type Chain,
   concat,
   getContractAddress,
   type Hex,
   sliceHex,
+  type Transport,
+  type WalletClient,
 } from "viem";
+import { getTransactionCount, waitForTransactionReceipt } from "viem/actions";
 
 type LinkReferences = Record<
   string,
@@ -32,10 +33,9 @@ type HardhatArtifact = {
 };
 
 export async function deployArtifact(
-  networkConnection: NetworkConnection<DefaultChainType>,
+  walletClient: WalletClient<Transport, Chain, Account>,
   options: {
     file: string | URL;
-    from?: Hex;
     args?: any[];
     libs?: Record<string, Address>;
   },
@@ -54,30 +54,26 @@ export async function deployArtifact(
   }
   for (const ref of Object.values(linkReferences)) {
     for (const [name, places] of Object.entries(ref)) {
-      const lib = options.libs?.[name];
-      if (!lib) throw new Error(`expected library: ${name}`);
+      const address = options.libs?.[name];
+      if (!address) throw new Error(`expected library: ${name}`);
       for (const { start, length } of places) {
         bytecode = concat([
           sliceHex(bytecode, 0, start),
-          lib,
+          address,
           sliceHex(bytecode, start + length),
         ]);
       }
     }
   }
-  const walletClient = options.from
-    ? await networkConnection.viem.getWalletClient(options.from)
-    : await networkConnection.viem.getWalletClients().then((x) => x[0]);
-  const publicClient = await networkConnection.viem.getPublicClient();
   const nonce = BigInt(
-    await publicClient.getTransactionCount(walletClient.account),
+    await getTransactionCount(walletClient, walletClient.account),
   );
   const hash = await walletClient.deployContract({
     abi: artifact.abi,
     bytecode,
     args: options.args,
   });
-  await publicClient.waitForTransactionReceipt({ hash });
+  await waitForTransactionReceipt(walletClient, { hash });
   return getContractAddress({
     from: walletClient.account.address,
     nonce,

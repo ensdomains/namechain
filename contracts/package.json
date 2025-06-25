@@ -31,6 +31,7 @@
     "hardhat": "3.0.0-next.8",
     "hardhat-deploy": "^2.0.0-next.25",
     "prettier": "^3.5.3",
+    "prettier-plugin-solidity": "^2.0.0",
     "prool": "^0.0.24",
     "rocketh": "^0.11.18",
     "ts-node": "^10.9.2",

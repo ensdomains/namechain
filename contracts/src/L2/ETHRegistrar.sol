@@ -66,7 +66,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
      * @return True if the name is available, false otherwise.
      */
     function available(string calldata name) external view returns (bool) {
-        (, uint64 expiry, ) = registry.getNameData(name);         
+        (, uint64 expiry, ) = registry.getNameData(name);
         return expiry < block.timestamp;
     }
 
@@ -167,11 +167,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
      * @param duration The duration of the renewal.
      */
     function renew(string calldata name, uint64 duration) external payable {
-        IPriceOracle.Price memory price = rentPrice(name, duration);
-        uint256 totalPrice = price.base + price.premium;
-        if (msg.value < totalPrice) {
-            revert InsufficientValue(totalPrice, msg.value);
-        }
+        uint256 totalPrice = checkPrice(name, duration);
 
         (uint256 tokenId, uint64 expiry, ) = registry.getNameData(name);
 
@@ -181,7 +177,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
             payable(msg.sender).transfer(msg.value - totalPrice);
         }
 
-        (, uint64 newExpiry, ) = registry.getNameData(name);
+        uint64 newExpiry = registry.getExpiry(tokenId);
 
         emit NameRenewed(name, duration, tokenId, newExpiry);
     }
