@@ -325,7 +325,7 @@ contract DNSTLDResolver is
     function _parseResolver(
         bytes memory v
     ) internal view returns (address resolver) {
-        if (v[0] == "0" && v[1] == "xow ") {
+        if (v[0] == "0" && v[1] == "x") {
             (address addr, bool valid) = HexUtils.hexToAddress(v, 2, v.length);
             if (valid) {
                 return addr;
