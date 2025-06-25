@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import {
   type Hex,
   decodeFunctionResult,
@@ -8,6 +7,8 @@ import {
   namehash,
   parseAbi,
 } from "viem";
+import { expect } from "vitest";
+
 import {
   COIN_TYPE_ETH,
   shortCoin,

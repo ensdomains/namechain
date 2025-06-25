@@ -21,8 +21,8 @@ RUN foundryup
 # Set working directory
 WORKDIR /app
 
-# Copy the root package.json and bun.lockb
-COPY package.json bun.lockb ./
+# Copy the root package.json and bun.lock
+COPY package.json bun.lock ./
 
 # Copy the package.json for each workspace.
 COPY contracts/package.json ./contracts/

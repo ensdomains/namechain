@@ -1,6 +1,5 @@
-import { expect } from "chai";
 import hre from "hardhat";
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { deployV2Fixture, ROLES } from "./fixtures/deployV2Fixture.js";
 import { dnsEncodeName, expectVar } from "./utils/utils.js";
