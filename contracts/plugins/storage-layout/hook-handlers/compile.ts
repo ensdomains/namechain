@@ -8,7 +8,7 @@ import type { StorageLayout } from "../types.ts";
 
 export default async (): Promise<Partial<SolidityHooks>> => {
   const handlers: Partial<SolidityHooks> = {
-    onCleanUpArtifacts: async (context, artifactFiles) => {
+    onCleanUpArtifacts: async (context, artifactFiles, next) => {
       const buildInfoOutputCache = new Map<string, SolidityBuildInfoOutput>();
       for (const fileName of artifactFiles) {
         const file = await readFile(fileName, "utf-8");
@@ -39,6 +39,7 @@ export default async (): Promise<Partial<SolidityHooks>> => {
         );
         await writeFile(fileToSaveTo, JSON.stringify(storageLayout, null, 2));
       }
+      return next(context, artifactFiles);
     },
   };
   return handlers;
