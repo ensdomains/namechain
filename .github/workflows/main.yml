@@ -28,10 +28,10 @@ jobs:
         with:
           node-version: 24
 
-      - name: Use Bun 1.2.2
+      - name: Use Bun 1.2.17
         uses: oven-sh/setup-bun@v1
         with:
-          bun-version: 1.2.2
+          bun-version: 1.2.17
 
       - run: bun install --frozen-lockfile
 
