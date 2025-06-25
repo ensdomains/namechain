@@ -3,7 +3,6 @@ pragma solidity >=0.8.13;
 
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import {UniversalResolver} from "../universalResolver/UniversalResolver.sol";
 import {CCIPBatcher, OffchainLookup} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
 import {DNSSEC} from "@ens/contracts/dnssec-oracle/DNSSEC.sol";
 import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
@@ -20,6 +19,7 @@ import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IFeatureSupporter, isFeatureSupported} from "../common/IFeatureSupporter.sol";
 import {ResolverFeatures} from "../common/ResolverFeatures.sol";
 
+/// @dev Gateway interface for DNSSEC oracle.
 interface IDNSGateway {
     function resolve(
         bytes memory name,
@@ -27,6 +27,7 @@ interface IDNSGateway {
     ) external returns (DNSSEC.RRSetWithSignature[] memory);
 }
 
+/// @dev Partial interface for `UniversalResolver`.
 interface IUniversalResolverStub {
     function findResolver(
         bytes memory
@@ -40,12 +41,19 @@ uint16 constant TYPE_TXT = 16;
 bytes constant PREFIX = "ENS1 ";
 uint256 constant PREFIX_LENGTH = 5; // PREFIX.length
 
+/// @title DNSTLDResolver
+/// @notice Resolver that performs imported DNS fallback to V1 and gasless DNS resolution.
 contract DNSTLDResolver is
     ERC165,
     IFeatureSupporter,
     IExtendedResolver,
     CCIPBatcher
 {
+    IUniversalResolverStub public immutable universalResolverV1;
+    IUniversalResolverStub public immutable universalResolverV2;
+    DNSSEC public immutable oracleVerifier;
+    string[] public oracleGateways;
+
     /// @dev `name` does not exist.
     ///      Error selector: `0x5fe9a5df`
     /// @param name The DNS-encoded ENS name.
@@ -54,11 +62,6 @@ contract DNSTLDResolver is
     /// @dev Some raw TXT data was incorrectly encoded.
     ///      Error selector: `0xf4ba19b7`
     error InvalidTXT();
-
-    IUniversalResolverStub public immutable universalResolverV1;
-    IUniversalResolverStub public immutable universalResolverV2;
-    DNSSEC public immutable oracleVerifier;
-    string[] public oracleGateways;
 
     constructor(
         IUniversalResolverStub _universalResolverV1,
@@ -87,13 +90,14 @@ contract DNSTLDResolver is
         return ResolverFeatures.RESOLVE_MULTICALL == feature;
     }
 
-    /// DNS Resolution with Fallback:
-    /// 0. If there exists a resolver in V1, go to step 3.
-    /// 1. Query the DNSSEC oracle for TXT records.
-    /// 2. Verify TXT records, find ENS1 record,  parse ENS1 record into resolver and context.
-    /// 3. Call the resolver and return the records.
-    /// @notice Callers should enable EIP-3668.
+    /// @notice Resolve `name` using V1 or DNSSEC.
+    ///         Callers should enable EIP-3668.
     /// @dev This function executes over multiple steps (step 1 of 3).
+    ///
+    /// 1. If there exists a resolver in V1, go to step 4.
+    /// 2. Query the DNSSEC oracle for TXT records.
+    /// 3. Verify TXT records, find ENS1 record, parse resolver and context.
+    /// 4. Call the resolver and return the requested records.
     function resolve(
         bytes calldata name,
         bytes calldata data
@@ -101,24 +105,27 @@ contract DNSTLDResolver is
         (address resolver, , uint256 offset) = universalResolverV1.findResolver(
             name
         );
-        if (resolver == address(0)) {
-            revert OffchainLookup(
-                address(this),
-                oracleGateways,
-                abi.encodeCall(IDNSGateway.resolve, (name, TYPE_TXT)),
-                this.resolveOracleCallback.selector,
-                abi.encode(name, data)
-            );
+        if (
+            resolver != address(0) &&
+            (offset == 0 ||
+                ERC165Checker.supportsERC165InterfaceUnchecked(
+                    resolver,
+                    type(IExtendedResolver).interfaceId
+                ))
+        ) {
+            _callResolver(resolver, name, data, false, "");
         }
-        if (!_isExtended(resolver) && offset != 0) {
-            revert UnreachableName(name);
-        }
-        _callResolver(resolver, name, data, false, "");
+        revert OffchainLookup(
+            address(this),
+            oracleGateways,
+            abi.encodeCall(IDNSGateway.resolve, (name, TYPE_TXT)),
+            this.resolveOracleCallback.selector,
+            abi.encode(name, data)
+        );
     }
 
     /// @dev CCIP-Read callback for `resolve()` from calling the DNSSEC oracle (step 2 of 3).
     ///      Reverts `UnreachableName` if no "ENS1" TXT record is found.
-    ///      Reverts `UnreachableName` if resolver is not a contract.
     /// @param response The response data.
     /// @param extraData The contextual data passed from `resolve()`.
     /// @return The abi-encoded result from the resolver.
@@ -156,11 +163,18 @@ contract DNSTLDResolver is
         revert UnreachableName(name);
     }
 
+    /// @dev Efficiently call another resolver.
+    ///      Reverts `UnreachableName` if resolver is not a contract.
+    /// @param resolver The resolver to call.
+    /// @param name The name to resolve.
+    /// @param call The calldata.
+    /// @param dns True if `IExtendedDNSResolver` should be considered.
+    /// @param context The context for `IExtendedDNSResolver`.
     function _callResolver(
         address resolver,
         bytes memory name,
         bytes memory call,
-        bool tryContext,
+        bool dns,
         bytes memory context
     ) internal view {
         if (resolver.code.length == 0) {
@@ -183,7 +197,7 @@ contract DNSTLDResolver is
         }
         bool extended;
         if (
-            tryContext &&
+            dns &&
             ERC165Checker.supportsERC165InterfaceUnchecked(
                 resolver,
                 type(IExtendedDNSResolver).interfaceId
@@ -206,7 +220,12 @@ contract DNSTLDResolver is
                     );
                 }
             }
-        } else if (_isExtended(resolver)) {
+        } else if (
+            ERC165Checker.supportsERC165InterfaceUnchecked(
+                resolver,
+                type(IExtendedResolver).interfaceId
+            )
+        ) {
             if (direct) {
                 ccipRead(
                     resolver,
@@ -230,10 +249,10 @@ contract DNSTLDResolver is
         );
     }
 
-    /// @dev CCIP-Read callback for `_callResolver()` from calling the DNS resolver (step 3 of 3).
-    /// @param response The response data.
-    /// @param extraData The 
-    /// @return result The abi-encoded result.
+    /// @dev CCIP-Read callback for `_callResolver()` from batch calling the gasless DNS resolver (step 3 of 3).
+    /// @param response The response data from the batch gateway.
+    /// @param extraData The abi-encoded properties of the call.
+    /// @return result The abi-encoded result from the resolver.
     function resolveBatchCallback(
         bytes calldata response,
         bytes calldata extraData
@@ -261,9 +280,9 @@ contract DNSTLDResolver is
     }
 
     /// @dev Parse the TXT record into resolver and context.
-    ///      Format: "ENS1 <name or address> <context?>"
+    ///      Format: "ENS1 <name or address> <context?>".
     /// @param txt The TXT data.
-    /// @return resolver The resolver address or null if wrong format.
+    /// @return resolver The resolver address or null if wrong format or name didn't resolve.
     /// @return context The optional context data.
     function _parseTXT(
         bytes memory txt
@@ -297,12 +316,16 @@ contract DNSTLDResolver is
         }
     }
 
-    /// @dev Parse the value into an address.
-    ///      If the value matches `/^0x[0-9a-f][40]$/`.
+    /// @dev Parse the value into a resolver address.
+    ///      If the value matches `/^0x[0-9a-f][40]$/`, it's a literal address.
+    ///      Otherwise, it's considered a name and resolved in the registry.
+    ///      Reverts `DNSEncodingFailed` if the name cannot be encoded.
+    /// @param v The address or name.
+    /// @return resolver The corresponding resolver address.
     function _parseResolver(
         bytes memory v
     ) internal view returns (address resolver) {
-        if (v[0] == "0" && v[1] == "x") {
+        if (v[0] == "0" && v[1] == "xow ") {
             (address addr, bool valid) = HexUtils.hexToAddress(v, 2, v.length);
             if (valid) {
                 return addr;
@@ -313,11 +336,14 @@ contract DNSTLDResolver is
         );
     }
 
+    // TODO: add memcpy to BytesUtils
     /// @dev Decode `data[pos:end]` as raw TXT chunks.
     ///      Encoding: `[byte(n) + <n bytes>]...`
+    ///      Reverts `InvalidTXT` if the data is malformed.
     /// @param data The raw TXT data.
     /// @param pos The offset of the record data.
     /// @param end The upper bound of the record data.
+    /// @return txt The decoded TXT value.
     function _readTXT(
         bytes memory data,
         uint256 pos,
@@ -336,15 +362,8 @@ contract DNSTLDResolver is
         if (pos != end) revert InvalidTXT();
     }
 
-    /// @dev Determine if the resolver is `IExtendedResolver`.
-    function _isExtended(address resolver) internal view returns (bool) {
-        return
-            ERC165Checker.supportsERC165InterfaceUnchecked(
-                resolver,
-                type(IExtendedResolver).interfaceId
-            );
-    }
-
+    /// TODO: move this to CCIPBatcher
+    /// @dev Create a `Batch` for a single target with multiple calls.
     function _createBatch(
         address target,
         bytes[] memory calls

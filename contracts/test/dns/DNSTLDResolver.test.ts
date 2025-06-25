@@ -11,6 +11,7 @@ import {
 } from "../utils/resolutions.js";
 import { dnsEncodeName, expectVar } from "../utils/utils.js";
 import { encodeRRs, TXT } from "./gasless.js";
+import { FEATURES } from "../utils/features.js";
 
 const chain = await hre.network.connect();
 
@@ -26,7 +27,7 @@ async function fixture() {
     mainnetV2.universalResolver.address,
     mockDNSSEC.address,
     [
-      // "data"" is sufficient to satisfy: `abi.decode(DNSSEC.RRSetWithSignature[])`
+      // "data" is sufficient to satisfy: `abi.decode(DNSSEC.RRSetWithSignature[])`
       'data:application/json,{"data":"0x0000000000000000000000000000000000000000000000000000000000000000"}',
     ],
   ]);
@@ -57,7 +58,16 @@ describe("DNSTLDResolver", () => {
   shouldSupportInterfaces({
     contract: () =>
       chain.networkHelpers.loadFixture(fixture).then((F) => F.dnsTLDResolver),
-    interfaces: ["IERC165", "IExtendedResolver"],
+    interfaces: ["IERC165", "IExtendedResolver", "IFeatureSupporter"],
+  });
+
+  it("supportsFeature: resolve(multicall)", async () => {
+    const F = await chain.networkHelpers.loadFixture(fixture);
+    await expect(
+      F.dnsTLDResolver.read.supportsFeature([
+        FEATURES.RESOLVER.RESOLVE_MULTICALL,
+      ]),
+    ).resolves.toStrictEqual(true);
   });
 
   function testProfiles(

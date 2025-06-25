@@ -179,7 +179,7 @@ contract ETHFallbackResolver is
     }
 
     /// @notice Resolve `name` using Namechain, Mainnet V2, or Mainnet V1 depending on migration and ejection status.
-    /// @notice Callers should enable EIP-3668.
+    ///         Callers should enable EIP-3668.
     /// @dev This function executes over multiple steps (step 1 of 2).
     ///
     /// `GatewayRequest` walkthrough:
