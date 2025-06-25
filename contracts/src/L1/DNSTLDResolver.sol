@@ -3,15 +3,22 @@ pragma solidity >=0.8.13;
 
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
-import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
-import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
-import {CCIPReader, OffchainLookup} from "@ens/contracts/ccipRead/CCIPReader.sol";
+import {UniversalResolver} from "../universalResolver/UniversalResolver.sol";
+import {CCIPBatcher, OffchainLookup} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
 import {DNSSEC} from "@ens/contracts/dnssec-oracle/DNSSEC.sol";
 import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
+
+// resolver profiles
+import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
+import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
+
+// resolver features
+import {IFeatureSupporter, isFeatureSupported} from "../common/IFeatureSupporter.sol";
+import {ResolverFeatures} from "../common/ResolverFeatures.sol";
 
 interface IDNSGateway {
     function resolve(
@@ -20,13 +27,25 @@ interface IDNSGateway {
     ) external returns (DNSSEC.RRSetWithSignature[] memory);
 }
 
+interface IUniversalResolverStub {
+    function findResolver(
+        bytes memory
+    ) external view returns (address, bytes32, uint256);
+    function batchGateways() external view returns (string[] memory);
+}
+
 uint16 constant CLASS_INET = 1;
 uint16 constant TYPE_TXT = 16;
 
 bytes constant PREFIX = "ENS1 ";
 uint256 constant PREFIX_LENGTH = 5; // PREFIX.length
 
-contract DNSTLDResolver is ERC165, CCIPReader, IExtendedResolver {
+contract DNSTLDResolver is
+    ERC165,
+    IFeatureSupporter,
+    IExtendedResolver,
+    CCIPBatcher
+{
     /// @dev `name` does not exist.
     ///      Error selector: `0x5fe9a5df`
     /// @param name The DNS-encoded ENS name.
@@ -36,14 +55,14 @@ contract DNSTLDResolver is ERC165, CCIPReader, IExtendedResolver {
     ///      Error selector: `0xf4ba19b7`
     error InvalidTXT();
 
-    IUniversalResolver public immutable universalResolverV1;
-    IUniversalResolver public immutable universalResolverV2;
+    IUniversalResolverStub public immutable universalResolverV1;
+    IUniversalResolverStub public immutable universalResolverV2;
     DNSSEC public immutable oracleVerifier;
     string[] public oracleGateways;
 
     constructor(
-        IUniversalResolver _universalResolverV1,
-        IUniversalResolver _universalResolverV2,
+        IUniversalResolverStub _universalResolverV1,
+        IUniversalResolverStub _universalResolverV2,
         DNSSEC _oracleVerifier,
         string[] memory _oracleGateways
     ) {
@@ -59,29 +78,30 @@ contract DNSTLDResolver is ERC165, CCIPReader, IExtendedResolver {
     ) public view virtual override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
+            type(IFeatureSupporter).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
+    /// @inheritdoc IFeatureSupporter
+    function supportsFeature(bytes4 feature) public pure returns (bool) {
+        return ResolverFeatures.RESOLVE_MULTICALL == feature;
+    }
+
     /// DNS Resolution with Fallback:
-    /// 0. If there exists a resolver in V1, stop and use the V1 UR.
+    /// 0. If there exists a resolver in V1, go to step 3.
     /// 1. Query the DNSSEC oracle for TXT records.
-    /// 2. Verify TXT records, parse ENS1 record into (resolver, context?), and query it based on its type.
-    /// 3. Return the records.
+    /// 2. Verify TXT records, find ENS1 record,  parse ENS1 record into resolver and context.
+    /// 3. Call the resolver and return the records.
     /// @notice Callers should enable EIP-3668.
     /// @dev This function executes over multiple steps (step 1 of 3).
     function resolve(
-        bytes memory name,
+        bytes calldata name,
         bytes calldata data
     ) external view returns (bytes memory) {
-        (address resolver, , ) = universalResolverV1.findResolver(name);
-        if (resolver != address(0)) {
-            ccipRead(
-                address(universalResolverV1),
-                abi.encodeCall(IUniversalResolver.resolve, (name, data)),
-                this.resolveV1Callback.selector,
-                ""
-            );
-        } else {
+        (address resolver, , uint256 offset) = universalResolverV1.findResolver(
+            name
+        );
+        if (resolver == address(0)) {
             revert OffchainLookup(
                 address(this),
                 oracleGateways,
@@ -90,20 +110,15 @@ contract DNSTLDResolver is ERC165, CCIPReader, IExtendedResolver {
                 abi.encode(name, data)
             );
         }
-    }
-
-    /// @dev CCIP-Read callback for `resolve()` from calling `universalResolverV1` (step 2 of 2).
-    /// @param response The response data.
-    /// @return result The abi-encoded result.
-    function resolveV1Callback(
-        bytes calldata response,
-        bytes calldata /*extraData*/
-    ) external pure returns (bytes memory result) {
-        (result, ) = abi.decode(response, (bytes, address));
+        if (!_isExtended(resolver) && offset != 0) {
+            revert UnreachableName(name);
+        }
+        _callResolver(resolver, name, data, false, "");
     }
 
     /// @dev CCIP-Read callback for `resolve()` from calling the DNSSEC oracle (step 2 of 3).
     ///      Reverts `UnreachableName` if no "ENS1" TXT record is found.
+    ///      Reverts `UnreachableName` if resolver is not a contract.
     /// @param response The response data.
     /// @param extraData The contextual data passed from `resolve()`.
     /// @return The abi-encoded result from the resolver.
@@ -125,70 +140,123 @@ contract DNSTLDResolver is ERC165, CCIPReader, IExtendedResolver {
             !RRUtils.done(iter);
             RRUtils.next(iter)
         ) {
-            // Ignore records with wrong name, type, or class
-            bytes memory rrname = RRUtils.readName(iter.data, iter.offset);
             if (
-                !BytesUtils.equals(rrname, name) ||
-                iter.class != CLASS_INET ||
-                iter.dnstype != TYPE_TXT
+                iter.class == CLASS_INET &&
+                iter.dnstype == TYPE_TXT &&
+                BytesUtils.equals(iter.data, iter.offset, name, 0, name.length)
             ) {
-                continue;
-            }
-
-            // Look for a valid ENS-DNS TXT record
-            (address resolver, bytes memory context) = _parseTXT(
-                _readTXT(iter.data, iter.rdataOffset, iter.nextOffset)
-            );
-            if (resolver == address(0)) {
-                continue;
-            }
-
-            // Call the resolver based on its type
-            if (
-                ERC165Checker.supportsERC165InterfaceUnchecked(
-                    resolver,
-                    type(IExtendedDNSResolver).interfaceId
-                )
-            ) {
-                call = abi.encodeCall(
-                    IExtendedDNSResolver.resolve,
-                    (name, call, context)
+                (address resolver, bytes memory context) = _parseTXT(
+                    _readTXT(iter.data, iter.rdataOffset, iter.nextOffset)
                 );
-            } else if (
-                ERC165Checker.supportsERC165InterfaceUnchecked(
-                    resolver,
-                    type(IExtendedResolver).interfaceId
-                )
-            ) {
-                ccipRead(
-                    resolver,
-                    abi.encodeCall(IExtendedResolver.resolve, (name, call)),
-                    this.resolveResolverCallback.selector,
-                    '1'
-                );
+                if (resolver != address(0)) {
+                    _callResolver(resolver, name, call, true, context);
+                }
             }
-            ccipRead(
-                resolver,
-                call,
-                this.resolveResolverCallback.selector,
-                call
-            );
         }
         revert UnreachableName(name);
     }
 
-    /// @dev CCIP-Read callback for `resolveOracleCallback()` from calling the DNS resolver (step 3 of 3).
+    function _callResolver(
+        address resolver,
+        bytes memory name,
+        bytes memory call,
+        bool tryContext,
+        bytes memory context
+    ) internal view {
+        if (resolver.code.length == 0) {
+            revert UnreachableName(name);
+        }
+        bool direct = isFeatureSupported(
+            resolver,
+            ResolverFeatures.RESOLVE_MULTICALL
+        );
+        bytes[] memory calls;
+        bool multi = bytes4(call) == IMulticallable.multicall.selector;
+        if (multi) {
+            calls = abi.decode(
+                BytesUtils.substring(call, 4, call.length - 4),
+                (bytes[])
+            );
+        } else {
+            calls = new bytes[](1);
+            calls[0] = call;
+        }
+        bool extended;
+        if (
+            tryContext &&
+            ERC165Checker.supportsERC165InterfaceUnchecked(
+                resolver,
+                type(IExtendedDNSResolver).interfaceId
+            )
+        ) {
+            if (direct) {
+                ccipRead(
+                    resolver,
+                    abi.encodeCall(
+                        IExtendedDNSResolver.resolve,
+                        (name, call, context)
+                    )
+                );
+            } else {
+                extended = true;
+                for (uint256 i; i < calls.length; i++) {
+                    calls[i] = abi.encodeCall(
+                        IExtendedDNSResolver.resolve,
+                        (name, calls[i], context)
+                    );
+                }
+            }
+        } else if (_isExtended(resolver)) {
+            if (direct) {
+                ccipRead(
+                    resolver,
+                    abi.encodeCall(IExtendedResolver.resolve, (name, call))
+                );
+            } else {
+                extended = true;
+                for (uint256 i; i < calls.length; i++) {
+                    calls[i] = abi.encodeCall(
+                        IExtendedResolver.resolve,
+                        (name, calls[i])
+                    );
+                }
+            }
+        }
+        ccipRead(
+            address(this),
+            abi.encodeCall(this.ccipBatch, (_createBatch(resolver, calls))),
+            this.resolveBatchCallback.selector,
+            abi.encode(multi, extended)
+        );
+    }
+
+    /// @dev CCIP-Read callback for `_callResolver()` from calling the DNS resolver (step 3 of 3).
     /// @param response The response data.
-    /// @param extraData Non-null if the resolver was wildcard.
+    /// @param extraData The 
     /// @return result The abi-encoded result.
-    function resolveResolverCallback(
+    function resolveBatchCallback(
         bytes calldata response,
         bytes calldata extraData
     ) external pure returns (bytes memory) {
-        if (extraData.length > 0) {
-            return abi.decode(response, (bytes)); // unwrap
+        Batch memory batch = abi.decode(response, (Batch));
+        (bool multi, bool extended) = abi.decode(extraData, (bool, bool));
+        if (extended) {
+            for (uint256 i; i < batch.lookups.length; i++) {
+                Lookup memory lu = batch.lookups[i];
+                if ((lu.flags & FLAGS_ANY_ERROR) == 0) {
+                    lu.data = abi.decode(lu.data, (bytes));
+                }
+            }
+        }
+        if (multi) {
+            uint256 n = batch.lookups.length;
+            bytes[] memory m = new bytes[](n);
+            for (uint256 i; i < m.length; i++) {
+                m[i] = batch.lookups[i].data;
+            }
+            return abi.encode(m);
         } else {
-            return response;
+            return batch.lookups[0].data;
         }
     }
 
@@ -204,7 +272,6 @@ contract DNSTLDResolver is ERC165, CCIPReader, IExtendedResolver {
             txt.length >= PREFIX_LENGTH &&
             BytesUtils.equals(txt, 0, PREFIX, 0, PREFIX_LENGTH)
         ) {
-            // find the first space after the resolver
             uint256 sep = BytesUtils.find(
                 txt,
                 PREFIX_LENGTH,
@@ -219,7 +286,13 @@ contract DNSTLDResolver is ERC165, CCIPReader, IExtendedResolver {
                 sep = txt.length;
             }
             resolver = _parseResolver(
-                _trim(BytesUtils.substring(txt, PREFIX_LENGTH, sep))
+                _trim(
+                    BytesUtils.substring(
+                        txt,
+                        PREFIX_LENGTH,
+                        sep - PREFIX_LENGTH
+                    )
+                )
             );
         }
     }
@@ -261,6 +334,28 @@ contract DNSTLDResolver is ERC165, CCIPReader, IExtendedResolver {
             }
         }
         if (pos != end) revert InvalidTXT();
+    }
+
+    /// @dev Determine if the resolver is `IExtendedResolver`.
+    function _isExtended(address resolver) internal view returns (bool) {
+        return
+            ERC165Checker.supportsERC165InterfaceUnchecked(
+                resolver,
+                type(IExtendedResolver).interfaceId
+            );
+    }
+
+    function _createBatch(
+        address target,
+        bytes[] memory calls
+    ) internal view returns (Batch memory) {
+        Lookup[] memory lookups = new Lookup[](calls.length);
+        for (uint256 i; i < calls.length; i++) {
+            Lookup memory lu = lookups[i];
+            lu.target = target;
+            lu.call = calls[i];
+        }
+        return Batch(lookups, universalResolverV2.batchGateways());
     }
 
     /// @dev Trim surrounding spaces.

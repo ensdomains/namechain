@@ -15,16 +15,23 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH} from "@ens/contracts/utils/ENSIP19.sol";
 
+/// TODO: delete this after features are merged into ens-contracts/
+import {isFeatureSupported} from "../common/IFeatureSupporter.sol";
+import {ResolverFeatures} from "../common/ResolverFeatures.sol";
+/// @notice The resolver supplied an incorrect number of responses.
+/// @dev Error selector: `0xe5a61c3c`
+error InvalidMulticallResponse();
+
 abstract contract AbstractUniversalResolver is
     IUniversalResolver,
     CCIPBatcher,
     Ownable,
     ERC165
 {
-    string[] public batchGateways;
+    string[] _gateways;
 
     constructor(address owner, string[] memory gateways) Ownable(owner) {
-        batchGateways = gateways;
+        _gateways = gateways;
     }
 
     /// @inheritdoc ERC165
@@ -36,10 +43,16 @@ abstract contract AbstractUniversalResolver is
             super.supportsInterface(interfaceId);
     }
 
-    /// @dev Set the default batch gateways, see: `resolve()` and `reverse()`.
+    /// @notice Set the default batch gateways, see: `resolve()` and `reverse()`.
     /// @param gateways The list of batch gateway URLs to use as default.
     function setBatchGateways(string[] memory gateways) external onlyOwner {
-        batchGateways = gateways;
+        _gateways = gateways;
+    }
+
+    /// @notice Get the default batch gateways.
+    /// @return The batch gateway URLs.
+    function batchGateways() external view returns (string[] memory) {
+        return _gateways;
     }
 
     /// @inheritdoc IUniversalResolver
@@ -90,7 +103,7 @@ abstract contract AbstractUniversalResolver is
         bytes calldata name,
         bytes calldata data
     ) external view returns (bytes memory /*result*/, address /*resolver*/) {
-        return resolveWithGateways(name, data, batchGateways);
+        return resolveWithGateways(name, data, _gateways);
     }
 
     /// @notice Performs ENS name resolution for the supplied name and resolution data.
@@ -145,7 +158,7 @@ abstract contract AbstractUniversalResolver is
         bytes memory lookupAddress,
         uint256 coinType
     ) external view returns (string memory, address /* resolver */, address) {
-        return reverseWithGateways(lookupAddress, coinType, batchGateways);
+        return reverseWithGateways(lookupAddress, coinType, _gateways);
     }
 
     struct ReverseArgs {
@@ -264,22 +277,87 @@ abstract contract AbstractUniversalResolver is
         bytes4 callbackFunction,
         bytes memory extraData
     ) internal view {
-        Batch memory batch = Batch(new Lookup[](calls.length), gateways);
-        for (uint256 i; i < calls.length; i++) {
-            Lookup memory lu = batch.lookups[i];
-            lu.target = info.resolver;
-            lu.call = info.extended
-                ? abi.encodeCall(
+        if (
+            info.extended &&
+            isFeatureSupported(
+                info.resolver,
+                ResolverFeatures.RESOLVE_MULTICALL
+            )
+        ) {
+            ccipRead(
+                address(info.resolver),
+                abi.encodeCall(
                     IExtendedResolver.resolve,
-                    (info.name, calls[i])
-                )
-                : calls[i];
+                    (
+                        info.name,
+                        abi.encodeCall(IMulticallable.multicall, (calls))
+                    )
+                ),
+                this.resolveMulticallCallback.selector,
+                abi.encode(info, callbackFunction, extraData, calls)
+            );
+        } else {
+            Batch memory batch = Batch(new Lookup[](calls.length), gateways);
+            for (uint256 i; i < calls.length; i++) {
+                Lookup memory lu = batch.lookups[i];
+                lu.target = info.resolver;
+                lu.call = info.extended
+                    ? abi.encodeCall(
+                        IExtendedResolver.resolve,
+                        (info.name, calls[i])
+                    )
+                    : calls[i];
+            }
+            ccipRead(
+                address(this),
+                abi.encodeCall(this.ccipBatch, (batch)),
+                this.resolveBatchCallback.selector,
+                abi.encode(info, callbackFunction, extraData)
+            );
+        }
+    }
+
+    /// @dev CCIP-Read callback for `_resolveBatch()` when feature `RESOLVE_MULTICALL` is supported.
+    /// @param response The response data from the resolver.
+    /// @param extraData The contextual data from `_resolveBatch()`.
+    function resolveMulticallCallback(
+        bytes calldata response,
+        bytes calldata extraData
+    ) external view {
+        (
+            ResolverInfo memory info,
+            bytes4 callbackFunction_,
+            bytes memory extraData_,
+            bytes[] memory calls
+        ) = abi.decode(extraData, (ResolverInfo, bytes4, bytes, bytes[]));
+        bytes memory v = abi.decode(response, (bytes)); // unwrap resolve()
+        if (v.length == 0) {
+            revert UnsupportedResolverProfile(
+                IMulticallable.multicall.selector
+            );
+        }
+        if ((v.length & 31) != 0) revert ResolverError(v);
+        bytes[] memory answers = abi.decode(v, (bytes[]));
+        if (answers.length != calls.length) {
+            revert InvalidMulticallResponse();
+        }
+        Lookup[] memory lookups = new Lookup[](calls.length);
+        for (uint256 i; i < calls.length; i++) {
+            Lookup memory lu = lookups[i];
+            v = answers[i];
+            lu.call = calls[i];
+            lu.flags = FLAG_DONE;
+            if (v.length == 0) {
+                lu.flags |= FLAG_EMPTY_RESPONSE;
+                lu.data = lu.call;
+            } else {
+                if ((v.length & 31) != 0) lu.flags |= FLAG_CALL_ERROR;
+                lu.data = v;
+            }
         }
         ccipRead(
             address(this),
-            abi.encodeCall(this.ccipBatch, (batch)),
-            this.resolveBatchCallback.selector,
-            abi.encode(info, callbackFunction, extraData)
+            abi.encodeWithSelector(callbackFunction_, info, lookups, extraData_)
         );
     }
 

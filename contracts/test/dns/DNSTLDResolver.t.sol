@@ -2,38 +2,22 @@
 pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {DNSTLDResolver} from "../src/L1/DNSTLDResolver.sol";
-import {DNSSEC} from "@ens/contracts/dnssec-oracle/DNSSEC.sol";
-import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
-import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
+import {DNSTLDResolver, IUniversalResolverStub, DNSSEC, HexUtils} from "../../src/L1/DNSTLDResolver.sol";
 
-contract MockUR is IUniversalResolver {
-    address immutable resolver;
-    constructor(uint160 x) {
-        resolver = address(x);
-    }
+contract MockUR is IUniversalResolverStub {
     function findResolver(
         bytes memory
-    ) public view override returns (address, bytes32, uint256) {
-        return (resolver, bytes32(uint256(1)), 0);
+    ) public pure returns (address, bytes32, uint256) {
+        return (address(1), bytes32(0), 0);
     }
-    function resolve(
-        bytes calldata,
-        bytes calldata data
-    ) external view returns (bytes memory, address) {
-        return (data, resolver);
-    }
-    function reverse(
-        bytes calldata addrBytes,
-        uint256 coinType
-    ) external view returns (string memory, address, address) {}
+    function batchGateways() external view returns (string[] memory) {}
 }
 
 contract MockDNS is DNSTLDResolver {
     constructor()
         DNSTLDResolver(
-            new MockUR(1),
-            new MockUR(2),
+            IUniversalResolverStub(address(0)),
+            new MockUR(),
             DNSSEC(address(0)),
             new string[](0)
         )
@@ -41,7 +25,11 @@ contract MockDNS is DNSTLDResolver {
     function readTXT(bytes memory v) external pure returns (bytes memory) {
         return _readTXT(v, 0, v.length);
     }
-    function readTXT(bytes memory v, uint256 pos, uint256 end) external pure returns (bytes memory) {
+    function readTXT(
+        bytes memory v,
+        uint256 pos,
+        uint256 end
+    ) external pure returns (bytes memory) {
         return _readTXT(v, pos, end);
     }
     function trim(bytes memory v) external pure returns (bytes memory) {
@@ -103,12 +91,18 @@ contract DNSTLDResolverTest is Test {
     }
 
     function test_parseResolver() external view {
-        assertEq(dns.parseResolver("0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e"), 0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e);
-        assertEq(dns.parseResolver("vitalik.eth"), address(2));
+        assertEq(
+            dns.parseResolver("0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e"),
+            0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e,
+            "address"
+        );
+        assertEq(dns.parseResolver("vitalik.eth"), address(1), "name");
     }
 
     function testFuzz_parseResolver_address(address a) external view {
-        assertEq(dns.parseResolver(abi.encodePacked("0x", HexUtils.addressToHex(a))), a);
+        assertEq(
+            dns.parseResolver(abi.encodePacked("0x", HexUtils.addressToHex(a))),
+            a
+        );
     }
-
 }
