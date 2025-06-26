@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {MockL1EjectionController} from "./MockL1EjectionController.sol";
+import {L1EjectionController} from "../L1/L1EjectionController.sol";
 import {MockBridgeBase} from "./MockBridgeBase.sol";
 import {BridgeMessageType} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
@@ -14,11 +14,11 @@ import {TransferData, MigrationData} from "../common/TransferData.sol";
  */
 contract MockL1Bridge is MockBridgeBase {
     // Ejection controller to call when receiving ejection messages
-    MockL1EjectionController public ejectionController;
+    L1EjectionController public ejectionController;
     
     event NameBridgedToL2(bytes message);
     
-    function setEjectionController(MockL1EjectionController _ejectionController) external {
+    function setEjectionController(L1EjectionController _ejectionController) external {
         ejectionController = _ejectionController;
     }
     

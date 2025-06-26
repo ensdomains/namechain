@@ -150,7 +150,7 @@ contract MockNameWrapper is ERC1155 {
 contract MockL1EjectionController is L1EjectionController {
     event MockMigrateFromV1Called(TransferData transferData);
 
-    constructor() L1EjectionController(IPermissionedRegistry(address(0))) {}
+    constructor() L1EjectionController(IPermissionedRegistry(address(0)), IBridge(address(0))) {}
 
     function completeEjectionFromL2(TransferData memory transferData) public override returns (uint256) {
         emit MockMigrateFromV1Called(transferData);

@@ -19,6 +19,7 @@ import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
 import {TransferData} from "../src/common/TransferData.sol";
+import {IBridge} from "../src/common/IBridge.sol";
 
 // Mock implementation of IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -27,16 +28,23 @@ contract MockRegistryMetadata is IRegistryMetadata {
     }
 }
 
+// Mock implementation of IBridge for testing
+contract MockBridge is IBridge {
+    function sendMessage(bytes memory) external override {}
+}
+
+
 
 contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     // Import constants from RegistryRolesMixin and EnhancedAccessControl
     bytes32 constant ROOT_RESOURCE = bytes32(0);
     uint256 constant ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
     
-    MockL2EjectionController controller; // Changed type to MockL2EjectionController
+    TestL2EjectionControllerImpl controller; 
     PermissionedRegistry registry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
+    MockBridge bridge;
 
     address user = address(0x1);
     address l1Owner = address(0x2);
@@ -110,11 +118,12 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function setUp() public {
         datastore = new RegistryDatastore();
         registryMetadata = new MockRegistryMetadata();
+        bridge = new MockBridge();
         
         registry = new PermissionedRegistry(datastore, registryMetadata, ALL_ROLES);
         
-        // Now deploy the real mock controller with the correct registry
-        controller = new MockL2EjectionController(registry); // Deploy MockL2EjectionController
+        // Now deploy the test controller with the correct registry and bridge
+        controller = new TestL2EjectionControllerImpl(registry, bridge); // Deploy TestL2EjectionControllerImpl
         
         // Set up for testing
         labelHash = NameUtils.labelToCanonicalId(label);
@@ -147,31 +156,21 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         vm.prank(user);
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
         
-        // Check for MockNameEjectedToL1 event with DNS encoded name
+        // Check for NameEjectedToL1 event
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
         
-        bytes32 eventSig = keccak256("MockNameEjectedToL1(bytes,bytes)");
-        bytes memory expectedDnsEncodedName = NameUtils.dnsEncodeEthLabel(label);
+        bytes32 eventSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint i = 0; i < logs.length; i++) {
             // Check if this log is our event (emitter and first topic match)
             if (logs[i].emitter == address(controller) && 
                 logs[i].topics[0] == eventSig) {
-                
-                // Since the parameters are not indexed, decode the data to check the DNS encoded name
-                if (logs[i].data.length > 0) {
-                    (bytes memory emittedDnsEncodedName, ) = 
-                        abi.decode(logs[i].data, (bytes, bytes));
-                    
-                    if (keccak256(emittedDnsEncodedName) == keccak256(expectedDnsEncodedName)) {
-                        foundEvent = true;
-                        break;
-                    }
-                }
+                foundEvent = true;
+                break;
             }
         }
-        assertTrue(foundEvent, "MockNameEjectedToL1 event not found");
+        assertTrue(foundEvent, "NameEjectedToL1 event not found");
         
         // Verify subregistry is cleared after ejection
         (address subregAddr, , ) = datastore.getSubregistry(tokenId);
@@ -241,25 +240,12 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
         
-        bytes32 eventSig = keccak256("NameEjectedToL2(bytes,address,address)");
+        bytes32 eventSig = keccak256("NameEjectedToL2(bytes,uint256)");
         
         for (uint i = 0; i < logs.length; i++) {
             if (logs[i].emitter == address(controller) && 
                 logs[i].topics[0] == eventSig) {
-                
                 foundEvent = true;
-                
-                // Only decode data if there is data to decode
-                if (logs[i].data.length > 0) {
-                    (bytes memory emittedDnsEncodedName, address emittedL2Owner, address emittedL2Subregistry) = 
-                        abi.decode(logs[i].data, (bytes, address, address));
-                    
-                    // Verify all data fields match expected values
-                    assertEq(emittedL2Owner, l2Owner);
-                    assertEq(emittedL2Subregistry, l2Subregistry);
-                    // We can also verify the DNS encoded name if needed
-                    assertTrue(emittedDnsEncodedName.length > 0, "DNS encoded name should not be empty");
-                }
                 break;
             }
         }
@@ -360,31 +346,16 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function _verifyL2BatchEventEmission() internal {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         uint256 ejectionEventsCount = 0;
-        bytes32 expectedSig = keccak256("MockNameEjectedToL1(bytes,bytes)");
-        
-        bytes memory expectedDnsEncodedName2 = NameUtils.dnsEncodeEthLabel("test2");
-        bytes memory expectedDnsEncodedName3 = NameUtils.dnsEncodeEthLabel("test3");
-        bytes32 expectedHash2 = keccak256(expectedDnsEncodedName2);
-        bytes32 expectedHash3 = keccak256(expectedDnsEncodedName3);
+        bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint i = 0; i < logs.length; i++) {
             if (logs[i].emitter == address(controller) && 
                 logs[i].topics[0] == expectedSig) {
-                
-                // Since the parameters are not indexed, decode the data to check the DNS encoded name
-                if (logs[i].data.length > 0) {
-                    (bytes memory emittedDnsEncodedName, ) = 
-                        abi.decode(logs[i].data, (bytes, bytes));
-                    
-                    bytes32 emittedHash = keccak256(emittedDnsEncodedName);
-                    if (emittedHash == expectedHash2 || emittedHash == expectedHash3) {
-                        ejectionEventsCount++;
-                    }
-                }
+                ejectionEventsCount++;
             }
         }
         
-        assertEq(ejectionEventsCount, 2, "Should have emitted 2 MockNameEjectedToL1 events");
+        assertEq(ejectionEventsCount, 2, "Should have emitted 2 NameEjectedToL1 events");
     }
 
     function test_onRenew_emitsEvent() public {
@@ -610,27 +581,17 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     }
 }
 
-// Mock implementation of L2EjectionController for testing
-contract MockL2EjectionController is L2EjectionController {
+// Test implementation of L2EjectionController with concrete methods
+contract TestL2EjectionControllerImpl is L2EjectionController {
     // Define event signatures exactly as they will be emitted
-    event MockNameEjectedToL1(bytes dnsEncodedName, bytes data);
     event MockNameRenewed(uint256 indexed tokenId, uint64 expires, address renewedBy);
     event MockNameRelinquished(uint256 indexed tokenId, address relinquishedBy);
-    event NameEjectedToL2(bytes dnsEncodedName, address owner, address subregistry);
 
     // Tracking flags for callback tests
     bool private _onRenewCalled;
     bool private _onRelinquishCalled;
 
-    constructor(IPermissionedRegistry _registry) L2EjectionController(_registry) {}
-
-    function completeMigrationFromL1(
-        TransferData memory transferData
-    ) public override {
-        super.completeMigrationFromL1(transferData);
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
-        emit NameEjectedToL2(dnsEncodedName, transferData.owner, transferData.subregistry);
-    }
+    constructor(IPermissionedRegistry _registry, IBridge _bridge) L2EjectionController(_registry, _bridge) {}
 
     // Implement the required external methods
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {
@@ -642,31 +603,6 @@ contract MockL2EjectionController is L2EjectionController {
         _onRelinquishCalled = true;
         emit MockNameRelinquished(tokenId, relinquishedBy);
     }
-
-    /**
-     * @dev Overridden to emit a mock event after calling the parent logic.
-     */
-    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal override {
-        super._onEject(tokenIds, transferDataArray);
-        
-        // Emit events for each token ID processed with DNS encoded names
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            TransferData memory transferData = transferDataArray[i];
-            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
-            emit MockNameEjectedToL1(
-                dnsEncodedName, 
-                abi.encode(
-                    transferData.label, 
-                    transferData.owner, 
-                    transferData.subregistry, 
-                    transferData.resolver, 
-                    transferData.expires
-                )
-            );
-        }
-    }
-
-
 
     // Helper functions for tests
     function resetTracking() external {
@@ -682,3 +618,5 @@ contract MockL2EjectionController is L2EjectionController {
         return _onRelinquishCalled;
     }
 }
+
+

@@ -6,8 +6,8 @@ import "forge-std/console.sol";
 import "forge-std/Vm.sol";
 import "../../src/mocks/MockL1Bridge.sol";
 import "../../src/mocks/MockL2Bridge.sol";
-import "../../src/mocks/MockL1EjectionController.sol";
-import "../../src/mocks/MockL2EjectionController.sol";
+import "../../src/L1/L1EjectionController.sol";
+import "../../src/L2/L2EjectionController.sol";
 import "../../src/mocks/MockBridgeBase.sol";
 import {BridgeMessageType} from "../../src/common/IBridge.sol";
 import {BridgeEncoder} from "../../src/common/BridgeEncoder.sol";
@@ -29,8 +29,8 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     PermissionedRegistry l2Registry;
     MockL1Bridge l1Bridge;
     MockL2Bridge l2Bridge;
-    MockL1EjectionController l1Controller;
-    MockL2EjectionController l2Controller;
+    L1EjectionController l1Controller;
+    L2EjectionController l2Controller;
     
     // Test accounts
     address user1 = address(0x1);
@@ -47,8 +47,8 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         l2Bridge = new MockL2Bridge();
         
         // Deploy controllers
-        l1Controller = new MockL1EjectionController(l1Registry, l1Bridge);
-        l2Controller = new MockL2EjectionController(l2Registry, l2Bridge);
+        l1Controller = new L1EjectionController(l1Registry, l1Bridge);
+        l2Controller = new L2EjectionController(l2Registry, l2Bridge);
         
         // Set the controller contracts as targets for the bridges
         l1Bridge.setEjectionController(l1Controller);

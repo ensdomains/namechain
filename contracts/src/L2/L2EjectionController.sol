@@ -7,16 +7,34 @@ import {EjectionController} from "../common/EjectionController.sol";
 import {TransferData} from "../common/TransferData.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {IRegistry} from "../common/IRegistry.sol";  
+import {IBridge} from "../common/IBridge.sol";
+import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 
 /**
  * @title L2EjectionController
  * @dev L2 contract for ejection controller that facilitates migrations of names
  * between L1 and L2, as well as handling renewals.
  */
-abstract contract L2EjectionController is EjectionController, ITokenObserver {
+contract L2EjectionController is EjectionController, ITokenObserver {
     error NotTokenOwner(uint256 tokenId);
 
-    constructor(IPermissionedRegistry _registry) EjectionController(_registry) {}
+    constructor(IPermissionedRegistry _registry, IBridge _bridge) EjectionController(_registry, _bridge) {}
+
+    /**
+     * @dev Default implementation of onRenew that does nothing.
+     * Can be overridden in derived contracts for custom behavior.
+     */
+    function onRenew(uint256 /* tokenId */, uint64 /* expires */, address /* renewedBy */) external virtual {
+        // Default implementation does nothing
+    }
+
+    /**
+     * @dev Default implementation of onRelinquish that does nothing.
+     * Can be overridden in derived contracts for custom behavior.
+     */
+    function onRelinquish(uint256 /* tokenId */, address /* relinquishedBy */) external virtual {
+        // Default implementation does nothing
+    }
 
     /**
      * @dev Should be called when a name is being migrated back to L2.
@@ -35,6 +53,9 @@ abstract contract L2EjectionController is EjectionController, ITokenObserver {
         registry.setSubregistry(tokenId, IRegistry(transferData.subregistry));
         registry.setResolver(tokenId, transferData.resolver);
         registry.safeTransferFrom(address(this), transferData.owner, tokenId, 1, "");
+
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
+        emit NameEjectedToL2(dnsEncodedName, tokenId);
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(EjectionController) returns (bool) {
@@ -62,6 +83,11 @@ abstract contract L2EjectionController is EjectionController, ITokenObserver {
 
             // listen for events
             registry.setTokenObserver(tokenId, this);
+
+            // send the message to the bridge
+            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferDataArray[i].label);
+            bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferDataArray[i]));
+            emit NameEjectedToL1(dnsEncodedName, tokenId);
         }
     }
 }

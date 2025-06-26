@@ -7,6 +7,7 @@ import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC16
 import {TransferData} from "./TransferData.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "./NameUtils.sol";
+import {IBridge} from "./IBridge.sol";
 
 /**
  * @title EjectionController
@@ -15,11 +16,24 @@ import {NameUtils} from "./NameUtils.sol";
 abstract contract EjectionController is IERC1155Receiver, ERC165 {
     error CallerNotRegistry(address caller);
     error InvalidLabel(uint256 tokenId, string label);
+    error CallerNotBridge(address caller);
+
+    event NameEjectedToL1(bytes dnsEncodedName, uint256 tokenId);
+    event NameEjectedToL2(bytes dnsEncodedName, uint256 tokenId);
 
     IPermissionedRegistry public immutable registry;
+    IBridge public immutable bridge;
 
-    constructor(IPermissionedRegistry _registry) {
+    modifier onlyBridge() {
+        if (msg.sender != address(bridge)) {
+            revert CallerNotBridge(msg.sender);
+        }
+        _;
+    }
+
+    constructor(IPermissionedRegistry _registry, IBridge _bridge) {
         registry = _registry;
+        bridge = _bridge;
     }
 
     /**

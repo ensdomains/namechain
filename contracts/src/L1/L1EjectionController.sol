@@ -7,19 +7,22 @@ import {IRegistry} from "../common/IRegistry.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
+import {IBridge} from "../common/IBridge.sol";
+import {BridgeEncoder} from "../common/BridgeEncoder.sol";
+import {NameUtils} from "../common/NameUtils.sol";
 
 /**
  * @title L1EjectionController
  * @dev L1 contract for ejection controller that facilitates migrations of names
  * between L1 and L2, as well as handling renewals.
  */
-abstract contract L1EjectionController is EjectionController, RegistryRolesMixin {
+contract L1EjectionController is EjectionController, RegistryRolesMixin {
     error NotTokenOwner(uint256 tokenId);
     error NameNotExpired(uint256 tokenId, uint64 expires);
 
-    event RenewalSynced(uint256 tokenId, uint64 newExpiry);
+    event RenewalSynchronized(uint256 tokenId, uint64 newExpiry);
 
-    constructor(IPermissionedRegistry _registry) EjectionController(_registry) {}
+    constructor(IPermissionedRegistry _registry, IBridge _bridge) EjectionController(_registry, _bridge) {}
 
     /**
      * @dev Should be called when a name has been ejected from L2.  
@@ -30,6 +33,8 @@ abstract contract L1EjectionController is EjectionController, RegistryRolesMixin
         TransferData memory transferData
     ) public virtual returns (uint256 tokenId) {
         tokenId = registry.register(transferData.label, transferData.owner, IRegistry(transferData.subregistry), transferData.resolver, transferData.roleBitmap, transferData.expires);
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
+        emit NameEjectedToL1(dnsEncodedName, tokenId);
     }
 
     /**
@@ -40,7 +45,7 @@ abstract contract L1EjectionController is EjectionController, RegistryRolesMixin
      */
     function syncRenewal(uint256 tokenId, uint64 newExpiry) external virtual {
         registry.renew(tokenId, newExpiry);
-        emit RenewalSynced(tokenId, newExpiry);
+        emit RenewalSynchronized(tokenId, newExpiry);
     }
 
     // Internal functions
@@ -57,6 +62,11 @@ abstract contract L1EjectionController is EjectionController, RegistryRolesMixin
             _assertTokenIdMatchesLabel(tokenId, transferData.label);
 
             registry.relinquish(tokenId);
+
+            // send the message to the bridge
+            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
+            bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferData));
+            emit NameEjectedToL2(dnsEncodedName, tokenId);
         }
     }
 }

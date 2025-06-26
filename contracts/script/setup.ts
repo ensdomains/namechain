@@ -133,7 +133,7 @@ export async function setupCrossChainEnvironment() {
       },
       contracts: {
         ejectionController: l1Contracts<
-          (typeof artifacts.MockL1EjectionController)["abi"]
+          (typeof artifacts.L1EjectionController)["abi"]
         >("L1EjectionController"),
         ethRegistry:
           l1Contracts<(typeof artifacts.PermissionedRegistry)["abi"]>(
@@ -171,7 +171,7 @@ export async function setupCrossChainEnvironment() {
             "ETHRegistry",
           ),
         ejectionController: l2Contracts<
-          (typeof artifacts.MockL2EjectionController)["abi"]
+          (typeof artifacts.L2EjectionController)["abi"]
         >("L2EjectionController"),
         mockBridge:
           l2Contracts<(typeof artifacts.MockL2Bridge)["abi"]>("MockL2Bridge"),

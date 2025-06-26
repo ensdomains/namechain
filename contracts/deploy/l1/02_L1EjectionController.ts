@@ -15,7 +15,7 @@ export default execute(
 
     const l1EjectionController = await deploy("L1EjectionController", {
       account: deployer,
-      artifact: artifacts.MockL1EjectionController,
+      artifact: artifacts.L1EjectionController,
       args: [l1EthRegistry.address, l1Bridge.address],
     });
 
