@@ -1,7 +1,7 @@
-import hre from "hardhat";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
-import { expect } from "chai";
-import { afterEach, afterAll, describe, it, assert } from "vitest";
+import { serve } from "@namestone/ezccip/serve";
+import { BrowserProvider } from "ethers/providers";
+import hre from "hardhat";
 import { readFileSync } from "node:fs";
 import {
   concat,
@@ -14,17 +14,19 @@ import {
   parseAbi,
   toHex,
 } from "viem";
-import { BrowserProvider } from "ethers/providers";
-import { serve } from "@namestone/ezccip/serve";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
+
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { deployArtifact } from "./fixtures/deployArtifact.js";
 import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
 import { urgArtifact } from "./fixtures/externalArtifacts.js";
+import { FEATURES } from "./utils/features.js";
+import { injectRPCCounter } from "./utils/hardhat.js";
 import {
-  COIN_TYPE_ETH,
   COIN_TYPE_DEFAULT,
+  COIN_TYPE_ETH,
   type KnownProfile,
   type KnownResolution,
   bundleCalls,
@@ -32,8 +34,6 @@ import {
   shortCoin,
 } from "./utils/resolutions.js";
 import { dnsEncodeName, expectVar, getLabelAt } from "./utils/utils.js";
-import { getRawArtifact, injectRPCCounter } from "./utils/hardhat.js";
-import { FEATURES } from "./utils/features.js";
 
 const chain1 = injectRPCCounter(await hre.network.connect());
 const chain2 = injectRPCCounter(await hre.network.connect());
@@ -151,29 +151,30 @@ describe("ETHFallbackResolver", () => {
     ).resolves.toStrictEqual(true);
   });
 
-  describe("storage layout", { timeout: 30000 }, () => {
+  describe("storage layout", () => {
     describe("DedicatedResolver", () => {
       const code = readFileSync(
         new URL("../src/common/DedicatedResolverLayout.sol", import.meta.url),
         "utf8",
       );
-      for (const match of code.matchAll(/constant (SLOT_\S+) = (\S+);/g)) {
-        it(`${match[1]} = ${match[2]}`, async () => {
-          const { storageLayout } = await getRawArtifact("DedicatedResolver");
-          const label = match[1].slice(4).toLowerCase(); // "SLOT_ABC" => "_abc"
+      for (const [_, name, slot] of code.matchAll(
+        /constant (SLOT_\S+) = (\S+);/g,
+      )) {
+        it(`${name} = ${slot}`, async () => {
+          const storageLayout =
+            await hre.artifacts.getStorageLayout("DedicatedResolver");
+          const label = name.slice(4).toLowerCase(); // "SLOT_ABC" => "_abc"
           const ref = storageLayout.storage.find((x) =>
             x.label.startsWith(label),
           );
-          assert(ref?.slot === match[2]);
+          expect(ref?.slot).toEqual(slot);
         });
       }
     });
     it("SLOT_RD_ENTRIES = 0", async () => {
       const {
-        storageLayout: {
-          storage: [{ slot, label }],
-        },
-      } = await getRawArtifact("RegistryDatastore");
+        storage: [{ slot, label }],
+      } = await hre.artifacts.getStorageLayout("RegistryDatastore");
       expectVar({ slot }).toStrictEqual("0");
       expectVar({ label }).toStrictEqual("entries");
     });
@@ -422,7 +423,7 @@ describe("ETHFallbackResolver", () => {
         ]),
       )
         .toBeRevertedWithCustomError("UnsupportedResolverProfile")
-        .withArgs(dummySelector);
+        .withArgs([dummySelector]);
     });
     for (const res of makeResolutions(kp)) {
       it(res.desc, async () => {

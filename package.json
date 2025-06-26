@@ -9,7 +9,10 @@
     "contracts"
   ],
   "devDependencies": {
-    "typescript": "^5.4.5"
+    "typescript": "^5.8.3"
+  },
+  "resolutions": {
+    "viem": "2.28.1"
   },
   "patchedDependencies": {
     "@nomicfoundation/hardhat-viem@3.0.0-next.8": "patches/@nomicfoundation%2Fhardhat-viem@3.0.0-next.8.patch",
