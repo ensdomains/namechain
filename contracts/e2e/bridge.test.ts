@@ -91,7 +91,7 @@ test("name ejection", async () => {
 
   // Wait for the NameBridgedToL1 event from L2 bridge (indicating ejection message sent)
   const bridgeEvents = await waitForEvent(
-    ({ onLogs }) => l2.contracts.mockBridge.watchEvent.NameBridgedToL1({}, { onLogs }),
+    ({ onLogs }) => l2.contracts.mockBridge.watchEvent.NameBridgedToL1({ onLogs }),
   );
   await expectTransactionSuccess(l2.client, transferTx);
   console.log(
@@ -169,7 +169,7 @@ test("round trip", async () => {
 
   // Wait for the NameBridgedToL1 event from L2 bridge (indicating ejection message sent)
   const ejectionEvents = await waitForEvent(
-    ({ onLogs }) => l2.contracts.mockBridge.watchEvent.NameBridgedToL1({}, { onLogs }),
+    ({ onLogs }) => l2.contracts.mockBridge.watchEvent.NameBridgedToL1({ onLogs }),
   );
   await expectTransactionSuccess(l2.client, transferTxToL1);
   console.log(
@@ -217,7 +217,7 @@ test("round trip", async () => {
 
   // Wait for the NameBridgedToL2 event from L1 bridge (indicating ejection message sent)
   const migrationEvents = await waitForEvent(
-    ({ onLogs }) => l1.contracts.mockBridge.watchEvent.NameBridgedToL2({}, { onLogs }),
+    ({ onLogs }) => l1.contracts.mockBridge.watchEvent.NameBridgedToL2({ onLogs }),
   );
   await expectTransactionSuccess(l1.client, transferTxToL2);
   console.log(

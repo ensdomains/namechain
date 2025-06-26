@@ -25,7 +25,7 @@ export const createMockRelay = ({
   console.log("Creating mock bridge...");
 
   // Listen for L1 bridge events (ejection/migration to L2)
-  const unwatchL1Bridge = l1Bridge.watchEvent.NameBridgedToL2({}, {
+  const unwatchL1Bridge = l1Bridge.watchEvent.NameBridgedToL2({
     onLogs: async (logs: any[]) => {
       for (const log of logs) {
         console.log("Relaying bridged message from L1 to L2");
@@ -44,7 +44,7 @@ export const createMockRelay = ({
   });
 
   // Listen for L2 bridge events (ejection to L1)
-  const unwatchL2Bridge = l2Bridge.watchEvent.NameBridgedToL1({}, {
+  const unwatchL2Bridge = l2Bridge.watchEvent.NameBridgedToL1({
     onLogs: async (logs: any[]) => {
       for (const log of logs) {
         console.log("Relaying bridged message from L2 to L1");
