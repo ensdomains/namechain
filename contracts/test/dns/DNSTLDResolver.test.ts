@@ -162,14 +162,12 @@ describe("DNSTLDResolver", () => {
       const bundle = bundleCalls(makeResolutions(basicProfile));
       await expect(
         F.mainnetV2.universalResolver.read.resolve([
-          dnsEncodeName(multiProfile.name),
+          dnsEncodeName(basicProfile.name),
           bundle.call,
         ]),
-      ).rejects.toThrow(); // TODO: FIX ME
-      // .toBeRevertedWithCustomError<typeof F.dnsTLDResolver.abi>(
-      //   "UnreachableName",
-      // )
-      // .withArgs(dnsEncodeName(basicProfile.name));
+      )
+        .toBeRevertedWithCustomErrorFrom(F.dnsTLDResolver, "UnreachableName")
+        .withArgs([dnsEncodeName(basicProfile.name)]);
     });
 
     testProfiles("ENS1 w/address onchain immediate", (kp) => async () => {

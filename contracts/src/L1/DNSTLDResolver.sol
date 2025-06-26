@@ -336,7 +336,6 @@ contract DNSTLDResolver is
         );
     }
 
-    // TODO: add memcpy to BytesUtils
     /// @dev Decode `data[pos:end]` as raw TXT chunks.
     ///      Encoding: `[byte(n) + <n bytes>]...`
     ///      Reverts `InvalidTXT` if the data is malformed.
@@ -349,15 +348,29 @@ contract DNSTLDResolver is
         uint256 pos,
         uint256 end
     ) internal pure returns (bytes memory txt) {
-        while (pos < end) {
-            uint256 size = BytesUtils.readUint8(data, pos++);
-            if (size > 0) {
-                txt = abi.encodePacked(
-                    txt,
-                    BytesUtils.substring(data, pos, size)
-                );
-                pos += size;
+        if (end > data.length) revert InvalidTXT();
+        txt = new bytes(end - pos);
+        assembly {
+            let ptr := add(data, 32)
+            pos := add(ptr, pos)
+            end := add(ptr, end)
+            ptr := add(txt, 32)
+            // prettier-ignore
+            for { } lt(pos, end) { } {
+                let size := shr(248, mload(pos))
+                pos := add(pos, 1)
+                if size {
+                    let next := add(pos, size)
+                    if gt(next, end) {
+                        end := 0 // overflow
+                        break
+                    }
+                    mcopy(ptr, pos, size)
+                    pos := next
+                    ptr := add(ptr, size)
+                }
             }
+            mstore(txt, sub(ptr, add(txt, 32))) // truncate
         }
         if (pos != end) revert InvalidTXT();
     }

@@ -219,7 +219,12 @@ describe("ETHFallbackResolver", () => {
             dnsEncodeName(name),
             res.call,
           ]),
-        ).rejects.toThrow(); // TODO: FIX ME
+        )
+          .toBeRevertedWithCustomErrorFrom(
+            F.ethFallbackResolver,
+            "UnreachableName",
+          )
+          .withArgs([dnsEncodeName(name)]);
       });
     }
   });

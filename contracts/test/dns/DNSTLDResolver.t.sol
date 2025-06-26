@@ -52,6 +52,7 @@ contract DNSTLDResolverTest is Test {
         assertEq(dns.readTXT("\x01a"), "a");
         assertEq(dns.readTXT("\x00\x01a"), "a");
         assertEq(dns.readTXT("\x01a\x01b"), "ab");
+        assertEq(dns.readTXT("\x01a\x00\x02bc"), "abc");
     }
 
     function test_readTXT_invalid() external {
