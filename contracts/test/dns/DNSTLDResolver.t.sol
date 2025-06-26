@@ -32,9 +32,9 @@ contract MockDNS is DNSTLDResolver {
     ) external pure returns (bytes memory) {
         return _readTXT(v, pos, end);
     }
-    function trim(bytes memory v) external pure returns (bytes memory) {
-        return _trim(abi.encodePacked(v));
-    }
+    // function trim(bytes memory v) external pure returns (bytes memory) {
+    //     return _trim(abi.encodePacked(v));
+    // }
     function parseResolver(bytes memory v) external view returns (address) {
         return _parseResolver(v);
     }
@@ -75,21 +75,21 @@ contract DNSTLDResolverTest is Test {
         assertEq(dns.readTXT(v, pad, v.length), u);
     }
 
-    function test_trim() external view {
-        assertEq(dns.trim("a"), "a");
-        assertEq(dns.trim("a  "), "a");
-        assertEq(dns.trim("  a"), "a");
-        assertEq(dns.trim(" a "), "a");
-    }
+    // function test_trim() external view {
+    //     assertEq(dns.trim("a"), "a");
+    //     assertEq(dns.trim("a  "), "a");
+    //     assertEq(dns.trim("  a"), "a");
+    //     assertEq(dns.trim(" a "), "a");
+    // }
 
-    function testFuzz_trim(uint8 na, uint8 nb, uint8 n) external view {
-        bytes memory a = new bytes(na);
-        for (uint256 i; i < na; i++) a[i] = " ";
-        bytes memory b = new bytes(nb);
-        for (uint256 i; i < nb; i++) b[i] = " ";
-        bytes memory v = new bytes(n);
-        assertEq(dns.trim(abi.encodePacked(a, v, b)), v);
-    }
+    // function testFuzz_trim(uint8 na, uint8 nb, uint8 n) external view {
+    //     bytes memory a = new bytes(na);
+    //     for (uint256 i; i < na; i++) a[i] = " ";
+    //     bytes memory b = new bytes(nb);
+    //     for (uint256 i; i < nb; i++) b[i] = " ";
+    //     bytes memory v = new bytes(n);
+    //     assertEq(dns.trim(abi.encodePacked(a, v, b)), v);
+    // }
 
     function test_parseResolver() external view {
         assertEq(

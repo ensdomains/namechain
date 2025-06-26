@@ -298,20 +298,16 @@ contract DNSTLDResolver is
                 " "
             );
             if (sep < txt.length) {
-                context = _trim(
-                    BytesUtils.substring(txt, sep + 1, txt.length - sep - 1)
+                context = BytesUtils.substring(
+                    txt,
+                    sep + 1,
+                    txt.length - sep - 1
                 );
             } else {
                 sep = txt.length;
             }
             resolver = _parseResolver(
-                _trim(
-                    BytesUtils.substring(
-                        txt,
-                        PREFIX_LENGTH,
-                        sep - PREFIX_LENGTH
-                    )
-                )
+                BytesUtils.substring(txt, PREFIX_LENGTH, sep - PREFIX_LENGTH)
             );
         }
     }
@@ -388,21 +384,5 @@ contract DNSTLDResolver is
             lu.call = calls[i];
         }
         return Batch(lookups, universalResolverV2.batchGateways());
-    }
-
-    /// @dev Trim surrounding spaces.
-    ///      eg. _trim(" abc  ") = "abc".
-    ///      Warning: mutates the memory in place.
-    /// @return The truncated string.
-    function _trim(bytes memory v) internal pure returns (bytes memory) {
-        uint256 n = v.length;
-        while (n > 0 && v[n - 1] == " ") --n;
-        uint256 i;
-        while (i < n && v[i] == " ") ++i;
-        assembly {
-            v := add(v, i) // skip
-            mstore(v, sub(n, i)) // truncate
-        }
-        return v;
     }
 }
