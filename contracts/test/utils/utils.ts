@@ -1,5 +1,5 @@
 // import { labelhash, namehash } from "viem";
-export { expectVar } from "../../lib/ens-contracts/test/fixtures/expectVar.js";
+export { expectVar } from "./expectVar.js";
 
 // import type { ccipRequest } from "viem";
 // export type CCIPReadOption =
