@@ -183,7 +183,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         assertEq(registry.ownerOf(tokenId), address(controller), "Token should be owned by the controller");
     }
 
-    function test_completeMigrationFromL1() public {
+    function test_completeEjectionFromL1() public {
         // Use specific roles instead of ALL_ROLES
         uint256 originalRoles = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY | ROLE_SET_TOKEN_OBSERVER;
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
@@ -210,7 +210,10 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
             expires: 0,
             roleBitmap: differentRoles
         });
-        controller.completeMigrationFromL1(migrationData);
+        
+        // Call through the bridge (using vm.prank to simulate bridge calling)
+        vm.prank(address(bridge));
+        controller.completeEjectionFromL1(migrationData);
         
         // Verify migration results
         _verifyMigrationResults(tokenId, label2, originalRoles, differentRoles);
@@ -253,7 +256,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         assertTrue(foundEvent, "NameEjectedToL2 event not found");
     }
 
-    function test_Revert_completeMigrationFromL1_notOwner() public {
+    function test_Revert_completeEjectionFromL1_notOwner() public {
         // Expect revert with NotTokenOwner error from the L2EjectionController logic
         vm.expectRevert(abi.encodeWithSelector(L2EjectionController.NotTokenOwner.selector, tokenId));
         // Call the external method which should revert
@@ -265,7 +268,24 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
             expires: 0,
             roleBitmap: ALL_ROLES
         });
-        controller.completeMigrationFromL1(migrationData);
+        // Call through the bridge (using vm.prank to simulate bridge calling)
+        vm.prank(address(bridge));
+        controller.completeEjectionFromL1(migrationData);
+    }
+
+    function test_Revert_completeEjectionFromL1_not_bridge() public {
+        // Try to call completeEjectionFromL1 directly (not from bridge)
+        TransferData memory transferData = TransferData({
+            label: label,
+            owner: l2Owner,
+            subregistry: l2Subregistry,
+            resolver: l2Resolver,
+            expires: 0,
+            roleBitmap: ALL_ROLES
+        });
+        
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.CallerNotBridge.selector, address(this)));
+        controller.completeEjectionFromL1(transferData);
     }
 
     function test_supportsInterface() public view {

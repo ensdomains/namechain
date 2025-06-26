@@ -44,7 +44,7 @@ contract MockL2Bridge is MockBridgeBase {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        ejectionController.completeMigrationFromL1(transferData);
+        ejectionController.completeEjectionFromL1(transferData);
     }
     
     /**

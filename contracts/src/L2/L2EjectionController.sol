@@ -37,13 +37,17 @@ contract L2EjectionController is EjectionController, ITokenObserver {
     }
 
     /**
-     * @dev Should be called when a name is being migrated back to L2.
+     * @dev Should be called when a name is being ejected back to L2.
      *
      * @param transferData The transfer data for the name being migrated
      */
-    function completeMigrationFromL1(
+    function completeEjectionFromL1(
         TransferData memory transferData
-    ) public virtual {
+    ) 
+    external 
+    virtual 
+    onlyBridge 
+    {
         (uint256 tokenId,,) = registry.getNameData(transferData.label);
 
         if (registry.ownerOf(tokenId) != address(this)) {

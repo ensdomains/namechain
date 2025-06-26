@@ -31,7 +31,12 @@ contract L1EjectionController is EjectionController, RegistryRolesMixin {
      */
     function completeEjectionFromL2(
         TransferData memory transferData
-    ) public virtual returns (uint256 tokenId) {
+    ) 
+    external 
+    virtual 
+    onlyBridge 
+    returns (uint256 tokenId) 
+    {
         tokenId = registry.register(transferData.label, transferData.owner, IRegistry(transferData.subregistry), transferData.resolver, transferData.roleBitmap, transferData.expires);
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
         emit NameEjectedToL1(dnsEncodedName, tokenId);

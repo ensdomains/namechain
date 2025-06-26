@@ -151,6 +151,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             expires: expiryTime,
             roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
         });
+        // Call through the bridge (using vm.prank to simulate bridge calling)
+        vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
@@ -169,6 +171,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             expires: expiryTime,
             roleBitmap: expectedRoles
         });
+        // Call through the bridge (using vm.prank to simulate bridge calling)
+        vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
@@ -194,6 +198,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             expires: expiryTime,
             roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
         });
+        // Call through the bridge (using vm.prank to simulate bridge calling)
+        vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -227,10 +233,13 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             expires: expiryTime,
             roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
         });
+        // Call through the bridge (using vm.prank to simulate bridge calling)
+        vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
         // Try to eject again while not expired
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameAlreadyRegistered.selector, testLabel));
+        vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
     }
 
@@ -244,6 +253,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             expires: expiryTime,
             roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
         });
+        // Call through the bridge (using vm.prank to simulate bridge calling)
+        vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
@@ -271,6 +282,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             expires: expiryTime,
             roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
         });
+        // Call through the bridge (using vm.prank to simulate bridge calling)
+        vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
@@ -308,6 +321,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             expires: expiryTime,
             roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
         });
+        // Call through the bridge (using vm.prank to simulate bridge calling)
+        vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
@@ -328,6 +343,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             expires: initialExpiry,
             roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
         });
+        // Call through the bridge (using vm.prank to simulate bridge calling)
+        vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
@@ -577,6 +594,22 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         }
         
         return abi.encode(transferDataArray);
+    }
+
+    function test_Revert_completeEjectionFromL2_not_bridge() public {
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+        });
+        
+        // Try to call completeEjectionFromL2 directly (not from bridge)
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.CallerNotBridge.selector, address(this)));
+        ejectionController.completeEjectionFromL2(transferData);
     }
 }
 
