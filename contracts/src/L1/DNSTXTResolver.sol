@@ -23,8 +23,6 @@ import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 
-import "hardhat/console.sol";
-
 contract DNSTXTResolver is
     ERC165,
     IFeatureSupporter,
