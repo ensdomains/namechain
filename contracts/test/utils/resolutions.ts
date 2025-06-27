@@ -76,12 +76,12 @@ type KnownOrigin = "on" | "off" | "batch";
 type OriginRecord = { origin?: KnownOrigin };
 type StringRecord = OriginRecord & { value: string };
 type BytesRecord = OriginRecord & { value: Hex };
-type PubkeyRecord = OriginRecord & { x: Hex; y: Hex };
-type ErrorRecord = OriginRecord & { call: Hex; answer: Hex };
-type AddressRecord = BytesRecord & { coinType: bigint };
-type TextRecord = StringRecord & { key: string };
-type ABIRecord = BytesRecord & { contentType: bigint };
-type InterfaceRecord = BytesRecord & { selector: Hex };
+export type PubkeyRecord = OriginRecord & { x: Hex; y: Hex };
+export type ErrorRecord = OriginRecord & { call: Hex; answer: Hex };
+export type AddressRecord = BytesRecord & { coinType: bigint };
+export type TextRecord = StringRecord & { key: string };
+export type ABIRecord = BytesRecord & { contentType: bigint };
+export type InterfaceRecord = BytesRecord & { selector: Hex };
 
 export type KnownProfile = {
   title?: string;

@@ -266,7 +266,7 @@ contract DedicatedResolver is
     }
 
     /// @notice Resolve records independent of name.
-    /// @dev Revert `UnsupportedResolverProfile` if the record is not supported.
+    /// @dev Reverts `UnsupportedResolverProfile` if the record is not supported.
     /// @param data The resolution data, as specified in ENSIP-10..
     /// @return The result of the resolution.
     function resolve(

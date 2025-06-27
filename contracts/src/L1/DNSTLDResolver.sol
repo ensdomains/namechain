@@ -19,6 +19,8 @@ import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IFeatureSupporter, isFeatureSupported} from "../common/IFeatureSupporter.sol";
 import {ResolverFeatures} from "../common/ResolverFeatures.sol";
 
+import "hardhat/console.sol";
+
 /// @dev Gateway interface for DNSSEC oracle.
 interface IDNSGateway {
     function resolve(

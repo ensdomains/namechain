@@ -56,24 +56,22 @@ contract ETHFallbackResolver is
     /// @dev `GatewayRequest` exit code which indicates no resolver was found.
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
 
-    /// @dev `name` does not exist.
-    ///      Error selector: `0x5fe9a5df`
+    /// @notice `name` does not exist.
+    /// @dev Error selector: `0x5fe9a5df`
     /// @param name The DNS-encoded ENS name.
     error UnreachableName(bytes name);
 
-    /// @dev The resolver profile cannot be answered.
-    ///      Error selector: `0x7b1c461b`
-    /// @param selector The function selector of the resolver profile.
+    /// @notice The resolver profile cannot be answered.
+    /// @dev Error selector: `0x5fe9a5df`
     error UnsupportedResolverProfile(bytes4 selector);
 
-    /// @dev Maximum number of calls in a `multicall()`.
-    ///      Technical limit: 254.
+    /// @notice Maximum number of calls in a `multicall()`.
+    /// @dev Technical limit: 254.
     ///      Actual limit: gateway proof size and/or gas limit.
     uint8 public immutable MAX_MULTICALLS = 32;
 
-    /// @dev Error when the number of calls in a `multicall()` is too large.
-    ///      Error selector: `0xf752eecf`
-    /// @param max The maximum number of calls.
+    /// @notice Error when the number of calls in a `multicall()` is too large.
+    /// @dev Error selector: `0xf752eecf`
     error MulticallTooLarge(uint256 max);
 
     constructor(
