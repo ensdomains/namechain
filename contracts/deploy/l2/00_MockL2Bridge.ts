@@ -2,21 +2,17 @@
 import { artifacts, execute } from "@rocketh";
 
 export default execute(
-  async ({ deploy, namedAccounts, get }) => {
+  async ({ deploy, namedAccounts }) => {
     const { deployer } = namedAccounts;
-
-    const bridgeHelper =
-      get<(typeof artifacts.MockBridgeHelper)["abi"]>("MockBridgeHelper");
 
     await deploy("MockL2Bridge", {
       account: deployer,
       artifact: artifacts.MockL2Bridge,
-      args: [bridgeHelper.address],
+      args: [],
     });
   },
   // finally you can pass tags and dependencies
   {
     tags: ["MockL2Bridge", "mocks", "l2"],
-    dependencies: ["MockBridgeHelper"],
   },
 );

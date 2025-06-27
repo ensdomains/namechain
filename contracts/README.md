@@ -17,13 +17,9 @@ At present the following contracts are implemented:
 
 ### Installation
 
-1. Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation)
-2. Install [bun](https://bun.sh/)
-3. Make sure to have the proper node.js version installed. See [/package.json#engines](../package.json#engines)
-```sh
-node --version
-```
-
+1. Install [Node.js](https://nodejs.org/) 24+
+2. Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation)
+3. Install [bun](https://bun.sh/) 1.2+
 4. Install dependencies:
 
 ```sh
@@ -36,6 +32,7 @@ forge i
 
 ```sh
 forge build
+bun run compile:hardhat
 ```
 
 ### Test

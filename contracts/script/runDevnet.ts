@@ -26,5 +26,5 @@ l2Accounts.forEach((address: string, index: number) => {
 });
 
 console.log("\nChain Info:");
-console.log(`L1 Chain ID: ${env.l1.client.chain.id}`);
-console.log(`L2 Chain ID: ${env.l2.client.chain.id}`);
+console.log(`L1 Chain ID: ${(env.l1.client.chain as any)?.id ?? "unknown"}`);
+console.log(`L2 Chain ID: ${(env.l2.client.chain as any)?.id ?? "unknown"}`);
