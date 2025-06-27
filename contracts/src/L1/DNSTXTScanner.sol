@@ -36,6 +36,13 @@ library DNSTXTScanner {
         IGNORED_UNQUOTED_VALUE
     }
 
+    bytes1 constant CH_BACKSLASH = "\\";
+    bytes1 constant CH_QUOTE = "'";
+    bytes1 constant CH_SPACE = " ";
+    bytes1 constant CH_EQUAL = "=";
+    bytes1 constant CH_ARG_OPEN = "[";
+    bytes1 constant CH_ARG_CLOSE = "]";
+
     /// @dev Implements a DFA to parse the text record, looking for an entry matching `key`.
     /// @param data The text record to parse.
     /// @param key The exact key to search for with trailing equals, eg. "key=".
@@ -54,7 +61,7 @@ library DNSTXTScanner {
         uint256 len = data.length;
         for (uint256 i; i < len; ) {
             if (state == State.START) {
-                while (i < len && data[i] == " ") {
+                while (i < len && data[i] == CH_SPACE) {
                     i += 1;
                 }
                 if (i + key.length > len) {
@@ -67,11 +74,11 @@ library DNSTXTScanner {
                 }
             } else if (state == State.IGNORED_KEY) {
                 for (; i < len; i++) {
-                    if (data[i] == "=") {
+                    if (data[i] == CH_EQUAL) {
                         state = State.IGNORED_VALUE;
-                    } else if (data[i] == "[") {
+                    } else if (data[i] == CH_ARG_OPEN) {
                         state = State.IGNORED_KEY_ARG;
-                    } else if (data[i] == " ") {
+                    } else if (data[i] == CH_SPACE) {
                         state = State.START;
                     } else {
                         continue;
@@ -81,9 +88,9 @@ library DNSTXTScanner {
                 }
             } else if (state == State.IGNORED_KEY_ARG) {
                 for (; i < len; i++) {
-                    if (data[i] == "]") {
+                    if (data[i] == CH_ARG_CLOSE) {
                         i += 1;
-                        if (i < len && data[i] == "=") {
+                        if (i < len && data[i] == CH_EQUAL) {
                             state = State.IGNORED_VALUE;
                             i += 1;
                         } else {
@@ -93,7 +100,7 @@ library DNSTXTScanner {
                     }
                 }
             } else if (state == State.VALUE) {
-                if (data[i] == "'") {
+                if (data[i] == CH_QUOTE) {
                     state = State.QUOTED_VALUE;
                     i += 1;
                 } else {
@@ -107,49 +114,45 @@ library DNSTXTScanner {
                         data[start + valueLen] = data[i];
                         valueLen += 1;
                         escaped = false;
+                    } else if (data[i] == CH_BACKSLASH) {
+                        escaped = true;
+                    } else if (data[i] == CH_QUOTE) {
+                        return BytesUtils.substring(data, start, valueLen);
                     } else {
-                        if (data[i] == "\\") {
-                            escaped = true;
-                        } else if (data[i] == "'") {
-                            return BytesUtils.substring(data, start, valueLen);
-                        } else {
-                            data[start + valueLen] = data[i];
-                            valueLen += 1;
-                        }
+                        data[start + valueLen] = data[i];
+                        valueLen += 1;
                     }
                 }
             } else if (state == State.UNQUOTED_VALUE) {
                 for (uint256 j = i; j < len; j++) {
-                    if (data[j] == " ") {
+                    if (data[j] == CH_SPACE) {
                         len = j;
                     }
                 }
                 return BytesUtils.substring(data, i, len - i);
             } else if (state == State.IGNORED_VALUE) {
-                if (data[i] == "'") {
+                if (data[i] == CH_QUOTE) {
                     state = State.IGNORED_QUOTED_VALUE;
                     i += 1;
                 } else {
                     state = State.IGNORED_UNQUOTED_VALUE;
                 }
             } else if (state == State.IGNORED_QUOTED_VALUE) {
-                bool escaped = false;
+                bool escaped;
                 for (; i < len; i++) {
                     if (escaped) {
                         escaped = false;
-                    } else {
-                        if (data[i] == "\\") {
-                            escaped = true;
-                        } else if (data[i] == "'") {
-                            i += 1;
-                            state = State.START;
-                            break;
-                        }
+                    } else if (data[i] == CH_BACKSLASH) {
+                        escaped = true;
+                    } else if (data[i] == CH_QUOTE) {
+                        i += 1;
+                        state = State.START;
+                        break;
                     }
                 }
             } else {
-                assert(state == State.IGNORED_UNQUOTED_VALUE);
-                if (data[i] == " ") {
+                // state = State.IGNORED_UNQUOTED_VALUE
+                if (data[i] == CH_SPACE) {
                     state = State.START;
                 }
                 i += 1;

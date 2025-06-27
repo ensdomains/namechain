@@ -19,13 +19,13 @@ contract TestDNSTXTScanner is Test {
         assertEq(DNSTXTScanner.find("a[b]junk a=3", "a="), "3");
     }
 
-    function test_find_basicKeys() external pure {
+    function test_find_unquoted() external pure {
         assertEq(DNSTXTScanner.find("a=1", "a="), "1");
         assertEq(DNSTXTScanner.find("bb=2", "bb="), "2");
         assertEq(DNSTXTScanner.find("c[]=3", "c[]="), "3");
     }
 
-    function test_find_keyWithArg() external pure {
+    function test_find_unquotedWithArg() external pure {
         assertEq(DNSTXTScanner.find("a=1 a[b]=1", "a[b]="), "1");
         assertEq(DNSTXTScanner.find("a=1 a[bb]=2", "a[bb]="), "2");
         assertEq(DNSTXTScanner.find("a=a[b] a[b]=3", "a[b]="), "3");
