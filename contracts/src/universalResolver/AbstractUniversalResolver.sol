@@ -331,12 +331,6 @@ abstract contract AbstractUniversalResolver is
             bytes[] memory calls
         ) = abi.decode(extraData, (ResolverInfo, bytes4, bytes, bytes[]));
         bytes memory v = abi.decode(response, (bytes)); // unwrap resolve()
-        if (v.length == 0) {
-            revert UnsupportedResolverProfile(
-                IMulticallable.multicall.selector
-            );
-        }
-        if ((v.length & 31) != 0) revert ResolverError(v);
         bytes[] memory answers = abi.decode(v, (bytes[]));
         if (answers.length != calls.length) {
             revert InvalidMulticallResponse();

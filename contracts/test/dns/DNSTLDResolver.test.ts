@@ -10,7 +10,7 @@ import {
   makeResolutions,
 } from "../utils/resolutions.js";
 import { dnsEncodeName, expectVar } from "../utils/utils.js";
-import { encodeRRs, TXT } from "./gasless.js";
+import { encodeRRs, TXT } from "./rr.ts";
 import { FEATURES } from "../utils/features.js";
 
 const chain = await hre.network.connect();
