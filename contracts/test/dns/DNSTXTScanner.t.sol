@@ -8,9 +8,15 @@ contract TestDNSTXTScanner is Test {
     function test_find_whitespace() external pure {
         assertEq(DNSTXTScanner.find("", "a="), "");
         assertEq(DNSTXTScanner.find("  ", "a="), "");
-        assertEq(DNSTXTScanner.find("  a=1", "a="), "1");
-        assertEq(DNSTXTScanner.find("a=2  ", "a="), "2");
-        assertEq(DNSTXTScanner.find(" a=3 ", "a="), "3");
+        assertEq(DNSTXTScanner.find("a=1  ", "a="), "1");
+        assertEq(DNSTXTScanner.find(" a=2 ", "a="), "2");
+        assertEq(DNSTXTScanner.find("  a=3", "a="), "3");
+    }
+
+    function test_find_ignored() external pure {
+        assertEq(DNSTXTScanner.find("a a=1", "a="), "1");
+        assertEq(DNSTXTScanner.find("a[b] a=2", "a="), "2");
+        assertEq(DNSTXTScanner.find("a[b]junk a=3", "a="), "3");
     }
 
     function test_find_basicKeys() external pure {

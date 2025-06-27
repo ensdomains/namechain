@@ -14,7 +14,7 @@ import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 ///  eg. `a=x`, `a[]=x`, `a[b]=x`, `a[b]='x y'`, `a[b]='x y\'s'`
 ///
 ///    ┌───────────────────────────────────────────────────────────────────────────────────────────┐
-///    │  ┌───◄───┐                                                                               │
+///    │  ┌───◄───┐                                                                                │
 ///    │  │ ┌───┐ │  ┌───┐    ┌───┐    ┌───┐    ┌───┐    ┌───┐    ┌───┐    ┌────────────┐    ┌───┐ │
 ///  ^─┴─►┴─┤" "│─┴─►│key├─┬─►│"["├───►│arg├───►│"]"├─┬─►│"="├─┬─►│"'"├───►│quoted_value├───►│"'"├─┼─$
 ///         └───┘    └───┘ │  └───┘    └───┘    └───┘ │  └───┘ │  └───┘    └────────────┘    └───┘ │
@@ -38,7 +38,7 @@ library DNSTXTScanner {
 
     /// @dev Implements a DFA to parse the text record, looking for an entry matching `key`.
     /// @param data The text record to parse.
-    /// @param key The exact key to search for with trailing equals.
+    /// @param key The exact key to search for with trailing equals, eg. "key=".
     /// @return value The value if found, or an empty string if `key` does not exist.
     function find(
         bytes memory data,
@@ -69,21 +69,25 @@ library DNSTXTScanner {
                 for (; i < len; i++) {
                     if (data[i] == "=") {
                         state = State.IGNORED_VALUE;
-                        i += 1;
-                        break;
                     } else if (data[i] == "[") {
                         state = State.IGNORED_KEY_ARG;
-                        i += 1;
-                        break;
+                    } else if (data[i] == " ") {
+                        state = State.START;
+                    } else {
+                        continue;
                     }
+                    i += 1;
+                    break;
                 }
             } else if (state == State.IGNORED_KEY_ARG) {
                 for (; i < len; i++) {
                     if (data[i] == "]") {
-                        state = State.IGNORED_VALUE;
                         i += 1;
-                        if (data[i] == "=") {
+                        if (i < len && data[i] == "=") {
+                            state = State.IGNORED_VALUE;
                             i += 1;
+                        } else {
+                            state = State.IGNORED_UNQUOTED_VALUE;
                         }
                         break;
                     }
@@ -115,14 +119,12 @@ library DNSTXTScanner {
                     }
                 }
             } else if (state == State.UNQUOTED_VALUE) {
-                uint256 end = len;
                 for (uint256 j = i; j < len; j++) {
                     if (data[j] == " ") {
-                        end = j;
-                        break;
+                        len = j;
                     }
                 }
-                return BytesUtils.substring(data, i, end - i);
+                return BytesUtils.substring(data, i, len - i);
             } else if (state == State.IGNORED_VALUE) {
                 if (data[i] == "'") {
                     state = State.IGNORED_QUOTED_VALUE;

@@ -214,6 +214,7 @@ describe("ETHFallbackResolver", () => {
         // the errors are different because:
         // V1: requireResolver() fails
         // V2: gateway to namechain, no resolver found, but called directly (via feature)
+        // TODO: restore this after merge
         await expect(
           F.mainnetV2.universalResolver.read.resolve([
             dnsEncodeName(name),
