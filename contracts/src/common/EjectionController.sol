@@ -81,16 +81,6 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
     // Internal functions
 
     /**
-     * @dev DNS encodes a label, assuming it's a ETH 2LD.
-     *
-     * @param label The label to encode.
-     * @return The encoded label.
-     */
-    function _dnsEncodeLabel(string memory label) internal pure returns (bytes memory) {
-        return NameUtils.dnsEncodeEthLabel(label);
-    }
-
-    /**
      * @dev Asserts that the label matches the token ID.
      *
      * @param tokenId The token ID to check
