@@ -23,7 +23,7 @@ contract MockDurinL2Registry is AddrResolver, TextResolver, InterfaceResolver {
     // bytes32 public baseNode;
     mapping(bytes32 node => bytes name) public names;
     // event ResolverUpdate(address indexed registry, uint256 indexed tokenId, address resolver, uint64 ttl, uint64 gracePeriod);
-    event ResolverUpdate(address indexed registry, uint256 indexed id, address resolver, uint64 expiry, uint32 data);
+    event ResolverUpdate(uint256 indexed id, address resolver, uint64 expiry, uint32 data);
     event NewSubname(uint256 indexed _tokenId, string label);
     // constructor(bytes32 _node){
     //     baseNode = _node;
@@ -39,7 +39,7 @@ contract MockDurinL2Registry is AddrResolver, TextResolver, InterfaceResolver {
         bytes32 subnode = makeNode(node, label);
         bytes memory dnsEncodedName = abi.encodePacked(uint8(bytes(label).length), label, names[node]);
         names[subnode] = dnsEncodedName;
-        emit ResolverUpdate(address(this), tokenId, address(this), 0, 0);
+        emit ResolverUpdate(tokenId, address(this), 0, 0);
         emit NewSubname(tokenId, label);
         return tokenId;
     }
