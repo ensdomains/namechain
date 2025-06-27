@@ -13,6 +13,8 @@ export {
   packetToBytes,
 } from "../../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
 
+export { dnsDecodeName } from "../../lib/ens-contracts/test/fixtures/dnsDecodeName.js";
+
 // export function packetToBytes(packet: string) {
 //   const m = splitName(packet).flatMap(s => {
 //   let v = stringToBytes(s);

@@ -4,13 +4,15 @@ pragma solidity >=0.8.13;
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
-import {IDedicatedResolver, NODE_ANY} from "./IDedicatedResolver.sol";
+import {IDedicatedResolverSetters, NODE_ANY} from "./IDedicatedResolverSetters.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
+
+// resolver features
+import {IFeatureSupporter} from "./IFeatureSupporter.sol";
+import {ResolverFeatures} from "./ResolverFeatures.sol";
 
 // resolver profiles
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
@@ -28,8 +30,9 @@ import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceRe
 contract DedicatedResolver is
     ERC165,
     OwnableUpgradeable,
+    IDedicatedResolverSetters,
+    IFeatureSupporter,
     IExtendedResolver,
-    IDedicatedResolver,
     IMulticallable,
     IAddrResolver,
     IAddressResolver,
@@ -51,9 +54,6 @@ contract DedicatedResolver is
     mapping(bytes4 => address) _interfaces;
     string _primary;
 
-    /// @notice True if the resolver supports any name.
-    bool public wildcard;
-
     /// @notice The resolver profile cannot be answered.
     /// @dev Error selector: `0x5fe9a5df`
     error UnsupportedResolverProfile(bytes4 selector);
@@ -74,7 +74,7 @@ contract DedicatedResolver is
     ) public view override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
-            type(IDedicatedResolver).interfaceId == interfaceId ||
+            type(IDedicatedResolverSetters).interfaceId == interfaceId ||
             type(IMulticallable).interfaceId == interfaceId ||
             type(IAddrResolver).interfaceId == interfaceId ||
             type(IAddressResolver).interfaceId == interfaceId ||
@@ -85,10 +85,18 @@ contract DedicatedResolver is
             type(INameResolver).interfaceId == interfaceId ||
             type(IABIResolver).interfaceId == interfaceId ||
             type(IInterfaceResolver).interfaceId == interfaceId ||
+            type(IFeatureSupporter).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IFeatureSupporter
+    function supportsFeature(bytes4 feature) public pure returns (bool) {
+        return
+            ResolverFeatures.RESOLVE_MULTICALL == feature ||
+            ResolverFeatures.SINGULAR == feature;
+    }
+
+    /// @inheritdoc IDedicatedResolverSetters
     function setAddr(
         uint256 coinType,
         bytes calldata addressBytes
@@ -134,7 +142,7 @@ contract DedicatedResolver is
         return _addresses[coinType].length > 0;
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverSetters
     function setText(
         string calldata key,
         string calldata value
@@ -153,7 +161,7 @@ contract DedicatedResolver is
         return _texts[key];
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverSetters
     function setContenthash(bytes calldata hash) external onlyOwner {
         _contenthash = hash;
         emit ContenthashChanged(NODE_ANY, hash);
@@ -165,7 +173,7 @@ contract DedicatedResolver is
         return _contenthash;
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverSetters
     function setPubkey(bytes32 x, bytes32 y) external onlyOwner {
         _pubkeyX = x;
         _pubkeyY = y;
@@ -180,7 +188,7 @@ contract DedicatedResolver is
         y = _pubkeyY;
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverSetters
     function setABI(
         uint256 contentType,
         bytes calldata data
@@ -192,6 +200,7 @@ contract DedicatedResolver is
         emit ABIChanged(NODE_ANY, contentType);
     }
 
+    /// @dev Returns true if `x` has a single bit set.
     function _isPowerOf2(uint256 x) internal pure returns (bool) {
         return x > 0 && (x - 1) & x == 0;
     }
@@ -219,15 +228,11 @@ contract DedicatedResolver is
         return (0, "");
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverSetters
     function setInterface(
         bytes4 interfaceId,
         address implementer
     ) external onlyOwner {
-        _setInterface(interfaceId, implementer);
-    }
-
-    function _setInterface(bytes4 interfaceId, address implementer) internal {
         _interfaces[interfaceId] = implementer;
         emit InterfaceChanged(NODE_ANY, interfaceId, implementer);
     }
@@ -248,7 +253,7 @@ contract DedicatedResolver is
         }
     }
 
-    /// @inheritdoc IDedicatedResolver
+    /// @inheritdoc IDedicatedResolverSetters
     function setName(string calldata _name) external onlyOwner {
         _primary = _name;
         emit NameChanged(NODE_ANY, _name);
@@ -260,6 +265,10 @@ contract DedicatedResolver is
         return _primary;
     }
 
+    /// @notice Resolve records independent of name.
+    /// @dev Revert `UnsupportedResolverProfile` if the record is not supported.
+    /// @param data The resolution data, as specified in ENSIP-10..
+    /// @return The result of the resolution.
     function resolve(
         bytes calldata,
         bytes calldata data
@@ -275,6 +284,8 @@ contract DedicatedResolver is
         return v;
     }
 
+    /// @notice Perform multiple read or write operations.
+    /// @dev Reverts if any call fails.
     function multicall(
         bytes[] calldata calls
     ) public returns (bytes[] memory results) {
@@ -287,7 +298,12 @@ contract DedicatedResolver is
         return results;
     }
 
-    /// @notice Warning: node check is ignored.
+    /// @notice Same as `multicall()`.
+    /// @dev The purpose of node check is to prevent a trusted operator from modifying
+    ///      multiple names.  Since the sole operator of this resolver is the owner and
+    ///      it only stores records for a single name, the node check logic can be elided.
+    ///
+    ///      Additionally, the setters of this resolver do not have `node` as an argument.
     function multicallWithNodeCheck(
         bytes32,
         bytes[] calldata calls
