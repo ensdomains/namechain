@@ -284,7 +284,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
             roleBitmap: ALL_ROLES
         });
         
-        vm.expectRevert(abi.encodeWithSelector(EjectionController.CallerNotBridge.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
         controller.completeEjectionFromL1(transferData);
     }
 
@@ -493,18 +493,18 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
     }
 
-    function test_Revert_onERC1155Received_CallerNotRegistry() public {
+    function test_Revert_onERC1155Received_UnauthorizedCaller() public {
         // Prepare valid data for ejection
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
         uint256 roleBitmap = ALL_ROLES;
         bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Try to call onERC1155Received directly (not through registry)
-        vm.expectRevert(abi.encodeWithSelector(EjectionController.CallerNotRegistry.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
         controller.onERC1155Received(address(this), user, tokenId, 1, ejectionData);
     }
 
-    function test_Revert_onERC1155BatchReceived_CallerNotRegistry() public {
+    function test_Revert_onERC1155BatchReceived_UnauthorizedCaller() public {
         // Create batch of tokens to transfer
         uint256[] memory ids = new uint256[](2);
         ids[0] = tokenId;
@@ -538,7 +538,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         bytes memory batchData = _createBatchEjectionData(labels, owners, subregistries, resolvers, expiries, roleBitmaps);
         
         // Try to call onERC1155BatchReceived directly (not through registry)
-        vm.expectRevert(abi.encodeWithSelector(EjectionController.CallerNotRegistry.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
         controller.onERC1155BatchReceived(address(this), user, ids, amounts, batchData);
     }
 

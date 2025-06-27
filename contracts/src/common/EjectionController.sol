@@ -14,9 +14,8 @@ import {IBridge} from "./IBridge.sol";
  * @dev Base contract for the ejection controllers.
  */
 abstract contract EjectionController is IERC1155Receiver, ERC165 {
-    error CallerNotRegistry(address caller);
+    error UnauthorizedCaller(address caller);
     error InvalidLabel(uint256 tokenId, string label);
-    error CallerNotBridge(address caller);
 
     event NameEjectedToL1(bytes dnsEncodedName, uint256 tokenId);
     event NameEjectedToL2(bytes dnsEncodedName, uint256 tokenId);
@@ -26,7 +25,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
 
     modifier onlyBridge() {
         if (msg.sender != address(bridge)) {
-            revert CallerNotBridge(msg.sender);
+            revert UnauthorizedCaller(msg.sender);
         }
         _;
     }
@@ -48,7 +47,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
      */
     function onERC1155Received(address /*operator*/, address /*from*/, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual returns (bytes4) {
         if (msg.sender != address(registry)) {
-            revert CallerNotRegistry(msg.sender);
+            revert UnauthorizedCaller(msg.sender);
         }
 
         TransferData memory transferData = abi.decode(data, (TransferData));
@@ -69,7 +68,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
      */
     function onERC1155BatchReceived(address /*operator*/, address /*from*/, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual returns (bytes4) {
         if (msg.sender != address(registry)) {
-            revert CallerNotRegistry(msg.sender);
+            revert UnauthorizedCaller(msg.sender);
         }
 
         TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));

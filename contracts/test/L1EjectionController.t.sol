@@ -608,7 +608,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         });
         
         // Try to call completeEjectionFromL2 directly (not from bridge)
-        vm.expectRevert(abi.encodeWithSelector(EjectionController.CallerNotBridge.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
         ejectionController.completeEjectionFromL2(transferData);
     }
 }
