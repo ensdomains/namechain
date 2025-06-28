@@ -39,7 +39,6 @@ uint16 constant CLASS_INET = 1;
 uint16 constant TYPE_TXT = 16;
 
 bytes constant PREFIX = "ENS1 ";
-uint256 constant PREFIX_LENGTH = 5; // PREFIX.length
 
 /// @title DNSTLDResolver
 /// @notice Resolver that performs imported DNS fallback to V1 and gasless DNS resolution.
@@ -193,12 +192,16 @@ contract DNSTLDResolver is
         if (resolver.code.length == 0) {
             revert UnreachableName(name);
         }
-        bool direct = isFeatureSupported(
-            resolver,
-            ResolverFeatures.RESOLVE_MULTICALL
-        );
-        bytes[] memory calls;
         bool multi = bytes4(call) == IMulticallable.multicall.selector;
+        bool direct = ERC165Checker.supportsERC165InterfaceUnchecked(
+            resolver,
+            type(IFeatureSupporter).interfaceId
+        ) &&
+            (!multi ||
+                IFeatureSupporter(resolver).supportsFeature(
+                    ResolverFeatures.RESOLVE_MULTICALL
+                ));
+        bytes[] memory calls;
         if (multi) {
             calls = abi.decode(
                 BytesUtils.substring(call, 4, call.length - 4),
@@ -265,15 +268,16 @@ contract DNSTLDResolver is
     /// @dev CCIP-Read callback for `_callResolver()` from batch calling the gasless DNS resolver (step 3 of 3).
     /// @param response The response data from the batch gateway.
     /// @param extraData The abi-encoded properties of the call.
-    /// @return result The abi-encoded result from the resolver.
+    /// @return result The response from the resolver.
     function resolveBatchCallback(
         bytes calldata response,
         bytes calldata extraData
     ) external pure returns (bytes memory) {
         Batch memory batch = abi.decode(response, (Batch));
         (bool multi, bool extended) = abi.decode(extraData, (bool, bool));
+        uint256 n = batch.lookups.length;
         if (extended) {
-            for (uint256 i; i < batch.lookups.length; i++) {
+            for (uint256 i; i < n; i++) {
                 Lookup memory lu = batch.lookups[i];
                 if ((lu.flags & FLAGS_ANY_ERROR) == 0) {
                     lu.data = abi.decode(lu.data, (bytes));
@@ -281,9 +285,8 @@ contract DNSTLDResolver is
             }
         }
         if (multi) {
-            uint256 n = batch.lookups.length;
             bytes[] memory m = new bytes[](n);
-            for (uint256 i; i < m.length; i++) {
+            for (uint256 i; i < n; i++) {
                 m[i] = batch.lookups[i].data;
             }
             return abi.encode(m);
@@ -300,16 +303,9 @@ contract DNSTLDResolver is
     function _parseTXT(
         bytes memory txt
     ) internal view returns (address resolver, bytes memory context) {
-        if (
-            txt.length >= PREFIX_LENGTH &&
-            BytesUtils.equals(txt, 0, PREFIX, 0, PREFIX_LENGTH)
-        ) {
-            uint256 sep = BytesUtils.find(
-                txt,
-                PREFIX_LENGTH,
-                txt.length - PREFIX_LENGTH,
-                " "
-            );
+        uint256 n = PREFIX.length;
+        if (txt.length >= n && BytesUtils.equals(txt, 0, PREFIX, 0, n)) {
+            uint256 sep = BytesUtils.find(txt, n, txt.length - n, " ");
             if (sep < txt.length) {
                 context = BytesUtils.substring(
                     txt,
@@ -319,9 +315,7 @@ contract DNSTLDResolver is
             } else {
                 sep = txt.length;
             }
-            resolver = _parseResolver(
-                BytesUtils.substring(txt, PREFIX_LENGTH, sep - PREFIX_LENGTH)
-            );
+            resolver = _parseResolver(BytesUtils.substring(txt, n, sep - n));
         }
     }
 
@@ -334,7 +328,7 @@ contract DNSTLDResolver is
     function _parseResolver(
         bytes memory v
     ) internal view returns (address resolver) {
-        if (v[0] == "0" && v[1] == "x") {
+        if (v.length > 2 && v[0] == "0" && v[1] == "x") {
             (address addr, bool valid) = HexUtils.hexToAddress(v, 2, v.length);
             if (valid) {
                 return addr;

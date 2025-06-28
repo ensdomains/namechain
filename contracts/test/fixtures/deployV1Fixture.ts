@@ -1,5 +1,5 @@
 import type { NetworkConnection } from "hardhat/types/network";
-import { Address, labelhash, namehash } from "viem";
+import { type Address, labelhash, namehash } from "viem";
 import { splitName } from "../utils/utils.js";
 import { baseRegistrarImplementationArtifact } from "./ens-contracts/BaseRegistrarImplementation.js";
 import { ensRegistryArtifact } from "./ens-contracts/ENSRegistry.js";

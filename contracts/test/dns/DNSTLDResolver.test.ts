@@ -14,6 +14,7 @@ import {
 import { dnsEncodeName, expectVar } from "../utils/utils.js";
 import { encodeRRs, TXT } from "./rr.ts";
 import { FEATURES } from "../utils/features.js";
+import { encodeErrorResult, stringToHex } from "viem";
 
 const chain = await hre.network.connect();
 
@@ -178,7 +179,7 @@ describe("DNSTLDResolver", () => {
           dummyBytes4,
         ]),
       )
-        .toBeRevertedWithCustomErrorFrom(F.dnsTLDResolver, "UnreachableName")
+        .toBeRevertedWithCustomErrorFrom(F.dnsTLDResolver, "UnreachableName")  // TODO: fix after merge
         .withArgs([dnsEncodeName(basicProfile.name)]);
     });
 
@@ -277,7 +278,53 @@ describe("DNSTLDResolver", () => {
           dummyBytes4,
         ]),
       )
-        .toBeRevertedWithCustomError("UnsupportedResolverProfile")
+        .toBeRevertedWithCustomError("UnsupportedResolverProfile") // TODO: fix after merge
+        .withArgs([dummyBytes4]);
+    });
+
+    it("invalid hex", async () => {
+      const F = await chain.networkHelpers.loadFixture(fixture);
+      const invalidHex = "!@#$";
+      await F.mockDNSSEC.write.setResponse([
+        encodeRRs([
+          TXT(basicProfile.name, `ENS1 ${dnsnameResolver} a[60]=${invalidHex}`),
+        ]),
+      ]);
+      const [res] = makeResolutions({
+        name: basicProfile.name,
+        addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
+      });
+      await expect(
+        F.mainnetV2.universalResolver.read.resolve([
+          dnsEncodeName(basicProfile.name),
+          res.call,
+        ]),
+      )
+        .toBeRevertedWithCustomErrorFrom(F.dnsTXTResolver, "InvalidHexData") // TODO: fix after merge
+        .withArgs([stringToHex(invalidHex)]);
+    });
+
+    it("invalid address", async () => {
+      const F = await chain.networkHelpers.loadFixture(fixture);
+      await F.mockDNSSEC.write.setResponse([
+        encodeRRs([
+          TXT(
+            basicProfile.name,
+            `ENS1 ${dnsnameResolver} a[60]=${dummyBytes4}`,
+          ),
+        ]),
+      ]);
+      const [res] = makeResolutions({
+        name: basicProfile.name,
+        addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
+      });
+      await expect(
+        F.mainnetV2.universalResolver.read.resolve([
+          dnsEncodeName(basicProfile.name),
+          res.call,
+        ]),
+      )
+        .toBeRevertedWithCustomErrorFrom(F.dnsTXTResolver, "InvalidEVMAddress") // TODO: fix after merge
         .withArgs([dummyBytes4]);
     });
 
