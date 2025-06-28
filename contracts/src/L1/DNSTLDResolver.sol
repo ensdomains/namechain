@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+
 import {CCIPBatcher, OffchainLookup} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
 import {DNSSEC} from "@ens/contracts/dnssec-oracle/DNSSEC.sol";
 import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
@@ -42,15 +44,16 @@ uint256 constant PREFIX_LENGTH = 5; // PREFIX.length
 /// @title DNSTLDResolver
 /// @notice Resolver that performs imported DNS fallback to V1 and gasless DNS resolution.
 contract DNSTLDResolver is
-    ERC165,
     IFeatureSupporter,
     IExtendedResolver,
-    CCIPBatcher
+    CCIPBatcher,
+    Ownable,
+    ERC165
 {
     IUniversalResolverStub public immutable universalResolverV1;
     IUniversalResolverStub public immutable universalResolverV2;
     DNSSEC public immutable oracleVerifier;
-    string[] public oracleGateways;
+    string[] _gateways;
 
     /// @dev `name` does not exist.
     ///      Error selector: `0x5fe9a5df`
@@ -65,12 +68,12 @@ contract DNSTLDResolver is
         IUniversalResolverStub _universalResolverV1,
         IUniversalResolverStub _universalResolverV2,
         DNSSEC _oracleVerifier,
-        string[] memory _oracleGateways
-    ) {
+        string[] memory gateways
+    ) Ownable(msg.sender) {
         universalResolverV1 = _universalResolverV1;
         universalResolverV2 = _universalResolverV2;
         oracleVerifier = _oracleVerifier;
-        oracleGateways = _oracleGateways;
+        _gateways = gateways;
     }
 
     /// @inheritdoc ERC165
@@ -86,6 +89,18 @@ contract DNSTLDResolver is
     /// @inheritdoc IFeatureSupporter
     function supportsFeature(bytes4 feature) public pure returns (bool) {
         return ResolverFeatures.RESOLVE_MULTICALL == feature;
+    }
+
+    /// @notice Set the DNSSEC oracle gateways.
+    /// @param gateways The gateway URLs.
+    function setOracleGateways(string[] memory gateways) external onlyOwner {
+        _gateways = gateways;
+    }
+
+    /// @notice Get the DNSSEC oracle gateways.
+    /// @return The gateway URLs.
+    function oracleGateways() external view returns (string[] memory) {
+        return _gateways;
     }
 
     /// @notice Resolve `name` using V1 or DNSSEC.
@@ -115,7 +130,7 @@ contract DNSTLDResolver is
         }
         revert OffchainLookup(
             address(this),
-            oracleGateways,
+            _gateways,
             abi.encodeCall(IDNSGateway.resolve, (name, TYPE_TXT)),
             this.resolveOracleCallback.selector,
             abi.encode(name, data)

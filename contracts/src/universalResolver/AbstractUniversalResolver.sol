@@ -45,7 +45,7 @@ abstract contract AbstractUniversalResolver is
     }
 
     /// @notice Set the default batch gateways, see: `resolve()` and `reverse()`.
-    /// @param gateways The list of batch gateway URLs to use as default.
+    /// @param gateways The batch gateway URLs.
     function setBatchGateways(string[] memory gateways) external onlyOwner {
         _gateways = gateways;
     }
