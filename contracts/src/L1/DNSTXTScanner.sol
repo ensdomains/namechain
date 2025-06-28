@@ -4,24 +4,26 @@ pragma solidity >=0.8.13;
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
 /// @title DNSTXTScanner
-/// @dev Library for parsing record data from DNS TXT records.
+/// @dev Library for parsing ENS records from DNS TXT data.
 ///
-///  The record data consists of a series of key=value pairs, separated by spaces. Keys
-///  may have an optional argument in square brackets, and values may be either unquoted
-///   - in which case they may not contain spaces - or single-quoted. Single quotes in
-///  a quoted value may be backslash-escaped.
+/// The record data consists of a series of key=value pairs, separated by spaces. Keys
+/// may have an optional argument in square brackets, and values may be either unquoted
+/// - in which case they may not contain spaces - or single-quoted. Single quotes in
+/// a quoted value may be backslash-escaped.
 ///
-///  eg. `a=x`, `a[]=x`, `a[b]=x`, `a[b]='x y'`, `a[b]='x y\'s'`
+/// eg. `a=x`, `a[]=x`, `a[b]=x`, `a[b]='x y'`, `a[b]='x y\'s'`
 ///
-///    ┌───────────────────────────────────────────────────────────────────────────────────────────┐
-///    │  ┌───◄───┐                                                                                │
-///    │  │ ┌───┐ │  ┌───┐    ┌───┐    ┌───┐    ┌───┐    ┌───┐    ┌───┐    ┌────────────┐    ┌───┐ │
-///  ^─┴─►┴─┤" "│─┴─►│key├─┬─►│"["├───►│arg├───►│"]"├─┬─►│"="├─┬─►│"'"├───►│quoted_value├───►│"'"├─┼─$
-///         └───┘    └───┘ │  └───┘    └───┘    └───┘ │  └───┘ │  └───┘    └────────────┘    └───┘ │
-///                        └──────────────────────────┘        │          ┌──────────────┐         │
-///                                                            └─────────►│unquoted_value├─────────┘
-///                                                                       └──────────────┘
-
+/// <records> ::= " "* <rr>* " "*
+///      <rr> ::= <r> | <r> <rr>
+///       <r> ::= <pk> | <kv>
+///      <pk> ::= <u> | <u> "[" <a> "]" <u>
+///      <kv> ::= <k> "=" <v>
+///       <k> ::= <u> | <u> "[" <a> "]"
+///       <v> ::= "'" <q> "'" | <u>
+///       <q> ::= <all octets except "'" unless preceeded by "\">
+///       <u> ::= <all octets except " ">
+///       <a> ::= <all octets except "]">
+///
 library DNSTXTScanner {
     /// @dev The DFA internal states.
     enum State {
@@ -36,7 +38,7 @@ library DNSTXTScanner {
         IGNORED_UNQUOTED_VALUE
     }
 
-    bytes1 constant CH_BACKSLASH = "\\";
+    bytes1 constant CH_BACKSLASH = bytes1(0x5C); // "\"
     bytes1 constant CH_QUOTE = "'";
     bytes1 constant CH_SPACE = " ";
     bytes1 constant CH_EQUAL = "=";

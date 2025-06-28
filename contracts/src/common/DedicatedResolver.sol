@@ -55,7 +55,7 @@ contract DedicatedResolver is
     string _primary;
 
     /// @notice The resolver profile cannot be answered.
-    /// @dev Error selector: `0x5fe9a5df`
+    /// @dev Error selector: `0x7b1c461b`
     error UnsupportedResolverProfile(bytes4 selector);
 
     /// @notice The coin type is not a power of 2.

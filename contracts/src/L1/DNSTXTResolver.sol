@@ -8,8 +8,6 @@ import {DNSTXTScanner} from "./DNSTXTScanner.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH} from "@ens/contracts/utils/ENSIP19.sol";
-
-// resolver features
 import {IFeatureSupporter, isFeatureSupported} from "../common/IFeatureSupporter.sol";
 import {ResolverFeatures} from "../common/ResolverFeatures.sol";
 
@@ -23,13 +21,9 @@ import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 
-contract DNSTXTResolver is
-    ERC165,
-    IFeatureSupporter,
-    IExtendedDNSResolver
-{
+contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
     /// @notice The resolver profile cannot be answered.
-    /// @dev Error selector: `0x5fe9a5df`
+    /// @dev Error selector: `0x7b1c461b`
     error UnsupportedResolverProfile(bytes4 selector);
 
     /// @notice The supplied address could not be converted to `address`.
@@ -61,7 +55,8 @@ contract DNSTXTResolver is
         bytes calldata data,
         bytes calldata context
     ) external view returns (bytes memory result) {
-        if (bytes4(data) == IMulticallable.multicall.selector) {
+        bytes4 selector = bytes4(data);
+        if (selector == IMulticallable.multicall.selector) {
             bytes[] memory m = abi.decode(data[4:], (bytes[]));
             for (uint256 i; i < m.length; i++) {
                 (bool ok, bytes memory v) = address(this).staticcall(
@@ -73,36 +68,44 @@ contract DNSTXTResolver is
                 m[i] = v;
             }
             return abi.encode(m);
-        } else if (bytes4(data) == IAddrResolver.addr.selector) {
+        } else if (selector == IAddrResolver.addr.selector) {
             bytes memory v = _extractAddress(context, COIN_TYPE_ETH, true);
             return abi.encode(address(bytes20(v)));
-        } else if (bytes4(data) == IAddressResolver.addr.selector) {
+        } else if (selector == IAddressResolver.addr.selector) {
             (, uint256 coinType) = abi.decode(data[4:], (bytes32, uint256));
             return abi.encode(_extractAddress(context, coinType, true));
-        } else if (bytes4(data) == IHasAddressResolver.hasAddr.selector) {
+        } else if (selector == IHasAddressResolver.hasAddr.selector) {
             (, uint256 coinType) = abi.decode(data[4:], (bytes32, uint256));
-            return
-                abi.encode(
-                    _extractAddress(context, coinType, false).length > 0
-                );
-        } else if (bytes4(data) == ITextResolver.text.selector) {
+            bytes memory v = _extractAddress(context, coinType, false);
+            return abi.encode(v.length > 0);
+        } else if (selector == ITextResolver.text.selector) {
             (, string memory key) = abi.decode(data[4:], (bytes32, string));
+            if (BytesUtils.equals(bytes(key), "dnssec.context")) {
+                return abi.encode(context);
+            }
             bytes memory v = DNSTXTScanner.find(
                 context,
                 abi.encodePacked("t[", key, "]=")
             );
             return abi.encode(v);
-        } else if (bytes4(data) == IContentHashResolver.contenthash.selector) {
+        } else if (selector == IContentHashResolver.contenthash.selector) {
             return abi.encode(_parseHex(DNSTXTScanner.find(context, "c=")));
-        } else if (bytes4(data) == IPubkeyResolver.pubkey.selector) {
+        } else if (selector == IPubkeyResolver.pubkey.selector) {
             bytes memory x = _parseHex(DNSTXTScanner.find(context, "x="));
             bytes memory y = _parseHex(DNSTXTScanner.find(context, "y="));
             return abi.encode(bytes32(x), bytes32(y));
         } else {
-            revert UnsupportedResolverProfile(bytes4(data));
+            revert UnsupportedResolverProfile(selector);
         }
     }
 
+    /// @dev Parse address from context according to coin type.
+    ///      Reverts `InvalidHexData` if non-null and not a hex string.
+    ///      Reverts `InvalidEVMAddress` if non-null, coin type is EVM, and address is not 20 bytes.
+    /// @param context The DNS context string.
+    /// @param coinType The coin type.
+    /// @param useDefault If true and address is null and coin type is EVM, try again with default EVM coin type.
+    /// @return v The address or null if not found.
     function _extractAddress(
         bytes memory context,
         uint256 coinType,
@@ -140,24 +143,18 @@ contract DNSTXTResolver is
         }
     }
 
-    function _parseHex(
-        bytes memory hexString
-    ) internal pure returns (bytes memory v) {
-        if (hexString.length > 0) {
+    /// @dev Convert 0x-prefixed hex-string to bytes.
+    ///      Reverts `InvalidHexData` if non-null and not a hex string.
+    /// @param s The string to parse.
+    /// @return v The parsed bytes.
+    function _parseHex(bytes memory s) internal pure returns (bytes memory v) {
+        if (s.length > 0) {
             bool valid;
-            if (
-                hexString.length >= 2 &&
-                hexString[0] == "0" &&
-                hexString[1] == "x"
-            ) {
-                (v, valid) = HexUtils.hexToBytes(
-                    hexString,
-                    2,
-                    hexString.length
-                );
+            if (s.length >= 2 && s[0] == "0" && s[1] == "x") {
+                (v, valid) = HexUtils.hexToBytes(s, 2, s.length);
             }
             if (!valid) {
-                revert InvalidHexData(hexString);
+                revert InvalidHexData(s);
             }
         }
     }

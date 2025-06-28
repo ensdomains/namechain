@@ -3,11 +3,11 @@ pragma solidity >=0.8.13;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+
 import {GatewayFetcher} from "@unruggable/gateways/contracts/GatewayFetcher.sol";
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
 import {GatewayFetchTarget, IGatewayVerifier} from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
-import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
-import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
+
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
@@ -16,12 +16,12 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {DedicatedResolverLayout} from "../common/DedicatedResolverLayout.sol";
-
-// resolver features
 import {IFeatureSupporter} from "../common/IFeatureSupporter.sol";
 import {ResolverFeatures} from "../common/ResolverFeatures.sol";
 
 // resolver profiles
+import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
 import {IHasAddressResolver} from "@ens/contracts/resolvers/profiles/IHasAddressResolver.sol";
@@ -62,7 +62,7 @@ contract ETHFallbackResolver is
     error UnreachableName(bytes name);
 
     /// @notice The resolver profile cannot be answered.
-    /// @dev Error selector: `0x5fe9a5df`
+    /// @dev Error selector: `0x7b1c461b`
     error UnsupportedResolverProfile(bytes4 selector);
 
     /// @notice Maximum number of calls in a `multicall()`.
@@ -124,13 +124,11 @@ contract ETHFallbackResolver is
     /// @dev Count the number of labels before "eth".
     ///      Reverts if invalid name or not "*.eth".
     /// @param name The name to parse.
-    /// @return node The namehash of the name.
     /// @return count The number of labels before "eth".
     /// @return offset2LD The offset of the 2LD.
     function _countLabels(
         bytes memory name
-    ) internal pure returns (bytes32 node, uint256 count, uint256 offset2LD) {
-        node = NameCoder.namehash(name, 0); // validates the name
+    ) internal pure returns (uint256 count, uint256 offset2LD) {
         uint256 offset;
         uint256 offset1LD;
         while (true) {
@@ -217,10 +215,10 @@ contract ETHFallbackResolver is
     ///    registry = reg
     /// ````
     function resolve(
-        bytes memory name,
+        bytes calldata name,
         bytes calldata data
     ) external view returns (bytes memory) {
-        (, uint256 labelCount, uint256 offset) = _countLabels(name);
+        (uint256 labelCount, uint256 offset) = _countLabels(name);
         if (labelCount == 0) {
             ccipRead(ethResolver, data, this.resolveEthCallback.selector, "");
         }

@@ -19,7 +19,7 @@ contract MockETHFallbackResolver is ETHFallbackResolver {
 
     function countLabels(
         bytes calldata v
-    ) external pure returns (bytes32, uint256, uint256) {
+    ) external pure returns (uint256, uint256) {
         return _countLabels(v);
     }
 }
@@ -38,7 +38,7 @@ contract TestETHFallbackResolver is Test {
         uint256 size2LD
     ) internal view {
         bytes memory dns = NameCoder.encode(ens);
-        (, uint256 count, uint256 offset) = efr.countLabels(dns);
+        (uint256 count, uint256 offset) = efr.countLabels(dns);
         assertEq(count, expectCount, "count");
         assertEq(
             offset,
@@ -72,30 +72,12 @@ contract TestETHFallbackResolver is Test {
         efr.countLabels(hex"0200");
     }
 
-    // vm.randomUint(uint256, uint256) is not available in hardhat so we do this instead!
-    function _randomUint(uint256 min, uint256 max) internal returns (uint256) {
-        randSeed++;
-        uint256 randomNumber = uint256(
-            keccak256(
-                abi.encodePacked(
-                    block.timestamp,
-                    block.prevrandao,
-                    block.coinbase,
-                    block.number,
-                    block.gaslimit,
-                    randSeed
-                )
-            )
-        );
-        return min + (randomNumber % (max - min + 1));
-    }
-
     function testFuzz_countLabels_dotEth(uint8 n) external {
         vm.assume(n < 10);
-        uint256 size2LD = _randomUint(1, 255);
+        uint256 size2LD = vm.randomUint(1, 255);
         string memory ens = string.concat(new string(size2LD), ".eth");
         for (uint256 i; i < n; i++) {
-            ens = string.concat(new string(_randomUint(1, 255)), ".", ens);
+            ens = string.concat(new string(vm.randomUint(1, 255)), ".", ens);
         }
         _countLabels(ens, 1 + n, size2LD);
     }

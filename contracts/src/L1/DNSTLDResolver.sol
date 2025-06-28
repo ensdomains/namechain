@@ -9,15 +9,13 @@ import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
+import {IFeatureSupporter, isFeatureSupported} from "../common/IFeatureSupporter.sol";
+import {ResolverFeatures} from "../common/ResolverFeatures.sol";
 
 // resolver profiles
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
-
-// resolver features
-import {IFeatureSupporter, isFeatureSupported} from "../common/IFeatureSupporter.sol";
-import {ResolverFeatures} from "../common/ResolverFeatures.sol";
 
 /// @dev Gateway interface for DNSSEC oracle.
 interface IDNSGateway {
