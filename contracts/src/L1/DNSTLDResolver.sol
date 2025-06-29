@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.13;
+pragma solidity >=0.8.24;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
@@ -180,13 +180,13 @@ contract DNSTLDResolver is
     /// @param resolver The resolver to call.
     /// @param name The name to resolve.
     /// @param call The calldata.
-    /// @param dns True if `IExtendedDNSResolver` should be considered.
+    /// @param checkDNS True if `IExtendedDNSResolver` should be considered.
     /// @param context The context for `IExtendedDNSResolver`.
     function _callResolver(
         address resolver,
         bytes memory name,
         bytes memory call,
-        bool dns,
+        bool checkDNS,
         bytes memory context
     ) internal view {
         if (resolver.code.length == 0) {
@@ -213,7 +213,7 @@ contract DNSTLDResolver is
         }
         bool extended;
         if (
-            dns &&
+            checkDNS &&
             ERC165Checker.supportsERC165InterfaceUnchecked(
                 resolver,
                 type(IExtendedDNSResolver).interfaceId
@@ -320,7 +320,7 @@ contract DNSTLDResolver is
     }
 
     /// @dev Parse the value into a resolver address.
-    ///      If the value matches `/^0x[0-9a-f][40]$/`, it's a literal address.
+    ///      If the value matches `/^0x[0-9a-f]{40}$/`, it's a literal address.
     ///      Otherwise, it's considered a name and resolved in the registry.
     ///      Reverts `DNSEncodingFailed` if the name cannot be encoded.
     /// @param v The address or name.
@@ -339,22 +339,22 @@ contract DNSTLDResolver is
         );
     }
 
-    /// @dev Decode `data[pos:end]` as raw TXT chunks.
+    /// @dev Decode `v[pos:end]` as raw TXT chunks.
     ///      Encoding: `[byte(n) + <n bytes>]...`
     ///      Reverts `InvalidTXT` if the data is malformed.
-    /// @param data The raw TXT data.
+    /// @param v The raw TXT data.
     /// @param pos The offset of the record data.
     /// @param end The upper bound of the record data.
     /// @return txt The decoded TXT value.
     function _readTXT(
-        bytes memory data,
+        bytes memory v,
         uint256 pos,
         uint256 end
     ) internal pure returns (bytes memory txt) {
-        if (end > data.length) revert InvalidTXT();
+        if (end > v.length) revert InvalidTXT();
         txt = new bytes(end - pos);
         assembly {
-            let ptr := add(data, 32)
+            let ptr := add(v, 32)
             pos := add(ptr, pos)
             end := add(ptr, end)
             ptr := add(txt, 32)

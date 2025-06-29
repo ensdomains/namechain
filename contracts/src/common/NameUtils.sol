@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ~0.8.13;
+pragma solidity >=0.8.24;
 
 library NameUtils {
     /// @dev Read a label at an offset from a DNS-encoded name.
@@ -31,6 +31,6 @@ library NameUtils {
     /// @param id The token id or canonical id to convert to its canonical id version.
     /// @return The canonical id.
     function getCanonicalId(uint256 id) internal pure returns (uint256) {
-        return (id >> 32) << 32;
+        return id & ~uint256(0xFFFFFFFF);
     }
 }
