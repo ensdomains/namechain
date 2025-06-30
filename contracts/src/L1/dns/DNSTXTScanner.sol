@@ -64,7 +64,7 @@ library DNSTXTScanner {
         for (uint256 i; i < len; ) {
             if (state == State.START) {
                 while (i < len && data[i] == CH_SPACE) {
-                    i += 1;
+                    ++i;
                 }
                 if (i + key.length > len) {
                     break;
@@ -75,26 +75,26 @@ library DNSTXTScanner {
                     state = State.IGNORED_KEY;
                 }
             } else if (state == State.IGNORED_KEY) {
-                for (; i < len; i++) {
-                    if (data[i] == CH_EQUAL) {
+                while (i < len) {
+                    bytes1 cp = data[i++];
+                    if (cp == CH_EQUAL) {
                         state = State.IGNORED_VALUE;
-                    } else if (data[i] == CH_ARG_OPEN) {
+                        break;
+                    } else if (cp == CH_ARG_OPEN) {
                         state = State.IGNORED_KEY_ARG;
-                    } else if (data[i] == CH_SPACE) {
+                        break;
+                    } else if (cp == CH_SPACE) {
                         state = State.START;
-                    } else {
-                        continue;
+                        break;
                     }
-                    i += 1;
-                    break;
                 }
             } else if (state == State.IGNORED_KEY_ARG) {
-                for (; i < len; i++) {
+                for (; i < len; ++i) {
                     if (data[i] == CH_ARG_CLOSE) {
-                        i += 1;
+                        ++i;
                         if (i < len && data[i] == CH_EQUAL) {
                             state = State.IGNORED_VALUE;
-                            i += 1;
+                            ++i;
                         } else {
                             state = State.IGNORED_UNQUOTED_VALUE;
                         }
@@ -104,29 +104,30 @@ library DNSTXTScanner {
             } else if (state == State.VALUE) {
                 if (data[i] == CH_QUOTE) {
                     state = State.QUOTED_VALUE;
-                    i += 1;
+                    ++i;
                 } else {
                     state = State.UNQUOTED_VALUE;
                 }
             } else if (state == State.QUOTED_VALUE) {
-                uint256 valueLen;
-                bool escaped;
-                for (uint256 start = i; i < len; i++) {
-                    if (escaped) {
-                        data[start + valueLen] = data[i];
-                        valueLen += 1;
-                        escaped = false;
-                    } else if (data[i] == CH_BACKSLASH) {
-                        escaped = true;
-                    } else if (data[i] == CH_QUOTE) {
-                        return BytesUtils.substring(data, start, valueLen);
-                    } else {
-                        data[start + valueLen] = data[i];
-                        valueLen += 1;
+                uint256 n;
+                for (uint256 j = i; i < len; ++n) {
+                    bytes1 cp = data[i++];
+                    if (cp == CH_QUOTE) {
+                        value = new bytes(n);
+                        for (i = 0; i < n; ++i) {
+                            cp = data[j++];
+                            if (cp == CH_BACKSLASH) {
+                                cp = data[j++];
+                            }
+                            value[i] = cp;
+                        }
+                        return value;
+                    } else if (cp == CH_BACKSLASH) {
+                        ++i;
                     }
                 }
             } else if (state == State.UNQUOTED_VALUE) {
-                for (uint256 j = i; j < len; j++) {
+                for (uint256 j = i; j < len; ++j) {
                     if (data[j] == CH_SPACE) {
                         len = j;
                     }
@@ -135,29 +136,26 @@ library DNSTXTScanner {
             } else if (state == State.IGNORED_VALUE) {
                 if (data[i] == CH_QUOTE) {
                     state = State.IGNORED_QUOTED_VALUE;
-                    i += 1;
+                    ++i;
                 } else {
                     state = State.IGNORED_UNQUOTED_VALUE;
                 }
             } else if (state == State.IGNORED_QUOTED_VALUE) {
-                bool escaped;
-                for (; i < len; i++) {
-                    if (escaped) {
-                        escaped = false;
-                    } else if (data[i] == CH_BACKSLASH) {
-                        escaped = true;
-                    } else if (data[i] == CH_QUOTE) {
-                        i += 1;
-                        state = State.START;
+                while (i < len) {
+                    bytes1 cp = data[i++];
+                    if (cp == CH_QUOTE) {
                         break;
+                    } else if (cp == CH_BACKSLASH) {
+                        ++i;
                     }
                 }
+                state = State.START;
             } else {
                 // state = State.IGNORED_UNQUOTED_VALUE
                 if (data[i] == CH_SPACE) {
                     state = State.START;
                 }
-                i += 1;
+                ++i;
             }
         }
     }

@@ -31,6 +31,6 @@ library NameUtils {
     /// @param id The token id or canonical id to convert to its canonical id version.
     /// @return The canonical id.
     function getCanonicalId(uint256 id) internal pure returns (uint256) {
-        return id & ~uint256(0xFFFFFFFF);
+        return id ^ uint32(id);
     }
 }

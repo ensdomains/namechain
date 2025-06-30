@@ -336,12 +336,8 @@ abstract contract AbstractUniversalResolver is
             bytes memory extraData_
         ) = abi.decode(extraData, (ResolverInfo, bytes4, bytes4, bytes));
         if (response.length == 0) {
-            response = abi.encodeWithSelector(
-                UnsupportedResolverProfile.selector,
-                callSelector
-            );
-        }
-        if ((response.length & 31) != 0) {
+            revert UnsupportedResolverProfile(callSelector);
+        } else if ((response.length & 31) != 0) {
             revert ResolverError(response);
         }
         response = abi.decode(response, (bytes)); // unwrap resolve()
@@ -383,13 +379,11 @@ abstract contract AbstractUniversalResolver is
         } else {
             answer = m[0];
             if (
-                (lookups[0].flags & (FLAG_EMPTY_RESPONSE | FLAG_CALL_ERROR)) !=
-                0 && // wrap any error from the resolver
+                (lookups[0].flags & FLAG_CALL_ERROR) != 0 && // wrap any error from the resolver
                 bytes4(answer) != UnsupportedResolverProfile.selector // except this
             ) {
-                answer = abi.encodeWithSelector(ResolverError.selector, answer);
-            }
-            if (answer.length & 31 != 0) {
+                revert ResolverError(answer);
+            } else if (answer.length & 31 != 0) {
                 assembly {
                     revert(add(answer, 32), mload(answer))
                 }

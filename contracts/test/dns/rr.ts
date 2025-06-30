@@ -1,5 +1,5 @@
 import { ByteArray, concat, stringToBytes, toHex } from "viem";
-import { packetToBytes } from "../utils/utils.ts";
+import { packetToBytes } from "../utils/utils.js";
 
 export type RR = {
   name: ByteArray;

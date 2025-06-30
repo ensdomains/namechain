@@ -230,7 +230,7 @@ contract DNSTLDResolver is
                 );
             } else {
                 extended = true;
-                for (uint256 i; i < calls.length; i++) {
+                for (uint256 i; i < calls.length; ++i) {
                     calls[i] = abi.encodeCall(
                         IExtendedDNSResolver.resolve,
                         (name, calls[i], context)
@@ -250,7 +250,7 @@ contract DNSTLDResolver is
                 );
             } else {
                 extended = true;
-                for (uint256 i; i < calls.length; i++) {
+                for (uint256 i; i < calls.length; ++i) {
                     calls[i] = abi.encodeCall(
                         IExtendedResolver.resolve,
                         (name, calls[i])
@@ -278,16 +278,16 @@ contract DNSTLDResolver is
         (bool multi, bool extended) = abi.decode(extraData, (bool, bool));
         uint256 n = batch.lookups.length;
         if (extended) {
-            for (uint256 i; i < n; i++) {
+            for (uint256 i; i < n; ++i) {
                 Lookup memory lu = batch.lookups[i];
                 if ((lu.flags & FLAGS_ANY_ERROR) == 0) {
-                    lu.data = abi.decode(lu.data, (bytes));
+                    lu.data = abi.decode(lu.data, (bytes)); // unwrap resolve()
                 }
             }
         }
         if (multi) {
             bytes[] memory m = new bytes[](n);
-            for (uint256 i; i < n; i++) {
+            for (uint256 i; i < n; ++i) {
                 m[i] = batch.lookups[i].data;
             }
             return abi.encode(m);
@@ -386,7 +386,7 @@ contract DNSTLDResolver is
         bytes[] memory calls
     ) internal view returns (Batch memory) {
         Lookup[] memory lookups = new Lookup[](calls.length);
-        for (uint256 i; i < calls.length; i++) {
+        for (uint256 i; i < calls.length; ++i) {
             Lookup memory lu = lookups[i];
             lu.target = target;
             lu.call = calls[i];

@@ -1,8 +1,8 @@
 import hre from "hardhat";
 import { describe, it } from "vitest";
-import { deployV2Fixture } from "../fixtures/deployV2Fixture.ts";
-import { bundleCalls, makeResolutions } from "../utils/resolutions.ts";
-import { dnsEncodeName, expectVar } from "../utils/utils.ts";
+import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
+import { bundleCalls, makeResolutions } from "../utils/resolutions.js";
+import { dnsEncodeName, expectVar } from "../utils/utils.js";
 import { dummyShapeshiftResolverArtifact } from "../fixtures/ens-contracts/DummyShapeshiftResolver.js";
 
 const chain = await hre.network.connect();

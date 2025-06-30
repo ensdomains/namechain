@@ -20,6 +20,8 @@ contract TestDNSTXTScanner is Test {
         assertEq(DNSTXTScanner.find("a[b]' a=4", "a="), "4");
         assertEq(DNSTXTScanner.find("a' a=5", "a="), "5");
         assertEq(DNSTXTScanner.find("' a=6", "a="), "6");
+        assertEq(DNSTXTScanner.find("a['] a=7", "a="), "7");
+        assertEq(DNSTXTScanner.find("a[''] a=8", "a="), "8");
     }
 
     function test_find_unquoted() external pure {
@@ -38,13 +40,14 @@ contract TestDNSTXTScanner is Test {
         assertEq(DNSTXTScanner.find("a='b=X' b=1", "b="), "1");
         assertEq(DNSTXTScanner.find("a='a[b]=X' a[b]=2", "a[b]="), "2");
         assertEq(DNSTXTScanner.find("a='\\' a[d]=X' a[d]='3'", "a[d]="), "3");
+        assertEq(DNSTXTScanner.find("a='\\'\\'\\'\\''", "a="), "''''");
     }
 
-    function test_find_quotedWithNoGap() external pure {
+    function test_find_quotedWithoutGap() external pure {
         assertEq(DNSTXTScanner.find("a='X'b='1'", "b="), "1");
     }
 
-    function test_find_openQuote() external pure {
-        assertEq(DNSTXTScanner.find("a=' a=2", "a=2"), "");
+    function test_find_quotedWithoutClose() external pure {
+        assertEq(DNSTXTScanner.find("a=' a=2", "a="), "");
     }
 }
