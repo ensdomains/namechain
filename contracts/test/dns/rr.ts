@@ -32,7 +32,7 @@ export function encodeRRs(rr: RR[]) {
   return toHex(v);
 }
 
-export function TXT(name: string, txt: string): RR {
+export function makeTXT(name: string, txt: string): RR {
   return {
     name: packetToBytes(name),
     class: 1, // CLASS_INET

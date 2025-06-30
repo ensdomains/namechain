@@ -104,7 +104,7 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
     ///      Reverts `InvalidEVMAddress` if non-null, coin type is EVM, and address is not 20 bytes.
     /// @param context The DNS context string.
     /// @param coinType The coin type.
-    /// @param useDefault If true and address is null and coin type is EVM, try again with default EVM coin type.
+    /// @param useDefault If true and address is null and coin type is EVM, use default EVM coin type.
     /// @return v The address or null if not found.
     function _extractAddress(
         bytes memory context,
@@ -135,11 +135,9 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
         if (useDefault && v.length == 0) {
             v = DNSTXTScanner.find(context, "a[e0]=");
         }
-        if (v.length > 0) {
-            v = _parseHex(v);
-            if (v.length != 20) {
-                revert InvalidEVMAddress(v);
-            }
+        v = _parseHex(v);
+        if (v.length != 0 && v.length != 20) {
+            revert InvalidEVMAddress(v);
         }
     }
 

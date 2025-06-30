@@ -12,9 +12,9 @@ import {
   makeResolutions,
 } from "../utils/resolutions.js";
 import { dnsEncodeName, expectVar } from "../utils/utils.js";
-import { encodeRRs, TXT } from "./rr.ts";
+import { encodeRRs, makeTXT } from "./rr.ts";
 import { FEATURES } from "../utils/features.js";
-import { encodeErrorResult, stringToHex } from "viem";
+import { stringToHex } from "viem";
 
 const chain = await hre.network.connect();
 
@@ -179,7 +179,7 @@ describe("DNSTLDResolver", () => {
           dummyBytes4,
         ]),
       )
-        .toBeRevertedWithCustomErrorFrom(F.dnsTLDResolver, "UnreachableName")  // TODO: fix after merge
+        .toBeRevertedWithCustomErrorFrom(F.dnsTLDResolver, "UnreachableName") // TODO: fix after merge
         .withArgs([dnsEncodeName(basicProfile.name)]);
     });
 
@@ -188,7 +188,7 @@ describe("DNSTLDResolver", () => {
         const F = await chain.networkHelpers.loadFixture(fixture);
         await F.mockDNSSEC.write.setResponse([
           encodeRRs([
-            TXT(kp.name, `ENS1 ${F.mainnetV2.dedicatedResolver.address}`),
+            makeTXT(kp.name, `ENS1 ${F.mainnetV2.dedicatedResolver.address}`),
           ]),
         ]);
         const bundle = bundleCalls(makeResolutions(kp));
@@ -218,7 +218,7 @@ describe("DNSTLDResolver", () => {
           await F.ssResolver.write.setResponse([res.call, res.answer]);
         }
         await F.mockDNSSEC.write.setResponse([
-          encodeRRs([TXT(kp.name, `ENS1 ${name}`)]),
+          encodeRRs([makeTXT(kp.name, `ENS1 ${name}`)]),
         ]);
         const [answer, resolver] =
           await F.mainnetV2.universalResolver.read.resolve([
@@ -243,7 +243,7 @@ describe("DNSTLDResolver", () => {
           await F.ssResolver.write.setResponse([res.call, res.answer]);
         }
         await F.mockDNSSEC.write.setResponse([
-          encodeRRs([TXT(kp.name, `ENS1 ${name}`)]),
+          encodeRRs([makeTXT(kp.name, `ENS1 ${name}`)]),
         ]);
         const [answer, resolver] =
           await F.mainnetV2.universalResolver.read.resolve([
@@ -266,7 +266,7 @@ describe("DNSTLDResolver", () => {
       "0x0000000000000000000000000000000000000000000000000000000000000002";
     const context = `a[60]=${testAddress} a[e0]=${anotherAddress} t[url]='${url}' c=${contenthash} x=${x} y=${y}`;
     const encodedRRs = encodeRRs([
-      TXT(basicProfile.name, `ENS1 ${dnsnameResolver} ${context}`),
+      makeTXT(basicProfile.name, `ENS1 ${dnsnameResolver} ${context}`),
     ]);
 
     it("unsupported", async () => {
@@ -287,7 +287,10 @@ describe("DNSTLDResolver", () => {
       const invalidHex = "!@#$";
       await F.mockDNSSEC.write.setResponse([
         encodeRRs([
-          TXT(basicProfile.name, `ENS1 ${dnsnameResolver} a[60]=${invalidHex}`),
+          makeTXT(
+            basicProfile.name,
+            `ENS1 ${dnsnameResolver} a[60]=${invalidHex}`,
+          ),
         ]),
       ]);
       const [res] = makeResolutions({
@@ -308,7 +311,7 @@ describe("DNSTLDResolver", () => {
       const F = await chain.networkHelpers.loadFixture(fixture);
       await F.mockDNSSEC.write.setResponse([
         encodeRRs([
-          TXT(
+          makeTXT(
             basicProfile.name,
             `ENS1 ${dnsnameResolver} a[60]=${dummyBytes4}`,
           ),
