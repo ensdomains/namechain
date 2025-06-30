@@ -21,8 +21,7 @@ async function fixture() {
 
 // NOTE: most tests are in ens-contracts/
 describe("UniversalResolver", () => {
-  // TODO: enable after https://github.com/wevm/viem/pull/3762 is merged
-  it.skip("UR -> UR", async () => {
+  it("UR -> UR", async () => {
     const F = await chain.networkHelpers.loadFixture(fixture);
     const name = "test.eth";
     await F.setupName({ name, resolverAddress: F.mockNestedResolver.address });
