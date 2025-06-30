@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
-// `$ bun script/sol-versions.ts`
+// `$ bun script/solVersions.ts`
 // prints the semver for every Solidity file
 
 type Contract = { spec: string; file: string };

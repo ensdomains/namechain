@@ -55,7 +55,7 @@ contract DedicatedResolver is
     string _primary;
 
     /// @notice The resolver profile cannot be answered.
-    /// @dev Error selector: `0x5fe9a5df`
+    /// @dev Error selector: `0x7b1c461b`
     error UnsupportedResolverProfile(bytes4 selector);
 
     /// @notice The coin type is not a power of 2.
@@ -266,7 +266,7 @@ contract DedicatedResolver is
     }
 
     /// @notice Resolve records independent of name.
-    /// @dev Revert `UnsupportedResolverProfile` if the record is not supported.
+    /// @dev Reverts `UnsupportedResolverProfile` if the record is not supported.
     /// @param data The resolution data, as specified in ENSIP-10..
     /// @return The result of the resolution.
     function resolve(
