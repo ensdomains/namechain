@@ -108,8 +108,8 @@ abstract contract AbstractUniversalResolver is
     }
 
     /// @notice Performs ENS name resolution for the supplied name and resolution data.
-    /// @notice Callers should enable EIP-3668.
-    /// @dev This function executes over multiple steps (step 1 of 2).
+    /// @notice Caller should enable EIP-3668.
+    /// @dev This function executes over multiple steps.
     /// @return result The encoded response for the requested call.
     /// @return resolver The address of the resolver that supplied `result`.
     function resolveWithGateways(
@@ -126,7 +126,7 @@ abstract contract AbstractUniversalResolver is
         );
     }
 
-    /// @dev CCIP-Read callback for `resolveWithGateways()` (step 2 of 2).
+    /// @dev CCIP-Read callback for `resolveWithGateways()` ().
     /// @param info The resolver that was called.
     /// @param response The response from the resolver.
     function resolveCallback(
@@ -152,8 +152,8 @@ abstract contract AbstractUniversalResolver is
     }
 
     /// @notice Performs ENS reverse resolution for the supplied address and coin type.
-    /// @notice Callers should enable EIP-3668.
-    /// @dev This function executes over multiple steps (step 1 of 3).
+    /// @notice Caller should enable EIP-3668.
+    /// @dev This function executes over multiple steps.
     /// @param lookupAddress The input address.
     /// @param coinType The coin type.
     /// @param gateways The list of batch gateway URLs to use.
@@ -170,12 +170,12 @@ abstract contract AbstractUniversalResolver is
             info,
             abi.encodeCall(INameResolver.name, (info.node)),
             gateways,
-            this.reverseNameCallback.selector,
+            this.reverseNameCallback.selector, // ==> step 2
             abi.encode(ReverseArgs(lookupAddress, coinType, gateways))
         );
     }
 
-    /// @dev CCIP-Read callback for `reverseWithGateways()` (step 2 of 3).
+    /// @dev CCIP-Read callback for `reverseWithGateways()`.
     /// @param infoRev The resolver for the reverse name that was called.
     /// @param response The abi-encoded `name()` response.
     /// @param extraData The contextual data passed from `reverseWithGateways()`.
@@ -199,12 +199,12 @@ abstract contract AbstractUniversalResolver is
                     (info.node, args.coinType)
                 ),
             args.gateways,
-            this.reverseAddressCallback.selector,
+            this.reverseAddressCallback.selector, // ==> step 3
             abi.encode(args, primary, infoRev.resolver)
         );
     }
 
-    /// @dev CCIP-Read callback for `reverseNameCallback()` (step 3 of 3).
+    /// @dev CCIP-Read callback for `reverseNameCallback()`.
     ///      Reverts `ReverseAddressMismatch`.
     /// @param info The resolver for the primary name that was called.
     /// @param response The response from the resolver.
@@ -384,8 +384,8 @@ abstract contract AbstractUniversalResolver is
             answer = m[0];
             if (
                 (lookups[0].flags & (FLAG_EMPTY_RESPONSE | FLAG_CALL_ERROR)) !=
-                0 && // resolver-originating error
-                bytes4(answer) != UnsupportedResolverProfile.selector // dont wrap
+                0 && // wrap any error from the resolver
+                bytes4(answer) != UnsupportedResolverProfile.selector // except this
             ) {
                 answer = abi.encodeWithSelector(ResolverError.selector, answer);
             }

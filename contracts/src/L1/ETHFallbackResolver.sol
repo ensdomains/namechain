@@ -165,13 +165,18 @@ contract ETHFallbackResolver is
 
     /// @notice Resolve `name` with the Namechain registry corresponding to `nodeSuffix`.
     ///         If `nodeSuffix` is "eth", checks Mainnet V1 before resolving on Namechain.
-    /// @dev Callers should enable EIP-3668.
+    /// @notice Caller should enable EIP-3668.
+    /// @param namechainRegistry The registry contract on Namechain.
+    /// @param nodeSuffix The node corresponding to registry contract.
+    /// @param name The name to resolve.
+    /// @param data The calldata.
+    /// @return The abi-encoded response for the request.
     function resolveWithRegistry(
-        address registry,
+        address namechainRegistry,
         bytes32 nodeSuffix,
         bytes calldata name,
         bytes calldata data
-    ) public view returns (bytes memory result) {
+    ) public view returns (bytes memory) {
         (bool matched, uint256 prevOffset, uint256 offset) = _matchSuffix(
             name,
             nodeSuffix
@@ -184,7 +189,7 @@ contract ETHFallbackResolver is
                 ccipRead(
                     ethResolver,
                     data,
-                    this.resolveEthCallback.selector,
+                    this.resolveEthCallback.selector, // ==> step 2
                     ""
                 );
             }
@@ -205,10 +210,12 @@ contract ETHFallbackResolver is
             calls[0] = data;
         }
         return
-            _resolveOnNamechain(State(registry, name, offset, multi, calls, 0));
+            _resolveNamechain(
+                State(namechainRegistry, name, offset, multi, calls, 0)
+            );
     }
 
-    /// @dev CCIP-Read callback for `resolveWithRegistry()` from calling `ethResolver` (step 2 of 2).
+    /// @dev CCIP-Read callback for `resolveWithRegistry()` from calling `ethResolver`.
     function resolveEthCallback(
         bytes calldata response,
         bytes calldata
@@ -227,7 +234,7 @@ contract ETHFallbackResolver is
     }
 
     /// @notice Resolve `name` on Namechain starting at `registry`.
-    /// @dev This function executes over multiple steps (step 1 of 2).
+    /// @dev This function executes over multiple steps.
     ///
     /// `GatewayRequest` walkthrough:
     /// * The stack is loaded with labelhashes:
@@ -265,7 +272,7 @@ contract ETHFallbackResolver is
     ///    if (!reg) break
     ///    registry = reg
     /// ````
-    function _resolveOnNamechain(
+    function _resolveNamechain(
         State memory state
     ) public view returns (bytes memory) {
         uint256 pageSize = state.data.length - state.index;
@@ -428,22 +435,22 @@ contract ETHFallbackResolver is
         fetch(
             namechainVerifier,
             req,
-            this.resolveNamechainCallback.selector,
+            this.resolveNamechainCallback.selector, // ==> step 2
             abi.encode(state, callMap, count),
             new string[](0)
         );
     }
 
-    /// @dev CCIP-Read callback for `resolve()` from calling `namechainVerifier` (step 2 of 2).
+    /// @dev CCIP-Read callback for `resolve()` from calling `namechainVerifier`.
     /// @param values The outputs for `GatewayRequest`.
     /// @param exitCode The exit code for `GatewayRequest`.
     /// @param extraData The contextual data passed from `resolve()`.
-    /// @return result The abi-encoded result.
+    /// @return The abi-encoded response for the request.
     function resolveNamechainCallback(
         bytes[] calldata values,
         uint8 exitCode,
         bytes calldata extraData
-    ) external view returns (bytes memory result) {
+    ) external view returns (bytes memory) {
         (State memory state, uint256[] memory callMap, uint256 count) = abi
             .decode(extraData, (State, uint256[], uint256));
         if (exitCode == EXIT_CODE_NO_RESOLVER) {
@@ -460,7 +467,7 @@ contract ETHFallbackResolver is
                 );
             }
             if (state.index < state.data.length) {
-                _resolveOnNamechain(state);
+                _resolveNamechain(state); // ==> goto step 1 again
             }
             return abi.encode(state.data);
         } else {
@@ -471,12 +478,12 @@ contract ETHFallbackResolver is
     /// @dev Prepare response based on the request.
     /// @param data The original request (or error).
     /// @param value The response from the gateway.
-    /// @return response The abi-encoded response for the request.
+    /// @return The abi-encoded response for the request.
     function _prepareResponse(
         bytes memory data,
         bytes memory value,
         bytes memory defaultAddress
-    ) internal pure returns (bytes memory response) {
+    ) internal pure returns (bytes memory) {
         bytes4 selector = bytes4(data);
         if (selector == UnsupportedResolverProfile.selector) {
             return data;

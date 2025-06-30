@@ -38,7 +38,8 @@ interface IUniversalResolverStub {
 uint16 constant CLASS_INET = 1;
 uint16 constant TYPE_TXT = 16;
 
-bytes constant PREFIX = "ENS1 ";
+/// @dev DNS TXT record prefix for context data.
+bytes constant TXT_PREFIX = "ENS1 ";
 
 /// @title DNSTLDResolver
 /// @notice Resolver that performs imported DNS fallback to V1 and gasless DNS resolution.
@@ -103,10 +104,10 @@ contract DNSTLDResolver is
     }
 
     /// @notice Resolve `name` using V1 or DNSSEC.
-    ///         Callers should enable EIP-3668.
-    /// @dev This function executes over multiple steps (step 1 of 3).
+    /// @notice Caller should enable EIP-3668.
+    /// @dev This function executes over multiple steps.
     ///
-    /// 1. If there exists a resolver in V1, go to step 4.
+    /// 1. If there exists a resolver in V1, go to 4.
     /// 2. Query the DNSSEC oracle for TXT records.
     /// 3. Verify TXT records, find ENS1 record, parse resolver and context.
     /// 4. Call the resolver and return the requested records.
@@ -131,12 +132,12 @@ contract DNSTLDResolver is
             address(this),
             _gateways,
             abi.encodeCall(IDNSGateway.resolve, (name, TYPE_TXT)),
-            this.resolveOracleCallback.selector,
+            this.resolveOracleCallback.selector, // ==> step 2
             abi.encode(name, data)
         );
     }
 
-    /// @dev CCIP-Read callback for `resolve()` from calling the DNSSEC oracle (step 2 of 3).
+    /// @dev CCIP-Read callback for `resolve()` from calling the DNSSEC oracle.
     ///      Reverts `UnreachableName` if no "ENS1" TXT record is found.
     /// @param response The response data.
     /// @param extraData The contextual data passed from `resolve()`.
@@ -168,7 +169,7 @@ contract DNSTLDResolver is
                     _readTXT(iter.data, iter.rdataOffset, iter.nextOffset)
                 );
                 if (resolver != address(0)) {
-                    _callResolver(resolver, name, call, true, context);
+                    _callResolver(resolver, name, call, true, context); // ==> step 3
                 }
             }
         }
@@ -265,7 +266,7 @@ contract DNSTLDResolver is
         );
     }
 
-    /// @dev CCIP-Read callback for `_callResolver()` from batch calling the gasless DNS resolver (step 3 of 3).
+    /// @dev CCIP-Read callback for `_callResolver()` from batch calling the gasless DNS resolver.
     /// @param response The response data from the batch gateway.
     /// @param extraData The abi-encoded properties of the call.
     /// @return result The response from the resolver.
@@ -303,8 +304,8 @@ contract DNSTLDResolver is
     function _parseTXT(
         bytes memory txt
     ) internal view returns (address resolver, bytes memory context) {
-        uint256 n = PREFIX.length;
-        if (txt.length >= n && BytesUtils.equals(txt, 0, PREFIX, 0, n)) {
+        uint256 n = TXT_PREFIX.length;
+        if (txt.length >= n && BytesUtils.equals(txt, 0, TXT_PREFIX, 0, n)) {
             uint256 sep = BytesUtils.find(txt, n, txt.length - n, " ");
             if (sep < txt.length) {
                 context = BytesUtils.substring(
