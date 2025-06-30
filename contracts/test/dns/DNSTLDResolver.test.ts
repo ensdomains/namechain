@@ -14,7 +14,7 @@ import {
 import { dnsEncodeName, expectVar } from "../utils/utils.js";
 import { encodeRRs, makeTXT } from "./rr.ts";
 import { FEATURES } from "../utils/features.js";
-import { stringToHex } from "viem";
+import { concat, stringToHex } from "viem";
 
 const chain = await hre.network.connect();
 
@@ -260,11 +260,9 @@ describe("DNSTLDResolver", () => {
     const url = "https://ens.domains";
     const contenthash = "0xabcdef";
     const anotherAddress = "0x1234567812345678123456781234567812345678";
-    const x =
-      "0x0000000000000000000000000000000000000000000000000000000000000001";
-    const y =
-      "0x0000000000000000000000000000000000000000000000000000000000000002";
-    const context = `a[60]=${testAddress} a[e0]=${anotherAddress} t[url]='${url}' c=${contenthash} x=${x} y=${y}`;
+    const x = `0x${"a".repeat(64)}` as const;
+    const y = `0x${"b".repeat(64)}` as const;
+    const context = `a[60]=${testAddress} a[e0]=${anotherAddress} t[url]='${url}' c=${contenthash} xy=${concat([x, y])}`;
     const encodedRRs = encodeRRs([
       makeTXT(basicProfile.name, `ENS1 ${dnsnameResolver} ${context}`),
     ]);
@@ -307,7 +305,7 @@ describe("DNSTLDResolver", () => {
         .withArgs([stringToHex(invalidHex)]);
     });
 
-    it("invalid address", async () => {
+    it("invalid length: address", async () => {
       const F = await chain.networkHelpers.loadFixture(fixture);
       await F.mockDNSSEC.write.setResponse([
         encodeRRs([
@@ -327,8 +325,32 @@ describe("DNSTLDResolver", () => {
           res.call,
         ]),
       )
-        .toBeRevertedWithCustomErrorFrom(F.dnsTXTResolver, "InvalidEVMAddress") // TODO: fix after merge
-        .withArgs([dummyBytes4]);
+        .toBeRevertedWithCustomErrorFrom(F.dnsTXTResolver, "InvalidDataLength") // TODO: fix after merge
+        .withArgs([dummyBytes4, 20n]);
+    });
+
+    it("invalid length: pubkey", async () => {
+      const F = await chain.networkHelpers.loadFixture(fixture);
+      await F.mockDNSSEC.write.setResponse([
+        encodeRRs([
+          makeTXT(
+            basicProfile.name,
+            `ENS1 ${dnsnameResolver} xy=${dummyBytes4}`,
+          ),
+        ]),
+      ]);
+      const [res] = makeResolutions({
+        name: basicProfile.name,
+        pubkey: { x, y },
+      });
+      await expect(
+        F.mainnetV2.universalResolver.read.resolve([
+          dnsEncodeName(basicProfile.name),
+          res.call,
+        ]),
+      )
+        .toBeRevertedWithCustomErrorFrom(F.dnsTXTResolver, "InvalidDataLength") // TODO: fix after merge
+        .withArgs([dummyBytes4, 64n]);
     });
 
     it("addr()", async () => {
@@ -457,12 +479,13 @@ describe("DNSTLDResolver", () => {
       bundle.expect(answer);
     });
 
-    it("text(dnssec.context)", async () => {
+    const TEXT_DNSSEC_CONTEXT = "eth.ens.dnssec-context";
+    it(`text(${TEXT_DNSSEC_CONTEXT})`, async () => {
       const F = await chain.networkHelpers.loadFixture(fixture);
       await F.mockDNSSEC.write.setResponse([encodedRRs]);
       const [res] = makeResolutions({
         name: basicProfile.name,
-        texts: [{ key: "dnssec.context", value: context }],
+        texts: [{ key: TEXT_DNSSEC_CONTEXT, value: context }],
       });
       const [answer, resolver] =
         await F.mainnetV2.universalResolver.read.resolve([

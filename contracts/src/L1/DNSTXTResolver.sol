@@ -21,19 +21,22 @@ import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 
+/// @dev The text key to access "context" from `ENS1 <resolver> <context>`.
+string constant TEXT_DNSSEC_CONTEXT = "eth.ens.dnssec-context";
+
 contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
     /// @notice The resolver profile cannot be answered.
     /// @dev Error selector: `0x7b1c461b`
     error UnsupportedResolverProfile(bytes4 selector);
 
-    /// @notice The supplied address could not be converted to `address`.
-    /// @dev Error selector: `0x8d666f60`
-    error InvalidEVMAddress(bytes addressBytes);
-
     /// @notice The data was not a hex string.
     /// @dev Matches: `/^0x[0-9a-fA-F]*$/`.
     ///      Error selector: `0x626777b1`
     error InvalidHexData(bytes data);
+
+    /// @notice The data was an unexpected length.
+    /// @dev Error selector: `0xee0c8b99`
+    error InvalidDataLength(bytes data, uint256 expected);
 
     /// @inheritdoc ERC165
     function supportsInterface(
@@ -80,7 +83,7 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
             return abi.encode(v.length > 0);
         } else if (selector == ITextResolver.text.selector) {
             (, string memory key) = abi.decode(data[4:], (bytes32, string));
-            if (BytesUtils.equals(bytes(key), "dnssec.context")) {
+            if (BytesUtils.equals(bytes(key), bytes(TEXT_DNSSEC_CONTEXT))) {
                 return abi.encode(context);
             }
             bytes memory v = DNSTXTScanner.find(
@@ -91,9 +94,13 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
         } else if (selector == IContentHashResolver.contenthash.selector) {
             return abi.encode(_parseHex(DNSTXTScanner.find(context, "c=")));
         } else if (selector == IPubkeyResolver.pubkey.selector) {
-            bytes memory x = _parseHex(DNSTXTScanner.find(context, "x="));
-            bytes memory y = _parseHex(DNSTXTScanner.find(context, "y="));
-            return abi.encode(bytes32(x), bytes32(y));
+            bytes memory v = _parseHex(DNSTXTScanner.find(context, "xy="));
+            if (v.length == 0) {
+                return new bytes(64);
+            } else if (v.length == 64) {
+                return v;
+            }
+            revert InvalidDataLength(v, 64);
         } else {
             revert UnsupportedResolverProfile(selector);
         }
@@ -137,7 +144,7 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
         }
         v = _parseHex(v);
         if (v.length != 0 && v.length != 20) {
-            revert InvalidEVMAddress(v);
+            revert InvalidDataLength(v, 20);
         }
     }
 

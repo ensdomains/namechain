@@ -18,7 +18,7 @@ library NameUtils {
         }
     }
 
-    /// @dev Converts a label to a canonical id.
+    /// @dev Convert a label to canonical id.
     /// @param label The label to convert.
     /// @return The canonical id corresponding to this label.
     function labelToCanonicalId(
@@ -27,7 +27,7 @@ library NameUtils {
         return getCanonicalId(uint256(keccak256(bytes(label))));
     }
 
-    /// @dev Gets the canonical id version of a token id or canonical id.
+    /// @dev Get the canonical id of a token id or canonical id.
     /// @param id The token id or canonical id to convert to its canonical id version.
     /// @return The canonical id.
     function getCanonicalId(uint256 id) internal pure returns (uint256) {
