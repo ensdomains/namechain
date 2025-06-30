@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {DNSTLDResolver, IUniversalResolverStub, DNSSEC, HexUtils} from "../../src/L1/DNSTLDResolver.sol";
+import {DNSTLDResolver, IUniversalResolverStub, DNSSEC, HexUtils} from "../../src/L1/dns/DNSTLDResolver.sol";
 
 contract MockUR is IUniversalResolverStub {
     function findResolver(

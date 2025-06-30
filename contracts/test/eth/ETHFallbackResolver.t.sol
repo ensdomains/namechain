@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {ETHFallbackResolver, IBaseRegistrar, IUniversalResolver, IGatewayVerifier, NameCoder, ETH_NODE} from "../src/L1/ETHFallbackResolver.sol";
+import {ETHFallbackResolver, IBaseRegistrar, IUniversalResolver, IGatewayVerifier, NameCoder, ETH_NODE} from "../../src/L1/ETHFallbackResolver.sol";
 
 contract MockETHFallbackResolver is ETHFallbackResolver {
     constructor()

@@ -14,14 +14,14 @@ import {
   toHex,
 } from "viem";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
-import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
-import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
-import { deployArtifact } from "./fixtures/deployArtifact.js";
-import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
-import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
-import { urgArtifact } from "./fixtures/externalArtifacts.js";
-import { FEATURES } from "./utils/features.js";
-import { injectRPCCounter } from "./utils/hardhat.js";
+import { Gateway } from "../../lib/unruggable-gateways/src/gateway.ts";
+import { UncheckedRollup } from "../../lib/unruggable-gateways/src/UncheckedRollup.ts";
+import { deployArtifact } from "../fixtures/deployArtifact.ts";
+import { deployV1Fixture } from "../fixtures/deployV1Fixture.ts";
+import { deployV2Fixture } from "../fixtures/deployV2Fixture.ts";
+import { urgArtifact } from "../fixtures/externalArtifacts.ts";
+import { FEATURES } from "../utils/features.ts";
+import { injectRPCCounter } from "../utils/hardhat.ts";
 import {
   COIN_TYPE_DEFAULT,
   COIN_TYPE_ETH,
@@ -29,9 +29,9 @@ import {
   type KnownResolution,
   PROFILE_ABI,
   bundleCalls,
-  makeResolutions
-} from "./utils/resolutions.js";
-import { dnsEncodeName, expectVar, getLabelAt } from "./utils/utils.js";
+  makeResolutions,
+} from "../utils/resolutions.ts";
+import { dnsEncodeName, expectVar, getLabelAt } from "../utils/utils.ts";
 
 const chain1 = injectRPCCounter(await hre.network.connect());
 const chain2 = injectRPCCounter(await hre.network.connect());
@@ -152,7 +152,10 @@ describe("ETHFallbackResolver", () => {
   describe("storage layout", () => {
     describe("DedicatedResolver", () => {
       const code = readFileSync(
-        new URL("../src/common/DedicatedResolverLayout.sol", import.meta.url),
+        new URL(
+          "../../src/common/DedicatedResolverLayout.sol",
+          import.meta.url,
+        ),
         "utf8",
       );
       for (const [_, name, slot] of code.matchAll(

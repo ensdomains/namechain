@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {DNSTXTScanner} from "../../src/L1/DNSTXTScanner.sol";
+import {DNSTXTScanner} from "../../src/L1/dns/DNSTXTScanner.sol";
 
 contract TestDNSTXTScanner is Test {
     function test_find_whitespace() external pure {

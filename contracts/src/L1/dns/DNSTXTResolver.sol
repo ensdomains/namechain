@@ -8,8 +8,8 @@ import {DNSTXTScanner} from "./DNSTXTScanner.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH} from "@ens/contracts/utils/ENSIP19.sol";
-import {IFeatureSupporter, isFeatureSupported} from "../common/IFeatureSupporter.sol";
-import {ResolverFeatures} from "../common/ResolverFeatures.sol";
+import {IFeatureSupporter, isFeatureSupported} from "../../common/IFeatureSupporter.sol";
+import {ResolverFeatures} from "../../common/ResolverFeatures.sol";
 
 // resolver profiles
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
