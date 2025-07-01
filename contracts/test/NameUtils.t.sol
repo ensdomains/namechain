@@ -60,20 +60,26 @@ contract TestNameUtils is Test {
         }
     }
 
-    function testRevert_labelToCanonicalId_empty() external {
+    function test_Revert_labelToCanonicalId_empty() external {
         vm.expectRevert();
-        NameUtils.labelToCanonicalId("");
+        this.labelToCanonicalId("");
     }
 
-    function testRevert_labelToCanonicalId_long() external {
+    function test_Revert_labelToCanonicalId_long() external {
         vm.expectRevert();
-        NameUtils.labelToCanonicalId(new string(256));
+        this.labelToCanonicalId(new string(256));
     }
 
-    function testRevert_labelToCanonicalId_hashed() external {
+    function test_Revert_labelToCanonicalId_hashed() external {
         vm.expectRevert();
-        NameUtils.labelToCanonicalId(
+        this.labelToCanonicalId(
             "[0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef]"
         );
+    }
+
+    function labelToCanonicalId(
+        string memory label
+    ) public view returns (uint256) {
+        return NameUtils.labelToCanonicalId(label);
     }
 }
