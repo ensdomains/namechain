@@ -11,7 +11,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBridge} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {L1EjectionController} from "./L1EjectionController.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {NameUtils} from "../common/NameUtils.sol";
+
 
 /**
  * @title L1UnlockedMigrationController
