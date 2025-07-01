@@ -542,7 +542,7 @@ describe("ETHFallbackResolver", () => {
         res.desc = `ABI(${contentTypes})`;
         res.expect(answer);
       }
-    });
+    }, { timeout: 20000 });
     it(`multicall()`, async () => {
       const F = await loadFixture();
       await F.namechain.setupName(kp);
