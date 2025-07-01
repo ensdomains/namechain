@@ -5,7 +5,7 @@ import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
 
 library NameUtils {
     /// @notice The label is invalid.
-    /// @dev Error selector: `0a9644cf`
+    /// @dev Error selector: `0x0a9644cf`
     error InvalidLabel(string label);
 
     /// @dev Determine if label is a hashed label.
