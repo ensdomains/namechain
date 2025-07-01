@@ -11,7 +11,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBridge} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {L1EjectionController} from "./L1EjectionController.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {NameUtils} from "../common/NameUtils.sol";
 
 /**
  * @title L1UnlockedMigrationController
@@ -135,7 +135,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
         }
         
         // send migration data to L2
-        bytes memory dnsEncodedName = NameCoder.encode(string.concat(migrationData.transferData.label, ".eth"));
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(migrationData.transferData.label);
         bytes memory message = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
         bridge.sendMessage(message);
 
