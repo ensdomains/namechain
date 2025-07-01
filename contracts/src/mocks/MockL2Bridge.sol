@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {L2EjectionController} from "../L2/L2EjectionController.sol";
+import {L2MigrationController} from "../L2/L2MigrationController.sol";
 import {MockBridgeBase} from "./MockBridgeBase.sol";
 import {BridgeMessageType} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
@@ -15,12 +16,19 @@ import {TransferData, MigrationData} from "../common/TransferData.sol";
 contract MockL2Bridge is MockBridgeBase {
     // Ejection controller to call when receiving ejection messages
     L2EjectionController public ejectionController;
+    
+    // Migration controller to call when receiving migration messages
+    L2MigrationController public migrationController;
         
     // Type-specific events with tokenId and data
     event NameBridgedToL1(bytes message);
         
     function setEjectionController(L2EjectionController _ejectionController) external {
         ejectionController = _ejectionController;
+    }
+    
+    function setMigrationController(L2MigrationController _migrationController) external {
+        migrationController = _migrationController;
     }
     
     /**
@@ -30,7 +38,7 @@ contract MockL2Bridge is MockBridgeBase {
         BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
         
         if (messageType == BridgeMessageType.MIGRATION) {
-            // Migration messages are not supported in L2 bridge
+            // Migration messages are not sent from L2 to L1, only received
             revert MigrationNotSupported();
         } else if (messageType == BridgeMessageType.EJECTION) {
             emit NameBridgedToL1(message);
@@ -51,9 +59,9 @@ contract MockL2Bridge is MockBridgeBase {
      * @dev Handle migration messages specific to L2 bridge
      */
     function _handleMigrationMessage(
-        bytes memory /*dnsEncodedName*/,
-        MigrationData memory /*migrationData*/
+        bytes memory dnsEncodedName,
+        MigrationData memory migrationData
     ) internal override {
-        // TODO: handle migration messages
+        migrationController.completeMigrationFromL1(dnsEncodedName, migrationData);
     }
 }
