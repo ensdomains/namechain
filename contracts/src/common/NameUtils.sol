@@ -1,40 +1,69 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ~0.8.13;
+pragma solidity >=0.8.13;
+
+import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
 
 library NameUtils {
-    function readLabel(bytes memory name, uint256 idx) internal view returns (string memory label) {
-        uint256 len = uint8(name[idx]);
-        label = new string(len);
-        assembly {
-            // Use the identity precompile to copy memory
-            pop(staticcall(gas(), 4, add(add(name, 33), idx), len, add(label, 32), len))
+    /// @notice The label is invalid.
+    /// @dev Error selector: `0a9644cf`
+    error InvalidLabel(string label);
+
+    /// @dev Determine if label is a hashed label.
+    ///      Matches: `/^\[[0-9a-f]{64}\]$/i`.
+    /// @param label The label to check.
+    /// @return hashed True if the label is a hashed label.
+    function isHashedLabel(
+        string memory label
+    ) internal pure returns (bool hashed) {
+        if (
+            bytes(label).length == 66 &&
+            bytes(label)[0] == "[" &&
+            bytes(label)[65] == "]"
+        ) {
+            (, hashed) = HexUtils.hexStringToBytes32(bytes(label), 1, 65);
         }
     }
 
-    /**
-     * @dev Converts a label to a canonical id.
-     * @param label The label to convert.
-     * @return canonicalId The canonical id corresponding to this label.
-     */
-    function labelToCanonicalId(string memory label) internal pure returns (uint256) {
-        return getCanonicalId(uint256(keccak256(bytes(label))));
-    }    
-
-    /**
-     * @dev Gets the canonical id version of a token id or canonical id.
-     * @param id The token id or canonical id to convert to its canonical id version.
-     * @return canonicalId The canonical id.
-     */
-    function getCanonicalId(uint256 id) internal pure returns (uint256) {
-        return id & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000;
+    /// @dev Determine if label is a valid length and not a hashed label.
+    /// @param label The label to check.
+    /// @return True if the label is valid.
+    function isValidLabel(string memory label) internal pure returns (bool) {
+        return
+            bytes(label).length > 0 &&
+            bytes(label).length <= 255 &&
+            !isHashedLabel(label);
     }
 
-    /**
-     * @dev DNS encodes a label as a .eth second-level domain.
-     * @param label The label to encode (e.g., "test" becomes "\x04test\x03eth\x00").
-     * @return The DNS-encoded name.
-     */
-    function dnsEncodeEthLabel(string memory label) internal pure returns (bytes memory) {
-        return abi.encodePacked(bytes1(uint8(bytes(label).length)), label, "\x03eth\x00");
+    /// @dev Convert a label to canonical id.
+    /// @param label The label to convert.
+    /// @return The canonical id corresponding to this label.
+    function labelToCanonicalId(
+        string memory label
+    ) internal pure returns (uint256) {
+        if (!isValidLabel(label)) {
+            revert InvalidLabel(label);
+        }
+        return getCanonicalId(uint256(keccak256(bytes(label))));
+    }
+
+    /// @dev Get the canonical id of a token id or canonical id.
+    /// @param id The token id or canonical id to convert to its canonical id version.
+    /// @return The canonical id.
+    function getCanonicalId(uint256 id) internal pure returns (uint256) {
+        return id ^ uint32(id);
+    }
+
+    /// @dev DNS encodes a label as a .eth second-level domain.
+    /// @param label The label to encode (e.g., "test" becomes "\x04test\x03eth\x00").
+    /// @return The DNS-encoded name.
+    function dnsEncodeEthLabel(
+        string memory label
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                bytes1(uint8(bytes(label).length)),
+                label,
+                "\x03eth\x00"
+            );
     }
 }
