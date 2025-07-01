@@ -32,7 +32,7 @@ contract TestETHFallbackResolver is Test {
         efr = new MockETHFallbackResolver();
     }
 
-    function test_ETH_NODE() external view {
+    function test_ETH_NODE() external pure {
         assertEq(ETH_NODE, NameCoder.namehash(NameCoder.encode("eth"), 0));
     }
 

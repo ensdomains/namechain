@@ -260,7 +260,16 @@ contract DNSTLDResolver is
         }
         ccipRead(
             address(this),
-            abi.encodeCall(this.ccipBatch, (_createBatch(resolver, calls))),
+            abi.encodeCall(
+                this.ccipBatch,
+                (
+                    createBatch(
+                        resolver,
+                        calls,
+                        universalResolverV2.batchGateways()
+                    )
+                )
+            ),
             this.resolveBatchCallback.selector,
             abi.encode(multi, extended)
         );
@@ -274,25 +283,31 @@ contract DNSTLDResolver is
         bytes calldata response,
         bytes calldata extraData
     ) external pure returns (bytes memory) {
-        Batch memory batch = abi.decode(response, (Batch));
+        Lookup[] memory lookups = abi.decode(response, (Batch)).lookups;
         (bool multi, bool extended) = abi.decode(extraData, (bool, bool));
-        uint256 n = batch.lookups.length;
-        if (extended) {
-            for (uint256 i; i < n; ++i) {
-                Lookup memory lu = batch.lookups[i];
-                if ((lu.flags & FLAGS_ANY_ERROR) == 0) {
-                    lu.data = abi.decode(lu.data, (bytes)); // unwrap resolve()
-                }
-            }
-        }
         if (multi) {
-            bytes[] memory m = new bytes[](n);
-            for (uint256 i; i < n; ++i) {
-                m[i] = batch.lookups[i].data;
+            bytes[] memory m = new bytes[](lookups.length);
+            for (uint256 i; i < lookups.length; ++i) {
+                Lookup memory lu = lookups[i];
+                bytes memory v = lu.data;
+                if (extended && (lu.flags & FLAGS_ANY_ERROR) == 0) {
+                    v = abi.decode(v, (bytes)); // unwrap resolve()
+                }
+                m[i] = v;
             }
             return abi.encode(m);
         } else {
-            return batch.lookups[0].data;
+            Lookup memory lu = lookups[0];
+            bytes memory v = lu.data;
+            if ((lu.flags & FLAGS_ANY_ERROR) != 0) {
+                assembly {
+                    revert(add(v, 32), mload(v))
+                }
+            }
+            if (extended) {
+                v = abi.decode(v, (bytes)); // unwrap resolve()
+            }
+            return v;
         }
     }
 
@@ -380,17 +395,18 @@ contract DNSTLDResolver is
     }
 
     /// TODO: move this to CCIPBatcher
-    /// @dev Create a `Batch` for a single target with multiple calls.
-    function _createBatch(
+    /// @dev Create a batch for a single target with multiple calls.
+    function createBatch(
         address target,
-        bytes[] memory calls
-    ) internal view returns (Batch memory) {
+        bytes[] memory calls,
+        string[] memory gateways
+    ) internal pure returns (Batch memory) {
         Lookup[] memory lookups = new Lookup[](calls.length);
-        for (uint256 i; i < calls.length; ++i) {
+        for (uint256 i; i < calls.length; i++) {
             Lookup memory lu = lookups[i];
             lu.target = target;
             lu.call = calls[i];
         }
-        return Batch(lookups, universalResolverV2.batchGateways());
+        return Batch(lookups, gateways);
     }
 }

@@ -80,9 +80,10 @@ describe("DNSTLDResolver", () => {
   function testProfiles(
     name: string,
     factory: (kp: KnownProfile) => () => Promise<void>,
+    testFn: typeof it.only = it
   ) {
-    it(name, factory(basicProfile));
-    it(
+    testFn(name, factory(basicProfile));
+    testFn(
       `${name} multicall`,
       factory({
         ...basicProfile,
