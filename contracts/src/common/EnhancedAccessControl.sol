@@ -296,35 +296,25 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @param isGrant true for grant, false for revoke
      */
     function _updateRoleCounts(bytes32 resource, uint64 roleBitmap, bool isGrant) internal {
-        if (roleBitmap == 0) return;
-        
-        uint256 counts = roleCount[resource];
-        uint64 remaining = roleBitmap;
-        uint8 roleIndex = 0;
-        
-        while (remaining != 0) {
-            if (remaining & 1 == 1) {
-                uint8 roleCountIndex = roleIndex * 4;
-                uint256 mask = 0xF << roleCountIndex;
-                uint256 currentCount = (counts & mask) >> roleCountIndex;
-
-                if (isGrant) {
-                    if (currentCount = 15) {
-                        revert EACMaxAssignees(resource, roleIndex);
-                    }
-                    counts = (counts & ~mask) | ((currentCount + 1) << roleCountIndex);
-                } else {
-                    if (currentCount == 0) {
-                        revert EACMinAssignees(resource, roleIndex);
-                    }
-                    counts = (counts & ~mask) | ((currentCount - 1) << roleCountIndex);
-                }
+        uint256 roleMask = roleBitmap | (roleBitmap << 1);
+        roleMask |= roleMask << 2;
+        if(isGrant) {
+            // Check if any role has max assignees by looking for nybbles where all bits are set
+            uint256 maskedCounts = roleMask & ~roleCount[resource];
+            uint256 emptyCounts = (maskedCounts - 0x1111111111111111111111111111111111111111111111111111111111111111) & ~maskedCounts & 0x8888888888888888888888888888888888888888888888888888888888888888;
+            if(emptyCounts != 0) {
+                revert EACMaxAssignees(resource, roleBitmap);
             }
-            remaining >>= 1;
-            roleIndex++;
+            roleCount[resource] += roleBitmap;
+        } else {
+            // Check if any role has 0 assignees by looking for nybbles where no bits are set
+            uint256 maskedCounts = roleMask & roleCount[resource];
+            uint256 emptyCounts = (maskedCounts - 0x1111111111111111111111111111111111111111111111111111111111111111) & ~maskedCounts & 0x8888888888888888888888888888888888888888888888888888888888888888;
+            if(emptyCounts != 0) {
+                revert EACMinAssignees(resource, roleBitmap);
+            }
+            roleCount[resource] -= roleBitmap;
         }
-        
-        roleCount[resource] = counts;
     }
 
     /**
