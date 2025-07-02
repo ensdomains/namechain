@@ -52,12 +52,12 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     bytes32 constant SECRET = bytes32(uint256(1234567890));
 
     // Hardcoded role constants
-    uint256 constant ROLE_REGISTRAR = 1 << 0;
-    uint256 constant ROLE_RENEW = 1 << 1;
+    uint256 constant ROLE_REGISTRAR = 0x1;
+    uint256 constant ROLE_RENEW = 0x10;
     
-    uint256 constant ROLE_SET_PRICE_ORACLE = 1 << 0;
+    uint256 constant ROLE_SET_PRICE_ORACLE = 0x100000;
     uint256 constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
-    uint256 constant ROLE_SET_COMMITMENT_AGES = 1 << 1;
+    uint256 constant ROLE_SET_COMMITMENT_AGES = 0x1000000;
     uint256 constant ROLE_SET_COMMITMENT_AGES_ADMIN = ROLE_SET_COMMITMENT_AGES << 128;
     
     bytes32 constant ROOT_RESOURCE = 0;
@@ -834,10 +834,10 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         bytes32 resource = registry.getTokenIdResource(tokenId);
 
         // Check individual roles
-        uint256 ROLE_SET_SUBREGISTRY = 1 << 2;
-        uint256 ROLE_SET_SUBREGISTRY_ADMIN = 1 << 130;
-        uint256 ROLE_SET_RESOLVER = 1 << 3;
-        uint256 ROLE_SET_RESOLVER_ADMIN = 1 << 131;
+        uint256 ROLE_SET_SUBREGISTRY = 0x100;
+        uint256 ROLE_SET_SUBREGISTRY_ADMIN = 0x100 << 128;
+        uint256 ROLE_SET_RESOLVER = 0x1000;
+        uint256 ROLE_SET_RESOLVER_ADMIN = 0x1000 << 128;
 
         assertTrue(registry.hasRoles(resource, ROLE_SET_SUBREGISTRY, user1));
         assertTrue(registry.hasRoles(resource, ROLE_SET_SUBREGISTRY_ADMIN, user1));

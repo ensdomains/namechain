@@ -10,14 +10,14 @@ abstract contract MockRoles {
     bytes32 public constant RESOURCE_1 = bytes32(keccak256("RESOURCE_1"));
     bytes32 public constant RESOURCE_2 = bytes32(keccak256("RESOURCE_2"));
 
-    uint256 public constant ROLE_A = 1 << 0;
-    uint256 public constant ROLE_B = 1 << 1;
-    uint256 public constant ROLE_C = 1 << 2;
-    uint256 public constant ROLE_D = 1 << 3;
-    uint256 public constant ADMIN_ROLE_A = ROLE_A << 128;
-    uint256 public constant ADMIN_ROLE_B = ROLE_B << 128;
-    uint256 public constant ADMIN_ROLE_C = ROLE_C << 128;
-    uint256 public constant ADMIN_ROLE_D = ROLE_D << 128;
+    uint256 public constant ROLE_A = 0x1;        // First nybble (bits 0-3)
+    uint256 public constant ROLE_B = 0x10;       // Second nybble (bits 4-7)
+    uint256 public constant ROLE_C = 0x100;      // Third nybble (bits 8-11)
+    uint256 public constant ROLE_D = 0x1000;     // Fourth nybble (bits 12-15)
+    uint256 public constant ADMIN_ROLE_A = 0x1 << 128;    // First admin nybble (bits 128-131)
+    uint256 public constant ADMIN_ROLE_B = 0x10 << 128;   // Second admin nybble (bits 132-135)
+    uint256 public constant ADMIN_ROLE_C = 0x100 << 128;  // Third admin nybble (bits 136-139)
+    uint256 public constant ADMIN_ROLE_D = 0x1000 << 128; // Fourth admin nybble (bits 140-143)
 }
 
 contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {

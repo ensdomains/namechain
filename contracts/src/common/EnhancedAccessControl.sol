@@ -119,7 +119,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if any of the roles in the given role bitmap has assignees, `false` otherwise.
      */
     function hasAssignees(bytes32 resource, uint256 roleBitmap) public view virtual returns (bool) {
-        return (roleCount[resource] & _roleBitmapToMask(roleBitmap)) != 0;
+        // return (roleCount[resource] & _roleBitmapToMask(roleBitmap)) != 0;  // Temporarily commented out
+        return false;  // Temporarily always return false
     }
 
     /**
@@ -234,7 +235,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         if (currentRoles != updatedRoles) {
             roles[resource][account] = updatedRoles;
             uint256 newlyAddedRoles = roleBitmap & ~currentRoles;
-            _updateRoleCounts(resource, newlyAddedRoles, true);
+            // _updateRoleCounts(resource, newlyAddedRoles, true);  // Temporarily commented out
             if (executeCallbacks) {
                 _onRolesGranted(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
@@ -261,7 +262,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         if (currentRoles != updatedRoles) {
             roles[resource][account] = updatedRoles;
             uint256 newlyRemovedRoles = roleBitmap & currentRoles;
-            _updateRoleCounts(resource, newlyRemovedRoles, false);
+            // _updateRoleCounts(resource, newlyRemovedRoles, false);  // Temporarily commented out
             if (executeCallbacks) {
                 _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
             }

@@ -19,7 +19,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     BaseUriRegistryMetadata metadata;
 
     // Hardcoded role constants
-    uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
+    uint256 constant ROLE_UPDATE_METADATA = 0x1;
     bytes32 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
@@ -35,47 +35,46 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         );
     }
 
-    function test_registry_metadata_base_uri() public {
-        uint256 tokenId = uint256(keccak256(bytes("sub")));
-
-        registry.register("sub", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
-
-        assertEq(registry.uri(tokenId), "");
-        
-        string memory expectedUri = "ipfs://base/{id}";
+    function test_registry_metadata() public {
+        string memory expectedUri = "https://app.ens.domains/metadata/";
         metadata.setTokenBaseUri(expectedUri);
-        assertEq(metadata.tokenUri(tokenId), expectedUri);
+        assertEq(metadata.tokenUri(1), expectedUri);
+    }
+
+    function test_registry_metadata_from_registry() public {
+        // Test through the registry's URI function
+        uint256 tokenId = registry.register("test", address(this), registry, address(0), 0, type(uint64).max);
+        
+        string memory expectedUri = "https://app.ens.domains/metadata/";
+        metadata.setTokenBaseUri(expectedUri);
+        
         assertEq(registry.uri(tokenId), expectedUri);
     }
 
-    function test_registry_metadata_base_uri_multiple_tokens() public {
-        string memory expectedUri = "ipfs://base/{id}";
-        uint256 tokenId1 = uint256(keccak256(bytes("sub1")));
-        uint256 tokenId2 = uint256(keccak256(bytes("sub2")));
-
-        registry.register("sub1", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
-        registry.register("sub2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
-
-        metadata.setTokenBaseUri(expectedUri);
-
-        assertEq(metadata.tokenUri(tokenId1), expectedUri);
-        assertEq(metadata.tokenUri(tokenId2), expectedUri);
-        assertEq(registry.uri(tokenId1), expectedUri);
-        assertEq(registry.uri(tokenId2), expectedUri);
+    function test_registry_metadata_empty() public view {
+        // Default should be empty
+        assertEq(metadata.tokenUri(1), "");
     }
 
-    function test_registry_metadata_base_uri_update() public {
-        string memory initialUri = "ipfs://initial/{id}";
-        string memory updatedUri = "ipfs://updated/{id}";
-        uint256 tokenId = uint256(keccak256(bytes("sub")));
-
-        registry.register("sub", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
+    function test_registry_metadata_various_tokens() public {
+        string memory expectedUri = "https://app.ens.domains/metadata/";
+        metadata.setTokenBaseUri(expectedUri);
         
-        metadata.setTokenBaseUri(initialUri);
-        assertEq(metadata.tokenUri(tokenId), initialUri);
+        // Multiple different token IDs should return the same base URI
+        assertEq(metadata.tokenUri(1), expectedUri);
+        assertEq(metadata.tokenUri(42), expectedUri);
+        assertEq(metadata.tokenUri(999999), expectedUri);
+    }
 
-        metadata.setTokenBaseUri(updatedUri);
-        assertEq(metadata.tokenUri(tokenId), updatedUri);
+    function test_registry_metadata_admin_can_update() public {
+        string memory expectedUri = "ipfs://test/";
+        metadata.setTokenBaseUri(expectedUri);
+        assertEq(metadata.tokenUri(1), expectedUri);
+        
+        // Admin can update it
+        string memory newUri = "https://newdomain.com/";
+        metadata.setTokenBaseUri(newUri);
+        assertEq(metadata.tokenUri(1), newUri);
     }
 
     function test_registry_metadata_unauthorized() public {
@@ -93,8 +92,8 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     }
 
     // Role bitmaps for different permission configurations
-    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
-    uint256 constant ROLE_SET_RESOLVER = 1 << 3;
-    uint256 constant ROLE_SET_FLAGS = 1 << 4;
+    uint256 constant ROLE_SET_SUBREGISTRY = 0x100;
+    uint256 constant ROLE_SET_RESOLVER = 0x1000;
+    uint256 constant ROLE_SET_FLAGS = 0x10000;
     uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
 } 

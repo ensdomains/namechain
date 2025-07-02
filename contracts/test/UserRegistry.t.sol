@@ -21,7 +21,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
     uint256 constant ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
     bytes32 constant ROOT_RESOURCE = 0;
 
-    uint256 constant ROLE_UPGRADE = 1 << 5;
+    uint256 constant ROLE_UPGRADE = 0x100000;
     uint256 constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
     
     // Contracts
