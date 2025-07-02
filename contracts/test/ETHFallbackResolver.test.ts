@@ -506,7 +506,7 @@ describe("ETHFallbackResolver", () => {
       ]);
       bundle.expect(answer);
     });
-    it("multiple ABI contentTypes", async () => {
+    it("multiple ABI contentTypes", { timeout: 20000 }, async () => {
       const kp: KnownProfile = {
         name: testNames[0],
         abis: [
@@ -542,7 +542,7 @@ describe("ETHFallbackResolver", () => {
         res.desc = `ABI(${contentTypes})`;
         res.expect(answer);
       }
-    }, { timeout: 20000 });
+    });
     it(`multicall()`, async () => {
       const F = await loadFixture();
       await F.namechain.setupName(kp);
