@@ -4,10 +4,6 @@ pragma solidity >=0.8.13;
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
 
 library NameUtils {
-    /// @notice The label is invalid.
-    /// @dev Error selector: `0x0a9644cf`
-    error InvalidLabel(string label);
-
     /// @dev Determine if label is a hashed label.
     ///      Matches: `/^\[[0-9a-f]{64}\]$/i`.
     /// @param label The label to check.
@@ -40,9 +36,6 @@ library NameUtils {
     function labelToCanonicalId(
         string memory label
     ) internal pure returns (uint256) {
-        if (!isValidLabel(label)) {
-            revert InvalidLabel(label);
-        }
         return getCanonicalId(uint256(keccak256(bytes(label))));
     }
 

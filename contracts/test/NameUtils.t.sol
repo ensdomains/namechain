@@ -51,35 +51,30 @@ contract TestNameUtils is Test {
         assertTrue(NameUtils.isValidLabel(new string(255)), "255");
     }
 
-    function test_labelToCanonicalId() external {
-        for (uint256 n = 1; n <= 255; n++) {
-            assertEq(
-                NameUtils.labelToCanonicalId(new string(n)),
-                NameUtils.getCanonicalId(uint256(keccak256(new bytes(n))))
-            );
-        }
-    }
-
-    function test_Revert_labelToCanonicalId_empty() external {
-        vm.expectRevert();
-        this.labelToCanonicalId("");
-    }
-
-    function test_Revert_labelToCanonicalId_long() external {
-        vm.expectRevert();
-        this.labelToCanonicalId(new string(256));
-    }
-
-    function test_Revert_labelToCanonicalId_hashed() external {
-        vm.expectRevert();
-        this.labelToCanonicalId(
-            "[0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef]"
+    function test_getCanonicalId() external {
+        assertEq(NameUtils.getCanonicalId(0), 0);
+        assertEq(NameUtils.getCanonicalId(0xFFFFFFFF), 0x00000000);
+        assertEq(NameUtils.getCanonicalId(0x1FFFFFFFF), 0x100000000);
+        assertEq(
+            NameUtils.getCanonicalId(
+                0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+            ),
+            0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000
         );
     }
 
-    function labelToCanonicalId(
-        string memory label
-    ) public view returns (uint256) {
-        return NameUtils.labelToCanonicalId(label);
+    function test_labelToCanonicalId() external {
+        assertEq(
+            NameUtils.labelToCanonicalId(""),
+            0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad80400000000
+        );
+        assertEq(
+            NameUtils.labelToCanonicalId("test"),
+            0x9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb00000000
+        );
+        assertEq(
+            NameUtils.labelToCanonicalId("eth"),
+            0x4f5b812789fc606be1b3b16908db13fc7a9adf7ca72641f84d75b47000000000
+        );
     }
 }
