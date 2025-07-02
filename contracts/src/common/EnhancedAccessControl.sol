@@ -32,8 +32,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     event EACRolesRevoked(bytes32 resource, uint128 roleBitmap, address account);
     event EACAllRolesRevoked(bytes32 resource, address account);
 
-    uint64 constant public ALL_ROLES = 0xffffffffffffffff;
-    uint64 constant public ADMIN_ROLES = 0xffffffff00000000;
+    uint64 constant public ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;
+    uint64 constant public ADMIN_ROLES = 0x1111111111111111111111111111111100000000000000000000000000000000;
 
     /**
      * @dev user roles within a resource stored as a bitmap.
