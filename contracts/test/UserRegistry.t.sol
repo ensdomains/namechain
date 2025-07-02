@@ -18,7 +18,7 @@ import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
     // Test constants
     uint256 constant SALT = 12345;
-    uint256 constant ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    uint256 constant ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;
     bytes32 constant ROOT_RESOURCE = 0;
 
     uint256 constant ROLE_UPGRADE = 0x100000;

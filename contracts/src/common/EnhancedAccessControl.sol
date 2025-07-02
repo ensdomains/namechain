@@ -119,8 +119,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if any of the roles in the given role bitmap has assignees, `false` otherwise.
      */
     function hasAssignees(bytes32 resource, uint256 roleBitmap) public view virtual returns (bool) {
-        // return (roleCount[resource] & _roleBitmapToMask(roleBitmap)) != 0;  // Temporarily commented out
-        return false;  // Temporarily always return false
+        return (roleCount[resource] & _roleBitmapToMask(roleBitmap)) != 0;
     }
 
     /**
@@ -235,7 +234,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         if (currentRoles != updatedRoles) {
             roles[resource][account] = updatedRoles;
             uint256 newlyAddedRoles = roleBitmap & ~currentRoles;
-            // _updateRoleCounts(resource, newlyAddedRoles, true);  // Temporarily commented out
+            _updateRoleCounts(resource, newlyAddedRoles, true);
             if (executeCallbacks) {
                 _onRolesGranted(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
@@ -262,7 +261,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         if (currentRoles != updatedRoles) {
             roles[resource][account] = updatedRoles;
             uint256 newlyRemovedRoles = roleBitmap & currentRoles;
-            // _updateRoleCounts(resource, newlyRemovedRoles, false);  // Temporarily commented out
+            _updateRoleCounts(resource, newlyRemovedRoles, false);  // Temporarily commented out
             if (executeCallbacks) {
                 _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
@@ -289,21 +288,15 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     function _updateRoleCounts(bytes32 resource, uint256 roleBitmap, bool isGrant) internal {
         uint256 roleMask = _roleBitmapToMask(roleBitmap);
 
-        // Algorithm source: https://graphics.stanford.edu/~seander/bithacks.html#ZeroInWord
-
         if (isGrant) {
-            // Check if any role has max assignees by looking for nybbles where all bits are set
-            uint256 maskedCounts = roleMask & ~roleCount[resource];
-            uint256 hasZeroNybbles = (maskedCounts - 0x1111111111111111111111111111111111111111111111111111111111111111) & ~maskedCounts & 0x8888888888888888888888888888888888888888888888888888888888888888;
-            if (hasZeroNybbles != 0) {
+            // Check for overflow
+            if (_hasZeroNybbles(~(roleMask & roleCount[resource]))) {
                 revert EACMaxAssignees(resource, roleBitmap);
             }
             roleCount[resource] += roleBitmap;
         } else {
-            // Check if any role has 0 assignees by looking for nybbles where no bits are set
-            uint256 maskedCounts = roleMask & roleCount[resource];
-            uint256 hasZeroNybbles = (maskedCounts - 0x1111111111111111111111111111111111111111111111111111111111111111) & ~maskedCounts & 0x8888888888888888888888888888888888888888888888888888888888888888;
-            if (hasZeroNybbles != 0) {
+            // Check for underflow
+            if (_hasZeroNybbles(~(roleMask & ~roleCount[resource]))) {
                 revert EACMinAssignees(resource, roleBitmap);
             }
             roleCount[resource] -= roleBitmap;
@@ -359,5 +352,20 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     function _roleBitmapToMask(uint256 roleBitmap) private pure returns (uint256 roleMask) {
         roleMask = roleBitmap | (roleBitmap << 1);
         roleMask |= roleMask << 2;
+    }
+
+    /**
+     * @dev Checks if the given value has any zero nybbles.
+     *
+     * @param value The value to check.
+     * @return `true` if the value has any zero nybbles, `false` otherwise.
+     */
+    function _hasZeroNybbles(uint256 value) private pure returns (bool) {
+        // Algorithm source: https://graphics.stanford.edu/~seander/bithacks.html#ZeroInWord
+        uint256 hasZeroNybbles;
+        unchecked {
+            hasZeroNybbles = (value - 0x1111111111111111111111111111111111111111111111111111111111111111) & ~value & 0x8888888888888888888888888888888888888888888888888888888888888888;
+        }
+        return hasZeroNybbles != 0;
     }
 }

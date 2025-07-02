@@ -44,7 +44,8 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     address owner = makeAddr("owner");
     address user1 = makeAddr("user1");
 
-    uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    // all roles
+    uint256 deployerRoles = 0x1111111111111111111111111111111111111111111111111111111111111111;
 
     function setUp() public {
         datastore = new RegistryDatastore();

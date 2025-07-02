@@ -29,7 +29,7 @@ contract MockRegistryMetadata is IRegistryMetadata {
 contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     // Import constants from RegistryRolesMixin and EnhancedAccessControl
     bytes32 constant ROOT_RESOURCE = bytes32(0);
-    uint256 constant ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    uint256 constant ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;
     
     MockL2EjectionController controller; // Changed type to MockL2EjectionController
     PermissionedRegistry registry;

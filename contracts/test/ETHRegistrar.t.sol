@@ -68,7 +68,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
         datastore = new RegistryDatastore();
         // Use a defined ALL_ROLES value for deployer roles
-        uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+        uint256 deployerRoles = 0x1111111111111111111111111111111111111111111111111111111111111111;
         registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), deployerRoles);
         priceOracle = new MockPriceOracle(BASE_PRICE, PREMIUM_PRICE);
         
@@ -295,7 +295,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         );
 
         bytes32 resource = registry.getTokenIdResource(tokenId);
-        assertTrue(registry.hasRoles(resource, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, owner));
+        assertTrue(registry.hasRoles(resource, 0x1111111111111111111111111111111111111111111111111111111111111111, owner));
     }
 
     function test_Revert_insufficientValue() public {
