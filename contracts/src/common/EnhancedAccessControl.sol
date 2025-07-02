@@ -111,25 +111,12 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
 
 
     /**
-     * @dev Returns the count for a specific role
+     * @dev Returns true if any selected role has assignees
      */
-    function getAssigneeCount(bytes32 resource, uint64 roleBitmap) public view virtual returns (uint16) {
-        // If checking multiple roles, return sum of all counts
-        uint256 counts = roleCount[resource];
-        uint16 totalCount = 0;
-        uint64 remaining = roleBitmap;
-        uint8 roleIndex = 0;
-        
-        while (remaining != 0) {
-            if (remaining & 1 == 1) {
-                uint256 shift = roleIndex * 4;
-                totalCount += uint16((counts >> shift) & 0xF);
-            }
-            remaining >>= 1;
-            roleIndex++;
-        }
-        
-        return totalCount;
+    function hasAssignees(bytes32 resource, uint256 roleBitmap) public view virtual returns (uint16) {
+        uint256 roleMask = roleBitmap | (roleBitmap << 1);
+        roleMask |= (roleMask << 2);
+        return (roleCount[resource] & roleMask) != 0;
     }
 
     /**
