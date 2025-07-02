@@ -123,7 +123,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Grants roles to `account`.
+     * @dev Grants all roles in the given role bitmap to `account`.
      *
      * The caller must have all the necessary admin roles for the roles being granted.
      * Cannot be used with ROOT_RESOURCE directly, use grantRootRoles instead.
@@ -141,7 +141,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Grants roles to `account` in the ROOT_RESOURCE.
+     * @dev Grants all roles in the given role bitmap to `account` in the ROOT_RESOURCE.
      *
      * The caller must have all the necessary admin roles for the roles being granted.
      *
@@ -154,7 +154,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Revokes roles from `account`.
+     * @dev Revokes all roles in the given role bitmap from `account`.
      *
      * The caller must have all the necessary admin roles for the roles being revoked.
      * Cannot be used with ROOT_RESOURCE directly, use revokeRootRoles instead.
@@ -172,7 +172,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     }
 
     /**
-     * @dev Revokes roles from `account` in the ROOT_RESOURCE.
+     * @dev Revokes all roles in the given role bitmap from `account` in the ROOT_RESOURCE.
      *
      * The caller must have all the necessary admin roles for the roles being revoked.
      *
