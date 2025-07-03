@@ -16,7 +16,7 @@ import {IRegistry} from "../common/IRegistry.sol";
  */
 contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
     uint256 internal constant ROLE_UPGRADE = 0x100000;
-    uint256 internal constant ROLE_UPGRADE_ADMIN = 0x100000 << 128;
+    uint256 internal constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
 
     constructor() PermissionedRegistry(IRegistryDatastore(address(0)), IRegistryMetadata(address(0)), 0) {
         // This disables initialization for the implementation contract

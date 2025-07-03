@@ -18,7 +18,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     uint256 private constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
     
     uint256 private constant ROLE_SET_COMMITMENT_AGES = 0x1000000;
-    uint256 private constant ROLE_SET_COMMITMENT_AGES_ADMIN = 0x1000000 << 128;
+    uint256 private constant ROLE_SET_COMMITMENT_AGES_ADMIN = ROLE_SET_COMMITMENT_AGES << 128;
 
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
 
