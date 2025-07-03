@@ -17,7 +17,7 @@ export async function deployV2Fixture(
   networkConnection: NetworkConnection<DefaultChainType>,
   enableCcipRead = false,
 ) {
-  const publicClient = await networkConnection.viem.getPublicClient({
+const publicClient = await networkConnection.viem.getPublicClient({
     ccipRead: enableCcipRead ? undefined : false,
   });
   const [walletClient] = await networkConnection.viem.getWalletClients();
