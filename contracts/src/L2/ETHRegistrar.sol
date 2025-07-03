@@ -14,8 +14,8 @@ import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
 contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixin {
     uint256 private constant REGISTRATION_ROLE_BITMAP = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;
 
-    uint256 private constant ROLE_SET_PRICE_ORACLE = 0x100000;
-    uint256 private constant ROLE_SET_PRICE_ORACLE_ADMIN = 0x100000 << 128;
+    uint256 private constant ROLE_SET_PRICE_ORACLE = 0x1 << 20;
+    uint256 private constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
     
     uint256 private constant ROLE_SET_COMMITMENT_AGES = 0x1000000;
     uint256 private constant ROLE_SET_COMMITMENT_AGES_ADMIN = 0x1000000 << 128;
