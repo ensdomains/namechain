@@ -1,4 +1,4 @@
-import type { NetworkConnection } from "hardhat/types/network";
+import type { DefaultChainType, NetworkConnection } from "hardhat/types/network";
 import {
   type Address,
   encodeFunctionData,
