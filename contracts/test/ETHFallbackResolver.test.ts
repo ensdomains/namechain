@@ -22,7 +22,7 @@ import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
 import { urgArtifact } from "./fixtures/externalArtifacts.js";
 import {
   COIN_TYPE_ETH,
-  EVM_BIT,
+  COIN_TYPE_DEFAULT,
   type KnownProfile,
   type KnownResolution,
   bundleCalls,
@@ -287,7 +287,7 @@ describe("ETHFallbackResolver", () => {
       primary: { value: testNames[0] },
       addresses: [
         { coinType: COIN_TYPE_ETH, value: testAddress },
-        { coinType: 1n | EVM_BIT, value: testAddress },
+        { coinType: 1n | COIN_TYPE_DEFAULT, value: testAddress },
         { coinType: 2n, value: concat([keccak256("0x0"), "0x01"]) },
       ],
       texts: [{ key: "url", value: "https://ens.domains" }],

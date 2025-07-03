@@ -890,51 +890,51 @@ contract EnhancedAccessControlTest is Test, MockRoles {
 
     function test_hasAssignees_two_roles() public {
         // Initially, neither role should have assignees
-        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_B));
+        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
         assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A));
-        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_B));
+        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_D));
         
         // Grant ROLE_A to user1
         access.grantRoles(RESOURCE_1, ROLE_A, user1);
         
         // Now hasAssignees should return true for ROLE_A and for the combined bitmap
         assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A));
-        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_B)); // Returns true because ROLE_A has assignees
-        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_B)); // ROLE_B still has no assignees
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D)); // Returns true because ROLE_A has assignees
+        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_D)); // ROLE_D still has no assignees
         
-        // Grant ROLE_B to user2
-        access.grantRoles(RESOURCE_1, ROLE_B, user2);
+        // Grant ROLE_D to user2
+        access.grantRoles(RESOURCE_1, ROLE_D, user2);
         
         // Now both roles should have assignees
         assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A));
-        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_B));
-        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_B));
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_D));
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
         
         // Grant both roles to the same user
-        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, superuser);
+        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_D, superuser);
         
         // Should still work the same way
         assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A));
-        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_B));
-        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_B));
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_D));
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
         
         // Revoke ROLE_A from all users
         access.revokeRoles(RESOURCE_1, ROLE_A, user1);
         access.revokeRoles(RESOURCE_1, ROLE_A, superuser);
         
-        // Now only ROLE_B should have assignees
+        // Now only ROLE_D should have assignees
         assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A));
-        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_B));
-        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_B)); // Returns true because ROLE_B has assignees
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_D));
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D)); // Returns true because ROLE_D has assignees
         
-        // Revoke ROLE_B from all users
-        access.revokeRoles(RESOURCE_1, ROLE_B, user2);
-        access.revokeRoles(RESOURCE_1, ROLE_B, superuser);
+        // Revoke ROLE_D from all users
+        access.revokeRoles(RESOURCE_1, ROLE_D, user2);
+        access.revokeRoles(RESOURCE_1, ROLE_D, superuser);
         
         // Now neither role should have assignees
         assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A));
-        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_B));
-        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_B));
+        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_D));
+        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
     }
 
     function test_max_assignees_single_role() public {
@@ -980,27 +980,27 @@ contract EnhancedAccessControlTest is Test, MockRoles {
             access.grantRoles(RESOURCE_1, ROLE_A, users[i]);
         }
         
-        // Max out ROLE_B (15 users) - can reuse same users
+        // Max out ROLE_D (15 users) - can reuse same users
         for (uint256 i = 0; i < 15; i++) {
-            access.grantRoles(RESOURCE_1, ROLE_B, users[i]);
+            access.grantRoles(RESOURCE_1, ROLE_D, users[i]);
         }
         
         // Both roles should have assignees
         assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A));
-        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_B));
-        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_B));
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_D));
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
         
         // Try to grant ROLE_A to another user - should fail
         vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A));
         access.grantRoles(RESOURCE_1, ROLE_A, users[15]);
         
-        // Try to grant ROLE_B to another user - should fail
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_B));
-        access.grantRoles(RESOURCE_1, ROLE_B, users[15]);
+        // Try to grant ROLE_D to another user - should fail
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_D));
+        access.grantRoles(RESOURCE_1, ROLE_D, users[15]);
         
         // Try to grant both roles together to another user - should fail
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A | ROLE_B));
-        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, users[15]);
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A | ROLE_D));
+        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_D, users[15]);
         
         // Remove one assignee from ROLE_A
         access.revokeRoles(RESOURCE_1, ROLE_A, users[0]);
@@ -1009,9 +1009,9 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         access.grantRoles(RESOURCE_1, ROLE_A, users[15]);
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, users[15]));
         
-        // But ROLE_B should still be maxed out
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_B));
-        access.grantRoles(RESOURCE_1, ROLE_B, makeAddr("extraUser"));
+        // But ROLE_D should still be maxed out
+        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_D));
+        access.grantRoles(RESOURCE_1, ROLE_D, makeAddr("extraUser"));
     }
 
     function test_min_assignees_single_role() public {
@@ -1043,32 +1043,32 @@ contract EnhancedAccessControlTest is Test, MockRoles {
 
     function test_min_assignees_two_roles() public {
         // Initially, no assignees for either role
-        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_B));
+        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
         
         // Try to revoke both roles when no one has them - should NOT revert (it's a no-op)
-        bool success = access.revokeRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        bool success = access.revokeRoles(RESOURCE_1, ROLE_A | ROLE_D, user1);
         assertFalse(success); // Should return false as no roles were actually revoked
         
         // Grant only ROLE_A to user1
         access.grantRoles(RESOURCE_1, ROLE_A, user1);
         
         // Try to revoke both roles - should partially succeed (only ROLE_A will be revoked)
-        success = access.revokeRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        success = access.revokeRoles(RESOURCE_1, ROLE_A | ROLE_D, user1);
         assertTrue(success); // Should return true as at least one role was revoked
         assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A)); // ROLE_A should be revoked
-        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_B)); // ROLE_B was never assigned
+        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_D)); // ROLE_D was never assigned
         
         // Grant both roles to user1
-        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
-        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_B));
+        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_D, user1);
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
         
         // Now revoking both should work
-        success = access.revokeRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        success = access.revokeRoles(RESOURCE_1, ROLE_A | ROLE_D, user1);
         assertTrue(success);
-        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_B));
+        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
         
         // Try to revoke both again - should NOT revert (it's a no-op)
-        success = access.revokeRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        success = access.revokeRoles(RESOURCE_1, ROLE_A | ROLE_D, user1);
         assertFalse(success); // Should return false as no roles were actually revoked
     }
 
