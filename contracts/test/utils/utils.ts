@@ -1,12 +1,11 @@
 // import { labelhash, namehash } from "viem";
+export { expectVar } from "./expectVar.js";
 
-import type { Fixture } from "@nomicfoundation/hardhat-network-helpers/types";
-import type {
-  DefaultChainType,
-  NetworkConnection,
-} from "hardhat/types/network";
-
-export { expectVar } from "../../lib/ens-contracts/test/fixtures/expectVar.js";
+// import type { ccipRequest } from "viem";
+// export type CCIPReadOption =
+//   | { request: typeof ccipRequest }
+//   | undefined
+//   | false;
 
 export {
   dnsEncodeName,
@@ -54,13 +53,4 @@ export function getParentName(name: string) {
 //          5 => ""
 export function getLabelAt(name: string, index: number) {
   return splitName(name).at(index) ?? "";
-}
-
-export function createFixture<T>(
-  networkConnection: NetworkConnection<DefaultChainType>,
-  fixture: (n: NetworkConnection<DefaultChainType>) => Fixture<T>,
-) {
-  const initialisedFixture = fixture(networkConnection);
-  return async () =>
-    networkConnection.networkHelpers.loadFixture(initialisedFixture);
 }

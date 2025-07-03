@@ -1,9 +1,8 @@
-import { expect } from "chai";
 import hre from "hardhat";
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { deployV2Fixture, ROLES } from "./fixtures/deployV2Fixture.js";
-import { dnsEncodeName } from "./utils/utils.js";
+import { dnsEncodeName, expectVar } from "./utils/utils.js";
 
 const networkConnection = await hre.network.connect();
 async function fixture() {
@@ -17,11 +16,11 @@ const testAddress = "0x8000000000000000000000000000000000000001";
 describe("Ens", () => {
   it("returns eth registry for eth", async () => {
     const F = await loadFixture();
-    const [ethRegistry, isExact] = await F.universalResolver.read.getRegistry([
+    const [registry, isExact] = await F.universalResolver.read.getRegistry([
       dnsEncodeName("eth"),
     ]);
-    expect(isExact).toBe(true);
-    expect(ethRegistry).toEqualAddress(F.ethRegistry.address);
+    expectVar({ isExact }).toStrictEqual(true);
+    expectVar({ registry }).toEqualAddress(F.ethRegistry.address);
   });
 
   it("returns eth registry for test.eth without user registry", async () => {
@@ -31,8 +30,8 @@ describe("Ens", () => {
     const [registry, isExact] = await F.universalResolver.read.getRegistry([
       dnsEncodeName(name),
     ]);
-    expect(isExact).toBe(false);
-    expect(registry).toEqualAddress(F.ethRegistry.address);
+    expectVar({ isExact }).toStrictEqual(false);
+    expectVar({ registry }).toEqualAddress(F.ethRegistry.address);
   });
 
   it("exact", async () => {
@@ -42,8 +41,10 @@ describe("Ens", () => {
     const [registry, isExact] = await F.universalResolver.read.getRegistry([
       dnsEncodeName(name),
     ]);
-    expect(isExact).toBe(true);
-    expect(registry).toEqualAddress(registries[registries.length - 1].address);
+    expectVar({ isExact }).toStrictEqual(true);
+    expectVar({ registry }).toEqualAddress(
+      registries[registries.length - 1].address,
+    );
   });
 
   it("overlapping names", async () => {

@@ -7,6 +7,8 @@ import HardhatNetworkHelpersPlugin from "@nomicfoundation/hardhat-network-helper
 import HardhatViem from "@nomicfoundation/hardhat-viem";
 import HardhatDeploy from "hardhat-deploy";
 
+import HardhatStorageLayoutPlugin from "./plugins/storage-layout/index.ts";
+
 const realAccounts = [
   configVariable("DEPLOYER_KEY"),
   configVariable("OWNER_KEY"),
@@ -69,6 +71,7 @@ const config = {
     HardhatViem,
     HardhatDeploy,
     HardhatKeystore,
+    HardhatStorageLayoutPlugin,
   ],
 } satisfies HardhatUserConfig;
 

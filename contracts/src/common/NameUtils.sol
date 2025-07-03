@@ -28,4 +28,13 @@ library NameUtils {
     function getCanonicalId(uint256 id) internal pure returns (uint256) {
         return id & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000;
     }
+
+    /**
+     * @dev DNS encodes a label as a .eth second-level domain.
+     * @param label The label to encode (e.g., "test" becomes "\x04test\x03eth\x00").
+     * @return The DNS-encoded name.
+     */
+    function dnsEncodeEthLabel(string memory label) internal pure returns (bytes memory) {
+        return abi.encodePacked(bytes1(uint8(bytes(label).length)), label, "\x03eth\x00");
+    }
 }
