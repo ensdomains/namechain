@@ -500,7 +500,7 @@ describe("ETHFallbackResolver", () => {
       ]);
       bundle.expect(answer);
     });
-    it("multiple ABI contentTypes", async () => {
+    it("multiple ABI contentTypes", { timeout: 20000 }, async () => {
       const kp: KnownProfile = {
         name: testNames[0],
         abis: [

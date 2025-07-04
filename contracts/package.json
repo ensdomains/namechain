@@ -38,5 +38,9 @@
   },
   "peerDependencies": {
     "typescript": "^5.8.3"
-  }
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "engineStrict": true
 }
