@@ -6,21 +6,21 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
-import {IRemoteRegistryResolver} from "../eth/IRemoteRegistryResolver.sol";
+import {IRegistryResolver} from "../eth/IRegistryResolver.sol";
 import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
 
-contract DNSRemoteRegistryResolver is
+contract DNSRegistryResolver is
     ERC165,
     CCIPReader,
     IFeatureSupporter,
     IExtendedDNSResolver
 {
-    IRemoteRegistryResolver public immutable remoteRegistryResolver;
+    IRegistryResolver public immutable registryResolver;
 
-    constructor(IRemoteRegistryResolver _remoteRegistryResolver) CCIPReader(0) {
-        remoteRegistryResolver = _remoteRegistryResolver;
+    constructor(IRegistryResolver _registryResolver) CCIPReader(0) {
+        registryResolver = _registryResolver;
     }
 
     /// @inheritdoc ERC165
@@ -45,9 +45,9 @@ contract DNSRemoteRegistryResolver is
     ) external view returns (bytes memory) {
         (address registry, bytes32 nodeSuffix) = _parseContext(context);
         ccipRead(
-            address(remoteRegistryResolver),
+            address(registryResolver),
             abi.encodeCall(
-                IRemoteRegistryResolver.resolveWithRegistry,
+                IRegistryResolver.resolveWithRegistry,
                 (registry, nodeSuffix, name, data)
             )
         );

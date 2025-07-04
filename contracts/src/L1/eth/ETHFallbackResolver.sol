@@ -9,7 +9,7 @@ import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRe
 import {GatewayFetchTarget, IGatewayVerifier} from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
 
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
-import {IRemoteRegistryResolver} from "./IRemoteRegistryResolver.sol";
+import {IRegistryResolver} from "./IRegistryResolver.sol";
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {NameUtils} from "../../common/NameUtils.sol";
@@ -39,7 +39,7 @@ bytes32 constant ETH_NODE = keccak256(abi.encode(bytes32(0), keccak256("eth")));
 contract ETHFallbackResolver is
     IExtendedResolver,
     IFeatureSupporter,
-    IRemoteRegistryResolver,
+    IRegistryResolver,
     GatewayFetchTarget,
     CCIPReader,
     Ownable,
@@ -96,6 +96,7 @@ contract ETHFallbackResolver is
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
             type(IFeatureSupporter).interfaceId == interfaceId ||
+            type(IRegistryResolver).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -122,6 +123,7 @@ contract ETHFallbackResolver is
     /// @notice Set maximum number of reads per request via gateway.
     /// @dev Technical limit: 254.
     ///      Actual limit: gateway proof size and/or gas limit.
+    /// @param reads The maximum number of reads.
     function setMaxReadsPerRequest(uint8 reads) external onlyOwner {
         assert(reads > 0 && reads <= 254);
         maxReadsPerRequest = reads;
@@ -190,9 +192,9 @@ contract ETHFallbackResolver is
 
     /// @notice Resolve `name` with the Namechain registry corresponding to `nodeSuffix`.
     ///         If `nodeSuffix` is "eth", checks Mainnet V1 before resolving on Namechain.
-    /// @inheritdoc IRemoteRegistryResolver
+    /// @inheritdoc IRegistryResolver
     function resolveWithRegistry(
-        address namechainRegistry,
+        address parentRegistry,
         bytes32 nodeSuffix,
         bytes calldata name,
         bytes calldata data
@@ -233,7 +235,7 @@ contract ETHFallbackResolver is
         }
         return
             _resolveNamechain(
-                State(namechainRegistry, name, offset, multi, calls, 0)
+                State(parentRegistry, name, offset, multi, calls, 0)
             );
     }
 

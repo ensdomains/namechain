@@ -72,8 +72,8 @@ async function fixture() {
       namechain.ethRegistry.address,
     ],
   );
-  const dnsRemoteRegistryResolver = await chain.viem.deployContract(
-    "DNSRemoteRegistryResolver",
+  const dnsRegistryResolver = await chain.viem.deployContract(
+    "DNSRegistryResolver",
     [ethFallbackResolver.address],
   );
   return {
@@ -81,18 +81,18 @@ async function fixture() {
     namechain,
     mockDNSSEC,
     dnsTLDResolver,
-    dnsRemoteRegistryResolver,
+    dnsRegistryResolver,
     ethFallbackResolver,
     ethResolver,
   };
 }
 
-describe("DNSRemoteRegistryResolver", () => {
+describe("DNSRegistryResolver", () => {
   shouldSupportInterfaces({
     contract: () =>
       chain.networkHelpers
         .loadFixture(fixture)
-        .then((F) => F.dnsRemoteRegistryResolver),
+        .then((F) => F.dnsRegistryResolver),
     interfaces: ["IERC165", "IExtendedDNSResolver", "IFeatureSupporter"],
   });
 
@@ -100,7 +100,7 @@ describe("DNSRemoteRegistryResolver", () => {
     contract: () =>
       chain.networkHelpers
         .loadFixture(fixture)
-        .then((F) => F.dnsRemoteRegistryResolver),
+        .then((F) => F.dnsRegistryResolver),
     features: {
       RESOLVER: ["RESOLVE_MULTICALL"],
     },
@@ -128,7 +128,7 @@ describe("DNSRemoteRegistryResolver", () => {
         encodeRRs([
           makeTXT(
             kp.name,
-            `ENS1 ${F.dnsRemoteRegistryResolver.address} ${registry.address} ${suffixName}`,
+            `ENS1 ${F.dnsRegistryResolver.address} ${registry.address} ${suffixName}`,
           ),
         ]),
       ]);

@@ -377,7 +377,7 @@ contract DNSTLDResolver is
             ptr := add(txt, 32)
             // prettier-ignore
             for { } lt(pos, end) { } {
-                let size := shr(248, mload(pos))
+                let size := byte(0, mload(pos))
                 pos := add(pos, 1)
                 if size {
                     let next := add(pos, size)
