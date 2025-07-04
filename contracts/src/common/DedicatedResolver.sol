@@ -9,10 +9,8 @@ import {IDedicatedResolverSetters, NODE_ANY} from "./IDedicatedResolverSetters.s
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
-
-// resolver features
-import {IFeatureSupporter} from "./IFeatureSupporter.sol";
-import {ResolverFeatures} from "./ResolverFeatures.sol";
+import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
+import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 
 // resolver profiles
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";

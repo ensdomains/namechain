@@ -9,15 +9,16 @@ import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRe
 import {GatewayFetchTarget, IGatewayVerifier} from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
 
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
+import {IRemoteRegistryResolver} from "./IRemoteRegistryResolver.sol";
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
-import {NameUtils} from "../common/NameUtils.sol";
+import {NameUtils} from "../../common/NameUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
-import {DedicatedResolverLayout} from "../common/DedicatedResolverLayout.sol";
-import {IFeatureSupporter} from "../common/IFeatureSupporter.sol";
-import {ResolverFeatures} from "../common/ResolverFeatures.sol";
+import {DedicatedResolverLayout} from "../../common/DedicatedResolverLayout.sol";
+import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
+import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 
 // resolver profiles
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
@@ -38,6 +39,7 @@ bytes32 constant ETH_NODE = keccak256(abi.encode(bytes32(0), keccak256("eth")));
 contract ETHFallbackResolver is
     IExtendedResolver,
     IFeatureSupporter,
+    IRemoteRegistryResolver,
     GatewayFetchTarget,
     CCIPReader,
     Ownable,
@@ -81,7 +83,7 @@ contract ETHFallbackResolver is
         IGatewayVerifier _namechainVerifier,
         address _namechainDatastore,
         address _namechainEthRegistry
-    ) Ownable(msg.sender) {
+    ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
         ethRegistrarV1 = _ethRegistrarV1;
         universalResolverV1 = _universalResolverV1;
         burnAddressV1 = _burnAddressV1;
@@ -102,7 +104,7 @@ contract ETHFallbackResolver is
     }
 
     /// @inheritdoc IFeatureSupporter
-    function supportsFeature(bytes4 feature) public pure returns (bool) {
+    function supportsFeature(bytes4 feature) external pure returns (bool) {
         return ResolverFeatures.RESOLVE_MULTICALL == feature;
     }
 
@@ -125,24 +127,43 @@ contract ETHFallbackResolver is
     /// @param name The name to search.
     /// @param nodeSuffix The node to match.
     /// @return matched True if name ends with the suffix.
-    /// @param prevOffset The offset of the label before the suffix.
-    /// @param offset The offset of name that hashes to the suffix.
+    /// @return node The namehash of name.
+    /// @return prevOffset The offset of the label before the suffix.
+    /// @return suffixOffset The offset of name that hashes to the suffix.
     function _matchSuffix(
         bytes memory name,
+        uint256 offset,
         bytes32 nodeSuffix
-    ) internal pure returns (bool matched, uint256 prevOffset, uint256 offset) {
-        while (true) {
-            if (NameCoder.namehash(name, offset) == nodeSuffix) {
+    )
+        internal
+        pure
+        returns (
+            bool matched,
+            bytes32 node,
+            uint256 prevOffset,
+            uint256 suffixOffset
+        )
+    {
+        (bytes32 labelHash, uint256 next) = NameCoder.readLabel(name, offset);
+        if (labelHash != bytes32(0)) {
+            (matched, node, prevOffset, suffixOffset) = _matchSuffix(
+                name,
+                next,
+                nodeSuffix
+            );
+            if (node == nodeSuffix) {
                 matched = true;
-                break;
-            } else {
                 prevOffset = offset;
-                bytes32 labelHash;
-                (labelHash, offset) = NameCoder.readLabel(name, offset);
-                if (labelHash == bytes32(0)) {
-                    break;
-                }
+                suffixOffset = next;
             }
+            assembly {
+                mstore(0, node)
+                mstore(32, labelHash)
+                node := keccak256(0, 64) // compute namehash()
+            }
+        }
+        if (node == nodeSuffix) {
+            matched = true;
         }
     }
 
@@ -165,20 +186,16 @@ contract ETHFallbackResolver is
 
     /// @notice Resolve `name` with the Namechain registry corresponding to `nodeSuffix`.
     ///         If `nodeSuffix` is "eth", checks Mainnet V1 before resolving on Namechain.
-    /// @notice Caller should enable EIP-3668.
-    /// @param namechainRegistry The registry contract on Namechain.
-    /// @param nodeSuffix The node corresponding to registry contract.
-    /// @param name The name to resolve.
-    /// @param data The calldata.
-    /// @return The abi-encoded response for the request.
+    /// @inheritdoc IRemoteRegistryResolver
     function resolveWithRegistry(
         address namechainRegistry,
         bytes32 nodeSuffix,
         bytes calldata name,
         bytes calldata data
     ) public view returns (bytes memory) {
-        (bool matched, uint256 prevOffset, uint256 offset) = _matchSuffix(
+        (bool matched, , uint256 prevOffset, uint256 offset) = _matchSuffix(
             name,
+            0,
             nodeSuffix
         );
         if (!matched) {
@@ -190,6 +207,7 @@ contract ETHFallbackResolver is
                     ethResolver,
                     data,
                     this.resolveEthCallback.selector, // ==> step 2
+                    IDENTITY_FUNCTION,
                     ""
                 );
             }

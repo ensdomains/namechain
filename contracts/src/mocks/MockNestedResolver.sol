@@ -9,7 +9,9 @@ import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedReso
 contract MockNestedResolver is ERC165, CCIPReader, IExtendedResolver {
     IUniversalResolver public immutable universalResolver;
 
-    constructor(IUniversalResolver _universalResolver) {
+    constructor(
+        IUniversalResolver _universalResolver
+    ) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
         universalResolver = _universalResolver;
     }
 

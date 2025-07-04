@@ -5,14 +5,14 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
-import {CCIPBatcher, OffchainLookup} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
+import {CCIPBatcher, CCIPReader, OffchainLookup} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
 import {DNSSEC} from "@ens/contracts/dnssec-oracle/DNSSEC.sol";
 import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
-import {IFeatureSupporter, isFeatureSupported} from "../../common/IFeatureSupporter.sol";
-import {ResolverFeatures} from "../../common/ResolverFeatures.sol";
+import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
+import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 
 // resolver profiles
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
@@ -69,7 +69,7 @@ contract DNSTLDResolver is
         IUniversalResolverStub _universalResolverV2,
         DNSSEC _oracleVerifier,
         string[] memory gateways
-    ) Ownable(msg.sender) {
+    ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
         universalResolverV1 = _universalResolverV1;
         universalResolverV2 = _universalResolverV2;
         oracleVerifier = _oracleVerifier;
@@ -271,6 +271,7 @@ contract DNSTLDResolver is
                 )
             ),
             this.resolveBatchCallback.selector,
+            IDENTITY_FUNCTION,
             abi.encode(multi, extended)
         );
     }
@@ -392,21 +393,5 @@ contract DNSTLDResolver is
             mstore(txt, sub(ptr, add(txt, 32))) // truncate
         }
         if (pos != end) revert InvalidTXT();
-    }
-
-    /// TODO: move this to CCIPBatcher
-    /// @dev Create a batch for a single target with multiple calls.
-    function createBatch(
-        address target,
-        bytes[] memory calls,
-        string[] memory gateways
-    ) internal pure returns (Batch memory) {
-        Lookup[] memory lookups = new Lookup[](calls.length);
-        for (uint256 i; i < calls.length; i++) {
-            Lookup memory lu = lookups[i];
-            lu.target = target;
-            lu.call = calls[i];
-        }
-        return Batch(lookups, gateways);
     }
 }

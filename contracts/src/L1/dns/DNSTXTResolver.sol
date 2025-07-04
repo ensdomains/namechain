@@ -8,8 +8,8 @@ import {DNSTXTScanner} from "./DNSTXTScanner.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH} from "@ens/contracts/utils/ENSIP19.sol";
-import {IFeatureSupporter, isFeatureSupported} from "../../common/IFeatureSupporter.sol";
-import {ResolverFeatures} from "../../common/ResolverFeatures.sol";
+import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
+import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 
 // resolver profiles
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
@@ -92,9 +92,9 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
             );
             return abi.encode(v);
         } else if (selector == IContentHashResolver.contenthash.selector) {
-            return abi.encode(_parseHex(DNSTXTScanner.find(context, "c=")));
+            return abi.encode(_parse0xString(DNSTXTScanner.find(context, "c=")));
         } else if (selector == IPubkeyResolver.pubkey.selector) {
-            bytes memory v = _parseHex(DNSTXTScanner.find(context, "xy="));
+            bytes memory v = _parse0xString(DNSTXTScanner.find(context, "xy="));
             if (v.length == 0) {
                 return new bytes(64);
             } else if (v.length == 64) {
@@ -120,7 +120,7 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
     ) internal pure returns (bytes memory v) {
         if (!ENSIP19.isEVMCoinType(coinType)) {
             return
-                _parseHex(
+                _parse0xString(
                     DNSTXTScanner.find(
                         context,
                         abi.encodePacked("a[", Strings.toString(coinType), "]=")
@@ -142,7 +142,7 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
         if (useDefault && v.length == 0) {
             v = DNSTXTScanner.find(context, "a[e0]=");
         }
-        v = _parseHex(v);
+        v = _parse0xString(v);
         if (v.length != 0 && v.length != 20) {
             revert InvalidDataLength(v, 20);
         }
@@ -152,7 +152,7 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
     ///      Reverts `InvalidHexData` if non-null and not a hex string.
     /// @param s The string to parse.
     /// @return v The parsed bytes.
-    function _parseHex(bytes memory s) internal pure returns (bytes memory v) {
+    function _parse0xString(bytes memory s) internal pure returns (bytes memory v) {
         if (s.length > 0) {
             bool valid;
             if (s.length >= 2 && s[0] == "0" && s[1] == "x") {

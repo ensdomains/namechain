@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {ETHFallbackResolver, IBaseRegistrar, IUniversalResolver, IGatewayVerifier, NameCoder, ETH_NODE} from "../../src/L1/ETHFallbackResolver.sol";
+import {ETHFallbackResolver, IBaseRegistrar, IUniversalResolver, IGatewayVerifier, NameCoder, ETH_NODE} from "../../src/L1/eth/ETHFallbackResolver.sol";
 
 contract MockETHFallbackResolver is ETHFallbackResolver {
     constructor()
@@ -20,8 +20,8 @@ contract MockETHFallbackResolver is ETHFallbackResolver {
     function matchSuffix(
         bytes calldata name,
         bytes32 suffixNode
-    ) external pure returns (bool, uint256, uint256) {
-        return _matchSuffix(name, suffixNode);
+    ) external pure returns (bool, bytes32, uint256, uint256) {
+        return _matchSuffix(name, 0, suffixNode);
     }
 }
 
@@ -37,37 +37,47 @@ contract TestETHFallbackResolver is Test {
     }
 
     function _assertMatch(
-        string memory name,
-        string memory nameSuffix,
+        string memory ensName,
+        string memory ensNameSuffix,
         uint256 expectPrevOffset,
         uint256 expectOffset
     ) internal view {
-        (bool matched, uint256 prevOffset, uint256 offset) = efr.matchSuffix(
-            NameCoder.encode(name),
-            NameCoder.namehash(NameCoder.encode(nameSuffix), 0)
+        bytes memory name = NameCoder.encode(ensName);
+        (bool matched, bytes32 node, uint256 prevOffset, uint256 offset) = efr
+            .matchSuffix(
+                name,
+                NameCoder.namehash(NameCoder.encode(ensNameSuffix), 0)
+            );
+        assertTrue(
+            matched,
+            string(abi.encodePacked(ensName, "/", ensNameSuffix))
         );
-        assertTrue(matched, string(abi.encodePacked(name, "/", nameSuffix)));
         assertEq(
             prevOffset,
             expectPrevOffset,
-            string(abi.encodePacked(name, "/", nameSuffix, " prevOffset"))
+            string(abi.encodePacked(ensName, "/", ensNameSuffix, " prevOffset"))
         );
         assertEq(
             offset,
             expectOffset,
-            string(abi.encodePacked(name, "/", nameSuffix, " offset"))
+            string(abi.encodePacked(ensName, "/", ensNameSuffix, " offset"))
+        );
+        assertEq(
+            node,
+            NameCoder.namehash(name, 0),
+            string(abi.encodePacked(ensName, "/", ensNameSuffix, " node"))
         );
     }
 
     function _assertNoMatch(
-        string memory name,
-        string memory nameSuffix
+        string memory ensName,
+        string memory ensNameSuffix
     ) internal view {
-        (bool matched, , ) = efr.matchSuffix(
-            NameCoder.encode(name),
-            NameCoder.namehash(NameCoder.encode(nameSuffix), 0)
+        (bool matched, , , ) = efr.matchSuffix(
+            NameCoder.encode(ensName),
+            NameCoder.namehash(NameCoder.encode(ensNameSuffix), 0)
         );
-        assertFalse(matched, string(abi.encodePacked(name, "/", nameSuffix)));
+        assertFalse(matched, string(abi.encodePacked(ensName, "/", ensNameSuffix)));
     }
 
     function test_matchSuffix_same() external view {

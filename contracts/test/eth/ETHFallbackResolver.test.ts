@@ -1,4 +1,3 @@
-import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
 import { serve } from "@namestone/ezccip/serve";
 import { BrowserProvider } from "ethers/providers";
 import hre from "hardhat";
@@ -14,13 +13,14 @@ import {
   toHex,
 } from "viem";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
+import { shouldSupportsFeatures } from "../utils/supportsFeatures.js";
 import { Gateway } from "../../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { deployArtifact } from "../fixtures/deployArtifact.js";
 import { deployV1Fixture } from "../fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
 import { urgArtifact } from "../fixtures/externalArtifacts.js";
-import { FEATURES } from "../utils/features.js";
 import { injectRPCCounter } from "../utils/hardhat.js";
 import {
   COIN_TYPE_DEFAULT,
@@ -140,13 +140,11 @@ describe("ETHFallbackResolver", () => {
     interfaces: ["IERC165", "IExtendedResolver", "IFeatureSupporter"],
   });
 
-  it("supportsFeature: resolve(multicall)", async () => {
-    const F = await loadFixture();
-    await expect(
-      F.ethFallbackResolver.read.supportsFeature([
-        FEATURES.RESOLVER.RESOLVE_MULTICALL,
-      ]),
-    ).resolves.toStrictEqual(true);
+  shouldSupportsFeatures({
+    contract: () => loadFixture().then((F) => F.ethFallbackResolver),
+    features: {
+      RESOLVER: ["RESOLVE_MULTICALL"],
+    },
   });
 
   describe("storage layout", () => {
@@ -214,19 +212,21 @@ describe("ETHFallbackResolver", () => {
         ).toBeRevertedWithCustomError("ResolverNotFound");
         // the errors are different because:
         // V1: requireResolver() fails
-        // V2: gateway to namechain, no resolver found, but called directly (via feature)
-        // TODO: restore this after merge
+        // V2: gateway to namechain, no resolver found
         await expect(
           F.mainnetV2.universalResolver.read.resolve([
             dnsEncodeName(name),
             res.call,
           ]),
         )
-          .toBeRevertedWithCustomErrorFrom(
-            F.ethFallbackResolver,
-            "UnreachableName",
-          )
-          .withArgs([dnsEncodeName(name)]);
+          .toBeRevertedWithCustomError("ResolverError")
+          .withArgs([
+            encodeErrorResult({
+              abi: F.ethFallbackResolver.abi,
+              errorName: "UnreachableName",
+              args: [dnsEncodeName(name)],
+            }),
+          ]);
       });
     }
   });

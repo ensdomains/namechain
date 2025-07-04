@@ -8,6 +8,7 @@ import HardhatViem from "@nomicfoundation/hardhat-viem";
 import HardhatDeploy from "hardhat-deploy";
 
 import HardhatStorageLayoutPlugin from "./plugins/storage-layout/index.ts";
+import HardhatSourceFilterPlugin from "./plugins/source-filter/index.ts";
 
 const realAccounts = [
   configVariable("DEPLOYER_KEY"),
@@ -61,10 +62,12 @@ const config = {
     sources: [
       "./src",
       "./lib/verifiable-factory/src",
-      "./lib/ens-contracts/contracts/resolvers/profiles/",
+      "./lib/ens-contracts/contracts/",
       "./lib/openzeppelin-contracts/contracts/utils/introspection/",
     ],
   },
+  sourceFilter: (path) =>
+    !path.includes("lib/ens-contracts/contracts") || isInterfaceFile(path),
   plugins: [
     HardhatNetworkHelpersPlugin,
     HardhatChaiMatchersViemPlugin,
@@ -72,7 +75,12 @@ const config = {
     HardhatDeploy,
     HardhatKeystore,
     HardhatStorageLayoutPlugin,
+    HardhatSourceFilterPlugin,
   ],
 } satisfies HardhatUserConfig;
+
+function isInterfaceFile(path: string) {
+  return /\/I[^\/]+.sol$/.test(path);
+}
 
 export default config;
