@@ -337,7 +337,7 @@ contract DNSTLDResolver is
     }
 
     /// @dev Parse the value into a resolver address.
-    ///      If the value matches `/^0x[0-9a-f]{40}$/`, it's a literal address.
+    ///      If the value matches `/^0x[0-9a-fA-F]{40}$/`, it's a literal address.
     ///      Otherwise, it's considered a name and resolved in the registry.
     ///      Reverts `DNSEncodingFailed` if the name cannot be encoded.
     /// @param v The address or name.
@@ -345,8 +345,8 @@ contract DNSTLDResolver is
     function _parseResolver(
         bytes memory v
     ) internal view returns (address resolver) {
-        if (v.length > 2 && v[0] == "0" && v[1] == "x") {
-            (address addr, bool valid) = HexUtils.hexToAddress(v, 2, v.length);
+        if (v.length == 42 && v[0] == "0" && v[1] == "x") {
+            (address addr, bool valid) = HexUtils.hexToAddress(v, 2, 42);
             if (valid) {
                 return addr;
             }

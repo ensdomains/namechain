@@ -92,7 +92,8 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
             );
             return abi.encode(v);
         } else if (selector == IContentHashResolver.contenthash.selector) {
-            return abi.encode(_parse0xString(DNSTXTScanner.find(context, "c=")));
+            return
+                abi.encode(_parse0xString(DNSTXTScanner.find(context, "c=")));
         } else if (selector == IPubkeyResolver.pubkey.selector) {
             bytes memory v = _parse0xString(DNSTXTScanner.find(context, "xy="));
             if (v.length == 0) {
@@ -118,33 +119,31 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
         uint256 coinType,
         bool useDefault
     ) internal pure returns (bytes memory v) {
-        if (!ENSIP19.isEVMCoinType(coinType)) {
-            return
-                _parse0xString(
-                    DNSTXTScanner.find(
-                        context,
-                        abi.encodePacked("a[", Strings.toString(coinType), "]=")
-                    )
-                );
-        }
-        if (coinType == COIN_TYPE_ETH) {
-            v = DNSTXTScanner.find(context, "a[60]=");
-        } else {
+        if (ENSIP19.isEVMCoinType(coinType)) {
             v = DNSTXTScanner.find(
                 context,
-                abi.encodePacked(
-                    "a[e",
-                    Strings.toString(ENSIP19.chainFromCoinType(coinType)),
-                    "]="
+                coinType == COIN_TYPE_ETH
+                    ? bytes("a[60]=")
+                    : abi.encodePacked(
+                        "a[e",
+                        Strings.toString(ENSIP19.chainFromCoinType(coinType)),
+                        "]="
+                    )
+            );
+            if (useDefault && v.length == 0) {
+                v = DNSTXTScanner.find(context, "a[e0]=");
+            }
+            v = _parse0xString(v);
+            if (v.length != 0 && v.length != 20) {
+                revert InvalidDataLength(v, 20);
+            }
+        } else {
+            v = _parse0xString(
+                DNSTXTScanner.find(
+                    context,
+                    abi.encodePacked("a[", Strings.toString(coinType), "]=")
                 )
             );
-        }
-        if (useDefault && v.length == 0) {
-            v = DNSTXTScanner.find(context, "a[e0]=");
-        }
-        v = _parse0xString(v);
-        if (v.length != 0 && v.length != 20) {
-            revert InvalidDataLength(v, 20);
         }
     }
 
@@ -152,7 +151,9 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
     ///      Reverts `InvalidHexData` if non-null and not a hex string.
     /// @param s The string to parse.
     /// @return v The parsed bytes.
-    function _parse0xString(bytes memory s) internal pure returns (bytes memory v) {
+    function _parse0xString(
+        bytes memory s
+    ) internal pure returns (bytes memory v) {
         if (s.length > 0) {
             bool valid;
             if (s.length >= 2 && s[0] == "0" && s[1] == "x") {
