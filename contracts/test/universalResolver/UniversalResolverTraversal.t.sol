@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import {UniversalResolver, NameCoder} from "../../src/universalResolver/UniversalResolver.sol";
+import {UniversalResolver2, NameCoder} from "../../src/universalResolver/UniversalResolver2.sol";
 import {PermissionedRegistry, IRegistry, IRegistryMetadata} from "../../src/common/PermissionedRegistry.sol";
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
 
@@ -12,7 +12,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
 
     RegistryDatastore datastore;
     PermissionedRegistry rootRegistry;
-    UniversalResolver universalResolver;
+    UniversalResolver2 universalResolver;
 
     function _createRegistry() internal returns (PermissionedRegistry) {
         return
@@ -26,7 +26,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
     function setUp() public {
         datastore = new RegistryDatastore();
         rootRegistry = _createRegistry();
-        universalResolver = new UniversalResolver(
+        universalResolver = new UniversalResolver2(
             rootRegistry,
             new string[](0)
         );
