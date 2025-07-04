@@ -54,17 +54,13 @@ contract ETHFallbackResolver is
     IGatewayVerifier public namechainVerifier;
     address public immutable namechainDatastore;
     address public immutable namechainEthRegistry;
+    uint8 public maxReadsPerRequest = 32;
 
     /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;
 
     /// @dev `GatewayRequest` exit code which indicates no resolver was found.
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
-
-    /// @notice Maximum number of reads per request via gateway.
-    /// @dev Technical limit: 254.
-    ///      Actual limit: gateway proof size and/or gas limit.
-    uint8 constant MAX_READS = 32;
 
     /// @notice `name` does not exist.
     /// @dev Error selector: `0x5fe9a5df`
@@ -121,6 +117,14 @@ contract ETHFallbackResolver is
     /// @param resolver The new resolver address.
     function setETHResolver(address resolver) external onlyOwner {
         ethResolver = resolver;
+    }
+
+    /// @notice Set maximum number of reads per request via gateway.
+    /// @dev Technical limit: 254.
+    ///      Actual limit: gateway proof size and/or gas limit.
+    function setMaxReadsPerRequest(uint8 reads) external onlyOwner {
+        assert(reads > 0 && reads <= 254);
+        maxReadsPerRequest = reads;
     }
 
     /// @dev Find the offset of `name` that hashes to `nodeSuffix`.
@@ -293,14 +297,14 @@ contract ETHFallbackResolver is
     function _resolveNamechain(
         State memory state
     ) public view returns (bytes memory) {
-        uint256 pageSize = state.data.length - state.index;
-        if (pageSize > MAX_READS) pageSize = MAX_READS;
-        uint256[] memory callMap = new uint256[](pageSize);
+        uint256 max = state.data.length - state.index;
+        if (max > maxReadsPerRequest) max = maxReadsPerRequest;
+        uint256[] memory callMap = new uint256[](max);
         // output[ 0] = registry
         // output[ 1] = last non-zero resolver
         // output[-1] = default address
         GatewayRequest memory req = GatewayFetcher.newRequest(
-            uint8(pageSize < 2 ? 2 : pageSize + 1)
+            uint8(max < 2 ? 2 : max + 1)
         );
         {
             bytes32 labelHash;
@@ -336,7 +340,7 @@ contract ETHFallbackResolver is
         req.push(bytes("")).dup().setOutput(0).setOutput(1); // clear outputs
         uint8 count;
         uint256 index = state.index;
-        for (; index < state.data.length && count < pageSize; ++index) {
+        for (; index < state.data.length && count < max; ++index) {
             callMap[count] = index; // remember index
             bytes memory v = state.data[index];
             bytes4 selector = bytes4(v);
@@ -362,9 +366,9 @@ contract ETHFallbackResolver is
                         .dup()
                         .length()
                         .isZero()
-                        .pushOutput(pageSize)
+                        .pushOutput(max)
                         .plus()
-                        .setOutput(uint8(pageSize)); // count missing
+                        .setOutput(uint8(max)); // count missing
                 }
             } else if (selector == IHasAddressResolver.hasAddr.selector) {
                 uint256 coinType = uint256(BytesUtils.readBytes32(v, 36));
@@ -443,13 +447,13 @@ contract ETHFallbackResolver is
             }
         }
         state.index = index; // advance
-        req.pushOutput(pageSize).requireNonzero(0); // stop if no missing
+        req.pushOutput(max).requireNonzero(0); // stop if no missing
         req
             .setSlot(DedicatedResolverLayout.SLOT_ADDRESSES)
             .push(COIN_TYPE_DEFAULT)
             .follow()
             .readBytes(); // _addresses[COIN_TYPE_DEFAULT]
-        req.setOutput(uint8(pageSize)); // save default address
+        req.setOutput(uint8(max)); // save default address
         fetch(
             namechainVerifier,
             req,

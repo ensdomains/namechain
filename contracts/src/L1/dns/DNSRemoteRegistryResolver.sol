@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.24;
+pragma solidity >=0.8.13;
 
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
@@ -56,27 +56,19 @@ contract DNSRemoteRegistryResolver is
     function _parseContext(
         bytes calldata context
     ) internal pure returns (address registry, bytes32 nodeSuffix) {
-        require(context.length > 43, "expected <address> <suffix>");
-        (bool valid, bytes32 word) = _parseSmall0xString(context, 0, 20);
+        require(
+            context.length > 43 &&
+                context[0] == "0" &&
+                context[1] == "x" &&
+                context[42] == " ",
+            "expected <address> <suffix>"
+        );
+        bool valid;
+        (registry, valid) = HexUtils.hexToAddress(context, 2, 42);
         require(valid, "invalid address");
-        registry = address(uint160(uint256(word)));
-        require(context[42] == " ", "expected space");
         nodeSuffix = NameCoder.namehash(
             NameCoder.encode(string(context[43:])),
             0
         );
-    }
-
-    function _parseSmall0xString(
-        bytes memory v,
-        uint256 offset,
-        uint256 byteCount
-    ) internal pure returns (bool valid, bytes32 word) {
-        (word, valid) = HexUtils.hexStringToBytes32(
-            v,
-            offset + 2,
-            offset + 2 + (byteCount << 1)
-        );
-        valid = valid && v[offset] == "0" && v[offset + 1] == "x";
     }
 }
