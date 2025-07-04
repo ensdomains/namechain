@@ -506,47 +506,43 @@ describe("ETHFallbackResolver", () => {
       ]);
       bundle.expect(answer);
     });
-    it(
-      "multiple ABI contentTypes",
-      async () => {
-        const kp: KnownProfile = {
-          name: testNames[0],
-          abis: [
-            { contentType: 0n, value: "0x" },
-            { contentType: 1n, value: "0x11" },
-            { contentType: 8n, value: "0x8888" },
-          ],
-        };
-        const [nul, ty1, ty8] = makeResolutions(kp);
-        const F = await loadFixture();
-        await F.namechain.setupName(kp);
-        await F.namechain.dedicatedResolver.write.multicall([
-          [ty1.writeDedicated, ty8.writeDedicated],
+    it("multiple ABI contentTypes", { timeout: 20000 }, async () => {
+      const kp: KnownProfile = {
+        name: testNames[0],
+        abis: [
+          { contentType: 0n, value: "0x" },
+          { contentType: 1n, value: "0x11" },
+          { contentType: 8n, value: "0x8888" },
+        ],
+      };
+      const [nul, ty1, ty8] = makeResolutions(kp);
+      const F = await loadFixture();
+      await F.namechain.setupName(kp);
+      await F.namechain.dedicatedResolver.write.multicall([
+        [ty1.writeDedicated, ty8.writeDedicated],
+      ]);
+      await check(1n, ty1);
+      await check(8n, ty8);
+      await check(1n | 8n, ty1);
+      await check(2n | 4n | 8n, ty8);
+      await check(2n, nul);
+      await check(1n << 255n, nul);
+      async function check(contentTypes: bigint, res: KnownResolution) {
+        await sync();
+        const [answer] = await F.mainnetV2.universalResolver.read.resolve([
+          dnsEncodeName(kp.name),
+          encodeFunctionData({
+            abi: parseAbi([
+              "function ABI(bytes32, uint256 contentTypes) external view returns (uint256, bytes memory)",
+            ]),
+            functionName: "ABI",
+            args: [namehash(kp.name), contentTypes],
+          }),
         ]);
-        await check(1n, ty1);
-        await check(8n, ty8);
-        await check(1n | 8n, ty1);
-        await check(2n | 4n | 8n, ty8);
-        await check(2n, nul);
-        await check(1n << 255n, nul);
-        async function check(contentTypes: bigint, res: KnownResolution) {
-          await sync();
-          const [answer] = await F.mainnetV2.universalResolver.read.resolve([
-            dnsEncodeName(kp.name),
-            encodeFunctionData({
-              abi: parseAbi([
-                "function ABI(bytes32, uint256 contentTypes) external view returns (uint256, bytes memory)",
-              ]),
-              functionName: "ABI",
-              args: [namehash(kp.name), contentTypes],
-            }),
-          ]);
-          res.desc = `ABI(${contentTypes})`;
-          res.expect(answer);
-        }
-      },
-      { timeout: 20000 },
-    );
+        res.desc = `ABI(${contentTypes})`;
+        res.expect(answer);
+      }
+    });
     it(`multicall()`, async () => {
       const F = await loadFixture();
       await F.namechain.setupName(kp);

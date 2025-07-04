@@ -10,7 +10,7 @@ export default execute(
 
     await deploy("UniversalResolver", {
       account: deployer,
-      artifact: artifacts.UniversalResolver,
+      artifact: artifacts["src/universalResolver/UniversalResolver.sol/UniversalResolver"],
       args: [rootRegistry.address, ["x-batch-gateway:true"]],
     });
   },
