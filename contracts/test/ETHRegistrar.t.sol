@@ -10,7 +10,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import "../src/L2/ETHRegistrar.sol";
 import "../src/common/PermissionedRegistry.sol";
 import "../src/common/RegistryDatastore.sol";
-import "../src/L2/IPriceOracle.sol";
+import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/EnhancedAccessControl.sol";
 import "../src/common/NameUtils.sol";

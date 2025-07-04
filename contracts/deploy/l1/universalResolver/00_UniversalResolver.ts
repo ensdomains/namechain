@@ -8,7 +8,7 @@ export default execute(
     const rootRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("RootRegistry");
 
-    await deploy("UniversalResolver", {
+    await deploy("src/universalResolver/UniversalResolver.sol/UniversalResolver", {
       account: deployer,
       artifact: artifacts["src/universalResolver/UniversalResolver.sol/UniversalResolver"],
       args: [rootRegistry.address, ["x-batch-gateway:true"]],
