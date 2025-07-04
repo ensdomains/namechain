@@ -32,7 +32,7 @@
     "prool": "^0.0.24",
     "rocketh": "^0.11.18",
     "ts-node": "^10.9.2",
-    "viem": "^2.28.1",
+    "viem": "^2.31.6",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "3.1.3"
   },

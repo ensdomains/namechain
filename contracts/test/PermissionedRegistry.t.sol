@@ -13,7 +13,7 @@ import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/BaseRegistry.sol";
 import "../src/common/IPermissionedRegistry.sol";
 import "../src/L2/ETHRegistrar.sol";
-import "../src/L2/IPriceOracle.sol";
+import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 import "../src/common/ITokenObserver.sol";
 
 
