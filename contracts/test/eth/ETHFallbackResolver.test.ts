@@ -552,21 +552,28 @@ describe("ETHFallbackResolver", () => {
       expectVar({ resolver }).toEqualAddress(F.ethFallbackResolver.address);
       bundle.expect(answer);
     });
-    it("resolve(multicall)", async () => {
-      const F = await loadFixture();
-      const bundle = bundleCalls(makeResolutions(kp));
-      await F.namechain.setupName(kp);
-      await F.namechain.walletClient.sendTransaction({
-        to: F.namechain.dedicatedResolver.address,
-        data: bundle.writeDedicated,
+    for (const max of [1, 2, 32]) {
+      it(`resolve(multicall) w/max = ${max}`, async () => {
+        const F = await loadFixture();
+        await F.ethFallbackResolver.write.setMaxReadsPerRequest([max]);
+        await expect(
+          F.ethFallbackResolver.read.maxReadsPerRequest(),
+          "max",
+        ).resolves.toStrictEqual(max);
+        const bundle = bundleCalls(makeResolutions(kp));
+        await F.namechain.setupName(kp);
+        await F.namechain.walletClient.sendTransaction({
+          to: F.namechain.dedicatedResolver.address,
+          data: bundle.writeDedicated,
+        });
+        await sync();
+        const answer = await F.ethFallbackResolver.read.resolve([
+          dnsEncodeName(kp.name),
+          bundle.call,
+        ]);
+        bundle.expect(answer);
       });
-      await sync();
-      const answer = await F.ethFallbackResolver.read.resolve([
-        dnsEncodeName(kp.name),
-        bundle.call,
-      ]);
-      bundle.expect(answer);
-    });
+    }
     it("zero multicalls", async () => {
       const kp: KnownProfile = { name: testNames[0] };
       const F = await loadFixture();

@@ -287,8 +287,8 @@ contract ETHFallbackResolver is
     /// ```
     /// registry = <registry>
     /// resolver = null
-    /// for label of namePrefix.split('.').reverse()
-    ///    (reg, res) = datastore.getSubregistry(resolver, label)
+    /// for label of name.slice(-length).split('.').reverse()
+    ///    (reg, res) = datastore.getSubregistry(reg, label)
     ///    if (expired) break
     ///    if (res) resolver = res
     ///    if (!reg) break
@@ -338,10 +338,10 @@ contract ETHFallbackResolver is
         req.evalLoop(EvalFlag.STOP_ON_FAILURE | EvalFlag.KEEP_ARGS); // outputs = [registry, resolver]
         req.pushOutput(1).requireNonzero(EXIT_CODE_NO_RESOLVER).target(); // target resolver
         req.push(bytes("")).dup().setOutput(0).setOutput(1); // clear outputs
-        uint8 count;
-        uint256 index = state.index;
+        uint8 count; // number of valid records
+        uint256 index = state.index; // cursor into requests
         for (; index < state.data.length && count < max; ++index) {
-            callMap[count] = index; // remember index
+            callMap[count] = index; // remember local => index of requests
             bytes memory v = state.data[index];
             bytes4 selector = bytes4(v);
             // NOTE: "node check" is NOT performed:
@@ -453,7 +453,7 @@ contract ETHFallbackResolver is
             .push(COIN_TYPE_DEFAULT)
             .follow()
             .readBytes(); // _addresses[COIN_TYPE_DEFAULT]
-        req.setOutput(uint8(max)); // save default address
+        req.setOutput(uint8(max)); // save default address at end
         fetch(
             namechainVerifier,
             req,
@@ -478,10 +478,10 @@ contract ETHFallbackResolver is
         if (exitCode == EXIT_CODE_NO_RESOLVER) {
             revert UnreachableName(state.name);
         }
-        bytes memory defaultAddress = values[callMap.length];
+        bytes memory defaultAddress = values[callMap.length]; // stored at end
         if (state.multi) {
             for (uint256 i; i < count; ++i) {
-                uint256 index = callMap[i];
+                uint256 index = callMap[i]; // local => index
                 state.data[index] = _prepareResponse(
                     state.data[index],
                     values[i],
