@@ -66,8 +66,8 @@ const config = {
   paths: {
     sources: {
       solidity: [
-        "./src",
-        "./lib/verifiable-factory/src",
+        "./src/",
+        "./lib/verifiable-factory/src/",
         "./lib/ens-contracts/contracts/",
         "./lib/openzeppelin-contracts/contracts/utils/introspection/",
       ],
