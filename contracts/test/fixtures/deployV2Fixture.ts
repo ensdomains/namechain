@@ -66,7 +66,7 @@ export async function deployV2Fixture<C extends NetworkConnection>(
     [datastore.address, zeroAddress, ROLES.ALL],
   );
   const universalResolver = await networkConnection.viem.deployContract(
-    "UniversalResolver",
+    "src/universalResolver/UniversalResolver.sol:UniversalResolver",
     [rootRegistry.address, ["x-batch-gateway:true"]],
     { client: { public: publicClient } },
   );
