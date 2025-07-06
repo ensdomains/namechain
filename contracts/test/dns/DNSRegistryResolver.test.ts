@@ -1,24 +1,24 @@
 import hre from "hardhat";
-import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
 import { afterAll, describe, it } from "vitest";
-import { deployV1Fixture } from "../fixtures/deployV1Fixture.ts";
-import { deployV2Fixture } from "../fixtures/deployV2Fixture.ts";
+import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
+import { shouldSupportsFeatures } from "../utils/supportsFeatures.js";
+import { deployV1Fixture } from "../fixtures/deployV1Fixture.js";
+import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
 import {
   bundleCalls,
   COIN_TYPE_ETH,
   type KnownProfile,
   makeResolutions,
 } from "../utils/resolutions.ts";
-import { BrowserProvider } from "ethers/providers";
-import { dnsEncodeName, expectVar, splitName } from "../utils/utils.ts";
-import { encodeRRs, makeTXT } from "./rr.ts";
 import { zeroAddress } from "viem";
-import { Gateway } from "../../lib/unruggable-gateways/src/gateway.ts";
-import { deployArtifact } from "../fixtures/deployArtifact.ts";
-import { UncheckedRollup } from "../../lib/unruggable-gateways/src/UncheckedRollup.ts";
+import { dnsEncodeName, expectVar, splitName } from "../utils/utils.js";
+import { encodeRRs, makeTXT } from "./rr.js";
+import { BrowserProvider } from "ethers/providers";
 import { serve } from "@namestone/ezccip/serve";
-import { urgArtifact } from "../fixtures/externalArtifacts.ts";
-import { shouldSupportsFeatures } from "../utils/supportsFeatures.ts";
+import { Gateway } from "../../lib/unruggable-gateways/src/gateway.js";
+import { UncheckedRollup } from "../../lib/unruggable-gateways/src/UncheckedRollup.js";
+import { deployArtifact } from "../fixtures/deployArtifact.js";
+import { urgArtifact } from "../fixtures/externalArtifacts.js";
 
 const chain = await hre.network.connect();
 

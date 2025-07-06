@@ -11,12 +11,12 @@ library ResolverProfileRewriter {
         copy = data;
         if (bytes4(data) == IMulticallable.multicall.selector) {
             assembly {
-                let off := mload(add(copy, 36))
-                off := add(add(copy, 36), off)
-                let count := mload(off)
+                let off := add(copy, 36)
+                off := add(off, mload(off))
+                let size := shl(5, mload(off))
                 // prettier-ignore
-                for { } count { count := sub(count, 1) } {
-                    mstore(add(add(off, 68), mload(add(off, shl(5, count)))), node)
+                for { } size { size := sub(size, 32) } {
+                    mstore(add(add(off, 68), mload(add(off, size))), node)
                 }
             }
             // uint256 offset = 4 + uint256(bytes32(data[4:]));
