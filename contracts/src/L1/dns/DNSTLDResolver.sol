@@ -313,7 +313,7 @@ contract DNSTLDResolver is
     }
 
     /// @dev Parse the TXT record into resolver and context.
-    ///      Format: "ENS1 <name or address> <context?>".
+    ///      Format: "ENS1 <name-or-address> <context?>".
     /// @param txt The TXT data.
     /// @return resolver The resolver address or null if wrong format or name didn't resolve.
     /// @return context The optional context data.
@@ -356,42 +356,42 @@ contract DNSTLDResolver is
         );
     }
 
-    /// @dev Decode `v[pos:end]` as raw TXT chunks.
-    ///      Encoding: `[byte(n) + <n bytes>]...`
+    /// @dev Decode `v[off:end]` as raw TXT chunks.
+    ///      Encoding: `(byte(n) <n-bytes>)...`
     ///      Reverts `InvalidTXT` if the data is malformed.
     /// @param v The raw TXT data.
-    /// @param pos The offset of the record data.
+    /// @param off The offset of the record data.
     /// @param end The upper bound of the record data.
     /// @return txt The decoded TXT value.
     function _readTXT(
         bytes memory v,
-        uint256 pos,
+        uint256 off,
         uint256 end
     ) internal pure returns (bytes memory txt) {
         if (end > v.length) revert InvalidTXT();
-        txt = new bytes(end - pos);
+        txt = new bytes(end - off);
         assembly {
             let ptr := add(v, 32)
-            pos := add(ptr, pos)
+            off := add(ptr, off)
             end := add(ptr, end)
             ptr := add(txt, 32)
             // prettier-ignore
-            for { } lt(pos, end) { } {
-                let size := byte(0, mload(pos))
-                pos := add(pos, 1)
+            for { } lt(off, end) { } {
+                let size := byte(0, mload(off))
+                off := add(off, 1)
                 if size {
-                    let next := add(pos, size)
+                    let next := add(off, size)
                     if gt(next, end) {
                         end := 0 // overflow
                         break
                     }
-                    mcopy(ptr, pos, size)
-                    pos := next
+                    mcopy(ptr, off, size)
+                    off := next
                     ptr := add(ptr, size)
                 }
             }
             mstore(txt, sub(ptr, add(txt, 32))) // truncate
         }
-        if (pos != end) revert InvalidTXT();
+        if (off != end) revert InvalidTXT(); // overflow or junk at end
     }
 }

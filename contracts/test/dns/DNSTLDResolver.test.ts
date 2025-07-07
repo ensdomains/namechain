@@ -63,15 +63,14 @@ async function fixture() {
     dnsTXTResolver,
     dnsAliasResolver,
     async expectGasless(kp: KnownProfile) {
-      const dnsName = dnsEncodeName(kp.name);
       const bundle = bundleCalls(makeResolutions(kp));
       const [answer, resolver] = await mainnetV2.universalResolver.read.resolve(
-        [dnsName, bundle.call],
+        [dnsEncodeName(kp.name), bundle.call],
       );
       expectVar({ resolver }).toEqualAddress(dnsTLDResolver.address);
       bundle.expect(answer);
       const directAnswer = await dnsTLDResolver.read.resolve([
-        dnsName,
+        dnsEncodeName(kp.name),
         bundle.call,
       ]);
       expectVar({ directAnswer }).toStrictEqual(answer);
@@ -114,21 +113,6 @@ describe("DNSTLDResolver", () => {
     testProfiles("immediate", (kp) => async () => {
       const F = await chain.networkHelpers.loadFixture(fixture);
       await F.mainnetV1.setupName(kp);
-      // const bundle = bundleCalls(makeResolutions(kp));
-      // for (const res of bundle.resolutions) {
-      //   await F.mainnetV1.walletClient.sendTransaction({
-      //     to: F.mainnetV1.ownedResolver.address,
-      //     data: res.write, // V1 OwnedResolver lacks multicall()
-      //   });
-      // }
-      // const [answer, resolver] =
-      //   await F.mainnetV2.universalResolver.read.resolve([
-      //     dnsEncodeName(kp.name),
-      //     bundle.call,
-      //   ]);
-      // expectVar({ resolver }).toEqualAddress(F.dnsTLDResolver.address);
-      // bundle.expect(answer);
-
       for (const res of makeResolutions(kp)) {
         await F.mainnetV1.walletClient.sendTransaction({
           to: F.mainnetV1.ownedResolver.address,
@@ -455,13 +439,17 @@ describe("DNSTLDResolver", () => {
   describe("DNSAliasResolver", () => {
     shouldSupportInterfaces({
       contract: () =>
-        chain.networkHelpers.loadFixture(fixture).then((F) => F.dnsAliasResolver),
+        chain.networkHelpers
+          .loadFixture(fixture)
+          .then((F) => F.dnsAliasResolver),
       interfaces: ["IERC165", "IExtendedDNSResolver", "IFeatureSupporter"],
     });
 
     shouldSupportsFeatures({
       contract: () =>
-        chain.networkHelpers.loadFixture(fixture).then((F) => F.dnsAliasResolver),
+        chain.networkHelpers
+          .loadFixture(fixture)
+          .then((F) => F.dnsAliasResolver),
       features: {
         RESOLVER: ["RESOLVE_MULTICALL"],
       },
