@@ -5,7 +5,7 @@ import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 import {EnhancedAccessControl} from "./EnhancedAccessControl.sol";
 
 contract BaseUriRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
-    uint256 private constant ROLE_UPDATE_METADATA = 0x1;
+    uint256 private constant ROLE_UPDATE_METADATA = 1 << 0;
     uint256 private constant ROLE_UPDATE_METADATA_ADMIN = ROLE_UPDATE_METADATA << 128;
 
     string tokenBaseUri;

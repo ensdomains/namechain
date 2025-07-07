@@ -18,9 +18,9 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     PermissionedRegistry parentRegistry;
     BaseUriRegistryMetadata metadata;
 
-    uint256 constant ROLE_UPDATE_METADATA = 0x1;
-    uint256 constant ROLE_SET_SUBREGISTRY = 0x100;
-    uint256 constant ROLE_SET_RESOLVER = 0x1000;
+    uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
+    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 8;
+    uint256 constant ROLE_SET_RESOLVER = 1 << 12;
     uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;    
 
     bytes32 constant ROOT_RESOURCE = 0;

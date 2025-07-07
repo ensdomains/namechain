@@ -20,13 +20,13 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     SimpleRegistryMetadata metadata;
 
     // Hardcoded role constants
-    uint256 constant ROLE_UPDATE_METADATA = 0x1;
-    bytes32 constant ROOT_RESOURCE = 0;
+    uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
+    uint256 constant ROLE_UPDATE_METADATA_ADMIN = ROLE_UPDATE_METADATA << 128;
 
-    // Role bitmaps for different permission configurations
-    uint256 constant ROLE_SET_SUBREGISTRY = 0x100;
-    uint256 constant ROLE_SET_RESOLVER = 0x1000;
+    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 8;
+    uint256 constant ROLE_SET_RESOLVER = 1 << 12;
     uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
+    bytes32 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
         datastore = new RegistryDatastore();

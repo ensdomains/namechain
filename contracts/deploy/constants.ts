@@ -6,20 +6,20 @@ interface Flags {
 const FLAGS = {
   // see: RegistryRolesMixin.sol
   EAC: {
-    REGISTRAR: 0x1n,
-    RENEW: 0x10n,
-    SET_SUBREGISTRY: 0x100n,
-    SET_RESOLVER: 0x1000n,
-    SET_TOKEN_OBSERVER: 0x10000n,
+    REGISTRAR: 1n << 0n,
+    RENEW: 1n << 4n,
+    SET_SUBREGISTRY: 1n << 8n,
+    SET_RESOLVER: 1n << 12n,
+    SET_TOKEN_OBSERVER: 1n << 16n,
   },
   // see: L2/ETHRegistry.sol
   ETH: {
-    SET_PRICE_ORACLE: 0x100000n,
-    SET_COMMITMENT_AGES: 0x1000000n,
+    SET_PRICE_ORACLE: 1n << 20n,
+    SET_COMMITMENT_AGES: 1n << 24n,
   },
   // see: L2/UserRegistry.sol
   USER: {
-    UPGRADE: 0x100000n,
+    UPGRADE: 1n << 20n,
   },
 } as const satisfies Flags;
 function mapFlags(flags: Flags, fn: (x: bigint) => bigint): Flags {

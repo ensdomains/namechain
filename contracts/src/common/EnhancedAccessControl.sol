@@ -261,7 +261,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
         if (currentRoles != updatedRoles) {
             roles[resource][account] = updatedRoles;
             uint256 newlyRemovedRoles = roleBitmap & currentRoles;
-            _updateRoleCounts(resource, newlyRemovedRoles, false);  // Temporarily commented out
+            _updateRoleCounts(resource, newlyRemovedRoles, false); 
             if (executeCallbacks) {
                 _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
