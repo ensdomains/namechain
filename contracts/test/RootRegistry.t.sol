@@ -22,12 +22,11 @@ contract TestRootRegistry is Test, ERC1155Holder {
     SimpleRegistryMetadata metadata;
 
     // Hardcoded role constants
-    uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
     uint256 constant ROLE_REGISTRAR = 1 << 0;
-    
-    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
-    uint256 constant ROLE_SET_RESOLVER = 1 << 3;
-    uint256 constant ROLE_SET_FLAGS = 1 << 4;
+    uint256 constant ROLE_UPDATE_METADATA = 1 << 0; // same as ROLE_REGISTRAR
+    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 8;
+    uint256 constant ROLE_SET_RESOLVER = 1 << 12;
+    uint256 constant ROLE_SET_FLAGS = 1 << 16;
     uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER | ROLE_SET_FLAGS;
     uint256 constant lockedResolverRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_FLAGS;
     uint256 constant lockedSubregistryRoleBitmap = ROLE_SET_RESOLVER | ROLE_SET_FLAGS;

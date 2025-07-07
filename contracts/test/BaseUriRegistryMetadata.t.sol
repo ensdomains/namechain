@@ -18,8 +18,11 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     PermissionedRegistry parentRegistry;
     BaseUriRegistryMetadata metadata;
 
-    // Hardcoded role constants
     uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
+    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 8;
+    uint256 constant ROLE_SET_RESOLVER = 1 << 12;
+    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;    
+
     bytes32 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
@@ -91,10 +94,4 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         assertEq(metadata.supportsInterface(type(EnhancedAccessControl).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
-
-    // Role bitmaps for different permission configurations
-    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
-    uint256 constant ROLE_SET_RESOLVER = 1 << 3;
-    uint256 constant ROLE_SET_FLAGS = 1 << 4;
-    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
 } 

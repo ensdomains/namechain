@@ -33,12 +33,10 @@ contract MockBridge is IBridge {
     function sendMessage(bytes memory) external override {}
 }
 
-
-
 contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     // Import constants from RegistryRolesMixin and EnhancedAccessControl
     bytes32 constant ROOT_RESOURCE = bytes32(0);
-    uint256 constant ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    uint256 constant ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;
     
     TestL2EjectionControllerImpl controller; 
     PermissionedRegistry registry;
@@ -135,8 +133,6 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         uint64 expires = uint64(block.timestamp + expiryDuration);
         tokenId = registry.register(label, user, registry, address(0), ALL_ROLES, expires);
     }
-
-
 
     function test_constructor() public view {
         assertEq(address(controller.registry()), address(registry));
