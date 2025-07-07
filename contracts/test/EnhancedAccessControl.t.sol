@@ -107,6 +107,15 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
     function revokeAllRolesWithoutCallback(bytes32 resource, address account) external returns (bool) {
         return _revokeAllRoles(resource, account, false);
     }
+    
+    // Test helpers that bypass all authorization checks to test core normalization logic
+    function testGrantRolesDirect(bytes32 resource, uint256 roleBitmap, address account) external returns (bool) {
+        return _grantRoles(resource, roleBitmap, account, false);
+    }
+    
+    function testRevokeRolesDirect(bytes32 resource, uint256 roleBitmap, address account) external returns (bool) {
+        return _revokeRoles(resource, roleBitmap, account, false);
+    }
 }
 
 contract EnhancedAccessControlTest is Test, MockRoles {
@@ -1137,5 +1146,138 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Now RESOURCE_1 should have assignees
         assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A));
         assertTrue(access.hasAssignees(access.ROOT_RESOURCE(), ROLE_A));
+    }
+
+    // Tests for invalid role bitmaps (multiple bits set in a nybble)
+    // These tests verify that role bitmaps are properly normalized to ALL_ROLES
+    
+    function test_invalid_role_bitmap_single_nybble() public {
+        // ROLE_A is 0x1 (bit 0), create invalid bitmap with bit 1 also set: 0x3
+        uint256 invalidRoleBitmap = ROLE_A | (1 << 1); // 0x3 = 0011 in binary
+        
+        // Get initial role count
+        uint256 initialCount = access.roleCount(RESOURCE_1);
+        
+        // Use direct test helper to bypass all checks and test the core logic
+        access.testGrantRolesDirect(RESOURCE_1, invalidRoleBitmap, user1);
+        
+        // Check the role count change - this should reveal the bug
+        uint256 newCount = access.roleCount(RESOURCE_1);
+        uint256 countDifference = newCount - initialCount;
+        
+        // With the fix: countDifference should be 0x1 (normalized to valid ROLE_A)
+        // instead of 0x3 (the full invalid bitmap)
+        assertEq(countDifference, ROLE_A);
+        
+        // The user should have the role despite the invalid bitmap
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
+        
+        // Revoke with the same invalid bitmap
+        access.testRevokeRolesDirect(RESOURCE_1, invalidRoleBitmap, user1);
+        
+        // Count should return to initial value
+        assertEq(access.roleCount(RESOURCE_1), initialCount);
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user1));
+    }
+    
+    function test_invalid_role_bitmap_multiple_nybbles() public {
+        // Create invalid bitmaps for multiple roles
+        uint256 invalidRoleA = ROLE_A | (1 << 1) | (1 << 2); // 0x7 = 0111 in first nybble
+        uint256 invalidRoleB = ROLE_B | (1 << 5) | (1 << 6); // extra bits in second nybble
+        uint256 combinedInvalid = invalidRoleA | invalidRoleB;
+        
+        // Get initial role count
+        uint256 initialCount = access.roleCount(RESOURCE_1);
+        
+        // Grant the invalid combined role bitmap
+        access.testGrantRolesDirect(RESOURCE_1, combinedInvalid, user1);
+        
+        // Check the role count change
+        uint256 newCount = access.roleCount(RESOURCE_1);
+        uint256 countDifference = newCount - initialCount;
+        
+        // With the fix: countDifference should be normalized (ROLE_A | ROLE_B)
+        // instead of the full invalid bitmap
+        assertEq(countDifference, ROLE_A | ROLE_B);
+        
+        // The user should have both valid roles
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_B, user1));
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
+    }
+    
+    function test_invalid_role_bitmap_affects_max_assignees() public {
+        // Test how invalid bitmaps affect the max assignees logic
+        uint256 invalidRoleA = ROLE_A | (1 << 1) | (1 << 2) | (1 << 3); // 0xF = 1111 (max for nybble)
+        
+        // Grant the invalid role to user1
+        access.testGrantRolesDirect(RESOURCE_1, invalidRoleA, user1);
+        
+        // Try to grant the same invalid role to user2
+        // With the bug: this might fail because the count uses the full invalid bitmap (0xF)
+        // and the max check might think we already have 15 assignees
+        // With the fix: this should succeed because the invalid bitmap gets normalized to ROLE_A
+        access.testGrantRolesDirect(RESOURCE_1, invalidRoleA, user2);
+        
+        // Check the count - should be 2 * ROLE_A = 2 * 0x1 = 0x2
+        uint256 count = access.roleCount(RESOURCE_1);
+        assertEq(count, 2 * ROLE_A);
+    }
+    
+    function test_invalid_role_bitmap_hasAssignees() public {
+        // Test how invalid bitmaps affect hasAssignees detection
+        uint256 invalidRoleC = ROLE_C | (1 << 9) | (1 << 10); // Extra bits in third nybble
+        
+        // Initially no assignees
+        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_C));
+        assertFalse(access.hasAssignees(RESOURCE_1, invalidRoleC));
+        
+        // Grant invalid role
+        access.testGrantRolesDirect(RESOURCE_1, invalidRoleC, user1);
+        
+        // Check hasAssignees with both valid and invalid bitmaps
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_C)); // Should work with valid bitmap
+        assertTrue(access.hasAssignees(RESOURCE_1, invalidRoleC)); // Will work due to current implementation
+        
+        // Revoke with valid bitmap only
+        access.testRevokeRolesDirect(RESOURCE_1, ROLE_C, user1);
+        
+        // With the fix: the invalid bitmap was normalized during grant, so revoking ROLE_C
+        // should completely clean up the role count
+        uint256 remainingCount = access.roleCount(RESOURCE_1);
+        assertEq(remainingCount, 0);
+        
+        // hasAssignees should now return false for both valid and invalid bitmaps
+        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_C));
+        assertFalse(access.hasAssignees(RESOURCE_1, invalidRoleC));
+    }
+    
+    function test_role_bitmap_normalization_needed() public {
+        // Test that demonstrates why normalization is needed
+        uint256 properRole = ROLE_D; // 0x1000 (bit 12)
+        uint256 invalidRole = ROLE_D | (1 << 13) | (1 << 14) | (1 << 15); // 0xF000 (bits 12-15)
+        
+        // Grant proper role to user1
+        access.testGrantRolesDirect(RESOURCE_1, properRole, user1);
+        uint256 countAfterProper = access.roleCount(RESOURCE_1);
+        
+        // Grant invalid role to user2  
+        access.testGrantRolesDirect(RESOURCE_1, invalidRole, user2);
+        uint256 countAfterInvalid = access.roleCount(RESOURCE_1);
+        
+        // The count difference should show the fix working
+        uint256 properIncrement = properRole; // Should be 0x1000
+        uint256 invalidIncrement = countAfterInvalid - countAfterProper; // Should now also be 0x1000
+        
+        // With the fix: these should be the same (both normalized to ROLE_D)
+        assertEq(properIncrement, ROLE_D);
+        assertEq(invalidIncrement, ROLE_D); // Both should be normalized to ROLE_D
+        
+        // Both users should logically have the same role
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_D, user1));
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_D, user2));
+        
+        // With the fix: the counts are now correct due to normalization
+        assertEq(invalidIncrement, properIncrement); // Both increments are the same
     }
 }

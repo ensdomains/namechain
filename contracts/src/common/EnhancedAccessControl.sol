@@ -228,6 +228,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if the roles were granted, `false` otherwise.
      */
     function _grantRoles(bytes32 resource, uint256 roleBitmap, address account, bool executeCallbacks) internal virtual returns (bool) {
+        roleBitmap = _sanitizeRoleBitmap(roleBitmap);
         uint256 currentRoles = roles[resource][account];
         uint256 updatedRoles = currentRoles | roleBitmap;
 
@@ -255,6 +256,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if the roles were revoked, `false` otherwise.
      */
     function _revokeRoles(bytes32 resource, uint256 roleBitmap, address account, bool executeCallbacks) internal virtual returns (bool) {
+        roleBitmap = _sanitizeRoleBitmap(roleBitmap);
         uint256 currentRoles = roles[resource][account];
         uint256 updatedRoles = currentRoles & ~roleBitmap;
         
@@ -340,6 +342,16 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     function _onRolesRevoked(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal virtual {}
 
     // Private methods
+
+    /**
+     * @dev Sanitizes a role bitmap by ensuring only valid role bits are set.
+     *
+     * @param roleBitmap The role bitmap to sanitize.
+     * @return The sanitized role bitmap with only valid role bits.
+     */
+    function _sanitizeRoleBitmap(uint256 roleBitmap) private pure returns (uint256) {
+        return roleBitmap & ALL_ROLES;
+    }
 
     /**
      * @dev Converts a role bitmap to a mask.
