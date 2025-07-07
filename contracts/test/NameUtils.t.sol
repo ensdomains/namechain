@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 
 contract TestNameUtils is Test {
-    function test_isHashedLabel() external {
+    function test_isHashedLabel() external pure {
         assertFalse(NameUtils.isHashedLabel(""), "<empty>");
         assertFalse(NameUtils.isHashedLabel("[]"), "[]");
         assertFalse(NameUtils.isHashedLabel("[0x]"), "0x");
@@ -43,15 +43,15 @@ contract TestNameUtils is Test {
         );
     }
 
-    function test_isValidLabel() external {
-        assertFalse(NameUtils.isValidLabel(""), "0");
-        assertFalse(NameUtils.isValidLabel(new string(256)), "256");
+    // function test_isValidLabel() external {
+    //     assertFalse(NameUtils.isValidLabel(""), "0");
+    //     assertFalse(NameUtils.isValidLabel(new string(256)), "256");
 
-        assertTrue(NameUtils.isValidLabel(new string(1)), "1");
-        assertTrue(NameUtils.isValidLabel(new string(255)), "255");
-    }
+    //     assertTrue(NameUtils.isValidLabel(new string(1)), "1");
+    //     assertTrue(NameUtils.isValidLabel(new string(255)), "255");
+    // }
 
-    function test_getCanonicalId() external {
+    function test_getCanonicalId() external pure {
         assertEq(NameUtils.getCanonicalId(0), 0);
         assertEq(NameUtils.getCanonicalId(0xFFFFFFFF), 0x00000000);
         assertEq(NameUtils.getCanonicalId(0x1FFFFFFFF), 0x100000000);
@@ -63,7 +63,7 @@ contract TestNameUtils is Test {
         );
     }
 
-    function test_labelToCanonicalId() external {
+    function test_labelToCanonicalId() external pure {
         assertEq(
             NameUtils.labelToCanonicalId(""),
             0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad80400000000

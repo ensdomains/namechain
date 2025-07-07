@@ -20,16 +20,6 @@ library NameUtils {
         }
     }
 
-    /// @dev Determine if label is a valid length and not a hashed label.
-    /// @param label The label to check.
-    /// @return True if the label is valid.
-    function isValidLabel(string memory label) internal pure returns (bool) {
-        return
-            bytes(label).length > 0 &&
-            bytes(label).length <= 255 &&
-            !isHashedLabel(label);
-    }
-
     /// @dev Convert a label to canonical id.
     /// @param label The label to convert.
     /// @return The canonical id corresponding to this label.

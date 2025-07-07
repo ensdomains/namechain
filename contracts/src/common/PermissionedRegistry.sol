@@ -18,10 +18,6 @@ import {ITokenObserver} from "./ITokenObserver.sol";
 import {RegistryRolesMixin} from "./RegistryRolesMixin.sol";
 
 contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissionedRegistry, MetadataMixin, RegistryRolesMixin {
-    /// @notice The label is invalid.
-    /// @dev Error selector: `0x0a9644cf`
-    error InvalidLabel(string label);
-
     event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
 
     mapping(uint256 => ITokenObserver) public tokenObservers;
@@ -68,9 +64,6 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         onlyRootRoles(ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
-        if (!NameUtils.isValidLabel(label)) {
-            revert InvalidLabel(label);
-        }
         uint64 oldExpiry;
         uint32 tokenIdVersion;
         (tokenId, oldExpiry, tokenIdVersion) = getNameData(label);

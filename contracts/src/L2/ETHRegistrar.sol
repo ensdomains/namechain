@@ -7,7 +7,6 @@ import {IERC1155Singleton} from "../common/IERC1155Singleton.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IPriceOracle} from "./IPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {NameUtils} from "../common/NameUtils.sol";
 import {EnhancedAccessControl} from "../common/EnhancedAccessControl.sol";
 import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
 
@@ -80,7 +79,7 @@ contract ETHRegistrar is
      * @return True if the name is valid, false otherwise.
      */
     function valid(string memory label) public pure returns (bool) {
-        return bytes(label).length >= 3 && NameUtils.isValidLabel(label);
+        return bytes(label).length >= 3 && bytes(label).length <= 255;
     }
 
     /**
