@@ -1280,4 +1280,57 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // With the fix: the counts are now correct due to normalization
         assertEq(invalidIncrement, properIncrement); // Both increments are the same
     }
+    
+    function test_hasAssignees_sanitizes_invalid_bitmap() public {
+        // Test that hasAssignees() correctly sanitizes invalid role bitmaps
+        
+        // Grant valid roles to users
+        access.grantRoles(RESOURCE_1, ROLE_A, user1);
+        access.grantRoles(RESOURCE_1, ROLE_B, user2);
+        
+        // Verify normal hasAssignees behavior with valid bitmaps
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A));
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_B));
+        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_C));
+        assertFalse(access.hasAssignees(RESOURCE_1, ROLE_D));
+        
+        // Create invalid role bitmaps with extra bits set
+        uint256 invalidRoleA = ROLE_A | (1 << 1) | (1 << 2); // 0x7 = 0111 in first nybble
+        uint256 invalidRoleB = ROLE_B | (1 << 5) | (1 << 6); // extra bits in second nybble  
+        uint256 invalidRoleC = ROLE_C | (1 << 9) | (1 << 10); // extra bits in third nybble
+        uint256 invalidRoleD = ROLE_D | (1 << 13) | (1 << 14); // extra bits in fourth nybble
+        
+        // Test hasAssignees with invalid bitmaps - should behave like valid bitmaps due to sanitization
+        assertTrue(access.hasAssignees(RESOURCE_1, invalidRoleA)); // Should return true (ROLE_A has assignees)
+        assertTrue(access.hasAssignees(RESOURCE_1, invalidRoleB)); // Should return true (ROLE_B has assignees)
+        assertFalse(access.hasAssignees(RESOURCE_1, invalidRoleC)); // Should return false (ROLE_C has no assignees)
+        assertFalse(access.hasAssignees(RESOURCE_1, invalidRoleD)); // Should return false (ROLE_D has no assignees)
+        
+        // Test combined invalid bitmaps
+        uint256 invalidCombinedAB = invalidRoleA | invalidRoleB;
+        uint256 invalidCombinedCD = invalidRoleC | invalidRoleD;
+        uint256 invalidMixedAC = invalidRoleA | invalidRoleC;
+        
+        assertTrue(access.hasAssignees(RESOURCE_1, invalidCombinedAB)); // Should return true (both A and B have assignees)
+        assertFalse(access.hasAssignees(RESOURCE_1, invalidCombinedCD)); // Should return false (neither C nor D have assignees)
+        assertTrue(access.hasAssignees(RESOURCE_1, invalidMixedAC)); // Should return true (A has assignees, even though C doesn't)
+        
+        // Grant ROLE_C to verify the mixed case changes
+        access.grantRoles(RESOURCE_1, ROLE_C, user1);
+        assertTrue(access.hasAssignees(RESOURCE_1, invalidMixedAC)); // Should still return true (now both A and C have assignees)
+        assertTrue(access.hasAssignees(RESOURCE_1, invalidRoleC)); // Should now return true (ROLE_C has assignees)
+        
+        // Revoke all roles and verify hasAssignees returns false for all invalid bitmaps
+        access.revokeRoles(RESOURCE_1, ROLE_A, user1);
+        access.revokeRoles(RESOURCE_1, ROLE_B, user2);
+        access.revokeRoles(RESOURCE_1, ROLE_C, user1);
+        
+        assertFalse(access.hasAssignees(RESOURCE_1, invalidRoleA));
+        assertFalse(access.hasAssignees(RESOURCE_1, invalidRoleB));
+        assertFalse(access.hasAssignees(RESOURCE_1, invalidRoleC));
+        assertFalse(access.hasAssignees(RESOURCE_1, invalidRoleD));
+        assertFalse(access.hasAssignees(RESOURCE_1, invalidCombinedAB));
+        assertFalse(access.hasAssignees(RESOURCE_1, invalidCombinedCD));
+        assertFalse(access.hasAssignees(RESOURCE_1, invalidMixedAC));
+    }
 }

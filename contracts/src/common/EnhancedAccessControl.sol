@@ -362,6 +362,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return roleMask The mask for the role bitmap.
      */
     function _roleBitmapToMask(uint256 roleBitmap) private pure returns (uint256 roleMask) {
+        roleBitmap = _sanitizeRoleBitmap(roleBitmap);
         roleMask = roleBitmap | (roleBitmap << 1);
         roleMask |= roleMask << 2;
     }
