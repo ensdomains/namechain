@@ -85,7 +85,9 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         assertTrue(registrar.valid("abc"));
         assertTrue(registrar.valid("test"));
         assertTrue(registrar.valid("longername"));
-        
+        assertTrue(registrar.valid(new string(255)));
+
+        assertFalse(registrar.valid(new string(256)));
         assertFalse(registrar.valid("ab"));
         assertFalse(registrar.valid("a"));
         assertFalse(registrar.valid(""));

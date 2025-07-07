@@ -8,6 +8,12 @@ import {IRegistry} from "./IRegistry.sol";
  * @dev Interface for the a standard registry.
  */
 interface IStandardRegistry is IRegistry {
+
+    /**
+     * @dev Error emitted when a name is too long.
+     */
+    error NameTooLong(string label);
+
     /**
      * @dev Error emitted when a name is already registered.
      */

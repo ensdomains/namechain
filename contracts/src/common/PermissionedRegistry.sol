@@ -64,6 +64,10 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         onlyRootRoles(ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
+        if (bytes(label).length > 255) {
+            revert NameTooLong(label);
+        }
+
         uint64 oldExpiry;
         uint32 tokenIdVersion;
         (tokenId, oldExpiry, tokenIdVersion) = getNameData(label);
