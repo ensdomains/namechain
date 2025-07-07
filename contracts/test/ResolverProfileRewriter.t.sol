@@ -3,7 +3,6 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {ResolverProfileRewriter} from "../src/common/ResolverProfileRewriter.sol";
-import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
 
@@ -19,7 +18,7 @@ contract ResolverProfileRewriterTest is Test {
         return v[4:];
     }
 
-    function testFuzz_replaceNode_simple(
+    function testFuzz_replaceNode_call(
         bytes32 node,
         uint256 coinType
     ) external view {

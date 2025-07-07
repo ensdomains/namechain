@@ -65,7 +65,7 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
                 (bool ok, bytes memory v) = address(this).staticcall(
                     abi.encodeCall(this.resolve, ("", m[i], context))
                 );
-                if (ok && v.length > 0) {
+                if (ok) {
                     v = abi.decode(v, (bytes)); // unwrap resolve()
                 }
                 m[i] = v;
@@ -107,7 +107,7 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
         }
     }
 
-    /// @dev Parse address from context according to coin type.
+    /// @dev Extract address from context according to coin type.
     ///      Reverts `InvalidHexData` if non-null and not a hex string.
     ///      Reverts `InvalidEVMAddress` if non-null, coin type is EVM, and address is not 20 bytes.
     /// @param context The DNS context string.

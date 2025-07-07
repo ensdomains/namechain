@@ -1,7 +1,11 @@
 import hre from "hardhat";
 import { describe, it } from "vitest";
 import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
-import { bundleCalls, makeResolutions } from "../utils/resolutions.js";
+import {
+  bundleCalls,
+  KnownProfile,
+  makeResolutions,
+} from "../utils/resolutions.js";
 import { dnsEncodeName, expectVar } from "../utils/utils.js";
 import { dummyShapeshiftResolverArtifact } from "../fixtures/ens-contracts/DummyShapeshiftResolver.js";
 
@@ -24,22 +28,21 @@ describe("UniversalResolver", () => {
   it("UR -> UR", async () => {
     const F = await chain.networkHelpers.loadFixture(fixture);
     const name = "test.eth";
+    const kp: KnownProfile = {
+      name: `nested.${name}`,
+      addresses: [{ coinType: 1n, value: "0x1234" }],
+      texts: [{ key: "abc", value: "def" }],
+    };
     await F.setupName({ name, resolverAddress: F.mockNestedResolver.address });
     await F.setupName({
-      name: `nested.${name}`,
+      name: kp.name,
       resolverAddress: F.ssResolver.address,
     });
-    const bundle = bundleCalls(
-      makeResolutions({
-        name,
-        addresses: [{ coinType: 1n, value: "0x1234" }],
-        texts: [{ key: "abc", value: "def" }],
-      }),
-    );
     await F.ssResolver.write.setOffchain([true]);
-    for (const res of bundle.resolutions) {
+    for (const res of makeResolutions(kp)) {
       await F.ssResolver.write.setResponse([res.call, res.answer]);
     }
+    const bundle = bundleCalls(makeResolutions({ ...kp, name }));
     const [answer, resolver] = await F.universalResolver.read.resolve([
       dnsEncodeName(name),
       bundle.call,

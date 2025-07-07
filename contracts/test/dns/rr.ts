@@ -1,4 +1,4 @@
-import { ByteArray, concat, stringToBytes, toHex } from "viem";
+import { type ByteArray, concat, stringToBytes, toHex } from "viem";
 import { packetToBytes } from "../utils/utils.js";
 
 export type RR = {

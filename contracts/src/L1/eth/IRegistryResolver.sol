@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 interface IRegistryResolver {
-    /// @notice Resolve `name` using `parentRegistry` using the labels after `nodeSuffix`.
+    /// @notice Resolve `name` with `parentRegistry` using the labels after `nodeSuffix`.
     /// @notice Caller should enable EIP-3668.
     /// @param parentRegistry The parent registry contract.
     /// @param nodeSuffix The node corresponding to the parent registry contract.

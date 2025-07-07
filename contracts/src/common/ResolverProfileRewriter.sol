@@ -4,12 +4,17 @@ pragma solidity >=0.8.13;
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 
 library ResolverProfileRewriter {
+    /// @dev Replace the node in the calldata with a new node.
+    ///      Supports `multicall()`.
+    /// @param call The calldata.
+    /// @param node The replacement node.
+    /// @return copy A copy of the calldata with node replaced.
     function replaceNode(
-        bytes calldata data,
+        bytes calldata call,
         bytes32 node
     ) internal pure returns (bytes memory copy) {
-        copy = data;
-        if (bytes4(data) == IMulticallable.multicall.selector) {
+        copy = call;
+        if (bytes4(call) == IMulticallable.multicall.selector) {
             assembly {
                 let off := add(copy, 36)
                 off := add(off, mload(off))
@@ -19,15 +24,6 @@ library ResolverProfileRewriter {
                     mstore(add(add(off, 68), mload(add(off, size))), node)
                 }
             }
-            // uint256 offset = 4 + uint256(bytes32(data[4:]));
-            // uint256 count = uint256(bytes32(data[offset:]));
-            // offset += 32;
-            // for (uint256 i; i < count; ++i) {
-            //     uint256 offset2 = uint256(bytes32(data[offset + (i << 5):]));
-            //     assembly {
-            //         mstore(add(add(copy, offset), add(offset2, 68)), node)
-            //     }
-            // }
         } else {
             assembly {
                 mstore(add(copy, 36), node)
