@@ -8,7 +8,7 @@ import {PermissionedRegistry, IRegistry, IRegistryMetadata} from "../../src/comm
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
 
 contract UniversalResolverTraversal is Test, ERC1155Holder {
-    uint256 public constant ALL_ROLES = ~uint256(0);
+    uint256 public constant ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;
 
     RegistryDatastore datastore;
     PermissionedRegistry rootRegistry;

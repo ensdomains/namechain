@@ -38,8 +38,8 @@ contract TestRootRegistry is Test, ERC1155Holder {
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
-        // Use a defined ALL_ROLES value for deployer roles
-        uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+        // Use the valid ALL_ROLES value for deployer roles
+        uint256 deployerRoles = 0x1111111111111111111111111111111111111111111111111111111111111111;
         registry = new PermissionedRegistry(datastore, metadata, deployerRoles);
         metadata.grantRootRoles(ROLE_UPDATE_METADATA, address(registry));
     }

@@ -28,6 +28,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     error EACRootResourceNotAllowed();
     error EACMaxAssignees(bytes32 resource, uint256 role);
     error EACMinAssignees(bytes32 resource, uint256 role);
+    error EACInvalidRoleBitmap(uint256 roleBitmap);
 
     event EACRolesGranted(bytes32 resource, uint256 roleBitmap, address account);
     event EACRolesRevoked(bytes32 resource, uint256 roleBitmap, address account);
@@ -228,7 +229,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if the roles were granted, `false` otherwise.
      */
     function _grantRoles(bytes32 resource, uint256 roleBitmap, address account, bool executeCallbacks) internal virtual returns (bool) {
-        roleBitmap = _sanitizeRoleBitmap(roleBitmap);
+        _checkRoleBitmap(roleBitmap);
         uint256 currentRoles = roles[resource][account];
         uint256 updatedRoles = currentRoles | roleBitmap;
 
@@ -256,7 +257,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if the roles were revoked, `false` otherwise.
      */
     function _revokeRoles(bytes32 resource, uint256 roleBitmap, address account, bool executeCallbacks) internal virtual returns (bool) {
-        roleBitmap = _sanitizeRoleBitmap(roleBitmap);
+        _checkRoleBitmap(roleBitmap);
         uint256 currentRoles = roles[resource][account];
         uint256 updatedRoles = currentRoles & ~roleBitmap;
         
@@ -344,13 +345,14 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     // Private methods
 
     /**
-     * @dev Sanitizes a role bitmap by ensuring only valid role bits are set.
+     * @dev Checks if a role bitmap contains only valid role bits.
      *
-     * @param roleBitmap The role bitmap to sanitize.
-     * @return The sanitized role bitmap with only valid role bits.
+     * @param roleBitmap The role bitmap to check.
      */
-    function _sanitizeRoleBitmap(uint256 roleBitmap) private pure returns (uint256) {
-        return roleBitmap & ALL_ROLES;
+    function _checkRoleBitmap(uint256 roleBitmap) private pure {
+        if ((roleBitmap & ~ALL_ROLES) != 0) {
+            revert EACInvalidRoleBitmap(roleBitmap);
+        }
     }
 
     /**
@@ -362,7 +364,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return roleMask The mask for the role bitmap.
      */
     function _roleBitmapToMask(uint256 roleBitmap) private pure returns (uint256 roleMask) {
-        roleBitmap = _sanitizeRoleBitmap(roleBitmap);
+        _checkRoleBitmap(roleBitmap);
         roleMask = roleBitmap | (roleBitmap << 1);
         roleMask |= roleMask << 2;
     }
