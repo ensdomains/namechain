@@ -13,6 +13,7 @@ import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {console} from "forge-std/console.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
+import {TestUtils} from "./utils/TestUtils.sol";
 
 contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -32,7 +33,7 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
         // Use the valid ALL_ROLES value for deployer roles
-        uint256 deployerRoles = 0x1111111111111111111111111111111111111111111111111111111111111111;
+        uint256 deployerRoles = TestUtils.ALL_ROLES;
         registry = new PermissionedRegistry(
             datastore,
             metadata,

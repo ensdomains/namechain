@@ -11,6 +11,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {BaseUriRegistryMetadata} from "../src/common/BaseUriRegistryMetadata.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
+import {TestUtils} from "./utils/TestUtils.sol";
 
 contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -30,7 +31,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         metadata = new BaseUriRegistryMetadata();
         
         // Use the valid ALL_ROLES value for deployer roles
-        uint256 deployerRoles = 0x1111111111111111111111111111111111111111111111111111111111111111;
+        uint256 deployerRoles = TestUtils.ALL_ROLES;
         registry = new PermissionedRegistry(
             datastore,
             metadata,
