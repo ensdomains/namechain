@@ -71,7 +71,7 @@ contract L2EjectionController is EjectionController, ITokenObserver {
     /**
      * Overrides the EjectionController._onEject function.
      */
-    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal virtual override {
+    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray, bool isMint) internal virtual override {
         uint256 tokenId;
         TransferData memory transferData;
 
@@ -88,10 +88,12 @@ contract L2EjectionController is EjectionController, ITokenObserver {
             // listen for events
             registry.setTokenObserver(tokenId, this);
 
-            // send the message to the bridge
-            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferDataArray[i].label);
-            bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferDataArray[i]));
-            emit NameEjectedToL1(dnsEncodedName, tokenId);
+            // send the message to the bridge unless it's a mint
+            if (!isMint) {
+                bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferDataArray[i].label);
+                bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferDataArray[i]));
+                emit NameEjectedToL1(dnsEncodedName, tokenId);
+            }
         }
     }
 }

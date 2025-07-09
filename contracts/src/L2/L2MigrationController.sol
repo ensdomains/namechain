@@ -22,18 +22,13 @@ contract L2MigrationController is Ownable {
     error LabelNotFound(bytes dnsEncodedName, string label);
 
     // Events
-    event MigrationCompleted(bytes dnsEncodedName, MigrationData migrationData);
+    event MigrationCompleted(bytes dnsEncodedName, uint256 newTokenId);
 
     bytes32 public constant ETH_TLD_HASH = keccak256(bytes("eth"));
 
     address public immutable bridge;
-    /**
-     * @dev The .eth registry
-     */
+    address public immutable ejectionController;
     PermissionedRegistry public immutable ethRegistry;
-    /**
-     * @dev The datastore
-     */
     IRegistryDatastore public immutable datastore;
 
     modifier onlyBridge() {
@@ -43,8 +38,14 @@ contract L2MigrationController is Ownable {
         _;
     }
 
-    constructor(address _bridge, PermissionedRegistry _ethRegistry, IRegistryDatastore _datastore) Ownable(msg.sender) {
+    constructor(
+        address _bridge, 
+        address _ejectionController,
+        PermissionedRegistry _ethRegistry, 
+        IRegistryDatastore _datastore
+    ) Ownable(msg.sender) {
         bridge = _bridge;
+        ejectionController = _ejectionController;
         ethRegistry = _ethRegistry;
         datastore = _datastore;
     }
@@ -68,9 +69,17 @@ contract L2MigrationController is Ownable {
         }
 
         // register the name
-        registry.register(
+        uint256 tokenId = registry.register(
             label,
-            migrationData.transferData.owner,
+            /*
+            * If the migrated name is being kept on L1 then we need to 
+            * mint it to the ejection controller so that the user can eject it 
+            * back to L2 in future.
+            *
+            * The ejection controller won't trigger ejection bridge calls for names 
+            * that are minted to it.
+            */
+            migrationData.toL1 ? ejectionController : migrationData.transferData.owner,
             new PermissionedRegistry(
                datastore,
                 new SimpleRegistryMetadata(),
@@ -81,7 +90,10 @@ contract L2MigrationController is Ownable {
             migrationData.transferData.expires
         );
 
-        emit MigrationCompleted(dnsEncodedName, migrationData);
+        // if the migrated name is being kept on L1 then we need to transfer it to the ejection controller
+        // but without triggering ejection
+
+        emit MigrationCompleted(dnsEncodedName, tokenId);
     }
 
     /**
