@@ -20,6 +20,7 @@ import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
 import {TransferData} from "../src/common/TransferData.sol";
 import {IBridge} from "../src/common/IBridge.sol";
+import {TestUtils} from "./utils/TestUtils.sol";
 
 // Mock implementation of IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -36,7 +37,6 @@ contract MockBridge is IBridge {
 contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     // Import constants from RegistryRolesMixin and EnhancedAccessControl
     bytes32 constant ROOT_RESOURCE = bytes32(0);
-    uint256 constant ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;
     
     TestL2EjectionControllerImpl controller; 
     PermissionedRegistry registry;
@@ -118,7 +118,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         registryMetadata = new MockRegistryMetadata();
         bridge = new MockBridge();
         
-        registry = new PermissionedRegistry(datastore, registryMetadata, ALL_ROLES);
+        registry = new PermissionedRegistry(datastore, registryMetadata, TestUtils.ALL_ROLES);
         
         // Now deploy the test controller with the correct registry and bridge
         controller = new TestL2EjectionControllerImpl(registry, bridge); // Deploy TestL2EjectionControllerImpl
@@ -131,7 +131,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         
         // Register a test name
         uint64 expires = uint64(block.timestamp + expiryDuration);
-        tokenId = registry.register(label, user, registry, address(0), ALL_ROLES, expires);
+        tokenId = registry.register(label, user, registry, address(0), TestUtils.ALL_ROLES, expires);
     }
 
     function test_constructor() public view {
@@ -141,7 +141,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_eject_flow_via_transfer() public {
         // Prepare the data for ejection with label and expiry
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint256 roleBitmap = ALL_ROLES;
+        uint256 roleBitmap = TestUtils.ALL_ROLES;
         bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Make sure user still owns the token
@@ -262,7 +262,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             expires: 0,
-            roleBitmap: ALL_ROLES
+            roleBitmap: TestUtils.ALL_ROLES
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -277,7 +277,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             expires: 0,
-            roleBitmap: ALL_ROLES
+            roleBitmap: TestUtils.ALL_ROLES
         });
         
         vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
@@ -307,8 +307,8 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function _setupL2BatchTransferTest() internal returns (uint256[] memory ids, uint256[] memory amounts, bytes memory batchData) {
         // Register two more names
         uint64 expires = uint64(block.timestamp + expiryDuration);
-        uint256 tokenId2 = registry.register("test2", user, registry, address(0), ALL_ROLES, expires);
-        uint256 tokenId3 = registry.register("test3", user, registry, address(0), ALL_ROLES, expires);
+        uint256 tokenId2 = registry.register("test2", user, registry, address(0), TestUtils.ALL_ROLES, expires);
+        uint256 tokenId3 = registry.register("test3", user, registry, address(0), TestUtils.ALL_ROLES, expires);
         
         // Create batch of tokens to transfer
         ids = new uint256[](2);
@@ -337,7 +337,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
             subregistries[i] = l1Subregistry;
             resolvers[i] = l1Resolver;
             expiries[i] = uint64(block.timestamp + expiryDuration);
-            roleBitmaps[i] = ALL_ROLES - i;
+            roleBitmaps[i] = TestUtils.ALL_ROLES - i;
         }
         
         return _createBatchEjectionData(labels, owners, subregistries, resolvers, expiries, roleBitmaps);
@@ -377,7 +377,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_onRenew_emitsEvent() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint32 roleBitmap = uint32(ALL_ROLES);
+        uint32 roleBitmap = uint32(TestUtils.ALL_ROLES);
         bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         vm.prank(user);
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
@@ -427,7 +427,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_onRelinquish_emitsEvent() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint32 roleBitmap = uint32(ALL_ROLES);
+        uint32 roleBitmap = uint32(TestUtils.ALL_ROLES);
         bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         vm.prank(user);
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
@@ -477,7 +477,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         // Prepare the data for ejection with an invalid label
         string memory invalidLabel = "invalid";
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint256 roleBitmap = ALL_ROLES;
+        uint256 roleBitmap = TestUtils.ALL_ROLES;
         bytes memory ejectionData = _createEjectionData(invalidLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Make sure user still owns the token
@@ -492,7 +492,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_Revert_onERC1155Received_UnauthorizedCaller() public {
         // Prepare valid data for ejection
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint256 roleBitmap = ALL_ROLES;
+        uint256 roleBitmap = TestUtils.ALL_ROLES;
         bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Try to call onERC1155Received directly (not through registry)
@@ -527,7 +527,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
             subregistries[i] = l1Subregistry;
             resolvers[i] = l1Resolver;
             expiries[i] = uint64(block.timestamp + expiryDuration);
-            roleBitmaps[i] = ALL_ROLES;
+            roleBitmaps[i] = TestUtils.ALL_ROLES;
         }
         
         // Create batch ejection data
@@ -544,7 +544,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
         
         uint256 basicRoles = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
-        uint256 allRoles = ALL_ROLES;
+        uint256 allRoles = TestUtils.ALL_ROLES;
         uint256 noRoles = 0;
         
         bytes memory data1 = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, basicRoles);
@@ -572,7 +572,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_tokenObserver_callbacks() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint32 roleBitmap = uint32(ALL_ROLES);
+        uint32 roleBitmap = uint32(TestUtils.ALL_ROLES);
         bytes memory ejectionData = _createEjectionData(label, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         vm.prank(user);
         registry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
