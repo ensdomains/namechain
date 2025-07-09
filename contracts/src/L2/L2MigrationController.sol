@@ -4,8 +4,11 @@ pragma solidity >=0.8.13;
 import {TransferData, MigrationData} from "../common/TransferData.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IRegistry} from "../common/IRegistry.sol";
+import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
+import {PermissionedRegistry} from "../common/PermissionedRegistry.sol";
+import {SimpleRegistryMetadata} from "../common/SimpleRegistryMetadata.sol";
 
 /**
  * @title L2MigrationController
@@ -15,19 +18,23 @@ contract L2MigrationController is Ownable {
     error UnauthorizedCaller(address caller);
     error MigrationFailed();
     error InvalidTLD(bytes32 labelHash);
-    error NameAlreadyRegistered(string label);
-    error LabelNotFound(string label);
+    error NameAlreadyRegistered(bytes dnsEncodedName);
+    error LabelNotFound(bytes dnsEncodedName, string label);
 
     // Events
     event MigrationCompleted(bytes dnsEncodedName, MigrationData migrationData);
 
-    uint256 public constant ETH_TLD_HASH = keccak256(bytes("eth"));
+    bytes32 public constant ETH_TLD_HASH = keccak256(bytes("eth"));
 
     address public immutable bridge;
     /**
      * @dev The .eth registry
      */
-    IRegistry public immutable permissionedregistry;
+    PermissionedRegistry public immutable ethRegistry;
+    /**
+     * @dev The datastore
+     */
+    IRegistryDatastore public immutable datastore;
 
     modifier onlyBridge() {
         if (msg.sender != bridge) {
@@ -36,9 +43,10 @@ contract L2MigrationController is Ownable {
         _;
     }
 
-    constructor(address _bridge, IRegistry _permissionedregistry) Ownable(msg.sender) {
+    constructor(address _bridge, PermissionedRegistry _ethRegistry, IRegistryDatastore _datastore) Ownable(msg.sender) {
         bridge = _bridge;
-        permissionedregistry = _permissionedregistry;
+        ethRegistry = _ethRegistry;
+        datastore = _datastore;
     }
 
     /**
@@ -52,47 +60,59 @@ contract L2MigrationController is Ownable {
         bytes memory dnsEncodedName,
         MigrationData memory migrationData
     ) external onlyBridge {
-        // Validate that this is a .eth 2LD name and traverse the registry tree
-        _validateAndTraverseRegistry(dnsEncodedName);
-        
+        // Find the registry and validate the registry tree
+        (PermissionedRegistry registry, string memory label, bool exists) = _findAndValidateLabelStructure(dnsEncodedName, 0);
+
+        if (exists) {
+            revert NameAlreadyRegistered(dnsEncodedName);
+        }
+
+        // register the name
+        registry.register(
+            label,
+            migrationData.transferData.owner,
+            new PermissionedRegistry(
+               datastore,
+                new SimpleRegistryMetadata(),
+                registry.ALL_ROLES()
+            ),
+            migrationData.transferData.resolver,
+            migrationData.transferData.roleBitmap,
+            migrationData.transferData.expires
+        );
+
         emit MigrationCompleted(dnsEncodedName, migrationData);
     }
 
     /**
-     * @dev Validates the DNS encoded name is a .eth 2LD and traverses the registry tree
-     * Similar to UniversalResolver._findResolver but validates each step exists
-     */
-    function _validateAndTraverseRegistry(bytes memory dnsEncodedName) internal view {
-        // Find the .eth registry and validate the registry tree
-        _findAndValidateRegistry(dnsEncodedName, 0);
-    }
-
-    /**
-     * @dev Recursively finds and validates the registry structure
+     * @dev Recursively finds and validates the label registry structure
      * @param name The DNS-encoded name
      * @param offset The current offset in the name
      * @return registry The registry at this level
-     * @return exact True if we found an exact match
+     * @return label The label at this level
+     * @return exists True if the label at this level exists (only relevant for leftmost label)
      */
-    function _findAndValidateRegistry(
+    function _findAndValidateLabelStructure(
         bytes memory name,
         uint256 offset
-    ) internal view returns (IRegistry registry, bool exact) {
+    ) internal view returns (PermissionedRegistry registry, string memory label, bool exists) {
         uint256 size = uint8(name[offset]);
         
         // If we reach the end (size == 0), we should be at the root
         if (size == 0) {
-            // This should never happen for a .eth 2LD, but handle gracefully
-            return (IRegistry(address(0)), true);
+            return (PermissionedRegistry(address(0)), "", true);
         }
         
+        // Check if this is the leftmost label (offset == 0)
+        bool isLeftmostLabel = (offset == 0);
+        
         // Recursively process the next part of the name (moving right to left)
-        (IRegistry parentRegistry, bool parentExact) = _findAndValidateRegistry(
+        (PermissionedRegistry parentRegistry,, ) = _findAndValidateLabelStructure(
             name,
             offset + 1 + size
         );
         
-        // Read the current label hash
+        // Read the current label
         (bytes32 labelHash, ) = NameCoder.readLabel(name, offset);
         
         // If we're at the rightmost position (parentRegistry is zero), this should be "eth"
@@ -101,23 +121,28 @@ contract L2MigrationController is Ownable {
                 revert InvalidTLD(labelHash);
             }
             // Return the .eth registry
-            return (permissionedregistry, true);
+            return (ethRegistry, "", true);
         }
         
+        label = NameUtils.readLabel(name, offset);
+
         // For non-TLD labels, check if they exist in the parent registry
-        if (parentExact) {
-            // We need the label string to call getSubregistry, so read it with NameUtils
-            string memory label = NameUtils.readLabel(name, offset);
-            // Check if this label is registered in the parent registry
-            IRegistry subregistry = parentRegistry.getSubregistry(label);
-            if (address(subregistry) == address(0)) {
-                revert LabelNotFound(label);
+        bool labelExists = address(parentRegistry.getSubregistry(label)) != address(0);
+        
+        // If this is the leftmost label (the one being migrated), return the result
+        if (isLeftmostLabel) {
+            if (labelExists) {
+                return (parentRegistry, label, true);
+            } else {
+                return (parentRegistry, label, false);
             }
-            return (subregistry, true);
-        } else {
-            // Parent registry doesn't exist exactly, so this path is invalid
-            string memory label = NameUtils.readLabel(name, offset);
-            revert LabelNotFound(label);
         }
+        
+        // For all other labels, they must exist
+        if (!labelExists) {
+            revert LabelNotFound(name, label);
+        }
+        
+        return (parentRegistry, label, true);
     }
 } 
