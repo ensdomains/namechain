@@ -2,4 +2,12 @@
   "solidity.packageDefaultDependenciesContractsDirectory": "./contracts/src",
   "solidity.packageDefaultDependenciesDirectory": "./contracts/lib",
   "solidity.compileUsingRemoteVersion": "v0.8.24+commit.e11b9ed9",
+  "mcp": {
+    "servers": {
+      "linear": {
+        "command": "npx",
+        "args": ["-y", "mcp-remote", "https://mcp.linear.app/sse"]
+      }
+    }
+  }
 }
