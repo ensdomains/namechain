@@ -58,7 +58,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenId;
 
-        _onEject(tokenIds, transferDataArray, address(from) == address(0));
+        _onEject(from, tokenIds, transferDataArray);
 
         return this.onERC1155Received.selector;
     }
@@ -73,7 +73,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
 
         TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
         
-        _onEject(tokenIds, transferDataArray, address(from) == address(0));
+        _onEject(from, tokenIds, transferDataArray);
 
         return this.onERC1155BatchReceived.selector;
     }
@@ -95,9 +95,9 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
     /**
      * @dev Called when names are ejected.
      *
+     * @param from The address that initiated the transfer
      * @param tokenIds Array of token IDs of the names being ejected
      * @param transferDataArray Array of transfer data items
-     * @param isMint Whether the names are being minted or ejected
      */
-    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray, bool isMint) internal virtual;
+    function _onEject(address from, uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal virtual;
 }

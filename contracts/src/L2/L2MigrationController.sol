@@ -9,12 +9,16 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {PermissionedRegistry} from "../common/PermissionedRegistry.sol";
 import {SimpleRegistryMetadata} from "../common/SimpleRegistryMetadata.sol";
+import {L2EjectionController} from "./L2EjectionController.sol";
+import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
  * @title L2MigrationController
  * @dev Controller that handles migration messages from L1 to L2
  */
-contract L2MigrationController is Ownable {
+contract L2MigrationController is Ownable, IERC1155Receiver, ERC165 {
     error UnauthorizedCaller(address caller);
     error MigrationFailed();
     error InvalidTLD(bytes32 labelHash);
@@ -27,7 +31,7 @@ contract L2MigrationController is Ownable {
     bytes32 public constant ETH_TLD_HASH = keccak256(bytes("eth"));
 
     address public immutable bridge;
-    address public immutable ejectionController;
+    L2EjectionController public immutable ejectionController;
     PermissionedRegistry public immutable ethRegistry;
     IRegistryDatastore public immutable datastore;
 
@@ -40,7 +44,7 @@ contract L2MigrationController is Ownable {
 
     constructor(
         address _bridge, 
-        address _ejectionController,
+        L2EjectionController _ejectionController,
         PermissionedRegistry _ethRegistry, 
         IRegistryDatastore _datastore
     ) Ownable(msg.sender) {
@@ -73,13 +77,11 @@ contract L2MigrationController is Ownable {
             label,
             /*
             * If the migrated name is being kept on L1 then we need to 
-            * mint it to the ejection controller so that the user can eject it 
-            * back to L2 in future.
-            *
-            * The ejection controller won't trigger ejection bridge calls for names 
-            * that are minted to it.
+            * register it to this migration controller first and then transfer it
+            * to the ejection controller. The ejection controller will recognize
+            * our ROLE_MIGRATION_CONTROLLER permission and skip bridge calls.
             */
-            migrationData.toL1 ? ejectionController : migrationData.transferData.owner,
+            migrationData.toL1 ? address(this) : migrationData.transferData.owner,
             new PermissionedRegistry(
                datastore,
                 new SimpleRegistryMetadata(),
@@ -90,8 +92,13 @@ contract L2MigrationController is Ownable {
             migrationData.transferData.expires
         );
 
-        // if the migrated name is being kept on L1 then we need to transfer it to the ejection controller
-        // but without triggering ejection
+        // If migrating to L1, transfer the token to the ejection controller
+        // The ejection controller will check our ROLE_MIGRATION_CONTROLLER permission
+        // and skip sending bridge messages for migration transfers
+        if (migrationData.toL1) {
+            bytes memory transferDataBytes = abi.encode(migrationData.transferData);
+            registry.safeTransferFrom(address(this), address(ejectionController), tokenId, 1, transferDataBytes);
+        }
 
         emit MigrationCompleted(dnsEncodedName, tokenId);
     }
@@ -156,5 +163,38 @@ contract L2MigrationController is Ownable {
         }
         
         return (parentRegistry, label, true);
+    }
+
+    /**
+     * @dev See {IERC165-supportsInterface}.
+     */
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(IERC1155Receiver).interfaceId || super.supportsInterface(interfaceId);
+    }
+
+    /**
+     * @dev Handle the receipt of a single ERC1155 token type.
+     */
+    function onERC1155Received(
+        address /* operator */,
+        address /* from */,
+        uint256 /* id */,
+        uint256 /* value */,
+        bytes calldata /* data */
+    ) external pure override returns (bytes4) {
+        return this.onERC1155Received.selector;
+    }
+
+    /**
+     * @dev Handle the receipt of multiple ERC1155 token types.
+     */
+    function onERC1155BatchReceived(
+        address /* operator */,
+        address /* from */,
+        uint256[] calldata /* ids */,
+        uint256[] calldata /* values */,
+        bytes calldata /* data */
+    ) external pure override returns (bytes4) {
+        return this.onERC1155BatchReceived.selector;
     }
 } 

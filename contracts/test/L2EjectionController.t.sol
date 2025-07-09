@@ -31,7 +31,18 @@ contract MockRegistryMetadata is IRegistryMetadata {
 
 // Mock implementation of IBridge for testing
 contract MockBridge is IBridge {
-    function sendMessage(bytes memory) external override {}
+    uint256 public sendMessageCallCount;
+    bytes public lastMessage;
+
+    function sendMessage(bytes memory message) external override {
+        sendMessageCallCount++;
+        lastMessage = message;
+    }
+
+    function resetCounters() external {
+        sendMessageCallCount = 0;
+        lastMessage = "";
+    }
 }
 
 contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
@@ -566,6 +577,114 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         
         // Verify token is now owned by the controller
         assertEq(registry.ownerOf(tokenId), address(controller), "Token should be owned by the controller");
+    }
+
+    function test_migrationTransfer_noBridgeMessage() public {
+        // Test that migration controllers don't trigger bridge messages
+        
+        // Reset bridge message counter
+        bridge.resetCounters();
+        
+        string memory migrationLabel = "migrationtest";
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        
+        // Register a name to user first (simulating migration controller)
+        uint256 migrationTokenId = registry.register(migrationLabel, user, registry, address(0), TestUtils.ALL_ROLES, expiryTime);
+        
+        // Create transfer data for the migration
+        TransferData memory transferData = TransferData({
+            label: migrationLabel,
+            owner: l1Owner,
+            subregistry: l1Subregistry,
+            resolver: l1Resolver,
+            expires: expiryTime,
+            roleBitmap: TestUtils.ALL_ROLES
+        });
+        
+        // Grant this test contract the ROLE_MIGRATION_CONTROLLER role
+        controller.grantRootRoles(1 << 0, address(this));
+        
+        // Transfer the token to this test contract first (simulating migration controller receiving it)
+        vm.prank(user);
+        registry.safeTransferFrom(user, address(this), migrationTokenId, 1, "");
+        
+        bytes memory transferDataBytes = abi.encode(transferData);
+        
+        vm.recordLogs();
+        
+        // Transfer to ejection controller as migration controller (should not send bridge message)
+        registry.safeTransferFrom(address(this), address(controller), migrationTokenId, 1, transferDataBytes);
+        
+        // Verify no bridge message was sent during migration transfer
+        assertEq(bridge.sendMessageCallCount(), 0, "Bridge message should not be sent during migration transfer");
+        
+        // Verify NameEjectedToL1 event was NOT emitted during migration transfer
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool foundEjectionEvent = _findNameEjectedToL1Event(logs);
+        assertFalse(foundEjectionEvent, "NameEjectedToL1 event should not be emitted during migration transfer");
+        
+        // Verify the controller owns the token after migration transfer
+        assertEq(registry.ownerOf(migrationTokenId), address(controller), "Controller should own the token after migration transfer");
+        
+        // Verify subregistry was cleared
+        (address subregAddr, , ) = datastore.getSubregistry(migrationTokenId);
+        assertEq(subregAddr, address(0), "Subregistry should be cleared during migration transfer");
+        
+        // Verify token observer was set
+        assertEq(address(registry.tokenObservers(migrationTokenId)), address(controller), "Token observer should be set during migration transfer");
+    }
+    
+
+
+    function test_regularTransfer_sendsBridgeMessage() public {
+        // Test that regular users (without ROLE_MIGRATION_CONTROLLER) trigger bridge messages
+        
+        string memory migrationLabel = "migrationtest";
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        
+        // Register a name to user
+        uint256 migrationTokenId = registry.register(migrationLabel, user, registry, address(0), TestUtils.ALL_ROLES, expiryTime);
+        
+        // Create transfer data for the migration
+        TransferData memory transferData = TransferData({
+            label: migrationLabel,
+            owner: l1Owner,
+            subregistry: l1Subregistry,
+            resolver: l1Resolver,
+            expires: expiryTime,
+            roleBitmap: TestUtils.ALL_ROLES
+        });
+        
+        bytes memory transferDataBytes = abi.encode(transferData);
+        
+        // Reset bridge message counter
+        bridge.resetCounters();
+        
+        vm.recordLogs();
+        
+        // User (without ROLE_MIGRATION_CONTROLLER) transfers to ejection controller
+        vm.prank(user);
+        registry.safeTransferFrom(user, address(controller), migrationTokenId, 1, transferDataBytes);
+        
+        // Verify bridge message was sent for regular user transfer
+        assertEq(bridge.sendMessageCallCount(), 1, "Bridge message should be sent for regular user transfers");
+        
+        // Verify NameEjectedToL1 event was emitted
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool foundEjectionEvent = _findNameEjectedToL1Event(logs);
+        assertTrue(foundEjectionEvent, "NameEjectedToL1 event should be emitted for regular user transfers");
+    }
+    
+    function _findNameEjectedToL1Event(Vm.Log[] memory logs) internal view returns (bool) {
+        bytes32 eventSig = keccak256("NameEjectedToL1(bytes,uint256)");
+        
+        for (uint i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(controller) && 
+                logs[i].topics[0] == eventSig) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Add test to verify the internal callback methods are correctly called through token observer interface
