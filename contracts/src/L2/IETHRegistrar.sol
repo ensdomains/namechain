@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {IRegistry} from "../common/IRegistry.sol";
-import {IPriceOracle} from "./IPriceOracle.sol";
+import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 
 /**
  * @dev Interface for the ETH Registrar.

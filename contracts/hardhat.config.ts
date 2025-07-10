@@ -1,5 +1,4 @@
 import { configVariable, type HardhatUserConfig } from "hardhat/config";
-import fs from "node:fs";
 
 import HardhatChaiMatchersViemPlugin from "@ensdomains/hardhat-chai-matchers-viem";
 import HardhatKeystore from "@nomicfoundation/hardhat-keystore";
@@ -43,35 +42,44 @@ const config = {
     },
   },
   solidity: {
-    version: "0.8.25",
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 1000,
+    compilers: [
+      {
+        version: "0.8.25",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 1000,
+          },
+          evmVersion: "cancun",
+          outputSelection: {
+            "*": {
+              "*": ["storageLayout"],
+            },
+          },
+        },
       },
-      evmVersion: "cancun",
-    },
-    remappings: fs
-      .readFileSync("./remappings.txt", "utf-8")
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0),
+      {
+        version: "0.4.11",
+      },
+    ],
   },
   paths: {
-    sources: [
-      "./src",
-      "./lib/verifiable-factory/src",
-      "./lib/ens-contracts/contracts/resolvers/profiles/",
-      "./lib/openzeppelin-contracts/contracts/utils/introspection/",
-    ],
+    sources: {
+      solidity: [
+        "./src/",
+        "./lib/verifiable-factory/src/",
+        "./lib/ens-contracts/contracts/",
+        "./lib/openzeppelin-contracts/contracts/utils/introspection/",
+      ],
+    },
   },
   plugins: [
     HardhatNetworkHelpersPlugin,
     HardhatChaiMatchersViemPlugin,
     HardhatViem,
-    HardhatDeploy,
     HardhatKeystore,
     HardhatStorageLayoutPlugin,
+    HardhatDeploy,
   ],
 } satisfies HardhatUserConfig;
 
