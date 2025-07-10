@@ -16,6 +16,7 @@ import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/EnhancedAccessControl.sol";
 import "../src/common/NameUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
+import {TestUtils} from "./utils/TestUtils.sol";
 
 contract TestETHRegistrar is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -35,11 +36,11 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
     // Hardcoded role constants
     uint256 constant ROLE_REGISTRAR = 1 << 0;
-    uint256 constant ROLE_RENEW = 1 << 1;
+    uint256 constant ROLE_RENEW = 1 << 4;
     
-    uint256 constant ROLE_SET_PRICE_ORACLE = 1 << 0;
+    uint256 constant ROLE_SET_PRICE_ORACLE = 1 << 20;
     uint256 constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
-    uint256 constant ROLE_SET_COMMITMENT_AGES = 1 << 1;
+    uint256 constant ROLE_SET_COMMITMENT_AGES = 1 << 24;
     uint256 constant ROLE_SET_COMMITMENT_AGES_ADMIN = ROLE_SET_COMMITMENT_AGES << 128;
     
     bytes32 constant ROOT_RESOURCE = 0;
@@ -50,7 +51,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
         datastore = new RegistryDatastore();
         // Use a defined ALL_ROLES value for deployer roles
-        uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+        uint256 deployerRoles = TestUtils.ALL_ROLES;
         registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), deployerRoles);
         priceOracle = new MockPriceOracle(BASE_PRICE, PREMIUM_PRICE);
         
@@ -277,7 +278,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         );
 
         bytes32 resource = registry.getTokenIdResource(tokenId);
-        assertTrue(registry.hasRoles(resource, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, owner));
+        assertTrue(registry.hasRoles(resource, TestUtils.ALL_ROLES, owner));
     }
 
     function test_Revert_insufficientValue() public {
@@ -816,10 +817,10 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         bytes32 resource = registry.getTokenIdResource(tokenId);
 
         // Check individual roles
-        uint256 ROLE_SET_SUBREGISTRY = 1 << 2;
-        uint256 ROLE_SET_SUBREGISTRY_ADMIN = 1 << 130;
-        uint256 ROLE_SET_RESOLVER = 1 << 3;
-        uint256 ROLE_SET_RESOLVER_ADMIN = 1 << 131;
+        uint256 ROLE_SET_SUBREGISTRY = 1 << 8;
+        uint256 ROLE_SET_SUBREGISTRY_ADMIN = ROLE_SET_SUBREGISTRY << 128;
+        uint256 ROLE_SET_RESOLVER = 1 << 12;
+        uint256 ROLE_SET_RESOLVER_ADMIN = ROLE_SET_RESOLVER << 128;
 
         assertTrue(registry.hasRoles(resource, ROLE_SET_SUBREGISTRY, user1));
         assertTrue(registry.hasRoles(resource, ROLE_SET_SUBREGISTRY_ADMIN, user1));

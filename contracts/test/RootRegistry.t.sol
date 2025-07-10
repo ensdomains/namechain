@@ -11,6 +11,7 @@ import "../src/common/RegistryDatastore.sol";
 import "../src/common/EnhancedAccessControl.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/BaseRegistry.sol";
+import {TestUtils} from "./utils/TestUtils.sol";
 
 contract TestRootRegistry is Test, ERC1155Holder {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
@@ -22,12 +23,11 @@ contract TestRootRegistry is Test, ERC1155Holder {
     SimpleRegistryMetadata metadata;
 
     // Hardcoded role constants
-    uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
     uint256 constant ROLE_REGISTRAR = 1 << 0;
-    
-    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
-    uint256 constant ROLE_SET_RESOLVER = 1 << 3;
-    uint256 constant ROLE_SET_FLAGS = 1 << 4;
+    uint256 constant ROLE_UPDATE_METADATA = 1 << 0; // same as ROLE_REGISTRAR
+    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 8;
+    uint256 constant ROLE_SET_RESOLVER = 1 << 12;
+    uint256 constant ROLE_SET_FLAGS = 1 << 16;
     uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER | ROLE_SET_FLAGS;
     uint256 constant lockedResolverRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_FLAGS;
     uint256 constant lockedSubregistryRoleBitmap = ROLE_SET_RESOLVER | ROLE_SET_FLAGS;
@@ -39,8 +39,8 @@ contract TestRootRegistry is Test, ERC1155Holder {
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
-        // Use a defined ALL_ROLES value for deployer roles
-        uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+        // Use the valid ALL_ROLES value for deployer roles
+        uint256 deployerRoles = TestUtils.ALL_ROLES;
         registry = new PermissionedRegistry(datastore, metadata, deployerRoles);
         metadata.grantRootRoles(ROLE_UPDATE_METADATA, address(registry));
     }

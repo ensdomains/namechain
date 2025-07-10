@@ -6,15 +6,15 @@ abstract contract RegistryRolesMixin {
     uint256 internal constant ROLE_REGISTRAR = 1 << 0;
     uint256 internal constant ROLE_REGISTRAR_ADMIN = ROLE_REGISTRAR << 128;
 
-    uint256 internal constant ROLE_RENEW = 1 << 1;
+    uint256 internal constant ROLE_RENEW = 1 << 4;
     uint256 internal constant ROLE_RENEW_ADMIN = ROLE_RENEW << 128;
 
-    uint256 internal constant ROLE_SET_SUBREGISTRY = 1 << 2;
+    uint256 internal constant ROLE_SET_SUBREGISTRY = 1 << 8;
     uint256 internal constant ROLE_SET_SUBREGISTRY_ADMIN = ROLE_SET_SUBREGISTRY << 128;
 
-    uint256 internal constant ROLE_SET_RESOLVER = 1 << 3;
+    uint256 internal constant ROLE_SET_RESOLVER = 1 << 12;
     uint256 internal constant ROLE_SET_RESOLVER_ADMIN = ROLE_SET_RESOLVER << 128;
 
-    uint256 internal constant ROLE_SET_TOKEN_OBSERVER = 1 << 4;
+    uint256 internal constant ROLE_SET_TOKEN_OBSERVER = 1 << 16;
     uint256 internal constant ROLE_SET_TOKEN_OBSERVER_ADMIN = ROLE_SET_TOKEN_OBSERVER << 128;
 }
