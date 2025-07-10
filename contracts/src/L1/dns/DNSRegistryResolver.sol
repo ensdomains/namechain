@@ -6,7 +6,7 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
-import {IRegistryResolver} from "../eth/IRegistryResolver.sol";
+import {IRegistryResolver} from "../../common/IRegistryResolver.sol";
 import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
@@ -57,7 +57,7 @@ contract DNSRegistryResolver is
         bytes calldata context
     ) internal pure returns (address registry, bytes32 nodeSuffix) {
         require(
-            context.length > 43 &&
+            context.length >= 43 &&
                 context[0] == "0" &&
                 context[1] == "x" &&
                 context[42] == " ",

@@ -9,14 +9,15 @@ import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRe
 import {GatewayFetchTarget, IGatewayVerifier} from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
 
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
-import {IRegistryResolver} from "./IRegistryResolver.sol";
+import {IRegistryResolver} from "../common/IRegistryResolver.sol";
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
-import {NameUtils} from "../../common/NameUtils.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {NameUtils} from "../common/NameUtils.sol";
+import {NameMatcher} from "../common/NameMatcher.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
-import {DedicatedResolverLayout} from "../../common/DedicatedResolverLayout.sol";
+import {DedicatedResolverLayout} from "../common/DedicatedResolverLayout.sol";
 import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 
@@ -129,50 +130,6 @@ contract ETHFallbackResolver is
         maxReadsPerRequest = reads;
     }
 
-    /// @dev Find the offset of `name` that hashes to `nodeSuffix`.
-    /// @param name The name to search.
-    /// @param nodeSuffix The node to match.
-    /// @return matched True if name ends with the suffix.
-    /// @return node The namehash of name.
-    /// @return prevOffset The offset of the label before the suffix.
-    /// @return suffixOffset The offset of name that hashes to the suffix.
-    function _matchSuffix(
-        bytes memory name,
-        uint256 offset,
-        bytes32 nodeSuffix
-    )
-        internal
-        pure
-        returns (
-            bool matched,
-            bytes32 node,
-            uint256 prevOffset,
-            uint256 suffixOffset
-        )
-    {
-        (bytes32 labelHash, uint256 next) = NameCoder.readLabel(name, offset);
-        if (labelHash != bytes32(0)) {
-            (matched, node, prevOffset, suffixOffset) = _matchSuffix(
-                name,
-                next,
-                nodeSuffix
-            );
-            if (node == nodeSuffix) {
-                matched = true;
-                prevOffset = offset;
-                suffixOffset = next;
-            }
-            assembly {
-                mstore(0, node)
-                mstore(32, labelHash)
-                node := keccak256(0, 64) // compute namehash()
-            }
-        }
-        if (node == nodeSuffix) {
-            matched = true;
-        }
-    }
-
     /// @dev Determine if labelhash is actively registered on V1.
     /// @param id The labelhash of the "eth" 2LD.
     /// @return True if the registration is active.
@@ -199,7 +156,7 @@ contract ETHFallbackResolver is
         bytes calldata name,
         bytes calldata data
     ) public view returns (bytes memory) {
-        (bool matched, , uint256 prevOffset, uint256 offset) = _matchSuffix(
+        (bool matched, , uint256 prevOffset, uint256 offset) = NameMatcher.suffix(
             name,
             0,
             nodeSuffix

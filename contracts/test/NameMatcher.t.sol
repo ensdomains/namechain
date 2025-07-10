@@ -2,50 +2,24 @@
 pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {ETHFallbackResolver, IBaseRegistrar, IUniversalResolver, IGatewayVerifier, NameCoder, ETH_NODE} from "../../src/L1/eth/ETHFallbackResolver.sol";
+import {NameMatcher, NameCoder} from "../src/common/NameMatcher.sol";
 
-contract MockETHFallbackResolver is ETHFallbackResolver {
-    constructor()
-        ETHFallbackResolver(
-            IBaseRegistrar(address(0)),
-            IUniversalResolver(address(0)),
-            address(0),
-            address(0),
-            IGatewayVerifier(address(0)),
-            address(0),
-            address(0)
-        )
-    {}
-
-    function matchSuffix(
-        bytes calldata name,
-        bytes32 suffixNode
-    ) external pure returns (bool, bytes32, uint256, uint256) {
-        return _matchSuffix(name, 0, suffixNode);
-    }
-}
-
-contract TestETHFallbackResolver is Test {
-    MockETHFallbackResolver efr;
-
-    function setUp() external {
-        efr = new MockETHFallbackResolver();
-    }
-
-    function test_ETH_NODE() external pure {
-        assertEq(ETH_NODE, NameCoder.namehash(NameCoder.encode("eth"), 0));
-    }
-
+contract TestNameMatcher is Test {
     function _assertMatch(
         string memory ensName,
         string memory ensNameSuffix,
         uint256 expectPrevOffset,
         uint256 expectOffset
-    ) internal view {
+    ) internal pure {
         bytes memory name = NameCoder.encode(ensName);
-        (bool matched, bytes32 node, uint256 prevOffset, uint256 offset) = efr
-            .matchSuffix(
+        (
+            bool matched,
+            bytes32 node,
+            uint256 prevOffset,
+            uint256 offset
+        ) = NameMatcher.suffix(
                 name,
+                0,
                 NameCoder.namehash(NameCoder.encode(ensNameSuffix), 0)
             );
         assertTrue(
@@ -72,34 +46,38 @@ contract TestETHFallbackResolver is Test {
     function _assertNoMatch(
         string memory ensName,
         string memory ensNameSuffix
-    ) internal view {
-        (bool matched, , , ) = efr.matchSuffix(
+    ) internal pure {
+        (bool matched, , , ) = NameMatcher.suffix(
             NameCoder.encode(ensName),
+            0,
             NameCoder.namehash(NameCoder.encode(ensNameSuffix), 0)
         );
-        assertFalse(matched, string(abi.encodePacked(ensName, "/", ensNameSuffix)));
+        assertFalse(
+            matched,
+            string(abi.encodePacked(ensName, "/", ensNameSuffix))
+        );
     }
 
-    function test_matchSuffix_same() external view {
+    function test_matchSuffix_same() external pure {
         _assertMatch("", "", 0, 0);
         _assertMatch("eth", "eth", 0, 0);
         _assertMatch("a.b.c", "a.b.c", 0, 0);
     }
 
-    function test_matchSuffix_dotEth() external view {
+    function test_matchSuffix_dotEth() external pure {
         _assertMatch("aaaaa.eth", "eth", 0, 6);
         _assertMatch("a.bbb.eth", "eth", 2, 6);
         _assertMatch("a.b.c.eth", "eth", 4, 6);
     }
 
-    function test_matchSuffix_notEth() external view {
+    function test_matchSuffix_notEth() external pure {
         _assertMatch("a.b.c.d", "b.c.d", 0, 2);
         _assertMatch("a.b.c.d", "c.d", 2, 4);
         _assertMatch("a.b.c.d", "d", 4, 6);
         _assertMatch("a.b.c.d", "", 6, 8);
     }
 
-    function test_matchSuffix_noMatch() external view {
+    function test_matchSuffix_noMatch() external pure {
         _assertNoMatch("a", "b");
         _assertNoMatch("a", "a.b");
         _assertNoMatch("a", "b.a");
