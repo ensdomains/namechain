@@ -35,6 +35,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         registry = new PermissionedRegistry(
             datastore,
             metadata,
+            address(this),
             deployerRoles
         );
     }

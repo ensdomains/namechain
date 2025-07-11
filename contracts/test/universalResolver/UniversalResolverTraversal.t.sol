@@ -18,6 +18,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             new PermissionedRegistry(
                 datastore,
                 IRegistryMetadata(address(0)),
+                address(this),
                 TestUtils.ALL_ROLES
             );
     }

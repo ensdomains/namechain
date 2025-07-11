@@ -8,22 +8,32 @@ export default execute(
 
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
-
-    // TODO: real bridge
     const l2Bridge =
       get<(typeof artifacts.MockL2Bridge)["abi"]>("MockL2Bridge");
+    const registryDatastore =
+      get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
+    const registryFactory =
+      get<(typeof artifacts.RegistryFactory)["abi"]>("RegistryFactory");
 
-    const l2BridgeController = await deploy("L2EjectionController", {
+    const l2BridgeController = await deploy("L2BridgeController", {
       account: deployer,
-      artifact: artifacts.L2EjectionController,
-      args: [ethRegistry.address, l2Bridge.address],
+      artifact: artifacts.L2BridgeController,
+      args: [
+        l2Bridge.address,
+        ethRegistry.address,
+        registryDatastore.address,
+        registryFactory.address,
+      ],
     });
 
+    // Set the bridge controller on the bridge
     await write(l2Bridge, {
-      functionName: "setEjectionController",
+      functionName: "setBridgeController",
       args: [l2BridgeController.address],
       account: deployer,
     });
+
+    // Grant registrar and renew roles to the bridge controller on the eth registry
     await write(ethRegistry, {
       functionName: "grantRootRoles",
       args: [
@@ -35,7 +45,7 @@ export default execute(
   },
   // finally you can pass tags and dependencies
   {
-    tags: ["L2EjectionController", "registry", "l2"],
-    dependencies: ["ETHRegistry", "MockL2Bridge"],
+    tags: ["L2BridgeController", "registry", "l2"],
+    dependencies: ["ETHRegistry", "MockL2Bridge", "RegistryDatastore", "RegistryFactory"],
   },
-);
+); 
