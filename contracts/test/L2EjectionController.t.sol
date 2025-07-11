@@ -48,6 +48,9 @@ contract MockBridge is IBridge {
 contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
     // Import constants from RegistryRolesMixin and EnhancedAccessControl
     bytes32 constant ROOT_RESOURCE = bytes32(0);
+
+    uint256 constant ROLE_MIGRATION_CONTROLLER = 1 << 0;
+    uint256 constant ROLE_MIGRATION_CONTROLLER_ADMIN = ROLE_MIGRATION_CONTROLLER << 128;
     
     TestL2EjectionControllerImpl controller; 
     PermissionedRegistry registry;
@@ -602,7 +605,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         });
         
         // Grant this test contract the ROLE_MIGRATION_CONTROLLER role
-        controller.grantRootRoles(1 << 0, address(this));
+        controller.grantRootRoles(ROLE_MIGRATION_CONTROLLER, address(this));
         
         // Transfer the token to this test contract first (simulating migration controller receiving it)
         vm.prank(user);

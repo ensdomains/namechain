@@ -23,7 +23,7 @@ contract L2EjectionController is EjectionController, ITokenObserver, EnhancedAcc
     uint256 internal constant ROLE_MIGRATION_CONTROLLER_ADMIN = ROLE_MIGRATION_CONTROLLER << 128;
 
     constructor(IPermissionedRegistry _registry, IBridge _bridge) EjectionController(_registry, _bridge) {
-        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender(), false);
+        _grantRoles(ROOT_RESOURCE, ROLE_MIGRATION_CONTROLLER_ADMIN, _msgSender(), false);
     }
 
     /**
