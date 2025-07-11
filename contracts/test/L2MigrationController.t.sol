@@ -12,6 +12,8 @@ import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
+import {RegistryFactory} from "../src/common/RegistryFactory.sol";
+import {IRegistryFactory} from "../src/common/IRegistryFactory.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
 import {IBridge} from "../src/common/IBridge.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
@@ -74,6 +76,7 @@ contract TestL2MigrationController is Test {
     PermissionedRegistry ethRegistry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
+    RegistryFactory registryFactory;
 
     address user = address(0x1);
     address owner = address(0x2);
@@ -91,8 +94,11 @@ contract TestL2MigrationController is Test {
         registryMetadata = new MockRegistryMetadata();
         bridge = new MockBridge();
         
+        // Deploy registry factory
+        registryFactory = new RegistryFactory();
+        
         // Deploy ETH registry
-        ethRegistry = new PermissionedRegistry(datastore, registryMetadata, TestUtils.ALL_ROLES);
+        ethRegistry = new PermissionedRegistry(datastore, registryMetadata, address(this), TestUtils.ALL_ROLES);
         
         // Deploy ejection controller
         ejectionController = new MockL2EjectionController(ethRegistry, bridge);
@@ -102,7 +108,8 @@ contract TestL2MigrationController is Test {
             address(bridge), 
             ejectionController,
             ethRegistry, 
-            datastore
+            datastore,
+            registryFactory
         );
         
         // Grant roles to migration controller for registering names
@@ -225,6 +232,7 @@ contract TestL2MigrationController is Test {
         assertEq(address(migrationController.ejectionController()), address(ejectionController));
         assertEq(address(migrationController.ethRegistry()), address(ethRegistry));
         assertEq(address(migrationController.datastore()), address(datastore));
+        assertEq(address(migrationController.registryFactory()), address(registryFactory));
         assertEq(migrationController.ETH_TLD_HASH(), ETH_TLD_HASH);
         assertEq(migrationController.owner(), address(this));
     }

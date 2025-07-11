@@ -41,7 +41,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         metadata = new SimpleRegistryMetadata();
         // Use the valid ALL_ROLES value for deployer roles
         uint256 deployerRoles = TestUtils.ALL_ROLES;
-        registry = new PermissionedRegistry(datastore, metadata, deployerRoles);
+        registry = new PermissionedRegistry(datastore, metadata, address(this), deployerRoles);
         metadata.grantRootRoles(ROLE_UPDATE_METADATA, address(registry));
     }
 

@@ -131,7 +131,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         bridge = new MockBridge();
         
         // Deploy the registry
-        registry = new PermissionedRegistry(datastore, registryMetadata, ALL_ROLES);
+        registry = new PermissionedRegistry(datastore, registryMetadata, address(this), ALL_ROLES);
         
         // Create the real controller with the correct registry and bridge
         ejectionController = new L1EjectionController(registry, bridge);

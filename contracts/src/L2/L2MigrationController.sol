@@ -8,7 +8,7 @@ import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {PermissionedRegistry} from "../common/PermissionedRegistry.sol";
-import {SimpleRegistryMetadata} from "../common/SimpleRegistryMetadata.sol";
+import {IRegistryFactory} from "../common/IRegistryFactory.sol";
 import {L2EjectionController} from "./L2EjectionController.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
@@ -34,6 +34,7 @@ contract L2MigrationController is Ownable, IERC1155Receiver, ERC165 {
     L2EjectionController public immutable ejectionController;
     PermissionedRegistry public immutable ethRegistry;
     IRegistryDatastore public immutable datastore;
+    IRegistryFactory public immutable registryFactory;
 
     modifier onlyBridge() {
         if (msg.sender != bridge) {
@@ -46,12 +47,14 @@ contract L2MigrationController is Ownable, IERC1155Receiver, ERC165 {
         address _bridge, 
         L2EjectionController _ejectionController,
         PermissionedRegistry _ethRegistry, 
-        IRegistryDatastore _datastore
+        IRegistryDatastore _datastore,
+        IRegistryFactory _registryFactory
     ) Ownable(msg.sender) {
         bridge = _bridge;
         ejectionController = _ejectionController;
         ethRegistry = _ethRegistry;
         datastore = _datastore;
+        registryFactory = _registryFactory;
     }
 
     /**
@@ -82,9 +85,9 @@ contract L2MigrationController is Ownable, IERC1155Receiver, ERC165 {
             * our ROLE_MIGRATION_CONTROLLER permission and skip bridge calls.
             */
             migrationData.toL1 ? address(this) : migrationData.transferData.owner,
-            new PermissionedRegistry(
-               datastore,
-                new SimpleRegistryMetadata(),
+            registryFactory.createRegistry(
+                datastore,
+                migrationData.toL1 ? address(this) : migrationData.transferData.owner,
                 registry.ALL_ROLES()
             ),
             migrationData.transferData.resolver,

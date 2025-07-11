@@ -51,7 +51,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
-        registry = new PermissionedRegistry(datastore, metadata, deployerRoles);
+        registry = new PermissionedRegistry(datastore, metadata, address(this), deployerRoles);
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
         priceOracle = new MockPriceOracle();

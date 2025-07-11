@@ -39,8 +39,8 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     function setUp() public {
         // Deploy the contracts
         datastore = new RegistryDatastore();
-        l1Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), ALL_ROLES);
-        l2Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), ALL_ROLES);
+        l1Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), ALL_ROLES);
+        l2Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), ALL_ROLES);
         
         // Deploy bridges
         l1Bridge = new MockL1Bridge();

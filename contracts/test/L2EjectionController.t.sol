@@ -129,7 +129,7 @@ contract TestL2EjectionController is Test, ERC1155Holder, RegistryRolesMixin {
         registryMetadata = new MockRegistryMetadata();
         bridge = new MockBridge();
         
-        registry = new PermissionedRegistry(datastore, registryMetadata, TestUtils.ALL_ROLES);
+        registry = new PermissionedRegistry(datastore, registryMetadata, address(this), TestUtils.ALL_ROLES);
         
         // Now deploy the test controller with the correct registry and bridge
         controller = new TestL2EjectionControllerImpl(registry, bridge); // Deploy TestL2EjectionControllerImpl
