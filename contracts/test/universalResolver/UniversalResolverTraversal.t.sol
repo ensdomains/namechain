@@ -189,4 +189,32 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         assertEq(address(registry), address(testRegistry), "registry");
         assertEq(exact, false, "exact");
     }
+
+    function test_findResolver_longV1() external {
+        //     name:  \0^300 . eth
+        // registry:          <eth> <root>
+        // resolver:           0x1
+        PermissionedRegistry ethRegistry = _createRegistry();
+        rootRegistry.register(
+            "eth",
+            address(this),
+            ethRegistry,
+            address(1),
+            TestUtils.ALL_ROLES,
+            uint64(block.timestamp + 1000)
+        );
+
+        bytes memory name = NameCoder.encode(
+            string(abi.encodePacked(new bytes(300), ".eth"))
+        );
+        (address resolver, , uint256 offset) = universalResolver.findResolver(
+            name
+        );
+        (IRegistry registry, bool exact) = universalResolver.getRegistry(name);
+
+        assertEq(resolver, address(1), "resolver");
+        assertEq(offset, 67, "offset");
+        assertEq(address(registry), address(ethRegistry), "registry");
+        assertEq(exact, false, "exact");
+    }
 }

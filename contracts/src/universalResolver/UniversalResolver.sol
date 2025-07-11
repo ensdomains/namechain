@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.13;
+pragma solidity >=0.8.24;
 
 import {AbstractUniversalResolver, NameCoder} from "./AbstractUniversalResolver.sol";
 import {NameUtils} from "../common/NameUtils.sol";
@@ -49,6 +49,7 @@ contract UniversalResolver is AbstractUniversalResolver {
     {
         uint256 size = uint8(name[offset0]);
         if (size == 0) {
+            // check for junk at end of name?
             return (rootRegistry, true, address(0), offset0);
         }
         (registry, exact, resolver, offset) = _findResolver(
@@ -56,17 +57,24 @@ contract UniversalResolver is AbstractUniversalResolver {
             offset0 + 1 + size
         );
         if (exact) {
-            string memory label = NameUtils.readLabel(name, offset0);
-            address r = registry.getResolver(label);
-            if (r != address(0)) {
-                resolver = r;
-                offset = offset0;
+            string memory label = new string(size);
+            assembly {
+                mcopy(add(label, 32), add(add(name, 33), offset0), size) // copy label
             }
-            IRegistry sub = registry.getSubregistry(label);
-            if (address(sub) == address(0)) {
+            if (NameUtils.isHashedLabel(label)) {
                 exact = false;
             } else {
-                registry = sub;
+                address r = registry.getResolver(label);
+                if (r != address(0)) {
+                    resolver = r;
+                    offset = offset0;
+                }
+                IRegistry sub = registry.getSubregistry(label);
+                if (address(sub) == address(0)) {
+                    exact = false;
+                } else {
+                    registry = sub;
+                }
             }
         }
     }

@@ -199,6 +199,12 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
     }
 
+    function test_Revert_register_name_too_long() public {
+        string memory name = new string(256);
+        vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameTooLong.selector, name));
+        registry.register(name, address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
+    }
+
     function test_set_subregistry() public {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
         registry.setSubregistry(tokenId, IRegistry(address(this)));
