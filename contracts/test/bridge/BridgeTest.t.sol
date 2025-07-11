@@ -7,7 +7,7 @@ import "forge-std/Vm.sol";
 import "../../src/mocks/MockL1Bridge.sol";
 import "../../src/mocks/MockL2Bridge.sol";
 import "../../src/L1/L1EjectionController.sol";
-import "../../src/L2/L2EjectionController.sol";
+import "../../src/L2/L2BridgeController.sol";
 import "../../src/mocks/MockBridgeBase.sol";
 import {BridgeMessageType} from "../../src/common/IBridge.sol";
 import {BridgeEncoder} from "../../src/common/BridgeEncoder.sol";
@@ -22,15 +22,17 @@ import { EnhancedAccessControl } from "../../src/common/EnhancedAccessControl.so
 import { RegistryDatastore } from "../../src/common/RegistryDatastore.sol";
 import { IRegistryMetadata } from "../../src/common/IRegistryMetadata.sol";
 import { RegistryRolesMixin } from "../../src/common/RegistryRolesMixin.sol";
+import { RegistryFactory } from "../../src/common/RegistryFactory.sol";
 
 contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     RegistryDatastore datastore;
+    RegistryFactory registryFactory;
     PermissionedRegistry l1Registry;
     PermissionedRegistry l2Registry;
     MockL1Bridge l1Bridge;
     MockL2Bridge l2Bridge;
     L1EjectionController l1Controller;
-    L2EjectionController l2Controller;
+    L2BridgeController l2Controller;
     
     // Test accounts
     address user1 = address(0x1);
@@ -39,6 +41,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     function setUp() public {
         // Deploy the contracts
         datastore = new RegistryDatastore();
+        registryFactory = new RegistryFactory();
         l1Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), ALL_ROLES);
         l2Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), ALL_ROLES);
         
@@ -48,14 +51,15 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         
         // Deploy controllers
         l1Controller = new L1EjectionController(l1Registry, l1Bridge);
-        l2Controller = new L2EjectionController(l2Registry, l2Bridge);
+        l2Controller = new L2BridgeController(l2Bridge, l2Registry, datastore, registryFactory);
         
         // Set the controller contracts as targets for the bridges
         l1Bridge.setEjectionController(l1Controller);
-        l2Bridge.setEjectionController(l2Controller);
+        l2Bridge.setBridgeController(l2Controller);
         
         // Grant ROLE_REGISTRAR and ROLE_RENEW to controllers
         l1Registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(l1Controller));
+        l2Registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(l2Controller));
     }
     
     function testNameEjectionFromL2ToL1() public {

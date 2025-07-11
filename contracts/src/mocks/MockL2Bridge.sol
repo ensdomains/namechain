@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {L2EjectionController} from "../L2/L2EjectionController.sol";
-import {L2MigrationController} from "../L2/L2MigrationController.sol";
+import {L2BridgeController} from "../L2/L2BridgeController.sol";
 import {MockBridgeBase} from "./MockBridgeBase.sol";
 import {BridgeMessageType} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
@@ -14,21 +13,14 @@ import {TransferData, MigrationData} from "../common/TransferData.sol";
  * Accepts arbitrary messages as bytes and calls the appropriate controller methods
  */
 contract MockL2Bridge is MockBridgeBase {
-    // Ejection controller to call when receiving ejection messages
-    L2EjectionController public ejectionController;
-    
-    // Migration controller to call when receiving migration messages
-    L2MigrationController public migrationController;
+    // Bridge controller to call when receiving messages
+    L2BridgeController public bridgeController;
         
     // Type-specific events with tokenId and data
     event NameBridgedToL1(bytes message);
         
-    function setEjectionController(L2EjectionController _ejectionController) external {
-        ejectionController = _ejectionController;
-    }
-    
-    function setMigrationController(L2MigrationController _migrationController) external {
-        migrationController = _migrationController;
+    function setBridgeController(L2BridgeController _bridgeController) external {
+        bridgeController = _bridgeController;
     }
     
     /**
@@ -52,7 +44,7 @@ contract MockL2Bridge is MockBridgeBase {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        ejectionController.completeEjectionFromL1(transferData);
+        bridgeController.completeEjectionFromL1(transferData);
     }
     
     /**
@@ -62,6 +54,6 @@ contract MockL2Bridge is MockBridgeBase {
         bytes memory dnsEncodedName,
         MigrationData memory migrationData
     ) internal override {
-        migrationController.completeMigrationFromL1(dnsEncodedName, migrationData);
+        bridgeController.completeMigrationFromL1(dnsEncodedName, migrationData);
     }
 }
