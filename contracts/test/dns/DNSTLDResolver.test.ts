@@ -51,9 +51,6 @@ async function fixture() {
     name: dnsnameResolver,
     resolverAddress: dnsTXTResolver.address,
   });
-  const dnsAliasResolver = await chain.viem.deployContract("DNSAliasResolver", [
-    mainnetV2.universalResolver.address,
-  ]);
   return {
     mainnetV1,
     mainnetV2,
@@ -61,7 +58,6 @@ async function fixture() {
     mockDNSSEC,
     dnsTLDResolver,
     dnsTXTResolver,
-    dnsAliasResolver,
     async expectGasless(kp: KnownProfile) {
       const bundle = bundleCalls(makeResolutions(kp));
       const [answer, resolver] = await mainnetV2.universalResolver.read.resolve(
@@ -434,83 +430,5 @@ describe("DNSTLDResolver", () => {
         texts: [{ key: TEXT_DNSSEC_CONTEXT, value: context }],
       });
     });
-  });
-
-  describe("DNSAliasResolver", () => {
-    shouldSupportInterfaces({
-      contract: () =>
-        chain.networkHelpers
-          .loadFixture(fixture)
-          .then((F) => F.dnsAliasResolver),
-      interfaces: ["IERC165", "IExtendedDNSResolver", "IFeatureSupporter"],
-    });
-
-    shouldSupportsFeatures({
-      contract: () =>
-        chain.networkHelpers
-          .loadFixture(fixture)
-          .then((F) => F.dnsAliasResolver),
-      features: {
-        RESOLVER: ["RESOLVE_MULTICALL"],
-      },
-    });
-
-    for (const context of ["com eth", "test.com test.eth", "test.eth"]) {
-      function create(
-        configure: (F: Awaited<ReturnType<typeof fixture>>) => Promise<void>,
-      ) {
-        return async () => {
-          const F = await chain.networkHelpers.loadFixture(fixture);
-          const kp: KnownProfile = {
-            name: "test.eth",
-            addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
-            texts: [{ key: "url", value: "https://ens.domains" }],
-          };
-          await F.mainnetV2.setupName({
-            name: kp.name,
-            resolverAddress: F.ssResolver.address,
-          });
-          for (const res of makeResolutions(kp)) {
-            await F.ssResolver.write.setResponse([res.call, res.answer]);
-          }
-          await configure(F);
-          await F.mockDNSSEC.write.setResponse([
-            encodeRRs([
-              makeTXT(
-                basicProfile.name,
-                `ENS1 ${F.dnsAliasResolver.address} ${context}`,
-              ),
-            ]),
-          ]);
-          await F.expectGasless({ ...kp, name: basicProfile.name });
-        };
-      }
-
-      describe(context.replace(" ", " => "), () => {
-        it(
-          "onchain immediate",
-          create(async () => {}),
-        );
-        it(
-          "onchain extended",
-          create(async (F) => {
-            await F.ssResolver.write.setExtended([true]);
-          }),
-        );
-        it(
-          "offchain immediate",
-          create(async (F) => {
-            await F.ssResolver.write.setOffchain([true]);
-          }),
-        );
-        it(
-          "offchain extended",
-          create(async (F) => {
-            await F.ssResolver.write.setExtended([true]);
-            await F.ssResolver.write.setOffchain([true]);
-          }),
-        );
-      });
-    }
   });
 });
