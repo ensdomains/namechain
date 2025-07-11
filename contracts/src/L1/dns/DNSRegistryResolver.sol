@@ -11,6 +11,9 @@ import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
 
+/// @title DNSRegistryResolver
+/// @notice Gasless DNSSEC resolver that continues resolution on Namechain (or any remote registry).
+/// "*.nick.com" + `ENS1 <this> <parentRegistry> com" &rarr; parentRegistry w/["nick", ...]
 contract DNSRegistryResolver is
     ERC165,
     CCIPReader,
@@ -38,6 +41,7 @@ contract DNSRegistryResolver is
         return ResolverFeatures.RESOLVE_MULTICALL == feature;
     }
 
+    /// @dev Resolve the records using `registryResolver`.
     function resolve(
         bytes calldata name,
         bytes calldata data,

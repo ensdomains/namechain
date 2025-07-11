@@ -13,6 +13,10 @@ import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
 
+/// @title DNSAliasResolver
+/// @notice Gasless DNSSEC resolver that directs to another name.
+/// Rewrite: "*.nick.com" + `ENS1 <this> com eth` &rarr; "*.nick.eth"
+/// Replace: "nick.com" + `ENS1 <this> nick.eth` &rarr; "nick.eth"
 contract DNSAliasResolver is
     ERC165,
     CCIPReader,

@@ -5,6 +5,7 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 library NameMatcher {
     /// @dev Find the offset of `name` that hashes to `nodeSuffix`.
+    ///      Supports hashed-labels.
     /// @param name The name to search.
     /// @param nodeSuffix The node to match.
     /// @return matched True if name ends with the suffix.

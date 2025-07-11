@@ -29,5 +29,22 @@ library ResolverProfileRewriter {
                 mstore(add(copy, 36), node)
             }
         }
+        // assembly {
+        //     function replace(ptr, _node) {
+        //         switch shr(224, mload(add(ptr, 32)))
+        //         case 0xac9650d8 {
+        //             let off := add(ptr, 36)
+        //             off := add(off, mload(off))
+        //             let size := shl(5, mload(off))
+        //             for { } size { size := sub(size, 32) } {
+        //                 replace(add(add(off, 32), mload(add(off, size))), _node)
+        //             }
+        //         }
+        //         default {
+        //             mstore(add(ptr, 36), _node)
+        //         }
+        //     }
+        //     replace(copy, node)
+        // }
     }
 }
