@@ -108,7 +108,28 @@ export async function setupCrossChainEnvironment() {
     "test test test test test test test test test test test junk",
   );
 
+  const l1Chain = {
+    id: l1Config.chainId,
+    name: 'L1 Local',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: {
+      default: { http: [`http://127.0.0.1:${l1.port}`] },
+      public: { http: [`http://127.0.0.1:${l1.port}`] },
+    },
+  } as const;
+
+  const l2Chain = {
+    id: l2Config.chainId,
+    name: 'L2 Local',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: {
+      default: { http: [`http://127.0.0.1:${l2.port}`] },
+      public: { http: [`http://127.0.0.1:${l2.port}`] },
+    },
+  } as const;
+
   const l1Client = createClient({
+    chain: l1Chain,
     transport: webSocket(`ws://127.0.0.1:${l1.port}`, {
       retryCount: 0,
     }),
@@ -117,6 +138,7 @@ export async function setupCrossChainEnvironment() {
   const l1Contracts = createDeploymentGetter(l1Deploy, l1Client);
 
   const l2Client = createClient({
+    chain: l2Chain,
     transport: webSocket(`ws://127.0.0.1:${l2.port}`, {
       retryCount: 0,
     }),

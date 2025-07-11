@@ -11,6 +11,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {BaseUriRegistryMetadata} from "../src/common/BaseUriRegistryMetadata.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
+import {TestUtils} from "./utils/TestUtils.sol";
 
 contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -18,16 +19,19 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     PermissionedRegistry parentRegistry;
     BaseUriRegistryMetadata metadata;
 
-    // Hardcoded role constants
     uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
+    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 8;
+    uint256 constant ROLE_SET_RESOLVER = 1 << 12;
+    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;    
+
     bytes32 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new BaseUriRegistryMetadata();
         
-        // Use a defined ALL_ROLES value for deployer roles
-        uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+        // Use the valid ALL_ROLES value for deployer roles
+        uint256 deployerRoles = TestUtils.ALL_ROLES;
         registry = new PermissionedRegistry(
             datastore,
             metadata,
@@ -91,10 +95,4 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         assertEq(metadata.supportsInterface(type(EnhancedAccessControl).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
-
-    // Role bitmaps for different permission configurations
-    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
-    uint256 constant ROLE_SET_RESOLVER = 1 << 3;
-    uint256 constant ROLE_SET_FLAGS = 1 << 4;
-    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
 } 

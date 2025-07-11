@@ -15,6 +15,7 @@ import "../src/common/IPermissionedRegistry.sol";
 import "../src/L2/ETHRegistrar.sol";
 import "../src/L2/IPriceOracle.sol";
 import "../src/common/ITokenObserver.sol";
+import {TestUtils} from "./utils/TestUtils.sol";
 
 
 contract TestPermissionedRegistry is Test, ERC1155Holder {
@@ -31,11 +32,11 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     // Role bitmaps for different permission configurations
     uint256 constant ROLE_REGISTRAR = 1 << 0;
     uint256 constant ROLE_REGISTRAR_ADMIN = ROLE_REGISTRAR << 128;
-    uint256 constant ROLE_RENEW = 1 << 1;
+    uint256 constant ROLE_RENEW = 1 << 4;
     uint256 constant ROLE_RENEW_ADMIN = ROLE_RENEW << 128;
-    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 2;
-    uint256 constant ROLE_SET_RESOLVER = 1 << 3;
-    uint256 constant ROLE_SET_TOKEN_OBSERVER = 1 << 4;
+    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 8;
+    uint256 constant ROLE_SET_RESOLVER = 1 << 12;
+    uint256 constant ROLE_SET_TOKEN_OBSERVER = 1 << 16;
     uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER | ROLE_SET_TOKEN_OBSERVER;
     uint256 constant lockedResolverRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_TOKEN_OBSERVER;
     uint256 constant lockedSubregistryRoleBitmap = ROLE_SET_RESOLVER | ROLE_SET_TOKEN_OBSERVER;
@@ -44,7 +45,8 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     address owner = makeAddr("owner");
     address user1 = makeAddr("user1");
 
-    uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    // all roles
+    uint256 deployerRoles = TestUtils.ALL_ROLES;
 
     function setUp() public {
         datastore = new RegistryDatastore();

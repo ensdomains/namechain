@@ -21,11 +21,11 @@ contract ETHRegistrar is
             ROLE_SET_RESOLVER |
             ROLE_SET_RESOLVER_ADMIN;
 
-    uint256 private constant ROLE_SET_PRICE_ORACLE = 1 << 0;
+    uint256 private constant ROLE_SET_PRICE_ORACLE = 1 << 20;
     uint256 private constant ROLE_SET_PRICE_ORACLE_ADMIN =
         ROLE_SET_PRICE_ORACLE << 128;
 
-    uint256 private constant ROLE_SET_COMMITMENT_AGES = 1 << 1;
+    uint256 private constant ROLE_SET_COMMITMENT_AGES = 1 << 24;
     uint256 private constant ROLE_SET_COMMITMENT_AGES_ADMIN =
         ROLE_SET_COMMITMENT_AGES << 128;
 
