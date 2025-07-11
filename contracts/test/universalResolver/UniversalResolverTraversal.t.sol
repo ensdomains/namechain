@@ -200,7 +200,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             address(this),
             ethRegistry,
             address(1),
-            ALL_ROLES,
+            TestUtils.ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
 
