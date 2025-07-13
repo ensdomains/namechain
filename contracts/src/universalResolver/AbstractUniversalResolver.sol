@@ -242,7 +242,7 @@ abstract contract AbstractUniversalResolver is
                 ),
             args.gateways,
             this.reverseAddressCallback.selector, // ==> step 3
-            abi.encode(args, primary, info.resolver, args.resolver)
+            abi.encode(args, primary, info.resolver)
         );
     }
 
@@ -263,9 +263,9 @@ abstract contract AbstractUniversalResolver is
         )
     {
         ReverseArgs memory args;
-        (args, primary, resolver, reverseResolver) = abi.decode(
+        (args, primary, resolver) = abi.decode(
             extraData,
-            (ReverseArgs, string, address, address)
+            (ReverseArgs, string, address)
         );
         bytes memory primaryAddress;
         if (args.coinType == COIN_TYPE_ETH) {
@@ -277,6 +277,7 @@ abstract contract AbstractUniversalResolver is
         if (!BytesUtils.equals(args.lookupAddress, primaryAddress)) {
             revert ReverseAddressMismatch(primary, primaryAddress);
         }
+        reverseResolver = args.resolver;
     }
 
     /// @dev Efficiently call a resolver.
