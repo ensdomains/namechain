@@ -8,6 +8,8 @@ import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165C
 import {CCIPBatcher, CCIPReader, OffchainLookup} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
 import {DNSSEC} from "@ens/contracts/dnssec-oracle/DNSSEC.sol";
 import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
+import {ResolverFinderV1, ENS} from "../../universalResolver/ResolverFinderV1.sol";
+import {ResolverFinder, IRegistry} from "../../universalResolver/ResolverFinder.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
@@ -27,14 +29,6 @@ interface IDNSGateway {
     ) external returns (DNSSEC.RRSetWithSignature[] memory);
 }
 
-/// @dev Partial interface for `UniversalResolver`.
-interface IUniversalResolverStub {
-    function findResolver(
-        bytes memory
-    ) external view returns (address, bytes32, uint256);
-    function batchGateways() external view returns (string[] memory);
-}
-
 uint16 constant CLASS_INET = 1;
 uint16 constant TYPE_TXT = 16;
 
@@ -50,10 +44,12 @@ contract DNSTLDResolver is
     Ownable,
     ERC165
 {
-    IUniversalResolverStub public immutable universalResolverV1;
-    IUniversalResolverStub public immutable universalResolverV2;
-    DNSSEC public immutable oracleVerifier;
-    string[] _gateways;
+    ENS public immutable ensRegistryV1;
+    address public immutable dnsTLDResolverV1;
+    IRegistry public immutable rootRegistry;
+    DNSSEC public immutable dnssecOracle;
+    string[] _oracleGateways;
+    string[] _batchGateways;
 
     /// @dev `name` does not exist.
     ///      Error selector: `0x5fe9a5df`
@@ -65,15 +61,19 @@ contract DNSTLDResolver is
     error InvalidTXT();
 
     constructor(
-        IUniversalResolverStub _universalResolverV1,
-        IUniversalResolverStub _universalResolverV2,
-        DNSSEC _oracleVerifier,
-        string[] memory gateways
+        ENS _ensRegistryV1,
+        address _dnsTLDResolverV1,
+        IRegistry _rootRegistry,
+        DNSSEC _dnssecOracle,
+        string[] memory __oracleGateways,
+        string[] memory __batchGateways
     ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
-        universalResolverV1 = _universalResolverV1;
-        universalResolverV2 = _universalResolverV2;
-        oracleVerifier = _oracleVerifier;
-        _gateways = gateways;
+        ensRegistryV1 = _ensRegistryV1;
+        dnsTLDResolverV1 = _dnsTLDResolverV1;
+        rootRegistry = _rootRegistry;
+        dnssecOracle = _dnssecOracle;
+        _oracleGateways = __oracleGateways;
+        _batchGateways = __batchGateways;
     }
 
     /// @inheritdoc ERC165
@@ -94,13 +94,25 @@ contract DNSTLDResolver is
     /// @notice Set the DNSSEC oracle gateways.
     /// @param gateways The gateway URLs.
     function setOracleGateways(string[] memory gateways) external onlyOwner {
-        _gateways = gateways;
+        _oracleGateways = gateways;
     }
 
     /// @notice Get the DNSSEC oracle gateways.
     /// @return The gateway URLs.
     function oracleGateways() external view returns (string[] memory) {
-        return _gateways;
+        return _oracleGateways;
+    }
+
+    /// @notice Set the batch gateways.
+    /// @param gateways The batch gateway URLs.
+    function setBatchGateways(string[] memory gateways) external onlyOwner {
+        _batchGateways = gateways;
+    }
+
+    /// @notice Get the batch gateways.
+    /// @return The batch gateway URLs.
+    function batchGateways() external view returns (string[] memory) {
+        return _batchGateways;
     }
 
     /// @notice Resolve `name` using V1 or DNSSEC.
@@ -115,22 +127,17 @@ contract DNSTLDResolver is
         bytes calldata name,
         bytes calldata data
     ) external view returns (bytes memory) {
-        (address resolver, , uint256 offset) = universalResolverV1.findResolver(
-            name
+        (address resolver, , ) = ResolverFinderV1.findResolver(
+            ensRegistryV1,
+            name,
+            0
         );
-        if (
-            resolver != address(0) &&
-            (offset == 0 ||
-                ERC165Checker.supportsERC165InterfaceUnchecked(
-                    resolver,
-                    type(IExtendedResolver).interfaceId
-                ))
-        ) {
+        if (resolver != address(0) && resolver != dnsTLDResolverV1) {
             _callResolver(resolver, name, data, false, "");
         }
         revert OffchainLookup(
             address(this),
-            _gateways,
+            _oracleGateways,
             abi.encodeCall(IDNSGateway.resolve, (name, TYPE_TXT)),
             this.resolveOracleCallback.selector, // ==> step 2
             abi.encode(name, data)
@@ -154,7 +161,7 @@ contract DNSTLDResolver is
             response,
             (DNSSEC.RRSetWithSignature[])
         );
-        (bytes memory data, ) = oracleVerifier.verifyRRSet(rrsets);
+        (bytes memory data, ) = dnssecOracle.verifyRRSet(rrsets);
         for (
             RRUtils.RRIterator memory iter = RRUtils.iterateRRs(data, 0);
             !RRUtils.done(iter);
@@ -262,13 +269,7 @@ contract DNSTLDResolver is
             address(this),
             abi.encodeCall(
                 this.ccipBatch,
-                (
-                    createBatch(
-                        resolver,
-                        calls,
-                        universalResolverV2.batchGateways()
-                    )
-                )
+                (createBatch(resolver, calls, _batchGateways))
             ),
             this.resolveBatchCallback.selector,
             IDENTITY_FUNCTION,
@@ -351,8 +352,10 @@ contract DNSTLDResolver is
                 return addr;
             }
         }
-        (resolver, , ) = universalResolverV2.findResolver(
-            NameCoder.encode(string(v))
+        (, , resolver, ) = ResolverFinder.findResolver(
+            rootRegistry,
+            NameCoder.encode(string(v)),
+            0
         );
     }
 

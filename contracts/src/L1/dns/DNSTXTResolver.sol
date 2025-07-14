@@ -24,6 +24,28 @@ import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver
 /// @dev The text key to access "context" from `ENS1 <resolver> <context>`.
 string constant TEXT_DNSSEC_CONTEXT = "eth.ens.dnssec-context";
 
+/// @title DNSTXTResolver
+/// @notice Resolver that answers requests with the data encoded into the context of a DNSSEC "ENS1" TXT record.
+///
+/// DNS TXT record format: `ENS1 dnsname.ens.eth <context>`.
+/// (where "dnsname.ens.eth" resolves to this contract.)
+///
+/// The <context> is a human-readable string that is parsable by `DNSTXTScanner`.
+/// Context format: `<record1> <record2> ...`.
+///
+/// Support record formats:
+/// * `text(key)`
+///     - Unquoted: `t[age]=18`
+///     - Quoted: `t[description]="Once upon a time, ..."`
+///     - Quoted w/escapes: `t[notice]="\"wow!\"" 
+/// * `addr(coinType)`
+///     - Ethereum Address: `a[60]=0x8000000000000000000000000000000000000001` (see: ENSIP-1)
+///     - Default EVM Address: `a[e0]=0x...`
+///     - Linea Address: `a[e59144]=0x...`
+///     - Bitcoin Address: `a[0]=0x00...` (see: ENSIP-9)
+/// * `contenthash()`: `c=0x...` (see: ENSIP-7)
+/// * `pubkey()`: `xy=0x...`
+///
 contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
     /// @notice The resolver profile cannot be answered.
     /// @dev Error selector: `0x7b1c461b`
@@ -54,7 +76,7 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
     }
 
     function resolve(
-        bytes calldata,
+        bytes calldata /* name */,
         bytes calldata data,
         bytes calldata context
     ) external view returns (bytes memory result) {

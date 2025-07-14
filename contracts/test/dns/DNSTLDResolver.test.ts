@@ -34,13 +34,15 @@ async function fixture() {
   );
   const mockDNSSEC = await chain.viem.deployContract("MockDNSSEC");
   const dnsTLDResolver = await chain.viem.deployContract("DNSTLDResolver", [
-    mainnetV1.universalResolver.address,
-    mainnetV2.universalResolver.address,
+    mainnetV1.ensRegistry.address,
+    testAddress, // dnsTLDResolverV1
+    mainnetV2.rootRegistry.address,
     mockDNSSEC.address,
     [
       // "data" is sufficient to satisfy: `abi.decode(DNSSEC.RRSetWithSignature[])`
       'data:application/json,{"data":"0x0000000000000000000000000000000000000000000000000000000000000000"}',
     ],
+    ["x-batch-gateway:true"],
   ]);
   await mainnetV2.setupName({
     name: "com",

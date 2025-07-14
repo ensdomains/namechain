@@ -2,23 +2,22 @@
 pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {DNSTLDResolver, IUniversalResolverStub, DNSSEC, HexUtils} from "../../src/L1/dns/DNSTLDResolver.sol";
-
-contract MockUR is IUniversalResolverStub {
-    function findResolver(
-        bytes memory
-    ) public pure returns (address, bytes32, uint256) {
-        return (address(1), bytes32(0), 0);
-    }
-    function batchGateways() external view returns (string[] memory) {}
-}
+import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {DNSTLDResolver, ENS, IRegistry, DNSSEC, HexUtils} from "../../src/L1/dns/DNSTLDResolver.sol";
+import {PermissionedRegistry, IRegistryMetadata} from "../../src/common/PermissionedRegistry.sol";
+import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
+import {TestUtils} from "../utils/TestUtils.sol";
 
 contract MockDNS is DNSTLDResolver {
-    constructor()
+    constructor(
+        IRegistry rootRegistry
+    )
         DNSTLDResolver(
-            IUniversalResolverStub(address(0)),
-            new MockUR(),
+            ENS(address(0)),
+            address(0),
+            rootRegistry,
             DNSSEC(address(0)),
+            new string[](0),
             new string[](0)
         )
     {}
@@ -40,11 +39,19 @@ contract MockDNS is DNSTLDResolver {
     }
 }
 
-contract DNSTLDResolverTest is Test {
+contract DNSTLDResolverTest is Test, ERC1155Holder {
+    RegistryDatastore datastore;
+    PermissionedRegistry rootRegistry;
     MockDNS dns;
 
     function setUp() external {
-        dns = new MockDNS();
+        datastore = new RegistryDatastore();
+        rootRegistry = new PermissionedRegistry(
+            datastore,
+            IRegistryMetadata(address(0)),
+            TestUtils.ALL_ROLES
+        );
+        dns = new MockDNS(rootRegistry);
     }
 
     function test_readTXT() external view {
@@ -91,13 +98,24 @@ contract DNSTLDResolverTest is Test {
     //     assertEq(dns.trim(abi.encodePacked(a, v, b)), v);
     // }
 
-    function test_parseResolver() external view {
+    function test_parseResolver_address() external view {
         assertEq(
             dns.parseResolver("0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e"),
-            0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e,
-            "address"
+            0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e
         );
-        assertEq(dns.parseResolver("vitalik.eth"), address(1), "name");
+    }
+
+    function test_parseResolver_name() external {
+        address resolver = address(1);
+        rootRegistry.register(
+            "abc",
+            address(this),
+            IRegistry(address(0)),
+            resolver,
+            TestUtils.ALL_ROLES,
+            uint64(block.timestamp) + 86400
+        );
+        assertEq(dns.parseResolver("abc"), resolver);
     }
 
     function testFuzz_parseResolver_address(address a) external view {
