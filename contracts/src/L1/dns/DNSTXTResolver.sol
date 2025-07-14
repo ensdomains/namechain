@@ -37,7 +37,7 @@ string constant TEXT_DNSSEC_CONTEXT = "eth.ens.dnssec-context";
 /// * `text(key)`
 ///     - Unquoted: `t[age]=18`
 ///     - Quoted: `t[description]="Once upon a time, ..."`
-///     - Quoted w/escapes: `t[notice]="\"wow!\"" 
+///     - Quoted w/escapes: `t[notice]="\"E N S!\""`
 /// * `addr(coinType)`
 ///     - Ethereum Address: `a[60]=0x8000000000000000000000000000000000000001` (see: ENSIP-1)
 ///     - Default EVM Address: `a[e0]=0x...`
