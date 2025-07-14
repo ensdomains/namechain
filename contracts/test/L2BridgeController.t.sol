@@ -13,8 +13,9 @@ import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
-import {RegistryFactory} from "../src/common/RegistryFactory.sol";
-import {IRegistryFactory} from "../src/common/IRegistryFactory.sol";
+import {IVerifiableFactory} from "../src/common/IVerifiableFactory.sol";
+import {UserRegistry} from "../src/L2/UserRegistry.sol";
+import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
 import {IBridge} from "../src/common/IBridge.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
@@ -48,6 +49,8 @@ contract MockBridge is IBridge {
     }
 }
 
+
+
 // Test implementation of L2BridgeController with concrete methods for testing
 contract TestL2BridgeControllerImpl is L2BridgeController {
     // Define event signatures exactly as they will be emitted
@@ -62,8 +65,9 @@ contract TestL2BridgeControllerImpl is L2BridgeController {
         IBridge _bridge,
         PermissionedRegistry _ethRegistry, 
         IRegistryDatastore _datastore,
-        IRegistryFactory _registryFactory
-    ) L2BridgeController(_bridge, _ethRegistry, _datastore, _registryFactory) {}
+        IVerifiableFactory _verifiableFactory,
+        address _userRegistryImplementation
+    ) L2BridgeController(_bridge, _ethRegistry, _datastore, _verifiableFactory, _userRegistryImplementation) {}
 
     // Implement the required external methods
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {
@@ -96,7 +100,8 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
     PermissionedRegistry ethRegistry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
-    RegistryFactory registryFactory;
+    VerifiableFactory verifiableFactory;
+    UserRegistry userRegistryImplementation;
     MockBridge bridge;
 
     address user = address(0x1);
@@ -122,8 +127,11 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         registryMetadata = new MockRegistryMetadata();
         bridge = new MockBridge();
         
-        // Deploy registry factory
-        registryFactory = new RegistryFactory();
+        // Deploy verifiable factory
+        verifiableFactory = new VerifiableFactory();
+        
+        // Deploy user registry implementation
+        userRegistryImplementation = new UserRegistry();
         
         // Deploy ETH registry
         ethRegistry = new PermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
@@ -133,11 +141,12 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
             bridge,
             ethRegistry, 
             datastore,
-            registryFactory
+            IVerifiableFactory(address(verifiableFactory)),
+            address(userRegistryImplementation)
         );
         
         // Grant roles to bridge controller for registering names
-        ethRegistry.grantRootRoles(1 << 0, address(controller)); // ROLE_REGISTRAR
+        ethRegistry.grantRootRoles(ROLE_REGISTRAR, address(controller));
         
         // Register a test name
         uint64 expires = uint64(block.timestamp + expiryDuration);
@@ -250,9 +259,9 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         assertEq(address(controller.bridge()), address(bridge));
         assertEq(address(controller.ethRegistry()), address(ethRegistry));
         assertEq(address(controller.datastore()), address(datastore));
-        assertEq(address(controller.registryFactory()), address(registryFactory));
+        assertEq(address(controller.verifiableFactory()), address(verifiableFactory));
+        assertEq(controller.userRegistryImplementation(), address(userRegistryImplementation));
         assertEq(controller.ETH_TLD_HASH(), ETH_TLD_HASH);
-
     }
 
     function test_completeMigrationFromL1_toL2Only() public {
@@ -284,8 +293,27 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         // Verify resolver was set
         assertEq(ethRegistry.getResolver(migrationLabel), resolver, "Resolver should be set correctly");
         
-        // Verify MigrationCompleted event was emitted
+        // Verify a subregistry was created and is properly set
+        IRegistry subregistry = ethRegistry.getSubregistry(migrationLabel);
+        assertTrue(address(subregistry) != address(0), "Subregistry should be created");
+        assertTrue(address(subregistry) != address(ethRegistry), "Subregistry should be different from parent registry");
+        
+        // Verify the subregistry is a PermissionedRegistry (cast and check interface)
+        PermissionedRegistry subPermissionedRegistry = PermissionedRegistry(address(subregistry));
+        assertTrue(subPermissionedRegistry.supportsInterface(type(IPermissionedRegistry).interfaceId), "Subregistry should support IPermissionedRegistry interface");
+        
+        // Verify the user has the correct roles in the new subregistry
+        bytes32 rootResource = subPermissionedRegistry.ROOT_RESOURCE();
+        assertTrue(subPermissionedRegistry.hasRoles(rootResource, LibEACBaseRoles.ALL_ROLES, user), "User should have all roles in the new subregistry");
+        
+        // Verify MigrationCompleted event was emitted with correct data
         _assertMigrationCompletedEvent(dnsEncodedName, newTokenId);
+        
+        // Verify migration was successful - token should not be marked for ejection
+        assertEq(address(ethRegistry.tokenObservers(newTokenId)), address(0), "Token observer should not be set for L2-only migrations");
+        
+        // Verify the created subregistry has the correct datastore
+        assertEq(address(subPermissionedRegistry.datastore()), address(datastore), "Subregistry should use the same datastore");
     }
 
     function test_completeMigrationFromL1_toL1AndL2() public {
@@ -334,6 +362,88 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         
         // Verify token observer was set
         assertEq(address(ethRegistry.tokenObservers(newTokenId)), address(controller), "Token observer should be set for toL1 migrations");
+    }
+
+    function test_completeMigrationFromL1_3LD_HappyPath() public {
+        // First migrate the 2LD (parent domain)
+        string memory parentLabel = "parent";
+        bytes memory parentDnsEncodedName = NameUtils.dnsEncodeEthLabel(parentLabel);
+        uint64 expires = uint64(block.timestamp + expiryDuration);
+        address parentOwner = address(0x100);
+        
+        MigrationData memory parentMigrationData = _createMigrationData(
+            parentLabel,
+            parentOwner,
+            address(0),
+            resolver,
+            LibEACBaseRoles.ALL_ROLES,
+            expires,
+            false // toL1 = false, L2 only
+        );
+        
+        // Migrate the parent domain
+        vm.prank(address(bridge));
+        controller.completeMigrationFromL1(parentDnsEncodedName, parentMigrationData);
+        
+        // Verify parent was registered
+        (uint256 parentTokenId, , ) = ethRegistry.getNameData(parentLabel);
+        assertEq(ethRegistry.ownerOf(parentTokenId), parentOwner, "Parent owner should own the parent token");
+        
+        // Get the parent's subregistry
+        IPermissionedRegistry parentSubregistry = IPermissionedRegistry(address(ethRegistry.getSubregistry(parentLabel)));
+        assertTrue(address(parentSubregistry) != address(0), "Parent subregistry should be created");
+        
+        // Grant controller permission to register in the parent subregistry
+        vm.prank(parentOwner);
+        PermissionedRegistry(address(parentSubregistry)).grantRootRoles(ROLE_REGISTRAR, address(controller));
+        
+        // Now migrate the 3LD (child domain)
+        string memory childLabel = "child";
+        bytes memory childDnsEncodedName = _createDnsEncodedSubdomainName(childLabel, parentLabel);
+        address childOwner = address(0x200);
+        
+        MigrationData memory childMigrationData = _createMigrationData(
+            childLabel,
+            childOwner,
+            address(0),
+            resolver,
+            LibEACBaseRoles.ALL_ROLES,
+            expires,
+            false // toL1 = false, L2 only
+        );
+        
+        vm.recordLogs();
+        
+        // Migrate the child domain
+        vm.prank(address(bridge));
+        controller.completeMigrationFromL1(childDnsEncodedName, childMigrationData);
+        
+        // Verify the child was registered in the parent's subregistry
+        (uint256 childTokenId, uint64 childRegisteredExpiry, ) = parentSubregistry.getNameData(childLabel);
+        assertEq(parentSubregistry.ownerOf(childTokenId), childOwner, "Child owner should own the child token");
+        assertEq(childRegisteredExpiry, expires, "Child expiry should match migration data");
+        
+        // Verify child resolver was set
+        assertEq(parentSubregistry.getResolver(childLabel), resolver, "Child resolver should be set correctly");
+        
+        // Verify a subregistry was created for the child
+        IRegistry childSubregistry = parentSubregistry.getSubregistry(childLabel);
+        assertTrue(address(childSubregistry) != address(0), "Child subregistry should be created");
+        assertTrue(address(childSubregistry) != address(parentSubregistry), "Child subregistry should be different from parent registry");
+        
+        // Verify the child subregistry is a PermissionedRegistry
+        PermissionedRegistry childPermissionedRegistry = PermissionedRegistry(address(childSubregistry));
+        assertTrue(childPermissionedRegistry.supportsInterface(type(IPermissionedRegistry).interfaceId), "Child subregistry should support IPermissionedRegistry interface");
+        
+        // Verify the child owner has the correct roles in the new subregistry
+        bytes32 rootResource = childPermissionedRegistry.ROOT_RESOURCE();
+        assertTrue(childPermissionedRegistry.hasRoles(rootResource, LibEACBaseRoles.ALL_ROLES, childOwner), "Child owner should have all roles in the child subregistry");
+        
+        // Verify MigrationCompleted event was emitted with correct data
+        _assertMigrationCompletedEvent(childDnsEncodedName, childTokenId);
+        
+        // Verify the child subregistry has the correct datastore
+        assertEq(address(childPermissionedRegistry.datastore()), address(datastore), "Child subregistry should use the same datastore");
     }
 
     function test_Revert_completeMigrationFromL1_UnauthorizedCaller() public {
@@ -396,6 +506,29 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         vm.prank(address(bridge));
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.InvalidTLD.selector, invalidTldHash));
         controller.completeMigrationFromL1(invalidDnsName, migrationData);
+    }
+
+    function test_Revert_completeMigrationFromL1_3LD_InvalidParent() public {
+        // Try to migrate a 3LD where the parent 2LD doesn't exist
+        string memory nonExistentParent = "nonexistent";
+        string memory childLabel = "child";
+        bytes memory childDnsEncodedName = _createDnsEncodedSubdomainName(childLabel, nonExistentParent);
+        uint64 expires = uint64(block.timestamp + expiryDuration);
+        
+        MigrationData memory childMigrationData = _createMigrationData(
+            childLabel,
+            user,
+            address(0),
+            resolver,
+            LibEACBaseRoles.ALL_ROLES,
+            expires,
+            false // toL1 = false, L2 only
+        );
+        
+        // Try to migrate the child domain without the parent existing
+        vm.prank(address(bridge));
+        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.LabelNotFound.selector, childDnsEncodedName, nonExistentParent));
+        controller.completeMigrationFromL1(childDnsEncodedName, childMigrationData);
     }
 
     // EJECTION TESTS
@@ -473,13 +606,13 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         vm.prank(address(bridge));
         controller.completeEjectionFromL1(migrationData);
         
-        // Verify migration results
-        _verifyMigrationResults(tokenId2, label2, originalRoles, differentRoles);
-        _verifyMigrationEvent(tokenId2, differentRoles);
+        // Verify ejection results
+        _verifyEjectionResults(tokenId2, label2, originalRoles, differentRoles);
+        _verifyEjectionEvent(tokenId2, differentRoles);
     }
     
-    // Helper function to verify migration results
-    function _verifyMigrationResults(uint256 _tokenId, string memory _label, uint256 originalRoles, uint256 ignoredRoles) internal view {
+    // Helper function to verify ejection results
+    function _verifyEjectionResults(uint256 _tokenId, string memory _label, uint256 originalRoles, uint256 ignoredRoles) internal view {
         // Verify name was migrated - check ownership transfer
         assertEq(ethRegistry.ownerOf(_tokenId), l2Owner, "L2 owner should now own the token");
         
@@ -497,7 +630,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
     }
     
     // Helper function to check for event emission
-    function _verifyMigrationEvent(uint256 /* _tokenId */, uint256 /* expectedRoleBitmap */) internal {
+    function _verifyEjectionEvent(uint256 /* _tokenId */, uint256 /* expectedRoleBitmap */) internal {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
         

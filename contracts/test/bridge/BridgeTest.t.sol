@@ -21,12 +21,18 @@ import { ITokenObserver } from "../../src/common/ITokenObserver.sol";
 import { EnhancedAccessControl, LibEACBaseRoles } from "../../src/common/EnhancedAccessControl.sol";
 import { RegistryDatastore } from "../../src/common/RegistryDatastore.sol";
 import { IRegistryMetadata } from "../../src/common/IRegistryMetadata.sol";
+import { SimpleRegistryMetadata } from "../../src/common/SimpleRegistryMetadata.sol";
 import { RegistryRolesMixin } from "../../src/common/RegistryRolesMixin.sol";
-import { RegistryFactory } from "../../src/common/RegistryFactory.sol";
+import { IVerifiableFactory } from "../../src/common/IVerifiableFactory.sol";
+import { UserRegistry } from "../../src/L2/UserRegistry.sol";
+import { VerifiableFactory } from "../../lib/verifiable-factory/src/VerifiableFactory.sol";
+
+
 
 contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     RegistryDatastore datastore;
-    RegistryFactory registryFactory;
+    VerifiableFactory verifiableFactory;
+    UserRegistry userRegistryImplementation;
     PermissionedRegistry l1Registry;
     PermissionedRegistry l2Registry;
     MockL1Bridge l1Bridge;
@@ -41,7 +47,8 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     function setUp() public {
         // Deploy the contracts
         datastore = new RegistryDatastore();
-        registryFactory = new RegistryFactory();
+        verifiableFactory = new VerifiableFactory();
+        userRegistryImplementation = new UserRegistry();
         l1Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
         l2Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
         
@@ -51,7 +58,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         
         // Deploy controllers
         l1Controller = new L1EjectionController(l1Registry, l1Bridge);
-        l2Controller = new L2BridgeController(l2Bridge, l2Registry, datastore, registryFactory);
+        l2Controller = new L2BridgeController(l2Bridge, l2Registry, datastore, IVerifiableFactory(address(verifiableFactory)), address(userRegistryImplementation));
         
         // Set the controller contracts as targets for the bridges
         l1Bridge.setEjectionController(l1Controller);

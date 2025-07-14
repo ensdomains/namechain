@@ -12,8 +12,15 @@ export default execute(
       get<(typeof artifacts.MockL2Bridge)["abi"]>("MockL2Bridge");
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
-    const registryFactory =
-      get<(typeof artifacts.RegistryFactory)["abi"]>("RegistryFactory");
+    const verifiableFactory =
+      get<(typeof artifacts.VerifiableFactory)["abi"]>("VerifiableFactory");
+
+    // Deploy UserRegistry implementation
+    const userRegistryImplementation = await deploy("UserRegistry", {
+      account: deployer,
+      artifact: artifacts.UserRegistry,
+      args: [],
+    });
 
     const l2BridgeController = await deploy("L2BridgeController", {
       account: deployer,
@@ -22,7 +29,8 @@ export default execute(
         l2Bridge.address,
         ethRegistry.address,
         registryDatastore.address,
-        registryFactory.address,
+        verifiableFactory.address,
+        userRegistryImplementation.address,
       ],
     });
 
@@ -46,6 +54,6 @@ export default execute(
   // finally you can pass tags and dependencies
   {
     tags: ["L2BridgeController", "registry", "l2"],
-    dependencies: ["ETHRegistry", "MockL2Bridge", "RegistryDatastore", "RegistryFactory"],
+    dependencies: ["ETHRegistry", "MockL2Bridge", "RegistryDatastore", "VerifiableFactory"],
   },
 ); 

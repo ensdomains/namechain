@@ -184,9 +184,9 @@ export async function setupCrossChainEnvironment() {
         simpleRegistryMetadata: l2Contracts<
           (typeof artifacts.SimpleRegistryMetadata)["abi"]
         >("SimpleRegistryMetadata"),
-        registryFactory:
-          l2Contracts<(typeof artifacts.RegistryFactory)["abi"]>(
-            "RegistryFactory",
+        verifiableFactory:
+          l2Contracts<(typeof artifacts.VerifiableFactory)["abi"]>(
+            "VerifiableFactory",
           ),
       },
     },

@@ -7,7 +7,8 @@ import {IRegistry} from "../common/IRegistry.sol";
 import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
-import {IRegistryFactory} from "../common/IRegistryFactory.sol";
+import {IVerifiableFactory} from "../common/IVerifiableFactory.sol";
+import {UserRegistry} from "./UserRegistry.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -36,17 +37,20 @@ contract L2BridgeController is EjectionController, ITokenObserver {
 
     IPermissionedRegistry public immutable ethRegistry;
     IRegistryDatastore public immutable datastore;
-    IRegistryFactory public immutable registryFactory;
+    IVerifiableFactory public immutable verifiableFactory;
+    address public immutable userRegistryImplementation;
 
     constructor(
         IBridge _bridge,
         IPermissionedRegistry _ethRegistry, 
         IRegistryDatastore _datastore,
-        IRegistryFactory _registryFactory
+        IVerifiableFactory _verifiableFactory,
+        address _userRegistryImplementation
     ) EjectionController(_ethRegistry, _bridge) {
         ethRegistry = _ethRegistry;
         datastore = _datastore;
-        registryFactory = _registryFactory;
+        verifiableFactory = _verifiableFactory;
+        userRegistryImplementation = _userRegistryImplementation;
     }
 
     /**
@@ -73,11 +77,31 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         // Create registry if not migrating to L1
         IPermissionedRegistry subregistry;
         if (!migrationData.toL1) {
-            subregistry = registryFactory.createRegistry(
-                datastore,
+            // Calculate salt based on block timestamp and migration data
+            uint256 salt = uint256(keccak256(abi.encode(
+                block.timestamp,
                 migrationData.transferData.owner,
-                LibEACBaseRoles.ALL_ROLES
+                migrationData.transferData.label,
+                migrationData.transferData.expires
+            )));
+            
+            // Encode the initialize call
+            bytes memory initData = abi.encodeWithSelector(
+                UserRegistry.initialize.selector,
+                datastore,
+                address(0), // metadata - will create SimpleRegistryMetadata
+                LibEACBaseRoles.ALL_ROLES,
+                migrationData.transferData.owner
             );
+            
+            // Deploy the user registry via verifiable factory
+            address registryAddress = verifiableFactory.deployProxy(
+                userRegistryImplementation,
+                salt,
+                initData
+            );
+            
+            subregistry = IPermissionedRegistry(registryAddress);
         }
         
         uint256 tokenId = targetRegistry.register(
@@ -219,7 +243,9 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             revert LabelNotFound(name, label);
         }
         
-        return (parentRegistry, label, true);
+        // Return the subregistry of this label (where children should be registered)
+        IPermissionedRegistry subregistry = IPermissionedRegistry(address(parentRegistry.getSubregistry(label)));
+        return (subregistry, label, true);
     }
 
     /**
