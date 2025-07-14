@@ -15,7 +15,7 @@ import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/EnhancedAccessControl.sol";
 import "../src/common/NameUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
-import {TestUtils} from "./utils/TestUtils.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 
 contract MockPriceOracle is IPriceOracle {
     uint256 public basePrice;
@@ -68,7 +68,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
         datastore = new RegistryDatastore();
         // Use a defined ALL_ROLES value for deployer roles
-        uint256 deployerRoles = TestUtils.ALL_ROLES;
+        uint256 deployerRoles = LibEACBaseRoles.ALL_ROLES;
         registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), address(this), deployerRoles);
         priceOracle = new MockPriceOracle(BASE_PRICE, PREMIUM_PRICE);
         
@@ -295,7 +295,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         );
 
         bytes32 resource = registry.getTokenIdResource(tokenId);
-        assertTrue(registry.hasRoles(resource, TestUtils.ALL_ROLES, owner));
+        assertTrue(registry.hasRoles(resource, LibEACBaseRoles.ALL_ROLES, owner));
     }
 
     function test_Revert_insufficientValue() public {

@@ -11,7 +11,7 @@ import "../src/common/RegistryDatastore.sol";
 import "../src/common/EnhancedAccessControl.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/BaseRegistry.sol";
-import {TestUtils} from "./utils/TestUtils.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 
 contract TestRootRegistry is Test, ERC1155Holder {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
@@ -40,7 +40,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
         // Use the valid ALL_ROLES value for deployer roles
-        uint256 deployerRoles = TestUtils.ALL_ROLES;
+        uint256 deployerRoles = LibEACBaseRoles.ALL_ROLES;
         registry = new PermissionedRegistry(datastore, metadata, address(this), deployerRoles);
         metadata.grantRootRoles(ROLE_UPDATE_METADATA, address(registry));
     }

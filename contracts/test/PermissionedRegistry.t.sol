@@ -15,7 +15,7 @@ import "../src/common/IPermissionedRegistry.sol";
 import "../src/L2/ETHRegistrar.sol";
 import "../src/L2/IPriceOracle.sol";
 import "../src/common/ITokenObserver.sol";
-import {TestUtils} from "./utils/TestUtils.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 
 
 contract TestPermissionedRegistry is Test, ERC1155Holder {
@@ -46,7 +46,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     address user1 = makeAddr("user1");
 
     // all roles
-    uint256 deployerRoles = TestUtils.ALL_ROLES;
+            uint256 deployerRoles = LibEACBaseRoles.ALL_ROLES;
 
     function setUp() public {
         datastore = new RegistryDatastore();

@@ -18,7 +18,7 @@ import { IRegistry } from "../../src/common/IRegistry.sol";
 import { IPermissionedRegistry } from "../../src/common/IPermissionedRegistry.sol";
 import { PermissionedRegistry } from "../../src/common/PermissionedRegistry.sol";
 import { ITokenObserver } from "../../src/common/ITokenObserver.sol";
-import { EnhancedAccessControl } from "../../src/common/EnhancedAccessControl.sol";
+import { EnhancedAccessControl, LibEACBaseRoles } from "../../src/common/EnhancedAccessControl.sol";
 import { RegistryDatastore } from "../../src/common/RegistryDatastore.sol";
 import { IRegistryMetadata } from "../../src/common/IRegistryMetadata.sol";
 import { RegistryRolesMixin } from "../../src/common/RegistryRolesMixin.sol";
@@ -42,8 +42,8 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         // Deploy the contracts
         datastore = new RegistryDatastore();
         registryFactory = new RegistryFactory();
-        l1Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), ALL_ROLES);
-        l2Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), ALL_ROLES);
+        l1Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
+        l2Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
         
         // Deploy bridges
         l1Bridge = new MockL1Bridge();
@@ -64,7 +64,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     
     function testNameEjectionFromL2ToL1() public {
         // Register using just the label, as would be done in an .eth registry
-        uint256 tokenId = l2Registry.register("premiumname", user2, IRegistry(address(0x456)), address(0x789), ALL_ROLES, uint64(block.timestamp + 365 days));
+        uint256 tokenId = l2Registry.register("premiumname", user2, IRegistry(address(0x456)), address(0x789), LibEACBaseRoles.ALL_ROLES, uint64(block.timestamp + 365 days));
 
         TransferData memory transferData = TransferData({
             label: "premiumname",

@@ -7,7 +7,6 @@ import {IRegistry} from "../common/IRegistry.sol";
 import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
-import {PermissionedRegistry} from "../common/PermissionedRegistry.sol";
 import {IRegistryFactory} from "../common/IRegistryFactory.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
@@ -17,6 +16,7 @@ import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {EjectionController} from "../common/EjectionController.sol";
 import {IBridge} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
+import {LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
 
 /**
  * @title L2BridgeController
@@ -34,16 +34,16 @@ contract L2BridgeController is EjectionController, ITokenObserver {
 
     bytes32 public constant ETH_TLD_HASH = keccak256(bytes("eth"));
 
-    PermissionedRegistry public immutable ethRegistry;
+    IPermissionedRegistry public immutable ethRegistry;
     IRegistryDatastore public immutable datastore;
     IRegistryFactory public immutable registryFactory;
 
     constructor(
         IBridge _bridge,
-        PermissionedRegistry _ethRegistry, 
+        IPermissionedRegistry _ethRegistry, 
         IRegistryDatastore _datastore,
         IRegistryFactory _registryFactory
-    ) EjectionController(IPermissionedRegistry(address(_ethRegistry)), _bridge) {
+    ) EjectionController(_ethRegistry, _bridge) {
         ethRegistry = _ethRegistry;
         datastore = _datastore;
         registryFactory = _registryFactory;
@@ -61,7 +61,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         MigrationData memory migrationData
     ) external onlyBridge {
         // Find the registry and validate the registry tree
-        (PermissionedRegistry targetRegistry, string memory label, bool exists) = _findAndValidateLabelStructure(dnsEncodedName, 0);
+        (IPermissionedRegistry targetRegistry, string memory label, bool exists) = _findAndValidateLabelStructure(dnsEncodedName, 0);
 
         if (exists) {
             revert NameAlreadyRegistered(dnsEncodedName);
@@ -71,19 +71,19 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         address initialOwner = migrationData.toL1 ? address(this) : migrationData.transferData.owner;
         
         // Create registry if not migrating to L1
-        PermissionedRegistry subregistry;
+        IPermissionedRegistry subregistry;
         if (!migrationData.toL1) {
             subregistry = registryFactory.createRegistry(
                 datastore,
                 migrationData.transferData.owner,
-                targetRegistry.ALL_ROLES()
+                LibEACBaseRoles.ALL_ROLES
             );
         }
         
         uint256 tokenId = targetRegistry.register(
             label,
             initialOwner,
-            migrationData.toL1 ? IRegistry(address(0)) : IRegistry(address(subregistry)),
+            migrationData.toL1 ? IPermissionedRegistry(address(0)) : subregistry,
             migrationData.transferData.resolver,
             migrationData.transferData.roleBitmap,
             migrationData.transferData.expires
@@ -171,19 +171,19 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     function _findAndValidateLabelStructure(
         bytes memory name,
         uint256 offset
-    ) internal view returns (PermissionedRegistry registry, string memory label, bool exists) {
+    ) internal view returns (IPermissionedRegistry registry, string memory label, bool exists) {
         uint256 size = uint8(name[offset]);
         
         // If we reach the end (size == 0), we should be at the root
         if (size == 0) {
-            return (PermissionedRegistry(address(0)), "", true);
+            return (IPermissionedRegistry(address(0)), "", true);
         }
         
         // Check if this is the leftmost label (offset == 0)
         bool isLeftmostLabel = (offset == 0);
         
         // Recursively process the next part of the name (moving right to left)
-        (PermissionedRegistry parentRegistry,, ) = _findAndValidateLabelStructure(
+        (IPermissionedRegistry parentRegistry,, ) = _findAndValidateLabelStructure(
             name,
             offset + 1 + size
         );

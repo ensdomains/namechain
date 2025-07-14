@@ -23,7 +23,7 @@ import {IRegistry} from "../src/common/IRegistry.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
-import {TestUtils} from "./utils/TestUtils.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 
 // Mock implementation of IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -126,7 +126,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         registryFactory = new RegistryFactory();
         
         // Deploy ETH registry
-        ethRegistry = new PermissionedRegistry(datastore, registryMetadata, address(this), TestUtils.ALL_ROLES);
+        ethRegistry = new PermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
         
         // Deploy combined bridge controller
         controller = new TestL2BridgeControllerImpl(
@@ -141,7 +141,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         
         // Register a test name
         uint64 expires = uint64(block.timestamp + expiryDuration);
-        tokenId = ethRegistry.register(testLabel, user, ethRegistry, address(0), TestUtils.ALL_ROLES, expires);
+        tokenId = ethRegistry.register(testLabel, user, ethRegistry, address(0), LibEACBaseRoles.ALL_ROLES, expires);
     }
 
 
@@ -192,7 +192,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
             subdomainOwner, 
             ethRegistry, 
             address(0), 
-            TestUtils.ALL_ROLES, 
+            LibEACBaseRoles.ALL_ROLES, 
             uint64(block.timestamp + expiryDuration)
         );
     }
@@ -265,7 +265,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
             user,
             address(0),
             resolver,
-            TestUtils.ALL_ROLES,
+            LibEACBaseRoles.ALL_ROLES,
             expires,
             false // toL1 = false, L2 only
         );
@@ -298,7 +298,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
             user,
             address(0),
             resolver,
-            TestUtils.ALL_ROLES,
+            LibEACBaseRoles.ALL_ROLES,
             expires,
             true // toL1 = true, both L1 and L2
         );
@@ -343,7 +343,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
             user,
             address(0),
             resolver,
-            TestUtils.ALL_ROLES,
+            LibEACBaseRoles.ALL_ROLES,
             uint64(block.timestamp + expiryDuration),
             false
         );
@@ -362,7 +362,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
             user,
             address(0),
             resolver,
-            TestUtils.ALL_ROLES,
+            LibEACBaseRoles.ALL_ROLES,
             uint64(block.timestamp + expiryDuration),
             false
         );
@@ -385,7 +385,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
             user,
             address(0),
             resolver,
-            TestUtils.ALL_ROLES,
+            LibEACBaseRoles.ALL_ROLES,
             uint64(block.timestamp + expiryDuration),
             false
         );
@@ -403,7 +403,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_eject_flow_via_transfer() public {
         // Prepare the data for ejection with label and expiry
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint256 roleBitmap = TestUtils.ALL_ROLES;
+        uint256 roleBitmap = LibEACBaseRoles.ALL_ROLES;
         bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Make sure user still owns the token
@@ -524,7 +524,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             expires: 0,
-            roleBitmap: TestUtils.ALL_ROLES
+            roleBitmap: LibEACBaseRoles.ALL_ROLES
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -539,7 +539,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             expires: 0,
-            roleBitmap: TestUtils.ALL_ROLES
+            roleBitmap: LibEACBaseRoles.ALL_ROLES
         });
         
         vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
@@ -556,7 +556,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_onRenew_emitsEvent() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint32 roleBitmap = uint32(TestUtils.ALL_ROLES);
+        uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
         bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
@@ -606,7 +606,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_onRelinquish_emitsEvent() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint32 roleBitmap = uint32(TestUtils.ALL_ROLES);
+        uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
         bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
@@ -656,7 +656,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         // Prepare the data for ejection with an invalid label
         string memory invalidLabel = "invalid";
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint256 roleBitmap = TestUtils.ALL_ROLES;
+        uint256 roleBitmap = LibEACBaseRoles.ALL_ROLES;
         bytes memory ejectionData = _createEjectionData(invalidLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Make sure user still owns the token
@@ -671,7 +671,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_Revert_onERC1155Received_UnauthorizedCaller() public {
         // Prepare valid data for ejection
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint256 roleBitmap = TestUtils.ALL_ROLES;
+        uint256 roleBitmap = LibEACBaseRoles.ALL_ROLES;
         bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Try to call onERC1155Received directly (not through registry)
@@ -682,7 +682,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
     function test_tokenObserver_callbacks() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint32 roleBitmap = uint32(TestUtils.ALL_ROLES);
+        uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
         bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);

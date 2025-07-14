@@ -8,7 +8,7 @@ import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IPriceOracle} from "./IPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../common/NameUtils.sol";
-import {EnhancedAccessControl} from "../common/EnhancedAccessControl.sol";
+import {EnhancedAccessControl, LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
 import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
 
 contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixin {
@@ -38,7 +38,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     mapping(bytes32 => uint256) public commitments;    
 
     constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge) {
-        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender(), true);
+        _grantRoles(ROOT_RESOURCE, LibEACBaseRoles.ALL_ROLES, _msgSender(), true);
 
         registry = IPermissionedRegistry(_registry);
 

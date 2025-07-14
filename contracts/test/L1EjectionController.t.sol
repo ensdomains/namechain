@@ -12,7 +12,7 @@ import "../src/common/IRegistry.sol";
 import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
 import {TransferData} from "../src/common/TransferData.sol";
-import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
+import {EnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import "../src/common/IRegistryMetadata.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import "../src/common/BaseRegistry.sol";
@@ -131,7 +131,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         bridge = new MockBridge();
         
         // Deploy the registry
-        registry = new PermissionedRegistry(datastore, registryMetadata, address(this), ALL_ROLES);
+        registry = new PermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
         
         // Create the real controller with the correct registry and bridge
         ejectionController = new L1EjectionController(registry, bridge);

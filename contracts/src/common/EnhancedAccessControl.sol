@@ -6,7 +6,10 @@ pragma solidity ^0.8.20;
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-
+library LibEACBaseRoles {
+    uint256 constant public ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;
+    uint256 constant public ADMIN_ROLES = 0x1111111111111111111111111111111100000000000000000000000000000000;
+}
 
 /**
  * @dev Access control system that allows for:
@@ -33,9 +36,6 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     event EACRolesGranted(bytes32 resource, uint256 roleBitmap, address account);
     event EACRolesRevoked(bytes32 resource, uint256 roleBitmap, address account);
     event EACAllRolesRevoked(bytes32 resource, address account);
-
-    uint256 constant public ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;
-    uint256 constant public ADMIN_ROLES = 0x1111111111111111111111111111111100000000000000000000000000000000;
 
     /**
      * @dev user roles within a resource stored as a bitmap.
@@ -279,7 +279,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @dev Revoke all roles for account within resource.
      */
     function _revokeAllRoles(bytes32 resource, address account, bool executeCallbacks) internal virtual returns (bool) {
-        return _revokeRoles(resource, ALL_ROLES, account, executeCallbacks);
+        return _revokeRoles(resource, LibEACBaseRoles.ALL_ROLES, account, executeCallbacks);
     }
 
     /**
@@ -316,7 +316,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return The settable roles for `account` within `resource`.
      */
     function _getSettableRoles(bytes32 resource, address account) internal view virtual returns (uint256) {
-        uint256 adminRoleBitmap = (roles[resource][account] | roles[ROOT_RESOURCE][account]) & ADMIN_ROLES;
+        uint256 adminRoleBitmap = (roles[resource][account] | roles[ROOT_RESOURCE][account]) & LibEACBaseRoles.ADMIN_ROLES;
         return adminRoleBitmap | (adminRoleBitmap >> 128);
     }
 
@@ -350,7 +350,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @param roleBitmap The role bitmap to check.
      */
     function _checkRoleBitmap(uint256 roleBitmap) private pure {
-        if ((roleBitmap & ~ALL_ROLES) != 0) {
+        if ((roleBitmap & ~LibEACBaseRoles.ALL_ROLES) != 0) {
             revert EACInvalidRoleBitmap(roleBitmap);
         }
     }
