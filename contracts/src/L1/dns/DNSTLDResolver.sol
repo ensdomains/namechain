@@ -183,11 +183,23 @@ contract DNSTLDResolver is
         revert UnreachableName(name);
     }
 
-    /// @dev Efficiently call another resolver.
-    ///      Reverts `UnreachableName` if resolver is not a contract.
+    /// @notice Efficiently call another resolver with an optional DNS context.
+    ///
+    /// 1. if `IExtendedDNSResolver` and `checkDNS`, `resolver.resolve(name, calldata, context)`.
+    /// 2. if `IExtendedResolver`, `resolver.resolve(name, calldata)`.
+    /// 3. otherwise, `resolver.staticall(calldata)`.
+    ///
+    /// - If (1) or (2), the calldata is not `multicall()`, and the resolver supports features,
+    ///   the call is performed directly without the batch gateway.
+    /// - If (1) or (2), the calldata is `multicall()`, and the resolver supports `RESOLVE_MULTICALL` feature,
+    ///   the call is performed directly without the batch gateway.
+    /// - Otherwise, the call is performed with the batch gateway.
+    ///   If the calldata is `multicall()` it is disassembled, called separately, and reassembled.
+    ///
+    /// @dev Reverts `UnreachableName` if resolver is not a contract.
     /// @param resolver The resolver to call.
     /// @param name The name to resolve.
-    /// @param call The calldata.
+    /// @param call The resolver calldata.
     /// @param checkDNS True if `IExtendedDNSResolver` should be considered.
     /// @param context The context for `IExtendedDNSResolver`.
     function _callResolver(
