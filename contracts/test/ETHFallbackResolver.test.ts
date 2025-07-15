@@ -14,7 +14,7 @@ import {
 } from "viem";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
-import { shouldSupportsFeatures } from "./utils/supportsFeatures.js";
+import { shouldSupportFeatures } from "./utils/supportsFeatures.js";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { deployArtifact } from "./fixtures/deployArtifact.js";
@@ -140,7 +140,7 @@ describe("ETHFallbackResolver", () => {
     interfaces: ["IERC165", "IExtendedResolver", "IFeatureSupporter"],
   });
 
-  shouldSupportsFeatures({
+  shouldSupportFeatures({
     contract: () => loadFixture().then((F) => F.ethFallbackResolver),
     features: {
       RESOLVER: ["RESOLVE_MULTICALL"],

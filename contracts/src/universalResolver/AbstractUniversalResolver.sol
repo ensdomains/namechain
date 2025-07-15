@@ -139,19 +139,13 @@ abstract contract AbstractUniversalResolver is
         bytes calldata name,
         bytes calldata data,
         string[] memory gateways
-    ) external view returns (bytes memory, address) {
+    ) external view returns (bytes memory) {
         ResolverInfo memory info;
         info.name = name;
         info.node = NameCoder.namehash(name, 0);
         info.resolver = resolver;
         _checkResolver(info);
-        _callResolver(
-            info,
-            data,
-            gateways,
-            this.resolveCallback.selector, // ==> step 2
-            abi.encode(resolver)
-        );
+        _callResolver(info, data, gateways, IDENTITY_FUNCTION, "");
     }
 
     /// @dev CCIP-Read callback for `resolveWithGateways()`.

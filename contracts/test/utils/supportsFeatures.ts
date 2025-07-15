@@ -6,7 +6,7 @@ type FeatureKeys<T> = {
   [K in keyof T]?: readonly (keyof T[K])[];
 };
 
-export function shouldSupportsFeatures({
+export function shouldSupportFeatures({
   contract,
   features,
 }: {

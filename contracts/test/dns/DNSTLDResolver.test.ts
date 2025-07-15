@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { describe, expect, it } from "vitest";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
-import { shouldSupportsFeatures } from "../utils/supportsFeatures.js";
+import { shouldSupportFeatures } from "../utils/supportsFeatures.js";
 import { deployV1Fixture } from "../fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
 import { dummyShapeshiftResolverArtifact } from "../fixtures/ens-contracts/DummyShapeshiftResolver.js";
@@ -83,7 +83,7 @@ describe("DNSTLDResolver", () => {
     interfaces: ["IERC165", "IExtendedResolver", "IFeatureSupporter"],
   });
 
-  shouldSupportsFeatures({
+  shouldSupportFeatures({
     contract: () =>
       chain.networkHelpers.loadFixture(fixture).then((F) => F.dnsTLDResolver),
     features: {
