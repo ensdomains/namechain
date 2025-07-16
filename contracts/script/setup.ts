@@ -175,7 +175,7 @@ export async function setupCrossChainEnvironment() {
           (typeof artifacts.SimpleRegistryMetadata)["abi"]
         >("SimpleRegistryMetadata"),
         universalResolver:
-          l1Contracts<(typeof artifacts.UniversalResolver)["abi"]>(
+          l1Contracts<(typeof artifacts.UniversalResolverV2)["abi"]>(
             "UniversalResolver",
           ),
       },

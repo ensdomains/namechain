@@ -5,7 +5,7 @@ import {IETHRegistrar} from "./IETHRegistrar.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {IERC1155Singleton} from "../common/IERC1155Singleton.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
-import {IPriceOracle} from "./IPriceOracle.sol";
+import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {EnhancedAccessControl} from "../common/EnhancedAccessControl.sol";

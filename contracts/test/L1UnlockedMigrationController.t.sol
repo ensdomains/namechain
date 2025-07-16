@@ -9,13 +9,12 @@ import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Hol
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
+import {MockBaseRegistrar} from "../src/mocks/v1/MockBaseRegistrar.sol";
 import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {L1UnlockedMigrationController} from "../src/L1/L1UnlockedMigrationController.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
@@ -24,70 +23,6 @@ import {IBridge, BridgeMessageType} from "../src/common/IBridge.sol";
 import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
 import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
-
-// Simple mock that implements IBaseRegistrar without the compilation issues
-contract MockBaseRegistrar is ERC721, IBaseRegistrar {
-    mapping(address => bool) public controllers;
-    mapping(uint256 => uint256) public expiries;
-    uint256 public constant GRACE_PERIOD = 90 days;
-
-    constructor() ERC721("MockETHRegistrar", "METH") {}
-
-    function addController(address controller) external override {
-        controllers[controller] = true;
-        emit ControllerAdded(controller);
-    }
-
-    function removeController(address controller) external override {
-        controllers[controller] = false;
-        emit ControllerRemoved(controller);
-    }
-
-    function setResolver(address) external override {
-        // Mock implementation
-    }
-
-    function nameExpires(uint256 id) external view override returns (uint256) {
-        return expiries[id];
-    }
-
-    function available(uint256 id) public view override returns (bool) {
-        return expiries[id] + GRACE_PERIOD < block.timestamp || expiries[id] == 0;
-    }
-
-    function register(uint256 id, address owner, uint256 duration) external override returns (uint256) {
-        require(controllers[msg.sender], "Not a controller");
-        require(available(id), "Name not available");
-        
-        expiries[id] = block.timestamp + duration;
-        if (_ownerOf(id) != address(0)) {
-            _burn(id);
-        }
-        _mint(owner, id);
-        
-        emit NameRegistered(id, owner, block.timestamp + duration);
-        return block.timestamp + duration;
-    }
-
-    function renew(uint256 id, uint256 duration) external override returns (uint256) {
-        require(controllers[msg.sender], "Not a controller");
-        require(expiries[id] + GRACE_PERIOD >= block.timestamp, "Name expired");
-        
-        expiries[id] += duration;
-        emit NameRenewed(id, expiries[id]);
-        return expiries[id];
-    }
-
-    function reclaim(uint256 id, address /*owner*/) external override view {
-        require(ownerOf(id) == msg.sender, "Not owner");
-        // Mock implementation
-    }
-
-    function ownerOf(uint256 tokenId) public view override(ERC721, IERC721) returns (address) {
-        require(expiries[tokenId] > block.timestamp, "Name expired");
-        return super.ownerOf(tokenId);
-    }
-}
 
 // Mock ERC1155 contract for wrapped names
 contract MockNameWrapper is ERC1155 {
