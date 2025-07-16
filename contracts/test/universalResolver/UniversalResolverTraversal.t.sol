@@ -6,10 +6,9 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {UniversalResolver2, NameCoder} from "../../src/universalResolver/UniversalResolver2.sol";
 import {PermissionedRegistry, IRegistry, IRegistryMetadata} from "../../src/common/PermissionedRegistry.sol";
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
+import {TestUtils} from "../utils/TestUtils.sol";
 
 contract UniversalResolverTraversal is Test, ERC1155Holder {
-    uint256 public constant ALL_ROLES = ~uint256(0);
-
     RegistryDatastore datastore;
     PermissionedRegistry rootRegistry;
     UniversalResolver2 universalResolver;
@@ -19,7 +18,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             new PermissionedRegistry(
                 datastore,
                 IRegistryMetadata(address(0)),
-                ALL_ROLES
+                TestUtils.ALL_ROLES
             );
     }
 
@@ -42,7 +41,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             address(this),
             ethRegistry,
             address(1),
-            ALL_ROLES,
+            TestUtils.ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
 
@@ -77,7 +76,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             address(this),
             ethRegistry,
             address(0),
-            ALL_ROLES,
+            TestUtils.ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
         ethRegistry.register(
@@ -85,7 +84,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             address(this),
             testRegistry,
             address(1),
-            ALL_ROLES,
+            TestUtils.ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
 
@@ -120,7 +119,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             address(this),
             ethRegistry,
             address(1),
-            ALL_ROLES,
+            TestUtils.ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
         ethRegistry.register(
@@ -128,7 +127,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             address(this),
             testRegistry,
             address(0),
-            ALL_ROLES,
+            TestUtils.ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
 
@@ -163,7 +162,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             address(this),
             ethRegistry,
             address(1),
-            ALL_ROLES,
+            TestUtils.ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
         ethRegistry.register(
@@ -171,7 +170,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
             address(this),
             testRegistry,
             address(0),
-            ALL_ROLES,
+            TestUtils.ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
 

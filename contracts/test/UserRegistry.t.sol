@@ -14,14 +14,14 @@ import {IRegistry} from "../src/common/IRegistry.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
+import {TestUtils} from "./utils/TestUtils.sol";
 
 contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
     // Test constants
     uint256 constant SALT = 12345;
-    uint256 constant ALL_ROLES = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
     bytes32 constant ROOT_RESOURCE = 0;
 
-    uint256 constant ROLE_UPGRADE = 1 << 5;
+    uint256 constant ROLE_UPGRADE = 1 << 20;
     uint256 constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
     
     // Contracts
@@ -54,7 +54,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
             UserRegistry.initialize.selector,
             address(datastore),
             address(metadata),
-            ALL_ROLES,
+            TestUtils.ALL_ROLES,
             admin
         );
         
