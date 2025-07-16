@@ -12,7 +12,7 @@ import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {UniversalResolver} from "./mocks/MockUniversalResolverV1.sol";
-import {UniversalResolver2} from "../../src/universalResolver/UniversalResolver2.sol";
+import {UniversalResolverV2} from "../../src/universalResolver/UniversalResolverV2.sol";
 import {IRegistry} from "../../src/common/IRegistry.sol";
 
 contract ProxyTest is Test {
@@ -22,7 +22,7 @@ contract ProxyTest is Test {
 
     UpgradableUniversalResolverProxy proxy;
     UniversalResolver urV1;
-    UniversalResolver2 urV2;
+    UniversalResolverV2 urV2;
 
     // Mock data for tests
     bytes dnsEncodedName = hex"0365746800"; // "eth"
@@ -42,7 +42,7 @@ contract ProxyTest is Test {
 
         // Deploy the implementations
         urV1 = new UniversalResolver(ENS(address(0x0)), gatewayUrls);
-        urV2 = new UniversalResolver2(IRegistry(address(0x0)), gatewayUrls);
+        urV2 = new UniversalResolverV2(IRegistry(address(0x0)), gatewayUrls);
 
         // Deploy the proxy with V1 implementation
         proxy = new UpgradableUniversalResolverProxy(ADMIN, address(urV1));

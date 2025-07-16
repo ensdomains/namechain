@@ -5,7 +5,7 @@ import {AbstractUniversalResolver, NameCoder} from "./AbstractUniversalResolver.
 import {NameUtils} from "../common/NameUtils.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 
-contract UniversalResolver2 is AbstractUniversalResolver {
+contract UniversalResolverV2 is AbstractUniversalResolver {
     IRegistry public immutable rootRegistry;
 
     constructor(
