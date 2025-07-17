@@ -1,10 +1,6 @@
 import type { NetworkConnection } from "hardhat/types/network";
 import { type Address, labelhash, namehash } from "viem";
 import { splitName } from "../utils/utils.js";
-import { baseRegistrarImplementationArtifact } from "./ens-contracts/BaseRegistrarImplementation.js";
-import { ensRegistryArtifact } from "./ens-contracts/ENSRegistry.js";
-import { ownedResolverArtifact } from "./ens-contracts/OwnedResolver.js";
-import { universalResolverArtifact } from "./ens-contracts/UniversalResolver.js";
 
 export async function deployV1Fixture<C extends NetworkConnection>(
   networkConnection: C,
@@ -15,16 +11,16 @@ export async function deployV1Fixture<C extends NetworkConnection>(
   });
   const [walletClient] = await networkConnection.viem.getWalletClients();
   const ensRegistry =
-    await networkConnection.viem.deployContract(ensRegistryArtifact);
+    await networkConnection.viem.deployContract('ENSRegistry');
   const ethRegistrar = await networkConnection.viem.deployContract(
-    baseRegistrarImplementationArtifact,
+    'BaseRegistrarImplementation',
     [ensRegistry.address, namehash("eth")],
   );
   const ownedResolver = await networkConnection.viem.deployContract(
-    ownedResolverArtifact,
+    'lib/ens-contracts/contracts/resolvers/OwnedResolver.sol:OwnedResolver'
   );
   const universalResolver = await networkConnection.viem.deployContract(
-    universalResolverArtifact,
+    "lib/ens-contracts/contracts/universalResolver/UniversalResolver.sol:UniversalResolver",
     [ensRegistry.address, ["x-batch-gateway:true"]],
     { client: { public: publicClient } },
   );

@@ -535,7 +535,7 @@ describe("ETHFallbackResolver", () => {
         res.expect(answer);
       }
     });
-    it("multicall()", async () => {
+    it(`multicall()`, async () => {
       const F = await loadFixture();
       const bundle = bundleCalls(makeResolutions(kp));
       await F.namechain.setupName(kp);

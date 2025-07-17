@@ -1,5 +1,4 @@
 import { configVariable, type HardhatUserConfig } from "hardhat/config";
-import fs from "node:fs";
 
 import HardhatChaiMatchersViemPlugin from "@ensdomains/hardhat-chai-matchers-viem";
 import HardhatKeystore from "@nomicfoundation/hardhat-keystore";
@@ -8,7 +7,7 @@ import HardhatViem from "@nomicfoundation/hardhat-viem";
 import HardhatDeploy from "hardhat-deploy";
 
 import HardhatStorageLayoutPlugin from "./plugins/storage-layout/index.ts";
-import HardhatSourceFilterPlugin from "./plugins/source-filter/index.ts";
+import HardhatIgnoreWarningsPlugin from "./plugins/ignore-warnings/index.ts";
 
 const realAccounts = [
   configVariable("DEPLOYER_KEY"),
@@ -44,43 +43,49 @@ const config = {
     },
   },
   solidity: {
-    version: "0.8.25",
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 1000,
+    compilers: [
+      {
+        version: "0.8.25",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 1000,
+          },
+          evmVersion: "cancun",
+          outputSelection: {
+            "*": {
+              "*": ["storageLayout"],
+            },
+          },
+        },
       },
-      evmVersion: "cancun",
-    },
-    remappings: fs
-      .readFileSync("./remappings.txt", "utf-8")
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0),
-  },
-  paths: {
-    sources: [
-      "./src",
-      "./lib/verifiable-factory/src",
-      "./lib/ens-contracts/contracts/",
-      "./lib/openzeppelin-contracts/contracts/utils/introspection/",
+      {
+        version: "0.4.11",
+      },
     ],
   },
-  sourceFilter: (path) =>
-    !path.includes("lib/ens-contracts/contracts") || isInterfaceFile(path),
+  paths: {
+    sources: {
+      solidity: [
+        "./src/",
+        "./lib/verifiable-factory/src/",
+        "./lib/ens-contracts/contracts/",
+        "./lib/openzeppelin-contracts/contracts/utils/introspection/",
+      ],
+    },
+  },
+  shouldIgnoreWarnings: (file) => {
+    return file.startsWith("./lib/");
+  },
   plugins: [
     HardhatNetworkHelpersPlugin,
     HardhatChaiMatchersViemPlugin,
     HardhatViem,
-    HardhatDeploy,
     HardhatKeystore,
     HardhatStorageLayoutPlugin,
-    HardhatSourceFilterPlugin,
+    HardhatIgnoreWarningsPlugin,
+    HardhatDeploy,
   ],
 } satisfies HardhatUserConfig;
-
-function isInterfaceFile(path: string) {
-  return /\/I[^\/]+.sol$/.test(path);
-}
 
 export default config;

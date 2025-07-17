@@ -3,12 +3,12 @@ import type { HardhatPlugin } from "hardhat/types/plugins";
 
 declare module "hardhat/types/config" {
   interface HardhatUserConfig {
-    sourceFilter?: (path: string) => boolean;
+    shouldIgnoreWarnings?: (path: string, error: string) => boolean;
   }
 }
 
-const HardhatSourceFilterPlugin: HardhatPlugin = {
-  id: "hardhat-source-filter",
+const plugin: HardhatPlugin = {
+  id: "hardhat-ignore-warnings",
   tasks: [
     overrideTask("compile")
       .setAction(import.meta.resolve("./task.ts"))
@@ -16,4 +16,4 @@ const HardhatSourceFilterPlugin: HardhatPlugin = {
   ],
 };
 
-export default HardhatSourceFilterPlugin;
+export default plugin;
