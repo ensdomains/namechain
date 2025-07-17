@@ -137,7 +137,12 @@ describe("ETHFallbackResolver", () => {
 
   shouldSupportInterfaces({
     contract: () => loadFixture().then((F) => F.ethFallbackResolver),
-    interfaces: ["IERC165", "IExtendedResolver", "IFeatureSupporter"],
+    interfaces: [
+      "IERC165",
+      "IExtendedResolver",
+      "IFeatureSupporter",
+      "IRegistryResolver",
+    ],
   });
 
   shouldSupportFeatures({
@@ -150,10 +155,7 @@ describe("ETHFallbackResolver", () => {
   describe("storage layout", () => {
     describe("DedicatedResolver", () => {
       const code = readFileSync(
-        new URL(
-          "../src/common/DedicatedResolverLayout.sol",
-          import.meta.url,
-        ),
+        new URL("../src/common/DedicatedResolverLayout.sol", import.meta.url),
         "utf8",
       );
       for (const [_, name, slot] of code.matchAll(
