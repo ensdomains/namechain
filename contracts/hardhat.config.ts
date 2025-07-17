@@ -74,8 +74,11 @@ const config = {
       ],
     },
   },
-  shouldIgnoreWarnings: (file) => {
-    return file.startsWith("./lib/");
+  shouldIgnoreWarnings: (path) => {
+    return (
+      path.startsWith("./lib/ens-contracts/") ||
+      path.startsWith("./lib/solsha1/")
+    );
   },
   plugins: [
     HardhatNetworkHelpersPlugin,
