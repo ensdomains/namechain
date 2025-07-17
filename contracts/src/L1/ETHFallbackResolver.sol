@@ -3,25 +3,26 @@ pragma solidity >=0.8.13;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+
 import {GatewayFetcher} from "@unruggable/gateways/contracts/GatewayFetcher.sol";
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
 import {GatewayFetchTarget, IGatewayVerifier} from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
-import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
-import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
+
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
-import {NameUtils} from "../common/NameUtils.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {NameUtils} from "../common/NameUtils.sol";
+import {NameMatcher} from "../common/NameMatcher.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {DedicatedResolverLayout} from "../common/DedicatedResolverLayout.sol";
-
-// resolver features
-import {IFeatureSupporter} from "../common/IFeatureSupporter.sol";
-import {ResolverFeatures} from "../common/ResolverFeatures.sol";
+import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
+import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 
 // resolver profiles
+import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
 import {IHasAddressResolver} from "@ens/contracts/resolvers/profiles/IHasAddressResolver.sol";
@@ -31,6 +32,9 @@ import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
 import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
+
+/// @dev The namehash of "eth".
+bytes32 constant ETH_NODE = keccak256(abi.encode(bytes32(0), keccak256("eth")));
 
 contract ETHFallbackResolver is
     IExtendedResolver,
@@ -49,6 +53,7 @@ contract ETHFallbackResolver is
     IGatewayVerifier public namechainVerifier;
     address public immutable namechainDatastore;
     address public immutable namechainEthRegistry;
+    uint8 public maxReadsPerRequest = 32;
 
     /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;
@@ -56,25 +61,14 @@ contract ETHFallbackResolver is
     /// @dev `GatewayRequest` exit code which indicates no resolver was found.
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
 
-    /// @dev `name` does not exist.
-    ///      Error selector: `0x5fe9a5df`
+    /// @notice `name` does not exist.
+    /// @dev Error selector: `0x5fe9a5df`
     /// @param name The DNS-encoded ENS name.
     error UnreachableName(bytes name);
 
-    /// @dev The resolver profile cannot be answered.
-    ///      Error selector: `0x7b1c461b`
-    /// @param selector The function selector of the resolver profile.
+    /// @notice The resolver profile cannot be answered.
+    /// @dev Error selector: `0x7b1c461b`
     error UnsupportedResolverProfile(bytes4 selector);
-
-    /// @dev Maximum number of calls in a `multicall()`.
-    ///      Technical limit: 254.
-    ///      Actual limit: gateway proof size and/or gas limit.
-    uint8 public immutable MAX_MULTICALLS = 32;
-
-    /// @dev Error when the number of calls in a `multicall()` is too large.
-    ///      Error selector: `0xf752eecf`
-    /// @param max The maximum number of calls.
-    error MulticallTooLarge(uint256 max);
 
     constructor(
         IBaseRegistrar _ethRegistrarV1,
@@ -84,7 +78,7 @@ contract ETHFallbackResolver is
         IGatewayVerifier _namechainVerifier,
         address _namechainDatastore,
         address _namechainEthRegistry
-    ) Ownable(msg.sender) {
+    ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
         ethRegistrarV1 = _ethRegistrarV1;
         universalResolverV1 = _universalResolverV1;
         burnAddressV1 = _burnAddressV1;
@@ -105,11 +99,11 @@ contract ETHFallbackResolver is
     }
 
     /// @inheritdoc IFeatureSupporter
-    function supportsFeature(bytes4 feature) public pure returns (bool) {
+    function supportsFeature(bytes4 feature) external pure returns (bool) {
         return ResolverFeatures.RESOLVE_MULTICALL == feature;
     }
 
-    /// @dev Set the Namechain verifier.
+    /// @notice Set the Namechain verifier.
     /// @param verifier The new verifier address.
     function setNamechainVerifier(
         IGatewayVerifier verifier
@@ -117,74 +111,108 @@ contract ETHFallbackResolver is
         namechainVerifier = verifier;
     }
 
-    /// @dev Set the resolver for "eth".
+    /// @notice Set the resolver for "eth".
+    /// @dev Assumes resolver is not extended.
     /// @param resolver The new resolver address.
     function setETHResolver(address resolver) external onlyOwner {
         ethResolver = resolver;
     }
 
-    /// @dev Count the number of labels before "eth".
-    ///      Reverts if invalid name or not "*.eth".
-    /// @param name The name to parse.
-    /// @return node The namehash of the name.
-    /// @return count The number of labels before "eth".
-    /// @return offset2LD The offset of the 2LD.
-    function _countLabels(
-        bytes memory name
-    ) internal pure returns (bytes32 node, uint256 count, uint256 offset2LD) {
-        node = NameCoder.namehash(name, 0); // validates the name
-        uint256 offset;
-        uint256 offset1LD;
-        while (true) {
-            uint256 size = uint8(name[offset]);
-            if (size == 0) break;
-            offset2LD = offset1LD;
-            offset1LD = offset;
-            offset += 1 + size;
-            count++;
-        }
-        // verify the last label was "eth"
-        (bytes32 labelHash, ) = NameCoder.readLabel(name, offset1LD);
-        if (labelHash != keccak256("eth")) {
-            revert UnreachableName(name);
-        }
-        count--; // drop last label
+    /// @notice Set maximum number of reads per request via gateway.
+    /// @dev Technical limit: 254.
+    ///      Actual limit: gateway proof size and/or gas limit.
+    /// @param reads The maximum number of reads.
+    function setMaxReadsPerRequest(uint8 reads) external onlyOwner {
+        assert(reads > 0 && reads <= 254);
+        maxReadsPerRequest = reads;
     }
 
-    /// @dev Split the calldata into individual calls.
-    /// @param data The calldata.
-    /// @return multi True if the calldata is a multicall.
-    /// @return calls The individual calls.
-    function _parseCalls(
-        bytes calldata data
-    ) internal pure returns (bool multi, bytes[] memory calls) {
-        multi = bytes4(data) == IMulticallable.multicall.selector;
-        if (multi) {
-            calls = abi.decode(data[4:], (bytes[]));
-            if (calls.length > MAX_MULTICALLS) {
-                revert MulticallTooLarge(MAX_MULTICALLS);
-            }
-        } else {
-            calls = new bytes[](1);
-            calls[0] = data;
-        }
-    }
-
-    /// @dev Return true if the name is actively registered on V1.
+    /// @dev Determine if labelhash is actively registered on V1.
     /// @param id The labelhash of the "eth" 2LD.
+    /// @return True if the registration is active.
     function _isActiveRegistrationV1(uint256 id) internal view returns (bool) {
         return
             !ethRegistrarV1.available(id) &&
             ethRegistrarV1.ownerOf(id) != burnAddressV1;
     }
 
-    /// @notice Resolve `name` using Namechain, Mainnet V2, or Mainnet V1 depending on migration and ejection status.
-    /// @notice Callers should enable EIP-3668.
-    /// @dev This function executes over multiple steps (step 1 of 2).
+    /// @notice Same as `resolveWithRegistry()` but starts at "eth".
+    function resolve(
+        bytes calldata name,
+        bytes calldata data
+    ) external view returns (bytes memory) {
+        return resolveWithRegistry(namechainEthRegistry, ETH_NODE, name, data);
+    }
+
+    /// @notice Resolve `name` with the Namechain registry corresponding to `nodeSuffix`.
+    ///         If `nodeSuffix` is "eth", checks Mainnet V1 before resolving on Namechain.
+    function resolveWithRegistry(
+        address parentRegistry,
+        bytes32 nodeSuffix,
+        bytes calldata name,
+        bytes calldata data
+    ) public view returns (bytes memory) {
+        (bool matched, , uint256 prevOffset, uint256 offset) = NameMatcher
+            .suffix(name, 0, nodeSuffix);
+        if (!matched) {
+            revert UnreachableName(name);
+        }
+        if (nodeSuffix == ETH_NODE) {
+            if (offset == prevOffset) {
+                ccipRead(
+                    ethResolver,
+                    data,
+                    this.resolveEthCallback.selector, // ==> step 2
+                    IDENTITY_FUNCTION,
+                    ""
+                );
+            }
+            (bytes32 labelHash, ) = NameCoder.readLabel(name, prevOffset);
+            if (_isActiveRegistrationV1(uint256(labelHash))) {
+                ccipRead(
+                    address(universalResolverV1),
+                    abi.encodeCall(IUniversalResolver.resolve, (name, data))
+                );
+            }
+        }
+        bytes[] memory calls;
+        bool multi = bytes4(data) == IMulticallable.multicall.selector;
+        if (multi) {
+            calls = abi.decode(data[4:], (bytes[]));
+        } else {
+            calls = new bytes[](1);
+            calls[0] = data;
+        }
+        return
+            _resolveNamechain(
+                State(parentRegistry, name, offset, multi, calls, 0)
+            );
+    }
+
+    /// @dev CCIP-Read callback for `resolveWithRegistry()` from calling `ethResolver`.
+    function resolveEthCallback(
+        bytes calldata response,
+        bytes calldata
+    ) external pure returns (bytes memory) {
+        return response;
+    }
+
+    /// @dev State of Namechain resolution.
+    struct State {
+        address registry;
+        bytes name;
+        uint256 nameLength;
+        bool multi;
+        bytes[] data;
+        uint256 index;
+    }
+
+    /// @notice Resolve `name` on Namechain starting at `registry`.
+    /// @dev This function executes over multiple steps.
     ///
     /// `GatewayRequest` walkthrough:
-    /// * The stack is loaded with labelhashes, excluding "eth".
-    ///     * "sub.vitalik.eth" &rarr; `["sub", "vitalik"]`.
+    /// * The stack is loaded with labelhashes:
+    ///     * "sub.vitalik" &rarr; `["sub", "vitalik"]`.
     /// * `output[0]` is set to the Namechain "eth" registry.
     /// * A traversal program is pushed onto the stack.
     /// * `evalLoop(flags, count)` pops the program and executes it `count` times,
@@ -209,45 +237,37 @@ contract ETHFallbackResolver is
     ///
     /// Pseudocode:
     /// ```
-    /// registry = <eth>
+    /// registry = <registry>
     /// resolver = null
-    /// for label of ["vitalik", "sub"]
-    ///    (reg, res) = registry[label]
+    /// for label of name.slice(-length).split('.').reverse()
+    ///    (reg, res) = datastore.getSubregistry(reg, label)
     ///    if (expired) break
     ///    if (res) resolver = res
     ///    if (!reg) break
     ///    registry = reg
     /// ````
-    function resolve(
-        bytes memory name,
-        bytes calldata data
-    ) external view returns (bytes memory) {
-        (, uint256 labelCount, uint256 offset) = _countLabels(name);
-        if (labelCount == 0) {
-            ccipRead(ethResolver, data, this.resolveEthCallback.selector, "");
-        }
-        (bytes32 labelHash, ) = NameCoder.readLabel(name, offset);
-        if (_isActiveRegistrationV1(uint256(labelHash))) {
-            ccipRead(
-                address(universalResolverV1),
-                abi.encodeCall(IUniversalResolver.resolve, (name, data)),
-                this.resolveV1Callback.selector,
-                ""
-            );
-        }
-        (bool multi, bytes[] memory calls) = _parseCalls(data);
-        GatewayRequest memory req = GatewayFetcher.newRequest(
-            uint8(calls.length < 3 ? 3 : calls.length + 1)
-        );
-        // output[0] = registry
-        // output[1] = last non-zero resolver
+    function _resolveNamechain(
+        State memory state
+    ) public view returns (bytes memory) {
+        uint256 max = state.data.length - state.index;
+        if (max > maxReadsPerRequest) max = maxReadsPerRequest;
+        uint256[] memory callMap = new uint256[](max);
+        // output[ 0] = registry
+        // output[ 1] = last non-zero resolver
         // output[-1] = default address
-        offset = 0; // reset to start
-        for (uint256 i; i < labelCount; i++) {
-            (labelHash, offset) = NameCoder.readLabel(name, offset);
-            req.push(NameUtils.getCanonicalId(uint256(labelHash)));
+        GatewayRequest memory req = GatewayFetcher.newRequest(
+            uint8(max < 2 ? 2 : max + 1)
+        );
+        {
+            bytes32 labelHash;
+            uint256 offset;
+            while (offset < state.nameLength) {
+                (labelHash, offset) = NameCoder.readLabel(state.name, offset);
+                if (labelHash == bytes32(0)) break;
+                req.push(NameUtils.getCanonicalId(uint256(labelHash)));
+            }
         }
-        req.push(namechainEthRegistry).setOutput(0); // starting point
+        req.push(state.registry).setOutput(0); // starting point
         req.setTarget(namechainDatastore);
         req.setSlot(SLOT_RD_ENTRIES);
         {
@@ -261,23 +281,24 @@ contract ETHFallbackResolver is
             cmd.shl(96).shr(96); // extract registry
             cmd.offset(1).read().shl(96).shr(96); // read resolverData => extract resolver
             cmd.push(
-                GatewayFetcher.newCommand().requireNonzero(1).setOutput(1)
-            ); // save resolver if set
+                GatewayFetcher.newCommand().requireNonzero(1).setOutput(1) // save resolver if set
+            );
             cmd.evalLoop(0, 1); // consume resolver, catch assert
             cmd.requireNonzero(1).setOutput(0); // require registry and save it
             req.push(cmd);
         }
         req.evalLoop(EvalFlag.STOP_ON_FAILURE | EvalFlag.KEEP_ARGS); // outputs = [registry, resolver]
         req.pushOutput(1).requireNonzero(EXIT_CODE_NO_RESOLVER).target(); // target resolver
-        req.push(bytes("")).dup().dup().setOutput(0).setOutput(1); // clear outputs
-        uint256 errorCount;
-        for (uint256 i; i < calls.length; i++) {
-            bytes memory v = calls[i];
+        req.push(bytes("")).dup().setOutput(0).setOutput(1); // clear outputs
+        uint8 count; // number of valid records
+        uint256 index = state.index; // cursor into requests
+        for (; index < state.data.length && count < max; ++index) {
+            callMap[count] = index; // remember local => index of requests
+            bytes memory v = state.data[index];
             bytes4 selector = bytes4(v);
             // NOTE: "node check" is NOT performed:
             // if (v.length < 36 || BytesUtils.readBytes32(v, 4) != node) {
             //     calls[i] = abi.encodeWithSelector(NodeMismatch.selector, node);
-            //     errorCount++;
             //     continue;
             // }
             if (
@@ -297,9 +318,9 @@ contract ETHFallbackResolver is
                         .dup()
                         .length()
                         .isZero()
-                        .pushOutput(calls.length)
+                        .pushOutput(max)
                         .plus()
-                        .setOutput(uint8(calls.length)); // count missing
+                        .setOutput(uint8(max)); // count missing
                 }
             } else if (selector == IHasAddressResolver.hasAddr.selector) {
                 uint256 coinType = uint256(BytesUtils.readBytes32(v, 36));
@@ -320,7 +341,7 @@ contract ETHFallbackResolver is
                     .setSlot(DedicatedResolverLayout.SLOT_TEXTS)
                     .push(key)
                     .follow()
-                    .readBytes(); // _textRecords[key]
+                    .readBytes(); // _texts[key]
             } else if (selector == IContentHashResolver.contenthash.selector) {
                 req
                     .setSlot(DedicatedResolverLayout.SLOT_CONTENTHASH)
@@ -339,126 +360,104 @@ contract ETHFallbackResolver is
                     .follow()
                     .read(); // _interfaces[interfaceID]
             } else if (selector == IABIResolver.ABI.selector) {
-                req.setSlot(DedicatedResolverLayout.SLOT_ABIS);
                 uint256 bits = uint256(BytesUtils.readBytes32(v, 36));
-                uint256 count;
                 for (
                     uint256 contentType = 1 << 255;
                     contentType > 0;
                     contentType >>= 1
                 ) {
                     if ((bits & contentType) != 0) {
-                        req.push(contentType);
-                        count++;
+                        req.push(contentType); // stack overflow if too many bits
                     }
                 }
-                {
-                    // program to check one stored abi
-                    GatewayRequest memory cmd = GatewayFetcher.newCommand();
-                    cmd.dup().follow().readBytes(); // read abi, but keep contentType on stack
-                    cmd.dup().length().assertNonzero(1); // require length > 0
-                    cmd.concat().setOutput(uint8(i)); // save [contentType, bytes]
-                    req.push(cmd);
-                }
-                req.evalLoop(EvalFlag.STOP_ON_SUCCESS, count);
+                // program to check one stored abi
+                GatewayRequest memory cmd = GatewayFetcher.newCommand();
+                cmd.dup().follow().readBytes(); // read abi, but keep contentType on stack
+                cmd.dup().length().assertNonzero(1); // require length > 0
+                cmd.concat().setOutput(count++); // save contentType + bytes
+                req.push(cmd);
+                req.setSlot(DedicatedResolverLayout.SLOT_ABIS);
+                req.evalLoop(EvalFlag.STOP_ON_SUCCESS);
                 continue;
             } else {
-                calls[i] = abi.encodeWithSelector(
+                state.data[index] = abi.encodeWithSelector(
                     UnsupportedResolverProfile.selector,
                     selector
                 );
-                errorCount++;
                 continue;
             }
-            req.setOutput(uint8(i));
+            req.setOutput(count++);
         }
-        if (calls.length == errorCount) {
-            if (multi) {
-                return abi.encode(calls); // every multicall failed
+        if (count == 0) {
+            if (state.multi) {
+                return abi.encode(state.data); // all calls failed
             } else {
-                bytes memory v = calls[0];
+                bytes memory v = state.data[0];
                 assembly {
                     revert(add(v, 32), mload(v)) // revert with the call that failed
                 }
             }
         }
-        req.pushOutput(calls.length).requireNonzero(0); // stop if no missing
+        state.index = index; // advance
+        req.pushOutput(max).requireNonzero(0); // stop if no missing
         req
             .setSlot(DedicatedResolverLayout.SLOT_ADDRESSES)
             .push(COIN_TYPE_DEFAULT)
             .follow()
             .readBytes(); // _addresses[COIN_TYPE_DEFAULT]
-        req.setOutput(uint8(calls.length)); // save default address
+        req.setOutput(uint8(max)); // save default address at end
         fetch(
             namechainVerifier,
             req,
-            this.resolveNamechainCallback.selector,
-            abi.encode(name, multi, calls),
+            this.resolveNamechainCallback.selector, // ==> step 2
+            abi.encode(state, callMap, count),
             new string[](0)
         );
     }
 
-    /// @dev CCIP-Read callback for `resolve()` from calling `ethResolver` (step 2 of 2).
-    /// @param response The response data.
-    /// @return result The abi-encoded result.
-    function resolveEthCallback(
-        bytes calldata response,
-        bytes calldata /*extraData*/
-    ) external pure returns (bytes memory result) {
-        result = response;
-    }
-
-    /// @dev CCIP-Read callback for `resolve()` from calling `universalResolverV1` (step 2 of 2).
-    /// @param response The response data.
-    /// @return result The abi-encoded result.
-    function resolveV1Callback(
-        bytes calldata response,
-        bytes calldata /*extraData*/
-    ) external pure returns (bytes memory result) {
-        (result, ) = abi.decode(response, (bytes, address));
-    }
-
-    /// @dev CCIP-Read callback for `resolve()` from calling `namechainVerifier` (step 2 of 2).
+    /// @dev CCIP-Read callback for `resolve()` from calling `namechainVerifier`.
     /// @param values The outputs for `GatewayRequest`.
     /// @param exitCode The exit code for `GatewayRequest`.
     /// @param extraData The contextual data passed from `resolve()`.
-    /// @return result The abi-encoded result.
+    /// @return The abi-encoded response for the request.
     function resolveNamechainCallback(
         bytes[] calldata values,
         uint8 exitCode,
         bytes calldata extraData
-    ) external pure returns (bytes memory result) {
-        (bytes memory name, bool multi, bytes[] memory calls) = abi.decode(
-            extraData,
-            (bytes, bool, bytes[])
-        );
+    ) external view returns (bytes memory) {
+        (State memory state, uint256[] memory callMap, uint256 count) = abi
+            .decode(extraData, (State, uint256[], uint256));
         if (exitCode == EXIT_CODE_NO_RESOLVER) {
-            revert UnreachableName(name);
+            revert UnreachableName(state.name);
         }
-        bytes memory defaultAddress = values[calls.length];
-        if (multi) {
-            for (uint256 i; i < calls.length; i++) {
-                calls[i] = _prepareResponse(
-                    calls[i],
+        bytes memory defaultAddress = values[callMap.length]; // stored at end
+        if (state.multi) {
+            for (uint256 i; i < count; ++i) {
+                uint256 index = callMap[i]; // local => index
+                state.data[index] = _prepareResponse(
+                    state.data[index],
                     values[i],
                     defaultAddress
                 );
             }
-            return abi.encode(calls);
+            if (state.index < state.data.length) {
+                _resolveNamechain(state); // ==> goto step 1 again
+            }
+            return abi.encode(state.data);
         } else {
-            return _prepareResponse(calls[0], values[0], defaultAddress);
+            return _prepareResponse(state.data[0], values[0], defaultAddress);
         }
     }
 
     /// @dev Prepare response based on the request.
     /// @param data The original request (or error).
     /// @param value The response from the gateway.
-    /// @return response The abi-encoded response for the request.
+    /// @return The abi-encoded response for the request.
     function _prepareResponse(
         bytes memory data,
         bytes memory value,
         bytes memory defaultAddress
-    ) internal pure returns (bytes memory response) {
+    ) internal pure returns (bytes memory) {
         bytes4 selector = bytes4(data);
         if (selector == UnsupportedResolverProfile.selector) {
             return data;
