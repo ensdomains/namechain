@@ -14,7 +14,7 @@ import {IRegistry} from "../src/common/IRegistry.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
-import {TestUtils} from "./utils/TestUtils.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 
 contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
     // Test constants
@@ -54,7 +54,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
             UserRegistry.initialize.selector,
             address(datastore),
             address(metadata),
-            TestUtils.ALL_ROLES,
+            LibEACBaseRoles.ALL_ROLES,
             admin
         );
         

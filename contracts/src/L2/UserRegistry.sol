@@ -18,7 +18,7 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
     uint256 internal constant ROLE_UPGRADE = 1 << 20;
     uint256 internal constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
 
-    constructor() PermissionedRegistry(IRegistryDatastore(address(0)), IRegistryMetadata(address(0)), 0) {
+    constructor() PermissionedRegistry(IRegistryDatastore(address(0)), IRegistryMetadata(address(0)), _msgSender(), 0) {
         // This disables initialization for the implementation contract
         _disableInitializers();
     }

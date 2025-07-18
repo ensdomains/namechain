@@ -78,12 +78,12 @@ test("name ejection", async () => {
   );
 
   console.log("L2 registry", l2.contracts.ethRegistry.address);
-  console.log("L2 controller", l2.contracts.ejectionController.address);
+  console.log("L2 controller", l2.contracts.bridgeController.address);
 
-  console.log("Transferring token to L2EjectionController...");
+  console.log("Transferring token to L2BridgeController...");
   const transferTx = l2.contracts.ethRegistry.write.safeTransferFrom([
     owner,
-    l2.contracts.ejectionController.address,
+    l2.contracts.bridgeController.address,
     tokenId,
     1n,
     encodedTransferData,
@@ -95,7 +95,7 @@ test("name ejection", async () => {
   );
   await expectTransactionSuccess(l2.client, transferTx);
   console.log(
-    `Token transferred to L2EjectionController, tx hash: ${await transferTx}`,
+    `Token transferred to L2BridgeController, tx hash: ${await transferTx}`,
   );
 
   if ((bridgeEvents as any[]).length === 0) {
@@ -161,7 +161,7 @@ test("round trip", async () => {
 
   const transferTxToL1 = l2.contracts.ethRegistry.write.safeTransferFrom([
     l2User,
-    l2.contracts.ejectionController.address,
+    l2.contracts.bridgeController.address,
     tokenId,
     1n,
     encodedTransferDataToL1,
@@ -173,7 +173,7 @@ test("round trip", async () => {
   );
   await expectTransactionSuccess(l2.client, transferTxToL1);
   console.log(
-    `Token transferred to L2EjectionController, tx hash: ${await transferTxToL1}`,
+    `Token transferred to L2BridgeController, tx hash: ${await transferTxToL1}`,
   );
 
   if ((ejectionEvents as any[]).length === 0) {
