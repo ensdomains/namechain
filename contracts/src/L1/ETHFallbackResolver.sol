@@ -55,7 +55,11 @@ contract ETHFallbackResolver is
     IGatewayVerifier public namechainVerifier;
     address public immutable namechainDatastore;
     address public immutable namechainEthRegistry;
-    uint8 public maxReadsPerRequest = 32;
+
+    /// @notice The maximum number of reads per request via gateway.
+    /// @dev Valid range [1, 254].
+    ///      Actual limit: gateway proof size and/or gas limit.
+    uint8 public maxReadsPerRequest;
 
     /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;
@@ -79,7 +83,8 @@ contract ETHFallbackResolver is
         address _ethResolver,
         IGatewayVerifier _namechainVerifier,
         address _namechainDatastore,
-        address _namechainEthRegistry
+        address _namechainEthRegistry,
+        uint8 _maxReadsPerRequest
     ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
         ethRegistrarV1 = _ethRegistrarV1;
         universalResolverV1 = _universalResolverV1;
@@ -88,6 +93,7 @@ contract ETHFallbackResolver is
         namechainVerifier = _namechainVerifier;
         namechainDatastore = _namechainDatastore;
         namechainEthRegistry = _namechainEthRegistry;
+        maxReadsPerRequest = _maxReadsPerRequest;
     }
 
     /// @inheritdoc ERC165
@@ -121,15 +127,6 @@ contract ETHFallbackResolver is
         ethResolver = resolver;
     }
 
-    /// @notice Set maximum number of reads per request via gateway.
-    /// @dev Technical limit: 254.
-    ///      Actual limit: gateway proof size and/or gas limit.
-    /// @param reads The maximum number of reads.
-    function setMaxReadsPerRequest(uint8 reads) external onlyOwner {
-        assert(reads > 0 && reads <= 254);
-        maxReadsPerRequest = reads;
-    }
-
     /// @dev Determine if labelhash is actively registered on V1.
     /// @param id The labelhash of the "eth" 2LD.
     /// @return True if the registration is active.
@@ -156,11 +153,8 @@ contract ETHFallbackResolver is
         bytes calldata name,
         bytes calldata data
     ) public view returns (bytes memory) {
-        (bool matched, , uint256 prevOffset, uint256 offset) = NameMatcher.suffix(
-            name,
-            0,
-            nodeSuffix
-        );
+        (bool matched, , uint256 prevOffset, uint256 offset) = NameMatcher
+            .suffix(name, 0, nodeSuffix);
         if (!matched) {
             revert UnreachableName(name);
         }

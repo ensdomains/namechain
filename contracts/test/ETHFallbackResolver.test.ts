@@ -85,23 +85,7 @@ async function fixture() {
     owner: mainnetV2.walletClient.account.address,
   });
   const burnAddressV1 = "0x000000000000000000000000000000000000FadE";
-  const ethFallbackResolver = await chain1.viem.deployContract(
-    "ETHFallbackResolver",
-    [
-      mainnetV1.ethRegistrar.address,
-      mainnetV1.universalResolver.address,
-      burnAddressV1,
-      ethResolver.address,
-      verifierAddress,
-      namechain.datastore.address,
-      namechain.ethRegistry.address,
-    ],
-    { client: { public: mainnetV2.publicClient } }, // CCIP on EFR
-  );
-  await mainnetV2.rootRegistry.write.setResolver([
-    BigInt(labelhash("eth")),
-    ethFallbackResolver.address,
-  ]);
+  const ethFallbackResolver = await deployFallbackResolver(32);
   return {
     ethFallbackResolver,
     ethResolver,
@@ -109,7 +93,29 @@ async function fixture() {
     burnAddressV1,
     mainnetV2,
     namechain,
+    deployFallbackResolver,
   } as const;
+  async function deployFallbackResolver(maxReadsPerRequest: number) {
+    const ethFallbackResolver = await chain1.viem.deployContract(
+      "ETHFallbackResolver",
+      [
+        mainnetV1.ethRegistrar.address,
+        mainnetV1.universalResolver.address,
+        burnAddressV1,
+        ethResolver.address,
+        verifierAddress,
+        namechain.datastore.address,
+        namechain.ethRegistry.address,
+        maxReadsPerRequest,
+      ],
+      { client: { public: mainnetV2.publicClient } }, // CCIP on EFR
+    );
+    await mainnetV2.rootRegistry.write.setResolver([
+      BigInt(labelhash("eth")),
+      ethFallbackResolver.address,
+    ]);
+    return ethFallbackResolver;
+  }
 }
 
 const loadFixture = async () => {
@@ -554,28 +560,32 @@ describe("ETHFallbackResolver", () => {
       expectVar({ resolver }).toEqualAddress(F.ethFallbackResolver.address);
       bundle.expect(answer);
     });
-    for (const max of [1, 2, 32]) {
-      it(`resolve(multicall) w/max = ${max}`, async () => {
-        const F = await loadFixture();
-        await F.ethFallbackResolver.write.setMaxReadsPerRequest([max]);
-        await expect(
-          F.ethFallbackResolver.read.maxReadsPerRequest(),
-          "max",
-        ).resolves.toStrictEqual(max);
-        const bundle = bundleCalls(makeResolutions(kp));
-        await F.namechain.setupName(kp);
-        await F.namechain.walletClient.sendTransaction({
-          to: F.namechain.dedicatedResolver.address,
-          data: bundle.writeDedicated,
+    describe("resolve(multicall)", () => {
+      for (const max of [1, 2, 32, 254]) {
+        it(`maxReadsPerRequest = ${max}`, async () => {
+          const F = await loadFixture();
+          const ethFallbackResolver = max
+            ? await F.deployFallbackResolver(max)
+            : F.ethFallbackResolver;
+          await expect(
+            ethFallbackResolver.read.maxReadsPerRequest(),
+            "max",
+          ).resolves.toStrictEqual(max);
+          const bundle = bundleCalls(makeResolutions(kp));
+          await F.namechain.setupName(kp);
+          await F.namechain.walletClient.sendTransaction({
+            to: F.namechain.dedicatedResolver.address,
+            data: bundle.writeDedicated,
+          });
+          await sync();
+          const answer = await ethFallbackResolver.read.resolve([
+            dnsEncodeName(kp.name),
+            bundle.call,
+          ]);
+          bundle.expect(answer);
         });
-        await sync();
-        const answer = await F.ethFallbackResolver.read.resolve([
-          dnsEncodeName(kp.name),
-          bundle.call,
-        ]);
-        bundle.expect(answer);
-      });
-    }
+      }
+    });
     it("zero multicalls", async () => {
       const kp: KnownProfile = { name: testNames[0] };
       const F = await loadFixture();
