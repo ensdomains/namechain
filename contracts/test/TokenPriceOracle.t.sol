@@ -28,7 +28,7 @@ contract TokenPriceOracleTest is Test {
         decimals[0] = 6;  // USDC has 6 decimals
         decimals[1] = 18; // DAI has 18 decimals
         
-        tokenOracle = new TokenPriceOracle(tokens, decimals);
+        tokenOracle = new TokenPriceOracle(tokens, decimals, 10 * 1e6, 5 * 1e6);
         
         // Verify the oracle was created and configured correctly
         assertTrue(tokenOracle.isTokenSupported(mockUSDC));
@@ -59,7 +59,7 @@ contract TokenPriceOracleTest is Test {
         decimals[0] = 6;  // USDC has 6 decimals
         decimals[1] = 18; // DAI has 18 decimals
         
-        tokenOracle = new TokenPriceOracle(tokens, decimals);
+        tokenOracle = new TokenPriceOracle(tokens, decimals, 10 * 1e6, 5 * 1e6);
         
         // Total USD price = $10 (base) + $5 (premium) = $15
         // For USDC (6 decimals): $15 should be 15 * 10^6 = 15,000,000
@@ -84,7 +84,7 @@ contract TokenPriceOracleTest is Test {
         decimals[1] = 18; // DAI
         
         // Constructor should only need tokens and decimals, no base oracle
-        tokenOracle = new TokenPriceOracle(tokens, decimals);
+        tokenOracle = new TokenPriceOracle(tokens, decimals, 10 * 1e6, 5 * 1e6);
         
         // price() should return USD amounts directly
         IPriceOracle.Price memory priceResult = tokenOracle.price("test", 0, 365 days);
@@ -93,5 +93,30 @@ contract TokenPriceOracleTest is Test {
         // Using 6 decimals as default (USDC standard)
         assertEq(priceResult.base, 10 * 1e6);     // $10 in 6 decimals
         assertEq(priceResult.premium, 5 * 1e6);   // $5 in 6 decimals
+    }
+
+    function test_constructor_should_accept_usd_prices() public {
+        // RED: This will fail because constructor doesn't accept price parameters
+        address[] memory tokens = new address[](2);
+        tokens[0] = mockUSDC;
+        tokens[1] = mockDAI;
+        
+        uint8[] memory decimals = new uint8[](2);
+        decimals[0] = 6;  // USDC
+        decimals[1] = 18; // DAI
+        
+        uint256 customBasePrice = 15 * 1e6;    // $15 in 6 decimals
+        uint256 customPremiumPrice = 3 * 1e6;  // $3 in 6 decimals
+        
+        tokenOracle = new TokenPriceOracle(tokens, decimals, customBasePrice, customPremiumPrice);
+        
+        // Verify custom prices are set
+        assertEq(tokenOracle.basePrice(), customBasePrice);
+        assertEq(tokenOracle.premiumPrice(), customPremiumPrice);
+        
+        // Verify price() returns the custom prices
+        IPriceOracle.Price memory priceResult = tokenOracle.price("test", 0, 365 days);
+        assertEq(priceResult.base, customBasePrice);
+        assertEq(priceResult.premium, customPremiumPrice);
     }
 }
