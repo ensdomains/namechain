@@ -119,4 +119,183 @@ contract TokenPriceOracleTest is Test {
         assertEq(priceResult.base, customBasePrice);
         assertEq(priceResult.premium, customPremiumPrice);
     }
+
+    function test_constructor_should_revert_with_zero_base_price() public {
+        // RED: Test zero base price validation
+        address[] memory tokens = new address[](1);
+        tokens[0] = mockUSDC;
+        
+        uint8[] memory decimals = new uint8[](1);
+        decimals[0] = 6;
+        
+        vm.expectRevert(abi.encodeWithSelector(TokenPriceOracle.InvalidPrice.selector, 0));
+        new TokenPriceOracle(tokens, decimals, 0, 5 * 1e6);
+    }
+
+    function test_constructor_should_revert_with_zero_premium_price() public {
+        // RED: Test zero premium price validation
+        address[] memory tokens = new address[](1);
+        tokens[0] = mockUSDC;
+        
+        uint8[] memory decimals = new uint8[](1);
+        decimals[0] = 6;
+        
+        vm.expectRevert(abi.encodeWithSelector(TokenPriceOracle.InvalidPrice.selector, 0));
+        new TokenPriceOracle(tokens, decimals, 10 * 1e6, 0);
+    }
+
+    function test_constructor_should_revert_with_array_length_mismatch() public {
+        // RED: Test array length mismatch validation
+        address[] memory tokens = new address[](2);
+        tokens[0] = mockUSDC;
+        tokens[1] = mockDAI;
+        
+        uint8[] memory decimals = new uint8[](1);  // Wrong length
+        decimals[0] = 6;
+        
+        vm.expectRevert(abi.encodeWithSelector(TokenPriceOracle.ArrayLengthMismatch.selector));
+        new TokenPriceOracle(tokens, decimals, 10 * 1e6, 5 * 1e6);
+    }
+
+    function test_priceInToken_should_revert_for_unsupported_token() public {
+        // RED: Test unsupported token
+        address[] memory tokens = new address[](1);
+        tokens[0] = mockUSDC;
+        
+        uint8[] memory decimals = new uint8[](1);
+        decimals[0] = 6;
+        
+        tokenOracle = new TokenPriceOracle(tokens, decimals, 10 * 1e6, 5 * 1e6);
+        
+        address unsupportedToken = address(0x999);
+        vm.expectRevert(abi.encodeWithSelector(TokenPriceOracle.TokenNotSupported.selector, unsupportedToken));
+        tokenOracle.priceInToken("test", 0, 365 days, unsupportedToken);
+    }
+
+    function test_priceInToken_should_handle_extreme_decimals() public {
+        // RED: Test edge cases with extreme decimal values
+        address[] memory tokens = new address[](3);
+        tokens[0] = address(0x1); // 0 decimals
+        tokens[1] = address(0x2); // 1 decimal  
+        tokens[2] = address(0x3); // 18 decimals (max)
+        
+        uint8[] memory decimals = new uint8[](3);
+        decimals[0] = 0;   // Extreme low
+        decimals[1] = 1;   // Very low
+        decimals[2] = 18;  // Standard high
+        
+        tokenOracle = new TokenPriceOracle(tokens, decimals, 10 * 1e6, 5 * 1e6);
+        
+        // Test 0 decimals: $15 should be 15
+        uint256 amount0 = tokenOracle.priceInToken("test", 0, 365 days, tokens[0]);
+        assertEq(amount0, 15);
+        
+        // Test 1 decimal: $15 should be 150  
+        uint256 amount1 = tokenOracle.priceInToken("test", 0, 365 days, tokens[1]);
+        assertEq(amount1, 150);
+        
+        // Test 18 decimals: $15 should be 15 * 1e18
+        uint256 amount18 = tokenOracle.priceInToken("test", 0, 365 days, tokens[2]);
+        assertEq(amount18, 15 * 1e18);
+    }
+
+    function test_constructor_should_handle_empty_token_arrays() public {
+        // RED: Test empty arrays
+        address[] memory tokens = new address[](0);
+        uint8[] memory decimals = new uint8[](0);
+        
+        // Should succeed with empty arrays
+        tokenOracle = new TokenPriceOracle(tokens, decimals, 10 * 1e6, 5 * 1e6);
+        
+        // Verify no tokens are supported
+        assertFalse(tokenOracle.isTokenSupported(mockUSDC));
+        assertFalse(tokenOracle.isTokenSupported(mockDAI));
+    }
+
+    function test_getTokenConfig_should_return_default_for_unsupported_token() public {
+        // RED: Test querying config for unsupported token
+        address[] memory tokens = new address[](1);
+        tokens[0] = mockUSDC;
+        
+        uint8[] memory decimals = new uint8[](1);
+        decimals[0] = 6;
+        
+        tokenOracle = new TokenPriceOracle(tokens, decimals, 10 * 1e6, 5 * 1e6);
+        
+        // Query unsupported token should return default values
+        TokenPriceOracle.TokenConfig memory config = tokenOracle.getTokenConfig(mockDAI);
+        assertEq(config.decimals, 0);
+        assertFalse(config.enabled);
+    }
+
+    function test_priceInToken_should_handle_large_prices() public {
+        // RED: Test very large USD prices to check for overflow
+        address[] memory tokens = new address[](2);
+        tokens[0] = mockUSDC;
+        tokens[1] = mockDAI;
+        
+        uint8[] memory decimals = new uint8[](2);
+        decimals[0] = 6;
+        decimals[1] = 18;
+        
+        uint256 largeBasePrice = 100000000 * 1e6;    // $100M in 6 decimals
+        uint256 largePremiumPrice = 50000000 * 1e6;  // $50M in 6 decimals
+        
+        tokenOracle = new TokenPriceOracle(tokens, decimals, largeBasePrice, largePremiumPrice);
+        
+        // Total: $150M should not overflow
+        uint256 usdcAmount = tokenOracle.priceInToken("test", 0, 365 days, mockUSDC);
+        assertEq(usdcAmount, 150000000 * 1e6);  // $150M USDC
+        
+        uint256 daiAmount = tokenOracle.priceInToken("test", 0, 365 days, mockDAI);
+        assertEq(daiAmount, 150000000 * 1e18);  // $150M DAI
+    }
+
+    function test_priceInToken_should_handle_very_small_prices() public {
+        // RED: Test very small prices for precision
+        address[] memory tokens = new address[](2);
+        tokens[0] = mockUSDC;
+        tokens[1] = mockDAI;
+        
+        uint8[] memory decimals = new uint8[](2);
+        decimals[0] = 6;
+        decimals[1] = 18;
+        
+        uint256 smallBasePrice = 1;    // $0.000001 in 6 decimals
+        uint256 smallPremiumPrice = 1; // $0.000001 in 6 decimals
+        
+        tokenOracle = new TokenPriceOracle(tokens, decimals, smallBasePrice, smallPremiumPrice);
+        
+        // Total: $0.000002
+        uint256 usdcAmount = tokenOracle.priceInToken("test", 0, 365 days, mockUSDC);
+        assertEq(usdcAmount, 2);  // 2 micro-USDC
+        
+        uint256 daiAmount = tokenOracle.priceInToken("test", 0, 365 days, mockDAI);
+        assertEq(daiAmount, 2 * 1e12);  // 2 * 1e12 wei DAI (0.000002 DAI)
+    }
+
+    function test_constructor_should_handle_duplicate_tokens() public {
+        // RED: Test duplicate token addresses - should still work but only store once
+        address[] memory tokens = new address[](3);
+        tokens[0] = mockUSDC;
+        tokens[1] = mockDAI;
+        tokens[2] = mockUSDC;  // Duplicate
+        
+        uint8[] memory decimals = new uint8[](3);
+        decimals[0] = 6;
+        decimals[1] = 18;
+        decimals[2] = 8;  // Different decimals for same token
+        
+        tokenOracle = new TokenPriceOracle(tokens, decimals, 10 * 1e6, 5 * 1e6);
+        
+        // Should still support both tokens
+        assertTrue(tokenOracle.isTokenSupported(mockUSDC));
+        assertTrue(tokenOracle.isTokenSupported(mockDAI));
+        
+        // Last configuration should win for duplicate token
+        TokenPriceOracle.TokenConfig memory usdcConfig = tokenOracle.getTokenConfig(mockUSDC);
+        assertEq(usdcConfig.decimals, 8);  // Should be 8, not 6
+        assertTrue(usdcConfig.enabled);
+    }
+
 }
