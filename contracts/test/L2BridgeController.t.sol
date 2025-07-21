@@ -13,11 +13,10 @@ import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
-import {IVerifiableFactory} from "../src/common/IVerifiableFactory.sol";
-import {UserRegistry} from "../src/L2/UserRegistry.sol";
-import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
+
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
-import {IBridge} from "../src/common/IBridge.sol";
+import {IBridge, BridgeMessageType} from "../src/common/IBridge.sol";
+import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 import {ITokenObserver} from "../src/common/ITokenObserver.sol";
 import {IRegistry} from "../src/common/IRegistry.sol";
@@ -51,57 +50,13 @@ contract MockBridge is IBridge {
 
 
 
-// Test implementation of L2BridgeController with concrete methods for testing
-contract TestL2BridgeControllerImpl is L2BridgeController {
-    // Define event signatures exactly as they will be emitted
-    event MockNameRenewed(uint256 indexed tokenId, uint64 expires, address renewedBy);
-    event MockNameRelinquished(uint256 indexed tokenId, address relinquishedBy);
 
-    // Tracking flags for callback tests
-    bool private _onRenewCalled;
-    bool private _onRelinquishCalled;
-
-    constructor(
-        IBridge _bridge,
-        PermissionedRegistry _ethRegistry, 
-        IRegistryDatastore _datastore,
-        IVerifiableFactory _verifiableFactory,
-        address _userRegistryImplementation
-    ) L2BridgeController(_bridge, _ethRegistry, _datastore, _verifiableFactory, _userRegistryImplementation) {}
-
-    // Implement the required external methods
-    function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external override {
-        _onRenewCalled = true;
-        emit MockNameRenewed(tokenId, expires, renewedBy);
-    }
-    
-    function onRelinquish(uint256 tokenId, address relinquishedBy) external override {
-        _onRelinquishCalled = true;
-        emit MockNameRelinquished(tokenId, relinquishedBy);
-    }
-
-    // Helper functions for tests
-    function resetTracking() external {
-        _onRenewCalled = false;
-        _onRelinquishCalled = false;
-    }
-    
-    function onRenewCalled() external view returns (bool) {
-        return _onRenewCalled;
-    }
-    
-    function onRelinquishCalled() external view returns (bool) {
-        return _onRelinquishCalled;
-    }
-}
 
 contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
-    TestL2BridgeControllerImpl controller;
+    L2BridgeController controller;
     PermissionedRegistry ethRegistry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
-    VerifiableFactory verifiableFactory;
-    UserRegistry userRegistryImplementation;
     MockBridge bridge;
 
     address user = address(0x1);
@@ -127,22 +82,14 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         registryMetadata = new MockRegistryMetadata();
         bridge = new MockBridge();
         
-        // Deploy verifiable factory
-        verifiableFactory = new VerifiableFactory();
-        
-        // Deploy user registry implementation
-        userRegistryImplementation = new UserRegistry();
-        
         // Deploy ETH registry
         ethRegistry = new PermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
         
         // Deploy combined bridge controller
-        controller = new TestL2BridgeControllerImpl(
+        controller = new L2BridgeController(
             bridge,
             ethRegistry, 
-            datastore,
-            IVerifiableFactory(address(verifiableFactory)),
-            address(userRegistryImplementation)
+            datastore
         );
         
         // Grant roles to bridge controller for registering names
@@ -155,16 +102,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
 
 
 
-    /**
-     * Helper method to create properly encoded DNS name with subdomains
-     */
-    function _createDnsEncodedSubdomainName(string memory subdomain, string memory label) internal pure returns (bytes memory) {
-        return abi.encodePacked(
-            bytes1(uint8(bytes(subdomain).length)), subdomain,
-            bytes1(uint8(bytes(label).length)), label,
-            "\x03eth\x00"
-        );
-    }
+
 
     /**
      * Helper method to create migration data
@@ -192,19 +130,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         });
     }
 
-    /**
-     * Helper method to register a subdomain to create the registry tree structure
-     */
-    function _registerSubdomain(string memory label, address subdomainOwner) internal returns (uint256) {
-        return ethRegistry.register(
-            label, 
-            subdomainOwner, 
-            ethRegistry, 
-            address(0), 
-            LibEACBaseRoles.ALL_ROLES, 
-            uint64(block.timestamp + expiryDuration)
-        );
-    }
+
 
     /**
      * Helper method to verify MigrationCompleted event
@@ -257,10 +183,8 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
 
     function test_constructor() public view {
         assertEq(address(controller.bridge()), address(bridge));
-        assertEq(address(controller.ethRegistry()), address(ethRegistry));
+        assertEq(address(controller.registry()), address(ethRegistry));
         assertEq(address(controller.datastore()), address(datastore));
-        assertEq(address(controller.verifiableFactory()), address(verifiableFactory));
-        assertEq(controller.userRegistryImplementation(), address(userRegistryImplementation));
         assertEq(controller.ETH_TLD_HASH(), ETH_TLD_HASH);
     }
 
@@ -269,10 +193,16 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(migrationLabel);
         uint64 expires = uint64(block.timestamp + expiryDuration);
         
+        // Create a mock subregistry address to use in migration
+        address mockSubregistry = address(0x9999);
+        
+        // First register the name with the bridge controller as the owner
+        uint256 newTokenId = ethRegistry.register(migrationLabel, address(controller), ethRegistry, address(0), LibEACBaseRoles.ALL_ROLES, expires);
+        
         MigrationData memory migrationData = _createMigrationData(
             migrationLabel,
             user,
-            address(0),
+            mockSubregistry,
             resolver,
             LibEACBaseRoles.ALL_ROLES,
             expires,
@@ -285,41 +215,31 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         vm.prank(address(bridge));
         controller.completeMigrationFromL1(dnsEncodedName, migrationData);
         
-        // Verify the name was registered in the ETH registry
-        (uint256 newTokenId, uint64 registeredExpiry, ) = ethRegistry.getNameData(migrationLabel);
-        assertEq(ethRegistry.ownerOf(newTokenId), user, "User should own the registered token");
-        assertEq(registeredExpiry, expires, "Expiry should match migration data");
+        // Verify the name is now owned by the user
+        assertEq(ethRegistry.ownerOf(newTokenId), user, "User should own the token after migration");
         
-        // Verify resolver was set
-        assertEq(ethRegistry.getResolver(migrationLabel), resolver, "Resolver should be set correctly");
-        
-        // Verify a subregistry was created and is properly set
+        // Verify the subregistry was set to the address passed in migration data
         IRegistry subregistry = ethRegistry.getSubregistry(migrationLabel);
-        assertTrue(address(subregistry) != address(0), "Subregistry should be created");
-        assertTrue(address(subregistry) != address(ethRegistry), "Subregistry should be different from parent registry");
+        assertEq(address(subregistry), mockSubregistry, "Subregistry should be set to the address from migration data");
         
-        // Verify the subregistry is a PermissionedRegistry (cast and check interface)
-        PermissionedRegistry subPermissionedRegistry = PermissionedRegistry(address(subregistry));
-        assertTrue(subPermissionedRegistry.supportsInterface(type(IPermissionedRegistry).interfaceId), "Subregistry should support IPermissionedRegistry interface");
-        
-        // Verify the user has the correct roles in the new subregistry
-        bytes32 rootResource = subPermissionedRegistry.ROOT_RESOURCE();
-        assertTrue(subPermissionedRegistry.hasRoles(rootResource, LibEACBaseRoles.ALL_ROLES, user), "User should have all roles in the new subregistry");
+        // Verify the resolver was set correctly
+        address resolverAddr = ethRegistry.getResolver(migrationLabel);
+        assertEq(resolverAddr, resolver, "Resolver not set correctly after migration");
         
         // Verify MigrationCompleted event was emitted with correct data
         _assertMigrationCompletedEvent(dnsEncodedName, newTokenId);
         
         // Verify migration was successful - token should not be marked for ejection
         assertEq(address(ethRegistry.tokenObservers(newTokenId)), address(0), "Token observer should not be set for L2-only migrations");
-        
-        // Verify the created subregistry has the correct datastore
-        assertEq(address(subPermissionedRegistry.datastore()), address(datastore), "Subregistry should use the same datastore");
     }
 
     function test_completeMigrationFromL1_toL1AndL2() public {
         string memory migrationLabel = "migrationl1";
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(migrationLabel);
         uint64 expires = uint64(block.timestamp + expiryDuration);
+        
+        // First register the name with the bridge controller as the owner
+        uint256 newTokenId = ethRegistry.register(migrationLabel, address(controller), ethRegistry, address(0), LibEACBaseRoles.ALL_ROLES, expires);
         
         MigrationData memory migrationData = _createMigrationData(
             migrationLabel,
@@ -331,119 +251,25 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
             true // toL1 = true, both L1 and L2
         );
         
-        // Reset bridge counter to verify ejection message is sent
-        bridge.resetCounters();
-        
         vm.recordLogs();
         
         // Call from bridge
         vm.prank(address(bridge));
         controller.completeMigrationFromL1(dnsEncodedName, migrationData);
         
-        // Verify the name was registered in the ETH registry
-        (uint256 newTokenId, uint64 registeredExpiry, ) = ethRegistry.getNameData(migrationLabel);
-        assertEq(registeredExpiry, expires, "Expiry should match migration data");
+        // When toL1 is true, nothing should happen - the name stays as is
+        assertEq(ethRegistry.ownerOf(newTokenId), address(controller), "Bridge controller should still own the token");
         
-        // When toL1 is true, the token should be owned by the bridge controller (after ejection processing)
-        assertEq(ethRegistry.ownerOf(newTokenId), address(controller), "Bridge controller should own the token after ejection");
+        // Verify NO MigrationCompleted event was emitted (toL1=true means no migration happens)
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 eventSig = keccak256("MigrationCompleted(bytes,uint256)");
         
-        // Verify resolver was set
-        assertEq(ethRegistry.getResolver(migrationLabel), resolver, "Resolver should be set correctly");
-        
-        // Verify MigrationCompleted event was emitted
-        _assertMigrationCompletedEvent(dnsEncodedName, newTokenId);
-        
-        // Verify NO bridge message was sent (migration with toL1=true should not send bridge message)
-        assertEq(bridge.sendMessageCallCount(), 0, "Bridge message should NOT be sent for toL1 migrations");
-        
-        // Verify subregistry was cleared (token marked as ejected)
-        (address subregAddr, , ) = datastore.getSubregistry(newTokenId);
-        assertEq(subregAddr, address(0), "Subregistry should be cleared for toL1 migrations");
-        
-        // Verify token observer was set
-        assertEq(address(ethRegistry.tokenObservers(newTokenId)), address(controller), "Token observer should be set for toL1 migrations");
-    }
-
-    function test_completeMigrationFromL1_3LD_HappyPath() public {
-        // First migrate the 2LD (parent domain)
-        string memory parentLabel = "parent";
-        bytes memory parentDnsEncodedName = NameUtils.dnsEncodeEthLabel(parentLabel);
-        uint64 expires = uint64(block.timestamp + expiryDuration);
-        address parentOwner = address(0x100);
-        
-        MigrationData memory parentMigrationData = _createMigrationData(
-            parentLabel,
-            parentOwner,
-            address(0),
-            resolver,
-            LibEACBaseRoles.ALL_ROLES,
-            expires,
-            false // toL1 = false, L2 only
-        );
-        
-        // Migrate the parent domain
-        vm.prank(address(bridge));
-        controller.completeMigrationFromL1(parentDnsEncodedName, parentMigrationData);
-        
-        // Verify parent was registered
-        (uint256 parentTokenId, , ) = ethRegistry.getNameData(parentLabel);
-        assertEq(ethRegistry.ownerOf(parentTokenId), parentOwner, "Parent owner should own the parent token");
-        
-        // Get the parent's subregistry
-        IPermissionedRegistry parentSubregistry = IPermissionedRegistry(address(ethRegistry.getSubregistry(parentLabel)));
-        assertTrue(address(parentSubregistry) != address(0), "Parent subregistry should be created");
-        
-        // Grant controller permission to register in the parent subregistry
-        vm.prank(parentOwner);
-        PermissionedRegistry(address(parentSubregistry)).grantRootRoles(ROLE_REGISTRAR, address(controller));
-        
-        // Now migrate the 3LD (child domain)
-        string memory childLabel = "child";
-        bytes memory childDnsEncodedName = _createDnsEncodedSubdomainName(childLabel, parentLabel);
-        address childOwner = address(0x200);
-        
-        MigrationData memory childMigrationData = _createMigrationData(
-            childLabel,
-            childOwner,
-            address(0),
-            resolver,
-            LibEACBaseRoles.ALL_ROLES,
-            expires,
-            false // toL1 = false, L2 only
-        );
-        
-        vm.recordLogs();
-        
-        // Migrate the child domain
-        vm.prank(address(bridge));
-        controller.completeMigrationFromL1(childDnsEncodedName, childMigrationData);
-        
-        // Verify the child was registered in the parent's subregistry
-        (uint256 childTokenId, uint64 childRegisteredExpiry, ) = parentSubregistry.getNameData(childLabel);
-        assertEq(parentSubregistry.ownerOf(childTokenId), childOwner, "Child owner should own the child token");
-        assertEq(childRegisteredExpiry, expires, "Child expiry should match migration data");
-        
-        // Verify child resolver was set
-        assertEq(parentSubregistry.getResolver(childLabel), resolver, "Child resolver should be set correctly");
-        
-        // Verify a subregistry was created for the child
-        IRegistry childSubregistry = parentSubregistry.getSubregistry(childLabel);
-        assertTrue(address(childSubregistry) != address(0), "Child subregistry should be created");
-        assertTrue(address(childSubregistry) != address(parentSubregistry), "Child subregistry should be different from parent registry");
-        
-        // Verify the child subregistry is a PermissionedRegistry
-        PermissionedRegistry childPermissionedRegistry = PermissionedRegistry(address(childSubregistry));
-        assertTrue(childPermissionedRegistry.supportsInterface(type(IPermissionedRegistry).interfaceId), "Child subregistry should support IPermissionedRegistry interface");
-        
-        // Verify the child owner has the correct roles in the new subregistry
-        bytes32 rootResource = childPermissionedRegistry.ROOT_RESOURCE();
-        assertTrue(childPermissionedRegistry.hasRoles(rootResource, LibEACBaseRoles.ALL_ROLES, childOwner), "Child owner should have all roles in the child subregistry");
-        
-        // Verify MigrationCompleted event was emitted with correct data
-        _assertMigrationCompletedEvent(childDnsEncodedName, childTokenId);
-        
-        // Verify the child subregistry has the correct datastore
-        assertEq(address(childPermissionedRegistry.datastore()), address(datastore), "Child subregistry should use the same datastore");
+        for (uint i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(controller) && 
+                logs[i].topics[0] == eventSig) {
+                assertTrue(false, "MigrationCompleted event should not be emitted when toL1=true");
+            }
+        }
     }
 
     function test_Revert_completeMigrationFromL1_UnauthorizedCaller() public {
@@ -463,12 +289,12 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         controller.completeMigrationFromL1(dnsEncodedName, migrationData);
     }
 
-    function test_Revert_completeMigrationFromL1_NameAlreadyRegistered() public {
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
+    function test_Revert_completeMigrationFromL1_NameNotFound() public {
+        string memory nonExistentLabel = "nonexistent";
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(nonExistentLabel);
         
-        // The test name is already registered in setUp()
         MigrationData memory migrationData = _createMigrationData(
-            testLabel,
+            nonExistentLabel,
             user,
             address(0),
             resolver,
@@ -477,9 +303,33 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
             false
         );
         
-        // Try to migrate the already registered name
+        // Try to migrate a name that doesn't exist
         vm.prank(address(bridge));
-        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NameAlreadyRegistered.selector, dnsEncodedName));
+        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NameNotFound.selector, dnsEncodedName));
+        controller.completeMigrationFromL1(dnsEncodedName, migrationData);
+    }
+
+    function test_Revert_completeMigrationFromL1_NotTokenOwner() public {
+        string memory migrationLabel = "migration";
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(migrationLabel);
+        uint64 expires = uint64(block.timestamp + expiryDuration);
+        
+        // Register the name but don't transfer it to the bridge controller
+        uint256 newTokenId = ethRegistry.register(migrationLabel, user, ethRegistry, address(0), LibEACBaseRoles.ALL_ROLES, expires);
+        
+        MigrationData memory migrationData = _createMigrationData(
+            migrationLabel,
+            user,
+            address(0),
+            resolver,
+            LibEACBaseRoles.ALL_ROLES,
+            expires,
+            false
+        );
+        
+        // Try to migrate when bridge controller doesn't own the token
+        vm.prank(address(bridge));
+        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NotTokenOwner.selector, newTokenId));
         controller.completeMigrationFromL1(dnsEncodedName, migrationData);
     }
 
@@ -500,36 +350,13 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
             false
         );
         
-        bytes32 invalidTldHash = keccak256(bytes("com"));
-        
         // Try to migrate with invalid TLD
         vm.prank(address(bridge));
-        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.InvalidTLD.selector, invalidTldHash));
+        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.InvalidTLD.selector, invalidDnsName));
         controller.completeMigrationFromL1(invalidDnsName, migrationData);
     }
 
-    function test_Revert_completeMigrationFromL1_3LD_InvalidParent() public {
-        // Try to migrate a 3LD where the parent 2LD doesn't exist
-        string memory nonExistentParent = "nonexistent";
-        string memory childLabel = "child";
-        bytes memory childDnsEncodedName = _createDnsEncodedSubdomainName(childLabel, nonExistentParent);
-        uint64 expires = uint64(block.timestamp + expiryDuration);
-        
-        MigrationData memory childMigrationData = _createMigrationData(
-            childLabel,
-            user,
-            address(0),
-            resolver,
-            LibEACBaseRoles.ALL_ROLES,
-            expires,
-            false // toL1 = false, L2 only
-        );
-        
-        // Try to migrate the child domain without the parent existing
-        vm.prank(address(bridge));
-        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.LabelNotFound.selector, childDnsEncodedName, nonExistentParent));
-        controller.completeMigrationFromL1(childDnsEncodedName, childMigrationData);
-    }
+
 
     // EJECTION TESTS
 
@@ -686,7 +513,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         assertFalse(controller.supportsInterface(0x12345678));
     }
 
-    function test_onRenew_emitsEvent() public {
+    function test_onRenew_sendsBridgeMessage() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
         uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
@@ -701,42 +528,29 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         uint64 newExpiry = uint64(block.timestamp + expiryDuration * 2);
         address renewer = address(this);
         
+        // Reset bridge counters
+        bridge.resetCounters();
+        
         // Call onRenew directly on the controller (simulating a call from the registry)
-        vm.recordLogs();
         controller.onRenew(tokenId, newExpiry, renewer);
         
-        // Check for MockNameRenewed event
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundEvent = false;
+        // Verify bridge message was sent
+        assertEq(bridge.sendMessageCallCount(), 1, "Bridge should have been called once");
         
-        bytes32 eventSig = keccak256("MockNameRenewed(uint256,uint64,address)");
+        // Verify the message content
+        bytes memory lastMessage = bridge.lastMessage();
+        assertTrue(lastMessage.length > 0, "Message should not be empty");
         
-        for (uint i = 0; i < logs.length; i++) {
-            if (logs[i].emitter == address(controller) && 
-                logs[i].topics[0] == eventSig) {
-                
-                // For indexed parameters, check that the topics match
-                if (logs[i].topics.length > 1) {
-                    assertEq(uint256(logs[i].topics[1]), tokenId, "Event tokenId should match");
-                }
-                
-                // Only decode data if there is data to decode
-                if (logs[i].data.length > 0) {
-                    (uint64 emittedExpiry, address emittedRenewer) = 
-                        abi.decode(logs[i].data, (uint64, address));
-                    
-                    assertEq(emittedExpiry, newExpiry, "Event expiry should match");
-                    assertEq(emittedRenewer, renewer, "Event renewer should match");
-                }
-                
-                foundEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundEvent, "MockNameRenewed event not found");
+        // Decode and verify the renewal message
+        BridgeMessageType messageType = BridgeEncoder.getMessageType(lastMessage);
+        assertEq(uint(messageType), uint(BridgeMessageType.RENEWAL), "Message should be a renewal");
+        
+        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoder.decodeRenewal(lastMessage);
+        assertEq(decodedTokenId, tokenId, "Token ID should match");
+        assertEq(decodedExpiry, newExpiry, "Expiry should match");
     }
 
-    function test_onRelinquish_emitsEvent() public {
+    function test_onRelinquish_doesNothing() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
         uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
@@ -750,38 +564,16 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         
         address relinquisher = address(this);
         
+        // Reset bridge counters to verify no messages are sent
+        bridge.resetCounters();
+        
         // Call onRelinquish directly on the controller (simulating a call from the registry)
-        vm.recordLogs();
         controller.onRelinquish(tokenId, relinquisher);
         
-        // Check for MockNameRelinquished event
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundEvent = false;
+        // Verify no bridge messages were sent (default implementation does nothing)
+        assertEq(bridge.sendMessageCallCount(), 0, "Bridge should not have been called");
         
-        bytes32 eventSig = keccak256("MockNameRelinquished(uint256,address)");
-        
-        for (uint i = 0; i < logs.length; i++) {
-            if (logs[i].emitter == address(controller) && 
-                logs[i].topics[0] == eventSig) {
-                
-                // For indexed parameters, check that the topics match
-                if (logs[i].topics.length > 1) {
-                    assertEq(uint256(logs[i].topics[1]), tokenId, "Event tokenId should match");
-                }
-                
-                // Only decode data if there is data to decode
-                if (logs[i].data.length > 0) {
-                    address emittedRelinquisher = abi.decode(logs[i].data, (address));
-                    assertEq(emittedRelinquisher, relinquisher, "Event relinquisher should match");
-                }
-                
-                foundEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundEvent, "MockNameRelinquished event not found");
-        
-        // Verify token is still owned by the controller (onRelinquish in mock doesn't change ownership)
+        // Verify token is still owned by the controller (onRelinquish doesn't change ownership)
         assertEq(ethRegistry.ownerOf(tokenId), address(controller), "Token should still be owned by controller");
     }
 
@@ -812,7 +604,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         controller.onERC1155Received(address(this), user, tokenId, 1, ejectionData);
     }
 
-    function test_tokenObserver_callbacks() public {
+    function test_tokenObserver_functionality() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
         uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
@@ -824,18 +616,23 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         assertEq(ethRegistry.ownerOf(tokenId), address(controller), "Controller should own the token");
         assertEq(address(ethRegistry.tokenObservers(tokenId)), address(controller), "Controller should be the observer");
         
-        // Reset tracking flags
-        controller.resetTracking();
+        // Reset bridge counters
+        bridge.resetCounters();
         
-        // Test onRenew callback
+        // Test onRenew callback - should send bridge message
         uint64 newExpiry = uint64(block.timestamp + expiryDuration * 2);
         address renewer = address(this);
         controller.onRenew(tokenId, newExpiry, renewer);
-        assertTrue(controller.onRenewCalled(), "onRenew should call _onRenew");
+        assertEq(bridge.sendMessageCallCount(), 1, "onRenew should send bridge message");
         
-        // Test onRelinquish callback
+        // Reset counters for onRelinquish test
+        bridge.resetCounters();
+        
+        // Test onRelinquish callback - should do nothing
         address relinquisher = address(this);
         controller.onRelinquish(tokenId, relinquisher);
-        assertTrue(controller.onRelinquishCalled(), "onRelinquish should call _onRelinquish");
+        assertEq(bridge.sendMessageCallCount(), 0, "onRelinquish should not send bridge message");
     }
+
+
 } 

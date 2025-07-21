@@ -265,6 +265,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
         
+        vm.prank(address(bridge));
         ejectionController.syncRenewal(tokenId, newExpiry);
 
         // Verify new expiry was set
@@ -292,6 +293,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
 
         vm.recordLogs();
         
+        vm.prank(address(bridge));
         ejectionController.syncRenewal(tokenId, newExpiry);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -330,6 +332,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         vm.warp(block.timestamp + 101);
 
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameExpired.selector, tokenId));
+        vm.prank(address(bridge));
         ejectionController.syncRenewal(tokenId, uint64(block.timestamp) + 200);
     }
 
@@ -356,6 +359,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
                 IStandardRegistry.CannotReduceExpiration.selector, initialExpiry, newExpiry
             )
         );
+        vm.prank(address(bridge));
         ejectionController.syncRenewal(tokenId, newExpiry);
     }
 
@@ -610,6 +614,28 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         // Try to call completeEjectionFromL2 directly (not from bridge)
         vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
         ejectionController.completeEjectionFromL2(transferData);
+    }
+
+    function test_Revert_syncRenewal_not_bridge() public {
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+        });
+        
+        // First create a name to renew
+        vm.prank(address(bridge));
+        ejectionController.completeEjectionFromL2(transferData);
+        
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        
+        // Try to call syncRenewal directly (not from bridge)
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
+        ejectionController.syncRenewal(tokenId, uint64(block.timestamp + 86400 * 2));
     }
 }
 

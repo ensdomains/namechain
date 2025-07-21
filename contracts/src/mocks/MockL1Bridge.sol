@@ -48,4 +48,14 @@ contract MockL1Bridge is MockBridgeBase {
     ) pure internal override {
         revert MigrationNotSupported();
     }
+
+    /**
+     * @dev Handle renewal messages specific to L1 bridge
+     */
+    function _handleRenewalMessage(
+        uint256 tokenId,
+        uint64 newExpiry
+    ) internal override {
+        ejectionController.syncRenewal(tokenId, newExpiry);
+    }
 }

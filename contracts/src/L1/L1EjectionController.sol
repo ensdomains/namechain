@@ -48,7 +48,7 @@ contract L1EjectionController is EjectionController, RegistryRolesMixin {
      * @param tokenId The token ID of the name
      * @param newExpiry The new expiration timestamp
      */
-    function syncRenewal(uint256 tokenId, uint64 newExpiry) external virtual {
+    function syncRenewal(uint256 tokenId, uint64 newExpiry) external virtual onlyBridge {        
         registry.renew(tokenId, newExpiry);
         emit RenewalSynchronized(tokenId, newExpiry);
     }

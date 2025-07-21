@@ -30,6 +30,13 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
         _;
     }
 
+    modifier onlyRegistry() {
+        if (msg.sender != address(registry)) {
+            revert UnauthorizedCaller(msg.sender);
+        }
+        _;
+    }
+
     constructor(IPermissionedRegistry _registry, IBridge _bridge) {
         registry = _registry;
         bridge = _bridge;
@@ -45,7 +52,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
     /**
      * Implements ERC1155Receiver.onERC1155Received
      */
-    function onERC1155Received(address /*operator*/, address /* from */, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual returns (bytes4) {
+    function onERC1155Received(address /*operator*/, address /* from */, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual onlyRegistry returns (bytes4) {
         _processEjection(tokenId, data);
         return this.onERC1155Received.selector;
     }
@@ -53,11 +60,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
     /**
      * Implements ERC1155Receiver.onERC1155BatchReceived
      */
-    function onERC1155BatchReceived(address /*operator*/, address /* from */, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual returns (bytes4) {
-        if (msg.sender != address(registry)) {
-            revert UnauthorizedCaller(msg.sender);
-        }
-
+    function onERC1155BatchReceived(address /*operator*/, address /* from */, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual onlyRegistry returns (bytes4) { 
         TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
         
         _onEject(tokenIds, transferDataArray);
@@ -72,10 +75,6 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
      * Can be called by derived classes that need to customize onERC1155Received behavior
      */
     function _processEjection(uint256 tokenId, bytes calldata data) internal {
-        if (msg.sender != address(registry)) {
-            revert UnauthorizedCaller(msg.sender);
-        }
-
         TransferData memory transferData = abi.decode(data, (TransferData));
         
         TransferData[] memory transferDataArray = new TransferData[](1);

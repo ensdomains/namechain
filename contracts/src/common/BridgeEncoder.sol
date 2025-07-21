@@ -14,6 +14,9 @@ library BridgeEncoder {
     /// @dev Error thrown when message type is invalid for ejection
     error InvalidEjectionMessageType();
 
+    /// @dev Error thrown when message type is invalid for renewal
+    error InvalidRenewalMessageType();
+
     /**
      * @dev Encode a migration message.
      */
@@ -59,6 +62,30 @@ library BridgeEncoder {
         (_messageType, dnsEncodedName, data) = abi.decode(message, (uint, bytes, TransferData));
         if (_messageType != uint(BridgeMessageType.EJECTION)) {
             revert InvalidEjectionMessageType();
+        }
+    }
+
+    /**
+     * @dev Encode a renewal message.
+     */
+    function encodeRenewal(
+        uint256 tokenId,
+        uint64 newExpiry
+    ) internal pure returns (bytes memory) {
+        return abi.encode(uint(BridgeMessageType.RENEWAL), tokenId, newExpiry);
+    }
+
+    /**
+     * @dev Decode a renewal message.
+     */
+    function decodeRenewal(bytes memory message) internal pure returns (
+        uint256 tokenId,
+        uint64 newExpiry
+    ) {
+        uint _messageType;
+        (_messageType, tokenId, newExpiry) = abi.decode(message, (uint, uint256, uint64));
+        if (_messageType != uint(BridgeMessageType.RENEWAL)) {
+            revert InvalidRenewalMessageType();
         }
     }
 

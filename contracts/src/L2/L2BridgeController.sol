@@ -7,8 +7,6 @@ import {IRegistry} from "../common/IRegistry.sol";
 import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
-import {IVerifiableFactory} from "../common/IVerifiableFactory.sol";
-import {UserRegistry} from "./UserRegistry.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -25,9 +23,8 @@ import {LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
  */
 contract L2BridgeController is EjectionController, ITokenObserver {
     error MigrationFailed();
-    error InvalidTLD(bytes32 labelHash);
-    error NameAlreadyRegistered(bytes dnsEncodedName);
-    error LabelNotFound(bytes dnsEncodedName, string label);
+    error InvalidTLD(bytes dnsEncodedName);
+    error NameNotFound(bytes dnsEncodedName);
     error NotTokenOwner(uint256 tokenId);
 
     // Events
@@ -35,23 +32,15 @@ contract L2BridgeController is EjectionController, ITokenObserver {
 
     bytes32 public constant ETH_TLD_HASH = keccak256(bytes("eth"));
 
-    IPermissionedRegistry public immutable ethRegistry;
     IRegistryDatastore public immutable datastore;
-    IVerifiableFactory public immutable verifiableFactory;
-    address public immutable userRegistryImplementation;
 
     constructor(
         IBridge _bridge,
-        IPermissionedRegistry _ethRegistry, 
-        IRegistryDatastore _datastore,
-        IVerifiableFactory _verifiableFactory,
-        address _userRegistryImplementation
-    ) EjectionController(_ethRegistry, _bridge) {
-        ethRegistry = _ethRegistry;
+        IPermissionedRegistry _registry, 
+        IRegistryDatastore _datastore
+    ) EjectionController(_registry, _bridge) {
         datastore = _datastore;
-        verifiableFactory = _verifiableFactory;
-        userRegistryImplementation = _userRegistryImplementation;
-    }
+    }   
 
     /**
      * @dev Complete migration from L1 to L2
@@ -64,62 +53,25 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         bytes memory dnsEncodedName,
         MigrationData memory migrationData
     ) external onlyBridge {
-        // Find the registry and validate the registry tree
-        (IPermissionedRegistry targetRegistry, string memory label, bool exists) = _findAndValidateLabelStructure(dnsEncodedName, 0);
-
-        if (exists) {
-            revert NameAlreadyRegistered(dnsEncodedName);
-        }
-
-        // register the name - if toL1 is true, register to bridge controller, otherwise to final owner
-        address initialOwner = migrationData.toL1 ? address(this) : migrationData.transferData.owner;
-        
-        // Create registry if not migrating to L1
-        IPermissionedRegistry subregistry;
+        // if migrating to L1 then there is nothing to do, else let's create a subregistry
         if (!migrationData.toL1) {
-            // Calculate salt based on block timestamp and migration data
-            uint256 salt = uint256(keccak256(abi.encode(
-                block.timestamp,
-                migrationData.transferData.owner,
-                migrationData.transferData.label,
-                migrationData.transferData.expires
-            )));
-            
-            // Encode the initialize call
-            bytes memory initData = abi.encodeWithSelector(
-                UserRegistry.initialize.selector,
-                datastore,
-                address(0), // metadata - will create SimpleRegistryMetadata
-                LibEACBaseRoles.ALL_ROLES,
-                migrationData.transferData.owner
-            );
-            
-            // Deploy the user registry via verifiable factory
-            address registryAddress = verifiableFactory.deployProxy(
-                userRegistryImplementation,
-                salt,
-                initData
-            );
-            
-            subregistry = IPermissionedRegistry(registryAddress);
-        }
-        
-        uint256 tokenId = targetRegistry.register(
-            label,
-            initialOwner,
-            migrationData.toL1 ? IPermissionedRegistry(address(0)) : subregistry,
-            migrationData.transferData.resolver,
-            migrationData.transferData.roleBitmap,
-            migrationData.transferData.expires
-        );
+            // Find the token id and validate the registry tree
+            uint256 tokenId = _findAndValidateLabelStructure(dnsEncodedName);
 
-        // If migrating to L1, mark as ejected without sending bridge message
-        if (migrationData.toL1) {
-          // listen for events
-          targetRegistry.setTokenObserver(tokenId, this);
-        }
+            // owner should be the bridge controller
+            if (registry.ownerOf(tokenId) != address(this)) {
+                revert NotTokenOwner(tokenId);
+            }
 
-        emit MigrationCompleted(dnsEncodedName, tokenId);
+            registry.setSubregistry(tokenId, IPermissionedRegistry(migrationData.transferData.subregistry));
+            registry.setResolver(tokenId, migrationData.transferData.resolver);
+
+            // now unset the token observer and transfer the name to the owner
+            registry.setTokenObserver(tokenId, ITokenObserver(address(0)));
+            registry.safeTransferFrom(address(this), migrationData.transferData.owner, tokenId, 1, "");
+
+            emit MigrationCompleted(dnsEncodedName, tokenId);
+        }
     }
 
     /**
@@ -142,6 +94,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
 
         registry.setSubregistry(tokenId, IRegistry(transferData.subregistry));
         registry.setResolver(tokenId, transferData.resolver);
+        registry.setTokenObserver(tokenId, ITokenObserver(address(0)));
         registry.safeTransferFrom(address(this), transferData.owner, tokenId, 1, "");
 
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
@@ -159,7 +112,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         uint256 tokenId,
         uint256 /* amount */,
         bytes calldata data
-    ) external virtual override returns (bytes4) {
+    ) external virtual override onlyRegistry returns (bytes4) {
         // If from is not address(0), it's not a mint operation - process as ejection
         if (from != address(0)) {
             _processEjection(tokenId, data);
@@ -172,8 +125,8 @@ contract L2BridgeController is EjectionController, ITokenObserver {
      * @dev Default implementation of onRenew that does nothing.
      * Can be overridden in derived contracts for custom behavior.
      */
-    function onRenew(uint256 /* tokenId */, uint64 /* expires */, address /* renewedBy */) external virtual {
-        // Default implementation does nothing
+    function onRenew(uint256 tokenId, uint64 expires, address /*renewedBy*/) external virtual {
+        bridge.sendMessage(BridgeEncoder.encodeRenewal(tokenId, expires));
     }
 
     /**
@@ -185,67 +138,41 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     }
 
     /**
-     * @dev Recursively finds and validates the label registry structure
-     * @param name The DNS-encoded name
-     * @param offset The current offset in the name
-     * @return registry The registry at this level
-     * @return label The label at this level
-     * @return exists True if the label at this level exists (only relevant for leftmost label)
+     * @dev Validates 2LD structure and checks if label exists
+     * @param name The DNS-encoded name (must be a 2LD like "example.eth")
+     * @return tokenId The token id of the name
      */
     function _findAndValidateLabelStructure(
-        bytes memory name,
-        uint256 offset
-    ) internal view returns (IPermissionedRegistry registry, string memory label, bool exists) {
-        uint256 size = uint8(name[offset]);
+        bytes memory name
+    ) internal view returns (uint256 tokenId) {
+        // Read the second label which should be "eth"
+        uint256 labelSize = uint8(name[0]);
+        uint256 tldOffset = 1 + labelSize;
+        uint256 tldSize = uint8(name[tldOffset]);
         
-        // If we reach the end (size == 0), we should be at the root
-        if (size == 0) {
-            return (IPermissionedRegistry(address(0)), "", true);
+        // Verify TLD is "eth"
+        (bytes32 tldHash, ) = NameCoder.readLabel(name, tldOffset);
+        if (tldHash != ETH_TLD_HASH) {
+            revert InvalidTLD(name);
         }
         
-        // Check if this is the leftmost label (offset == 0)
-        bool isLeftmostLabel = (offset == 0);
-        
-        // Recursively process the next part of the name (moving right to left)
-        (IPermissionedRegistry parentRegistry,, ) = _findAndValidateLabelStructure(
-            name,
-            offset + 1 + size
-        );
-        
-        // Read the current label
-        (bytes32 labelHash, ) = NameCoder.readLabel(name, offset);
-        
-        // If we're at the rightmost position (parentRegistry is zero), this should be "eth"
-        if (address(parentRegistry) == address(0)) {
-            if (labelHash != ETH_TLD_HASH) {
-                revert InvalidTLD(labelHash);
-            }
-            // Return the .eth registry
-            return (ethRegistry, "", true);
+        // Verify the name ends after TLD (next byte should be 0)
+        if (name[tldOffset + 1 + tldSize] != 0) {
+            revert InvalidTLD(name);
         }
         
-        label = NameUtils.readLabel(name, offset);
+        // Read the 2LD label
+        string memory label = NameUtils.readLabel(name, 0);
+        
+        // Check if the label exists in the eth registry
+        bool exists = address(registry.getSubregistry(label)) != address(0);
+        if (!exists) {
+            revert NameNotFound(name);
+        }
 
-        // For non-TLD labels, check if they exist in the parent registry
-        bool labelExists = address(parentRegistry.getSubregistry(label)) != address(0);
+        (tokenId, , ) = registry.getNameData(label);
         
-        // If this is the leftmost label (the one being migrated), return the result
-        if (isLeftmostLabel) {
-            if (labelExists) {
-                return (parentRegistry, label, true);
-            } else {
-                return (parentRegistry, label, false);
-            }
-        }
-        
-        // For all other labels, they must exist
-        if (!labelExists) {
-            revert LabelNotFound(name, label);
-        }
-        
-        // Return the subregistry of this label (where children should be registered)
-        IPermissionedRegistry subregistry = IPermissionedRegistry(address(parentRegistry.getSubregistry(label)));
-        return (subregistry, label, true);
+        return tokenId;
     }
 
     /**

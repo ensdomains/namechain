@@ -13,6 +13,7 @@ import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 abstract contract MockBridgeBase is IBridge {
     // Custom errors
     error MigrationNotSupported();
+    error RenewalNotSupported();
     
     // Event for message receipt acknowledgement
     event MessageProcessed(bytes message);
@@ -30,6 +31,9 @@ abstract contract MockBridgeBase is IBridge {
         } else if (messageType == BridgeMessageType.MIGRATION) {
             (bytes memory dnsEncodedName, MigrationData memory migrationData) = BridgeEncoder.decodeMigration(message);
             _handleMigrationMessage(dnsEncodedName, migrationData);
+        } else if (messageType == BridgeMessageType.RENEWAL) {
+            (uint256 tokenId, uint64 newExpiry) = BridgeEncoder.decodeRenewal(message);
+            _handleRenewalMessage(tokenId, newExpiry);
         }
         
         // Emit event for tracking
@@ -52,5 +56,14 @@ abstract contract MockBridgeBase is IBridge {
     function _handleMigrationMessage(
         bytes memory dnsEncodedName,
         MigrationData memory migrationData
+    ) internal virtual;
+
+    /**
+     * @dev Abstract method for handling renewal messages
+     * Must be implemented by concrete bridge contracts
+     */
+    function _handleRenewalMessage(
+        uint256 tokenId,
+        uint64 newExpiry
     ) internal virtual;
 } 

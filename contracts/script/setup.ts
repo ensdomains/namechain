@@ -184,10 +184,6 @@ export async function setupCrossChainEnvironment() {
         simpleRegistryMetadata: l2Contracts<
           (typeof artifacts.SimpleRegistryMetadata)["abi"]
         >("SimpleRegistryMetadata"),
-        verifiableFactory:
-          l2Contracts<(typeof artifacts.VerifiableFactory)["abi"]>(
-            "VerifiableFactory",
-          ),
       },
     },
     // Safe shutdown function to properly terminate WebSocket connections

@@ -17,7 +17,8 @@ interface IBridge {
  */
 enum BridgeMessageType {
     MIGRATION,
-    EJECTION
+    EJECTION,
+    RENEWAL
 }
 
 

@@ -1,6 +1,6 @@
 /// we import what we need from the @rocketh alias, see ../rocketh.ts
 import { artifacts, execute } from "@rocketh";
-import { ROLES } from "../constants.js";
+import { ROLES } from "../constants.ts";
 
 export default execute(
   async ({ get, deploy, namedAccounts, execute: write }) => {
@@ -12,15 +12,6 @@ export default execute(
       get<(typeof artifacts.MockL2Bridge)["abi"]>("MockL2Bridge");
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
-    const verifiableFactory =
-      get<(typeof artifacts.VerifiableFactory)["abi"]>("VerifiableFactory");
-
-    // Deploy UserRegistry implementation
-    const userRegistryImplementation = await deploy("UserRegistry", {
-      account: deployer,
-      artifact: artifacts.UserRegistry,
-      args: [],
-    });
 
     const l2BridgeController = await deploy("L2BridgeController", {
       account: deployer,
@@ -28,9 +19,7 @@ export default execute(
       args: [
         l2Bridge.address,
         ethRegistry.address,
-        registryDatastore.address,
-        verifiableFactory.address,
-        userRegistryImplementation.address,
+        registryDatastore.address
       ],
     });
 

@@ -345,8 +345,22 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         // Verify the migration controller now owns the token
         assertEq(ethRegistryV1.ownerOf(testTokenId), address(migrationController));
         
-        // Check for migration event from the bridge
-        _assertBridgeMigrationEvent(testLabel);
+        // Get logs for assertions
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        
+        // Check for migration event from the bridge (toL1=false by default)
+        _assertBridgeMigrationEventWithLogs(testLabel, entries);
+        
+        // Verify NO L1 ejection controller events when toL1=false
+        uint256 l1MigratorEventCount = 0;
+        bytes32 expectedSig = keccak256("MockMigrateFromV1Called((string,address,address,address,uint256,uint64))");
+        
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].emitter == address(mockL1EjectionController) && entries[i].topics[0] == expectedSig) {
+                l1MigratorEventCount++;
+            }
+        }
+        assertEq(l1MigratorEventCount, 0, "Should have no L1 migrator events when toL1=false");
     }
 
     function test_migrateUnwrappedEthName_toL1() public {
@@ -370,13 +384,16 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         // Verify the migration controller now owns the token
         assertEq(ethRegistryV1.ownerOf(testTokenId), address(migrationController));
         
-        // Get logs once and use for both assertions
+        // Get logs once and use for assertions
         Vm.Log[] memory entries = vm.getRecordedLogs();
         
-        // Check for migration event from the bridge
-        _assertBridgeMigrationEventWithLogs(testLabel, entries);
+        // When toL1=true, should NOT send to bridge
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = testTokenId;
+        uint256 bridgeEventCount = _countBridgeMigrationEventsWithLogs(tokenIds, entries);
+        assertEq(bridgeEventCount, 0, "Should not send to bridge when toL1=true");
         
-        // Check for L1 migrator event since toL1 is true
+        // Should only call L1 ejection controller
         _assertL1MigratorEvent(testLabel, entries);
     }
 
@@ -429,8 +446,22 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         vm.prank(user);
         nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
         
-        // Check for migration event from the bridge
-        _assertBridgeMigrationEvent(testLabel);
+        // Get logs for assertions
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        
+        // Check for migration event from the bridge (toL1=false by default)
+        _assertBridgeMigrationEventWithLogs(testLabel, entries);
+        
+        // Verify NO L1 ejection controller events when toL1=false
+        uint256 l1MigratorEventCount = 0;
+        bytes32 expectedSig = keccak256("MockMigrateFromV1Called((string,address,address,address,uint256,uint64))");
+        
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].emitter == address(mockL1EjectionController) && entries[i].topics[0] == expectedSig) {
+                l1MigratorEventCount++;
+            }
+        }
+        assertEq(l1MigratorEventCount, 0, "Should have no L1 migrator events when toL1=false");
     }
 
     function test_migrateUnlockedWrappedEthName_single_toL1() public {
@@ -452,13 +483,16 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         vm.prank(user);
         nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
         
-        // Get logs once and use for both assertions
+        // Get logs once and use for assertions
         Vm.Log[] memory entries = vm.getRecordedLogs();
         
-        // Check for migration event from the bridge
-        _assertBridgeMigrationEventWithLogs(testLabel, entries);
+        // When toL1=true, should NOT send to bridge
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = testTokenId;
+        uint256 bridgeEventCount = _countBridgeMigrationEventsWithLogs(tokenIds, entries);
+        assertEq(bridgeEventCount, 0, "Should not send to bridge when toL1=true");
         
-        // Check for L1 migrator event since toL1 is true
+        // Should only call L1 ejection controller
         _assertL1MigratorEvent(testLabel, entries);
     }
 
@@ -496,8 +530,23 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         vm.prank(user);
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
         
-        uint256 migratedEventCount = _countBridgeMigrationEvents(tokenIds);
-        assertEq(migratedEventCount, 2, "Incorrect number of NameBridgedToL2 events");
+        // Get logs for assertions
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        
+        // Check that both names were migrated to L2 (toL1=false by default)
+        uint256 migratedEventCount = _countBridgeMigrationEventsWithLogs(tokenIds, entries);
+        assertEq(migratedEventCount, 2, "Both names should go to bridge when toL1=false");
+        
+        // Verify NO L1 ejection controller events when toL1=false
+        uint256 l1MigratorEventCount = 0;
+        bytes32 expectedSig = keccak256("MockMigrateFromV1Called((string,address,address,address,uint256,uint64))");
+        
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].emitter == address(mockL1EjectionController) && entries[i].topics[0] == expectedSig) {
+                l1MigratorEventCount++;
+            }
+        }
+        assertEq(l1MigratorEventCount, 0, "Should have no L1 migrator events when toL1=false");
     }
 
     function test_migrateWrappedEthName_batch_mixedL1Flags() public {
@@ -525,7 +574,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         
         MigrationData[] memory migrationDataArray = new MigrationData[](2);
         migrationDataArray[0] = _createMigrationDataWithL1Flag(label1, false); // Only to L2
-        migrationDataArray[1] = _createMigrationDataWithL1Flag(label2, true);  // To both L1 and L2
+        migrationDataArray[1] = _createMigrationDataWithL1Flag(label2, true);  // Only to L1
         
         bytes memory data = abi.encode(migrationDataArray);
         
@@ -537,11 +586,13 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         // Get logs once and use for all assertions
         Vm.Log[] memory entries = vm.getRecordedLogs();
         
-        // Check that both names were migrated to L2
-        uint256 migratedEventCount = _countBridgeMigrationEventsWithLogs(tokenIds, entries);
-        assertEq(migratedEventCount, 2, "Incorrect number of NameBridgedToL2 events");
+        // Check that only the first name (toL1=false) was migrated to L2
+        uint256[] memory l2TokenIds = new uint256[](1);
+        l2TokenIds[0] = tokenId1;
+        uint256 migratedEventCount = _countBridgeMigrationEventsWithLogs(l2TokenIds, entries);
+        assertEq(migratedEventCount, 1, "Only the toL1=false name should go to bridge");
         
-        // Check that only the second name was migrated to L1
+        // Check that only the second name (toL1=true) was migrated to L1
         _assertL1MigratorEvent(label2, entries);
         
         // Verify the first name was NOT migrated to L1 by checking event count

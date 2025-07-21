@@ -56,4 +56,14 @@ contract MockL2Bridge is MockBridgeBase {
     ) internal override {
         bridgeController.completeMigrationFromL1(dnsEncodedName, migrationData);
     }
+
+    /**
+     * @dev Handle renewal messages specific to L2 bridge
+     */
+    function _handleRenewalMessage(
+        uint256 /*tokenId*/,
+        uint64 /*newExpiry*/
+    ) internal pure override {
+        revert RenewalNotSupported();
+    }
 }
