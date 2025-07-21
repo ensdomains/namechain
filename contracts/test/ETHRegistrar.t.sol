@@ -13,6 +13,7 @@ import "../src/common/RegistryDatastore.sol";
 import "../src/L2/IPriceOracle.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/EnhancedAccessControl.sol";
+import "../src/common/IEnhancedAccessControl.sol";
 import "../src/common/NameUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
@@ -591,7 +592,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_supportsInterface() public view {
         // Use type(IETHRegistrar).interfaceId directly
         bytes4 ethRegistrarInterfaceId = type(IETHRegistrar).interfaceId;
-        bytes4 eacInterfaceId = type(EnhancedAccessControl).interfaceId;
+        bytes4 eacInterfaceId = type(IEnhancedAccessControl).interfaceId;
         
         assertTrue(registrar.supportsInterface(ethRegistrarInterfaceId));
         assertTrue(registrar.supportsInterface(eacInterfaceId));
@@ -700,14 +701,14 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_Revert_setPriceOracle_notAdmin() public {
         vm.startPrank(user1);
         MockPriceOracle newPriceOracle = new MockPriceOracle(0.02 ether, 0.01 ether);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_PRICE_ORACLE, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_PRICE_ORACLE, user1));
         registrar.setPriceOracle(newPriceOracle);
         vm.stopPrank();
     }
 
     function test_Revert_setCommitmentAges_notAdmin() public {
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES, user1));
         registrar.setCommitmentAges(120, 172800);
         vm.stopPrank();
     }
@@ -790,7 +791,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         
         // User1 should not be able to set commitment ages
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES, user1));
         registrar.setCommitmentAges(120, 172800);
         vm.stopPrank();
     }
@@ -804,7 +805,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // User1 should not be able to set price oracle
         vm.startPrank(user1);
         MockPriceOracle newPriceOracle = new MockPriceOracle(0.02 ether, 0.01 ether);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_PRICE_ORACLE, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_PRICE_ORACLE, user1));
         registrar.setPriceOracle(newPriceOracle);
         vm.stopPrank();
     }

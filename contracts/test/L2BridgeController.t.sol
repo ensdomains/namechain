@@ -634,5 +634,98 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         assertEq(bridge.sendMessageCallCount(), 0, "onRelinquish should not send bridge message");
     }
 
+    function test_Revert_eject_tooManyRoleAssignees() public {
+        // Test multiple error scenarios: too many assignees and missing assignees
+        string memory testLabel2 = "testbadassignees";
+        uint64 expires = uint64(block.timestamp + expiryDuration);
+        
+        // Scenario 1: Register with only one critical role (missing ROLE_SET_SUBREGISTRY)
+        uint256 tokenId2 = ethRegistry.register(testLabel2, user, ethRegistry, address(0), ROLE_SET_TOKEN_OBSERVER, expires);
+        
+        uint256 criticalRoles = ROLE_SET_TOKEN_OBSERVER | ROLE_SET_SUBREGISTRY;
+        bytes memory ejectionData = _createEjectionData(testLabel2, l1Owner, l1Subregistry, l1Resolver, expires, criticalRoles);
+        
+        // Should fail due to missing ROLE_SET_SUBREGISTRY
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.TooManyRoleAssignees.selector, tokenId2, criticalRoles));
+        ethRegistry.safeTransferFrom(user, address(controller), tokenId2, 1, ejectionData);
+        
+        // Scenario 2: Grant the missing role, then add extra assignees
+        ethRegistry.grantRoles(bytes32(tokenId2), ROLE_SET_SUBREGISTRY, user);
+        address secondUser = address(0x999);
+        ethRegistry.grantRoles(bytes32(tokenId2), ROLE_SET_TOKEN_OBSERVER, secondUser);
+        
+        // Get the current token ID after regeneration
+        (uint256 currentTokenId,,) = ethRegistry.getNameData(testLabel2);
+        
+        // Should fail due to multiple assignees for ROLE_SET_TOKEN_OBSERVER
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.TooManyRoleAssignees.selector, currentTokenId, criticalRoles));
+        ethRegistry.safeTransferFrom(user, address(controller), currentTokenId, 1, ejectionData);
+    }
 
+    function test_eject_success_exactlyOneAssigneePerRole() public {
+        // Test successful ejection when each critical role has exactly one assignee
+        string memory testLabel3 = "testgoodassignees";
+        uint64 expires = uint64(block.timestamp + expiryDuration);
+        
+        uint256 criticalRoles = ROLE_SET_TOKEN_OBSERVER | ROLE_SET_SUBREGISTRY;
+        uint256 tokenId3 = ethRegistry.register(testLabel3, user, ethRegistry, address(0), criticalRoles, expires);
+        
+        // Verify exactly one assignee per critical role
+        (uint256 counts, uint256 mask) = ethRegistry.getAssigneeCount(bytes32(tokenId3), criticalRoles);
+        assertEq(counts & mask, criticalRoles, "Should have exactly one assignee for each critical role");
+        
+        bytes memory ejectionData = _createEjectionData(testLabel3, l1Owner, l1Subregistry, l1Resolver, expires, criticalRoles);
+        
+        vm.recordLogs();
+        vm.prank(user);
+        ethRegistry.safeTransferFrom(user, address(controller), tokenId3, 1, ejectionData);
+        
+        // Verify successful ejection
+        assertEq(ethRegistry.ownerOf(tokenId3), address(controller), "Token should be owned by controller after ejection");
+        assertEq(address(ethRegistry.tokenObservers(tokenId3)), address(controller), "Token observer should be set to controller");
+        
+        // Verify event emission
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool foundEvent = false;
+        for (uint i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(controller) && logs[i].topics[0] == keccak256("NameEjectedToL1(bytes,uint256)")) {
+                foundEvent = true;
+                break;
+            }
+        }
+        assertTrue(foundEvent, "NameEjectedToL1 event should be emitted");
+    }
+
+    function test_eject_success_resolverRolesIgnored() public {
+        // Test that resolver roles don't affect ejection (can have multiple or zero assignees)
+        string memory testLabel4 = "testresolverignored";
+        uint64 expires = uint64(block.timestamp + expiryDuration);
+        
+        // Only grant critical roles initially
+        uint256 criticalRoles = ROLE_SET_TOKEN_OBSERVER | ROLE_SET_SUBREGISTRY;
+        uint256 tokenId4 = ethRegistry.register(testLabel4, user, ethRegistry, address(0), criticalRoles, expires);
+        
+        // Get the resource ID (this stays stable across regenerations)
+        bytes32 resourceId = ethRegistry.getTokenIdResource(tokenId4);
+            
+        // Add multiple assignees to ROLE_SET_RESOLVER (this should not affect ejection)
+        address user2 = address(0x666);
+        address user3 = address(0x555);
+        ethRegistry.grantRoles(resourceId, ROLE_SET_RESOLVER, user);
+        ethRegistry.grantRoles(resourceId, ROLE_SET_RESOLVER, user2);
+        ethRegistry.grantRoles(resourceId, ROLE_SET_RESOLVER, user3);
+        
+        // Get the current token ID after regeneration
+        (uint256 currentTokenId,,) = ethRegistry.getNameData(testLabel4);
+        
+        bytes memory ejectionData = _createEjectionData(testLabel4, l1Owner, l1Subregistry, l1Resolver, expires, 0);
+        
+        // Ejection should succeed despite multiple resolver role assignees
+        vm.prank(user);
+        ethRegistry.safeTransferFrom(user, address(controller), currentTokenId, 1, ejectionData);
+        
+        assertEq(ethRegistry.ownerOf(currentTokenId), address(controller), "Ejection should succeed");
+    }
 } 

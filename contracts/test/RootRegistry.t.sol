@@ -9,6 +9,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import "../src/common/PermissionedRegistry.sol";
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/EnhancedAccessControl.sol";
+import "../src/common/IEnhancedAccessControl.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/BaseRegistry.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
@@ -85,7 +86,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test", owner, registry, address(0), lockedSubregistryRoleBitmap, MAX_EXPIRY);
 
         address unauthorizedCaller = address(0xdead);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, unauthorizedCaller));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, unauthorizedCaller));
         vm.prank(unauthorizedCaller);
         registry.setSubregistry(tokenId, IRegistry(address(this)));
     }
@@ -101,7 +102,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test", owner, registry, address(0), lockedResolverRoleBitmap, MAX_EXPIRY);
 
         address unauthorizedCaller = address(0xdead);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_SET_RESOLVER, unauthorizedCaller));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_SET_RESOLVER, unauthorizedCaller));
         vm.prank(unauthorizedCaller);
         registry.setResolver(tokenId, address(this));
     }
@@ -181,7 +182,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         assertFalse(registry.hasRoles(registry.ROOT_RESOURCE(), ROLE_REGISTRAR, address(this)));
         
         // The test should now fail since no one has permission
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), ROLE_REGISTRAR, unauthorizedCaller));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), ROLE_REGISTRAR, unauthorizedCaller));
         vm.prank(unauthorizedCaller);
         registry.register(label, owner, registry, address(0), defaultRoleBitmap, MAX_EXPIRY);
     }

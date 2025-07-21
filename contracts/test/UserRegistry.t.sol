@@ -14,6 +14,7 @@ import {IRegistry} from "../src/common/IRegistry.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 
 contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
@@ -172,7 +173,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
         vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(
-                EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
                 ROOT_RESOURCE,
                 ROLE_REGISTRAR,
                 user1
@@ -193,7 +194,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
         vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(
-                EnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector,
+                IEnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector,
                 ROOT_RESOURCE,
                 ROLE_REGISTRAR,
                 user1
@@ -247,7 +248,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
         vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(
-                EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
                 ROOT_RESOURCE,
                 ROLE_UPGRADE,
                 user1

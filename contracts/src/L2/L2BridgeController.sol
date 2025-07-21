@@ -16,16 +16,19 @@ import {EjectionController} from "../common/EjectionController.sol";
 import {IBridge} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "../common/IEnhancedAccessControl.sol";
+import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
 
 /**
  * @title L2BridgeController
  * @dev Combined controller that handles both migration messages from L1 to L2 and ejection operations
  */
-contract L2BridgeController is EjectionController, ITokenObserver {
+contract L2BridgeController is EjectionController, ITokenObserver, RegistryRolesMixin {
     error MigrationFailed();
     error InvalidTLD(bytes dnsEncodedName);
     error NameNotFound(bytes dnsEncodedName);
     error NotTokenOwner(uint256 tokenId);
+    error TooManyRoleAssignees(uint256 tokenId, uint256 roleBitmap);
 
     // Events
     event MigrationCompleted(bytes dnsEncodedName, uint256 newTokenId);
@@ -186,10 +189,15 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             // check that the label matches the token id
             _assertTokenIdMatchesLabel(tokenId, transferData.label);
 
+            // check that there is no more than holder of the token observer and subregistry setting roles
+            uint256 roleBitmap = ROLE_SET_TOKEN_OBSERVER | ROLE_SET_SUBREGISTRY;
+            (uint256 counts, uint256 mask) = IEnhancedAccessControl(address(registry)).getAssigneeCount(registry.getTokenIdResource(tokenId), roleBitmap);
+            if (counts & mask != roleBitmap) {
+                revert TooManyRoleAssignees(tokenId, roleBitmap);
+            }
+
             // NOTE: we don't nullify the resolver here, so that there is no resolution downtime
             registry.setSubregistry(tokenId, IRegistry(address(0)));
-
-            // listen for events
             registry.setTokenObserver(tokenId, this);
             
             // Send bridge message for ejection

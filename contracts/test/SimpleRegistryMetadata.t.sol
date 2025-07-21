@@ -13,6 +13,7 @@ import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {console} from "forge-std/console.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 
 contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
@@ -57,14 +58,14 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
         (uint256 tokenId, , ) = registry.getNameData("test");
         string memory expectedUri = "ipfs://test";
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_UPDATE_METADATA, address(1))); 
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_UPDATE_METADATA, address(1))); 
         vm.prank(address(1));
         metadata.setTokenUri(tokenId, expectedUri);
     }
 
     function test_registry_metadata_supports_interface() public view {
         assertEq(metadata.supportsInterface(type(IRegistryMetadata).interfaceId), true);
-        assertEq(metadata.supportsInterface(type(EnhancedAccessControl).interfaceId), true);
+        assertEq(metadata.supportsInterface(type(IEnhancedAccessControl).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
 } 

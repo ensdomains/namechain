@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {console} from "forge-std/console.sol";
 import {EnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 
 abstract contract MockRoles {
     bytes32 public constant RESOURCE_1 = bytes32(keccak256("RESOURCE_1"));
@@ -194,7 +195,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         
         // user1 attempts to grant ROLE_A which requires ADMIN_ROLE_A admin
         vm.prank(user1);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector, RESOURCE_1, ROLE_A, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector, RESOURCE_1, ROLE_A, user1));
         access.grantRoles(RESOURCE_1, ROLE_A, user2);
     }
 
@@ -229,7 +230,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
     function test_grant_roles_with_root_resource_not_allowed() public {
         bytes32 rootResource = access.ROOT_RESOURCE();
         // Attempt to call grantRoles with ROOT_RESOURCE should revert
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACRootResourceNotAllowed.selector));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACRootResourceNotAllowed.selector));
         access.grantRoles(rootResource, ROLE_A, user1);
     }
 
@@ -269,14 +270,14 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         access.callOnlyRootRoles(ROLE_A);
         
         // User2 doesn't have the role, should revert
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, access.ROOT_RESOURCE(), ROLE_A, user2));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, access.ROOT_RESOURCE(), ROLE_A, user2));
         vm.prank(user2);
         access.callOnlyRootRoles(ROLE_A);
         
         // Having the role in a specific resource doesn't satisfy onlyRootRoles
         access.grantRoles(RESOURCE_1, ROLE_A, user2);   
         
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, access.ROOT_RESOURCE(), ROLE_A, user2));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, access.ROOT_RESOURCE(), ROLE_A, user2));
         vm.prank(user2);
         access.callOnlyRootRoles(ROLE_A);
     }
@@ -410,7 +411,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         
         // user1 attempts to revoke ROLE_A from user2, but doesn't have ADMIN_ROLE_A admin
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector, RESOURCE_1, ROLE_A, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector, RESOURCE_1, ROLE_A, user1));
         EnhancedAccessControl(address(access)).revokeRoles(RESOURCE_1, ROLE_A, user2);
         vm.stopPrank();
         
@@ -440,7 +441,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
     function test_revoke_roles_with_root_resource_not_allowed() public {
         bytes32 rootResource = access.ROOT_RESOURCE();
         // Attempt to call revokeRoles with ROOT_RESOURCE should revert
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACRootResourceNotAllowed.selector));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACRootResourceNotAllowed.selector));
         access.revokeRoles(rootResource, ROLE_A, user1);
     }
 
@@ -502,7 +503,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         
         // user1 attempts to revoke ROLE_A from user2, but doesn't have ADMIN_ROLE_A admin
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector, access.ROOT_RESOURCE(), ROLE_A, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector, access.ROOT_RESOURCE(), ROLE_A, user1));
         EnhancedAccessControl(address(access)).revokeRootRoles(ROLE_A, user2);
         vm.stopPrank();
         
@@ -577,7 +578,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
     }
 
     function test_supports_interface() public view {
-        assertTrue(access.supportsInterface(type(EnhancedAccessControl).interfaceId));
+        assertTrue(access.supportsInterface(type(IEnhancedAccessControl).interfaceId));
     }
 
     function test_copy_roles() public {
@@ -964,7 +965,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         
         // Try to grant ROLE_A to a 16th user - should revert with EACMaxAssignees
         address user16 = makeAddr("maxUser16");
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A));
         access.grantRoles(RESOURCE_1, ROLE_A, user16);
         
         // Verify the 16th user didn't get the role
@@ -973,7 +974,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Grant to 16th user should still fail even with admin role
         access.grantRoles(RESOURCE_1, ADMIN_ROLE_A, user16);
         vm.prank(user16);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A));
         access.grantRoles(RESOURCE_1, ROLE_A, makeAddr("maxUser17"));
     }
 
@@ -1000,15 +1001,15 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
         
         // Try to grant ROLE_A to another user - should fail
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A));
         access.grantRoles(RESOURCE_1, ROLE_A, users[15]);
         
         // Try to grant ROLE_D to another user - should fail
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_D));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_D));
         access.grantRoles(RESOURCE_1, ROLE_D, users[15]);
         
         // Try to grant both roles together to another user - should fail
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A | ROLE_D));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A | ROLE_D));
         access.grantRoles(RESOURCE_1, ROLE_A | ROLE_D, users[15]);
         
         // Remove one assignee from ROLE_A
@@ -1019,7 +1020,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, users[15]));
         
         // But ROLE_D should still be maxed out
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_D));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_D));
         access.grantRoles(RESOURCE_1, ROLE_D, makeAddr("extraUser"));
     }
 
@@ -1114,7 +1115,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         
         // RESOURCE_1 should be maxed out, but we should still be able to grant in RESOURCE_2
         assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A));
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A));
         access.grantRoles(RESOURCE_1, ROLE_A, makeAddr("extraUser"));
         
         // But RESOURCE_2 should still accept new assignees
@@ -1157,17 +1158,17 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         uint256 invalidRoleB = ROLE_B | (1 << 5) | (1 << 6); // extra bits in second nybble
         
         // Test that hasAssignees rejects invalid bitmaps (this bypasses authorization)
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidRoleA));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidRoleA));
         access.hasAssignees(RESOURCE_1, invalidRoleA);
         
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidRoleB));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidRoleB));
         access.hasAssignees(RESOURCE_1, invalidRoleB);
         
         // Test validation through direct helper functions (these bypass authorization)
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidRoleA));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidRoleA));
         access.grantRolesDirect(RESOURCE_1, invalidRoleA, user1);
         
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidRoleB));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidRoleB));
         access.revokeRolesDirect(RESOURCE_1, invalidRoleB, user1);
         
         // Grant valid roles to verify the system still works correctly
@@ -1199,21 +1200,314 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         uint256 invalidFromNybble4 = ROLE_D | (1 << 13); // extra bit in fourth nybble
         
         // All invalid bitmaps should be rejected
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidFromNybble1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidFromNybble1));
         access.hasAssignees(RESOURCE_1, invalidFromNybble1);
         
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidFromNybble2));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidFromNybble2));
         access.hasAssignees(RESOURCE_1, invalidFromNybble2);
         
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidFromNybble3));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidFromNybble3));
         access.hasAssignees(RESOURCE_1, invalidFromNybble3);
         
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidFromNybble4));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidFromNybble4));
         access.hasAssignees(RESOURCE_1, invalidFromNybble4);
         
         // Combined invalid bitmap should also be rejected
         uint256 combinedInvalid = invalidFromNybble1 | invalidFromNybble3;
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACInvalidRoleBitmap.selector, combinedInvalid));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidRoleBitmap.selector, combinedInvalid));
         access.hasAssignees(RESOURCE_1, combinedInvalid);
+    }
+
+    // Tests for getAssigneeCount() method
+
+    function test_getAssigneeCount_single_role_basic() public {
+        // Initially, no roles should have assignees
+        (uint256 counts, uint256 mask) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
+        assertEq(counts, 0);
+        assertEq(mask, 0xf); // ROLE_A mask should be 0xf (first nybble)
+        
+        // Grant ROLE_A to user1
+        access.grantRoles(RESOURCE_1, ROLE_A, user1);
+        
+        (counts, mask) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
+        assertEq(counts, 1); // Should have 1 assignee
+        assertEq(mask, 0xf); // Mask should remain the same
+        
+        // Grant ROLE_A to user2
+        access.grantRoles(RESOURCE_1, ROLE_A, user2);
+        
+        (counts, mask) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
+        assertEq(counts, 2); // Should have 2 assignees
+        assertEq(mask, 0xf);
+        
+        // Revoke ROLE_A from user1
+        access.revokeRoles(RESOURCE_1, ROLE_A, user1);
+        
+        (counts, mask) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
+        assertEq(counts, 1); // Should have 1 assignee
+        assertEq(mask, 0xf);
+        
+        // Revoke ROLE_A from user2
+        access.revokeRoles(RESOURCE_1, ROLE_A, user2);
+        
+        (counts, mask) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
+        assertEq(counts, 0); // Should have 0 assignees
+        assertEq(mask, 0xf);
+    }
+
+    function test_getAssigneeCount_multiple_roles() public {
+        // Test with ROLE_A (first nybble) and ROLE_D (fourth nybble)
+        uint256 roleBitmap = ROLE_A | ROLE_D;
+        
+        // Initially, no assignees
+        (uint256 counts, uint256 mask) = access.getAssigneeCount(RESOURCE_1, roleBitmap);
+        assertEq(counts, 0);
+        assertEq(mask, 61455); // Should mask both first and fourth nybbles (4097 expanded to mask)
+        
+        // Grant ROLE_A to user1
+        access.grantRoles(RESOURCE_1, ROLE_A, user1);
+        
+        (counts, mask) = access.getAssigneeCount(RESOURCE_1, roleBitmap);
+        assertEq(counts, 1); // ROLE_A has 1, ROLE_D has 0
+        assertEq(mask, 61455);
+        
+        // Grant ROLE_D to user2
+        access.grantRoles(RESOURCE_1, ROLE_D, user2);
+        
+        (counts, mask) = access.getAssigneeCount(RESOURCE_1, roleBitmap);
+        assertEq(counts, 1 + 4096); // ROLE_A increments by 1, ROLE_D increments by 4096
+        assertEq(mask, 61455);
+        
+        // Grant both roles to superuser
+        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_D, superuser);
+        
+        (counts, mask) = access.getAssigneeCount(RESOURCE_1, roleBitmap);
+        assertEq(counts, 2 + 8192); // ROLE_A increments by 2, ROLE_D increments by 8192
+        assertEq(mask, 61455);
+    }
+
+    function test_getAssigneeCount_all_four_roles() public {
+        uint256 allRoles = ROLE_A | ROLE_B | ROLE_C | ROLE_D;
+        
+        // Initially, no assignees
+        (uint256 counts, uint256 mask) = access.getAssigneeCount(RESOURCE_1, allRoles);
+        assertEq(counts, 0);
+        assertEq(mask, 0xffff); // All four nybbles should be masked
+        
+        // Grant each role to different users
+        access.grantRoles(RESOURCE_1, ROLE_A, user1);
+        access.grantRoles(RESOURCE_1, ROLE_B, user2);
+        access.grantRoles(RESOURCE_1, ROLE_C, superuser);
+        
+        (counts, mask) = access.getAssigneeCount(RESOURCE_1, allRoles);
+        assertEq(counts, 0x111); // ROLE_A=1, ROLE_B=1, ROLE_C=1, ROLE_D=0
+        assertEq(mask, 0xffff);
+        
+        // Grant ROLE_D to admin and add more assignees
+        access.grantRoles(RESOURCE_1, ROLE_D, admin);
+        access.grantRoles(RESOURCE_1, ROLE_A, user2); // user2 now has ROLE_A and ROLE_B
+        
+        (counts, mask) = access.getAssigneeCount(RESOURCE_1, allRoles);
+        assertEq(counts, 2 + 16 + 256 + 4096); // ROLE_A=2, ROLE_B=1, ROLE_C=1, ROLE_D=1
+        assertEq(mask, 0xffff);
+    }
+
+    function test_getAssigneeCount_different_resources() public {
+        // Test that getAssigneeCount works correctly across different resources
+        
+        // Grant ROLE_A to user1 in RESOURCE_1
+        access.grantRoles(RESOURCE_1, ROLE_A, user1);
+        
+        (uint256 counts1, uint256 mask1) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
+        (uint256 counts2, uint256 mask2) = access.getAssigneeCount(RESOURCE_2, ROLE_A);
+        
+        assertEq(counts1, 1); // RESOURCE_1 should have 1 assignee
+        assertEq(counts2, 0); // RESOURCE_2 should have 0 assignees
+        assertEq(mask1, 0xf); // Masks should be the same
+        assertEq(mask2, 0xf);
+        
+        // Grant ROLE_A to user2 in RESOURCE_2
+        access.grantRoles(RESOURCE_2, ROLE_A, user2);
+        
+        (counts1, mask1) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
+        (counts2, mask2) = access.getAssigneeCount(RESOURCE_2, ROLE_A);
+        
+        assertEq(counts1, 1); // RESOURCE_1 should still have 1
+        assertEq(counts2, 1); // RESOURCE_2 should now have 1
+        
+        // Add more assignees to RESOURCE_1
+        access.grantRoles(RESOURCE_1, ROLE_A, user2);
+        access.grantRoles(RESOURCE_1, ROLE_A, superuser);
+        
+        (counts1, mask1) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
+        (counts2, mask2) = access.getAssigneeCount(RESOURCE_2, ROLE_A);
+        
+        assertEq(counts1, 3); // RESOURCE_1 should have 3 assignees
+        assertEq(counts2, 1); // RESOURCE_2 should still have 1 assignee
+    }
+
+    function test_getAssigneeCount_with_root_resource() public {
+        // Test getAssigneeCount with root resource
+        
+        // Grant ROLE_A in root resource
+        access.grantRootRoles(ROLE_A, user1);
+        
+        (uint256 rootCounts, uint256 rootMask) = access.getAssigneeCount(access.ROOT_RESOURCE(), ROLE_A);
+        (uint256 res1Counts, uint256 res1Mask) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
+        
+        assertEq(rootCounts, 2); // Root resource should have 2 assignees (constructor + user1)
+        assertEq(res1Counts, 0); // RESOURCE_1 should have 0 direct assignees
+        assertEq(rootMask, 0xf);
+        assertEq(res1Mask, 0xf);
+        
+        // Grant ROLE_A directly in RESOURCE_1
+        access.grantRoles(RESOURCE_1, ROLE_A, user2);
+        
+        (rootCounts, rootMask) = access.getAssigneeCount(access.ROOT_RESOURCE(), ROLE_A);
+        (res1Counts, res1Mask) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
+        
+        assertEq(rootCounts, 2); // Root resource should still have 2 (constructor + user1)
+        assertEq(res1Counts, 1); // RESOURCE_1 should now have 1 direct assignee
+        
+        // Note: Even though user1 has ROLE_A via root inheritance for RESOURCE_1,
+        // getAssigneeCount only counts direct assignments to that resource
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1)); // user1 has the role via root
+        assertEq(res1Counts, 1); // but only user2 is counted as direct assignee
+    }
+
+    function test_getAssigneeCount_consistency_with_hasAssignees() public {
+        // Test that getAssigneeCount is consistent with hasAssignees
+        
+        uint256 roleBitmap = ROLE_A | ROLE_C;
+        
+        // Initially, no assignees
+        (uint256 counts, ) = access.getAssigneeCount(RESOURCE_1, roleBitmap);
+        bool hasAny = access.hasAssignees(RESOURCE_1, roleBitmap);
+        
+        assertEq(counts, 0);
+        assertFalse(hasAny);
+        
+        // Grant ROLE_A only
+        access.grantRoles(RESOURCE_1, ROLE_A, user1);
+        
+        (counts, ) = access.getAssigneeCount(RESOURCE_1, roleBitmap);
+        hasAny = access.hasAssignees(RESOURCE_1, roleBitmap);
+        
+        assertEq(counts, 1); // Only ROLE_A has assignees
+        assertTrue(hasAny); // hasAssignees should return true because at least one role has assignees
+        
+        // Grant ROLE_C as well
+        access.grantRoles(RESOURCE_1, ROLE_C, user2);
+        
+        (counts, ) = access.getAssigneeCount(RESOURCE_1, roleBitmap);
+        hasAny = access.hasAssignees(RESOURCE_1, roleBitmap);
+        
+        assertEq(counts, 0x101); // ROLE_A=1, ROLE_C=1
+        assertTrue(hasAny);
+        
+        // Revoke ROLE_A
+        access.revokeRoles(RESOURCE_1, ROLE_A, user1);
+        
+        (counts, ) = access.getAssigneeCount(RESOURCE_1, roleBitmap);
+        hasAny = access.hasAssignees(RESOURCE_1, roleBitmap);
+        
+        assertEq(counts, 0x100); // ROLE_A=0, ROLE_C=1
+        assertTrue(hasAny); // Still true because ROLE_C has assignees
+        
+        // Revoke ROLE_C
+        access.revokeRoles(RESOURCE_1, ROLE_C, user2);
+        
+        (counts, ) = access.getAssigneeCount(RESOURCE_1, roleBitmap);
+        hasAny = access.hasAssignees(RESOURCE_1, roleBitmap);
+        
+        assertEq(counts, 0);
+        assertFalse(hasAny);
+    }
+
+    function test_getAssigneeCount_max_assignees() public {
+        // Test getAssigneeCount with maximum assignees (15 per role)
+        
+        // Create 15 different user addresses
+        address[] memory users = new address[](15);
+        for (uint256 i = 0; i < 15; i++) {
+            users[i] = makeAddr(string(abi.encodePacked("maxUser", i)));
+        }
+        
+        // Grant ROLE_A to all 15 users
+        for (uint256 i = 0; i < 15; i++) {
+            access.grantRoles(RESOURCE_1, ROLE_A, users[i]);
+        }
+        
+        (uint256 counts, uint256 mask) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
+        assertEq(counts, 15); // Should have exactly 15 assignees
+        assertEq(mask, 0xf);
+        
+        // Test with multiple roles at max capacity
+        for (uint256 i = 0; i < 15; i++) {
+            access.grantRoles(RESOURCE_1, ROLE_D, users[i]);
+        }
+        
+        (counts, mask) = access.getAssigneeCount(RESOURCE_1, ROLE_A | ROLE_D);
+        assertEq(counts, 15 + 15*4096); // ROLE_A: 15*1, ROLE_D: 15*4096
+        assertEq(mask, 61455);
+        
+        // Verify hasAssignees consistency
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A));
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_D));
+        assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
+    }
+
+    function test_getAssigneeCount_invalid_role_bitmap() public {
+        // Test that getAssigneeCount rejects invalid role bitmaps
+        
+        uint256 invalidRoleA = ROLE_A | (1 << 1) | (1 << 2); // 0x7 = 0111 in first nybble
+        uint256 invalidRoleB = ROLE_B | (1 << 5) | (1 << 6); // extra bits in second nybble
+        
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidRoleA));
+        access.getAssigneeCount(RESOURCE_1, invalidRoleA);
+        
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidRoleBitmap.selector, invalidRoleB));
+        access.getAssigneeCount(RESOURCE_1, invalidRoleB);
+        
+        // Valid bitmaps should still work
+        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        (uint256 counts, uint256 mask) = access.getAssigneeCount(RESOURCE_1, ROLE_A | ROLE_B);
+        assertEq(counts, 0x11); // Both roles should have 1 assignee
+        assertEq(mask, 0xff); // Mask for first two nybbles
+    }
+
+    function test_getAssigneeCount_mask_calculation() public {
+        // Test that masks are calculated correctly for different role combinations
+        
+        // Single roles
+        (, uint256 maskA) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
+        (, uint256 maskB) = access.getAssigneeCount(RESOURCE_1, ROLE_B);
+        (, uint256 maskC) = access.getAssigneeCount(RESOURCE_1, ROLE_C);
+        (, uint256 maskD) = access.getAssigneeCount(RESOURCE_1, ROLE_D);
+        
+        assertEq(maskA, 0xf); // First nybble
+        assertEq(maskB, 0xf0); // Second nybble
+        assertEq(maskC, 0xf00); // Third nybble
+        assertEq(maskD, 0xf000); // Fourth nybble
+        
+        // Combined roles
+        (, uint256 maskAB) = access.getAssigneeCount(RESOURCE_1, ROLE_A | ROLE_B);
+        (, uint256 maskCD) = access.getAssigneeCount(RESOURCE_1, ROLE_C | ROLE_D);
+        (, uint256 maskAC) = access.getAssigneeCount(RESOURCE_1, ROLE_A | ROLE_C);
+        (, uint256 maskBD) = access.getAssigneeCount(RESOURCE_1, ROLE_B | ROLE_D);
+        (, uint256 maskAll) = access.getAssigneeCount(RESOURCE_1, ROLE_A | ROLE_B | ROLE_C | ROLE_D);
+        
+        assertEq(maskAB, 0xff); // First two nybbles
+        assertEq(maskCD, 0xff00); // Last two nybbles
+        assertEq(maskAC, 0xf0f); // First and third nybbles
+        assertEq(maskBD, 0xf0f0); // Second and fourth nybbles
+        assertEq(maskAll, 0xffff); // All four nybbles
+    }
+
+    function test_getAssigneeCount_zero_bitmap() public {
+        // Test getAssigneeCount with zero role bitmap - should return zero counts
+        (uint256 counts, uint256 mask) = access.getAssigneeCount(RESOURCE_1, 0);
+        assertEq(counts, 0);
+        assertEq(mask, 0);
     }
 }

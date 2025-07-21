@@ -5,6 +5,8 @@ pragma solidity ^0.8.20;
 
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {IEnhancedAccessControl} from "./IEnhancedAccessControl.sol";
 
 library LibEACBaseRoles {
     uint256 constant public ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;
@@ -25,18 +27,7 @@ library LibEACBaseRoles {
  * - Each role is represented by a nybble (4 bits), in little-endian order.
  * - If a given role left-most nybble bit is located at index N then the corresponding admin role nybble starts at bit position N << 128.
  */
-abstract contract EnhancedAccessControl is Context, ERC165 {
-    error EACUnauthorizedAccountRoles(bytes32 resource, uint256 roleBitmap, address account);
-    error EACUnauthorizedAccountAdminRoles(bytes32 resource, uint256 roleBitmap, address account);
-    error EACRootResourceNotAllowed();
-    error EACMaxAssignees(bytes32 resource, uint256 role);
-    error EACMinAssignees(bytes32 resource, uint256 role);
-    error EACInvalidRoleBitmap(uint256 roleBitmap);
-
-    event EACRolesGranted(bytes32 resource, uint256 roleBitmap, address account);
-    event EACRolesRevoked(bytes32 resource, uint256 roleBitmap, address account);
-    event EACAllRolesRevoked(bytes32 resource, address account);
-
+abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessControl {
     /**
      * @dev user roles within a resource stored as a bitmap.
      * Resource -> User -> RoleBitmap
@@ -84,8 +75,8 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev See {IERC165-supportsInterface}.
      */
-    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
-        return interfaceId == type(EnhancedAccessControl).interfaceId || super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(IEnhancedAccessControl).interfaceId || super.supportsInterface(interfaceId);
     }
 
     /**
@@ -120,7 +111,21 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
      * @return `true` if any of the roles in the given role bitmap has assignees, `false` otherwise.
      */
     function hasAssignees(bytes32 resource, uint256 roleBitmap) public view virtual returns (bool) {
-        return (roleCount[resource] & _roleBitmapToMask(roleBitmap)) != 0;
+        (uint256 counts, ) = getAssigneeCount(resource, roleBitmap);
+        return counts != 0;
+    }
+
+    /**
+     * @dev Get the no. of assignees for the roles in the given role bitmap.
+     *
+     * @param resource The resource to check.
+     * @param roleBitmap The roles bitmap to check.
+     * @return counts The no. of assignees for each of the roles in the given role bitmap, expressed as a bitmap.
+     * @return mask The mask for the given role bitmap.
+     */
+    function getAssigneeCount(bytes32 resource, uint256 roleBitmap) public view virtual returns (uint256 counts, uint256 mask) {
+        mask = _roleBitmapToMask(roleBitmap);
+        counts = roleCount[resource] & mask;
     }
 
     /**
@@ -358,7 +363,7 @@ abstract contract EnhancedAccessControl is Context, ERC165 {
     /**
      * @dev Converts a role bitmap to a mask.
      *
-     * The mask is a bitmap where each bit is set if the corresponding role is in the role bitmap.
+     * The mask is a bitmap where each nybble is set if the corresponding role is in the role bitmap.
      *
      * @param roleBitmap The role bitmap to convert.
      * @return roleMask The mask for the role bitmap.

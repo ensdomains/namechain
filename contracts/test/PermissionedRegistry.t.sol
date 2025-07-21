@@ -16,6 +16,7 @@ import "../src/L2/ETHRegistrar.sol";
 import "../src/L2/IPriceOracle.sol";
 import "../src/common/ITokenObserver.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 
 
 contract TestPermissionedRegistry is Test, ERC1155Holder {
@@ -66,7 +67,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     function test_Revert_register_without_registrar_role() public {
         address nonRegistrar = makeAddr("nonRegistrar");
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), ROLE_REGISTRAR, nonRegistrar));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), ROLE_REGISTRAR, nonRegistrar));
         vm.prank(nonRegistrar);
         registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
     }
@@ -76,7 +77,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         
         address nonRenewer = makeAddr("nonRenewer");
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_RENEW, nonRenewer));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_RENEW, nonRenewer));
         vm.prank(nonRenewer);
         registry.renew(tokenId, uint64(block.timestamp) + 172800);
     }
@@ -132,7 +133,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertFalse(registry.hasRoles(registry.getTokenIdResource(tokenId), ROLE_RENEW, tokenOwner));
         
         // Owner should not be able to renew without the role
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_RENEW, tokenOwner));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_RENEW, tokenOwner));
         vm.prank(tokenOwner);
         registry.renew(tokenId, uint64(block.timestamp) + 172800);
     }
@@ -208,7 +209,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     function test_Revert_cannot_set_subregistry_without_role() public {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), lockedSubregistryRoleBitmap, uint64(block.timestamp) + 86400);
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_SET_SUBREGISTRY, user1));
         vm.prank(user1);
         registry.setSubregistry(tokenId, IRegistry(user1));
     }
@@ -222,7 +223,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     function test_Revert_cannot_set_resolver_without_role() public {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), lockedResolverRoleBitmap, uint64(block.timestamp) + 86400);
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_SET_RESOLVER, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_SET_RESOLVER, user1));
         vm.prank(user1);
         registry.setResolver(tokenId, address(this));
     }
@@ -381,7 +382,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         // When this user tries to set the token observer, it should revert
         vm.startPrank(randomUser);
         vm.expectRevert(abi.encodeWithSelector(
-            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
             registry.getTokenIdResource(tokenId),
             ROLE_SET_TOKEN_OBSERVER,
             randomUser
@@ -399,7 +400,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertFalse(registry.hasRoles(registry.getTokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, user1));
         
         // Owner should not be able to set token observer without the role
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), ROLE_SET_TOKEN_OBSERVER, user1));
         vm.prank(user1);
         registry.setTokenObserver(tokenId, observer);
     }
@@ -586,7 +587,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         vm.warp(block.timestamp + 101);
         
         vm.expectRevert(abi.encodeWithSelector(
-            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
             registry.getTokenIdResource(tokenId),
             ROLE_SET_TOKEN_OBSERVER,
             user1
@@ -601,7 +602,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         vm.warp(block.timestamp + 101);
         
         vm.expectRevert(abi.encodeWithSelector(
-            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
             registry.getTokenIdResource(tokenId),
             ROLE_SET_SUBREGISTRY,
             user1
@@ -616,7 +617,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         vm.warp(block.timestamp + 101);
         
         vm.expectRevert(abi.encodeWithSelector(
-            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
             registry.getTokenIdResource(tokenId),
             ROLE_SET_RESOLVER,
             user1
@@ -656,7 +657,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", user1, registry, address(0), noRolesRoleBitmap, uint64(block.timestamp) + 100);
         
         vm.expectRevert(abi.encodeWithSelector(
-            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
             registry.getTokenIdResource(tokenId),
             ROLE_SET_TOKEN_OBSERVER,
             user1
@@ -669,7 +670,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", user1, registry, address(0), noRolesRoleBitmap, uint64(block.timestamp) + 100);
         
         vm.expectRevert(abi.encodeWithSelector(
-            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
             registry.getTokenIdResource(tokenId),
             ROLE_SET_SUBREGISTRY,
             user1
@@ -682,7 +683,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test2", user1, registry, address(0), noRolesRoleBitmap, uint64(block.timestamp) + 100);
         
         vm.expectRevert(abi.encodeWithSelector(
-            EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
             registry.getTokenIdResource(tokenId),
             ROLE_SET_RESOLVER,
             user1

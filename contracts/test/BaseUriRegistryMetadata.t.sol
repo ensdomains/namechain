@@ -11,6 +11,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {BaseUriRegistryMetadata} from "../src/common/BaseUriRegistryMetadata.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 
 contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
@@ -86,14 +87,14 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     function test_registry_metadata_unauthorized() public {
         string memory expectedUri = "ipfs://test/";
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_UPDATE_METADATA, address(1))); 
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_UPDATE_METADATA, address(1))); 
         vm.prank(address(1));
         metadata.setTokenBaseUri(expectedUri);
     }
 
     function test_registry_metadata_supports_interface() public view {
         assertEq(metadata.supportsInterface(type(IRegistryMetadata).interfaceId), true);
-        assertEq(metadata.supportsInterface(type(EnhancedAccessControl).interfaceId), true);
+        assertEq(metadata.supportsInterface(type(IEnhancedAccessControl).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
 } 
