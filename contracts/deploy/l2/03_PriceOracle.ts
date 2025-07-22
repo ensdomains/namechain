@@ -1,20 +1,39 @@
 /// we import what we need from the @rocketh alias, see ../rocketh.ts
 import { artifacts, execute } from "@rocketh";
-import { parseEther } from "viem";
 
-const BASE_PRICE = parseEther("0.01");
-const PREMIUM_PRICE = parseEther("0.005");
+// USD prices in 6 decimals (USDC standard)
+const BASE_PRICE_USD = 10 * 10**6;     // $10.00
+const PREMIUM_PRICE_USD = 5 * 10**6;   // $5.00
 
 export default execute(
-  async ({ deploy, namedAccounts }) => {
+  async ({ deploy, namedAccounts, get }) => {
     const { deployer } = namedAccounts;
+
+    // Get the deployed mock token addresses
+    const mockUSDC = get<(typeof artifacts.MockERC20)["abi"]>("MockUSDC");
+    const mockDAI = get<(typeof artifacts.MockERC20)["abi"]>("MockDAI");
+
+    const tokenAddresses = [mockUSDC.address, mockDAI.address];
+    const tokenDecimals = [6, 18]; // USDC: 6 decimals, DAI: 18 decimals
 
     await deploy("PriceOracle", {
       account: deployer,
-      artifact: artifacts.MockPriceOracle,
-      args: [BASE_PRICE, PREMIUM_PRICE],
+      artifact: artifacts.TokenPriceOracle,
+      args: [
+        tokenAddresses,
+        tokenDecimals,
+        BASE_PRICE_USD,
+        PREMIUM_PRICE_USD,
+      ],
     });
+
+    console.log(`✅ TokenPriceOracle deployed with:`)
+    console.log(`   - Base Price: $${BASE_PRICE_USD / 10**6}`);
+    console.log(`   - Premium Price: $${PREMIUM_PRICE_USD / 10**6}`);
+    console.log(`   - Supported Tokens:`);
+    console.log(`     - MockUSDC (6 decimals): ${tokenAddresses[0]}`);
+    console.log(`     - MockDAI (18 decimals): ${tokenAddresses[1]}`);
   },
   // finally you can pass tags and dependencies
-  { tags: ["PriceOracle", "registry", "l2"] },
+  { tags: ["PriceOracle", "registry", "l2"], dependencies: ["MockTokens"] },
 );

@@ -12,7 +12,7 @@ export default execute(
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
     const priceOracle =
-      get<(typeof artifacts.MockPriceOracle)["abi"]>("PriceOracle");
+      get<(typeof artifacts.TokenPriceOracle)["abi"]>("PriceOracle");
 
     const ethRegistrar = await deploy("ETHRegistrar", {
       account: deployer,
