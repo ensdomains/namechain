@@ -93,7 +93,7 @@ interface IETHRegistrar {
     function commit(bytes32 commitment) external;
 
     /**
-     * @dev Register a name.
+     * @dev Register a name with ERC20 token payment.
      *
      * @param name The name to register.
      * @param owner The address of the owner of the name.
@@ -101,6 +101,7 @@ interface IETHRegistrar {
      * @param subregistry The registry to use for the registration.
      * @param resolver The resolver to use for the registration.
      * @param duration The duration of the registration.
+     * @param token The ERC20 token address for payment.
      *
      * @return The ID of the newly registered name.
      */
@@ -110,14 +111,16 @@ interface IETHRegistrar {
         bytes32 secret,
         IRegistry subregistry,
         address resolver,
-        uint64 duration
-    ) external payable returns (uint256);
+        uint64 duration,
+        address token
+    ) external returns (uint256);
 
     /**
-     * @dev Renew a name.
+     * @dev Renew a name with ERC20 token payment.
      *
      * @param name The name to renew.
      * @param duration The duration of the renewal.
+     * @param token The ERC20 token address for payment.
      */
-    function renew(string calldata name, uint64 duration) external payable;
+    function renew(string calldata name, uint64 duration, address token) external;
 }
