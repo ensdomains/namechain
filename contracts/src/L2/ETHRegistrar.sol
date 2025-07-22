@@ -37,10 +37,11 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     IPriceOracle public prices;
     uint256 public minCommitmentAge;
     uint256 public maxCommitmentAge;
+    address public immutable beneficiary;
 
     mapping(bytes32 => uint256) public commitments;    
 
-    constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge) {
+    constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge, address _beneficiary) {
         _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender(), true);
 
         registry = IPermissionedRegistry(_registry);
@@ -52,6 +53,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         prices = _prices;
         minCommitmentAge = _minCommitmentAge;
         maxCommitmentAge = _maxCommitmentAge;
+        beneficiary = _beneficiary;
     }
 
     /**
@@ -175,9 +177,9 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         uint64 expiry = uint64(block.timestamp) + duration;
         tokenId = registry.register(name, owner, subregistry, resolver, REGISTRATION_ROLE_BITMAP, expiry);
 
-        // Handle token payment
+        // Handle token payment - forward directly to beneficiary
         uint256 totalPrice = checkPrice(name, duration, token);
-        IERC20(token).transferFrom(msg.sender, address(this), totalPrice);
+        IERC20(token).transferFrom(msg.sender, beneficiary, totalPrice);
 
         emit NameRegistered(name, owner, subregistry, resolver, duration, tokenId);
     }
@@ -193,9 +195,9 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
 
         registry.renew(tokenId, expiry + duration);
 
-        // Handle token payment
+        // Handle token payment - forward directly to beneficiary
         uint256 totalPrice = checkPrice(name, duration, token);
-        IERC20(token).transferFrom(msg.sender, address(this), totalPrice);
+        IERC20(token).transferFrom(msg.sender, beneficiary, totalPrice);
 
         uint64 newExpiry = registry.getExpiry(tokenId);
 
