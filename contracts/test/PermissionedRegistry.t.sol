@@ -54,7 +54,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
         priceOracle = new MockPriceOracle();
-        registrar = new ETHRegistrar(address(registry), priceOracle, 60, 86400);
+        registrar = new ETHRegistrar(address(registry), priceOracle, 60, 86400, address(0x99));
     }
 
     function test_constructor_sets_roles() public view {

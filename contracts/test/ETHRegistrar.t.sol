@@ -46,6 +46,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
     address user1 = address(0x1);
     address user2 = address(0x2);
+    address beneficiary = address(0x3);
 
     uint256 constant MIN_COMMITMENT_AGE = 60; // 1 minute
     uint256 constant MAX_COMMITMENT_AGE = 86400; // 1 day
@@ -86,7 +87,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // Use a defined ALL_ROLES value for deployer roles
         uint256 deployerRoles = TestUtils.ALL_ROLES;
         registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), deployerRoles);
-        registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE);
+        registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE, beneficiary);
 
         registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(registrar));
 
@@ -148,13 +149,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         uint256 invalidMaxAge = 100; // Equal to minAge, should revert
 
         vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.MaxCommitmentAgeTooLow.selector));
-        new ETHRegistrar(address(registry), priceOracle, invalidMinAge, invalidMaxAge);
+        new ETHRegistrar(address(registry), priceOracle, invalidMinAge, invalidMaxAge, beneficiary);
 
         // Try with max age less than min age
         invalidMaxAge = 99; // Less than minAge, should revert
 
         vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.MaxCommitmentAgeTooLow.selector));
-        new ETHRegistrar(address(registry), priceOracle, invalidMinAge, invalidMaxAge);
+        new ETHRegistrar(address(registry), priceOracle, invalidMinAge, invalidMaxAge, beneficiary);
     }
 
     function test_available() public {
@@ -498,6 +499,10 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         registrar.renew(name, renewalDuration, address(usdc));
     }
 
+    function test_beneficiary_address_set() public view {
+        assertEq(registrar.beneficiary(), beneficiary, "Beneficiary address not set correctly");
+    }
+
     function test_supportsInterface() public view {
         // Use type(IETHRegistrar).interfaceId directly
         bytes4 ethRegistrarInterfaceId = type(IETHRegistrar).interfaceId;
@@ -529,6 +534,58 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
         // Verify no ETH charge (tokens used instead)
         assertEq(address(this).balance, initialBalance);
+    }
+
+    function test_registration_forwards_payment_to_beneficiary() public {
+        string memory name = "testname";
+        address owner = address(this);
+        address resolver = address(0);
+        uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
+
+        // Check initial balances
+        uint256 initialBeneficiaryBalance = usdc.balanceOf(beneficiary);
+        uint256 expectedCost = 15 * 1e6; // $15 in USDC (base + premium)
+
+        // Make commitment
+        bytes32 commitment = registrar.makeCommitment(name, owner, secret, address(registry), resolver, duration);
+        registrar.commit(commitment);
+
+        // Wait for min commitment age
+        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
+
+        // Register the name
+        registrar.register(name, owner, secret, registry, resolver, duration, address(usdc));
+
+        // Verify payment was forwarded to beneficiary
+        uint256 finalBeneficiaryBalance = usdc.balanceOf(beneficiary);
+        assertEq(finalBeneficiaryBalance, initialBeneficiaryBalance + expectedCost, "Payment not forwarded to beneficiary");
+    }
+
+    function test_renewal_forwards_payment_to_beneficiary() public {
+        string memory name = "testname";
+        address owner = address(this);
+        address resolver = address(0);
+        uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
+
+        // Register the name first
+        bytes32 commitment = registrar.makeCommitment(name, owner, secret, address(registry), resolver, duration);
+        registrar.commit(commitment);
+        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
+        registrar.register(name, owner, secret, registry, resolver, duration, address(usdc));
+
+        // Check beneficiary balance before renewal
+        uint256 initialBeneficiaryBalance = usdc.balanceOf(beneficiary);
+        uint64 renewalDuration = 180 days;
+        uint256 expectedRenewalCost = registrar.rentPriceInToken(name, renewalDuration, address(usdc));
+
+        // Renew the name
+        registrar.renew(name, renewalDuration, address(usdc));
+
+        // Verify renewal payment was forwarded to beneficiary
+        uint256 finalBeneficiaryBalance = usdc.balanceOf(beneficiary);
+        assertEq(finalBeneficiaryBalance, initialBeneficiaryBalance + expectedRenewalCost, "Renewal payment not forwarded to beneficiary");
     }
 
     function test_token_payment_renew_no_refund() public {
