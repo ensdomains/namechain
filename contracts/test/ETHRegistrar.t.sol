@@ -68,12 +68,15 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         dai = new MockERC20("DAI", "DAI", 18);
 
         // Setup TokenPriceOracle
-        priceOracle = new TokenPriceOracle(
-            _toAddressArray(address(usdc), address(dai)), 
-            _toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
-            BASE_PRICE_USD, 
-            PREMIUM_PRICE_USD
-        );
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(usdc);
+        tokens[1] = address(dai);
+        
+        uint8[] memory decimals = new uint8[](2);
+        decimals[0] = 6; // USDC
+        decimals[1] = 18; // DAI
+        
+        priceOracle = new TokenPriceOracle(tokens, decimals);
 
         // Setup registry and registrar
         datastore = new RegistryDatastore();
@@ -109,20 +112,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         dai.approve(address(registrar), type(uint256).max);
     }
 
-    // Helper functions for creating arrays
-    function _toAddressArray(address a, address b) internal pure returns (address[] memory) {
-        address[] memory arr = new address[](2);
-        arr[0] = a;
-        arr[1] = b;
-        return arr;
-    }
-    
-    function _toUint8Array(uint8 a, uint8 b) internal pure returns (uint8[] memory) {
-        uint8[] memory arr = new uint8[](2);
-        arr[0] = a;
-        arr[1] = b;
-        return arr;
-    }
 
     // Helper function to register a name with USDC (default test token)
     function _registerName(
