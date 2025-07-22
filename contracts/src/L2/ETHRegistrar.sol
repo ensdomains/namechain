@@ -168,14 +168,15 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     ) external returns (uint256 tokenId) {
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
 
-        uint64 expiry = uint64(block.timestamp) + duration;
-        tokenId = registry.register(name, owner, subregistry, resolver, REGISTRATION_ROLE_BITMAP, expiry);
+        tokenId = registry.register(name, owner, subregistry, resolver, REGISTRATION_ROLE_BITMAP, uint64(block.timestamp) + duration);
 
-        // Handle token payment - forward directly to beneficiary
-        uint256 totalPrice = checkPrice(name, duration, token);
-        IERC20(token).transferFrom(msg.sender, beneficiary, totalPrice);
-
-        emit NameRegistered(name, owner, subregistry, resolver, duration, tokenId);
+        // Handle payment and emit event with pricing details
+        TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
+        (uint256 baseCost, uint256 premium, uint256 totalCost) = 
+            tokenOracle.priceInTokenBreakdown(name, 0, duration, token);
+        
+        IERC20(token).transferFrom(msg.sender, beneficiary, totalCost);
+        emit NameRegistered(name, owner, subregistry, resolver, duration, tokenId, baseCost, premium, token);
     }
 
     /**
@@ -188,14 +189,15 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         (uint256 tokenId, uint64 expiry, ) = registry.getNameData(name);
 
         registry.renew(tokenId, expiry + duration);
-
-        // Handle token payment - forward directly to beneficiary
-        uint256 totalPrice = checkPrice(name, duration, token);
-        IERC20(token).transferFrom(msg.sender, beneficiary, totalPrice);
-
+        
+        // Handle payment and emit event with pricing details
+        TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
+        (uint256 baseCost, uint256 premium, uint256 totalCost) = 
+            tokenOracle.priceInTokenBreakdown(name, expiry, duration, token);
+        
+        IERC20(token).transferFrom(msg.sender, beneficiary, totalCost);
         uint64 newExpiry = registry.getExpiry(tokenId);
-
-        emit NameRenewed(name, duration, tokenId, newExpiry);
+        emit NameRenewed(name, duration, tokenId, newExpiry, baseCost, premium, token);
     }
 
 
