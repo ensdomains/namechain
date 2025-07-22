@@ -73,9 +73,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // Setup TokenPriceOracle
         priceOracle = new TokenPriceOracle(
             TestUtils.toAddressArray(address(usdc), address(dai)),
-            TestUtils.toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
-            BASE_PRICE_USD,
-            PREMIUM_PRICE_USD
+            TestUtils.toUint8Array(6, 18) // USDC: 6 decimals, DAI: 18 decimals
         );
 
         // Setup registry and registrar

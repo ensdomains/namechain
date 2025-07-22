@@ -4,6 +4,10 @@ pragma solidity >=0.8.13;
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
+/**
+ * @dev TokenPriceOracle handles ERC20 token conversion rates with overridable pricing logic.
+ * Inherits from this contract and override _premium() and _pricePerCharLength() for custom pricing.
+ */
 contract TokenPriceOracle is IPriceOracle {
     struct TokenConfig {
         uint8 decimals;
@@ -12,26 +16,16 @@ contract TokenPriceOracle is IPriceOracle {
 
     error TokenNotSupported(address token);
     error ArrayLengthMismatch();
-    error InvalidPrice(uint256 price);
 
     mapping(address => TokenConfig) public tokenConfigs;
-    uint256 public basePrice; // Base USD price in 6 decimals (USDC standard)
-    uint256 public premiumPrice; // Premium USD price in 6 decimals
 
-    constructor(address[] memory _tokens, uint8[] memory _decimals, uint256 _basePrice, uint256 _premiumPrice) {
+    constructor(
+        address[] memory _tokens, 
+        uint8[] memory _decimals
+    ) {
         if (_tokens.length != _decimals.length) {
             revert ArrayLengthMismatch();
         }
-        if (_basePrice == 0) {
-            revert InvalidPrice(_basePrice);
-        }
-        if (_premiumPrice == 0) {
-            revert InvalidPrice(_premiumPrice);
-        }
-
-        // Set configurable prices
-        basePrice = _basePrice;
-        premiumPrice = _premiumPrice;
 
         for (uint256 i = 0; i < _tokens.length; i++) {
             tokenConfigs[_tokens[i]] = TokenConfig({decimals: _decimals[i], enabled: true});
@@ -44,7 +38,10 @@ contract TokenPriceOracle is IPriceOracle {
         override
         returns (Price memory)
     {
-        return Price(basePrice, premiumPrice);
+        return Price({
+            base: _pricePerCharLength(name, duration),
+            premium: _premium(name, expires, duration)
+        });
     }
 
     function isTokenSupported(address token) external view returns (bool) {
@@ -70,14 +67,61 @@ contract TokenPriceOracle is IPriceOracle {
 
         // Convert USD price to token amount based on token's decimal standard
         // Prices are stored in 6 decimals (USDC standard)
-        uint8 priceDecimals = 6;
-        if (config.decimals < priceDecimals) {
-            tokenAmount = totalUsdPrice / (10 ** (priceDecimals - config.decimals));
-        } else if (config.decimals > priceDecimals) {
-            tokenAmount = totalUsdPrice * (10 ** (config.decimals - priceDecimals));
+        tokenAmount = _convertUsdToToken(totalUsdPrice, config.decimals);
+    }
+
+    /**
+     * @dev Converts USD price (6 decimals) to token amount based on token decimals
+     * @param usdAmount USD amount in 6 decimals
+     * @param tokenDecimals Number of decimals for the target token
+     * @return Token amount in the token's native decimals
+     */
+    function _convertUsdToToken(uint256 usdAmount, uint8 tokenDecimals) internal pure returns (uint256) {
+        uint8 priceDecimals = 6; // USD prices stored in 6 decimals (USDC standard)
+        
+        if (tokenDecimals < priceDecimals) {
+            return usdAmount / (10 ** (priceDecimals - tokenDecimals));
+        } else if (tokenDecimals > priceDecimals) {
+            return usdAmount * (10 ** (tokenDecimals - priceDecimals));
         } else {
-            tokenAmount = totalUsdPrice;
+            return usdAmount;
         }
+    }
+
+
+    /**
+     * @dev Virtual function for calculating base price based on name characteristics
+     * Override this function to implement custom pricing logic (e.g., length-based pricing)
+     * @param name The name being priced
+     * @param duration Duration of registration/renewal in seconds
+     * @return Base price in USD with 6 decimals (USDC standard)
+     */
+    function _pricePerCharLength(string calldata name, uint256 duration) 
+        internal 
+        view 
+        virtual 
+        returns (uint256) 
+    {
+        // Default implementation: fixed base price
+        return 10 * 1e6; // $10 in 6 decimals
+    }
+
+    /**
+     * @dev Virtual function for calculating premium based on name expiry
+     * Override this function to implement custom premium logic (e.g., exponential decay)
+     * @param name The name being priced
+     * @param expires When the name currently expires (0 for new registrations)
+     * @param duration Duration of registration/renewal in seconds
+     * @return Premium price in USD with 6 decimals (USDC standard)
+     */
+    function _premium(string calldata name, uint256 expires, uint256 duration) 
+        internal 
+        view 
+        virtual 
+        returns (uint256) 
+    {
+        // Default implementation: fixed premium
+        return 5 * 1e6; // $5 in 6 decimals
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual returns (bool) {
