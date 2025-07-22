@@ -14,6 +14,7 @@ import {
 } from "viem";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
+
 import { shouldSupportFeatures } from "./utils/supportsFeatures.js";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
@@ -21,7 +22,8 @@ import { deployArtifact } from "./fixtures/deployArtifact.js";
 import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
 import { urgArtifact } from "./fixtures/externalArtifacts.js";
-import { injectRPCCounter } from "./utils/hardhat.js";
+import { expectVar } from "./utils/expectVar.ts";
+import { dnsEncodeName, getLabelAt } from "./utils/utils.js";
 import {
   COIN_TYPE_DEFAULT,
   COIN_TYPE_ETH,
@@ -31,7 +33,7 @@ import {
   bundleCalls,
   makeResolutions,
 } from "./utils/resolutions.js";
-import { dnsEncodeName, expectVar, getLabelAt } from "./utils/utils.js";
+import { injectRPCCounter } from "./utils/hardhat.js";
 
 const chain1 = injectRPCCounter(await hre.network.connect());
 const chain2 = injectRPCCounter(await hre.network.connect());
@@ -150,10 +152,7 @@ describe("ETHFallbackResolver", () => {
   describe("storage layout", () => {
     describe("DedicatedResolver", () => {
       const code = readFileSync(
-        new URL(
-          "../src/common/DedicatedResolverLayout.sol",
-          import.meta.url,
-        ),
+        new URL("../src/common/DedicatedResolverLayout.sol", import.meta.url),
         "utf8",
       );
       for (const [_, name, slot] of code.matchAll(

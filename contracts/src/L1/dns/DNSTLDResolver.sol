@@ -8,8 +8,8 @@ import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165C
 import {CCIPBatcher, CCIPReader, OffchainLookup} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
 import {DNSSEC} from "@ens/contracts/dnssec-oracle/DNSSEC.sol";
 import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
-import {ResolverFinderV1, ENS} from "../../universalResolver/ResolverFinderV1.sol";
-import {ResolverFinder, IRegistry} from "../../universalResolver/ResolverFinder.sol";
+import {RegistryUtils as RegistryUtilsV1, ENS} from "../../universalResolver/RegistryUtilsV1.sol";
+import {RegistryUtils, IRegistry} from "../../universalResolver/RegistryUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
@@ -127,7 +127,7 @@ contract DNSTLDResolver is
         bytes calldata name,
         bytes calldata data
     ) external view returns (bytes memory) {
-        (address resolver, , ) = ResolverFinderV1.findResolver(
+        (address resolver, , ) = RegistryUtilsV1.findResolver(
             ensRegistryV1,
             name,
             0
@@ -364,7 +364,7 @@ contract DNSTLDResolver is
                 return addr;
             }
         }
-        (, , resolver, ) = ResolverFinder.findResolver(
+        (, resolver, , ) = RegistryUtils.findResolver(
             rootRegistry,
             NameCoder.encode(string(v)),
             0

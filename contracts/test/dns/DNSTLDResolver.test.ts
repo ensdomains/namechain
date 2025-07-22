@@ -1,10 +1,13 @@
 import hre from "hardhat";
 import { describe, expect, it } from "vitest";
+import { concat, encodeErrorResult, stringToHex } from "viem";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
+
 import { shouldSupportFeatures } from "../utils/supportsFeatures.js";
 import { deployV1Fixture } from "../fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
 import { dummyShapeshiftResolverArtifact } from "../fixtures/ens-contracts/DummyShapeshiftResolver.js";
+import { expectVar } from "../utils/expectVar.ts";
 import {
   bundleCalls,
   COIN_TYPE_DEFAULT,
@@ -12,9 +15,8 @@ import {
   type KnownProfile,
   makeResolutions,
 } from "../utils/resolutions.js";
-import { dnsEncodeName, expectVar } from "../utils/utils.js";
+import { dnsEncodeName } from "../utils/utils.js";
 import { encodeRRs, makeTXT } from "./rr.js";
-import { concat, encodeErrorResult, stringToHex } from "viem";
 
 const chain = await hre.network.connect();
 
