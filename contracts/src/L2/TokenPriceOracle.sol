@@ -124,6 +124,36 @@ contract TokenPriceOracle is IPriceOracle {
         return 5 * 1e6; // $5 in 6 decimals
     }
 
+    /**
+     * @dev Returns price breakdown in token amounts for detailed analytics.
+     * This is the clean way for contracts like ETHRegistrar to get pricing breakdowns
+     * without duplicating token conversion logic.
+     * @param name The name being priced
+     * @param expires When the name expires
+     * @param duration Duration of registration/renewal
+     * @param token ERC20 token address for payment
+     * @return baseCost Base cost in token units
+     * @return premium Premium cost in token units  
+     * @return totalAmount Total amount in token units
+     */
+    function priceInTokenBreakdown(string calldata name, uint256 expires, uint256 duration, address token)
+        external
+        view
+        returns (uint256 baseCost, uint256 premium, uint256 totalAmount)
+    {
+        TokenConfig memory config = tokenConfigs[token];
+        if (!config.enabled) {
+            revert TokenNotSupported(token);
+        }
+
+        Price memory usdPrice = this.price(name, expires, duration);
+        
+        // Convert each component separately for breakdown
+        baseCost = _convertUsdToToken(usdPrice.base, config.decimals);
+        premium = _convertUsdToToken(usdPrice.premium, config.decimals);
+        totalAmount = baseCost + premium;
+    }
+
     function supportsInterface(bytes4 interfaceId) public view virtual returns (bool) {
         return interfaceId == type(IPriceOracle).interfaceId || 
                interfaceId == type(IERC165).interfaceId;
