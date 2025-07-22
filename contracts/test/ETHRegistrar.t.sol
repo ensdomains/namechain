@@ -75,8 +75,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
         // Setup TokenPriceOracle
         priceOracle = new TokenPriceOracle(
-            _toAddressArray(address(usdc), address(dai)),
-            _toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
+            TestUtils.toAddressArray(address(usdc), address(dai)),
+            TestUtils.toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
             BASE_PRICE_USD,
             PREMIUM_PRICE_USD
         );
@@ -116,20 +116,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         dai.approve(address(registrar), type(uint256).max);
     }
 
-    // Helper functions for creating arrays
-    function _toAddressArray(address a, address b) internal pure returns (address[] memory) {
-        address[] memory arr = new address[](2);
-        arr[0] = a;
-        arr[1] = b;
-        return arr;
-    }
-
-    function _toUint8Array(uint8 a, uint8 b) internal pure returns (uint8[] memory) {
-        uint8[] memory arr = new uint8[](2);
-        arr[0] = a;
-        arr[1] = b;
-        return arr;
-    }
 
     // Helper function to register a name with USDC (default test token)
     function _registerName(
@@ -572,8 +558,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
     function test_setPriceOracle() public {
         TokenPriceOracle newPriceOracle = new TokenPriceOracle(
-            _toAddressArray(address(usdc), address(dai)),
-            _toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
+            TestUtils.toAddressArray(address(usdc), address(dai)),
+            TestUtils.toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
             20 * 1e6,
             10 * 1e6 // $20 base, $10 premium
         );
@@ -599,8 +585,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_Revert_setPriceOracle_notAdmin() public {
         vm.startPrank(user1);
         TokenPriceOracle newPriceOracle = new TokenPriceOracle(
-            _toAddressArray(address(usdc), address(dai)),
-            _toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
+            TestUtils.toAddressArray(address(usdc), address(dai)),
+            TestUtils.toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
             20 * 1e6,
             10 * 1e6 // $20 base, $10 premium
         );
@@ -636,8 +622,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // Check that user1 can now set the price oracle
         vm.startPrank(user1);
         TokenPriceOracle newPriceOracle = new TokenPriceOracle(
-            _toAddressArray(address(usdc), address(dai)),
-            _toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
+            TestUtils.toAddressArray(address(usdc), address(dai)),
+            TestUtils.toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
             20 * 1e6,
             10 * 1e6 // $20 base, $10 premium
         );
@@ -676,8 +662,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // Check that user2 can now set the price oracle
         vm.startPrank(user2);
         TokenPriceOracle newPriceOracle = new TokenPriceOracle(
-            _toAddressArray(address(usdc), address(dai)),
-            _toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
+            TestUtils.toAddressArray(address(usdc), address(dai)),
+            TestUtils.toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
             30 * 1e6,
             15 * 1e6 // $30 base, $15 premium
         );
@@ -736,8 +722,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // User1 should not be able to set price oracle
         vm.startPrank(user1);
         TokenPriceOracle newPriceOracle = new TokenPriceOracle(
-            _toAddressArray(address(usdc), address(dai)),
-            _toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
+            TestUtils.toAddressArray(address(usdc), address(dai)),
+            TestUtils.toUint8Array(6, 18), // USDC: 6 decimals, DAI: 18 decimals
             20 * 1e6,
             10 * 1e6 // $20 base, $10 premium
         );

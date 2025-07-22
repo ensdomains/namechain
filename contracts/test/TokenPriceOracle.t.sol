@@ -4,6 +4,9 @@ pragma solidity >=0.8.13;
 import "forge-std/Test.sol";
 import "../src/L2/TokenPriceOracle.sol";
 import "../src/mocks/MockPriceOracle.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
+import {TestUtils} from "./utils/TestUtils.sol";
 
 contract TokenPriceOracleTest is Test {
     MockPriceOracle baseOracle;
@@ -295,5 +298,22 @@ contract TokenPriceOracleTest is Test {
         TokenPriceOracle.TokenConfig memory usdcConfig = tokenOracle.getTokenConfig(mockUSDC);
         assertEq(usdcConfig.decimals, 8); // Should be 8, not 6
         assertTrue(usdcConfig.enabled);
+    }
+
+    function test_supportsInterface() public {
+        _createBasicTokenOracle();
+
+        assertTrue(tokenOracle.supportsInterface(type(IPriceOracle).interfaceId));
+        assertTrue(tokenOracle.supportsInterface(type(IERC165).interfaceId));
+        assertFalse(tokenOracle.supportsInterface(bytes4(0x12345678))); // Random interface
+    }
+
+    function _createBasicTokenOracle() internal {
+        tokenOracle = new TokenPriceOracle(
+            TestUtils.toAddressArray(mockUSDC, mockDAI),
+            TestUtils.toUint8Array(6, 18),
+            10 * 1e6,
+            5 * 1e6
+        );
     }
 }

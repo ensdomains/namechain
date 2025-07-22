@@ -2,6 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract TokenPriceOracle is IPriceOracle {
     struct TokenConfig {
@@ -77,5 +78,10 @@ contract TokenPriceOracle is IPriceOracle {
         } else {
             tokenAmount = totalUsdPrice;
         }
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view virtual returns (bool) {
+        return interfaceId == type(IPriceOracle).interfaceId || 
+               interfaceId == type(IERC165).interfaceId;
     }
 }
