@@ -6,10 +6,12 @@ import {IRegistry} from "../common/IRegistry.sol";
 import {IERC1155Singleton} from "../common/IERC1155Singleton.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
+import {TokenPriceOracle} from "./TokenPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {EnhancedAccessControl} from "../common/EnhancedAccessControl.sol";
 import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixin {
     uint256 private constant REGISTRATION_ROLE_BITMAP = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;
@@ -29,6 +31,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     error CommitmentTooOld(bytes32 commitment, uint256 validTo, uint256 blockTimestamp);
     error NameNotAvailable(string name);
     error InsufficientValue(uint256 required, uint256 provided);
+    error TokenNotSupported(address token);
 
     IPermissionedRegistry public immutable registry;
     IPriceOracle public prices;
@@ -80,6 +83,24 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     function rentPrice(string memory name, uint256 duration) public view override returns (IPriceOracle.Price memory price) {
         (, uint64 expiry, ) = registry.getNameData(name);
         price = prices.price(name, uint256(expiry), duration);
+    }
+
+    /**
+     * @dev Get the token amount required to register or renew a name.
+     * @param name The name to get the price for.
+     * @param duration The duration of the registration or renewal.
+     * @param token The ERC20 token address.
+     * @return tokenAmount The amount of tokens required.
+     */
+    function rentPriceInToken(string memory name, uint256 duration, address token) public view returns (uint256 tokenAmount) {
+        TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
+        
+        if (!tokenOracle.isTokenSupported(token)) {
+            revert TokenNotSupported(token);
+        }
+
+        (, uint64 expiry, ) = registry.getNameData(name);
+        tokenAmount = tokenOracle.priceInToken(name, uint256(expiry), duration, token);
     }    
 
 
@@ -130,13 +151,14 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
 
 
     /**
-     * @dev Register a name.
+     * @dev Register a name with ERC20 token payment.
      * @param name The name to register.
      * @param owner The owner of the name.
      * @param secret The secret of the name.
      * @param subregistry The subregistry to register the name in.
      * @param resolver The resolver to use for the registration.
      * @param duration The duration of the registration.
+     * @param token The ERC20 token address for payment.
      * @return tokenId The token ID of the registered name.
      */
     function register(
@@ -145,37 +167,35 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         bytes32 secret,
         IRegistry subregistry,
         address resolver,
-        uint64 duration
-    ) external payable returns (uint256 tokenId) {
-        uint256 totalPrice = checkPrice(name, duration);
-
+        uint64 duration,
+        address token
+    ) external returns (uint256 tokenId) {
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
 
         uint64 expiry = uint64(block.timestamp) + duration;
         tokenId = registry.register(name, owner, subregistry, resolver, REGISTRATION_ROLE_BITMAP, expiry);
 
-        if (msg.value > totalPrice) {
-            payable(msg.sender).transfer(msg.value - totalPrice);
-        }
+        // Handle token payment
+        uint256 totalPrice = checkPrice(name, duration, token);
+        IERC20(token).transferFrom(msg.sender, address(this), totalPrice);
 
         emit NameRegistered(name, owner, subregistry, resolver, duration, tokenId);
     }
 
     /**
-     * @dev Renew a name.
+     * @dev Renew a name with ERC20 token payment.
      * @param name The name to renew.
      * @param duration The duration of the renewal.
+     * @param token The ERC20 token address for payment.
      */
-    function renew(string calldata name, uint64 duration) external payable {
-        uint256 totalPrice = checkPrice(name, duration);
-
+    function renew(string calldata name, uint64 duration, address token) external {
         (uint256 tokenId, uint64 expiry, ) = registry.getNameData(name);
 
         registry.renew(tokenId, expiry + duration);
 
-        if (msg.value > totalPrice) {
-            payable(msg.sender).transfer(msg.value - totalPrice);
-        }
+        // Handle token payment
+        uint256 totalPrice = checkPrice(name, duration, token);
+        IERC20(token).transferFrom(msg.sender, address(this), totalPrice);
 
         uint64 newExpiry = registry.getExpiry(tokenId);
 
@@ -231,17 +251,21 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     }
 
     /**
-     * @dev Check the price of a name and revert if insufficient value is provided.
+     * @dev Check the price of a name and get the required token amount.
      * @param name The name to check the price for.
      * @param duration The duration of the registration.
-     * @return totalPrice The total price of the registration.
+     * @param token The ERC20 token address.
+     * @return totalPrice The total token amount required.
      */
-    function checkPrice(string memory name, uint64 duration) private view returns (uint256 totalPrice) {
-        IPriceOracle.Price memory price = rentPrice(name, duration);
-        totalPrice = price.base + price.premium;
-        if (msg.value < totalPrice) {
-            revert InsufficientValue(totalPrice, msg.value);
+    function checkPrice(string memory name, uint64 duration, address token) private view returns (uint256 totalPrice) {
+        TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
+        
+        if (!tokenOracle.isTokenSupported(token)) {
+            revert TokenNotSupported(token);
         }
+
+        (, uint64 expiry, ) = registry.getNameData(name);
+        totalPrice = tokenOracle.priceInToken(name, uint256(expiry), duration, token);
     }
 
 }
