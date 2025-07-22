@@ -17,11 +17,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     uint256 private constant REGISTRATION_ROLE_BITMAP =
         ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;
 
-    uint256 private constant ROLE_SET_PRICE_ORACLE = 1 << 20;
-    uint256 private constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
-
-    uint256 private constant ROLE_SET_COMMITMENT_AGES = 1 << 24;
-    uint256 private constant ROLE_SET_COMMITMENT_AGES_ADMIN = ROLE_SET_COMMITMENT_AGES << 128;
 
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
 
@@ -35,9 +30,9 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     error TokenNotSupported(address token);
 
     IPermissionedRegistry public immutable registry;
-    IPriceOracle public prices;
-    uint256 public minCommitmentAge;
-    uint256 public maxCommitmentAge;
+    IPriceOracle public immutable prices;
+    uint256 public immutable minCommitmentAge;
+    uint256 public immutable maxCommitmentAge;
     address public immutable beneficiary;
 
     mapping(bytes32 => uint256) public commitments;
@@ -206,20 +201,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         return interfaceID == type(IETHRegistrar).interfaceId || super.supportsInterface(interfaceID);
     }
 
-    function setPriceOracle(IPriceOracle _prices) external onlyRoles(ROOT_RESOURCE, ROLE_SET_PRICE_ORACLE) {
-        prices = _prices;
-    }
-
-    function setCommitmentAges(uint256 _minCommitmentAge, uint256 _maxCommitmentAge)
-        external
-        onlyRoles(ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES)
-    {
-        if (_maxCommitmentAge <= _minCommitmentAge) {
-            revert MaxCommitmentAgeTooLow();
-        }
-        minCommitmentAge = _minCommitmentAge;
-        maxCommitmentAge = _maxCommitmentAge;
-    }
 
     /* Internal functions */
 
