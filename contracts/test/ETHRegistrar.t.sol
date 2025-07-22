@@ -11,7 +11,7 @@ import "../src/L2/ETHRegistrar.sol";
 import "../src/L2/TokenPriceOracle.sol";
 import "../src/common/PermissionedRegistry.sol";
 import "../src/common/RegistryDatastore.sol";
-import "../src/L2/IPriceOracle.sol";
+import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/EnhancedAccessControl.sol";
 import "../src/common/NameUtils.sol";

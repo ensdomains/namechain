@@ -32,7 +32,7 @@ const publicClient = await networkConnection.viem.getPublicClient({
     [datastore.address, zeroAddress, ROLES.ALL],
   );
   const universalResolver = await networkConnection.viem.deployContract(
-    "UniversalResolver",
+    "UniversalResolverV2",
     [rootRegistry.address, ["x-batch-gateway:true"]],
     { client: { public: publicClient } },
   );

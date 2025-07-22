@@ -11,8 +11,8 @@ import {EIP3668, OffchainLookup} from "@ens/contracts/ccipRead/EIP3668.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
-import {UniversalResolver as UniversalResolverV1} from "./mocks/MockUniversalResolverV1.sol";
-import {UniversalResolver as UniversalResolverV2} from "../../src/universalResolver/UniversalResolver.sol";
+import {UniversalResolver} from "./mocks/MockUniversalResolverV1.sol";
+import {UniversalResolverV2} from "../../src/universalResolver/UniversalResolverV2.sol";
 import {IRegistry} from "../../src/common/IRegistry.sol";
 
 contract ProxyTest is Test {
@@ -21,7 +21,7 @@ contract ProxyTest is Test {
     address constant STRANGER = address(0x789);
 
     UpgradableUniversalResolverProxy proxy;
-    UniversalResolverV1 urV1;
+    UniversalResolver urV1;
     UniversalResolverV2 urV2;
 
     // Mock data for tests
@@ -41,7 +41,7 @@ contract ProxyTest is Test {
         vm.startPrank(ADMIN);
 
         // Deploy the implementations
-        urV1 = new UniversalResolverV1(ENS(address(0x0)), gatewayUrls);
+        urV1 = new UniversalResolver(ENS(address(0x0)), gatewayUrls);
         urV2 = new UniversalResolverV2(IRegistry(address(0x0)), gatewayUrls);
 
         // Deploy the proxy with V1 implementation
