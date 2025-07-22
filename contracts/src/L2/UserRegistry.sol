@@ -37,10 +37,10 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
         address _admin
     ) public initializer {
         require(_admin != address(0), "Admin cannot be zero address");
-        
+
         // Initialize datastore
         datastore = _datastore;
-        
+
         // Initialize metadata provider
         if (address(_metadata) == address(0)) {
             // Create a new SimpleRegistryMetadata if none is provided
@@ -48,7 +48,7 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
         } else {
             metadataProvider = _metadata;
         }
-        
+
         // Grant deployer roles to the admin
         _grantRoles(ROOT_RESOURCE, _deployerRoles, _admin, false);
     }

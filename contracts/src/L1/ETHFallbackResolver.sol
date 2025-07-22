@@ -95,13 +95,9 @@ contract ETHFallbackResolver is
     }
 
     /// @inheritdoc ERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(ERC165) returns (bool) {
-        return
-            type(IExtendedResolver).interfaceId == interfaceId ||
-            type(IFeatureSupporter).interfaceId == interfaceId ||
-            super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165) returns (bool) {
+        return type(IExtendedResolver).interfaceId == interfaceId || type(IFeatureSupporter).interfaceId == interfaceId
+            || super.supportsInterface(interfaceId);
     }
 
     /// @inheritdoc IFeatureSupporter
@@ -111,9 +107,7 @@ contract ETHFallbackResolver is
 
     /// @dev Set the Namechain verifier.
     /// @param verifier The new verifier address.
-    function setNamechainVerifier(
-        IGatewayVerifier verifier
-    ) external onlyOwner {
+    function setNamechainVerifier(IGatewayVerifier verifier) external onlyOwner {
         namechainVerifier = verifier;
     }
 
@@ -129,9 +123,7 @@ contract ETHFallbackResolver is
     /// @return node The namehash of the name.
     /// @return count The number of labels before "eth".
     /// @return offset2LD The offset of the 2LD.
-    function _countLabels(
-        bytes memory name
-    ) internal pure returns (bytes32 node, uint256 count, uint256 offset2LD) {
+    function _countLabels(bytes memory name) internal pure returns (bytes32 node, uint256 count, uint256 offset2LD) {
         node = NameCoder.namehash(name, 0); // validates the name
         uint256 offset;
         uint256 offset1LD;
@@ -144,7 +136,7 @@ contract ETHFallbackResolver is
             count++;
         }
         // verify the last label was "eth"
-        (bytes32 labelHash, ) = NameCoder.readLabel(name, offset1LD);
+        (bytes32 labelHash,) = NameCoder.readLabel(name, offset1LD);
         if (labelHash != keccak256("eth")) {
             revert UnreachableName(name);
         }
@@ -155,9 +147,7 @@ contract ETHFallbackResolver is
     /// @param data The calldata.
     /// @return multi True if the calldata is a multicall.
     /// @return calls The individual calls.
-    function _parseCalls(
-        bytes calldata data
-    ) internal pure returns (bool multi, bytes[] memory calls) {
+    function _parseCalls(bytes calldata data) internal pure returns (bool multi, bytes[] memory calls) {
         multi = bytes4(data) == IMulticallable.multicall.selector;
         if (multi) {
             calls = abi.decode(data[4:], (bytes[]));
@@ -173,9 +163,7 @@ contract ETHFallbackResolver is
     /// @dev Return true if the name is actively registered on V1.
     /// @param id The labelhash of the "eth" 2LD.
     function _isActiveRegistrationV1(uint256 id) internal view returns (bool) {
-        return
-            !ethRegistrarV1.available(id) &&
-            ethRegistrarV1.ownerOf(id) != burnAddressV1;
+        return !ethRegistrarV1.available(id) && ethRegistrarV1.ownerOf(id) != burnAddressV1;
     }
 
     /// @notice Resolve `name` using Namechain, Mainnet V2, or Mainnet V1 depending on migration and ejection status.
@@ -218,15 +206,12 @@ contract ETHFallbackResolver is
     ///    if (!reg) break
     ///    registry = reg
     /// ````
-    function resolve(
-        bytes memory name,
-        bytes calldata data
-    ) external view returns (bytes memory) {
+    function resolve(bytes memory name, bytes calldata data) external view returns (bytes memory) {
         (, uint256 labelCount, uint256 offset) = _countLabels(name);
         if (labelCount == 0) {
             ccipRead(ethResolver, data, this.resolveEthCallback.selector, "");
         }
-        (bytes32 labelHash, ) = NameCoder.readLabel(name, offset);
+        (bytes32 labelHash,) = NameCoder.readLabel(name, offset);
         if (_isActiveRegistrationV1(uint256(labelHash))) {
             ccipRead(
                 address(universalResolverV1),
@@ -236,9 +221,7 @@ contract ETHFallbackResolver is
             );
         }
         (bool multi, bytes[] memory calls) = _parseCalls(data);
-        GatewayRequest memory req = GatewayFetcher.newRequest(
-            uint8(calls.length < 3 ? 3 : calls.length + 1)
-        );
+        GatewayRequest memory req = GatewayFetcher.newRequest(uint8(calls.length < 3 ? 3 : calls.length + 1));
         // output[0] = registry
         // output[1] = last non-zero resolver
         // output[-1] = default address
@@ -260,9 +243,7 @@ contract ETHFallbackResolver is
             cmd.push(block.timestamp).gt().assertNonzero(1); // require expiry > timestamp
             cmd.shl(96).shr(96); // extract registry
             cmd.offset(1).read().shl(96).shr(96); // read resolverData => extract resolver
-            cmd.push(
-                GatewayFetcher.newCommand().requireNonzero(1).setOutput(1)
-            ); // save resolver if set
+            cmd.push(GatewayFetcher.newCommand().requireNonzero(1).setOutput(1)); // save resolver if set
             cmd.evalLoop(0, 1); // consume resolver, catch assert
             cmd.requireNonzero(1).setOutput(0); // require registry and save it
             req.push(cmd);
@@ -280,73 +261,36 @@ contract ETHFallbackResolver is
             //     errorCount++;
             //     continue;
             // }
-            if (
-                selector == IAddrResolver.addr.selector ||
-                selector == IAddressResolver.addr.selector
-            ) {
-                uint256 coinType = selector == IAddrResolver.addr.selector
-                    ? COIN_TYPE_ETH
-                    : uint256(BytesUtils.readBytes32(v, 36));
-                req
-                    .setSlot(DedicatedResolverLayout.SLOT_ADDRESSES)
-                    .push(coinType)
-                    .follow()
-                    .readBytes(); // _addresses[coinType]
+            if (selector == IAddrResolver.addr.selector || selector == IAddressResolver.addr.selector) {
+                uint256 coinType =
+                    selector == IAddrResolver.addr.selector ? COIN_TYPE_ETH : uint256(BytesUtils.readBytes32(v, 36));
+                req.setSlot(DedicatedResolverLayout.SLOT_ADDRESSES).push(coinType).follow().readBytes(); // _addresses[coinType]
                 if (ENSIP19.chainFromCoinType(coinType) > 0) {
-                    req
-                        .dup()
-                        .length()
-                        .isZero()
-                        .pushOutput(calls.length)
-                        .plus()
-                        .setOutput(uint8(calls.length)); // count missing
+                    req.dup().length().isZero().pushOutput(calls.length).plus().setOutput(uint8(calls.length)); // count missing
                 }
             } else if (selector == IHasAddressResolver.hasAddr.selector) {
                 uint256 coinType = uint256(BytesUtils.readBytes32(v, 36));
-                req
-                    .setSlot(DedicatedResolverLayout.SLOT_ADDRESSES)
-                    .push(coinType)
-                    .follow()
-                    .read(); // _addresses[coinType] head slot
+                req.setSlot(DedicatedResolverLayout.SLOT_ADDRESSES).push(coinType).follow().read(); // _addresses[coinType] head slot
             } else if (selector == ITextResolver.text.selector) {
-                (, string memory key) = abi.decode(
-                    BytesUtils.substring(v, 4, v.length - 4),
-                    (bytes32, string)
-                );
+                (, string memory key) = abi.decode(BytesUtils.substring(v, 4, v.length - 4), (bytes32, string));
                 // uint256 jump = 4 + uint256(BytesUtils.readBytes32(v, 36));
                 // uint256 size = uint256(BytesUtils.readBytes32(v, jump));
                 // bytes memory key = BytesUtils.substring(v, jump + 32, size);
-                req
-                    .setSlot(DedicatedResolverLayout.SLOT_TEXTS)
-                    .push(key)
-                    .follow()
-                    .readBytes(); // _textRecords[key]
+                req.setSlot(DedicatedResolverLayout.SLOT_TEXTS).push(key).follow().readBytes(); // _textRecords[key]
             } else if (selector == IContentHashResolver.contenthash.selector) {
-                req
-                    .setSlot(DedicatedResolverLayout.SLOT_CONTENTHASH)
-                    .readBytes(); // _contenthash
+                req.setSlot(DedicatedResolverLayout.SLOT_CONTENTHASH).readBytes(); // _contenthash
             } else if (selector == INameResolver.name.selector) {
                 req.setSlot(DedicatedResolverLayout.SLOT_PRIMARY).readBytes(); // _primary
             } else if (selector == IPubkeyResolver.pubkey.selector) {
                 req.setSlot(DedicatedResolverLayout.SLOT_PUBKEY).read(2); // _pubkey (x and y)
-            } else if (
-                selector == IInterfaceResolver.interfaceImplementer.selector
-            ) {
+            } else if (selector == IInterfaceResolver.interfaceImplementer.selector) {
                 bytes4 interfaceID = bytes4(BytesUtils.readBytes32(v, 36));
-                req
-                    .setSlot(DedicatedResolverLayout.SLOT_INTERFACES)
-                    .push(interfaceID)
-                    .follow()
-                    .read(); // _interfaces[interfaceID]
+                req.setSlot(DedicatedResolverLayout.SLOT_INTERFACES).push(interfaceID).follow().read(); // _interfaces[interfaceID]
             } else if (selector == IABIResolver.ABI.selector) {
                 req.setSlot(DedicatedResolverLayout.SLOT_ABIS);
                 uint256 bits = uint256(BytesUtils.readBytes32(v, 36));
                 uint256 count;
-                for (
-                    uint256 contentType = 1 << 255;
-                    contentType > 0;
-                    contentType >>= 1
-                ) {
+                for (uint256 contentType = 1 << 255; contentType > 0; contentType >>= 1) {
                     if ((bits & contentType) != 0) {
                         req.push(contentType);
                         count++;
@@ -363,10 +307,7 @@ contract ETHFallbackResolver is
                 req.evalLoop(EvalFlag.STOP_ON_SUCCESS, count);
                 continue;
             } else {
-                calls[i] = abi.encodeWithSelector(
-                    UnsupportedResolverProfile.selector,
-                    selector
-                );
+                calls[i] = abi.encodeWithSelector(UnsupportedResolverProfile.selector, selector);
                 errorCount++;
                 continue;
             }
@@ -383,11 +324,7 @@ contract ETHFallbackResolver is
             }
         }
         req.pushOutput(calls.length).requireNonzero(0); // stop if no missing
-        req
-            .setSlot(DedicatedResolverLayout.SLOT_ADDRESSES)
-            .push(COIN_TYPE_DEFAULT)
-            .follow()
-            .readBytes(); // _addresses[COIN_TYPE_DEFAULT]
+        req.setSlot(DedicatedResolverLayout.SLOT_ADDRESSES).push(COIN_TYPE_DEFAULT).follow().readBytes(); // _addresses[COIN_TYPE_DEFAULT]
         req.setOutput(uint8(calls.length)); // save default address
         fetch(
             namechainVerifier,
@@ -401,21 +338,23 @@ contract ETHFallbackResolver is
     /// @dev CCIP-Read callback for `resolve()` from calling `ethResolver` (step 2 of 2).
     /// @param response The response data.
     /// @return result The abi-encoded result.
-    function resolveEthCallback(
-        bytes calldata response,
-        bytes calldata /*extraData*/
-    ) external pure returns (bytes memory result) {
+    function resolveEthCallback(bytes calldata response, bytes calldata /*extraData*/ )
+        external
+        pure
+        returns (bytes memory result)
+    {
         result = response;
     }
 
     /// @dev CCIP-Read callback for `resolve()` from calling `universalResolverV1` (step 2 of 2).
     /// @param response The response data.
     /// @return result The abi-encoded result.
-    function resolveV1Callback(
-        bytes calldata response,
-        bytes calldata /*extraData*/
-    ) external pure returns (bytes memory result) {
-        (result, ) = abi.decode(response, (bytes, address));
+    function resolveV1Callback(bytes calldata response, bytes calldata /*extraData*/ )
+        external
+        pure
+        returns (bytes memory result)
+    {
+        (result,) = abi.decode(response, (bytes, address));
     }
 
     /// @dev CCIP-Read callback for `resolve()` from calling `namechainVerifier` (step 2 of 2).
@@ -423,26 +362,19 @@ contract ETHFallbackResolver is
     /// @param exitCode The exit code for `GatewayRequest`.
     /// @param extraData The contextual data passed from `resolve()`.
     /// @return result The abi-encoded result.
-    function resolveNamechainCallback(
-        bytes[] calldata values,
-        uint8 exitCode,
-        bytes calldata extraData
-    ) external pure returns (bytes memory result) {
-        (bytes memory name, bool multi, bytes[] memory calls) = abi.decode(
-            extraData,
-            (bytes, bool, bytes[])
-        );
+    function resolveNamechainCallback(bytes[] calldata values, uint8 exitCode, bytes calldata extraData)
+        external
+        pure
+        returns (bytes memory result)
+    {
+        (bytes memory name, bool multi, bytes[] memory calls) = abi.decode(extraData, (bytes, bool, bytes[]));
         if (exitCode == EXIT_CODE_NO_RESOLVER) {
             revert UnreachableName(name);
         }
         bytes memory defaultAddress = values[calls.length];
         if (multi) {
             for (uint256 i; i < calls.length; i++) {
-                calls[i] = _prepareResponse(
-                    calls[i],
-                    values[i],
-                    defaultAddress
-                );
+                calls[i] = _prepareResponse(calls[i], values[i], defaultAddress);
             }
             return abi.encode(calls);
         } else {
@@ -454,11 +386,11 @@ contract ETHFallbackResolver is
     /// @param data The original request (or error).
     /// @param value The response from the gateway.
     /// @return response The abi-encoded response for the request.
-    function _prepareResponse(
-        bytes memory data,
-        bytes memory value,
-        bytes memory defaultAddress
-    ) internal pure returns (bytes memory response) {
+    function _prepareResponse(bytes memory data, bytes memory value, bytes memory defaultAddress)
+        internal
+        pure
+        returns (bytes memory response)
+    {
         bytes4 selector = bytes4(data);
         if (selector == UnsupportedResolverProfile.selector) {
             return data;
@@ -468,21 +400,14 @@ contract ETHFallbackResolver is
             }
             return abi.encode(address(bytes20(value)));
         } else if (selector == IAddressResolver.addr.selector) {
-            if (
-                value.length == 0 &&
-                ENSIP19.chainFromCoinType(
-                    uint256(BytesUtils.readBytes32(data, 36))
-                ) >
-                0
-            ) {
+            if (value.length == 0 && ENSIP19.chainFromCoinType(uint256(BytesUtils.readBytes32(data, 36))) > 0) {
                 value = defaultAddress;
             }
             return abi.encode(value);
         } else if (selector == IHasAddressResolver.hasAddr.selector) {
             return abi.encode(bytes32(value) != bytes32(0));
         } else if (
-            selector == IPubkeyResolver.pubkey.selector ||
-            selector == IInterfaceResolver.interfaceImplementer.selector
+            selector == IPubkeyResolver.pubkey.selector || selector == IInterfaceResolver.interfaceImplementer.selector
         ) {
             return value;
         } else if (selector == IABIResolver.ABI.selector) {

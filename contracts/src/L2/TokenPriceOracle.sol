@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IPriceOracle} from "./IPriceOracle.sol";
+import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 
 contract TokenPriceOracle is IPriceOracle {
     struct TokenConfig {
@@ -14,15 +14,10 @@ contract TokenPriceOracle is IPriceOracle {
     error InvalidPrice(uint256 price);
 
     mapping(address => TokenConfig) public tokenConfigs;
-    uint256 public basePrice;    // Base USD price in 6 decimals (USDC standard)
+    uint256 public basePrice; // Base USD price in 6 decimals (USDC standard)
     uint256 public premiumPrice; // Premium USD price in 6 decimals
 
-    constructor(
-        address[] memory _tokens,
-        uint8[] memory _decimals,
-        uint256 _basePrice,
-        uint256 _premiumPrice
-    ) {
+    constructor(address[] memory _tokens, uint8[] memory _decimals, uint256 _basePrice, uint256 _premiumPrice) {
         if (_tokens.length != _decimals.length) {
             revert ArrayLengthMismatch();
         }
@@ -32,24 +27,22 @@ contract TokenPriceOracle is IPriceOracle {
         if (_premiumPrice == 0) {
             revert InvalidPrice(_premiumPrice);
         }
-        
+
         // Set configurable prices
         basePrice = _basePrice;
         premiumPrice = _premiumPrice;
 
         for (uint256 i = 0; i < _tokens.length; i++) {
-            tokenConfigs[_tokens[i]] = TokenConfig({
-                decimals: _decimals[i],
-                enabled: true
-            });
+            tokenConfigs[_tokens[i]] = TokenConfig({decimals: _decimals[i], enabled: true});
         }
     }
 
-    function price(
-        string calldata name,
-        uint256 expires,
-        uint256 duration
-    ) external view override returns (Price memory) {
+    function price(string calldata name, uint256 expires, uint256 duration)
+        external
+        view
+        override
+        returns (Price memory)
+    {
         return Price(basePrice, premiumPrice);
     }
 
@@ -61,12 +54,11 @@ contract TokenPriceOracle is IPriceOracle {
         return tokenConfigs[token];
     }
 
-    function priceInToken(
-        string calldata name,
-        uint256 expires,
-        uint256 duration,
-        address token
-    ) external view returns (uint256 tokenAmount) {
+    function priceInToken(string calldata name, uint256 expires, uint256 duration, address token)
+        external
+        view
+        returns (uint256 tokenAmount)
+    {
         TokenConfig memory config = tokenConfigs[token];
         if (!config.enabled) {
             revert TokenNotSupported(token);
