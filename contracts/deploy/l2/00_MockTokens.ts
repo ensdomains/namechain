@@ -8,14 +8,14 @@ export default execute(
     // Deploy MockUSDC (6 decimals)
     const mockUSDC = await deploy("MockUSDC", {
       account: deployer,
-      artifact: artifacts.MockERC20,
+      artifact: "MockERC20",
       args: ["USD Coin", "USDC", 6],
     });
 
     // Deploy MockDAI (18 decimals)  
     const mockDAI = await deploy("MockDAI", {
       account: deployer,
-      artifact: artifacts.MockERC20,
+      artifact: "MockERC20",
       args: ["Dai Stablecoin", "DAI", 18],
     });
 
