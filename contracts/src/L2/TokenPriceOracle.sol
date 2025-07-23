@@ -80,9 +80,31 @@ contract TokenPriceOracle is IPriceOracle {
         uint8 priceDecimals = 6; // USD prices stored in 6 decimals (USDC standard)
         
         if (tokenDecimals < priceDecimals) {
-            return usdAmount / (10 ** (priceDecimals - tokenDecimals));
+            uint8 decimalDiff = priceDecimals - tokenDecimals;
+            uint256 divisor = 10 ** decimalDiff;
+            
+            // For precision loss mitigation, round up if there's a remainder
+            // This ensures users don't pay less than intended due to truncation
+            uint256 quotient = usdAmount / divisor;
+            uint256 remainder = usdAmount % divisor;
+            
+            // If there's any remainder, round up to prevent underpayment
+            if (remainder > 0) {
+                quotient += 1;
+            }
+            
+            return quotient;
         } else if (tokenDecimals > priceDecimals) {
-            return usdAmount * (10 ** (tokenDecimals - priceDecimals));
+            uint8 decimalDiff = tokenDecimals - priceDecimals;
+            
+            // Check for overflow: if usdAmount * 10^decimalDiff > type(uint256).max
+            // Rearranged: if usdAmount > type(uint256).max / 10^decimalDiff
+            uint256 maxMultiplier = 10 ** decimalDiff;
+            if (usdAmount > type(uint256).max / maxMultiplier) {
+                revert("TokenPriceOracle: Amount too large for token decimals");
+            }
+            
+            return usdAmount * maxMultiplier;
         } else {
             return usdAmount;
         }

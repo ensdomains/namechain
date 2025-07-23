@@ -168,16 +168,19 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         uint64 duration,
         address token
     ) external returns (uint256 tokenId) {
+        // CHECKS: Validate commitment and get pricing (external calls for validation only)
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
-
-        tokenId = registry.register(name, owner, subregistry, resolver, REGISTRATION_ROLE_BITMAP, uint64(block.timestamp) + duration);
-
-        // Handle payment and emit event with pricing details
+        
         TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
         (uint256 baseCost, uint256 premium, uint256 totalCost) = 
             tokenOracle.priceInTokenBreakdown(name, 0, duration, token);
-        
+
+        // EFFECTS: Handle payment BEFORE state changes
         IERC20(token).safeTransferFrom(msg.sender, beneficiary, totalCost);
+
+        // INTERACTIONS: Register name only after successful payment
+        tokenId = registry.register(name, owner, subregistry, resolver, REGISTRATION_ROLE_BITMAP, uint64(block.timestamp) + duration);
+        
         emit NameRegistered(name, owner, subregistry, resolver, duration, tokenId, baseCost, premium, token);
     }
 
@@ -188,17 +191,25 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
      * @param token The ERC20 token address for payment.
      */
     function renew(string calldata name, uint64 duration, address token) external {
+        // CHECKS: Get current data and validate pricing
         (uint256 tokenId, uint64 expiry, ) = registry.getNameData(name);
-
-        registry.renew(tokenId, expiry + duration);
         
-        // Handle payment and emit event with pricing details
+        // Check for overflow before any state changes
+        if (expiry > type(uint64).max - duration) {
+            revert("Duration overflow");
+        }
+        uint64 newExpiry = expiry + duration;
+        
         TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
         (uint256 baseCost, uint256 premium, uint256 totalCost) = 
             tokenOracle.priceInTokenBreakdown(name, expiry, duration, token);
-        
+
+        // EFFECTS: Handle payment BEFORE state changes
         IERC20(token).safeTransferFrom(msg.sender, beneficiary, totalCost);
-        uint64 newExpiry = registry.getExpiry(tokenId);
+        
+        // INTERACTIONS: Renew name only after successful payment
+        registry.renew(tokenId, newExpiry);
+        
         emit NameRenewed(name, duration, tokenId, newExpiry, baseCost, premium, token);
     }
 
