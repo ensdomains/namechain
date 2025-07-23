@@ -6,7 +6,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
  * @dev TokenPriceOracle handles ERC20 token conversion rates with overridable pricing logic.
- * Inherits from this contract and override _premium() and _pricePerCharLength() for custom pricing.
+ * Inherits from this contract and override _premium() and _base() for custom pricing.
  */
 contract TokenPriceOracle is IPriceOracle {
     struct TokenConfig {
@@ -39,7 +39,7 @@ contract TokenPriceOracle is IPriceOracle {
         returns (Price memory)
     {
         return Price({
-            base: _pricePerCharLength(name, duration),
+            base: _base(name, duration),
             premium: _premium(name, expires, duration)
         });
     }
@@ -118,7 +118,7 @@ contract TokenPriceOracle is IPriceOracle {
      * Override this function to implement custom pricing logic (e.g., length-based pricing)
      * @return Base price in USD with 6 decimals (USDC standard)
      */
-    function _pricePerCharLength(string calldata /*name*/, uint256 /*duration*/) 
+    function _base(string calldata /*name*/, uint256 /*duration*/) 
         internal 
         view 
         virtual 
