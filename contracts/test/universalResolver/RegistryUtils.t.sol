@@ -80,6 +80,7 @@ contract TestRegistryUtils is Test, ERC1155Holder {
     }
 
     function test_findResolver_eth() external {
+        bytes memory name = NameCoder.encode("eth");
         //     name:  eth
         // registry: <eth> <root>
         // resolver:  0x1
@@ -95,7 +96,6 @@ contract TestRegistryUtils is Test, ERC1155Holder {
         );
         vm.resumeGasMetering();
 
-        bytes memory name = NameCoder.encode("eth");
         (, address resolver, bytes32 node, uint256 offset) = RegistryUtils
             .findResolver(rootRegistry, name, 0);
         assertEq(resolver, address(1), "resolver");
@@ -115,6 +115,7 @@ contract TestRegistryUtils is Test, ERC1155Holder {
     }
 
     function test_findResolver_resolverOnParent() external {
+        bytes memory name = NameCoder.encode("test.eth");
         //     name:  test . eth
         // registry: <test> <eth> <root>
         // resolver:   0x1
@@ -139,7 +140,6 @@ contract TestRegistryUtils is Test, ERC1155Holder {
         );
         vm.resumeGasMetering();
 
-        bytes memory name = NameCoder.encode("test.eth");
         (, address resolver, bytes32 node, uint256 offset) = RegistryUtils
             .findResolver(rootRegistry, name, 0);
         assertEq(resolver, address(1), "resolver");
@@ -160,6 +160,7 @@ contract TestRegistryUtils is Test, ERC1155Holder {
     }
 
     function test_findResolver_resolverOnRoot() external {
+        bytes memory name = NameCoder.encode("sub.test.eth");
         //     name:  sub . test . eth
         // registry:       <test> <eth> <root>
         // resolver:               0x1
@@ -184,7 +185,6 @@ contract TestRegistryUtils is Test, ERC1155Holder {
         );
         vm.resumeGasMetering();
 
-        bytes memory name = NameCoder.encode("sub.test.eth");
         (, address resolver, bytes32 node, uint256 offset) = RegistryUtils
             .findResolver(rootRegistry, name, 0);
         assertEq(resolver, address(1), "resolver");
@@ -205,6 +205,7 @@ contract TestRegistryUtils is Test, ERC1155Holder {
     }
 
     function test_findResolver_virtual() external {
+        bytes memory name = NameCoder.encode("a.b.test.eth");
         //     name:  a . b . test . eth
         // registry:         <test> <eth> <root>
         // resolver:                 0x1
@@ -229,7 +230,6 @@ contract TestRegistryUtils is Test, ERC1155Holder {
         );
         vm.resumeGasMetering();
 
-        bytes memory name = NameCoder.encode("a.b.test.eth");
         (, address resolver, bytes32 node, uint256 offset) = RegistryUtils
             .findResolver(rootRegistry, name, 0);
         assertEq(resolver, address(1), "resolver");
