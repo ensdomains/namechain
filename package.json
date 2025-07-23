@@ -9,6 +9,8 @@
     "contracts"
   ],
   "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.2",
     "typescript": "^5.8.3"
   },
   "resolutions": {
@@ -17,5 +19,12 @@
   "patchedDependencies": {
     "rocketh@0.11.20": "patches/rocketh@0.11.20.patch"
   },
-  "engineStrict": true
+  "lint-staged": {
+    "*.{js,ts,json}": "prettier --write",
+    "*.sol": "forge fmt"
+  },
+  "engineStrict": true,
+  "scripts": {
+    "prepare": "husky && bun --filter contracts install:forge"
+  }
 }
