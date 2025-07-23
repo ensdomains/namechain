@@ -155,33 +155,6 @@ contract TokenPriceOracle is IPriceOracle {
         return 0; // $0 in USD_DECIMALS
     }
 
-    /**
-     * @dev Returns price breakdown in token amounts for detailed analytics and transparent pricing
-     * @param name The name being priced
-     * @param expires When the name expires (0 for new registrations)
-     * @param duration Duration of registration/renewal in seconds
-     * @param token ERC20 token address for payment
-     * @return baseCost Base cost in token units
-     * @return premium Premium cost in token units  
-     * @return totalAmount Total amount in token units (baseCost + premium)
-     */
-    function priceInTokenBreakdown(string calldata name, uint256 expires, uint256 duration, address token)
-        external
-        view
-        returns (uint256 baseCost, uint256 premium, uint256 totalAmount)
-    {
-        TokenConfig memory config = tokenConfigs[token];
-        if (!config.enabled) {
-            revert TokenNotSupported(token);
-        }
-
-        Price memory usdPrice = this.price(name, expires, duration);
-        
-        // Convert each component separately for breakdown
-        baseCost = _convertUsdToToken(usdPrice.base, config.decimals);
-        premium = _convertUsdToToken(usdPrice.premium, config.decimals);
-        totalAmount = baseCost + premium;
-    }
 
     function supportsInterface(bytes4 interfaceId) public view virtual returns (bool) {
         return interfaceId == type(IPriceOracle).interfaceId || 
