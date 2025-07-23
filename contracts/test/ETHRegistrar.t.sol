@@ -50,7 +50,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     uint256 constant MIN_COMMITMENT_AGE = 60; // 1 minute
     uint256 constant MAX_COMMITMENT_AGE = 86400; // 1 day
     uint256 constant BASE_PRICE_USD = 10 * 1e6;  // $10 in 6 decimals (USDC standard)
-    uint256 constant PREMIUM_PRICE_USD = 5 * 1e6; // $5 in 6 decimals
+    uint256 constant PREMIUM_PRICE_USD = 0; // $0 in 6 decimals
     uint64 constant REGISTRATION_DURATION = 365 days;
     bytes32 constant SECRET = bytes32(uint256(1234567890));
 
@@ -194,13 +194,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_rentPriceInToken() public view {
         string memory name = "testname";
         
-        // Check USDC price (6 decimals): $15 should be 15 * 10^6
+        // Check USDC price (6 decimals): $10 should be 10 * 10^6
         uint256 usdcAmount = registrar.rentPriceInToken(name, REGISTRATION_DURATION, address(usdc));
-        assertEq(usdcAmount, 15 * 1e6);
+        assertEq(usdcAmount, 10 * 1e6);
         
-        // Check DAI price (18 decimals): $15 should be 15 * 10^18
+        // Check DAI price (18 decimals): $10 should be 10 * 10^18
         uint256 daiAmount = registrar.rentPriceInToken(name, REGISTRATION_DURATION, address(dai));
-        assertEq(daiAmount, 15 * 1e18);
+        assertEq(daiAmount, 10 * 1e18);
     }
 
     function test_makeCommitment() public view {
@@ -715,7 +715,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
         // Check initial balances
         uint256 initialBeneficiaryBalance = usdc.balanceOf(beneficiary);
-        uint256 expectedCost = 15 * 1e6; // $15 in USDC (base + premium)
+        uint256 expectedCost = 10 * 1e6; // $10 in USDC (base + premium)
 
         // Make commitment
         bytes32 commitment = registrar.makeCommitment(name, owner, secret, address(registry), resolver, duration);

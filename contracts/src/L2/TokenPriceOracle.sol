@@ -139,8 +139,8 @@ contract TokenPriceOracle is IPriceOracle {
         virtual 
         returns (uint256) 
     {
-        // Default implementation: fixed premium
-        return 5 * 1e6; // $5 in 6 decimals
+        // Default implementation: no premium
+        return 0; // $0 in 6 decimals
     }
 
     /**
