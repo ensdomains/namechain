@@ -75,6 +75,8 @@ contract TokenPriceOracle is IPriceOracle {
      * @param usdAmount USD amount in 6 decimals
      * @param tokenDecimals Number of decimals for the target token
      * @return Token amount in the token's native decimals
+     * @notice Rounds up for low-decimal tokens to prevent underpayment
+     * @notice Includes overflow protection for high-decimal tokens
      */
     function _convertUsdToToken(uint256 usdAmount, uint8 tokenDecimals) internal pure returns (uint256) {
         uint8 priceDecimals = 6; // USD prices stored in 6 decimals (USDC standard)
@@ -142,16 +144,14 @@ contract TokenPriceOracle is IPriceOracle {
     }
 
     /**
-     * @dev Returns price breakdown in token amounts for detailed analytics.
-     * This is the clean way for contracts like ETHRegistrar to get pricing breakdowns
-     * without duplicating token conversion logic.
+     * @dev Returns price breakdown in token amounts for detailed analytics and transparent pricing
      * @param name The name being priced
-     * @param expires When the name expires
-     * @param duration Duration of registration/renewal
+     * @param expires When the name expires (0 for new registrations)
+     * @param duration Duration of registration/renewal in seconds
      * @param token ERC20 token address for payment
      * @return baseCost Base cost in token units
      * @return premium Premium cost in token units  
-     * @return totalAmount Total amount in token units
+     * @return totalAmount Total amount in token units (baseCost + premium)
      */
     function priceInTokenBreakdown(string calldata name, uint256 expires, uint256 duration, address token)
         external

@@ -28,6 +28,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     error NameNotAvailable(string name);
     error InsufficientValue(uint256 required, uint256 provided);
     error TokenNotSupported(address token);
+    /// @dev Thrown when duration would overflow when added to expiry time
     error DurationOverflow(uint64 expiry, uint64 duration);
 
     IPermissionedRegistry public immutable registry;
