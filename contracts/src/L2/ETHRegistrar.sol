@@ -203,8 +203,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         uint64 newExpiry = expiry + duration;
         
         TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
-        (uint256 baseCost, uint256 premium, uint256 totalCost) = 
-            tokenOracle.priceInTokenBreakdown(name, expiry, duration, token);
+        uint256 totalCost = tokenOracle.priceInToken(name, uint256(expiry), duration, token);
 
         // EFFECTS: Handle payment BEFORE state changes
         IERC20(token).safeTransferFrom(msg.sender, beneficiary, totalCost);
@@ -212,7 +211,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         // INTERACTIONS: Renew name only after successful payment
         registry.renew(tokenId, newExpiry);
         
-        emit NameRenewed(name, duration, tokenId, newExpiry, baseCost, premium, token);
+        emit NameRenewed(name, duration, tokenId, newExpiry, totalCost, token);
     }
 
 

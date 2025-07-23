@@ -613,7 +613,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         
         // Check for NameRenewed event using the library
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundEvent = EventUtils.checkEvent(entries, keccak256("NameRenewed(string,uint64,uint256,uint64,uint256,uint256,address)"));
+        bool foundEvent = EventUtils.checkEvent(entries, keccak256("NameRenewed(string,uint64,uint256,uint64,uint256,address)"));
         assertTrue(foundEvent, "NameRenewed event not emitted");
     }
 
