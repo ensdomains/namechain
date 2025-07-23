@@ -136,7 +136,10 @@ contract ETHRegistrarOperationalRisksTest is Test, ERC1155Holder {
         decimals[1] = 6;  // USDT
         decimals[2] = 18; // False token
         
-        priceOracle = new TokenPriceOracle(tokens, decimals);
+        uint256[] memory rentPrices = new uint256[](1);
+        rentPrices[0] = 10 * 1e6; // $10 in 6 decimals
+        
+        priceOracle = new TokenPriceOracle(tokens, decimals, rentPrices);
         
         // Deploy registrar
         registrar = new ETHRegistrar(

@@ -76,7 +76,10 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         decimals[0] = 6; // USDC
         decimals[1] = 18; // DAI
         
-        priceOracle = new TokenPriceOracle(tokens, decimals);
+        uint256[] memory rentPrices = new uint256[](1);
+        rentPrices[0] = BASE_PRICE_USD; // Use the test constant
+        
+        priceOracle = new TokenPriceOracle(tokens, decimals, rentPrices);
 
         // Setup registry and registrar
         datastore = new RegistryDatastore();
