@@ -173,17 +173,21 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         // CHECKS: Validate commitment and get pricing (external calls for validation only)
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
         
-        TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
-        (uint256 baseCost, uint256 premium, uint256 totalCost) = 
-            tokenOracle.priceInTokenBreakdown(name, 0, duration, token);
-
-        // EFFECTS: Handle payment BEFORE state changes
-        IERC20(token).safeTransferFrom(msg.sender, beneficiary, totalCost);
+        // Get USD pricing breakdown
+        IPriceOracle.Price memory usdPrice = prices.price(name, 0, duration);
+        
+        // Convert to token amount for payment and handle transfer
+        {
+            TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
+            uint256 tokenAmount = tokenOracle.priceInToken(name, 0, duration, token);
+            // EFFECTS: Handle payment BEFORE state changes
+            IERC20(token).safeTransferFrom(msg.sender, beneficiary, tokenAmount);
+        }
 
         // INTERACTIONS: Register name only after successful payment
         tokenId = registry.register(name, owner, subregistry, resolver, REGISTRATION_ROLE_BITMAP, uint64(block.timestamp) + duration);
         
-        emit NameRegistered(name, owner, subregistry, resolver, duration, tokenId, baseCost, premium, token);
+        emit NameRegistered(name, owner, subregistry, resolver, duration, tokenId, usdPrice.base, usdPrice.premium);
     }
 
     /**
@@ -202,16 +206,21 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         }
         uint64 newExpiry = expiry + duration;
         
-        TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
-        uint256 totalCost = tokenOracle.priceInToken(name, uint256(expiry), duration, token);
-
-        // EFFECTS: Handle payment BEFORE state changes
-        IERC20(token).safeTransferFrom(msg.sender, beneficiary, totalCost);
+        // Get USD pricing breakdown
+        IPriceOracle.Price memory usdPrice = prices.price(name, uint256(expiry), duration);
+        
+        // Convert to token amount for payment and handle transfer
+        {
+            TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
+            uint256 tokenAmount = tokenOracle.priceInToken(name, uint256(expiry), duration, token);
+            // EFFECTS: Handle payment BEFORE state changes
+            IERC20(token).safeTransferFrom(msg.sender, beneficiary, tokenAmount);
+        }
         
         // INTERACTIONS: Renew name only after successful payment
         registry.renew(tokenId, newExpiry);
         
-        emit NameRenewed(name, duration, tokenId, newExpiry, totalCost, token);
+        emit NameRenewed(name, duration, tokenId, newExpiry, usdPrice.base);
     }
 
 

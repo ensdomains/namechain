@@ -322,7 +322,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // Check for NameRegistered event using the library
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundEvent =
-            EventUtils.checkEvent(entries, keccak256("NameRegistered(string,address,address,address,uint64,uint256,uint256,uint256,address)"));
+            EventUtils.checkEvent(entries, keccak256("NameRegistered(string,address,address,address,uint64,uint256,uint256,uint256)"));
         assertTrue(foundEvent, "NameRegistered event not emitted");
     }
 
@@ -616,7 +616,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         
         // Check for NameRenewed event using the library
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundEvent = EventUtils.checkEvent(entries, keccak256("NameRenewed(string,uint64,uint256,uint64,uint256,address)"));
+        bool foundEvent = EventUtils.checkEvent(entries, keccak256("NameRenewed(string,uint64,uint256,uint64,uint256)"));
         assertTrue(foundEvent, "NameRenewed event not emitted");
     }
 

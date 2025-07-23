@@ -17,13 +17,12 @@ interface IETHRegistrar {
      * @param resolver The resolver used for the registration.
      * @param duration The duration of the registration.
      * @param tokenId The ID of the newly registered name.
-     * @param baseCost The base cost component in token units.
-     * @param premium The premium cost component in token units.
-     * @param token The ERC20 token used for payment.
+     * @param baseCost The base cost component in USD (USD_DECIMALS precision).
+     * @param premium The premium cost component in USD (USD_DECIMALS precision).
      */
     event NameRegistered(
         string name, address owner, IRegistry subregistry, address resolver, uint64 duration, uint256 tokenId,
-        uint256 baseCost, uint256 premium, address token
+        uint256 baseCost, uint256 premium
     );
 
     /**
@@ -33,11 +32,10 @@ interface IETHRegistrar {
      * @param duration The duration of the renewal.
      * @param tokenId The ID of the renewed name.
      * @param newExpiry The new expiry of the name.
-     * @param cost The total cost in token units.
-     * @param token The ERC20 token used for payment.
+     * @param cost The cost in USD (USD_DECIMALS precision). Renewals have no premium.
      */
     event NameRenewed(string name, uint64 duration, uint256 tokenId, uint64 newExpiry,
-                     uint256 cost, address token);
+                     uint256 cost);
 
     /**
      * @dev Emitted when a commitment is made.
