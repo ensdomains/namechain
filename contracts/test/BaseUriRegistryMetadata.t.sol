@@ -22,21 +22,17 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
     uint256 constant ROLE_SET_SUBREGISTRY = 1 << 8;
     uint256 constant ROLE_SET_RESOLVER = 1 << 12;
-    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;    
+    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
 
     bytes32 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new BaseUriRegistryMetadata();
-        
+
         // Use the valid ALL_ROLES value for deployer roles
         uint256 deployerRoles = TestUtils.ALL_ROLES;
-        registry = new PermissionedRegistry(
-            datastore,
-            metadata,
-            deployerRoles
-        );
+        registry = new PermissionedRegistry(datastore, metadata, deployerRoles);
     }
 
     function test_registry_metadata_base_uri() public {
@@ -45,7 +41,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         registry.register("sub", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
 
         assertEq(registry.uri(tokenId), "");
-        
+
         string memory expectedUri = "ipfs://base/{id}";
         metadata.setTokenBaseUri(expectedUri);
         assertEq(metadata.tokenUri(tokenId), expectedUri);
@@ -57,8 +53,12 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         uint256 tokenId1 = uint256(keccak256(bytes("sub1")));
         uint256 tokenId2 = uint256(keccak256(bytes("sub2")));
 
-        registry.register("sub1", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
-        registry.register("sub2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
+        registry.register(
+            "sub1", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000)
+        );
+        registry.register(
+            "sub2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000)
+        );
 
         metadata.setTokenBaseUri(expectedUri);
 
@@ -74,7 +74,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         uint256 tokenId = uint256(keccak256(bytes("sub")));
 
         registry.register("sub", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
-        
+
         metadata.setTokenBaseUri(initialUri);
         assertEq(metadata.tokenUri(tokenId), initialUri);
 
@@ -85,7 +85,14 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     function test_registry_metadata_unauthorized() public {
         string memory expectedUri = "ipfs://test/";
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_UPDATE_METADATA, address(1))); 
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                ROOT_RESOURCE,
+                ROLE_UPDATE_METADATA,
+                address(1)
+            )
+        );
         vm.prank(address(1));
         metadata.setTokenBaseUri(expectedUri);
     }
@@ -95,4 +102,4 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         assertEq(metadata.supportsInterface(type(EnhancedAccessControl).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
-} 
+}

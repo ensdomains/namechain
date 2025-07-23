@@ -18,7 +18,7 @@ library NameUtils {
      */
     function labelToCanonicalId(string memory label) internal pure returns (uint256) {
         return getCanonicalId(uint256(keccak256(bytes(label))));
-    }    
+    }
 
     /**
      * @dev Gets the canonical id version of a token id or canonical id.

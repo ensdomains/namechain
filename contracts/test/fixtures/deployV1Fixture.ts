@@ -11,13 +11,13 @@ export async function deployV1Fixture<C extends NetworkConnection>(
   });
   const [walletClient] = await networkConnection.viem.getWalletClients();
   const ensRegistry =
-    await networkConnection.viem.deployContract('ENSRegistry');
+    await networkConnection.viem.deployContract("ENSRegistry");
   const ethRegistrar = await networkConnection.viem.deployContract(
-    'BaseRegistrarImplementation',
+    "BaseRegistrarImplementation",
     [ensRegistry.address, namehash("eth")],
   );
   const ownedResolver = await networkConnection.viem.deployContract(
-    'lib/ens-contracts/contracts/resolvers/OwnedResolver.sol:OwnedResolver'
+    "lib/ens-contracts/contracts/resolvers/OwnedResolver.sol:OwnedResolver",
   );
   const universalResolver = await networkConnection.viem.deployContract(
     "lib/ens-contracts/contracts/universalResolver/UniversalResolver.sol:UniversalResolver",

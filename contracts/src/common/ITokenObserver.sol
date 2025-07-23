@@ -19,4 +19,4 @@ interface ITokenObserver {
      * @param relinquishedBy The address that relinquished the token.
      */
     function onRelinquish(uint256 tokenId, address relinquishedBy) external;
-} 
+}

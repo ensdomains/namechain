@@ -38,23 +38,30 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
     /**
      * Implements ERC165.supportsInterface
      */
-    function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, IERC165) returns (bool) {
-        return interfaceId == type(EjectionController).interfaceId || interfaceId == type(IERC1155Receiver).interfaceId || super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(EjectionController).interfaceId || interfaceId == type(IERC1155Receiver).interfaceId
+            || super.supportsInterface(interfaceId);
     }
 
     /**
      * Implements ERC1155Receiver.onERC1155Received
      */
-    function onERC1155Received(address /*operator*/, address /*from*/, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual returns (bytes4) {
+    function onERC1155Received(
+        address, /*operator*/
+        address, /*from*/
+        uint256 tokenId,
+        uint256, /*amount*/
+        bytes calldata data
+    ) external virtual returns (bytes4) {
         if (msg.sender != address(registry)) {
             revert UnauthorizedCaller(msg.sender);
         }
 
         TransferData memory transferData = abi.decode(data, (TransferData));
-        
+
         TransferData[] memory transferDataArray = new TransferData[](1);
         transferDataArray[0] = transferData;
-        
+
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenId;
 
@@ -66,13 +73,19 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
     /**
      * Implements ERC1155Receiver.onERC1155BatchReceived
      */
-    function onERC1155BatchReceived(address /*operator*/, address /*from*/, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual returns (bytes4) {
+    function onERC1155BatchReceived(
+        address, /*operator*/
+        address, /*from*/
+        uint256[] memory tokenIds,
+        uint256[] memory, /*amounts*/
+        bytes calldata data
+    ) external virtual returns (bytes4) {
         if (msg.sender != address(registry)) {
             revert UnauthorizedCaller(msg.sender);
         }
 
         TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
-        
+
         _onEject(tokenIds, transferDataArray);
 
         return this.onERC1155BatchReceived.selector;

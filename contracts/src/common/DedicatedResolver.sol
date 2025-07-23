@@ -69,43 +69,25 @@ contract DedicatedResolver is
     }
 
     /// @inheritdoc ERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view override(ERC165) returns (bool) {
-        return
-            type(IExtendedResolver).interfaceId == interfaceId ||
-            type(IDedicatedResolverSetters).interfaceId == interfaceId ||
-            type(IMulticallable).interfaceId == interfaceId ||
-            type(IAddrResolver).interfaceId == interfaceId ||
-            type(IAddressResolver).interfaceId == interfaceId ||
-            type(IHasAddressResolver).interfaceId == interfaceId ||
-            type(ITextResolver).interfaceId == interfaceId ||
-            type(IContentHashResolver).interfaceId == interfaceId ||
-            type(IPubkeyResolver).interfaceId == interfaceId ||
-            type(INameResolver).interfaceId == interfaceId ||
-            type(IABIResolver).interfaceId == interfaceId ||
-            type(IInterfaceResolver).interfaceId == interfaceId ||
-            type(IFeatureSupporter).interfaceId == interfaceId ||
-            super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165) returns (bool) {
+        return type(IExtendedResolver).interfaceId == interfaceId
+            || type(IDedicatedResolverSetters).interfaceId == interfaceId || type(IMulticallable).interfaceId == interfaceId
+            || type(IAddrResolver).interfaceId == interfaceId || type(IAddressResolver).interfaceId == interfaceId
+            || type(IHasAddressResolver).interfaceId == interfaceId || type(ITextResolver).interfaceId == interfaceId
+            || type(IContentHashResolver).interfaceId == interfaceId || type(IPubkeyResolver).interfaceId == interfaceId
+            || type(INameResolver).interfaceId == interfaceId || type(IABIResolver).interfaceId == interfaceId
+            || type(IInterfaceResolver).interfaceId == interfaceId || type(IFeatureSupporter).interfaceId == interfaceId
+            || super.supportsInterface(interfaceId);
     }
 
     /// @inheritdoc IFeatureSupporter
     function supportsFeature(bytes4 feature) public pure returns (bool) {
-        return
-            ResolverFeatures.RESOLVE_MULTICALL == feature ||
-            ResolverFeatures.SINGULAR == feature;
+        return ResolverFeatures.RESOLVE_MULTICALL == feature || ResolverFeatures.SINGULAR == feature;
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setAddr(
-        uint256 coinType,
-        bytes calldata addressBytes
-    ) external onlyOwner {
-        if (
-            addressBytes.length != 0 &&
-            addressBytes.length != 20 &&
-            ENSIP19.isEVMCoinType(coinType)
-        ) {
+    function setAddr(uint256 coinType, bytes calldata addressBytes) external onlyOwner {
+        if (addressBytes.length != 0 && addressBytes.length != 20 && ENSIP19.isEVMCoinType(coinType)) {
             revert InvalidEVMAddress(addressBytes);
         }
         _addresses[coinType] = addressBytes;
@@ -119,14 +101,9 @@ contract DedicatedResolver is
     ///         If coin type is EVM and empty, defaults to `addr(COIN_TYPE_DEFAULT)`.
     /// @param coinType The coin type.
     /// @return addressBytes The address for the coin type.
-    function addr(
-        bytes32,
-        uint256 coinType
-    ) public view returns (bytes memory addressBytes) {
+    function addr(bytes32, uint256 coinType) public view returns (bytes memory addressBytes) {
         addressBytes = _addresses[coinType];
-        if (
-            addressBytes.length == 0 && ENSIP19.chainFromCoinType(coinType) > 0
-        ) {
+        if (addressBytes.length == 0 && ENSIP19.chainFromCoinType(coinType) > 0) {
             addressBytes = _addresses[COIN_TYPE_DEFAULT];
         }
     }
@@ -143,10 +120,7 @@ contract DedicatedResolver is
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setText(
-        string calldata key,
-        string calldata value
-    ) external onlyOwner {
+    function setText(string calldata key, string calldata value) external onlyOwner {
         _texts[key] = value;
         emit TextChanged(NODE_ANY, key, key, value);
     }
@@ -154,10 +128,7 @@ contract DedicatedResolver is
     /// @notice Get the text value for key.
     /// @param key The key.
     /// @return The text value.
-    function text(
-        bytes32,
-        string calldata key
-    ) external view returns (string memory) {
+    function text(bytes32, string calldata key) external view returns (string memory) {
         return _texts[key];
     }
 
@@ -189,10 +160,7 @@ contract DedicatedResolver is
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setABI(
-        uint256 contentType,
-        bytes calldata data
-    ) external onlyOwner {
+    function setABI(uint256 contentType, bytes calldata data) external onlyOwner {
         if (!_isPowerOf2(contentType)) {
             revert InvalidContentType(contentType);
         }
@@ -209,15 +177,8 @@ contract DedicatedResolver is
     /// @param contentTypes Union of desired contents types.
     /// @return contentType The first matching content type (or 0 if no match).
     /// @return data The ABI data.
-    function ABI(
-        bytes32,
-        uint256 contentTypes
-    ) external view returns (uint256 contentType, bytes memory data) {
-        for (
-            contentType = 1;
-            contentType > 0 && contentType <= contentTypes;
-            contentType <<= 1
-        ) {
+    function ABI(bytes32, uint256 contentTypes) external view returns (uint256 contentType, bytes memory data) {
+        for (contentType = 1; contentType > 0 && contentType <= contentTypes; contentType <<= 1) {
             if ((contentType & contentTypes) != 0) {
                 data = _abis[contentType];
                 if (data.length > 0) {
@@ -229,10 +190,7 @@ contract DedicatedResolver is
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setInterface(
-        bytes4 interfaceId,
-        address implementer
-    ) external onlyOwner {
+    function setInterface(bytes4 interfaceId, address implementer) external onlyOwner {
         _interfaces[interfaceId] = implementer;
         emit InterfaceChanged(NODE_ANY, interfaceId, implementer);
     }
@@ -240,15 +198,9 @@ contract DedicatedResolver is
     /// @dev Gets the implementer for an interface.
     /// @param interfaceId The interface ID.
     /// @return implementer The implementer address.
-    function interfaceImplementer(
-        bytes32,
-        bytes4 interfaceId
-    ) external view returns (address implementer) {
+    function interfaceImplementer(bytes32, bytes4 interfaceId) external view returns (address implementer) {
         implementer = _interfaces[interfaceId];
-        if (
-            implementer == address(0) &&
-            ERC165Checker.supportsInterface(addr(NODE_ANY), interfaceId)
-        ) {
+        if (implementer == address(0) && ERC165Checker.supportsInterface(addr(NODE_ANY), interfaceId)) {
             implementer = address(this);
         }
     }
@@ -269,10 +221,7 @@ contract DedicatedResolver is
     /// @dev Revert `UnsupportedResolverProfile` if the record is not supported.
     /// @param data The resolution data, as specified in ENSIP-10..
     /// @return The result of the resolution.
-    function resolve(
-        bytes calldata,
-        bytes calldata data
-    ) external view returns (bytes memory) {
+    function resolve(bytes calldata, bytes calldata data) external view returns (bytes memory) {
         (bool ok, bytes memory v) = address(this).staticcall(data);
         if (!ok) {
             assembly {
@@ -286,9 +235,7 @@ contract DedicatedResolver is
 
     /// @notice Perform multiple read or write operations.
     /// @dev Reverts if any call fails.
-    function multicall(
-        bytes[] calldata calls
-    ) public returns (bytes[] memory results) {
+    function multicall(bytes[] calldata calls) public returns (bytes[] memory results) {
         results = new bytes[](calls.length);
         for (uint256 i; i < calls.length; i++) {
             (bool ok, bytes memory v) = address(this).delegatecall(calls[i]);
@@ -304,10 +251,7 @@ contract DedicatedResolver is
     ///      it only stores records for a single name, the node check logic can be elided.
     ///
     ///      Additionally, the setters of this resolver do not have `node` as an argument.
-    function multicallWithNodeCheck(
-        bytes32,
-        bytes[] calldata calls
-    ) external returns (bytes[] memory) {
+    function multicallWithNodeCheck(bytes32, bytes[] calldata calls) external returns (bytes[] memory) {
         return multicall(calls);
     }
 }
