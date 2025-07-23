@@ -8,13 +8,13 @@ contract Coveralls is CCIPReader {
 
     function b() external {}
 
-    function c() external {
+    function c() external view {
         ccipRead(address(this), abi.encodeCall(this.c2, ()));
     }
 
     function c2() external view {}
 
-    function d() external {
+    function d() external view {
         ccipRead(address(this), abi.encodeCall(this.d2, ()));
     }
     function d2() external view {
