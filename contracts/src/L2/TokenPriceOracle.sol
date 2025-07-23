@@ -114,11 +114,9 @@ contract TokenPriceOracle is IPriceOracle {
     /**
      * @dev Virtual function for calculating base price based on name characteristics
      * Override this function to implement custom pricing logic (e.g., length-based pricing)
-     * @param name The name being priced
-     * @param duration Duration of registration/renewal in seconds
      * @return Base price in USD with 6 decimals (USDC standard)
      */
-    function _pricePerCharLength(string calldata name, uint256 duration) 
+    function _pricePerCharLength(string calldata /*name*/, uint256 /*duration*/) 
         internal 
         view 
         virtual 
@@ -131,12 +129,9 @@ contract TokenPriceOracle is IPriceOracle {
     /**
      * @dev Virtual function for calculating premium based on name expiry
      * Override this function to implement custom premium logic (e.g., exponential decay)
-     * @param name The name being priced
-     * @param expires When the name currently expires (0 for new registrations)
-     * @param duration Duration of registration/renewal in seconds
      * @return Premium price in USD with 6 decimals (USDC standard)
      */
-    function _premium(string calldata name, uint256 expires, uint256 duration) 
+    function _premium(string calldata /*name*/, uint256 /*expires*/, uint256 /*duration*/) 
         internal 
         view 
         virtual 

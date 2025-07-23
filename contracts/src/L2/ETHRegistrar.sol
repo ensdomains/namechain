@@ -28,6 +28,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     error NameNotAvailable(string name);
     error InsufficientValue(uint256 required, uint256 provided);
     error TokenNotSupported(address token);
+    error DurationOverflow(uint64 expiry, uint64 duration);
 
     IPermissionedRegistry public immutable registry;
     IPriceOracle public immutable prices;
@@ -196,7 +197,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         
         // Check for overflow before any state changes
         if (expiry > type(uint64).max - duration) {
-            revert("Duration overflow");
+            revert DurationOverflow(expiry, duration);
         }
         uint64 newExpiry = expiry + duration;
         
