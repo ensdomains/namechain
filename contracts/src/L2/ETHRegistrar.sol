@@ -12,8 +12,10 @@ import {NameUtils} from "../common/NameUtils.sol";
 import {EnhancedAccessControl} from "../common/EnhancedAccessControl.sol";
 import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixin {
+    using SafeERC20 for IERC20;
     uint256 private constant REGISTRATION_ROLE_BITMAP = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;
 
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
@@ -175,7 +177,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         (uint256 baseCost, uint256 premium, uint256 totalCost) = 
             tokenOracle.priceInTokenBreakdown(name, 0, duration, token);
         
-        IERC20(token).transferFrom(msg.sender, beneficiary, totalCost);
+        IERC20(token).safeTransferFrom(msg.sender, beneficiary, totalCost);
         emit NameRegistered(name, owner, subregistry, resolver, duration, tokenId, baseCost, premium, token);
     }
 
@@ -195,7 +197,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         (uint256 baseCost, uint256 premium, uint256 totalCost) = 
             tokenOracle.priceInTokenBreakdown(name, expiry, duration, token);
         
-        IERC20(token).transferFrom(msg.sender, beneficiary, totalCost);
+        IERC20(token).safeTransferFrom(msg.sender, beneficiary, totalCost);
         uint64 newExpiry = registry.getExpiry(tokenId);
         emit NameRenewed(name, duration, tokenId, newExpiry, baseCost, premium, token);
     }
