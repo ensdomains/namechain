@@ -145,14 +145,9 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         uint256 tldOffset = 1 + labelSize;
         uint256 tldSize = uint8(name[tldOffset]);
         
-        // Verify TLD is "eth"
+        // Verify the name is a .eth 2LD
         (bytes32 tldHash, ) = NameCoder.readLabel(name, tldOffset);
-        if (tldHash != ETH_TLD_HASH) {
-            revert InvalidTLD(name);
-        }
-        
-        // Verify the name ends after TLD (next byte should be 0)
-        if (name[tldOffset + 1 + tldSize] != 0) {
+        if (tldHash != ETH_TLD_HASH || name[tldOffset + 1 + tldSize] != 0)) {
             revert InvalidTLD(name);
         }
         
