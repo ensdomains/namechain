@@ -25,15 +25,11 @@ import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
  */
 contract L2BridgeController is EjectionController, ITokenObserver {
     error MigrationFailed();
-    error InvalidTLD(bytes dnsEncodedName);
-    error NameNotFound(bytes dnsEncodedName);
     error NotTokenOwner(uint256 tokenId);
     error TooManyRoleAssignees(uint256 tokenId, uint256 roleBitmap);
 
     // Events
     event MigrationCompleted(bytes dnsEncodedName, uint256 newTokenId);
-
-    bytes32 private constant ETH_TLD_HASH = keccak256(bytes("eth"));
 
     IRegistryDatastore public immutable datastore;
 
@@ -58,20 +54,10 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     ) external onlyRootRoles(LibBridgeRoles.ROLE_MIGRATOR) {
         // if migrating to L1 then there is nothing to do, else let's create a subregistry
         if (!migrationData.toL1) {
-            // Find the token id and validate the registry tree
-            uint256 tokenId = _findAndValidateLabelStructure(dnsEncodedName);
+            // Get tokenId from the label in transfer data
+            (uint256 tokenId,,) = registry.getNameData(migrationData.transferData.label);
 
-            // owner should be the bridge controller
-            if (registry.ownerOf(tokenId) != address(this)) {
-                revert NotTokenOwner(tokenId);
-            }
-
-            registry.setSubregistry(tokenId, IPermissionedRegistry(migrationData.transferData.subregistry));
-            registry.setResolver(tokenId, migrationData.transferData.resolver);
-
-            // now unset the token observer and transfer the name to the owner
-            registry.setTokenObserver(tokenId, ITokenObserver(address(0)));
-            registry.safeTransferFrom(address(this), migrationData.transferData.owner, tokenId, 1, "");
+            _completeNameTransfer(tokenId, migrationData.transferData);
 
             emit MigrationCompleted(dnsEncodedName, tokenId);
         }
@@ -91,14 +77,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     {
         (uint256 tokenId,,) = registry.getNameData(transferData.label);
 
-        if (registry.ownerOf(tokenId) != address(this)) {
-            revert NotTokenOwner(tokenId);
-        }
-
-        registry.setSubregistry(tokenId, IRegistry(transferData.subregistry));
-        registry.setResolver(tokenId, transferData.resolver);
-        registry.setTokenObserver(tokenId, ITokenObserver(address(0)));
-        registry.safeTransferFrom(address(this), transferData.owner, tokenId, 1, "");
+        _completeNameTransfer(tokenId, transferData);
 
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
         emit NameEjectedToL2(dnsEncodedName, tokenId);
@@ -133,36 +112,25 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     }
 
     /**
-     * @dev Validates 2LD structure and checks if label exists
-     * @param name The DNS-encoded name (must be a 2LD like "example.eth")
-     * @return tokenId The token id of the name
+     * @dev Private helper method to complete name transfer operations
+     * @param tokenId The token ID of the name
+     * @param transferData The transfer data containing subregistry, resolver, and owner
      */
-    function _findAndValidateLabelStructure(
-        bytes memory name
-    ) internal view returns (uint256 tokenId) {
-        // Read the second label which should be "eth"
-        uint256 labelSize = uint8(name[0]);
-        uint256 tldOffset = 1 + labelSize;
-        uint256 tldSize = uint8(name[tldOffset]);
-        
-        // Verify the name is a .eth 2LD
-        (bytes32 tldHash, ) = NameCoder.readLabel(name, tldOffset);
-        if (tldHash != ETH_TLD_HASH || name[tldOffset + 1 + tldSize] != 0) {
-            revert InvalidTLD(name);
-        }
-        
-        // Read the 2LD label
-        string memory label = NameUtils.readLabel(name, 0);
-        
-        // Check if the label exists in the eth registry
-        bool exists = address(registry.getSubregistry(label)) != address(0);
-        if (!exists) {
-            revert NameNotFound(name);
+    function _completeNameTransfer(
+        uint256 tokenId,
+        TransferData memory transferData
+    ) private {
+        // owner should be the bridge controller
+        if (registry.ownerOf(tokenId) != address(this)) {
+            revert NotTokenOwner(tokenId);
         }
 
-        (tokenId, , ) = registry.getNameData(label);
-        
-        return tokenId;
+        registry.setSubregistry(tokenId, IRegistry(transferData.subregistry));
+        registry.setResolver(tokenId, transferData.resolver);
+
+        // now unset the token observer and transfer the name to the owner
+        registry.setTokenObserver(tokenId, ITokenObserver(address(0)));
+        registry.safeTransferFrom(address(this), transferData.owner, tokenId, 1, "");
     }
 
     /**
