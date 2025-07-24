@@ -6,7 +6,7 @@ import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {EjectionController} from "../common/EjectionController.sol";
 import {TransferData} from "../common/TransferData.sol";
 import {NameUtils} from "../common/NameUtils.sol";
-import {IRegistry} from "../common/IRegistry.sol";  
+import {IRegistry} from "../common/IRegistry.sol";
 import {IBridge} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 
@@ -24,7 +24,7 @@ contract L2EjectionController is EjectionController, ITokenObserver {
      * @dev Default implementation of onRenew that does nothing.
      * Can be overridden in derived contracts for custom behavior.
      */
-    function onRenew(uint256 /* tokenId */, uint64 /* expires */, address /* renewedBy */) external virtual {
+    function onRenew(uint256, /* tokenId */ uint64, /* expires */ address /* renewedBy */ ) external virtual {
         // Default implementation does nothing
     }
 
@@ -32,7 +32,7 @@ contract L2EjectionController is EjectionController, ITokenObserver {
      * @dev Default implementation of onRelinquish that does nothing.
      * Can be overridden in derived contracts for custom behavior.
      */
-    function onRelinquish(uint256 /* tokenId */, address /* relinquishedBy */) external virtual {
+    function onRelinquish(uint256, /* tokenId */ address /* relinquishedBy */ ) external virtual {
         // Default implementation does nothing
     }
 
@@ -41,13 +41,7 @@ contract L2EjectionController is EjectionController, ITokenObserver {
      *
      * @param transferData The transfer data for the name being migrated
      */
-    function completeEjectionFromL1(
-        TransferData memory transferData
-    ) 
-    external 
-    virtual 
-    onlyBridge 
-    {
+    function completeEjectionFromL1(TransferData memory transferData) external virtual onlyBridge {
         (uint256 tokenId,,) = registry.getNameData(transferData.label);
 
         if (registry.ownerOf(tokenId) != address(this)) {

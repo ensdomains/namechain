@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-
 abstract contract RegistryRolesMixin {
     uint256 internal constant ROLE_REGISTRAR = 1 << 0;
     uint256 internal constant ROLE_REGISTRAR_ADMIN = ROLE_REGISTRAR << 128;

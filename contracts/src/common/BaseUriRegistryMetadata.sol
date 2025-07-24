@@ -18,7 +18,7 @@ contract BaseUriRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
         tokenBaseUri = uri;
     }
 
-    function tokenUri(uint256 /*tokenId*/) external view returns (string memory) {
+    function tokenUri(uint256 /*tokenId*/ ) external view returns (string memory) {
         return tokenBaseUri;
     }
 

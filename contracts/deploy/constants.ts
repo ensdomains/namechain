@@ -33,8 +33,9 @@ function mapFlags(flags: Flags, fn: (x: bigint) => bigint): Flags {
 export const ROLES = {
   OWNER: FLAGS,
   ADMIN: Object.fromEntries(
-    Object.entries(FLAGS).map(([k, v]) => [k, mapFlags(v, (x) => x << 128n)]),  
+    Object.entries(FLAGS).map(([k, v]) => [k, mapFlags(v, (x) => x << 128n)]),
   ),
   ALL: 0x1111111111111111111111111111111111111111111111111111111111111111n, // see: EnhancedAccessControl.sol
-  ADMIN_ROLES: 0x1111111111111111111111111111111100000000000000000000000000000000n, // see: EnhancedAccessControl.sol
+  ADMIN_ROLES:
+    0x1111111111111111111111111111111100000000000000000000000000000000n, // see: EnhancedAccessControl.sol
 } as const;

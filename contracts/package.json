@@ -2,6 +2,7 @@
   "name": "contracts",
   "type": "module",
   "scripts": {
+    "install:forge": "forge i",
     "deploy": "hardhat deploy",
     "compile:hardhat": "hardhat compile",
     "test:hardhat": "hardhat compile && vitest run",
@@ -11,7 +12,13 @@
     "coverage": "forge coverage --report lcov && bun run test:hardhat && bun run test:e2e",
     "clean": "forge clean && hardhat clean",
     "devnet": "bun ./script/runDevnet.ts",
-    "check:types": "tsc --noEmit"
+    "check:types": "tsc --noEmit",
+    "lint": "bun lint:forge && bun lint:hardhat",
+    "lint:forge": "forge fmt --check",
+    "lint:hardhat": "prettier --check . --ignore-path .prettierignore",
+    "lint:fix": "bun lint:forge:fix && bun lint:hardhat:fix",
+    "lint:forge:fix": "forge fmt",
+    "lint:hardhat:fix": "prettier --write . --ignore-path .prettierignore"
   },
   "devDependencies": {
     "@ensdomains/hardhat-chai-matchers-viem": "0.1.11",
@@ -28,7 +35,6 @@
     "hardhat": "3.0.0-next.20",
     "hardhat-deploy": "^2.0.0-next.31",
     "prettier": "^3.5.3",
-    "prettier-plugin-solidity": "^2.0.0",
     "prool": "^0.0.24",
     "rocketh": "^0.11.18",
     "ts-node": "^10.9.2",

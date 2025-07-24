@@ -13,10 +13,10 @@ import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 abstract contract MockBridgeBase is IBridge {
     // Custom errors
     error MigrationNotSupported();
-    
+
     // Event for message receipt acknowledgement
     event MessageProcessed(bytes message);
-    
+
     /**
      * @dev Simulate receiving a message.
      * Anyone can call this method with encoded message data
@@ -31,26 +31,22 @@ abstract contract MockBridgeBase is IBridge {
             (bytes memory dnsEncodedName, MigrationData memory migrationData) = BridgeEncoder.decodeMigration(message);
             _handleMigrationMessage(dnsEncodedName, migrationData);
         }
-        
+
         // Emit event for tracking
         emit MessageProcessed(message);
     }
-    
+
     /**
      * @dev Abstract method for handling ejection messages
      * Must be implemented by concrete bridge contracts
      */
-    function _handleEjectionMessage(
-        bytes memory dnsEncodedName,
-        TransferData memory transferData
-    ) internal virtual;
-    
+    function _handleEjectionMessage(bytes memory dnsEncodedName, TransferData memory transferData) internal virtual;
+
     /**
      * @dev Abstract method for handling migration messages
      * Must be implemented by concrete bridge contracts
      */
-    function _handleMigrationMessage(
-        bytes memory dnsEncodedName,
-        MigrationData memory migrationData
-    ) internal virtual;
-} 
+    function _handleMigrationMessage(bytes memory dnsEncodedName, MigrationData memory migrationData)
+        internal
+        virtual;
+}

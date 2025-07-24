@@ -10,30 +10,32 @@ import {TransferData, MigrationData} from "./TransferData.sol";
 library BridgeEncoder {
     /// @dev Error thrown when message type is invalid for migration
     error InvalidMigrationMessageType();
-    
+
     /// @dev Error thrown when message type is invalid for ejection
     error InvalidEjectionMessageType();
 
     /**
      * @dev Encode a migration message.
      */
-    function encodeMigration(
-        bytes memory dnsEncodedName,
-        MigrationData memory data
-    ) internal pure returns (bytes memory) {
-        return abi.encode(uint(BridgeMessageType.MIGRATION), dnsEncodedName, data);
+    function encodeMigration(bytes memory dnsEncodedName, MigrationData memory data)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encode(uint256(BridgeMessageType.MIGRATION), dnsEncodedName, data);
     }
 
     /**
      * @dev Decode a migration message.
      */
-    function decodeMigration(bytes memory message) internal pure returns (
-        bytes memory dnsEncodedName,
-        MigrationData memory data
-    ) {
-        uint _messageType;
-        (_messageType, dnsEncodedName, data) = abi.decode(message, (uint, bytes, MigrationData));
-        if (_messageType != uint(BridgeMessageType.MIGRATION)) {
+    function decodeMigration(bytes memory message)
+        internal
+        pure
+        returns (bytes memory dnsEncodedName, MigrationData memory data)
+    {
+        uint256 _messageType;
+        (_messageType, dnsEncodedName, data) = abi.decode(message, (uint256, bytes, MigrationData));
+        if (_messageType != uint256(BridgeMessageType.MIGRATION)) {
             revert InvalidMigrationMessageType();
         }
     }
@@ -41,23 +43,25 @@ library BridgeEncoder {
     /**
      * @dev Encode an ejection message.
      */
-    function encodeEjection(
-        bytes memory dnsEncodedName,
-        TransferData memory data
-    ) internal pure returns (bytes memory) {
-        return abi.encode(uint(BridgeMessageType.EJECTION), dnsEncodedName, data);
+    function encodeEjection(bytes memory dnsEncodedName, TransferData memory data)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encode(uint256(BridgeMessageType.EJECTION), dnsEncodedName, data);
     }
 
     /**
      * @dev Decode an ejection message.
      */
-    function decodeEjection(bytes memory message) internal pure returns (
-        bytes memory dnsEncodedName,
-        TransferData memory data
-    ) {
-        uint _messageType;
-        (_messageType, dnsEncodedName, data) = abi.decode(message, (uint, bytes, TransferData));
-        if (_messageType != uint(BridgeMessageType.EJECTION)) {
+    function decodeEjection(bytes memory message)
+        internal
+        pure
+        returns (bytes memory dnsEncodedName, TransferData memory data)
+    {
+        uint256 _messageType;
+        (_messageType, dnsEncodedName, data) = abi.decode(message, (uint256, bytes, TransferData));
+        if (_messageType != uint256(BridgeMessageType.EJECTION)) {
             revert InvalidEjectionMessageType();
         }
     }
@@ -66,7 +70,7 @@ library BridgeEncoder {
      * @dev Helper function to get the message type from an encoded message.
      */
     function getMessageType(bytes memory message) internal pure returns (BridgeMessageType) {
-        uint _messageType = abi.decode(message, (uint));
+        uint256 _messageType = abi.decode(message, (uint256));
         return BridgeMessageType(_messageType);
     }
 }

@@ -47,13 +47,20 @@ interface IStandardRegistry is IRegistry {
      * @param roleBitmap The role bitmap to set for the subdomain.
      * @param expires The expiration date of the subdomain.
      */
-    function register(string calldata label, address owner, IRegistry registry, address resolver, uint256 roleBitmap, uint64 expires) external returns (uint256 tokenId);
+    function register(
+        string calldata label,
+        address owner,
+        IRegistry registry,
+        address resolver,
+        uint256 roleBitmap,
+        uint64 expires
+    ) external returns (uint256 tokenId);
 
     /**
      * @dev Renews a subdomain.
      * @param tokenId The token ID of the subdomain to renew.
      * @param expires The expiration date of the subdomain.
-     */ 
+     */
     function renew(uint256 tokenId, uint64 expires) external;
 
     /**

@@ -37,13 +37,13 @@ contract MockBaseRegistrar is ERC721, IBaseRegistrar {
     function register(uint256 id, address owner, uint256 duration) external override returns (uint256) {
         require(controllers[msg.sender], "Not a controller");
         require(available(id), "Name not available");
-        
+
         expiries[id] = block.timestamp + duration;
         if (_ownerOf(id) != address(0)) {
             _burn(id);
         }
         _mint(owner, id);
-        
+
         emit NameRegistered(id, owner, block.timestamp + duration);
         return block.timestamp + duration;
     }
@@ -51,13 +51,13 @@ contract MockBaseRegistrar is ERC721, IBaseRegistrar {
     function renew(uint256 id, uint256 duration) external override returns (uint256) {
         require(controllers[msg.sender], "Not a controller");
         require(expiries[id] + GRACE_PERIOD >= block.timestamp, "Name expired");
-        
+
         expiries[id] += duration;
         emit NameRenewed(id, expiries[id]);
         return expiries[id];
     }
 
-    function reclaim(uint256 id, address /*owner*/) external override view {
+    function reclaim(uint256 id, address /*owner*/ ) external view override {
         require(ownerOf(id) == msg.sender, "Not owner");
         // Mock implementation
     }

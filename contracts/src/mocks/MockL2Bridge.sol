@@ -15,20 +15,20 @@ import {TransferData, MigrationData} from "../common/TransferData.sol";
 contract MockL2Bridge is MockBridgeBase {
     // Ejection controller to call when receiving ejection messages
     L2EjectionController public ejectionController;
-        
+
     // Type-specific events with tokenId and data
     event NameBridgedToL1(bytes message);
-        
+
     function setEjectionController(L2EjectionController _ejectionController) external {
         ejectionController = _ejectionController;
     }
-    
+
     /**
      * @dev Send a message.
      */
     function sendMessage(bytes memory message) external override {
         BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
-        
+
         if (messageType == BridgeMessageType.MIGRATION) {
             // Migration messages are not supported in L2 bridge
             revert MigrationNotSupported();
@@ -36,24 +36,24 @@ contract MockL2Bridge is MockBridgeBase {
             emit NameBridgedToL1(message);
         }
     }
-    
+
     /**
      * @dev Handle ejection messages specific to L2 bridge
      */
-    function _handleEjectionMessage(
-        bytes memory /*dnsEncodedName*/,
-        TransferData memory transferData
-    ) internal override {
+    function _handleEjectionMessage(bytes memory, /*dnsEncodedName*/ TransferData memory transferData)
+        internal
+        override
+    {
         ejectionController.completeEjectionFromL1(transferData);
     }
-    
+
     /**
      * @dev Handle migration messages specific to L2 bridge
      */
-    function _handleMigrationMessage(
-        bytes memory /*dnsEncodedName*/,
-        MigrationData memory /*migrationData*/
-    ) internal override {
+    function _handleMigrationMessage(bytes memory, /*dnsEncodedName*/ MigrationData memory /*migrationData*/ )
+        internal
+        override
+    {
         // TODO: handle migration messages
     }
 }

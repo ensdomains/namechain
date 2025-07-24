@@ -27,13 +27,13 @@ contract OwnedResolverTest is Test {
     function setUp() public {
         owner = makeAddr("owner");
         factory = new VerifiableFactory();
-        
+
         address implementation = address(new OwnedResolver());
         bytes memory initData = abi.encodeWithSelector(OwnedResolver.initialize.selector, owner);
         vm.startPrank(owner);
         address deployed = factory.deployProxy(implementation, SALT, initData);
         vm.stopPrank();
-        
+
         resolver = OwnedResolver(deployed);
     }
 
@@ -46,7 +46,7 @@ contract OwnedResolverTest is Test {
 
     function test_set_and_get_addr() public {
         bytes memory ethAddress = abi.encodePacked(address(0x123));
-        
+
         vm.startPrank(owner);
         resolver.setAddr(TEST_NODE, ETH_COIN_TYPE, ethAddress);
         vm.stopPrank();
@@ -57,7 +57,7 @@ contract OwnedResolverTest is Test {
 
     function test_cannot_set_addr_if_not_owner() public {
         bytes memory ethAddress = abi.encodePacked(address(0x123));
-        
+
         vm.startPrank(makeAddr("notOwner"));
         vm.expectRevert();
         resolver.setAddr(TEST_NODE, ETH_COIN_TYPE, ethAddress);
@@ -67,12 +67,12 @@ contract OwnedResolverTest is Test {
     function test_versionable_addresses() public {
         bytes memory addr1 = abi.encodePacked(address(0x123));
         bytes memory addr2 = abi.encodePacked(address(0x456));
-        
+
         vm.startPrank(owner);
         // Set initial address
         resolver.setAddr(TEST_NODE, ETH_COIN_TYPE, addr1);
         assertEq(resolver.addr(TEST_NODE, ETH_COIN_TYPE), addr1);
-        
+
         // Get current version and verify new address is stored under new version
         resolver.recordVersions(TEST_NODE);
         resolver.setAddr(TEST_NODE, ETH_COIN_TYPE, addr2);
@@ -80,20 +80,22 @@ contract OwnedResolverTest is Test {
         vm.stopPrank();
     }
 
-    function test_supports_interface() view public {
-        // Test for implemented interfaces        
+    function test_supports_interface() public view {
+        // Test for implemented interfaces
         assertTrue(resolver.supportsInterface(type(IABIResolver).interfaceId), "Should support ABIResolver");
-        assertTrue(resolver.supportsInterface(type(IContentHashResolver).interfaceId), "Should support ContentHashResolver");
+        assertTrue(
+            resolver.supportsInterface(type(IContentHashResolver).interfaceId), "Should support ContentHashResolver"
+        );
         assertTrue(resolver.supportsInterface(type(IDNSRecordResolver).interfaceId), "Should support DNSResolver");
         assertTrue(resolver.supportsInterface(type(IInterfaceResolver).interfaceId), "Should support InterfaceResolver");
         assertTrue(resolver.supportsInterface(type(INameResolver).interfaceId), "Should support NameResolver");
         assertTrue(resolver.supportsInterface(type(IPubkeyResolver).interfaceId), "Should support PubkeyResolver");
         assertTrue(resolver.supportsInterface(type(ITextResolver).interfaceId), "Should support TextResolver");
-        
+
         // Test for ERC165 interface
         assertTrue(resolver.supportsInterface(0x01ffc9a7), "Should support ERC165");
-        
+
         // Test for unsupported interface
         assertFalse(resolver.supportsInterface(0xffffffff), "Should not support random interface");
     }
-} 
+}

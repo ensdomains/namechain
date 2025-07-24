@@ -110,8 +110,8 @@ export async function setupCrossChainEnvironment() {
 
   const l1Chain = {
     id: l1Config.chainId,
-    name: 'L1 Local',
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    name: "L1 Local",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: {
       default: { http: [`http://127.0.0.1:${l1.port}`] },
       public: { http: [`http://127.0.0.1:${l1.port}`] },
@@ -120,8 +120,8 @@ export async function setupCrossChainEnvironment() {
 
   const l2Chain = {
     id: l2Config.chainId,
-    name: 'L2 Local',
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    name: "L2 Local",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: {
       default: { http: [`http://127.0.0.1:${l2.port}`] },
       public: { http: [`http://127.0.0.1:${l2.port}`] },
