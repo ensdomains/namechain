@@ -13,6 +13,7 @@ import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
 contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -21,9 +22,8 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     BaseUriRegistryMetadata metadata;
 
     uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
-    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 8;
-    uint256 constant ROLE_SET_RESOLVER = 1 << 12;
-    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;    
+
+    uint256 constant defaultRoleBitmap = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER;    
 
     bytes32 constant ROOT_RESOURCE = 0;
 

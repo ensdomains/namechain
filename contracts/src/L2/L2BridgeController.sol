@@ -17,13 +17,13 @@ import {IBridge} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
 import {IEnhancedAccessControl} from "../common/IEnhancedAccessControl.sol";
-import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
+import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 
 /**
  * @title L2BridgeController
  * @dev Combined controller that handles both migration messages from L1 to L2 and ejection operations
  */
-contract L2BridgeController is EjectionController, ITokenObserver, RegistryRolesMixin {
+contract L2BridgeController is EjectionController, ITokenObserver {
     error MigrationFailed();
     error InvalidTLD(bytes dnsEncodedName);
     error NameNotFound(bytes dnsEncodedName);
@@ -190,7 +190,7 @@ contract L2BridgeController is EjectionController, ITokenObserver, RegistryRoles
             _assertTokenIdMatchesLabel(tokenId, transferData.label);
 
             // check that there is no more than holder of the token observer and subregistry setting roles
-            uint256 roleBitmap = ROLE_SET_TOKEN_OBSERVER | ROLE_SET_SUBREGISTRY;
+            uint256 roleBitmap = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
             (uint256 counts, uint256 mask) = IEnhancedAccessControl(address(registry)).getAssigneeCount(registry.getTokenIdResource(tokenId), roleBitmap);
             if (counts & mask != roleBitmap) {
                 revert TooManyRoleAssignees(tokenId, roleBitmap);

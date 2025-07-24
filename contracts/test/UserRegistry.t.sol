@@ -12,12 +12,13 @@ import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
 import {IRegistry} from "../src/common/IRegistry.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
-import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
+import {NameUtils} from "../src/common/NameUtils.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
 import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 
-contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
+contract UserRegistryTest is Test, ERC1155Holder {
     // Test constants
     uint256 constant SALT = 12345;
     bytes32 constant ROOT_RESOURCE = 0;
@@ -74,11 +75,11 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
         // Verify admin has the expected roles
         assertTrue(proxy.hasRootRoles(ROLE_UPGRADE, admin), "Admin should have upgrade role");
         assertTrue(proxy.hasRootRoles(ROLE_UPGRADE_ADMIN, admin), "Admin should have upgrade admin role");
-        assertTrue(proxy.hasRootRoles(ROLE_REGISTRAR, admin), "Admin should have registrar role");
+        assertTrue(proxy.hasRootRoles(LibRegistryRoles.ROLE_REGISTRAR, admin), "Admin should have registrar role");
         
         // Verify other users don't have roles
         assertFalse(proxy.hasRootRoles(ROLE_UPGRADE, user1), "User1 should not have upgrade role");
-        assertFalse(proxy.hasRootRoles(ROLE_REGISTRAR, user1), "User1 should not have registrar role");
+        assertFalse(proxy.hasRootRoles(LibRegistryRoles.ROLE_REGISTRAR, user1), "User1 should not have registrar role");
         
         // Verify proxy returns the correct registry datastore
         assertEq(address(proxy.datastore()), address(datastore), "Datastore should match");
@@ -100,7 +101,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
             user1,
             IRegistry(address(0)),
             address(0),
-            ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER,
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER,
             uint64(block.timestamp + 365 days)
         );
         
@@ -109,8 +110,8 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
         
         // Verify roles were granted to the owner
         bytes32 resource = proxy.getTokenIdResource(tokenId);
-        assertTrue(proxy.hasRoles(resource, ROLE_SET_SUBREGISTRY, user1), "User1 should have SET_SUBREGISTRY role");
-        assertTrue(proxy.hasRoles(resource, ROLE_SET_RESOLVER, user1), "User1 should have SET_RESOLVER role");
+        assertTrue(proxy.hasRoles(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY, user1), "User1 should have SET_SUBREGISTRY role");
+        assertTrue(proxy.hasRoles(resource, LibRegistryRoles.ROLE_SET_RESOLVER, user1), "User1 should have SET_RESOLVER role");
         
         // Verify the domain resolves correctly
         assertEq(address(proxy.getSubregistry(label)), address(0), "Subregistry should be zero address");
@@ -125,7 +126,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
             user1,
             IRegistry(address(0)),
             address(0),
-            ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER,
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER,
             uint64(block.timestamp + 365 days)
         );
         
@@ -148,10 +149,10 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
     function test_role_management() public {
         // Admin grants ROLE_REGISTRAR to user1
         vm.prank(admin);
-        proxy.grantRootRoles(ROLE_REGISTRAR, user1);
+        proxy.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR, user1);
         
         // Verify user1 has ROLE_REGISTRAR
-        assertTrue(proxy.hasRootRoles(ROLE_REGISTRAR, user1), "User1 should have registrar role");
+        assertTrue(proxy.hasRootRoles(LibRegistryRoles.ROLE_REGISTRAR, user1), "User1 should have registrar role");
         
         // User1 should be able to register domains now
         vm.prank(user1);
@@ -160,7 +161,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
             user2,
             IRegistry(address(0)),
             address(0),
-            ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER,
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER,
             uint64(block.timestamp + 365 days)
         );
         
@@ -175,7 +176,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
                 ROOT_RESOURCE,
-                ROLE_REGISTRAR,
+                LibRegistryRoles.ROLE_REGISTRAR,
                 user1
             )
         );
@@ -184,7 +185,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
             user1,
             IRegistry(address(0)),
             address(0),
-            ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER,
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER,
             uint64(block.timestamp + 365 days)
         );
     }
@@ -196,11 +197,11 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector,
                 ROOT_RESOURCE,
-                ROLE_REGISTRAR,
+                LibRegistryRoles.ROLE_REGISTRAR,
                 user1
             )
         );
-        proxy.grantRootRoles(ROLE_REGISTRAR, user2);
+        proxy.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR, user2);
     }
     
     function testFuzz_domain_registration(string memory label, uint64 duration) public {
@@ -217,7 +218,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
             user1,
             IRegistry(address(0)),
             address(0),
-            ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER,
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER,
             expires
         );
         
@@ -265,7 +266,7 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
             user1,
             IRegistry(address(0)),
             address(0),
-            ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER,
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER,
             uint64(block.timestamp + 1 days)
         );
         
@@ -286,13 +287,15 @@ contract UserRegistryTest is Test, ERC1155Holder, RegistryRolesMixin {
             user2,
             IRegistry(address(0)),
             address(0),
-            ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER,
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER,
             uint64(block.timestamp + 1 days)
         );
         
         // Verify new registration
         assertEq(proxy.ownerOf(newTokenId), user2, "Domain should be owned by user2");
     }
+
+
 }
 
 // Mock V2 contract for testing upgrades

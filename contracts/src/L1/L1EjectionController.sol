@@ -5,7 +5,7 @@ import {EjectionController} from "../common/EjectionController.sol";
 import {TransferData} from "../common/TransferData.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
+import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IBridge} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
@@ -16,7 +16,7 @@ import {NameUtils} from "../common/NameUtils.sol";
  * @dev L1 contract for ejection controller that facilitates migrations of names
  * between L1 and L2, as well as handling renewals.
  */
-contract L1EjectionController is EjectionController, RegistryRolesMixin {
+contract L1EjectionController is EjectionController {
     error NotTokenOwner(uint256 tokenId);
     error NameNotExpired(uint256 tokenId, uint64 expires);
 

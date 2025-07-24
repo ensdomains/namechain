@@ -15,9 +15,9 @@ import {SimpleRegistryMetadata} from "./SimpleRegistryMetadata.sol";
 import {NameUtils} from "./NameUtils.sol";
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 import {ITokenObserver} from "./ITokenObserver.sol";
-import {RegistryRolesMixin} from "./RegistryRolesMixin.sol";
+import {LibRegistryRoles} from "./LibRegistryRoles.sol";
 
-contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissionedRegistry, MetadataMixin, RegistryRolesMixin {
+contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissionedRegistry, MetadataMixin {
     event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
 
     mapping(uint256 => ITokenObserver) public tokenObservers;
@@ -61,7 +61,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         public
         virtual
         override
-        onlyRootRoles(ROLE_REGISTRAR)
+        onlyRootRoles(LibRegistryRoles.ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
         uint64 oldExpiry;
@@ -94,12 +94,12 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         return tokenId;
     }
 
-    function setTokenObserver(uint256 tokenId, ITokenObserver observer) public override onlyNonExpiredTokenRoles(tokenId, ROLE_SET_TOKEN_OBSERVER) {
+    function setTokenObserver(uint256 tokenId, ITokenObserver observer) public override onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) {
         tokenObservers[tokenId] = observer;
         emit TokenObserverSet(tokenId, address(observer));
     }
 
-    function renew(uint256 tokenId, uint64 expires) public override onlyNonExpiredTokenRoles(tokenId, ROLE_RENEW) {
+    function renew(uint256 tokenId, uint64 expires) public override onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_RENEW) {
         (address subregistry, uint64 oldExpiration, uint32 tokenIdVersion) = datastore.getSubregistry(tokenId);
         if (expires < oldExpiration) {
             revert CannotReduceExpiration(oldExpiration, expires);
@@ -157,7 +157,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     function setSubregistry(uint256 tokenId, IRegistry registry)
         external
         override
-        onlyNonExpiredTokenRoles(tokenId, ROLE_SET_SUBREGISTRY)
+        onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_SET_SUBREGISTRY)
     {
         (, uint64 expires, uint32 tokenIdVersion) = datastore.getSubregistry(tokenId);
         datastore.setSubregistry(tokenId, address(registry), expires, tokenIdVersion);
@@ -166,7 +166,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     function setResolver(uint256 tokenId, address resolver)
         external
         override
-        onlyNonExpiredTokenRoles(tokenId, ROLE_SET_RESOLVER)
+        onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_SET_RESOLVER)
     {
         datastore.setResolver(tokenId, resolver, 0, 0);
     }

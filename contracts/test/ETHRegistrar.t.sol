@@ -17,6 +17,7 @@ import "../src/common/IEnhancedAccessControl.sol";
 import "../src/common/NameUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
 contract MockPriceOracle is IPriceOracle {
     uint256 public basePrice;
@@ -53,8 +54,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     bytes32 constant SECRET = bytes32(uint256(1234567890));
 
     // Hardcoded role constants
-    uint256 constant ROLE_REGISTRAR = 1 << 0;
-    uint256 constant ROLE_RENEW = 1 << 4;
+
     
     uint256 constant ROLE_SET_PRICE_ORACLE = 1 << 20;
     uint256 constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
@@ -75,7 +75,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE);
         
-        registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(registrar));
+        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(registrar));
         
         vm.deal(address(this), 100 ether);
         vm.deal(user1, 100 ether);

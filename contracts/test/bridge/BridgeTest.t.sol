@@ -1,33 +1,28 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity >=0.8.13;
 
-import "forge-std/Test.sol";
-import "forge-std/console.sol";
-import "forge-std/Vm.sol";
-import "../../src/mocks/MockL1Bridge.sol";
-import "../../src/mocks/MockL2Bridge.sol";
-import "../../src/L1/L1EjectionController.sol";
-import "../../src/L2/L2BridgeController.sol";
-import "../../src/mocks/MockBridgeBase.sol";
-import {BridgeMessageType} from "../../src/common/IBridge.sol";
-import {BridgeEncoder} from "../../src/common/BridgeEncoder.sol";
+import {Test, console2} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
+import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+
+import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
+import {IRegistryDatastore} from "../../src/common/IRegistryDatastore.sol";
+import {PermissionedRegistry} from "../../src/common/PermissionedRegistry.sol";
+import {IPermissionedRegistry} from "../../src/common/IPermissionedRegistry.sol";
+import {IRegistryMetadata} from "../../src/common/IRegistryMetadata.sol";
+import {NameUtils} from "../../src/common/NameUtils.sol";
+import {L1EjectionController} from "../../src/L1/L1EjectionController.sol";
+import {L2BridgeController} from "../../src/L2/L2BridgeController.sol";
+import {MockL1Bridge} from "../../src/mocks/MockL1Bridge.sol";
+import {MockL2Bridge} from "../../src/mocks/MockL2Bridge.sol";
+import {MockBridgeBase} from "../../src/mocks/MockBridgeBase.sol";
+import {EnhancedAccessControl, LibEACBaseRoles} from "../../src/common/EnhancedAccessControl.sol";
+import {LibRegistryRoles} from "../../src/common/LibRegistryRoles.sol";
 import {TransferData, MigrationData} from "../../src/common/TransferData.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {IRegistry} from "../../src/common/IRegistry.sol";
+import {BridgeEncoder} from "../../src/common/BridgeEncoder.sol";
 
-import { IRegistry } from "../../src/common/IRegistry.sol";
-import { IPermissionedRegistry } from "../../src/common/IPermissionedRegistry.sol";
-import { PermissionedRegistry } from "../../src/common/PermissionedRegistry.sol";
-import { ITokenObserver } from "../../src/common/ITokenObserver.sol";
-import { EnhancedAccessControl, LibEACBaseRoles } from "../../src/common/EnhancedAccessControl.sol";
-import { RegistryDatastore } from "../../src/common/RegistryDatastore.sol";
-import { IRegistryMetadata } from "../../src/common/IRegistryMetadata.sol";
-import { SimpleRegistryMetadata } from "../../src/common/SimpleRegistryMetadata.sol";
-import { RegistryRolesMixin } from "../../src/common/RegistryRolesMixin.sol";
-
-
-
-
-contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
+contract BridgeTest is Test, EnhancedAccessControl {
     RegistryDatastore datastore;
 
     PermissionedRegistry l1Registry;
@@ -42,12 +37,11 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     address user2 = address(0x2);
     
     function setUp() public {
-        // Deploy the contracts
+        // Deploy registries
         datastore = new RegistryDatastore();
-
         l1Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
         l2Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
-        
+
         // Deploy bridges
         l1Bridge = new MockL1Bridge();
         l2Bridge = new MockL2Bridge();
@@ -60,9 +54,9 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         l1Bridge.setEjectionController(l1Controller);
         l2Bridge.setBridgeController(l2Controller);
         
-        // Grant ROLE_REGISTRAR and ROLE_RENEW to controllers
-        l1Registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(l1Controller));
-        l2Registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(l2Controller));
+        // Grant LibRegistryRoles.ROLE_REGISTRAR and LibRegistryRoles.ROLE_RENEW to controllers
+        l1Registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(l1Controller));
+        l2Registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(l2Controller));
     }
     
     function testNameEjectionFromL2ToL1() public {
@@ -75,7 +69,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
             subregistry: address(0x123),
             resolver: address(0x456),
             expires: uint64(block.timestamp + 123 days),
-            roleBitmap: ROLE_RENEW
+            roleBitmap: LibRegistryRoles.ROLE_RENEW
         });
 
         // Step 1: Initiate ejection on L2
@@ -84,7 +78,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
         vm.stopPrank();
         
         // Step 2: Simulate receiving the message on L1
-        bytes memory dnsEncodedName = NameCoder.encode("premiumname.eth");
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("premiumname");
         bytes memory bridgeMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);
         l1Bridge.receiveMessage(bridgeMessage);
 
@@ -98,19 +92,20 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     
     function testL2BridgeRevertsMigrationMessages() public {
         // Test that L2 bridge properly rejects migration message types
+        TransferData memory transferData = TransferData({
+            label: "test",
+            owner: user1,
+            subregistry: address(0),
+            resolver: address(0),
+            expires: uint64(block.timestamp + 365 days),
+            roleBitmap: 0
+        });
         MigrationData memory migrationData = MigrationData({
-            transferData: TransferData({
-                label: "test",
-                owner: user1,
-                subregistry: address(0),
-                resolver: address(0),
-                expires: uint64(block.timestamp + 365 days),
-                roleBitmap: 0
-            }),
+            transferData: transferData,
             toL1: false,
             data: abi.encode("test migration data")
         });
-        bytes memory dnsEncodedName = NameCoder.encode("test.eth");
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
         bytes memory migrationMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
         
         // Should revert with MigrationNotSupported error
@@ -120,19 +115,20 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
     
     function testL1BridgeRevertsMigrationMessages() public {
         // Test that L1 bridge properly rejects migration message types when receiving them
+        TransferData memory transferData = TransferData({
+            label: "test",
+            owner: user1,
+            subregistry: address(0),
+            resolver: address(0),
+            expires: uint64(block.timestamp + 365 days),
+            roleBitmap: 0
+        });
         MigrationData memory migrationData = MigrationData({
-            transferData: TransferData({
-                label: "test",
-                owner: user1,
-                subregistry: address(0),
-                resolver: address(0),
-                expires: uint64(block.timestamp + 365 days),
-                roleBitmap: 0
-            }),
+            transferData: transferData,
             toL1: false,
             data: abi.encode("test migration data")
         });
-        bytes memory dnsEncodedName = NameCoder.encode("test.eth");
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
         bytes memory migrationMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
         
         // Should revert with MigrationNotSupported error when receiving migration messages
@@ -150,7 +146,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
             subregistry: address(0x111),
             resolver: address(0x222),
             expires: uint64(block.timestamp + 365 days),
-            roleBitmap: ROLE_RENEW
+            roleBitmap: LibRegistryRoles.ROLE_RENEW
         });
         
         MigrationData memory migrationData = MigrationData({
@@ -159,7 +155,7 @@ contract BridgeTest is Test, EnhancedAccessControl, RegistryRolesMixin {
             data: abi.encode("additional migration data")
         });
         
-        bytes memory dnsEncodedName = NameCoder.encode(string.concat(label, ".eth"));
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(label);
         bytes memory migrationMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
         
         vm.recordLogs();

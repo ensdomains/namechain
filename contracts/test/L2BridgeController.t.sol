@@ -21,9 +21,9 @@ import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 import {ITokenObserver} from "../src/common/ITokenObserver.sol";
 import {IRegistry} from "../src/common/IRegistry.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
-import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
 // Mock implementation of IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -52,7 +52,7 @@ contract MockBridge is IBridge {
 
 
 
-contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
+contract TestL2BridgeController is Test, ERC1155Holder {
     L2BridgeController controller;
     PermissionedRegistry ethRegistry;
     RegistryDatastore datastore;
@@ -93,7 +93,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         );
         
         // Grant roles to bridge controller for registering names
-        ethRegistry.grantRootRoles(ROLE_REGISTRAR, address(controller));
+        ethRegistry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR, address(controller));
         
         // Register a test name
         uint64 expires = uint64(block.timestamp + expiryDuration);
@@ -403,7 +403,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
 
     function test_completeEjectionFromL1() public {
         // Use specific roles instead of ALL_ROLES
-        uint256 originalRoles = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY | ROLE_SET_TOKEN_OBSERVER;
+        uint256 originalRoles = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER;
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
 
         string memory label2 = "test2";
@@ -418,7 +418,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         assertEq(ethRegistry.ownerOf(tokenId2), address(controller), "Controller should own the token");
         
         // Try to migrate with different roles than the original ones - these should be ignored
-        uint256 differentRoles = ROLE_RENEW | ROLE_REGISTRAR;
+        uint256 differentRoles = LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_REGISTRAR;
         vm.recordLogs();
         TransferData memory migrationData = TransferData({
             label: label2,
@@ -640,9 +640,9 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         uint64 expires = uint64(block.timestamp + expiryDuration);
         
         // Scenario 1: Register with only one critical role (missing ROLE_SET_SUBREGISTRY)
-        uint256 tokenId2 = ethRegistry.register(testLabel2, user, ethRegistry, address(0), ROLE_SET_TOKEN_OBSERVER, expires);
+        uint256 tokenId2 = ethRegistry.register(testLabel2, user, ethRegistry, address(0), LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, expires);
         
-        uint256 criticalRoles = ROLE_SET_TOKEN_OBSERVER | ROLE_SET_SUBREGISTRY;
+        uint256 criticalRoles = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         bytes memory ejectionData = _createEjectionData(testLabel2, l1Owner, l1Subregistry, l1Resolver, expires, criticalRoles);
         
         // Should fail due to missing ROLE_SET_SUBREGISTRY
@@ -651,9 +651,9 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         ethRegistry.safeTransferFrom(user, address(controller), tokenId2, 1, ejectionData);
         
         // Scenario 2: Grant the missing role, then add extra assignees
-        ethRegistry.grantRoles(bytes32(tokenId2), ROLE_SET_SUBREGISTRY, user);
+        ethRegistry.grantRoles(bytes32(tokenId2), LibRegistryRoles.ROLE_SET_SUBREGISTRY, user);
         address secondUser = address(0x999);
-        ethRegistry.grantRoles(bytes32(tokenId2), ROLE_SET_TOKEN_OBSERVER, secondUser);
+        ethRegistry.grantRoles(bytes32(tokenId2), LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, secondUser);
         
         // Get the current token ID after regeneration
         (uint256 currentTokenId,,) = ethRegistry.getNameData(testLabel2);
@@ -669,7 +669,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         string memory testLabel3 = "testgoodassignees";
         uint64 expires = uint64(block.timestamp + expiryDuration);
         
-        uint256 criticalRoles = ROLE_SET_TOKEN_OBSERVER | ROLE_SET_SUBREGISTRY;
+        uint256 criticalRoles = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         uint256 tokenId3 = ethRegistry.register(testLabel3, user, ethRegistry, address(0), criticalRoles, expires);
         
         // Verify exactly one assignee per critical role
@@ -704,7 +704,7 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         uint64 expires = uint64(block.timestamp + expiryDuration);
         
         // Only grant critical roles initially
-        uint256 criticalRoles = ROLE_SET_TOKEN_OBSERVER | ROLE_SET_SUBREGISTRY;
+        uint256 criticalRoles = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         uint256 tokenId4 = ethRegistry.register(testLabel4, user, ethRegistry, address(0), criticalRoles, expires);
         
         // Get the resource ID (this stays stable across regenerations)
@@ -713,9 +713,9 @@ contract TestL2BridgeController is Test, ERC1155Holder, RegistryRolesMixin {
         // Add multiple assignees to ROLE_SET_RESOLVER (this should not affect ejection)
         address user2 = address(0x666);
         address user3 = address(0x555);
-        ethRegistry.grantRoles(resourceId, ROLE_SET_RESOLVER, user);
-        ethRegistry.grantRoles(resourceId, ROLE_SET_RESOLVER, user2);
-        ethRegistry.grantRoles(resourceId, ROLE_SET_RESOLVER, user3);
+        ethRegistry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, user);
+        ethRegistry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, user2);
+        ethRegistry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, user3);
         
         // Get the current token ID after regeneration
         (uint256 currentTokenId,,) = ethRegistry.getNameData(testLabel4);
