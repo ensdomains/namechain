@@ -18,11 +18,11 @@ export default execute(
 
     await deploy("PriceOracle", {
       account: deployer,
-      artifact: "TokenPriceOracle",
+      artifact: artifacts.TokenPriceOracle,
       args: [
         tokenAddresses,
-        tokenDecimals,
-        rentPrices,
+        tokenDecimals.map(d => BigInt(d)),
+        rentPrices.map(p => BigInt(p)),
       ],
     });
 

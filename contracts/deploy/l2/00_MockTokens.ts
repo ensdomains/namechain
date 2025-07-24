@@ -5,17 +5,20 @@ export default execute(
   async ({ deploy, namedAccounts }) => {
     const { deployer } = namedAccounts;
 
+    // Use our local MockERC20 contract
+    const MockERC20 = artifacts["src/mocks/MockERC20.sol/MockERC20"];
+
     // Deploy MockUSDC (6 decimals)
     const mockUSDC = await deploy("MockUSDC", {
       account: deployer,
-      artifact: "MockERC20",
+      artifact: MockERC20,
       args: ["USD Coin", "USDC", 6],
     });
 
     // Deploy MockDAI (18 decimals)  
     const mockDAI = await deploy("MockDAI", {
       account: deployer,
-      artifact: "MockERC20",
+      artifact: MockERC20,
       args: ["Dai Stablecoin", "DAI", 18],
     });
 

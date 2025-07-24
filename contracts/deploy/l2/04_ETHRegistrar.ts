@@ -7,12 +7,15 @@ const MAX_COMMITMENT_AGE = 86400n; // 1 day
 
 export default execute(
   async ({ deploy, namedAccounts, get, execute: write }) => {
-    const { deployer } = namedAccounts;
+    const { deployer, owner } = namedAccounts;
 
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
     const priceOracle =
       get<(typeof artifacts.TokenPriceOracle)["abi"]>("PriceOracle");
+
+    // Use owner as beneficiary, or deployer if owner is not set
+    const beneficiary = owner || deployer;
 
     const ethRegistrar = await deploy("ETHRegistrar", {
       account: deployer,
@@ -22,6 +25,7 @@ export default execute(
         priceOracle.address,
         MIN_COMMITMENT_AGE,
         MAX_COMMITMENT_AGE,
+        beneficiary,
       ],
     });
 
