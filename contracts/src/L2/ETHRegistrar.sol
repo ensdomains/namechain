@@ -12,7 +12,13 @@ import {EnhancedAccessControl, LibEACBaseRoles} from "../common/EnhancedAccessCo
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 
 contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
-    uint256 private constant REGISTRATION_ROLE_BITMAP = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN | LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
+    uint256 private constant REGISTRATION_ROLE_BITMAP = 
+        LibRegistryRoles.ROLE_SET_SUBREGISTRY | 
+        LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN | 
+        LibRegistryRoles.ROLE_SET_RESOLVER | 
+        LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN |
+        LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
+        LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN;
 
     uint256 private constant ROLE_SET_PRICE_ORACLE = 1 << 20;
     uint256 private constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;

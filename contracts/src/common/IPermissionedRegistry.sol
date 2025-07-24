@@ -41,4 +41,15 @@ interface IPermissionedRegistry is IStandardRegistry {
      * @return The token ID for the resource ID.
      */
     function getResourceTokenId(bytes32 resource) external view returns (uint256);
+
+
+
+    /**
+     * @dev Fetches the number of assignees for a given role bitmap.
+     * @param tokenId The token ID to fetch the assignee count for.
+     * @param roleBitmap The role bitmap to fetch the assignee count for.
+     * @return counts The number of assignees for the role bitmap.
+     * @return mask The mask of the role bitmap.
+     */
+    function getRoleAssigneeCount(uint256 tokenId, uint256 roleBitmap) external view returns (uint256 counts, uint256 mask);
 }

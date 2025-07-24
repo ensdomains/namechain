@@ -839,14 +839,18 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         uint256 ROLE_SET_SUBREGISTRY_ADMIN = ROLE_SET_SUBREGISTRY << 128;
         uint256 ROLE_SET_RESOLVER = 1 << 12;
         uint256 ROLE_SET_RESOLVER_ADMIN = ROLE_SET_RESOLVER << 128;
+        uint256 ROLE_SET_TOKEN_OBSERVER = 1 << 16;
+        uint256 ROLE_SET_TOKEN_OBSERVER_ADMIN = ROLE_SET_TOKEN_OBSERVER << 128;
 
         assertTrue(registry.hasRoles(resource, ROLE_SET_SUBREGISTRY, user1));
         assertTrue(registry.hasRoles(resource, ROLE_SET_SUBREGISTRY_ADMIN, user1));
         assertTrue(registry.hasRoles(resource, ROLE_SET_RESOLVER, user1));
         assertTrue(registry.hasRoles(resource, ROLE_SET_RESOLVER_ADMIN, user1));
+        assertTrue(registry.hasRoles(resource, ROLE_SET_TOKEN_OBSERVER, user1));
+        assertTrue(registry.hasRoles(resource, ROLE_SET_TOKEN_OBSERVER_ADMIN, user1));
 
         // Check combined bitmap
-        uint256 ROLE_BITMAP_REGISTRATION = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;
+        uint256 ROLE_BITMAP_REGISTRATION = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN | ROLE_SET_TOKEN_OBSERVER | ROLE_SET_TOKEN_OBSERVER_ADMIN;
         assertTrue(registry.hasRoles(resource, ROLE_BITMAP_REGISTRATION, user1));
     }
 

@@ -394,8 +394,13 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     }
 
     function test_completeEjectionFromL1() public {
-        // Use specific roles instead of ALL_ROLES
-        uint256 originalRoles = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER;
+        // Use specific roles instead of ALL_ROLES, including admin roles that are now required
+        uint256 originalRoles = 
+            LibRegistryRoles.ROLE_SET_RESOLVER | 
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY | 
+            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
+            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
 
         string memory label2 = "test2";
@@ -606,16 +611,22 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         // Scenario 1: Register with only one critical role (missing ROLE_SET_SUBREGISTRY)
         uint256 tokenId2 = ethRegistry.register(testLabel2, user, ethRegistry, address(0), LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, expires);
         
-        uint256 criticalRoles = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        uint256 criticalRoles = 
+            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
+            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY |
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
         bytes memory ejectionData = _createEjectionData(testLabel2, l1Owner, l1Subregistry, l1Resolver, expires, criticalRoles);
         
-        // Should fail due to missing ROLE_SET_SUBREGISTRY
+        // Should fail due to missing ROLE_SET_SUBREGISTRY and admin roles
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.TooManyRoleAssignees.selector, tokenId2, criticalRoles));
         vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId2, 1, ejectionData);
         
-        // Scenario 2: Grant the missing role, then add extra assignees
+        // Scenario 2: Grant the missing roles, then add extra assignees
         ethRegistry.grantRoles(bytes32(tokenId2), LibRegistryRoles.ROLE_SET_SUBREGISTRY, user);
+        ethRegistry.grantRoles(bytes32(tokenId2), LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN, user);
+        ethRegistry.grantRoles(bytes32(tokenId2), LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN, user);
         address secondUser = address(0x999);
         ethRegistry.grantRoles(bytes32(tokenId2), LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, secondUser);
         
@@ -633,7 +644,11 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         string memory testLabel3 = "testgoodassignees";
         uint64 expires = uint64(block.timestamp + expiryDuration);
         
-        uint256 criticalRoles = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        uint256 criticalRoles = 
+            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
+            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY |
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
         uint256 tokenId3 = ethRegistry.register(testLabel3, user, ethRegistry, address(0), criticalRoles, expires);
         
         // Verify exactly one assignee per critical role
@@ -668,7 +683,11 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint64 expires = uint64(block.timestamp + expiryDuration);
         
         // Only grant critical roles initially
-        uint256 criticalRoles = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        uint256 criticalRoles = 
+            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
+            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY |
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
         uint256 tokenId4 = ethRegistry.register(testLabel4, user, ethRegistry, address(0), criticalRoles, expires);
         
         // Get the resource ID (this stays stable across regenerations)

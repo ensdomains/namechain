@@ -191,6 +191,10 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         return _constructTokenId(canonicalId, tokenIdVersion);
     }
 
+    function getRoleAssigneeCount(uint256 tokenId, uint256 roleBitmap) external view override returns (uint256 counts, uint256 mask) {
+        return getAssigneeCount(getTokenIdResource(tokenId), roleBitmap);
+    }
+
     // Internal/private methods
 
     /**

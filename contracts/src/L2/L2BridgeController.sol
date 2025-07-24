@@ -2,7 +2,6 @@
 pragma solidity >=0.8.13;
 
 import {TransferData, MigrationData} from "../common/TransferData.sol";
-
 import {IRegistry} from "../common/IRegistry.sol";
 import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
@@ -15,8 +14,6 @@ import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {EjectionController} from "../common/EjectionController.sol";
 import {IBridge, LibBridgeRoles} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
-import {LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
-import {IEnhancedAccessControl} from "../common/IEnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 
 /**
@@ -156,8 +153,12 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             We also don't need to check that we (the bridge controller) are the sole assignee of these roles since we exercise these 
             roles further down below.
             */
-            uint256 roleBitmap = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
-            (uint256 counts, uint256 mask) = IEnhancedAccessControl(address(registry)).getAssigneeCount(registry.getTokenIdResource(tokenId), roleBitmap);
+            uint256 roleBitmap = 
+                LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
+                LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+                LibRegistryRoles.ROLE_SET_SUBREGISTRY |
+                LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+            (uint256 counts, uint256 mask) = registry.getRoleAssigneeCount(tokenId, roleBitmap);
             if (counts & mask != roleBitmap) {
                 revert TooManyRoleAssignees(tokenId, roleBitmap);
             }
