@@ -2,7 +2,7 @@
 import { artifacts, execute } from "@rocketh";
 
 // USD prices in 6 decimals (USDC standard)
-const BASE_PRICE_USD = 10 * 10**6;     // $10.00
+const BASE_PRICE_USD = 10n * 10n**6n;     // $10.00
 
 export default execute(
   async ({ deploy, namedAccounts, get }) => {
@@ -27,8 +27,8 @@ export default execute(
     });
 
     console.log(`✅ TokenPriceOracle deployed with:`)
-    console.log(`   - Base Price: $${BASE_PRICE_USD / 10**6}`);
-    console.log(`   - Rent Prices: [${rentPrices.map(p => `$${p / 10**6}`).join(', ')}]`);
+    console.log(`   - Base Price: $${Number(BASE_PRICE_USD) / 10**6}`);
+    console.log(`   - Rent Prices: [${rentPrices.map(p => `$${Number(p) / 10**6}`).join(', ')}]`);
     console.log(`   - Supported Tokens:`);
     console.log(`     - MockUSDC (6 decimals): ${tokenAddresses[0]}`);
     console.log(`     - MockDAI (18 decimals): ${tokenAddresses[1]}`);
