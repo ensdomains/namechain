@@ -120,7 +120,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      *
      * @param resource The resource to check.
      * @param roleBitmap The roles bitmap to check.
-     * @return counts The no. of assignees for each of the roles in the given role bitmap, expressed as a bitmap.
+     * @return counts The no. of assignees for each of the roles in the given role bitmap, expressed as a packed array of 4-bit ints.
      * @return mask The mask for the given role bitmap.
      */
     function getAssigneeCount(bytes32 resource, uint256 roleBitmap) public view virtual returns (uint256 counts, uint256 mask) {
