@@ -144,7 +144,18 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             // check that the label matches the token id
             _assertTokenIdMatchesLabel(tokenId, transferData.label);
 
-            // check that there is no more than holder of the token observer and subregistry setting roles
+            /*
+            Check that there is no more than holder of the token observer and subregistry setting roles.
+
+            This works by calculating the no. of assignees for each of the given roles as a bitmap `(counts & mask)` where each role's corresponding 
+            nybble is set to its assignee count.
+
+            Since the roles themselves are bitmaps where each role's nybble is set to 1, we can simply comparing the two values to 
+            check to see if each role has exactly one assignee.
+
+            We also don't need to check that we (the bridge controller) are the sole assignee of these roles since we exercise these 
+            roles further down below.
+            */
             uint256 roleBitmap = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
             (uint256 counts, uint256 mask) = IEnhancedAccessControl(address(registry)).getAssigneeCount(registry.getTokenIdResource(tokenId), roleBitmap);
             if (counts & mask != roleBitmap) {
