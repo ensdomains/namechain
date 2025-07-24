@@ -171,7 +171,6 @@ contract UserRegistryTest is Test, ERC1155Holder {
     
     function test_Revert_unauthorized_registration() public {
         // User1 tries to register a domain without ROLE_REGISTRAR
-        vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
@@ -180,6 +179,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
                 user1
             )
         );
+        vm.prank(user1);
         proxy.register(
             "unauthorizeddomain",
             user1,
@@ -192,7 +192,6 @@ contract UserRegistryTest is Test, ERC1155Holder {
     
     function test_Revert_unauthorized_role_grant() public {
         // User1 tries to grant roles without permission
-        vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector,
@@ -201,6 +200,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
                 user1
             )
         );
+        vm.prank(user1);
         proxy.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR, user2);
     }
     
@@ -246,7 +246,6 @@ contract UserRegistryTest is Test, ERC1155Holder {
         UserRegistryV2Mock newImplementation = new UserRegistryV2Mock();
         
         // User1 tries to upgrade without permission
-        vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
@@ -255,6 +254,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
                 user1
             )
         );
+        vm.prank(user1);
         proxy.upgradeToAndCall(address(newImplementation), "");
     }
     

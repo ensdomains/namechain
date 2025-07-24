@@ -264,48 +264,51 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry.renew(tokenId, newExpiry);
     }
 
-    function test_relinquish() public {
-        uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
-        registry.relinquish(tokenId);
+    function test_burn() public {
+        uint256 roleBitmap = defaultRoleBitmap | LibRegistryRoles.ROLE_BURN;
+        uint256 tokenId = registry.register("test2", address(this), registry, address(0), roleBitmap, uint64(block.timestamp) + 86400);
+        registry.burn(tokenId);
         vm.assertEq(registry.ownerOf(tokenId), address(0));
         vm.assertEq(address(registry.getSubregistry("test2")), address(0));
     }
 
-    function test_relinquish_revokes_roles() public {
-        uint256 tokenId = registry.register("test2", owner, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
+    function test_burn_revokes_roles() public {
+        uint256 roleBitmap = defaultRoleBitmap | LibRegistryRoles.ROLE_BURN;
+        uint256 tokenId = registry.register("test2", owner, registry, address(0), roleBitmap, uint64(block.timestamp) + 86400);
         
-        // Verify roles before relinquishing
+        // Verify roles before burning
         assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, owner));
         assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_RESOLVER, owner));
         
         vm.prank(owner);
-        registry.relinquish(tokenId);
+        registry.burn(tokenId);
         
-        // Verify roles are revoked after relinquishing
+        // Verify roles are revoked after burning
         assertFalse(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, owner));
         assertFalse(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_RESOLVER, owner));
     }
 
-    function test_relinquish_emits_event() public {
-        uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
+    function test_burn_emits_event() public {
+        uint256 roleBitmap = defaultRoleBitmap | LibRegistryRoles.ROLE_BURN;
+        uint256 tokenId = registry.register("test2", address(this), registry, address(0), roleBitmap, uint64(block.timestamp) + 100);
         
         vm.recordLogs();
-        registry.relinquish(tokenId);
+        registry.burn(tokenId);
         
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 6);
-        assertEq(entries[5].topics[0], keccak256("NameRelinquished(uint256,address)"));
+        assertEq(entries[5].topics[0], keccak256("NameBurned(uint256,address)"));
         assertEq(entries[5].topics[1], bytes32(tokenId));
-        (address relinquishedBy) = abi.decode(entries[5].data, (address));
-        assertEq(relinquishedBy, address(this));
+        (address burnedBy) = abi.decode(entries[5].data, (address));
+        assertEq(burnedBy, address(this));
     }
 
-    function test_Revert_cannot_relinquish_if_not_owner() public {
+    function test_Revert_cannot_burn_without_role() public {
         uint256 tokenId = registry.register("test2", address(1), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
 
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_BURN, address(2)));
         vm.prank(address(2));
-        vm.expectRevert(abi.encodeWithSelector(BaseRegistry.AccessDenied.selector, tokenId, address(1), address(2)));
-        registry.relinquish(tokenId);
+        registry.burn(tokenId);
 
         vm.assertEq(registry.ownerOf(tokenId), address(1));
         vm.assertEq(address(registry.getSubregistry("test2")), address(registry));
@@ -350,18 +353,6 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertEq(observer.lastTokenId(), tokenId);
         assertEq(observer.lastExpiry(), newExpiry);
         assertEq(observer.lastCaller(), address(this));
-        assertEq(observer.wasRelinquished(), false);
-    }
-
-    function test_token_observer_relinquish() public {
-        uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
-        registry.setTokenObserver(tokenId, observer);
-        
-        registry.relinquish(tokenId);
-        
-        assertEq(observer.lastTokenId(), tokenId);
-        assertEq(observer.lastCaller(), address(this));
-        assertEq(observer.wasRelinquished(), true);
     }
 
     function test_Revert_set_token_observer_if_not_owner_with_role() public {
@@ -418,10 +409,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry.setTokenObserver(newTokenId, observer);
         
         // Verify observer was set
-        vm.prank(user1);
-        registry.relinquish(newTokenId);
-        assertEq(observer.lastTokenId(), newTokenId);
-        assertEq(observer.wasRelinquished(), true);
+        assertEq(address(registry.tokenObservers(newTokenId)), address(observer));
     }
 
     function test_Revert_renew_when_token_observer_reverts() public {
@@ -436,15 +424,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertEq(expiry, uint64(block.timestamp) + 100);
     }
 
-    function test_Revert_relinquish_when_token_observer_reverts() public {
-        uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
-        registry.setTokenObserver(tokenId, revertingObserver);
-        
-        vm.expectRevert(RevertingTokenObserver.ObserverReverted.selector);
-        registry.relinquish(tokenId);
-        
-        assertEq(registry.ownerOf(tokenId), address(this));
-    }
+
 
     function test_set_token_observer_emits_event() public {
         uint256 tokenId = registry.register("test2", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
@@ -831,19 +811,11 @@ contract MockTokenObserver is ITokenObserver {
     uint256 public lastTokenId;
     uint64 public lastExpiry;
     address public lastCaller;
-    bool public wasRelinquished;
 
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external {
         lastTokenId = tokenId;
         lastExpiry = expires;
         lastCaller = renewedBy;
-        wasRelinquished = false;
-    }
-
-    function onRelinquish(uint256 tokenId, address relinquishedBy) external {
-        lastTokenId = tokenId;
-        lastCaller = relinquishedBy;
-        wasRelinquished = true;
     }
 }
 
@@ -851,10 +823,6 @@ contract RevertingTokenObserver is ITokenObserver {
     error ObserverReverted();
 
     function onRenew(uint256, uint64, address) external pure {
-        revert ObserverReverted();
-    }
-
-    function onRelinquish(uint256, address) external pure {
         revert ObserverReverted();
     }
 }

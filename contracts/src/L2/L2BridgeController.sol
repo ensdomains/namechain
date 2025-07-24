@@ -133,14 +133,6 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     }
 
     /**
-     * @dev Default implementation of onRelinquish that does nothing.
-     * Can be overridden in derived contracts for custom behavior.
-     */
-    function onRelinquish(uint256 /* tokenId */, address /* relinquishedBy */) external virtual {
-        // Default implementation does nothing
-    }
-
-    /**
      * @dev Validates 2LD structure and checks if label exists
      * @param name The DNS-encoded name (must be a 2LD like "example.eth")
      * @return tokenId The token id of the name

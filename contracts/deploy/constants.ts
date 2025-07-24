@@ -11,6 +11,7 @@ const FLAGS = {
     SET_SUBREGISTRY: 1n << 8n,
     SET_RESOLVER: 1n << 12n,
     SET_TOKEN_OBSERVER: 1n << 16n,
+    BURN: 1n << 20n,
   },
   // see: L2/ETHRegistry.sol
   ETH: {

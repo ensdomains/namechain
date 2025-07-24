@@ -54,8 +54,8 @@ contract BridgeTest is Test, EnhancedAccessControl {
         l1Bridge.setEjectionController(l1Controller);
         l2Bridge.setBridgeController(l2Controller);
         
-        // Grant LibRegistryRoles.ROLE_REGISTRAR and LibRegistryRoles.ROLE_RENEW to controllers
-        l1Registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(l1Controller));
+        // Grant necessary roles to controllers
+        l1Registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, address(l1Controller));
         l2Registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(l2Controller));
     }
     

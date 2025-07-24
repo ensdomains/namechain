@@ -620,8 +620,8 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes memory data = abi.encode(migrationData);
         
         // Try to transfer locked name (should revert with MigrationNotSupported)
-        vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.MigrationNotSupported.selector));
+        vm.prank(user);
         nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
     }
 
@@ -656,8 +656,8 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes memory data = abi.encode(migrationDataArray);
         
         // Should revert when processing the first locked name
-        vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.MigrationNotSupported.selector));
+        vm.prank(user);
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
     }
 
@@ -706,8 +706,8 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         // Use a locked token so it doesn't try to unwrap (which would trigger the ERC1155InvalidReceiver issue)
         nameWrapper.setFuses(testTokenId, CANNOT_UNWRAP); // Mark as locked
         
-        vm.prank(address(nameWrapper));
         vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.MigrationNotSupported.selector));
+        vm.prank(address(nameWrapper));
         migrationController.onERC1155Received(address(this), user, testTokenId, 1, data);
     }
 
@@ -730,8 +730,8 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         // Use a locked token so it doesn't try to unwrap (which would trigger the ERC1155InvalidReceiver issue)
         nameWrapper.setFuses(tokenId1, CANNOT_UNWRAP); // Mark as locked
         
-        vm.prank(address(nameWrapper));
         vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.MigrationNotSupported.selector));
+        vm.prank(address(nameWrapper));
         migrationController.onERC1155BatchReceived(address(this), user, tokenIds, amounts, data);
     }
 
@@ -748,8 +748,8 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         uint256 expectedTokenId = uint256(keccak256(bytes("wronglabel")));
         
         // Try to transfer with mismatched tokenId and label
-        vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.TokenIdMismatch.selector, testTokenId, expectedTokenId));
+        vm.prank(user);
         ethRegistryV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
     }
 
@@ -768,8 +768,8 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         uint256 expectedTokenId = uint256(keccak256(bytes("wronglabel")));
         
         // Try to transfer with mismatched tokenId and label
-        vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.TokenIdMismatch.selector, testTokenId, expectedTokenId));
+        vm.prank(user);
         nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
     }
 
@@ -805,8 +805,8 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         uint256 expectedTokenId = uint256(keccak256(bytes(wrongLabel2)));
         
         // Should revert when processing the second token with mismatched data
-        vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.TokenIdMismatch.selector, tokenId2, expectedTokenId));
+        vm.prank(user);
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
     }
 } 

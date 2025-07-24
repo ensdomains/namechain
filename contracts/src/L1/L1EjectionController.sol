@@ -65,8 +65,9 @@ contract L1EjectionController is EjectionController {
 
             // check that the label matches the token id
             _assertTokenIdMatchesLabel(tokenId, transferData.label);
-
-            registry.relinquish(tokenId);
+            
+            // burn the token
+            registry.burn(tokenId);
 
             // send the message to the bridge
             bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);

@@ -138,7 +138,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
         // grant roles
         registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(this));
-        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(ejectionController));
+        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, address(ejectionController));
     }
 
     function test_eject_from_namechain_unlocked() public {
@@ -451,7 +451,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         
         // Verify all tokens were processed correctly
         for (uint256 i = 0; i < ids.length; i++) {
-            assertEq(registry.ownerOf(ids[i]), address(0), "Token should have been relinquished");
+            assertEq(registry.ownerOf(ids[i]), address(0), "Token should have been burned");
         }
         
         _verifyBatchEventEmission();

@@ -194,8 +194,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
         
         // user1 attempts to grant ROLE_A which requires ADMIN_ROLE_A admin
-        vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector, RESOURCE_1, ROLE_A, user1));
+        vm.prank(user1);
         access.grantRoles(RESOURCE_1, ROLE_A, user2);
     }
 
@@ -973,8 +973,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         
         // Grant to 16th user should still fail even with admin role
         access.grantRoles(RESOURCE_1, ADMIN_ROLE_A, user16);
-        vm.prank(user16);
         vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACMaxAssignees.selector, RESOURCE_1, ROLE_A));
+        vm.prank(user16);
         access.grantRoles(RESOURCE_1, ROLE_A, makeAddr("maxUser17"));
     }
 

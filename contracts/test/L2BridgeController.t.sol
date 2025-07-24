@@ -304,8 +304,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         );
         
         // Try to migrate a name that doesn't exist
-        vm.prank(address(bridge));
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NameNotFound.selector, dnsEncodedName));
+        vm.prank(address(bridge));
         controller.completeMigrationFromL1(dnsEncodedName, migrationData);
     }
 
@@ -328,8 +328,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         );
         
         // Try to migrate when bridge controller doesn't own the token
-        vm.prank(address(bridge));
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NotTokenOwner.selector, newTokenId));
+        vm.prank(address(bridge));
         controller.completeMigrationFromL1(dnsEncodedName, migrationData);
     }
 
@@ -351,8 +351,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         );
         
         // Try to migrate with invalid TLD
-        vm.prank(address(bridge));
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.InvalidTLD.selector, invalidDnsName));
+        vm.prank(address(bridge));
         controller.completeMigrationFromL1(invalidDnsName, migrationData);
     }
 
@@ -550,32 +550,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertEq(decodedExpiry, newExpiry, "Expiry should match");
     }
 
-    function test_onRelinquish_doesNothing() public {
-        // First eject the name so the controller owns it and becomes the observer
-        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
-        bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
-        vm.prank(user);
-        ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
-        
-        // Verify controller owns the token and is the observer
-        assertEq(ethRegistry.ownerOf(tokenId), address(controller), "Controller should own the token");
-        assertEq(address(ethRegistry.tokenObservers(tokenId)), address(controller), "Controller should be the observer");
-        
-        address relinquisher = address(this);
-        
-        // Reset bridge counters to verify no messages are sent
-        bridge.resetCounters();
-        
-        // Call onRelinquish directly on the controller (simulating a call from the registry)
-        controller.onRelinquish(tokenId, relinquisher);
-        
-        // Verify no bridge messages were sent (default implementation does nothing)
-        assertEq(bridge.sendMessageCallCount(), 0, "Bridge should not have been called");
-        
-        // Verify token is still owned by the controller (onRelinquish doesn't change ownership)
-        assertEq(ethRegistry.ownerOf(tokenId), address(controller), "Token should still be owned by controller");
-    }
+
 
     function test_Revert_eject_invalid_label() public {
         // Prepare the data for ejection with an invalid label
@@ -588,8 +563,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertEq(ethRegistry.ownerOf(tokenId), user);
         
         // User transfers the token to the bridge controller, should revert with InvalidLabel
-        vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId, invalidLabel));
+        vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
     }
 
@@ -624,14 +599,6 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         address renewer = address(this);
         controller.onRenew(tokenId, newExpiry, renewer);
         assertEq(bridge.sendMessageCallCount(), 1, "onRenew should send bridge message");
-        
-        // Reset counters for onRelinquish test
-        bridge.resetCounters();
-        
-        // Test onRelinquish callback - should do nothing
-        address relinquisher = address(this);
-        controller.onRelinquish(tokenId, relinquisher);
-        assertEq(bridge.sendMessageCallCount(), 0, "onRelinquish should not send bridge message");
     }
 
     function test_Revert_eject_tooManyRoleAssignees() public {
@@ -646,8 +613,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         bytes memory ejectionData = _createEjectionData(testLabel2, l1Owner, l1Subregistry, l1Resolver, expires, criticalRoles);
         
         // Should fail due to missing ROLE_SET_SUBREGISTRY
-        vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.TooManyRoleAssignees.selector, tokenId2, criticalRoles));
+        vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId2, 1, ejectionData);
         
         // Scenario 2: Grant the missing role, then add extra assignees
@@ -659,8 +626,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         (uint256 currentTokenId,,) = ethRegistry.getNameData(testLabel2);
         
         // Should fail due to multiple assignees for ROLE_SET_TOKEN_OBSERVER
-        vm.prank(user);
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.TooManyRoleAssignees.selector, currentTokenId, criticalRoles));
+        vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), currentTokenId, 1, ejectionData);
     }
 

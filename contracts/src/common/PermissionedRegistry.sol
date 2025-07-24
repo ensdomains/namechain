@@ -116,23 +116,18 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     }
 
     /**
-     * @dev Relinquish a name.
+     * @dev Burn a name.
      *      This will destroy the name and remove it from the registry.
      *
      * @param tokenId The token ID of the name to relinquish.
      */
-    function relinquish(uint256 tokenId) external override onlyTokenOwner(tokenId) {
+    function burn(uint256 tokenId) external override onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_BURN) {
         _burn(ownerOf(tokenId), tokenId, 1);
 
         datastore.setSubregistry(tokenId, address(0), 0, 0);
         datastore.setResolver(tokenId, address(0), 0, 0);
 
-        ITokenObserver observer = tokenObservers[tokenId];
-        if (address(observer) != address(0)) {
-            observer.onRelinquish(tokenId, msg.sender);
-        }
-
-        emit NameRelinquished(tokenId, msg.sender);
+        emit NameBurned(tokenId, msg.sender);
     }
 
     function getSubregistry(string calldata label) external view virtual override(BaseRegistry, IRegistry) returns (IRegistry) {
