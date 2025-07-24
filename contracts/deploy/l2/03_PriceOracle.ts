@@ -21,8 +21,8 @@ export default execute(
       artifact: artifacts.TokenPriceOracle,
       args: [
         tokenAddresses,
-        tokenDecimals.map(d => BigInt(d)),
-        rentPrices.map(p => BigInt(p)),
+        tokenDecimals,
+        rentPrices,
       ],
     });
 
