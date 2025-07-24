@@ -10,7 +10,7 @@ import {MockBridgeBase} from "../src/mocks/MockBridgeBase.sol";
 import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
 import {L2BridgeController} from "../src/L2/L2BridgeController.sol";
 import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
-import {BridgeMessageType} from "../src/common/IBridge.sol";
+import {IBridge, BridgeMessageType, LibBridgeRoles} from "../src/common/IBridge.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
@@ -62,6 +62,11 @@ contract TestBridgeMessages is Test {
         // Grant necessary roles
         registry.grantRootRoles(LibEACBaseRoles.ALL_ROLES, address(l1Controller));
         registry.grantRootRoles(LibEACBaseRoles.ALL_ROLES, address(l2Controller));
+        
+        // Grant bridge roles so the bridges can call the controllers
+        l1Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l1Bridge));
+        l2Controller.grantRootRoles(LibBridgeRoles.ROLE_MIGRATOR, address(l2Bridge));
+        l2Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l2Bridge));
     }
 
     function test_encodeDecodeEjection() public view {

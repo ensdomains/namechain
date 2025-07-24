@@ -7,13 +7,14 @@ import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC16
 import {TransferData} from "./TransferData.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "./NameUtils.sol";
-import {IBridge} from "./IBridge.sol";
+import {IBridge, LibBridgeRoles} from "./IBridge.sol";
+import {EnhancedAccessControl, LibEACBaseRoles} from "./EnhancedAccessControl.sol";
 
 /**
  * @title EjectionController
  * @dev Base contract for the ejection controllers.
  */
-abstract contract EjectionController is IERC1155Receiver, ERC165 {
+abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccessControl {
     error UnauthorizedCaller(address caller);
     error InvalidLabel(uint256 tokenId, string label);
 
@@ -22,13 +23,6 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
 
     IPermissionedRegistry public immutable registry;
     IBridge public immutable bridge;
-
-    modifier onlyBridge() {
-        if (msg.sender != address(bridge)) {
-            revert UnauthorizedCaller(msg.sender);
-        }
-        _;
-    }
 
     modifier onlyRegistry() {
         if (msg.sender != address(registry)) {
@@ -40,12 +34,15 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
     constructor(IPermissionedRegistry _registry, IBridge _bridge) {
         registry = _registry;
         bridge = _bridge;
+        
+        // Grant admin roles to the deployer so they can manage bridge roles
+        _grantRoles(ROOT_RESOURCE, LibBridgeRoles.ROLE_MIGRATOR_ADMIN | LibBridgeRoles.ROLE_EJECTOR_ADMIN, msg.sender, true);
     }
 
     /**
      * Implements ERC165.supportsInterface
      */
-    function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, IERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, EnhancedAccessControl, IERC165) returns (bool) {
         return interfaceId == type(EjectionController).interfaceId || interfaceId == type(IERC1155Receiver).interfaceId || super.supportsInterface(interfaceId);
     }
 

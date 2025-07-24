@@ -1476,7 +1476,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertEq(mask, 0xff); // Mask for first two nybbles
     }
 
-    function test_getAssigneeCount_mask_calculation() public {
+    function test_getAssigneeCount_mask_calculation() public view {
         // Test that masks are calculated correctly for different role combinations
         
         // Single roles
@@ -1504,7 +1504,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertEq(maskAll, 0xffff); // All four nybbles
     }
 
-    function test_getAssigneeCount_zero_bitmap() public {
+    function test_getAssigneeCount_zero_bitmap() public view {
         // Test getAssigneeCount with zero role bitmap - should return zero counts
         (uint256 counts, uint256 mask) = access.getAssigneeCount(RESOURCE_1, 0);
         assertEq(counts, 0);

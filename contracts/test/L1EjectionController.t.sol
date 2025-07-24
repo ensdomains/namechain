@@ -13,6 +13,7 @@ import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
 import {TransferData} from "../src/common/TransferData.sol";
 import {EnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 import "../src/common/IRegistryMetadata.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import "../src/common/BaseRegistry.sol";
@@ -20,7 +21,7 @@ import "../src/common/IStandardRegistry.sol";
 import "../src/common/NameUtils.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
-import {IBridge} from "../src/common/IBridge.sol";
+import {IBridge, LibBridgeRoles} from "../src/common/IBridge.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -136,9 +137,12 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Create the real controller with the correct registry and bridge
         ejectionController = new L1EjectionController(registry, bridge);
 
-        // grant roles
+        // grant roles to registry operations
         registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(this));
         registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, address(ejectionController));
+        
+        // Grant bridge roles to the bridge mock so it can call the ejection controller
+        ejectionController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(bridge));
     }
 
     function test_eject_from_namechain_unlocked() public {
@@ -611,8 +615,13 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         
-        // Try to call completeEjectionFromL2 directly (not from bridge)
-        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
+        // Try to call completeEjectionFromL2 directly (without proper role)
+        vm.expectRevert(abi.encodeWithSelector(
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            bytes32(0), // ROOT_RESOURCE
+            LibBridgeRoles.ROLE_EJECTOR,
+            address(this)
+        ));
         ejectionController.completeEjectionFromL2(transferData);
     }
 
@@ -633,8 +642,13 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
-        // Try to call syncRenewal directly (not from bridge)
-        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
+        // Try to call syncRenewal directly (without proper role)
+        vm.expectRevert(abi.encodeWithSelector(
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            bytes32(0), // ROOT_RESOURCE
+            LibBridgeRoles.ROLE_EJECTOR,
+            address(this)
+        ));
         ejectionController.syncRenewal(tokenId, uint64(block.timestamp + 86400 * 2));
     }
 }

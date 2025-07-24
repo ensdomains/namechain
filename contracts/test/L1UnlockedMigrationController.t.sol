@@ -20,10 +20,22 @@ import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.s
 import {L1UnlockedMigrationController} from "../src/L1/L1UnlockedMigrationController.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
 import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
-import {IBridge, BridgeMessageType} from "../src/common/IBridge.sol";
+import {IBridge, BridgeMessageType, LibBridgeRoles} from "../src/common/IBridge.sol";
 import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
 import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
+import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
+import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
+import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
+
+// Simple mock that implements IRegistryMetadata
+contract MockRegistryMetadata is IRegistryMetadata {
+    function tokenUri(uint256) external pure override returns (string memory) {
+        return "";
+    }
+}
 
 // Simple mock that implements IBaseRegistrar without the compilation issues
 contract MockBaseRegistrar is ERC721, IBaseRegistrar {
@@ -147,23 +159,17 @@ contract MockNameWrapper is ERC1155 {
     }
 }
 
-contract MockL1EjectionController is L1EjectionController {
-    event MockMigrateFromV1Called(TransferData transferData);
-
-    constructor() L1EjectionController(IPermissionedRegistry(address(0)), IBridge(address(0))) {}
-
-    function completeEjectionFromL2(TransferData memory transferData) public override returns (uint256) {
-        emit MockMigrateFromV1Called(transferData);
-        return 0; // Return a dummy token ID for testing
-    }
-}
-
 contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder {
     MockBaseRegistrar ethRegistryV1;
     MockNameWrapper nameWrapper;
     L1UnlockedMigrationController migrationController;
     MockL1Bridge mockBridge;
-    MockL1EjectionController mockL1EjectionController;
+    
+    // Real components for testing
+    L1EjectionController realL1EjectionController;
+    RegistryDatastore datastore;
+    PermissionedRegistry registry;
+    MockRegistryMetadata registryMetadata;
 
     address user = address(0x1234);
     address controller = address(0x5678);
@@ -192,15 +198,15 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
     /**
      * Helper method to create properly encoded migration data with toL1 flag
      */
-    function _createMigrationDataWithL1Flag(string memory label, bool toL1) internal pure returns (MigrationData memory) {
+    function _createMigrationDataWithL1Flag(string memory label, bool toL1) internal view returns (MigrationData memory) {
         return MigrationData({
             transferData: TransferData({
                 label: label,
-                owner: address(0),
-                subregistry: address(0),
-                resolver: address(0),
+                owner: address(0x1111),
+                subregistry: address(0x2222),
+                resolver: address(0x3333),
                 roleBitmap: 0,
-                expires: 0
+                expires: uint64(block.timestamp + 86400) // Valid future expiration
             }),
             toL1: toL1,
             data: ""
@@ -275,44 +281,68 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
     }
 
     /**
-     * Helper method to verify that a MockMigrateFromV1Called event was emitted
+     * Helper method to verify that a NameEjectedToL1 event was emitted
      */
     function _assertL1MigratorEvent(string memory expectedLabel, Vm.Log[] memory entries) internal view {
         bool foundMigratorEvent = false;
-        bytes32 expectedSig = keccak256("MockMigrateFromV1Called((string,address,address,address,uint256,uint64))");
+        bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(mockL1EjectionController) && entries[i].topics[0] == expectedSig) {
-                TransferData memory decodedTransferData = abi.decode(entries[i].data, (TransferData));
-                if (keccak256(bytes(decodedTransferData.label)) == keccak256(bytes(expectedLabel))) {
+            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
+                // NameEjectedToL1(bytes dnsEncodedName, uint256 tokenId)
+                (bytes memory dnsEncodedName, ) = abi.decode(entries[i].data, (bytes, uint256));
+                // Extract label from DNS encoded name (first byte is length, then the label)
+                uint8 labelLength = uint8(dnsEncodedName[0]);
+                bytes memory labelBytes = new bytes(labelLength);
+                for (uint256 j = 0; j < labelLength; j++) {
+                    labelBytes[j] = dnsEncodedName[j + 1];
+                }
+                string memory emittedLabel = string(labelBytes);
+                if (keccak256(bytes(emittedLabel)) == keccak256(bytes(expectedLabel))) {
                     foundMigratorEvent = true;
                     break;
                 }
             }
         }
-        assertTrue(foundMigratorEvent, string(abi.encodePacked("MockMigrateFromV1Called event not found for label: ", expectedLabel)));
+        assertTrue(foundMigratorEvent, string(abi.encodePacked("NameEjectedToL1 event not found for label: ", expectedLabel)));
     }
 
     function setUp() public {
-        // Deploy mock base registrar
+        // Set up real registry infrastructure
+        datastore = new RegistryDatastore();
+        registryMetadata = new MockRegistryMetadata();
+        
+        // Deploy the real registry
+        registry = new PermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
+        
+        // Deploy mock base registrar and name wrapper (keep these as mocks)
         ethRegistryV1 = new MockBaseRegistrar();
-        
-        // Set up .eth domain in registry
         ethRegistryV1.addController(controller);
-        
-        // Deploy mock name wrapper
         nameWrapper = new MockNameWrapper();
 
         // Deploy mock bridge
         mockBridge = new MockL1Bridge();
         
-        // Deploy mock L1 migrator
-        mockL1EjectionController = new MockL1EjectionController();
+        // Deploy REAL L1EjectionController with real dependencies
+        realL1EjectionController = new L1EjectionController(registry, mockBridge);
         
-        // Deploy migration controller
-        migrationController = new L1UnlockedMigrationController(ethRegistryV1, INameWrapper(address(nameWrapper)), mockBridge, mockL1EjectionController);
+        // Grant necessary roles to the ejection controller
+        registry.grantRootRoles(
+            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, 
+            address(realL1EjectionController)
+        );
         
-        // Calculate token ID for test label
+        // Deploy migration controller with the REAL ejection controller
+        migrationController = new L1UnlockedMigrationController(
+            ethRegistryV1, 
+            INameWrapper(address(nameWrapper)), 
+            mockBridge, 
+            realL1EjectionController
+        );
+        
+        // Grant ROLE_EJECTOR to the migration controller so it can call the ejection controller
+        realL1EjectionController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(migrationController));
+        
         testTokenId = uint256(keccak256(bytes(testLabel)));
     }
 
@@ -320,7 +350,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         assertEq(address(migrationController.ethRegistryV1()), address(ethRegistryV1));
         assertEq(address(migrationController.nameWrapper()), address(nameWrapper));
         assertEq(address(migrationController.bridge()), address(mockBridge));
-        assertEq(address(migrationController.l1EjectionController()), address(mockL1EjectionController));
+        assertEq(address(migrationController.l1EjectionController()), address(realL1EjectionController));
         assertEq(migrationController.owner(), address(this));
     }
 
@@ -353,10 +383,10 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         
         // Verify NO L1 ejection controller events when toL1=false
         uint256 l1MigratorEventCount = 0;
-        bytes32 expectedSig = keccak256("MockMigrateFromV1Called((string,address,address,address,uint256,uint64))");
+        bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(mockL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
                 l1MigratorEventCount++;
             }
         }
@@ -454,10 +484,10 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         
         // Verify NO L1 ejection controller events when toL1=false
         uint256 l1MigratorEventCount = 0;
-        bytes32 expectedSig = keccak256("MockMigrateFromV1Called((string,address,address,address,uint256,uint64))");
+        bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(mockL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
                 l1MigratorEventCount++;
             }
         }
@@ -539,10 +569,10 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         
         // Verify NO L1 ejection controller events when toL1=false
         uint256 l1MigratorEventCount = 0;
-        bytes32 expectedSig = keccak256("MockMigrateFromV1Called((string,address,address,address,uint256,uint64))");
+        bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(mockL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
                 l1MigratorEventCount++;
             }
         }
@@ -597,10 +627,10 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         
         // Verify the first name was NOT migrated to L1 by checking event count
         uint256 l1MigratorEventCount = 0;
-        bytes32 expectedSig = keccak256("MockMigrateFromV1Called((string,address,address,address,uint256,uint64))");
+        bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(mockL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
                 l1MigratorEventCount++;
             }
         }

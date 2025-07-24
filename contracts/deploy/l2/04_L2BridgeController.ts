@@ -39,6 +39,13 @@ export default execute(
       ],
       account: deployer,
     });
+
+    // Grant bridge roles to the bridge on the bridge controller
+    await write(l2BridgeController, {
+      functionName: "grantRootRoles",
+      args: [ROLES.OWNER.BRIDGE.MIGRATOR | ROLES.OWNER.BRIDGE.EJECTOR, l2Bridge.address],
+      account: deployer,
+    });
   },
   // finally you can pass tags and dependencies
   {

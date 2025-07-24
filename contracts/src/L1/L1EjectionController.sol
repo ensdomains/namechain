@@ -7,7 +7,7 @@ import {IRegistry} from "../common/IRegistry.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
-import {IBridge} from "../common/IBridge.sol";
+import {IBridge, LibBridgeRoles} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 
@@ -34,7 +34,7 @@ contract L1EjectionController is EjectionController {
     ) 
     external 
     virtual 
-    onlyBridge 
+    onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
     returns (uint256 tokenId) 
     {
         tokenId = registry.register(transferData.label, transferData.owner, IRegistry(transferData.subregistry), transferData.resolver, transferData.roleBitmap, transferData.expires);
@@ -48,7 +48,7 @@ contract L1EjectionController is EjectionController {
      * @param tokenId The token ID of the name
      * @param newExpiry The new expiration timestamp
      */
-    function syncRenewal(uint256 tokenId, uint64 newExpiry) external virtual onlyBridge {        
+    function syncRenewal(uint256 tokenId, uint64 newExpiry) external virtual onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR) {
         registry.renew(tokenId, newExpiry);
         emit RenewalSynchronized(tokenId, newExpiry);
     }

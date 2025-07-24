@@ -15,7 +15,7 @@ import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
-import {IBridge, BridgeMessageType} from "../src/common/IBridge.sol";
+import {IBridge, BridgeMessageType, LibBridgeRoles} from "../src/common/IBridge.sol";
 import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 import {ITokenObserver} from "../src/common/ITokenObserver.sol";
@@ -23,6 +23,7 @@ import {IRegistry} from "../src/common/IRegistry.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
 // Mock implementation of IRegistryMetadata
@@ -94,6 +95,10 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         
         // Grant roles to bridge controller for registering names
         ethRegistry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR, address(controller));
+        
+        // Grant bridge roles to the bridge mock so it can call the controller
+        controller.grantRootRoles(LibBridgeRoles.ROLE_MIGRATOR, address(bridge));
+        controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(bridge));
         
         // Register a test name
         uint64 expires = uint64(block.timestamp + expiryDuration);
@@ -185,7 +190,6 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertEq(address(controller.bridge()), address(bridge));
         assertEq(address(controller.registry()), address(ethRegistry));
         assertEq(address(controller.datastore()), address(datastore));
-        assertEq(controller.ETH_TLD_HASH(), ETH_TLD_HASH);
     }
 
     function test_completeMigrationFromL1_toL2Only() public {
@@ -284,8 +288,13 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             false
         );
         
-        // Try to call from non-bridge address
-        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
+        // Try to call from non-bridge address (without proper role)
+        vm.expectRevert(abi.encodeWithSelector(
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            bytes32(0), // ROOT_RESOURCE
+            LibBridgeRoles.ROLE_MIGRATOR,
+            address(this)
+        ));
         controller.completeMigrationFromL1(dnsEncodedName, migrationData);
     }
 
@@ -492,7 +501,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     }
 
     function test_Revert_completeEjectionFromL1_not_bridge() public {
-        // Try to call completeEjectionFromL1 directly (not from bridge)
+        // Try to call completeEjectionFromL1 directly (without proper role)
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: l2Owner,
@@ -502,7 +511,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             roleBitmap: LibEACBaseRoles.ALL_ROLES
         });
         
-        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            bytes32(0), // ROOT_RESOURCE
+            LibBridgeRoles.ROLE_EJECTOR,
+            address(this)
+        ));
         controller.completeEjectionFromL1(transferData);
     }
 

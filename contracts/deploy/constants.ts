@@ -4,7 +4,7 @@ interface Flags {
   [key: string]: bigint | Flags;
 }
 const FLAGS = {
-  // see: RegistryRolesMixin.sol
+  // see: LibRegistryRoles.sol
   EAC: {
     REGISTRAR: 1n << 0n,
     RENEW: 1n << 4n,
@@ -21,6 +21,11 @@ const FLAGS = {
   // see: L2/UserRegistry.sol
   USER: {
     UPGRADE: 1n << 20n,
+  },
+  // see: LibBridgeRoles.sol
+  BRIDGE: {
+    MIGRATOR: 1n << 0n,
+    EJECTOR: 1n << 4n,
   },
 } as const satisfies Flags;
 function mapFlags(flags: Flags, fn: (x: bigint) => bigint): Flags {

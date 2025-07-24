@@ -21,6 +21,7 @@ import {LibRegistryRoles} from "../../src/common/LibRegistryRoles.sol";
 import {TransferData, MigrationData} from "../../src/common/TransferData.sol";
 import {IRegistry} from "../../src/common/IRegistry.sol";
 import {BridgeEncoder} from "../../src/common/BridgeEncoder.sol";
+import {IBridge, LibBridgeRoles} from "../../src/common/IBridge.sol";
 
 contract BridgeTest is Test, EnhancedAccessControl {
     RegistryDatastore datastore;
@@ -57,6 +58,11 @@ contract BridgeTest is Test, EnhancedAccessControl {
         // Grant necessary roles to controllers
         l1Registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, address(l1Controller));
         l2Registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(l2Controller));
+        
+        // Grant bridge roles so the bridges can call the controllers
+        l1Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l1Bridge));
+        l2Controller.grantRootRoles(LibBridgeRoles.ROLE_MIGRATOR, address(l2Bridge));
+        l2Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l2Bridge));
     }
     
     function testNameEjectionFromL2ToL1() public {

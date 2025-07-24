@@ -21,4 +21,15 @@ enum BridgeMessageType {
     RENEWAL
 }
 
+/**
+ * @dev Library containing bridge-related role definitions
+ */
+library LibBridgeRoles {
+    uint256 internal constant ROLE_MIGRATOR = 1 << 0;
+    uint256 internal constant ROLE_MIGRATOR_ADMIN = ROLE_MIGRATOR << 128;
+
+    uint256 internal constant ROLE_EJECTOR = 1 << 4;
+    uint256 internal constant ROLE_EJECTOR_ADMIN = ROLE_EJECTOR << 128;
+}
+
 

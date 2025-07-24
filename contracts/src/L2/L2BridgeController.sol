@@ -13,7 +13,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ITokenObserver} from "../common/ITokenObserver.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {EjectionController} from "../common/EjectionController.sol";
-import {IBridge} from "../common/IBridge.sol";
+import {IBridge, LibBridgeRoles} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
 import {IEnhancedAccessControl} from "../common/IEnhancedAccessControl.sol";
@@ -33,7 +33,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     // Events
     event MigrationCompleted(bytes dnsEncodedName, uint256 newTokenId);
 
-    bytes32 public constant ETH_TLD_HASH = keccak256(bytes("eth"));
+    bytes32 private constant ETH_TLD_HASH = keccak256(bytes("eth"));
 
     IRegistryDatastore public immutable datastore;
 
@@ -55,7 +55,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     function completeMigrationFromL1(
         bytes memory dnsEncodedName,
         MigrationData memory migrationData
-    ) external onlyBridge {
+    ) external onlyRootRoles(LibBridgeRoles.ROLE_MIGRATOR) {
         // if migrating to L1 then there is nothing to do, else let's create a subregistry
         if (!migrationData.toL1) {
             // Find the token id and validate the registry tree
@@ -87,7 +87,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     ) 
     external 
     virtual 
-    onlyBridge 
+    onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
     {
         (uint256 tokenId,,) = registry.getNameData(transferData.label);
 
@@ -147,7 +147,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         
         // Verify the name is a .eth 2LD
         (bytes32 tldHash, ) = NameCoder.readLabel(name, tldOffset);
-        if (tldHash != ETH_TLD_HASH || name[tldOffset + 1 + tldSize] != 0)) {
+        if (tldHash != ETH_TLD_HASH || name[tldOffset + 1 + tldSize] != 0) {
             revert InvalidTLD(name);
         }
         
