@@ -36,7 +36,7 @@ export function makeTXT(name: string, txt: string): RR {
   return {
     name: packetToBytes(name),
     class: 1, // CLASS_INET
-    type: 16, // TYPE_TXT
+    type: 16, // QTYPE_TXT
     data: encodeTXT(txt),
   };
 }

@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
-/// @title DNSTXTScanner
+/// @title DNSTXTParser
 /// @dev Library for parsing ENS records from DNS TXT data.
 ///
 /// The record data consists of a series of key=value pairs, separated by spaces. Keys
@@ -24,7 +24,7 @@ import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 ///       <u> ::= <all octets except " ">
 ///       <a> ::= <all octets except "]">
 ///
-library DNSTXTScanner {
+library DNSTXTParser {
     /// @dev The DFA internal states.
     enum State {
         START,
@@ -63,97 +63,107 @@ library DNSTXTScanner {
         uint256 len = data.length;
         for (uint256 i; i < len; ) {
             if (state == State.START) {
+                // look for the start of a key
                 while (i < len && data[i] == CH_SPACE) {
-                    ++i;
+                    ++i; // eat whitespace
                 }
                 if (i + key.length > len) {
-                    break;
+                    break; // key doesn't fit in the remaining data
                 } else if (BytesUtils.equals(data, i, key, 0, key.length)) {
                     i += key.length;
-                    state = State.VALUE;
+                    state = State.VALUE; // found key, parse its value
                 } else {
-                    state = State.IGNORED_KEY;
+                    state = State.IGNORED_KEY; // different key, skip value
                 }
             } else if (state == State.IGNORED_KEY) {
+                // look for the end of the key
                 while (i < len) {
                     bytes1 cp = data[i++];
                     if (cp == CH_EQUAL) {
-                        state = State.IGNORED_VALUE;
+                        state = State.IGNORED_VALUE; // ignore its value
                         break;
                     } else if (cp == CH_ARG_OPEN) {
-                        state = State.IGNORED_KEY_ARG;
+                        state = State.IGNORED_KEY_ARG; // key has arg, ignore its arg
                         break;
                     } else if (cp == CH_SPACE) {
-                        state = State.START;
+                        state = State.START; // there is no value => continue searching
                         break;
                     }
                 }
             } else if (state == State.IGNORED_KEY_ARG) {
+                // look for the end of the key arg
                 for (; i < len; ++i) {
                     if (data[i] == CH_ARG_CLOSE) {
-                        ++i;
+                        ++i; // parsed key[arg]
                         if (i < len && data[i] == CH_EQUAL) {
-                            state = State.IGNORED_VALUE;
+                            state = State.IGNORED_VALUE; // ignore its value
                             ++i;
                         } else {
-                            state = State.IGNORED_UNQUOTED_VALUE;
+                            // this is recoverable parsing error
+                            state = State.IGNORED_UNQUOTED_VALUE; // assume unquoted and ignore its value
                         }
                         break;
                     }
                 }
             } else if (state == State.VALUE) {
+                // determine type of value to parse
                 if (data[i] == CH_QUOTE) {
-                    state = State.QUOTED_VALUE;
+                    state = State.QUOTED_VALUE; // there was a quote, so "quoted"
                     ++i;
                 } else {
-                    state = State.UNQUOTED_VALUE;
+                    state = State.UNQUOTED_VALUE; // everything else is unquoted
                 }
             } else if (state == State.QUOTED_VALUE) {
-                uint256 n;
+                // parse the quoted value
+                uint256 n; // unescaped length
                 for (uint256 j = i; i < len; ++n) {
-                    bytes1 cp = data[i++];
+                    bytes1 cp = data[i++]; // look for quote or escape
                     if (cp == CH_QUOTE) {
-                        value = new bytes(n);
+                        value = new bytes(n); // unescaped quote is end of value
                         for (i = 0; i < n; ++i) {
-                            cp = data[j++];
+                            cp = data[j++]; // raw byte
                             if (cp == CH_BACKSLASH) {
-                                cp = data[j++];
+                                cp = data[j++]; // use escaped byte instead
                             }
                             value[i] = cp;
                         }
-                        return value;
+                        return value; // unescaped and unquoted
                     } else if (cp == CH_BACKSLASH) {
-                        ++i;
+                        ++i; // escape, so skip a byte
                     }
                 }
             } else if (state == State.UNQUOTED_VALUE) {
+                // parse the unquoted value
                 for (uint256 j = i; j < len; ++j) {
                     if (data[j] == CH_SPACE) {
-                        len = j;
+                        len = j; // space is end of value
                     }
                 }
                 return BytesUtils.substring(data, i, len - i);
             } else if (state == State.IGNORED_VALUE) {
+                // determine type of value to ignore
                 if (data[i] == CH_QUOTE) {
-                    state = State.IGNORED_QUOTED_VALUE;
+                    state = State.IGNORED_QUOTED_VALUE; // there was a quote, so "quoted"
                     ++i;
                 } else {
-                    state = State.IGNORED_UNQUOTED_VALUE;
+                    state = State.IGNORED_UNQUOTED_VALUE; // everything else is unquoted
                 }
             } else if (state == State.IGNORED_QUOTED_VALUE) {
+                // ignore the quoted value
                 while (i < len) {
-                    bytes1 cp = data[i++];
+                    bytes1 cp = data[i++]; // look for quote or escape
                     if (cp == CH_QUOTE) {
-                        break;
+                        break; // unescaped quote is end of value
                     } else if (cp == CH_BACKSLASH) {
-                        ++i;
+                        ++i; // escape, so skip a byte
                     }
                 }
-                state = State.START;
+                state = State.START; // => continue searching
             } else {
-                // state = State.IGNORED_UNQUOTED_VALUE
+                // assert(state == State.IGNORED_UNQUOTED_VALUE);
+                // ignore unquoted value
                 if (data[i] == CH_SPACE) {
-                    state = State.START;
+                    state = State.START; // space is end of value => continue searching
                 }
                 ++i;
             }

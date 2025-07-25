@@ -5,12 +5,12 @@ import {IRegistry} from "../common/IRegistry.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 library RegistryUtils {
-    /// @notice Find the resolver address for `name[offset:]`.
+    /// @dev Find the resolver address for `name[offset:]`.
     /// @param rootRegistry The root ENS registry.
     /// @param name The DNS-encoded name to search.
     /// @param offset The offset into `name` to begin the search.
-    /// @return registry The nearest registry for `name` (not the parent registry).
-    /// @return resolver The resolver or `address(0)` if not found.
+    /// @return exactRegistry The exact registry or null if not exact.
+    /// @return resolver The resolver or null if not found.
     /// @return node The namehash of `name[offset:]`.
     /// @return resolverOffset The offset into `name` corresponding to `resolver`.
     function findResolver(
@@ -21,7 +21,7 @@ library RegistryUtils {
         internal
         view
         returns (
-            IRegistry registry,
+            IRegistry exactRegistry,
             address resolver,
             bytes32 node,
             uint256 resolverOffset
@@ -33,35 +33,35 @@ library RegistryUtils {
             return (rootRegistry, address(0), bytes32(0), offset);
         }
         // lookup parent name
-        (registry, resolver, node, resolverOffset) = findResolver(
+        (exactRegistry, resolver, node, resolverOffset) = findResolver(
             rootRegistry,
             name,
             next
         );
         // if there was a parent registry...
-        if (address(registry) != address(0)) {
+        if (address(exactRegistry) != address(0)) {
             string memory label = readLabel(name, offset);
             // remember the resolver (if it exists)
-            address res = registry.getResolver(label);
+            address res = exactRegistry.getResolver(label);
             if (res != address(0)) {
                 resolver = res;
                 resolverOffset = offset;
             }
-            registry = registry.getSubregistry(label);
+            exactRegistry = exactRegistry.getSubregistry(label);
         }
         // update namehash
         node = keccak256(abi.encode(node, labelHash));
     }
 
-    /// @notice Find the exact registry for `name[offset:]`.
+    /// @dev Find the exact registry for `name[offset:]`.
     /// @param rootRegistry The root ENS registry.
     /// @param name The DNS-encoded name to search.
-    /// @return registry The exact registry or null if not found.
+    /// @return exactRegistry The exact registry or null if not found.
     function findExactRegistry(
         IRegistry rootRegistry,
         bytes memory name,
         uint256 offset
-    ) internal view returns (IRegistry registry) {
+    ) internal view returns (IRegistry exactRegistry) {
         (bytes32 labelHash, uint256 next) = NameCoder.readLabel(name, offset);
         if (labelHash == bytes32(0)) {
             return rootRegistry;
@@ -69,11 +69,11 @@ library RegistryUtils {
         IRegistry parent = findExactRegistry(rootRegistry, name, next);
         if (address(parent) != address(0)) {
             string memory label = readLabel(name, offset);
-            registry = parent.getSubregistry(label);
+            exactRegistry = parent.getSubregistry(label);
         }
     }
 
-    /// @notice Find the parent registry for `name[offset:]`.
+    /// @dev Find the parent registry for `name[offset:]`.
     /// @param rootRegistry The root ENS registry.
     /// @param name The DNS-encoded name to search.
     /// @return parentRegistry The parent registry or null if not found.
@@ -90,7 +90,7 @@ library RegistryUtils {
 
     /// @dev Read label at offset from a DNS-encoded name.
     ///      eg. `readLabel("\x03abc\x00", 0) = "abc"`.
-    /// @param name The name.
+    /// @param name The DNS-encoded name.
     /// @param offset The offset into `name`
     /// @return label The label.
     function readLabel(

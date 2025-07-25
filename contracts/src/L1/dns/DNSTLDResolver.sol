@@ -29,14 +29,23 @@ interface IDNSGateway {
     ) external returns (DNSSEC.RRSetWithSignature[] memory);
 }
 
+/// @dev DNS class for the "Internet" according to RFC-1035.
 uint16 constant CLASS_INET = 1;
-uint16 constant TYPE_TXT = 16;
 
-/// @dev DNS TXT record prefix for context data.
+/// @dev DNS query/resource type for TXT according to RFC-1035.
+uint16 constant QTYPE_TXT = 16;
+
+/// @dev DNS TXT record prefix for ENS data.
 bytes constant TXT_PREFIX = "ENS1 ";
 
 /// @title DNSTLDResolver
 /// @notice Resolver that performs imported DNS fallback to V1 and gasless DNS resolution.
+///
+/// 1. If there exists a resolver in V1, go to 4.
+/// 2. Query the DNSSEC oracle for TXT records.
+/// 3. Verify TXT records, find ENS1 record, parse resolver and context.
+/// 4. Call the resolver and return the requested records.
+///
 contract DNSTLDResolver is
     IFeatureSupporter,
     IExtendedResolver,
@@ -118,11 +127,6 @@ contract DNSTLDResolver is
     /// @notice Resolve `name` using V1 or DNSSEC.
     /// @notice Caller should enable EIP-3668.
     /// @dev This function executes over multiple steps.
-    ///
-    /// 1. If there exists a resolver in V1, go to 4.
-    /// 2. Query the DNSSEC oracle for TXT records.
-    /// 3. Verify TXT records, find ENS1 record, parse resolver and context.
-    /// 4. Call the resolver and return the requested records.
     function resolve(
         bytes calldata name,
         bytes calldata data
@@ -138,7 +142,7 @@ contract DNSTLDResolver is
         revert OffchainLookup(
             address(this),
             _oracleGateways,
-            abi.encodeCall(IDNSGateway.resolve, (name, TYPE_TXT)),
+            abi.encodeCall(IDNSGateway.resolve, (name, QTYPE_TXT)),
             this.resolveOracleCallback.selector, // ==> step 2
             abi.encode(name, data)
         );
@@ -169,7 +173,7 @@ contract DNSTLDResolver is
         ) {
             if (
                 iter.class == CLASS_INET &&
-                iter.dnstype == TYPE_TXT &&
+                iter.dnstype == QTYPE_TXT &&
                 BytesUtils.equals(iter.data, iter.offset, name, 0, name.length)
             ) {
                 (address resolver, bytes memory context) = _parseTXT(
@@ -387,22 +391,22 @@ contract DNSTLDResolver is
         txt = new bytes(end - off);
         assembly {
             let ptr := add(v, 32)
-            off := add(ptr, off)
-            end := add(ptr, end)
-            ptr := add(txt, 32)
+            off := add(ptr, off) // start of input
+            end := add(ptr, end) // end of input
+            ptr := add(txt, 32) // start of output
             // prettier-ignore
-            for { } lt(off, end) { } {
-                let size := byte(0, mload(off))
-                off := add(off, 1)
-                if size {
-                    let next := add(off, size)
-                    if gt(next, end) {
-                        end := 0 // overflow
+            for { } lt(off, end) { } { // while input
+                let size := byte(0, mload(off)) // length of chunk
+                off := add(off, 1) // advance input
+                if size { // length > 0
+                    let next := add(off, size) // compute end of chunk
+                    if gt(next, end) { // beyond end
+                        end := 0 // error: overflow
                         break
                     }
-                    mcopy(ptr, off, size)
-                    off := next
-                    ptr := add(ptr, size)
+                    mcopy(ptr, off, size) // copy chunk
+                    off := next // advance input
+                    ptr := add(ptr, size) // advance output
                 }
             }
             mstore(txt, sub(ptr, add(txt, 32))) // truncate
