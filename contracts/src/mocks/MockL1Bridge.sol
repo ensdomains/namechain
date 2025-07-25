@@ -5,7 +5,7 @@ import {L1EjectionController} from "../L1/L1EjectionController.sol";
 import {MockBridgeBase} from "./MockBridgeBase.sol";
 import {BridgeMessageType} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
-import {TransferData, MigrationData} from "../common/TransferData.sol";
+import {TransferData} from "../common/TransferData.sol";
 
 /**
  * @title MockL1Bridge
@@ -39,16 +39,6 @@ contract MockL1Bridge is MockBridgeBase {
         ejectionController.completeEjectionFromL2(transferData);
     }
     
-    /**
-     * @dev Handle migration messages specific to L1 bridge
-     */
-    function _handleMigrationMessage(
-        bytes memory /*dnsEncodedName*/,
-        MigrationData memory /*migrationData*/
-    ) pure internal override {
-        revert MigrationNotSupported();
-    }
-
     /**
      * @dev Handle renewal messages specific to L1 bridge
      */

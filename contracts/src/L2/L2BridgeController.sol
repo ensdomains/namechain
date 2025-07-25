@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {TransferData, MigrationData} from "../common/TransferData.sol";
+import {TransferData} from "../common/TransferData.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
@@ -18,15 +18,11 @@ import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 
 /**
  * @title L2BridgeController
- * @dev Combined controller that handles both migration messages from L1 to L2 and ejection operations
+ * @dev Combined controller that handles both ejection messages from L1 to L2 and ejection operations
  */
 contract L2BridgeController is EjectionController, ITokenObserver {
-    error MigrationFailed();
     error NotTokenOwner(uint256 tokenId);
     error TooManyRoleAssignees(uint256 tokenId, uint256 roleBitmap);
-
-    // Events
-    event MigrationCompleted(bytes dnsEncodedName, uint256 newTokenId);
 
     IRegistryDatastore public immutable datastore;
 
@@ -37,28 +33,6 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     ) EjectionController(_registry, _bridge) {
         datastore = _datastore;
     }   
-
-    /**
-     * @dev Complete migration from L1 to L2
-     * Called by the bridge when a migration message is received from L1
-     * 
-     * @param dnsEncodedName The DNS encoded name being migrated
-     * @param migrationData The migration data containing transfer details
-     */
-    function completeMigrationFromL1(
-        bytes memory dnsEncodedName,
-        MigrationData memory migrationData
-    ) external onlyRootRoles(LibBridgeRoles.ROLE_MIGRATOR) {
-        // if migrating to L1 then there is nothing to do, else let's create a subregistry
-        if (!migrationData.toL1) {
-            // Get tokenId from the label in transfer data
-            (uint256 tokenId,,) = registry.getNameData(migrationData.transferData.label);
-
-            _completeNameTransfer(tokenId, migrationData.transferData);
-
-            emit MigrationCompleted(dnsEncodedName, tokenId);
-        }
-    }
 
     /**
      * @dev Should be called when a name is being ejected back to L2.
@@ -74,7 +48,17 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     {
         (uint256 tokenId,,) = registry.getNameData(transferData.label);
 
-        _completeNameTransfer(tokenId, transferData);
+        // owner should be the bridge controller
+        if (registry.ownerOf(tokenId) != address(this)) {
+            revert NotTokenOwner(tokenId);
+        }
+
+        registry.setSubregistry(tokenId, IRegistry(transferData.subregistry));
+        registry.setResolver(tokenId, transferData.resolver);
+
+        // now unset the token observer and transfer the name to the owner
+        registry.setTokenObserver(tokenId, ITokenObserver(address(0)));
+        registry.safeTransferFrom(address(this), transferData.owner, tokenId, 1, "");
 
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
         emit NameEjectedToL2(dnsEncodedName, tokenId);
@@ -106,28 +90,6 @@ contract L2BridgeController is EjectionController, ITokenObserver {
      */
     function onRenew(uint256 tokenId, uint64 expires, address /*renewedBy*/) external virtual {
         bridge.sendMessage(BridgeEncoder.encodeRenewal(tokenId, expires));
-    }
-
-    /**
-     * @dev Private helper method to complete name transfer operations
-     * @param tokenId The token ID of the name
-     * @param transferData The transfer data containing subregistry, resolver, and owner
-     */
-    function _completeNameTransfer(
-        uint256 tokenId,
-        TransferData memory transferData
-    ) private {
-        // owner should be the bridge controller
-        if (registry.ownerOf(tokenId) != address(this)) {
-            revert NotTokenOwner(tokenId);
-        }
-
-        registry.setSubregistry(tokenId, IRegistry(transferData.subregistry));
-        registry.setResolver(tokenId, transferData.resolver);
-
-        // now unset the token observer and transfer the name to the owner
-        registry.setTokenObserver(tokenId, ITokenObserver(address(0)));
-        registry.safeTransferFrom(address(this), transferData.owner, tokenId, 1, "");
     }
 
     /**

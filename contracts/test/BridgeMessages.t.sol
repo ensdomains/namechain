@@ -11,7 +11,7 @@ import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
 import {L2BridgeController} from "../src/L2/L2BridgeController.sol";
 import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
 import {IBridge, BridgeMessageType, LibBridgeRoles} from "../src/common/IBridge.sol";
-import {TransferData, MigrationData} from "../src/common/TransferData.sol";
+import {TransferData} from "../src/common/TransferData.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
@@ -65,7 +65,6 @@ contract TestBridgeMessages is Test {
         
         // Grant bridge roles so the bridges can call the controllers
         l1Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l1Bridge));
-        l2Controller.grantRootRoles(LibBridgeRoles.ROLE_MIGRATOR, address(l2Bridge));
         l2Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l2Bridge));
     }
 
@@ -98,40 +97,6 @@ contract TestBridgeMessages is Test {
         assertEq(decodedData.resolver, transferData.resolver);
         assertEq(decodedData.expires, transferData.expires);
         assertEq(decodedData.roleBitmap, transferData.roleBitmap);
-    }
-
-    function test_encodeDecodeMigration() public view {
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
-        TransferData memory transferData = TransferData({
-            label: testLabel,
-            owner: testOwner,
-            subregistry: address(registry),
-            resolver: testResolver,
-            expires: testExpiry,
-            roleBitmap: testRoleBitmap
-        });
-        
-        MigrationData memory migrationData = MigrationData({
-            transferData: transferData,
-            toL1: false,
-            data: ""
-        });
-
-        // Encode message
-        bytes memory encodedMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
-        
-        // Verify message type
-        BridgeMessageType messageType = BridgeEncoder.getMessageType(encodedMessage);
-        assertEq(uint(messageType), uint(BridgeMessageType.MIGRATION));
-        
-        // Decode message
-        (bytes memory decodedDnsName, MigrationData memory decodedData) = BridgeEncoder.decodeMigration(encodedMessage);
-        
-        // Verify decoded data
-        assertEq(keccak256(decodedDnsName), keccak256(dnsEncodedName));
-        assertEq(decodedData.transferData.label, migrationData.transferData.label);
-        assertEq(decodedData.transferData.owner, migrationData.transferData.owner);
-        assertEq(decodedData.toL1, migrationData.toL1);
     }
 
     function test_encodeDecodeRenewal() public view {
@@ -244,26 +209,5 @@ contract TestBridgeMessages is Test {
             }
         }
         assertTrue(foundEvent, "NameBridgedToL1 event should be emitted");
-    }
-
-    function test_l2Bridge_Revert_sendMessage_migration() public {
-        MigrationData memory migrationData = MigrationData({
-            transferData: TransferData({
-                label: testLabel,
-                owner: testOwner,
-                subregistry: address(registry),
-                resolver: testResolver,
-                expires: testExpiry,
-                roleBitmap: testRoleBitmap
-            }),
-            toL1: false,
-            data: ""
-        });
-        
-        bytes memory migrationMessage = BridgeEncoder.encodeMigration("test", migrationData);
-        
-        // L2 bridge should revert on migration messages
-        vm.expectRevert(MockBridgeBase.MigrationNotSupported.selector);
-        l2Bridge.sendMessage(migrationMessage);
     }
 } 

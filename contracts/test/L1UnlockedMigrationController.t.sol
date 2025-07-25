@@ -29,6 +29,7 @@ import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
+import {NameUtils} from "../src/common/NameUtils.sol";
 
 // Simple mock that implements IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -233,9 +234,9 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 // For NameBridgedToL2(bytes message) - single parameter is NOT indexed
                 // so the message is in the data field
                 (bytes memory message) = abi.decode(entries[i].data, (bytes));
-                // Decode the migration message to get the migration data
-                (, MigrationData memory decodedMigrationData) = BridgeEncoder.decodeMigration(message);
-                if (keccak256(bytes(decodedMigrationData.transferData.label)) == keccak256(bytes(expectedLabel))) {
+                // Decode the ejection message to get the transfer data
+                (, TransferData memory decodedTransferData) = BridgeEncoder.decodeEjection(message);
+                if (keccak256(bytes(decodedTransferData.label)) == keccak256(bytes(expectedLabel))) {
                     foundMigrationEvent = true;
                     break;  
                 }
@@ -264,9 +265,9 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 // For NameBridgedToL2(bytes message) - single parameter is NOT indexed
                 // so the message is in the data field
                 (bytes memory message) = abi.decode(entries[i].data, (bytes));
-                // Decode the migration message to get the migration data
-                (, MigrationData memory decodedMigrationData) = BridgeEncoder.decodeMigration(message);
-                uint256 emittedTokenId = uint256(keccak256(bytes(decodedMigrationData.transferData.label)));
+                // Decode the ejection message to get the transfer data
+                (, TransferData memory decodedTransferData) = BridgeEncoder.decodeEjection(message);
+                uint256 emittedTokenId = uint256(keccak256(bytes(decodedTransferData.label)));
                 
                 // Check if this tokenId is in our expected list
                 for (uint256 j = 0; j < expectedTokenIds.length; j++) {
@@ -839,4 +840,5 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         vm.prank(user);
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
     }
+
 } 

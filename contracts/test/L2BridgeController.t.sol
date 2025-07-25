@@ -14,7 +14,7 @@ import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 
-import {TransferData, MigrationData} from "../src/common/TransferData.sol";
+import {TransferData} from "../src/common/TransferData.sol";
 import {IBridge, BridgeMessageType, LibBridgeRoles} from "../src/common/IBridge.sol";
 import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
@@ -97,7 +97,6 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         ethRegistry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR, address(controller));
         
         // Grant bridge roles to the bridge mock so it can call the controller
-        controller.grantRootRoles(LibBridgeRoles.ROLE_MIGRATOR, address(bridge));
         controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(bridge));
         
         // Register a test name
@@ -108,59 +107,6 @@ contract TestL2BridgeController is Test, ERC1155Holder {
 
 
 
-
-    /**
-     * Helper method to create migration data
-     */
-    function _createMigrationData(
-        string memory label,
-        address migrationOwner,
-        address subregistry,
-        address migrationResolver,
-        uint256 roleBitmap,
-        uint64 expires,
-        bool toL1
-    ) internal pure returns (MigrationData memory) {
-        return MigrationData({
-            transferData: TransferData({
-                label: label,
-                owner: migrationOwner,
-                subregistry: subregistry,
-                resolver: migrationResolver,
-                roleBitmap: roleBitmap,
-                expires: expires
-            }),
-            toL1: toL1,
-            data: ""
-        });
-    }
-
-
-
-    /**
-     * Helper method to verify MigrationCompleted event
-     */
-    function _assertMigrationCompletedEvent(bytes memory expectedDnsName, uint256 expectedTokenId) internal {
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundEvent = false;
-        
-        bytes32 eventSig = keccak256("MigrationCompleted(bytes,uint256)");
-        
-        for (uint i = 0; i < logs.length; i++) {
-            if (logs[i].emitter == address(controller) && 
-                logs[i].topics[0] == eventSig) {
-                (bytes memory emittedDnsName, uint256 emittedTokenId) = 
-                    abi.decode(logs[i].data, (bytes, uint256));
-                
-                if (keccak256(emittedDnsName) == keccak256(expectedDnsName) && 
-                    emittedTokenId == expectedTokenId) {
-                    foundEvent = true;
-                    break;
-                }
-            }
-        }
-        assertTrue(foundEvent, "MigrationCompleted event not found");
-    }
 
     /**
      * Helper method to create properly encoded data for the ERC1155 transfers
@@ -184,171 +130,11 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         return abi.encode(transferData);
     }
 
-    // MIGRATION TESTS
-
     function test_constructor() public view {
         assertEq(address(controller.bridge()), address(bridge));
         assertEq(address(controller.registry()), address(ethRegistry));
         assertEq(address(controller.datastore()), address(datastore));
     }
-
-    function test_completeMigrationFromL1_toL2Only() public {
-        string memory migrationLabel = "migration";
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(migrationLabel);
-        uint64 expires = uint64(block.timestamp + expiryDuration);
-        
-        // Create a mock subregistry address to use in migration
-        address mockSubregistry = address(0x9999);
-        
-        // First register the name with the bridge controller as the owner
-        uint256 newTokenId = ethRegistry.register(migrationLabel, address(controller), ethRegistry, address(0), LibEACBaseRoles.ALL_ROLES, expires);
-        
-        MigrationData memory migrationData = _createMigrationData(
-            migrationLabel,
-            user,
-            mockSubregistry,
-            resolver,
-            LibEACBaseRoles.ALL_ROLES,
-            expires,
-            false // toL1 = false, L2 only
-        );
-        
-        vm.recordLogs();
-        
-        // Call from bridge
-        vm.prank(address(bridge));
-        controller.completeMigrationFromL1(dnsEncodedName, migrationData);
-        
-        // Verify the name is now owned by the user
-        assertEq(ethRegistry.ownerOf(newTokenId), user, "User should own the token after migration");
-        
-        // Verify the subregistry was set to the address passed in migration data
-        IRegistry subregistry = ethRegistry.getSubregistry(migrationLabel);
-        assertEq(address(subregistry), mockSubregistry, "Subregistry should be set to the address from migration data");
-        
-        // Verify the resolver was set correctly
-        address resolverAddr = ethRegistry.getResolver(migrationLabel);
-        assertEq(resolverAddr, resolver, "Resolver not set correctly after migration");
-        
-        // Verify MigrationCompleted event was emitted with correct data
-        _assertMigrationCompletedEvent(dnsEncodedName, newTokenId);
-        
-        // Verify migration was successful - token should not be marked for ejection
-        assertEq(address(ethRegistry.tokenObservers(newTokenId)), address(0), "Token observer should not be set for L2-only migrations");
-    }
-
-    function test_completeMigrationFromL1_toL1AndL2() public {
-        string memory migrationLabel = "migrationl1";
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(migrationLabel);
-        uint64 expires = uint64(block.timestamp + expiryDuration);
-        
-        // First register the name with the bridge controller as the owner
-        uint256 newTokenId = ethRegistry.register(migrationLabel, address(controller), ethRegistry, address(0), LibEACBaseRoles.ALL_ROLES, expires);
-        
-        MigrationData memory migrationData = _createMigrationData(
-            migrationLabel,
-            user,
-            address(0),
-            resolver,
-            LibEACBaseRoles.ALL_ROLES,
-            expires,
-            true // toL1 = true, both L1 and L2
-        );
-        
-        vm.recordLogs();
-        
-        // Call from bridge
-        vm.prank(address(bridge));
-        controller.completeMigrationFromL1(dnsEncodedName, migrationData);
-        
-        // When toL1 is true, nothing should happen - the name stays as is
-        assertEq(ethRegistry.ownerOf(newTokenId), address(controller), "Bridge controller should still own the token");
-        
-        // Verify NO MigrationCompleted event was emitted (toL1=true means no migration happens)
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bytes32 eventSig = keccak256("MigrationCompleted(bytes,uint256)");
-        
-        for (uint i = 0; i < logs.length; i++) {
-            if (logs[i].emitter == address(controller) && 
-                logs[i].topics[0] == eventSig) {
-                assertTrue(false, "MigrationCompleted event should not be emitted when toL1=true");
-            }
-        }
-    }
-
-    function test_Revert_completeMigrationFromL1_UnauthorizedCaller() public {
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
-        MigrationData memory migrationData = _createMigrationData(
-            testLabel,
-            user,
-            address(0),
-            resolver,
-            LibEACBaseRoles.ALL_ROLES,
-            uint64(block.timestamp + expiryDuration),
-            false
-        );
-        
-        // Try to call from non-bridge address (without proper role)
-        vm.expectRevert(abi.encodeWithSelector(
-            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-            bytes32(0), // ROOT_RESOURCE
-            LibBridgeRoles.ROLE_MIGRATOR,
-            address(this)
-        ));
-        controller.completeMigrationFromL1(dnsEncodedName, migrationData);
-    }
-
-    function test_Revert_completeMigrationFromL1_NameNotFound() public {
-        string memory nonExistentLabel = "nonexistent";
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(nonExistentLabel);
-        
-        // Get the tokenId that would be generated for this non-existent name
-        (uint256 nonExistentTokenId,,) = ethRegistry.getNameData(nonExistentLabel);
-        
-        MigrationData memory migrationData = _createMigrationData(
-            nonExistentLabel,
-            user,
-            address(0),
-            resolver,
-            LibEACBaseRoles.ALL_ROLES,
-            uint64(block.timestamp + expiryDuration),
-            false
-        );
-        
-        // Try to migrate a name that doesn't exist - this will fail with NotTokenOwner 
-        // since getNameData returns a tokenId but ownerOf(tokenId) will be address(0) for non-existent names
-        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NotTokenOwner.selector, nonExistentTokenId));
-        vm.prank(address(bridge));
-        controller.completeMigrationFromL1(dnsEncodedName, migrationData);
-    }
-
-    function test_Revert_completeMigrationFromL1_NotTokenOwner() public {
-        string memory migrationLabel = "migration";
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(migrationLabel);
-        uint64 expires = uint64(block.timestamp + expiryDuration);
-        
-        // Register the name but don't transfer it to the bridge controller
-        uint256 newTokenId = ethRegistry.register(migrationLabel, user, ethRegistry, address(0), LibEACBaseRoles.ALL_ROLES, expires);
-        
-        MigrationData memory migrationData = _createMigrationData(
-            migrationLabel,
-            user,
-            address(0),
-            resolver,
-            LibEACBaseRoles.ALL_ROLES,
-            expires,
-            false
-        );
-        
-        // Try to migrate when bridge controller doesn't own the token
-        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NotTokenOwner.selector, newTokenId));
-        vm.prank(address(bridge));
-        controller.completeMigrationFromL1(dnsEncodedName, migrationData);
-    }
-
-
-
-
 
     // EJECTION TESTS
 

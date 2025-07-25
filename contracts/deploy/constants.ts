@@ -24,8 +24,7 @@ const FLAGS = {
   },
   // see: LibBridgeRoles.sol
   BRIDGE: {
-    MIGRATOR: 1n << 0n,
-    EJECTOR: 1n << 4n,
+    EJECTOR: 1n << 0n,
   },
 } as const satisfies Flags;
 function mapFlags(flags: Flags, fn: (x: bigint) => bigint): Flags {

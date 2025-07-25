@@ -8,38 +8,11 @@ import {TransferData, MigrationData} from "./TransferData.sol";
  * @dev Library for encoding and decoding bridge messages.
  */
 library BridgeEncoder {
-    /// @dev Error thrown when message type is invalid for migration
-    error InvalidMigrationMessageType();
-    
     /// @dev Error thrown when message type is invalid for ejection
     error InvalidEjectionMessageType();
 
     /// @dev Error thrown when message type is invalid for renewal
     error InvalidRenewalMessageType();
-
-    /**
-     * @dev Encode a migration message.
-     */
-    function encodeMigration(
-        bytes memory dnsEncodedName,
-        MigrationData memory data
-    ) internal pure returns (bytes memory) {
-        return abi.encode(uint(BridgeMessageType.MIGRATION), dnsEncodedName, data);
-    }
-
-    /**
-     * @dev Decode a migration message.
-     */
-    function decodeMigration(bytes memory message) internal pure returns (
-        bytes memory dnsEncodedName,
-        MigrationData memory data
-    ) {
-        uint _messageType;
-        (_messageType, dnsEncodedName, data) = abi.decode(message, (uint, bytes, MigrationData));
-        if (_messageType != uint(BridgeMessageType.MIGRATION)) {
-            revert InvalidMigrationMessageType();
-        }
-    }
 
     /**
      * @dev Encode an ejection message.

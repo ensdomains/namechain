@@ -4,23 +4,23 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../src/common/BridgeEncoder.sol";
 import {BridgeMessageType} from "../src/common/IBridge.sol";
-import {TransferData, MigrationData} from "../src/common/TransferData.sol";
+import {TransferData} from "../src/common/TransferData.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 
 // Wrapper contract to properly test library errors
 contract BridgeEncoderWrapper {
-    function decodeMigration(bytes memory message) external pure returns (
-        bytes memory dnsEncodedName,
-        MigrationData memory data
-    ) {
-        return BridgeEncoder.decodeMigration(message);
-    }
-
     function decodeEjection(bytes memory message) external pure returns (
         bytes memory dnsEncodedName,
         TransferData memory data
     ) {
         return BridgeEncoder.decodeEjection(message);
+    }
+
+    function decodeRenewal(bytes memory message) external pure returns (
+        uint256 tokenId,
+        uint64 newExpiry
+    ) {
+        return BridgeEncoder.decodeRenewal(message);
     }
 }
 
@@ -29,39 +29,6 @@ contract BridgeEncoderTest is Test {
 
     function setUp() public {
         wrapper = new BridgeEncoderWrapper();
-    }
-
-
-
-    function testEncodeMigration() public view {
-        TransferData memory transferData = TransferData({
-            label: "test",
-            owner: address(0x123),
-            subregistry: address(0x456),
-            resolver: address(0x789),
-            expires: uint64(block.timestamp + 365 days),
-            roleBitmap: 0x01
-        });
-
-        MigrationData memory migrationData = MigrationData({
-            transferData: transferData,
-            toL1: true,
-            data: abi.encode("test data")
-        });
-
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
-        bytes memory encodedMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
-        
-        // Verify the message type is correct
-        BridgeMessageType messageType = BridgeEncoder.getMessageType(encodedMessage);
-        assertEq(uint(messageType), uint(BridgeMessageType.MIGRATION));
-        
-        // Verify we can decode the message back
-        (bytes memory decodedDnsName, MigrationData memory decodedData) = BridgeEncoder.decodeMigration(encodedMessage);
-        assertEq(decodedDnsName, dnsEncodedName);
-        assertEq(decodedData.transferData.label, migrationData.transferData.label);
-        assertEq(decodedData.transferData.owner, migrationData.transferData.owner);
-        assertEq(decodedData.toL1, migrationData.toL1);
     }
 
     function testEncodeEjection() public view {
@@ -92,32 +59,20 @@ contract BridgeEncoderTest is Test {
         assertEq(decodedData.roleBitmap, transferData.roleBitmap);
     }
 
-    function testDecodeMigrationInvalidMessageType() public {
-        // Create a message with wrong message type but correct structure
-        // to test the custom error (not ABI decoding error)
-        TransferData memory transferData = TransferData({
-            label: "test",
-            owner: address(0x123),
-            subregistry: address(0x456),
-            resolver: address(0x789),
-            expires: uint64(block.timestamp + 365 days),
-            roleBitmap: 0x01
-        });
+    function testEncodeRenewal() public view {
+        uint256 tokenId = 12345;
+        uint64 newExpiry = uint64(block.timestamp + 365 days);
 
-        MigrationData memory migrationData = MigrationData({
-            transferData: transferData,
-            toL1: true,
-            data: abi.encode("test data")
-        });
-
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
+        bytes memory encodedMessage = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
         
-        // Manually encode with wrong message type to test custom error
-        bytes memory invalidMessage = abi.encode(uint(BridgeMessageType.EJECTION), dnsEncodedName, migrationData);
+        // Verify the message type is correct
+        BridgeMessageType messageType = BridgeEncoder.getMessageType(encodedMessage);
+        assertEq(uint(messageType), uint(BridgeMessageType.RENEWAL));
         
-        // Try to decode it as a migration message - should revert with custom error
-        vm.expectRevert(abi.encodeWithSelector(BridgeEncoder.InvalidMigrationMessageType.selector));
-        wrapper.decodeMigration(invalidMessage);
+        // Verify we can decode the message back
+        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoder.decodeRenewal(encodedMessage);
+        assertEq(decodedTokenId, tokenId);
+        assertEq(decodedExpiry, newExpiry);
     }
 
     function testDecodeEjectionInvalidMessageType() public {
@@ -135,44 +90,23 @@ contract BridgeEncoderTest is Test {
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
         
         // Manually encode with wrong message type to test custom error
-        bytes memory invalidMessage = abi.encode(uint(BridgeMessageType.MIGRATION), dnsEncodedName, transferData);
+        bytes memory invalidMessage = abi.encode(uint(BridgeMessageType.RENEWAL), dnsEncodedName, transferData);
         
         // Try to decode it as an ejection message - should revert with custom error
         vm.expectRevert(abi.encodeWithSelector(BridgeEncoder.InvalidEjectionMessageType.selector));
         wrapper.decodeEjection(invalidMessage);
     }
 
-    function testDecodeIncompatibleStructures() public {
-        // Test that trying to decode incompatible structures fails with ABI error
-        TransferData memory transferData = TransferData({
-            label: "test",
-            owner: address(0x123),
-            subregistry: address(0x456),
-            resolver: address(0x789),
-            expires: uint64(block.timestamp + 365 days),
-            roleBitmap: 0x01
-        });
-
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
-        bytes memory ejectionMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);
+    function testDecodeRenewalInvalidMessageType() public {
+        uint256 tokenId = 12345;
+        uint64 newExpiry = uint64(block.timestamp + 365 days);
         
-        // Try to decode ejection message (TransferData) as migration message (MigrationData)
-        // This should fail with generic revert due to ABI decoding mismatch
-        vm.expectRevert();
-        wrapper.decodeMigration(ejectionMessage);
+        // Manually encode with wrong message type to test custom error
+        bytes memory invalidMessage = abi.encode(uint(BridgeMessageType.EJECTION), tokenId, newExpiry);
         
-        // Test the opposite: decode migration as ejection
-        MigrationData memory migrationData = MigrationData({
-            transferData: transferData,
-            toL1: true,
-            data: abi.encode("test data")
-        });
-        
-        bytes memory migrationMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
-        
-        // This should also fail with generic revert due to ABI decoding mismatch
-        vm.expectRevert();
-        wrapper.decodeEjection(migrationMessage);
+        // Try to decode it as a renewal message - should revert with custom error
+        vm.expectRevert(abi.encodeWithSelector(BridgeEncoder.InvalidRenewalMessageType.selector));
+        wrapper.decodeRenewal(invalidMessage);
     }
 
     function testGetMessageType() public view {
@@ -192,16 +126,12 @@ contract BridgeEncoderTest is Test {
         BridgeMessageType ejectionType = BridgeEncoder.getMessageType(ejectionMessage);
         assertEq(uint(ejectionType), uint(BridgeMessageType.EJECTION));
         
-        // Test migration message type
-        MigrationData memory migrationData = MigrationData({
-            transferData: transferData,
-            toL1: true,
-            data: abi.encode("test data")
-        });
-        
-        bytes memory migrationMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
-        BridgeMessageType migrationType = BridgeEncoder.getMessageType(migrationMessage);
-        assertEq(uint(migrationType), uint(BridgeMessageType.MIGRATION));
+        // Test renewal message type
+        uint256 tokenId = 12345;
+        uint64 newExpiry = uint64(block.timestamp + 365 days);
+        bytes memory renewalMessage = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
+        BridgeMessageType renewalType = BridgeEncoder.getMessageType(renewalMessage);
+        assertEq(uint(renewalType), uint(BridgeMessageType.RENEWAL));
     }
 
     function testEncodingStructure() public view {
@@ -229,43 +159,4 @@ contract BridgeEncoderTest is Test {
         assertEq(decodedData.expires, transferData.expires);
         assertEq(decodedData.roleBitmap, transferData.roleBitmap);
     }
-
-    function testMigrationDataEncoding() public view {
-        // Test that migration data with complex nested data works
-        TransferData memory transferData = TransferData({
-            label: "complex",
-            owner: address(0x111),
-            subregistry: address(0x222),
-            resolver: address(0x333),
-            expires: uint64(block.timestamp + 1000 days),
-            roleBitmap: 0x42
-        });
-
-        bytes memory complexData = abi.encode("complex migration data", uint256(12345), address(0x444));
-        
-        MigrationData memory migrationData = MigrationData({
-            transferData: transferData,
-            toL1: false,
-            data: complexData
-        });
-
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("complex");
-        bytes memory encodedMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
-        
-        // Decode and verify all fields including nested data
-        (bytes memory decodedDnsName, MigrationData memory decodedData) = BridgeEncoder.decodeMigration(encodedMessage);
-        
-        assertEq(decodedDnsName, dnsEncodedName);
-        assertEq(decodedData.transferData.label, migrationData.transferData.label);
-        assertEq(decodedData.transferData.owner, migrationData.transferData.owner);
-        assertEq(decodedData.toL1, migrationData.toL1);
-        assertEq(decodedData.data, migrationData.data);
-        
-        // Decode the nested data to verify it's intact
-        (string memory nestedString, uint256 nestedUint, address nestedAddress) = abi.decode(decodedData.data, (string, uint256, address));
-        assertEq(nestedString, "complex migration data");
-        assertEq(nestedUint, 12345);
-        assertEq(nestedAddress, address(0x444));
-    }
-
 } 

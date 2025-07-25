@@ -18,7 +18,7 @@ import {MockL2Bridge} from "../../src/mocks/MockL2Bridge.sol";
 import {MockBridgeBase} from "../../src/mocks/MockBridgeBase.sol";
 import {EnhancedAccessControl, LibEACBaseRoles} from "../../src/common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../../src/common/LibRegistryRoles.sol";
-import {TransferData, MigrationData} from "../../src/common/TransferData.sol";
+import {TransferData} from "../../src/common/TransferData.sol";
 import {IRegistry} from "../../src/common/IRegistry.sol";
 import {BridgeEncoder} from "../../src/common/BridgeEncoder.sol";
 import {IBridge, LibBridgeRoles} from "../../src/common/IBridge.sol";
@@ -61,7 +61,6 @@ contract BridgeTest is Test, EnhancedAccessControl {
         
         // Grant bridge roles so the bridges can call the controllers
         l1Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l1Bridge));
-        l2Controller.grantRootRoles(LibBridgeRoles.ROLE_MIGRATOR, address(l2Bridge));
         l2Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l2Bridge));
     }
     
@@ -94,110 +93,5 @@ contract BridgeTest is Test, EnhancedAccessControl {
         assertEq(l1Registry.getResolver("premiumname"), transferData.resolver);
         assertEq(l1Registry.getExpiry(tokenId), transferData.expires);
         assertEq(l1Registry.roles(l1Registry.getTokenIdResource(tokenId), transferData.owner), transferData.roleBitmap);
-    }
-    
-    function testL2BridgeRevertsMigrationMessages() public {
-        // Test that L2 bridge properly rejects migration message types
-        TransferData memory transferData = TransferData({
-            label: "test",
-            owner: user1,
-            subregistry: address(0),
-            resolver: address(0),
-            expires: uint64(block.timestamp + 365 days),
-            roleBitmap: 0
-        });
-        MigrationData memory migrationData = MigrationData({
-            transferData: transferData,
-            toL1: false,
-            data: abi.encode("test migration data")
-        });
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
-        bytes memory migrationMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
-        
-        // Should revert with MigrationNotSupported error
-        vm.expectRevert(MockBridgeBase.MigrationNotSupported.selector);
-        l2Bridge.sendMessage(migrationMessage);
-    }
-    
-    function testL1BridgeRevertsMigrationMessages() public {
-        // Test that L1 bridge properly rejects migration message types when receiving them
-        TransferData memory transferData = TransferData({
-            label: "test",
-            owner: user1,
-            subregistry: address(0),
-            resolver: address(0),
-            expires: uint64(block.timestamp + 365 days),
-            roleBitmap: 0
-        });
-        MigrationData memory migrationData = MigrationData({
-            transferData: transferData,
-            toL1: false,
-            data: abi.encode("test migration data")
-        });
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
-        bytes memory migrationMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
-        
-        // Should revert with MigrationNotSupported error when receiving migration messages
-        vm.expectRevert(MockBridgeBase.MigrationNotSupported.selector);
-        l1Bridge.receiveMessage(migrationMessage);
-    }
-    
-    function testL1BridgeMigrationEvents() public {
-        // Test that L1 bridge properly emits NameBridgedToL2 events
-        string memory label = "migrationtest";
-        
-        TransferData memory transferData = TransferData({
-            label: label,
-            owner: user1,
-            subregistry: address(0x111),
-            resolver: address(0x222),
-            expires: uint64(block.timestamp + 365 days),
-            roleBitmap: LibRegistryRoles.ROLE_RENEW
-        });
-        
-        MigrationData memory migrationData = MigrationData({
-            transferData: transferData,
-            toL1: false,
-            data: abi.encode("additional migration data")
-        });
-        
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(label);
-        bytes memory migrationMessage = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
-        
-        vm.recordLogs();
-        
-        // Trigger the migration message via sendMessage (this should work and emit event)
-        l1Bridge.sendMessage(migrationMessage);
-        
-        // Check for NameBridgedToL2 event from L1 bridge
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        bytes32 bridgeEventSig = keccak256("NameBridgedToL2(bytes)");
-        
-        bool foundBridgeEvent = false;
-        uint256 bridgeEventIndex = 0;
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == bridgeEventSig) {
-                foundBridgeEvent = true;
-                bridgeEventIndex = i;
-                break;
-            }
-        }
-
-        assertTrue(foundBridgeEvent, "NameBridgedToL2 event not found");
-        
-        // For NameBridgedToL2(bytes message) - single parameter is NOT indexed
-        // so the message is in the data field
-        (bytes memory eventMessage) = abi.decode(entries[bridgeEventIndex].data, (bytes));
-        
-        // Verify the message matches what we sent
-        assertEq(keccak256(eventMessage), keccak256(migrationMessage));
-        
-        // Verify we can decode the message back to get the original data
-        (bytes memory decodedDnsEncodedName, MigrationData memory decodedMigrationData) = BridgeEncoder.decodeMigration(eventMessage);
-        assertEq(keccak256(decodedDnsEncodedName), keccak256(dnsEncodedName));
-        assertEq(decodedMigrationData.transferData.owner, transferData.owner);
-        assertEq(decodedMigrationData.transferData.subregistry, transferData.subregistry);
-        assertEq(decodedMigrationData.transferData.expires, transferData.expires);
-        assertEq(decodedMigrationData.toL1, false);
     }
 }

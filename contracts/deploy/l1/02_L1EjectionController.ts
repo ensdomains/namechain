@@ -40,7 +40,7 @@ export default execute(
     await write(l1EjectionController, {
       functionName: "grantRootRoles",
       args: [
-        ROLES.OWNER.BRIDGE.EJECTOR | ROLES.OWNER.BRIDGE.MIGRATOR,
+        ROLES.OWNER.BRIDGE.EJECTOR,
         l1Bridge.address,
       ],
       account: deployer,
