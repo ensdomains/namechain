@@ -2,4 +2,10 @@
   "solidity.packageDefaultDependenciesContractsDirectory": "./contracts/src",
   "solidity.packageDefaultDependenciesDirectory": "./contracts/lib",
   "solidity.compileUsingRemoteVersion": "v0.8.25+commit.b61c2a91",
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/cache": true,
+    "**/artifacts": true,
+    "**/build": true
+  },
 }
