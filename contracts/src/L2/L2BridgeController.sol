@@ -104,7 +104,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             _assertTokenIdMatchesLabel(tokenId, transferData.label);
 
             /*
-            Check that there is no more than holder of the token observer and subregistry setting roles.
+            Check that there is no more than one holder of the token observer and subregistry setting roles.
 
             This works by calculating the no. of assignees for each of the given roles as a bitmap `(counts & mask)` where each role's corresponding 
             nybble is set to its assignee count.
