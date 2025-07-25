@@ -125,7 +125,7 @@ contract DNSTLDResolver is
     }
 
     /// @notice Resolve `name` using V1 or DNSSEC.
-    /// @notice Caller should enable EIP-3668.
+    ///         Caller should enable EIP-3668.
     /// @dev This function executes over multiple steps.
     function resolve(
         bytes calldata name,

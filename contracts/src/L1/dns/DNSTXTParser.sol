@@ -20,7 +20,7 @@ import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 ///      <kv> ::= <k> "=" <v>
 ///       <k> ::= <u> | <u> "[" <a> "]"
 ///       <v> ::= "'" <q> "'" | <u>
-///       <q> ::= <all octets except "'" unless preceeded by "\">
+///       <q> ::= <all octets except "'" unless preceded by "\">
 ///       <u> ::= <all octets except " ">
 ///       <a> ::= <all octets except "]">
 ///

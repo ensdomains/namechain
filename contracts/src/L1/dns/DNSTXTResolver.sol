@@ -21,9 +21,6 @@ import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 
-/// @dev The text key to access "context" from `ENS1 <resolver> <context>`.
-string constant TEXT_DNSSEC_CONTEXT = "eth.ens.dnssec-context";
-
 /// @title DNSTXTResolver
 /// @notice Resolver that answers requests with the data encoded into the context of a DNSSEC "ENS1" TXT record.
 ///
@@ -47,6 +44,9 @@ string constant TEXT_DNSSEC_CONTEXT = "eth.ens.dnssec-context";
 /// * `pubkey()`: `xy=0x...`
 ///
 contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
+    /// @dev The text key to access "context" from `ENS1 <resolver> <context>`.
+    string constant TEXT_DNSSEC_CONTEXT = "eth.ens.dnssec-context";
+
     /// @notice The resolver profile cannot be answered.
     /// @dev Error selector: `0x7b1c461b`
     error UnsupportedResolverProfile(bytes4 selector);
@@ -75,6 +75,7 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
         return ResolverFeatures.RESOLVE_MULTICALL == feature;
     }
 
+    /// @notice Resolve using values parsed from `context`.
     function resolve(
         bytes calldata /* name */,
         bytes calldata data,
@@ -114,8 +115,7 @@ contract DNSTXTResolver is ERC165, IFeatureSupporter, IExtendedDNSResolver {
             );
             return abi.encode(v);
         } else if (selector == IContentHashResolver.contenthash.selector) {
-            return
-                abi.encode(_parse0xString(DNSTXTParser.find(context, "c=")));
+            return abi.encode(_parse0xString(DNSTXTParser.find(context, "c=")));
         } else if (selector == IPubkeyResolver.pubkey.selector) {
             bytes memory v = _parse0xString(DNSTXTParser.find(context, "xy="));
             if (v.length == 0) {
