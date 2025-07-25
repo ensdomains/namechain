@@ -1,5 +1,4 @@
-// import { labelhash, namehash } from "viem";
-export { expectVar } from "./expectVar.js";
+import { labelhash } from "viem";
 
 // import type { ccipRequest } from "viem";
 // export type CCIPReadOption =
@@ -22,6 +21,16 @@ export {
 //   m.push(Uint8Array.of(0));
 //   return concat(m);
 // }
+
+// see: NameUtils.labelToCanonicalId()
+export function labelToCanonicalId(label: string) {
+  return getCanonicalId(BigInt(labelhash(label)));
+}
+
+// see: NameUtils.getCanonicalId
+export function getCanonicalId(id: bigint) {
+  return id ^ BigInt.asUintN(32, id);
+}
 
 // export function dnsEncodeName(name: string) {
 //   return bytesToHex(packetToBytes(name));
