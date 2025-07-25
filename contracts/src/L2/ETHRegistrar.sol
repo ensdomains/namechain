@@ -86,13 +86,13 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     }
 
     /**
-     * @dev Get the token amount required to register or renew a name.
-     * @param name The name to get the price for.
+     * @dev Check the price of a name and get the required token amount.
+     * @param name The name to check the price for.
      * @param duration The duration of the registration or renewal.
      * @param token The ERC20 token address.
      * @return tokenAmount The amount of tokens required.
      */
-    function rentPriceInToken(string memory name, uint256 duration, address token) public view returns (uint256 tokenAmount) {
+    function checkPrice(string memory name, uint256 duration, address token) public view returns (uint256 tokenAmount) {
         TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
         
         if (!tokenOracle.isTokenSupported(token)) {
@@ -259,22 +259,5 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
         delete (commitments[commitment]);
     }
 
-    /**
-     * @dev Check the price of a name and get the required token amount.
-     * @param name The name to check the price for.
-     * @param duration The duration of the registration.
-     * @param token The ERC20 token address.
-     * @return totalPrice The total token amount required.
-     */
-    function checkPrice(string memory name, uint64 duration, address token) private view returns (uint256 totalPrice) {
-        TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
-        
-        if (!tokenOracle.isTokenSupported(token)) {
-            revert TokenNotSupported(token);
-        }
-
-        (, uint64 expiry, ) = registry.getNameData(name);
-        totalPrice = tokenOracle.priceInToken(name, uint256(expiry), duration, token);
-    }
 
 }

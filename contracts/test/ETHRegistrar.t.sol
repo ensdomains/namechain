@@ -178,15 +178,15 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         assertEq(price.premium, PREMIUM_PRICE_USD);
     }
 
-    function test_rentPriceInToken() public view {
+    function test_checkPrice() public view {
         string memory name = "testname";
         
         // Check USDC price (6 decimals): $10 should be 10 * 10^6
-        uint256 usdcAmount = registrar.rentPriceInToken(name, REGISTRATION_DURATION, address(usdc));
+        uint256 usdcAmount = registrar.checkPrice(name, REGISTRATION_DURATION, address(usdc));
         assertEq(usdcAmount, 10 * 1e6);
         
         // Check DAI price (18 decimals): $10 should be 10 * 10^18
-        uint256 daiAmount = registrar.rentPriceInToken(name, REGISTRATION_DURATION, address(dai));
+        uint256 daiAmount = registrar.checkPrice(name, REGISTRATION_DURATION, address(dai));
         assertEq(daiAmount, 10 * 1e18);
     }
 
@@ -735,7 +735,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // Check beneficiary balance before renewal
         uint256 initialBeneficiaryBalance = usdc.balanceOf(beneficiary);
         uint64 renewalDuration = 180 days;
-        uint256 expectedRenewalCost = registrar.rentPriceInToken(name, renewalDuration, address(usdc));
+        uint256 expectedRenewalCost = registrar.checkPrice(name, renewalDuration, address(usdc));
 
         // Renew the name
         registrar.renew(name, renewalDuration, address(usdc));
