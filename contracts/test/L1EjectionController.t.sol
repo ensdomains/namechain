@@ -186,7 +186,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
         assertEq(registry.getResolver(testLabel), MOCK_RESOLVER);
         
-        bytes32 resource = registry.getTokenIdResource(tokenId);
+        uint256 resource = registry.getTokenIdResource(tokenId);
         assertTrue(registry.hasRoles(resource, expectedRoles, user), "Role bitmap should match the expected roles");
     }
 
@@ -618,7 +618,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Try to call completeEjectionFromL2 directly (without proper role)
         vm.expectRevert(abi.encodeWithSelector(
             IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-            bytes32(0), // ROOT_RESOURCE
+            uint256(0), // ROOT_RESOURCE
             LibBridgeRoles.ROLE_EJECTOR,
             address(this)
         ));
@@ -645,7 +645,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Try to call syncRenewal directly (without proper role)
         vm.expectRevert(abi.encodeWithSelector(
             IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-            bytes32(0), // ROOT_RESOURCE
+            uint256(0), // ROOT_RESOURCE
             LibBridgeRoles.ROLE_EJECTOR,
             address(this)
         ));

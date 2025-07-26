@@ -181,12 +181,12 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         return interfaceId == type(IPermissionedRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    function getTokenIdResource(uint256 tokenId) public pure returns (bytes32) {
-        return bytes32(NameUtils.getCanonicalId(tokenId));
+    function getTokenIdResource(uint256 tokenId) public pure returns (uint256) {
+        return NameUtils.getCanonicalId(tokenId);
     }
 
-    function getResourceTokenId(bytes32 resource) public view returns (uint256) {
-        uint256 canonicalId = uint256(resource);
+    function getResourceTokenId(uint256 resource) public view returns (uint256) {
+        uint256 canonicalId = resource;
         (, , uint32 tokenIdVersion) = datastore.getSubregistry(canonicalId);
         return _constructTokenId(canonicalId, tokenIdVersion);
     }
@@ -215,7 +215,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     /**
      * @dev Override the base registry _onRolesGranted function to regenerate the token when the roles are granted.
      */
-    function _onRolesGranted(bytes32 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
+    function _onRolesGranted(uint256 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
         uint256 tokenId = getResourceTokenId(resource);
         // skip just-burn/expired tokens
         address owner = ownerOf(tokenId);
@@ -227,7 +227,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     /**
      * @dev Override the base registry _onRolesRevoked function to regenerate the token when the roles are revoked.
      */
-    function _onRolesRevoked(bytes32 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
+    function _onRolesRevoked(uint256 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
         uint256 tokenId = getResourceTokenId(resource);
         // skip just-burn/expired tokens
         address owner = ownerOf(tokenId);

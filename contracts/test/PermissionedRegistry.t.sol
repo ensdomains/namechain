@@ -454,7 +454,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, owner1));
         assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_RENEW, owner1));
         
-        bytes32 originalResourceId = registry.getTokenIdResource(tokenId);
+        uint256 originalResourceId = registry.getTokenIdResource(tokenId);
         
         // Move time forward to expire the name
         vm.warp(block.timestamp + 101);
@@ -468,7 +468,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         
         // Verify it's a different token ID
         assertNotEq(newTokenId, tokenId, "Token ID should change after re-registration");
-        bytes32 newResourceId = registry.getTokenIdResource(newTokenId);
+        uint256 newResourceId = registry.getTokenIdResource(newTokenId);
         assertEq(newResourceId, originalResourceId, "Resource ID should NOT change after re-registration");
         
         // owner1 should no longer have roles for this token
@@ -490,7 +490,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("transfertest", owner1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
 
         // Capture the resource ID before transfer
-        bytes32 originalResourceId = registry.getTokenIdResource(tokenId);
+        uint256 originalResourceId = registry.getTokenIdResource(tokenId);
         
         // Grant additional role to owner1
         registry.grantRoles(originalResourceId, LibRegistryRoles.ROLE_RENEW, owner1);
@@ -513,7 +513,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertEq(registry.ownerOf(newTokenId), owner2);
         
         // Verify the resource ID has not changed
-        bytes32 newResourceId = registry.getTokenIdResource(newTokenId);
+        uint256 newResourceId = registry.getTokenIdResource(newTokenId);
         assertEq(newResourceId, originalResourceId, "Resource ID should be the same");
         
         // Check using the new resource ID that owner1 no longer has roles
@@ -673,7 +673,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("regenerate1", owner1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
         
         // Record the resource ID (should remain stable)
-        bytes32 resourceId = registry.getTokenIdResource(tokenId);
+        uint256 resourceId = registry.getTokenIdResource(tokenId);
         
         // Grant a new role to another user
         address user2 = makeAddr("user2");
@@ -720,7 +720,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("regenerate2", owner1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
         
         // Record the resource ID (should remain stable)
-        bytes32 resourceId = registry.getTokenIdResource(tokenId);
+        uint256 resourceId = registry.getTokenIdResource(tokenId);
         
         // Grant a role to another user first
         address user2 = makeAddr("user2");
@@ -773,7 +773,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("regenerate3", owner1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 100);
         
         // Record the resource ID (should remain stable)
-        bytes32 resourceId = registry.getTokenIdResource(tokenId);
+        uint256 resourceId = registry.getTokenIdResource(tokenId);
         
         // Grant an additional role to the owner
         registry.grantRoles(resourceId, LibRegistryRoles.ROLE_RENEW, owner1);
@@ -824,7 +824,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         address user2 = makeAddr("user2");
         address user3 = makeAddr("user3");
         
-        bytes32 resourceId = registry.getTokenIdResource(tokenId);
+        uint256 resourceId = registry.getTokenIdResource(tokenId);
         registry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, user2);
         registry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, user3);
         
@@ -853,7 +853,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         address user2 = makeAddr("user2");
         address user3 = makeAddr("user3");
         
-        bytes32 resourceId = registry.getTokenIdResource(tokenId);
+        uint256 resourceId = registry.getTokenIdResource(tokenId);
         registry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, user2);
         registry.grantRoles(resourceId, LibRegistryRoles.ROLE_RENEW, user2);
         registry.grantRoles(resourceId, LibRegistryRoles.ROLE_RENEW, user3);
@@ -901,7 +901,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         address user2 = makeAddr("user2");
         address user3 = makeAddr("user3");
         
-        bytes32 resourceId = registry.getTokenIdResource(tokenId);
+        uint256 resourceId = registry.getTokenIdResource(tokenId);
         
         // Grant overlapping roles
         registry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_RENEW, user2);
@@ -928,7 +928,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("counttest8", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
         
         address user2 = makeAddr("user2");
-        bytes32 resourceId = registry.getTokenIdResource(tokenId);
+        uint256 resourceId = registry.getTokenIdResource(tokenId);
         
         // Grant role to user2
         registry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, user2);
