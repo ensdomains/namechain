@@ -91,7 +91,7 @@ library RegistryUtils {
     /// @dev Read label at offset from a DNS-encoded name.
     ///      eg. `readLabel("\x03abc\x00", 0) = "abc"`.
     /// @param name The DNS-encoded name.
-    /// @param offset The offset into `name`
+    /// @param offset The offset into `name`.
     /// @return label The label.
     function readLabel(
         bytes memory name,

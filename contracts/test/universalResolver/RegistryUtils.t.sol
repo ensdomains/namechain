@@ -11,6 +11,7 @@ import {TestUtils} from "../utils/TestUtils.sol";
 contract TestRegistryUtils is Test, ERC1155Holder {
     RegistryDatastore datastore;
     PermissionedRegistry rootRegistry;
+    address resolverAddress = makeAddr("resolver");
 
     function _createRegistry() internal returns (PermissionedRegistry) {
         return
@@ -19,6 +20,21 @@ contract TestRegistryUtils is Test, ERC1155Holder {
                 IRegistryMetadata(address(0)),
                 TestUtils.ALL_ROLES
             );
+    }
+    function _register(
+        PermissionedRegistry parentRegistry,
+        string memory label,
+        IRegistry registry,
+        address resolver
+    ) internal {
+        parentRegistry.register(
+            label,
+            address(this),
+            registry,
+            resolver,
+            TestUtils.ALL_ROLES,
+            uint64(block.timestamp + 1000)
+        );
     }
 
     function setUp() public {
@@ -61,12 +77,24 @@ contract TestRegistryUtils is Test, ERC1155Holder {
         this._readLabel("0x0000", 0);
     }
 
-    function _expectRegistries(
+    function _expectFindResolver(
         bytes memory name,
+        uint256 resolverOffset,
+        address parentRegistry,
         IRegistry[] memory registries
     ) internal view {
+        (, address resolver, bytes32 node, uint256 offset) = RegistryUtils
+            .findResolver(rootRegistry, name, 0);
+        assertEq(resolver, resolverAddress, "resolver");
+        assertEq(node, NameCoder.namehash(name, 0), "node");
+        assertEq(offset, resolverOffset, "offset");
+        assertEq(
+            address(RegistryUtils.findParentRegistry(rootRegistry, name, 0)),
+            parentRegistry,
+            "parent"
+        );
         uint256 i;
-        for (uint256 offset; i < registries.length; i++) {
+        for (offset = 0; i < registries.length; i++) {
             assertEq(
                 address(
                     RegistryUtils.findExactRegistry(rootRegistry, name, offset)
@@ -83,169 +111,79 @@ contract TestRegistryUtils is Test, ERC1155Holder {
         bytes memory name = NameCoder.encode("eth");
         //     name:  eth
         // registry: <eth> <root>
-        // resolver:  0x1
+        // resolver:   X
         vm.pauseGasMetering();
         PermissionedRegistry ethRegistry = _createRegistry();
         rootRegistry.register(
             "eth",
             address(this),
             ethRegistry,
-            address(1),
+            resolverAddress,
             TestUtils.ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
         vm.resumeGasMetering();
 
-        (, address resolver, bytes32 node, uint256 offset) = RegistryUtils
-            .findResolver(rootRegistry, name, 0);
-        assertEq(resolver, address(1), "resolver");
-        assertEq(node, NameCoder.namehash(name, 0), "node");
-        assertEq(offset, 0, "offset");
-
-        assertEq(
-            address(RegistryUtils.findParentRegistry(rootRegistry, name, 0)),
-            address(rootRegistry),
-            "parentRegistry"
-        );
-
         IRegistry[] memory v = new IRegistry[](2);
         v[0] = ethRegistry;
         v[1] = rootRegistry;
-        _expectRegistries(name, v);
+        _expectFindResolver(name, 0, address(rootRegistry), v);
     }
 
     function test_findResolver_resolverOnParent() external {
         bytes memory name = NameCoder.encode("test.eth");
         //     name:  test . eth
         // registry: <test> <eth> <root>
-        // resolver:   0x1
+        // resolver:   X
         vm.pauseGasMetering();
         PermissionedRegistry ethRegistry = _createRegistry();
         PermissionedRegistry testRegistry = _createRegistry();
-        rootRegistry.register(
-            "eth",
-            address(this),
-            ethRegistry,
-            address(0),
-            TestUtils.ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
-        ethRegistry.register(
-            "test",
-            address(this),
-            testRegistry,
-            address(1),
-            TestUtils.ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
+        _register(rootRegistry, "eth", ethRegistry, address(0));
+        _register(ethRegistry, "test", testRegistry, resolverAddress);
         vm.resumeGasMetering();
-
-        (, address resolver, bytes32 node, uint256 offset) = RegistryUtils
-            .findResolver(rootRegistry, name, 0);
-        assertEq(resolver, address(1), "resolver");
-        assertEq(node, NameCoder.namehash(name, 0), "node");
-        assertEq(offset, 0, "offset");
-
-        assertEq(
-            address(RegistryUtils.findParentRegistry(rootRegistry, name, 0)),
-            address(ethRegistry),
-            "parentRegistry"
-        );
 
         IRegistry[] memory v = new IRegistry[](3);
         v[0] = testRegistry;
         v[1] = ethRegistry;
         v[2] = rootRegistry;
-        _expectRegistries(name, v);
+        _expectFindResolver(name, 0, address(ethRegistry), v);
     }
 
     function test_findResolver_resolverOnRoot() external {
         bytes memory name = NameCoder.encode("sub.test.eth");
         //     name:  sub . test . eth
         // registry:       <test> <eth> <root>
-        // resolver:               0x1
+        // resolver:                X
         vm.pauseGasMetering();
         PermissionedRegistry ethRegistry = _createRegistry();
         PermissionedRegistry testRegistry = _createRegistry();
-        rootRegistry.register(
-            "eth",
-            address(this),
-            ethRegistry,
-            address(1),
-            TestUtils.ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
-        ethRegistry.register(
-            "test",
-            address(this),
-            testRegistry,
-            address(0),
-            TestUtils.ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
+        _register(rootRegistry, "eth", ethRegistry, resolverAddress);
+        _register(ethRegistry, "test", testRegistry, address(0));
         vm.resumeGasMetering();
-
-        (, address resolver, bytes32 node, uint256 offset) = RegistryUtils
-            .findResolver(rootRegistry, name, 0);
-        assertEq(resolver, address(1), "resolver");
-        assertEq(node, NameCoder.namehash(name, 0), "node");
-        assertEq(offset, 9, "offset"); // 3sub4test
-
-        assertEq(
-            address(RegistryUtils.findParentRegistry(rootRegistry, name, 0)),
-            address(testRegistry),
-            "parentRegistry"
-        );
 
         IRegistry[] memory v = new IRegistry[](4);
         v[1] = testRegistry;
         v[2] = ethRegistry;
         v[3] = rootRegistry;
-        _expectRegistries(name, v);
+        _expectFindResolver(name, 9, address(testRegistry), v); // 3sub4test
     }
 
     function test_findResolver_virtual() external {
-        bytes memory name = NameCoder.encode("a.b.test.eth");
-        //     name:  a . b . test . eth
-        // registry:         <test> <eth> <root>
-        // resolver:                 0x1
+        bytes memory name = NameCoder.encode("a.bb.test.eth");
+        //     name:  a . bb . test . eth
+        // registry:          <test> <eth> <root>
+        // resolver:                   X
         vm.pauseGasMetering();
         PermissionedRegistry ethRegistry = _createRegistry();
         PermissionedRegistry testRegistry = _createRegistry();
-        rootRegistry.register(
-            "eth",
-            address(this),
-            ethRegistry,
-            address(1),
-            TestUtils.ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
-        ethRegistry.register(
-            "test",
-            address(this),
-            testRegistry,
-            address(0),
-            TestUtils.ALL_ROLES,
-            uint64(block.timestamp + 1000)
-        );
+        _register(rootRegistry, "eth", ethRegistry, resolverAddress);
+        _register(ethRegistry, "test", testRegistry, address(0));
         vm.resumeGasMetering();
-
-        (, address resolver, bytes32 node, uint256 offset) = RegistryUtils
-            .findResolver(rootRegistry, name, 0);
-        assertEq(resolver, address(1), "resolver");
-        assertEq(node, NameCoder.namehash(name, 0), "node");
-        assertEq(offset, 9, "offset"); // 1a1b4test
-
-        assertEq(
-            address(RegistryUtils.findParentRegistry(rootRegistry, name, 0)),
-            address(0),
-            "parentRegistry"
-        );
 
         IRegistry[] memory v = new IRegistry[](5);
         v[2] = testRegistry;
         v[3] = ethRegistry;
         v[4] = rootRegistry;
-        _expectRegistries(name, v);
+        _expectFindResolver(name, 10, address(0), v); // 1a2bb4test
     }
 }
