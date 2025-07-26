@@ -5,7 +5,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
-import {CCIPBatcher} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
+import {CCIPBatcher, CCIPReader} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
@@ -23,7 +23,10 @@ abstract contract AbstractUniversalResolver is
 {
     string[] public batchGateways;
 
-    constructor(address owner, string[] memory gateways) Ownable(owner) {
+    constructor(
+        address owner,
+        string[] memory gateways
+    ) Ownable(owner) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
         batchGateways = gateways;
     }
 
@@ -279,6 +282,7 @@ abstract contract AbstractUniversalResolver is
             address(this),
             abi.encodeCall(this.ccipBatch, (batch)),
             this.resolveBatchCallback.selector,
+            IDENTITY_FUNCTION,
             abi.encode(info, callbackFunction, extraData)
         );
     }
