@@ -13,9 +13,11 @@ import "../src/common/RegistryDatastore.sol";
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/EnhancedAccessControl.sol";
+import "../src/common/IEnhancedAccessControl.sol";
 import "../src/common/NameUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
-import {TestUtils} from "./utils/TestUtils.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
 contract MockPriceOracle is IPriceOracle {
     uint256 public basePrice;
@@ -52,8 +54,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     bytes32 constant SECRET = bytes32(uint256(1234567890));
 
     // Hardcoded role constants
-    uint256 constant ROLE_REGISTRAR = 1 << 0;
-    uint256 constant ROLE_RENEW = 1 << 4;
+
     
     uint256 constant ROLE_SET_PRICE_ORACLE = 1 << 20;
     uint256 constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
@@ -68,13 +69,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
         datastore = new RegistryDatastore();
         // Use a defined ALL_ROLES value for deployer roles
-        uint256 deployerRoles = TestUtils.ALL_ROLES;
-        registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), deployerRoles);
+        uint256 deployerRoles = LibEACBaseRoles.ALL_ROLES;
+        registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), address(this), deployerRoles);
         priceOracle = new MockPriceOracle(BASE_PRICE, PREMIUM_PRICE);
         
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE);
         
-        registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(registrar));
+        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(registrar));
         
         vm.deal(address(this), 100 ether);
         vm.deal(user1, 100 ether);
@@ -295,7 +296,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         );
 
         bytes32 resource = registry.getTokenIdResource(tokenId);
-        assertTrue(registry.hasRoles(resource, TestUtils.ALL_ROLES, owner));
+        assertTrue(registry.hasRoles(resource, LibEACBaseRoles.ALL_ROLES, owner));
     }
 
     function test_Revert_insufficientValue() public {
@@ -591,7 +592,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_supportsInterface() public view {
         // Use type(IETHRegistrar).interfaceId directly
         bytes4 ethRegistrarInterfaceId = type(IETHRegistrar).interfaceId;
-        bytes4 eacInterfaceId = type(EnhancedAccessControl).interfaceId;
+        bytes4 eacInterfaceId = type(IEnhancedAccessControl).interfaceId;
         
         assertTrue(registrar.supportsInterface(ethRegistrarInterfaceId));
         assertTrue(registrar.supportsInterface(eacInterfaceId));
@@ -700,14 +701,14 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_Revert_setPriceOracle_notAdmin() public {
         vm.startPrank(user1);
         MockPriceOracle newPriceOracle = new MockPriceOracle(0.02 ether, 0.01 ether);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_PRICE_ORACLE, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_PRICE_ORACLE, user1));
         registrar.setPriceOracle(newPriceOracle);
         vm.stopPrank();
     }
 
     function test_Revert_setCommitmentAges_notAdmin() public {
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES, user1));
         registrar.setCommitmentAges(120, 172800);
         vm.stopPrank();
     }
@@ -790,7 +791,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         
         // User1 should not be able to set commitment ages
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES, user1));
         registrar.setCommitmentAges(120, 172800);
         vm.stopPrank();
     }
@@ -804,7 +805,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // User1 should not be able to set price oracle
         vm.startPrank(user1);
         MockPriceOracle newPriceOracle = new MockPriceOracle(0.02 ether, 0.01 ether);
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_PRICE_ORACLE, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_SET_PRICE_ORACLE, user1));
         registrar.setPriceOracle(newPriceOracle);
         vm.stopPrank();
     }
@@ -838,14 +839,18 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         uint256 ROLE_SET_SUBREGISTRY_ADMIN = ROLE_SET_SUBREGISTRY << 128;
         uint256 ROLE_SET_RESOLVER = 1 << 12;
         uint256 ROLE_SET_RESOLVER_ADMIN = ROLE_SET_RESOLVER << 128;
+        uint256 ROLE_SET_TOKEN_OBSERVER = 1 << 16;
+        uint256 ROLE_SET_TOKEN_OBSERVER_ADMIN = ROLE_SET_TOKEN_OBSERVER << 128;
 
         assertTrue(registry.hasRoles(resource, ROLE_SET_SUBREGISTRY, user1));
         assertTrue(registry.hasRoles(resource, ROLE_SET_SUBREGISTRY_ADMIN, user1));
         assertTrue(registry.hasRoles(resource, ROLE_SET_RESOLVER, user1));
         assertTrue(registry.hasRoles(resource, ROLE_SET_RESOLVER_ADMIN, user1));
+        assertTrue(registry.hasRoles(resource, ROLE_SET_TOKEN_OBSERVER, user1));
+        assertTrue(registry.hasRoles(resource, ROLE_SET_TOKEN_OBSERVER_ADMIN, user1));
 
         // Check combined bitmap
-        uint256 ROLE_BITMAP_REGISTRATION = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;
+        uint256 ROLE_BITMAP_REGISTRATION = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN | ROLE_SET_TOKEN_OBSERVER | ROLE_SET_TOKEN_OBSERVER_ADMIN;
         assertTrue(registry.hasRoles(resource, ROLE_BITMAP_REGISTRATION, user1));
     }
 

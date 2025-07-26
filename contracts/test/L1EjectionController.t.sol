@@ -12,15 +12,16 @@ import "../src/common/IRegistry.sol";
 import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
 import {TransferData} from "../src/common/TransferData.sol";
-import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
+import {EnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 import "../src/common/IRegistryMetadata.sol";
-import {RegistryRolesMixin} from "../src/common/RegistryRolesMixin.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import "../src/common/BaseRegistry.sol";
 import "../src/common/IStandardRegistry.sol";
 import "../src/common/NameUtils.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
-import {IBridge} from "../src/common/IBridge.sol";
+import {IBridge, LibBridgeRoles} from "../src/common/IBridge.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -32,7 +33,7 @@ contract MockBridge is IBridge {
     function sendMessage(bytes memory) external override {}
 }
 
-contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, EnhancedAccessControl {
+contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl {
     RegistryDatastore datastore;
     PermissionedRegistry registry;
     L1EjectionController ejectionController;
@@ -131,14 +132,17 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         bridge = new MockBridge();
         
         // Deploy the registry
-        registry = new PermissionedRegistry(datastore, registryMetadata, ALL_ROLES);
+        registry = new PermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
         
         // Create the real controller with the correct registry and bridge
         ejectionController = new L1EjectionController(registry, bridge);
 
-        // grant roles
-        registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(this));
-        registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(ejectionController));
+        // grant roles to registry operations
+        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(this));
+        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, address(ejectionController));
+        
+        // Grant bridge roles to the bridge mock so it can call the ejection controller
+        ejectionController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(bridge));
     }
 
     function test_eject_from_namechain_unlocked() public {
@@ -149,7 +153,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -161,7 +165,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
 
     function test_eject_from_namechain_basic() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
-        uint256 expectedRoles = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
+        uint256 expectedRoles = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         address subregistry = address(0x1234);
         TransferData memory transferData = TransferData({
             label: testLabel,
@@ -196,7 +200,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -231,7 +235,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -251,7 +255,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -265,6 +269,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
         
+        vm.prank(address(bridge));
         ejectionController.syncRenewal(tokenId, newExpiry);
 
         // Verify new expiry was set
@@ -280,7 +285,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -292,6 +297,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
 
         vm.recordLogs();
         
+        vm.prank(address(bridge));
         ejectionController.syncRenewal(tokenId, newExpiry);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -319,7 +325,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -330,6 +336,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         vm.warp(block.timestamp + 101);
 
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameExpired.selector, tokenId));
+        vm.prank(address(bridge));
         ejectionController.syncRenewal(tokenId, uint64(block.timestamp) + 200);
     }
 
@@ -341,7 +348,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: initialExpiry,
-            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -356,12 +363,13 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
                 IStandardRegistry.CannotReduceExpiration.selector, initialExpiry, newExpiry
             )
         );
+        vm.prank(address(bridge));
         ejectionController.syncRenewal(tokenId, newExpiry);
     }
 
     function test_ejectToNamechain() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
-        uint256 roleBitmap = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
+        uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         
         // Register the name directly using the registry
         registry.register(testLabel, address(this), registry, MOCK_RESOLVER, roleBitmap, expiryTime);
@@ -373,7 +381,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         address expectedSubregistry = address(2);
         address expectedResolver = address(3);
         uint64 expectedExpiry = uint64(block.timestamp + 86400);
-        uint256 expectedRoleBitmap = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
+        uint256 expectedRoleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         
         bytes memory data = _createEjectionData(
             expectedOwner, 
@@ -408,7 +416,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
 
     function test_Revert_ejectToNamechain_invalid_label() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
-        uint256 roleBitmap = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
+        uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         
         // Register the name directly using the registry
         registry.register(testLabel, address(this), registry, MOCK_RESOLVER, roleBitmap, expiryTime);
@@ -421,7 +429,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         address expectedSubregistry = address(2);
         address expectedResolver = address(3);
         uint64 expectedExpiry = uint64(block.timestamp + 86400);
-        uint256 expectedRoleBitmap = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
+        uint256 expectedRoleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         
         bytes memory data = _createEjectionDataWithLabel(
             invalidLabel,
@@ -447,7 +455,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         
         // Verify all tokens were processed correctly
         for (uint256 i = 0; i < ids.length; i++) {
-            assertEq(registry.ownerOf(ids[i]), address(0), "Token should have been relinquished");
+            assertEq(registry.ownerOf(ids[i]), address(0), "Token should have been burned");
         }
         
         _verifyBatchEventEmission();
@@ -457,9 +465,9 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         
         // Register names
-        registry.register("test1", address(this), registry, MOCK_RESOLVER, ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY, expiryTime);
-        registry.register("test2", address(this), registry, MOCK_RESOLVER, ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY, expiryTime);
-        registry.register("test3", address(this), registry, MOCK_RESOLVER, ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY, expiryTime);
+        registry.register("test1", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
+        registry.register("test2", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
+        registry.register("test3", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
         
         // Get token IDs and verify ownership
         (uint256 tokenId1,,) = registry.getNameData("test1");
@@ -496,7 +504,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             subregistries[i] = address(uint160(i + 10));
             resolvers[i] = address(uint160(i + 100));
             expiries[i] = uint64(block.timestamp + 86400 * (i + 1));
-            roleBitmaps[i] = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY | (i * 2);
+            roleBitmaps[i] = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY | (i * 2);
         }
         
         return _createBatchEjectionData(owners, subregistries, resolvers, expiries, roleBitmaps);
@@ -520,8 +528,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         
         // Register names
-        registry.register("test1", address(this), registry, MOCK_RESOLVER, ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY, expiryTime);
-        registry.register("test2", address(this), registry, MOCK_RESOLVER, ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY, expiryTime);
+        registry.register("test1", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
+        registry.register("test2", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
         
         // Get token IDs
         (uint256 tokenId1,,) = registry.getNameData("test1");
@@ -552,7 +560,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             subregistries[i] = address(uint160(i + 10));
             resolvers[i] = address(uint160(i + 100));
             expiries[i] = uint64(block.timestamp + 86400);
-            roleBitmaps[i] = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
+            roleBitmaps[i] = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         }
         
         bytes memory data = _createBatchEjectionDataWithLabels(labels, owners, subregistries, resolvers, expiries, roleBitmaps);
@@ -604,12 +612,44 @@ contract TestL1EjectionController is Test, ERC1155Holder, RegistryRolesMixin, En
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         
-        // Try to call completeEjectionFromL2 directly (not from bridge)
-        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
+        // Try to call completeEjectionFromL2 directly (without proper role)
+        vm.expectRevert(abi.encodeWithSelector(
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            bytes32(0), // ROOT_RESOURCE
+            LibBridgeRoles.ROLE_EJECTOR,
+            address(this)
+        ));
         ejectionController.completeEjectionFromL2(transferData);
+    }
+
+    function test_Revert_syncRenewal_not_bridge() public {
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+        });
+        
+        // First create a name to renew
+        vm.prank(address(bridge));
+        ejectionController.completeEjectionFromL2(transferData);
+        
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        
+        // Try to call syncRenewal directly (without proper role)
+        vm.expectRevert(abi.encodeWithSelector(
+            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+            bytes32(0), // ROOT_RESOURCE
+            LibBridgeRoles.ROLE_EJECTOR,
+            address(this)
+        ));
+        ejectionController.syncRenewal(tokenId, uint64(block.timestamp + 86400 * 2));
     }
 }
 
