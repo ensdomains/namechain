@@ -32,7 +32,7 @@ interface IPermissionedRegistry is IStandardRegistry {
      * @param tokenId The token ID to fetch the resource ID for.
      * @return The access control resource ID for the token ID.
      */
-    function getTokenIdResource(uint256 tokenId) external pure returns (bytes32);
+    function getTokenIdResource(uint256 tokenId) external pure returns (uint256);
 
 
     /**
@@ -40,7 +40,7 @@ interface IPermissionedRegistry is IStandardRegistry {
      * @param resource The access control resource ID to fetch the token ID for.
      * @return The token ID for the resource ID.
      */
-    function getResourceTokenId(bytes32 resource) external view returns (uint256);
+    function getResourceTokenId(uint256 resource) external view returns (uint256);
 
 
 

@@ -61,7 +61,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     uint256 constant ROLE_SET_COMMITMENT_AGES = 1 << 24;
     uint256 constant ROLE_SET_COMMITMENT_AGES_ADMIN = ROLE_SET_COMMITMENT_AGES << 128;
     
-    bytes32 constant ROOT_RESOURCE = 0;
+    uint256 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
         // Set the timestamp to a future date to avoid timestamp related issues
@@ -295,7 +295,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             duration
         );
 
-        bytes32 resource = registry.getTokenIdResource(tokenId);
+        uint256 resource = registry.getTokenIdResource(tokenId);
         assertTrue(registry.hasRoles(resource, LibEACBaseRoles.ALL_ROLES, owner));
     }
 
@@ -832,7 +832,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             REGISTRATION_DURATION
         );
 
-        bytes32 resource = registry.getTokenIdResource(tokenId);
+        uint256 resource = registry.getTokenIdResource(tokenId);
 
         // Check individual roles
         uint256 ROLE_SET_SUBREGISTRY = 1 << 8;

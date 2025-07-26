@@ -25,7 +25,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
 
     uint256 constant defaultRoleBitmap = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER;    
 
-    bytes32 constant ROOT_RESOURCE = 0;
+    uint256 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
         datastore = new RegistryDatastore();
