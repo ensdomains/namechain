@@ -37,7 +37,8 @@ import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceRe
 /// @dev The namehash of "eth".
 bytes32 constant ETH_NODE = keccak256(abi.encode(bytes32(0), keccak256("eth")));
 
-contract ETHFallbackResolver is
+/// @notice Resolver that 
+contract ETHTLDResolver is
     IExtendedResolver,
     IFeatureSupporter,
     IRegistryResolver,
@@ -56,7 +57,7 @@ contract ETHFallbackResolver is
     address public immutable namechainDatastore;
     address public immutable namechainEthRegistry;
 
-    /// @notice The maximum number of reads per request via gateway.
+    /// @notice The maximum number of reads per gateway request.
     /// @dev Valid range [1, 254].
     ///      Actual limit: gateway proof size and/or gas limit.
     uint8 public maxReadsPerRequest;
@@ -132,7 +133,7 @@ contract ETHFallbackResolver is
     /// @return True if the registration is active.
     function _isActiveRegistrationV1(uint256 id) internal view returns (bool) {
         return
-            !ethRegistrarV1.available(id) &&
+            ethRegistrarV1.nameExpires(id) >= block.timestamp &&
             ethRegistrarV1.ownerOf(id) != burnAddressV1;
     }
 
