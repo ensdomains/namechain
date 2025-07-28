@@ -26,25 +26,21 @@ contract L2BridgeController is EjectionController, ITokenObserver {
 
     IRegistryDatastore public immutable datastore;
 
-    constructor(
-        IBridge _bridge,
-        IPermissionedRegistry _registry, 
-        IRegistryDatastore _datastore
-    ) EjectionController(_registry, _bridge) {
+    constructor(IBridge _bridge, IPermissionedRegistry _registry, IRegistryDatastore _datastore)
+        EjectionController(_registry, _bridge)
+    {
         datastore = _datastore;
-    }   
+    }
 
     /**
      * @dev Should be called when a name is being ejected back to L2.
      *
      * @param transferData The transfer data for the name being migrated
      */
-    function completeEjectionFromL1(
-        TransferData memory transferData
-    ) 
-    external 
-    virtual 
-    onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
+    function completeEjectionFromL1(TransferData memory transferData)
+        external
+        virtual
+        onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
     {
         (uint256 tokenId,,) = registry.getNameData(transferData.label);
 
@@ -70,17 +66,17 @@ contract L2BridgeController is EjectionController, ITokenObserver {
      * Otherwise, delegate to the parent implementation for ejection processing
      */
     function onERC1155Received(
-        address /* operator */,
+        address, /* operator */
         address from,
         uint256 tokenId,
-        uint256 /* amount */,
+        uint256, /* amount */
         bytes calldata data
     ) external virtual override onlyRegistry returns (bytes4) {
         // If from is not address(0), it's not a mint operation - process as ejection
         if (from != address(0)) {
             _processEjection(tokenId, data);
         }
-        
+
         return this.onERC1155Received.selector;
     }
 
@@ -88,7 +84,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
      * @dev Default implementation of onRenew that does nothing.
      * Can be overridden in derived contracts for custom behavior.
      */
-    function onRenew(uint256 tokenId, uint64 expires, address /*renewedBy*/) external virtual {
+    function onRenew(uint256 tokenId, uint64 expires, address /*renewedBy*/ ) external virtual {
         bridge.sendMessage(BridgeEncoder.encodeRenewal(tokenId, expires));
     }
 
@@ -115,11 +111,9 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             We also don't need to check that we (the bridge controller) are the sole assignee of these roles since we exercise these 
             roles further down below.
             */
-            uint256 roleBitmap = 
-                LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
-                LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
-                LibRegistryRoles.ROLE_SET_SUBREGISTRY |
-                LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+            uint256 roleBitmap = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER
+                | LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+                | LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
             (uint256 counts, uint256 mask) = registry.getRoleAssigneeCount(tokenId, roleBitmap);
             if (counts & mask != roleBitmap) {
                 revert TooManyRoleAssignees(tokenId, roleBitmap);
@@ -128,7 +122,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             // NOTE: we don't nullify the resolver here, so that there is no resolution downtime
             registry.setSubregistry(tokenId, IRegistry(address(0)));
             registry.setTokenObserver(tokenId, this);
-            
+
             // Send bridge message for ejection
             bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
             bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferData));
@@ -142,4 +136,4 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     function supportsInterface(bytes4 interfaceId) public view virtual override(EjectionController) returns (bool) {
         return interfaceId == type(ITokenObserver).interfaceId || super.supportsInterface(interfaceId);
     }
-} 
+}

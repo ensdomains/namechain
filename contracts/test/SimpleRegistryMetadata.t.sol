@@ -26,7 +26,6 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
     uint256 constant ROLE_UPDATE_METADATA_ADMIN = ROLE_UPDATE_METADATA << 128;
 
-
     uint256 constant defaultRoleBitmap = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER;
     bytes32 constant ROOT_RESOURCE = 0;
 
@@ -35,16 +34,13 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
         metadata = new SimpleRegistryMetadata();
         // Use the valid ALL_ROLES value for deployer roles
         uint256 deployerRoles = LibEACBaseRoles.ALL_ROLES;
-        registry = new PermissionedRegistry(
-            datastore,
-            metadata,
-            address(this),
-            deployerRoles
-        );
+        registry = new PermissionedRegistry(datastore, metadata, address(this), deployerRoles);
     }
 
     function test_registry_metadata_token_uri() public {
-        uint256 tokenId = registry.register("test", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000));
+        uint256 tokenId = registry.register(
+            "test", address(this), registry, address(0), defaultRoleBitmap, uint64(block.timestamp + 1000)
+        );
 
         assertEq(registry.uri(tokenId), "");
 
@@ -55,10 +51,17 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     }
 
     function test_registry_metadata_unauthorized() public {
-        (uint256 tokenId, , ) = registry.getNameData("test");
+        (uint256 tokenId,,) = registry.getNameData("test");
         string memory expectedUri = "ipfs://test";
 
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_UPDATE_METADATA, address(1))); 
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                ROOT_RESOURCE,
+                ROLE_UPDATE_METADATA,
+                address(1)
+            )
+        );
         vm.prank(address(1));
         metadata.setTokenUri(tokenId, expectedUri);
     }
@@ -68,4 +71,4 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
         assertEq(metadata.supportsInterface(type(IEnhancedAccessControl).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
-} 
+}

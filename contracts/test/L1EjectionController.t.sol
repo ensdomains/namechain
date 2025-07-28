@@ -45,7 +45,12 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
     uint256 labelHash = uint256(keccak256("test"));
     string testLabel = "test";
 
-    function supportsInterface(bytes4 /*interfaceId*/) public pure override(ERC1155Holder, EnhancedAccessControl) returns (bool) {
+    function supportsInterface(bytes4 /*interfaceId*/ )
+        public
+        pure
+        override(ERC1155Holder, EnhancedAccessControl)
+        returns (bool)
+    {
         return true;
     }
 
@@ -69,7 +74,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         });
         return abi.encode(transferData);
     }
-    
+
     /**
      * Helper method to create properly encoded data for the ERC1155 transfers with custom label
      */
@@ -91,7 +96,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         });
         return abi.encode(transferData);
     }
-    
+
     /**
      * Helper method to create properly encoded batch data for the ERC1155 batch transfers
      */
@@ -102,16 +107,16 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         uint64[] memory expiryTimes,
         uint256[] memory roleBitmaps
     ) internal pure returns (bytes memory) {
-        require(l2Owners.length == l2Subregistries.length && 
-                l2Owners.length == l2Resolvers.length && 
-                l2Owners.length == expiryTimes.length &&
-                l2Owners.length == roleBitmaps.length, 
-                "Array lengths must match");
-                
+        require(
+            l2Owners.length == l2Subregistries.length && l2Owners.length == l2Resolvers.length
+                && l2Owners.length == expiryTimes.length && l2Owners.length == roleBitmaps.length,
+            "Array lengths must match"
+        );
+
         TransferData[] memory transferDataArray = new TransferData[](l2Owners.length);
-        
+
         string[3] memory labels = ["test1", "test2", "test3"];
-        
+
         for (uint256 i = 0; i < l2Owners.length; i++) {
             transferDataArray[i] = TransferData({
                 label: labels[i],
@@ -122,25 +127,28 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
                 roleBitmap: roleBitmaps[i]
             });
         }
-        
+
         return abi.encode(transferDataArray);
     }
-    
+
     function setUp() public {
         datastore = new RegistryDatastore();
         registryMetadata = new MockRegistryMetadata();
         bridge = new MockBridge();
-        
+
         // Deploy the registry
         registry = new PermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
-        
+
         // Create the real controller with the correct registry and bridge
         ejectionController = new L1EjectionController(registry, bridge);
 
         // grant roles to registry operations
         registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(this));
-        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, address(ejectionController));
-        
+        registry.grantRootRoles(
+            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN,
+            address(ejectionController)
+        );
+
         // Grant bridge roles to the bridge mock so it can call the ejection controller
         ejectionController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(bridge));
     }
@@ -158,7 +166,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
-        
+
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), address(this));
     }
@@ -178,21 +186,21 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
-        
+
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), user);
-        
+
         assertEq(address(registry.getSubregistry(testLabel)), subregistry);
 
         assertEq(registry.getResolver(testLabel), MOCK_RESOLVER);
-        
+
         bytes32 resource = registry.getTokenIdResource(tokenId);
         assertTrue(registry.hasRoles(resource, expectedRoles, user), "Role bitmap should match the expected roles");
     }
 
     function test_eject_from_namechain_emits_events() public {
         vm.recordLogs();
-        
+
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
             label: testLabel,
@@ -209,10 +217,10 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundNewSubname = false;
         bool foundNameEjectedToL1 = false;
-        
+
         bytes32 newSubnameSig = keccak256("NewSubname(uint256,string)");
         bytes32 ejectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
-        
+
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == newSubnameSig) {
                 foundNewSubname = true;
@@ -221,7 +229,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
                 foundNameEjectedToL1 = true;
             }
         }
-        
+
         assertTrue(foundNewSubname, "NewSubname event not found");
         assertTrue(foundNameEjectedToL1, "NameEjectedToL1 event not found");
     }
@@ -240,7 +248,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
-        
+
         // Try to eject again while not expired
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameAlreadyRegistered.selector, testLabel));
         vm.prank(address(bridge));
@@ -260,20 +268,20 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
-        
+
         (uint256 tokenId,,) = registry.getNameData(testLabel);
-        
+
         // Verify initial expiry was set
-        (,uint64 initialExpiry,) = datastore.getSubregistry(address(registry), tokenId);
+        (, uint64 initialExpiry,) = datastore.getSubregistry(address(registry), tokenId);
         assertEq(initialExpiry, expiryTime, "Initial expiry not set correctly");
-        
+
         uint64 newExpiry = uint64(block.timestamp) + 200;
-        
+
         vm.prank(address(bridge));
         ejectionController.syncRenewal(tokenId, newExpiry);
 
         // Verify new expiry was set
-        (,uint64 updatedExpiry,) = datastore.getSubregistry(address(registry), tokenId);
+        (, uint64 updatedExpiry,) = datastore.getSubregistry(address(registry), tokenId);
         assertEq(updatedExpiry, newExpiry, "Expiry was not updated correctly");
     }
 
@@ -290,13 +298,13 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
-        
+
         (uint256 tokenId,,) = registry.getNameData(testLabel);
-        
+
         uint64 newExpiry = uint64(block.timestamp) + 200;
 
         vm.recordLogs();
-        
+
         vm.prank(address(bridge));
         ejectionController.syncRenewal(tokenId, newExpiry);
 
@@ -330,9 +338,9 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
-        
+
         (uint256 tokenId,,) = registry.getNameData(testLabel);
-        
+
         vm.warp(block.timestamp + 101);
 
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameExpired.selector, tokenId));
@@ -353,15 +361,13 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
-        
+
         (uint256 tokenId,,) = registry.getNameData(testLabel);
-        
+
         uint64 newExpiry = uint64(block.timestamp) + 100;
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                IStandardRegistry.CannotReduceExpiration.selector, initialExpiry, newExpiry
-            )
+            abi.encodeWithSelector(IStandardRegistry.CannotReduceExpiration.selector, initialExpiry, newExpiry)
         );
         vm.prank(address(bridge));
         ejectionController.syncRenewal(tokenId, newExpiry);
@@ -370,7 +376,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
     function test_ejectToNamechain() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
-        
+
         // Register the name directly using the registry
         registry.register(testLabel, address(this), registry, MOCK_RESOLVER, roleBitmap, expiryTime);
 
@@ -382,13 +388,9 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         address expectedResolver = address(3);
         uint64 expectedExpiry = uint64(block.timestamp + 86400);
         uint256 expectedRoleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
-        
+
         bytes memory data = _createEjectionData(
-            expectedOwner, 
-            expectedSubregistry, 
-            expectedResolver, 
-            expectedExpiry,
-            expectedRoleBitmap
+            expectedOwner, expectedSubregistry, expectedResolver, expectedExpiry, expectedRoleBitmap
         );
 
         vm.recordLogs();
@@ -399,12 +401,17 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
         _verifyEjectionEvent(expectedOwner, expectedSubregistry, expectedResolver, expectedExpiry);
     }
-    
-    function _verifyEjectionEvent(address /* expectedOwner */, address /* expectedSubregistry */, address /* expectedResolver */, uint64 /* expectedExpiry */) internal {
+
+    function _verifyEjectionEvent(
+        address, /* expectedOwner */
+        address, /* expectedSubregistry */
+        address, /* expectedResolver */
+        uint64 /* expectedExpiry */
+    ) internal {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool eventReceived = false;
         bytes32 expectedSig = keccak256("NameEjectedToL2(bytes,uint256)");
-        
+
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == expectedSig) {
                 eventReceived = true;
@@ -417,7 +424,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
     function test_Revert_ejectToNamechain_invalid_label() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
-        
+
         // Register the name directly using the registry
         registry.register(testLabel, address(this), registry, MOCK_RESOLVER, roleBitmap, expiryTime);
 
@@ -430,14 +437,9 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         address expectedResolver = address(3);
         uint64 expectedExpiry = uint64(block.timestamp + 86400);
         uint256 expectedRoleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
-        
+
         bytes memory data = _createEjectionDataWithLabel(
-            invalidLabel,
-            expectedOwner, 
-            expectedSubregistry, 
-            expectedResolver, 
-            expectedExpiry,
-            expectedRoleBitmap
+            invalidLabel, expectedOwner, expectedSubregistry, expectedResolver, expectedExpiry, expectedRoleBitmap
         );
 
         // Transfer should revert due to invalid label
@@ -445,60 +447,83 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         registry.safeTransferFrom(address(this), address(ejectionController), tokenId, 1, data);
     }
 
-    
     function test_onERC1155BatchReceived() public {
         (uint256[] memory ids, uint256[] memory amounts, bytes memory data) = _setupBatchTransferTest();
-        
+
         // Execute batch transfer
         vm.recordLogs();
         registry.safeBatchTransferFrom(address(this), address(ejectionController), ids, amounts, data);
-        
+
         // Verify all tokens were processed correctly
         for (uint256 i = 0; i < ids.length; i++) {
             assertEq(registry.ownerOf(ids[i]), address(0), "Token should have been burned");
         }
-        
+
         _verifyBatchEventEmission();
     }
-    
-    function _setupBatchTransferTest() internal returns (uint256[] memory ids, uint256[] memory amounts, bytes memory data) {
+
+    function _setupBatchTransferTest()
+        internal
+        returns (uint256[] memory ids, uint256[] memory amounts, bytes memory data)
+    {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
-        
+
         // Register names
-        registry.register("test1", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
-        registry.register("test2", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
-        registry.register("test3", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
-        
+        registry.register(
+            "test1",
+            address(this),
+            registry,
+            MOCK_RESOLVER,
+            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+            expiryTime
+        );
+        registry.register(
+            "test2",
+            address(this),
+            registry,
+            MOCK_RESOLVER,
+            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+            expiryTime
+        );
+        registry.register(
+            "test3",
+            address(this),
+            registry,
+            MOCK_RESOLVER,
+            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+            expiryTime
+        );
+
         // Get token IDs and verify ownership
         (uint256 tokenId1,,) = registry.getNameData("test1");
         (uint256 tokenId2,,) = registry.getNameData("test2");
         (uint256 tokenId3,,) = registry.getNameData("test3");
-        
+
         assertEq(registry.ownerOf(tokenId1), address(this));
         assertEq(registry.ownerOf(tokenId2), address(this));
         assertEq(registry.ownerOf(tokenId3), address(this));
-        
+
         // Setup arrays
         ids = new uint256[](3);
         ids[0] = tokenId1;
         ids[1] = tokenId2;
         ids[2] = tokenId3;
-        
+
         amounts = new uint256[](3);
         amounts[0] = 1;
         amounts[1] = 1;
         amounts[2] = 1;
-        
+
         data = _createBatchTransferData();
     }
-    
+
     function _createBatchTransferData() internal view returns (bytes memory) {
         address[] memory owners = new address[](3);
         address[] memory subregistries = new address[](3);
         address[] memory resolvers = new address[](3);
         uint64[] memory expiries = new uint64[](3);
         uint256[] memory roleBitmaps = new uint256[](3);
-        
+
         for (uint256 i = 0; i < 3; i++) {
             owners[i] = address(uint160(i + 1));
             subregistries[i] = address(uint160(i + 10));
@@ -506,55 +531,69 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             expiries[i] = uint64(block.timestamp + 86400 * (i + 1));
             roleBitmaps[i] = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY | (i * 2);
         }
-        
+
         return _createBatchEjectionData(owners, subregistries, resolvers, expiries, roleBitmaps);
     }
-    
+
     function _verifyBatchEventEmission() internal {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         uint256 batchEventsCount = 0;
         bytes32 expectedSig = keccak256("NameEjectedToL2(bytes,uint256)");
-        
+
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == expectedSig) {
                 batchEventsCount++;
             }
         }
-        
+
         assertEq(batchEventsCount, 3, "Should have emitted 3 NameEjectedToL2 events");
     }
 
     function test_Revert_onERC1155BatchReceived_invalid_label() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
-        
+
         // Register names
-        registry.register("test1", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
-        registry.register("test2", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
-        
+        registry.register(
+            "test1",
+            address(this),
+            registry,
+            MOCK_RESOLVER,
+            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+            expiryTime
+        );
+        registry.register(
+            "test2",
+            address(this),
+            registry,
+            MOCK_RESOLVER,
+            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+            expiryTime
+        );
+
         // Get token IDs
         (uint256 tokenId1,,) = registry.getNameData("test1");
         (uint256 tokenId2,,) = registry.getNameData("test2");
-        
+
         // Setup arrays with one invalid label
         uint256[] memory ids = new uint256[](2);
         ids[0] = tokenId1;
         ids[1] = tokenId2;
-        
+
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = 1;
         amounts[1] = 1;
-        
+
         // Create batch data with one invalid label
         string[] memory labels = new string[](2);
-        labels[0] = "test1";      // valid
-        labels[1] = "invalid";    // invalid for tokenId2
-        
+        labels[0] = "test1"; // valid
+        labels[1] = "invalid"; // invalid for tokenId2
+
         address[] memory owners = new address[](2);
         address[] memory subregistries = new address[](2);
         address[] memory resolvers = new address[](2);
         uint64[] memory expiries = new uint64[](2);
         uint256[] memory roleBitmaps = new uint256[](2);
-        
+
         for (uint256 i = 0; i < 2; i++) {
             owners[i] = address(uint160(i + 1));
             subregistries[i] = address(uint160(i + 10));
@@ -562,14 +601,15 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             expiries[i] = uint64(block.timestamp + 86400);
             roleBitmaps[i] = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         }
-        
-        bytes memory data = _createBatchEjectionDataWithLabels(labels, owners, subregistries, resolvers, expiries, roleBitmaps);
-        
+
+        bytes memory data =
+            _createBatchEjectionDataWithLabels(labels, owners, subregistries, resolvers, expiries, roleBitmaps);
+
         // Should revert due to invalid label for tokenId2
         vm.expectRevert(abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId2, "invalid"));
         registry.safeBatchTransferFrom(address(this), address(ejectionController), ids, amounts, data);
     }
-    
+
     /**
      * Helper method to create properly encoded batch data for the ERC1155 batch transfers with custom labels
      */
@@ -581,15 +621,15 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         uint64[] memory expiryTimes,
         uint256[] memory roleBitmaps
     ) internal pure returns (bytes memory) {
-        require(labels.length == l2Owners.length && 
-                l2Owners.length == l2Subregistries.length && 
-                l2Owners.length == l2Resolvers.length && 
-                l2Owners.length == expiryTimes.length &&
-                l2Owners.length == roleBitmaps.length, 
-                "Array lengths must match");
-                
+        require(
+            labels.length == l2Owners.length && l2Owners.length == l2Subregistries.length
+                && l2Owners.length == l2Resolvers.length && l2Owners.length == expiryTimes.length
+                && l2Owners.length == roleBitmaps.length,
+            "Array lengths must match"
+        );
+
         TransferData[] memory transferDataArray = new TransferData[](l2Owners.length);
-        
+
         for (uint256 i = 0; i < l2Owners.length; i++) {
             transferDataArray[i] = TransferData({
                 label: labels[i],
@@ -600,7 +640,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
                 roleBitmap: roleBitmaps[i]
             });
         }
-        
+
         return abi.encode(transferDataArray);
     }
 
@@ -614,14 +654,16 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
-        
+
         // Try to call completeEjectionFromL2 directly (without proper role)
-        vm.expectRevert(abi.encodeWithSelector(
-            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-            bytes32(0), // ROOT_RESOURCE
-            LibBridgeRoles.ROLE_EJECTOR,
-            address(this)
-        ));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                bytes32(0), // ROOT_RESOURCE
+                LibBridgeRoles.ROLE_EJECTOR,
+                address(this)
+            )
+        );
         ejectionController.completeEjectionFromL2(transferData);
     }
 
@@ -635,22 +677,22 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
-        
+
         // First create a name to renew
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
-        
+
         (uint256 tokenId,,) = registry.getNameData(testLabel);
-        
+
         // Try to call syncRenewal directly (without proper role)
-        vm.expectRevert(abi.encodeWithSelector(
-            IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-            bytes32(0), // ROOT_RESOURCE
-            LibBridgeRoles.ROLE_EJECTOR,
-            address(this)
-        ));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                bytes32(0), // ROOT_RESOURCE
+                LibBridgeRoles.ROLE_EJECTOR,
+                address(this)
+            )
+        );
         ejectionController.syncRenewal(tokenId, uint64(block.timestamp + 86400 * 2));
     }
 }
-
-

@@ -9,19 +9,19 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IEnhancedAccessControl} from "./IEnhancedAccessControl.sol";
 
 library LibEACBaseRoles {
-    uint256 constant public ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;
-    uint256 constant public ADMIN_ROLES = 0x1111111111111111111111111111111100000000000000000000000000000000;
+    uint256 public constant ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;
+    uint256 public constant ADMIN_ROLES = 0x1111111111111111111111111111111100000000000000000000000000000000;
 }
 
 /**
  * @dev Access control system that allows for:
- * 
+ *
  * - Resource-based roles.
  * - Obtaining assignee count for each role in each resource.
  * - Root resource override (0x0) - role assignments in the `ROOT_RESOURCE` auto-apply to all resources.
  * - Up to 32 roles and 32 corresponding admin roles - stored as a bitmap in uint256 (see below).
  * - Up to 15 assignees per role - stored as a bitmap in uint256 (64 * 4 bits = 256 bits) (see below).
- * 
+ *
  * Role representation:
  * - A role bitmap is a uint256, where the lower 128 bits represent the regular roles (0-31), and the upper 128 bits represent the admin roles (32-63) for those roles.
  * - Each role is represented by a nybble (4 bits), in little-endian order.
@@ -46,10 +46,9 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @dev The `ROOT_RESOURCE`.
      */
     bytes32 public constant ROOT_RESOURCE = bytes32(0);
-    
 
     /**
-     * @dev Modifier that checks that sender has the admin roles for all the given roles. 
+     * @dev Modifier that checks that sender has the admin roles for all the given roles.
      */
     modifier canGrantRoles(bytes32 resource, uint256 roleBitmap) {
         _checkCanGrantRoles(resource, roleBitmap, _msgSender());
@@ -57,7 +56,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     }
 
     /**
-     * @dev Modifier that checks that sender has all the given roles within the given resource. 
+     * @dev Modifier that checks that sender has all the given roles within the given resource.
      */
     modifier onlyRoles(bytes32 resource, uint256 roleBitmap) {
         _checkRoles(resource, roleBitmap, _msgSender());
@@ -65,7 +64,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     }
 
     /**
-     * @dev Modifier that checks that sender has all the given roles within the `ROOT_RESOURCE`. 
+     * @dev Modifier that checks that sender has all the given roles within the `ROOT_RESOURCE`.
      */
     modifier onlyRootRoles(uint256 roleBitmap) {
         _checkRoles(ROOT_RESOURCE, roleBitmap, _msgSender());
@@ -102,7 +101,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         return (roles[ROOT_RESOURCE][account] | roles[resource][account]) & rolesBitmap == rolesBitmap;
     }
 
-
     /**
      * @dev Get if any of the roles in the given role bitmap has assignees.
      *
@@ -111,7 +109,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @return `true` if any of the roles in the given role bitmap has assignees, `false` otherwise.
      */
     function hasAssignees(bytes32 resource, uint256 roleBitmap) public view virtual returns (bool) {
-        (uint256 counts, ) = getAssigneeCount(resource, roleBitmap);
+        (uint256 counts,) = getAssigneeCount(resource, roleBitmap);
         return counts != 0;
     }
 
@@ -123,7 +121,12 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @return counts The no. of assignees for each of the roles in the given role bitmap, expressed as a packed array of 4-bit ints.
      * @return mask The mask for the given role bitmap.
      */
-    function getAssigneeCount(bytes32 resource, uint256 roleBitmap) public view virtual returns (uint256 counts, uint256 mask) {
+    function getAssigneeCount(bytes32 resource, uint256 roleBitmap)
+        public
+        view
+        virtual
+        returns (uint256 counts, uint256 mask)
+    {
         mask = _roleBitmapToMask(roleBitmap);
         counts = roleCount[resource] & mask;
     }
@@ -139,7 +142,12 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param account The account to grant roles to.
      * @return `true` if the roles were granted, `false` otherwise.
      */
-    function grantRoles(bytes32 resource, uint256 roleBitmap, address account) public virtual canGrantRoles(resource, roleBitmap) returns (bool) {
+    function grantRoles(bytes32 resource, uint256 roleBitmap, address account)
+        public
+        virtual
+        canGrantRoles(resource, roleBitmap)
+        returns (bool)
+    {
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
@@ -155,7 +163,12 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param account The account to grant roles to.
      * @return `true` if the roles were granted, `false` otherwise.
      */
-    function grantRootRoles(uint256 roleBitmap, address account) public virtual canGrantRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
+    function grantRootRoles(uint256 roleBitmap, address account)
+        public
+        virtual
+        canGrantRoles(ROOT_RESOURCE, roleBitmap)
+        returns (bool)
+    {
         return _grantRoles(ROOT_RESOURCE, roleBitmap, account, true);
     }
 
@@ -170,7 +183,12 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param account The account to revoke roles from.
      * @return `true` if the roles were revoked, `false` otherwise.
      */
-    function revokeRoles(bytes32 resource, uint256 roleBitmap, address account) public virtual canGrantRoles(resource, roleBitmap) returns (bool) {
+    function revokeRoles(bytes32 resource, uint256 roleBitmap, address account)
+        public
+        virtual
+        canGrantRoles(resource, roleBitmap)
+        returns (bool)
+    {
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
@@ -186,7 +204,12 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param account The account to revoke roles from.
      * @return `true` if the roles were revoked, `false` otherwise.
      */
-    function revokeRootRoles(uint256 roleBitmap, address account) public virtual canGrantRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
+    function revokeRootRoles(uint256 roleBitmap, address account)
+        public
+        virtual
+        canGrantRoles(ROOT_RESOURCE, roleBitmap)
+        returns (bool)
+    {
         return _revokeRoles(ROOT_RESOURCE, roleBitmap, account, true);
     }
 
@@ -219,7 +242,10 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param dstAccount The account to copy roles to.
      * @param executeCallbacks Whether to execute the callbacks.
      */
-    function _copyRoles(bytes32 resource, address srcAccount, address dstAccount, bool executeCallbacks) internal virtual {
+    function _copyRoles(bytes32 resource, address srcAccount, address dstAccount, bool executeCallbacks)
+        internal
+        virtual
+    {
         uint256 srcRoles = roles[resource][srcAccount];
         _grantRoles(resource, srcRoles, dstAccount, executeCallbacks);
     }
@@ -233,7 +259,11 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param executeCallbacks Whether to execute the callbacks.
      * @return `true` if the roles were granted, `false` otherwise.
      */
-    function _grantRoles(bytes32 resource, uint256 roleBitmap, address account, bool executeCallbacks) internal virtual returns (bool) {
+    function _grantRoles(bytes32 resource, uint256 roleBitmap, address account, bool executeCallbacks)
+        internal
+        virtual
+        returns (bool)
+    {
         _checkRoleBitmap(roleBitmap);
         uint256 currentRoles = roles[resource][account];
         uint256 updatedRoles = currentRoles | roleBitmap;
@@ -261,15 +291,19 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param executeCallbacks Whether to execute the callbacks.
      * @return `true` if the roles were revoked, `false` otherwise.
      */
-    function _revokeRoles(bytes32 resource, uint256 roleBitmap, address account, bool executeCallbacks) internal virtual returns (bool) {
+    function _revokeRoles(bytes32 resource, uint256 roleBitmap, address account, bool executeCallbacks)
+        internal
+        virtual
+        returns (bool)
+    {
         _checkRoleBitmap(roleBitmap);
         uint256 currentRoles = roles[resource][account];
         uint256 updatedRoles = currentRoles & ~roleBitmap;
-        
+
         if (currentRoles != updatedRoles) {
             roles[resource][account] = updatedRoles;
             uint256 newlyRemovedRoles = roleBitmap & currentRoles;
-            _updateRoleCounts(resource, newlyRemovedRoles, false); 
+            _updateRoleCounts(resource, newlyRemovedRoles, false);
             if (executeCallbacks) {
                 _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
@@ -283,7 +317,11 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     /**
      * @dev Revoke all roles for account within resource.
      */
-    function _revokeAllRoles(bytes32 resource, address account, bool executeCallbacks) internal virtual returns (bool) {
+    function _revokeAllRoles(bytes32 resource, address account, bool executeCallbacks)
+        internal
+        virtual
+        returns (bool)
+    {
         return _revokeRoles(resource, LibEACBaseRoles.ALL_ROLES, account, executeCallbacks);
     }
 
@@ -313,15 +351,16 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
 
     /**
      * @dev Returns the settable roles for `account` within `resource`.
-     * 
+     *
      * The settable roles are the roles that the account can grant/revoke.
-     * 
+     *
      * @param resource The resource to get settable roles for.
      * @param account The account to get settable roles for.
      * @return The settable roles for `account` within `resource`.
      */
     function _getSettableRoles(bytes32 resource, address account) internal view virtual returns (uint256) {
-        uint256 adminRoleBitmap = (roles[resource][account] | roles[ROOT_RESOURCE][account]) & LibEACBaseRoles.ADMIN_ROLES;
+        uint256 adminRoleBitmap =
+            (roles[resource][account] | roles[ROOT_RESOURCE][account]) & LibEACBaseRoles.ADMIN_ROLES;
         return adminRoleBitmap | (adminRoleBitmap >> 128);
     }
 
@@ -334,7 +373,10 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param newRoles The new roles for the account.
      * @param roleBitmap The roles that were granted.
      */
-    function _onRolesGranted(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal virtual {}
+    function _onRolesGranted(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap)
+        internal
+        virtual
+    {}
 
     /**
      * @dev Callback for when roles are revoked.
@@ -345,7 +387,10 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param newRoles The new roles for the account.
      * @param roleBitmap The roles that were revoked.
      */
-    function _onRolesRevoked(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal virtual {}
+    function _onRolesRevoked(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap)
+        internal
+        virtual
+    {}
 
     // Private methods
 
@@ -384,7 +429,8 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         // Algorithm source: https://graphics.stanford.edu/~seander/bithacks.html#ZeroInWord
         uint256 hasZeroNybbles;
         unchecked {
-            hasZeroNybbles = (value - 0x1111111111111111111111111111111111111111111111111111111111111111) & ~value & 0x8888888888888888888888888888888888888888888888888888888888888888;
+            hasZeroNybbles = (value - 0x1111111111111111111111111111111111111111111111111111111111111111) & ~value
+                & 0x8888888888888888888888888888888888888888888888888888888888888888;
         }
         return hasZeroNybbles != 0;
     }

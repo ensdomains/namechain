@@ -27,7 +27,8 @@ contract TestRootRegistry is Test, ERC1155Holder {
     // Hardcoded role constants
 
     uint256 constant ROLE_SET_FLAGS = 1 << 4; // This one is specific to RootRegistry
-    uint256 constant defaultRoleBitmap = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER | ROLE_SET_FLAGS;
+    uint256 constant defaultRoleBitmap =
+        LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER | ROLE_SET_FLAGS;
     uint256 constant lockedResolverRoleBitmap = LibRegistryRoles.ROLE_SET_SUBREGISTRY | ROLE_SET_FLAGS;
     uint256 constant lockedSubregistryRoleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | ROLE_SET_FLAGS;
     uint256 constant lockedFlagsRoleBitmap = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER;
@@ -44,31 +45,39 @@ contract TestRootRegistry is Test, ERC1155Holder {
         metadata.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR, address(registry));
     }
 
-
     function test_register_unlocked() public {
         uint256 tokenId = registry.register("test2", owner, registry, address(0), defaultRoleBitmap, MAX_EXPIRY);
-        assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, owner));
+        assertTrue(
+            registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, owner)
+        );
         assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_RESOLVER, owner));
         assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), ROLE_SET_FLAGS, owner));
     }
 
     function test_register_locked_resolver_and_subregistry() public {
         uint256 tokenId = registry.register("test2", owner, registry, address(0), lockedFlagsRoleBitmap, MAX_EXPIRY);
-        assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, owner));
+        assertTrue(
+            registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, owner)
+        );
         assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_RESOLVER, owner));
         assertFalse(registry.hasRoles(registry.getTokenIdResource(tokenId), ROLE_SET_FLAGS, owner));
     }
 
     function test_register_locked_subregistry() public {
-        uint256 tokenId = registry.register("test2", owner, registry, address(0), lockedSubregistryRoleBitmap, MAX_EXPIRY);
-        assertFalse(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, owner));
+        uint256 tokenId =
+            registry.register("test2", owner, registry, address(0), lockedSubregistryRoleBitmap, MAX_EXPIRY);
+        assertFalse(
+            registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, owner)
+        );
         assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_RESOLVER, owner));
         assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), ROLE_SET_FLAGS, owner));
     }
 
     function test_register_locked_resolver() public {
         uint256 tokenId = registry.register("test2", owner, registry, address(0), lockedResolverRoleBitmap, MAX_EXPIRY);
-        assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, owner));
+        assertTrue(
+            registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, owner)
+        );
         assertFalse(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_RESOLVER, owner));
         assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), ROLE_SET_FLAGS, owner));
     }
@@ -81,10 +90,18 @@ contract TestRootRegistry is Test, ERC1155Holder {
     }
 
     function test_Revert_cannot_set_locked_subregistry() public {
-        uint256 tokenId = registry.register("test", owner, registry, address(0), lockedSubregistryRoleBitmap, MAX_EXPIRY);
+        uint256 tokenId =
+            registry.register("test", owner, registry, address(0), lockedSubregistryRoleBitmap, MAX_EXPIRY);
 
         address unauthorizedCaller = address(0xdead);
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, unauthorizedCaller));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                registry.getTokenIdResource(tokenId),
+                LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+                unauthorizedCaller
+            )
+        );
         vm.prank(unauthorizedCaller);
         registry.setSubregistry(tokenId, IRegistry(address(this)));
     }
@@ -100,54 +117,63 @@ contract TestRootRegistry is Test, ERC1155Holder {
         uint256 tokenId = registry.register("test", owner, registry, address(0), lockedResolverRoleBitmap, MAX_EXPIRY);
 
         address unauthorizedCaller = address(0xdead);
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_RESOLVER, unauthorizedCaller));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                registry.getTokenIdResource(tokenId),
+                LibRegistryRoles.ROLE_SET_RESOLVER,
+                unauthorizedCaller
+            )
+        );
         vm.prank(unauthorizedCaller);
         registry.setResolver(tokenId, address(this));
     }
-    
+
     function test_register() public {
         // Setup test data
         string memory label = "testmint";
-        
+
         // Start recording logs
         vm.recordLogs();
-        
+
         // Call register function
         uint256 tokenId = registry.register(label, owner, registry, address(0), defaultRoleBitmap, MAX_EXPIRY);
-        
+
         // Get recorded logs
         Vm.Log[] memory logs = vm.getRecordedLogs();
-        
+
         // Verify ownership
         vm.assertEq(registry.ownerOf(tokenId), owner);
-        
+
         // Verify roles were granted
-        assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, owner));
+        assertTrue(
+            registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_SUBREGISTRY, owner)
+        );
         assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), LibRegistryRoles.ROLE_SET_RESOLVER, owner));
         assertTrue(registry.hasRoles(registry.getTokenIdResource(tokenId), ROLE_SET_FLAGS, owner));
-        
+
         // Verify subregistry was set
         vm.assertEq(address(registry.getSubregistry(label)), address(registry));
-        
+
         // Verify events - check each log
         bool foundTransferEvent = false;
         bool foundNewSubnameEvent = false;
-        
-        for (uint i = 0; i < logs.length; i++) {
+
+        for (uint256 i = 0; i < logs.length; i++) {
             bytes32 topic0 = logs[i].topics[0];
-            
+
             // TransferSingle event
             if (topic0 == keccak256("TransferSingle(address,address,address,uint256,uint256)")) {
                 foundTransferEvent = true;
                 address operator = address(uint160(uint256(logs[i].topics[1])));
                 address from = address(uint160(uint256(logs[i].topics[2])));
                 address to = address(uint160(uint256(logs[i].topics[3])));
-                
+
                 // The operator is the caller of the register function, which is this test contract
                 assertEq(operator, address(this));
                 assertEq(from, address(0));
                 assertEq(to, owner);
-                
+
                 (uint256 id, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
                 assertEq(id, tokenId);
                 assertEq(value, 1);
@@ -157,12 +183,12 @@ contract TestRootRegistry is Test, ERC1155Holder {
                 foundNewSubnameEvent = true;
                 assertEq(logs[i].topics.length, 2);
                 assertEq(uint256(logs[i].topics[1]), tokenId);
-                
+
                 string memory value = abi.decode(logs[i].data, (string));
                 assertEq(keccak256(bytes(value)), keccak256(bytes(label)));
             }
         }
-        
+
         assertTrue(foundTransferEvent, "No TransferSingle event found");
         assertTrue(foundNewSubnameEvent, "No NewSubname event found");
     }
@@ -171,16 +197,23 @@ contract TestRootRegistry is Test, ERC1155Holder {
         // Setup test data
         string memory label = "testmint";
         address unauthorizedCaller = makeAddr("unauthorized");
-        
+
         // First, revoke the REGISTRAR role from the test contract
         // since it was granted in the constructor to the deployer (this test contract)
         registry.revokeRootRoles(LibRegistryRoles.ROLE_REGISTRAR, address(this));
-        
+
         // Verify the test contract no longer has the role
         assertFalse(registry.hasRoles(registry.ROOT_RESOURCE(), LibRegistryRoles.ROLE_REGISTRAR, address(this)));
-        
+
         // The test should now fail since no one has permission
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), LibRegistryRoles.ROLE_REGISTRAR, unauthorizedCaller));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                registry.ROOT_RESOURCE(),
+                LibRegistryRoles.ROLE_REGISTRAR,
+                unauthorizedCaller
+            )
+        );
         vm.prank(unauthorizedCaller);
         registry.register(label, owner, registry, address(0), defaultRoleBitmap, MAX_EXPIRY);
     }

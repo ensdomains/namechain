@@ -32,41 +32,53 @@ contract BridgeTest is Test, EnhancedAccessControl {
     MockL2Bridge l2Bridge;
     L1EjectionController l1Controller;
     L2BridgeController l2Controller;
-    
+
     // Test accounts
     address user1 = address(0x1);
     address user2 = address(0x2);
-    
+
     function setUp() public {
         // Deploy registries
         datastore = new RegistryDatastore();
-        l1Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
-        l2Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
+        l1Registry =
+            new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
+        l2Registry =
+            new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
 
         // Deploy bridges
         l1Bridge = new MockL1Bridge();
         l2Bridge = new MockL2Bridge();
-        
+
         // Deploy controllers
         l1Controller = new L1EjectionController(l1Registry, l1Bridge);
         l2Controller = new L2BridgeController(l2Bridge, l2Registry, datastore);
-        
+
         // Set the controller contracts as targets for the bridges
         l1Bridge.setEjectionController(l1Controller);
         l2Bridge.setBridgeController(l2Controller);
-        
+
         // Grant necessary roles to controllers
-        l1Registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, address(l1Controller));
+        l1Registry.grantRootRoles(
+            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN,
+            address(l1Controller)
+        );
         l2Registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(l2Controller));
-        
+
         // Grant bridge roles so the bridges can call the controllers
         l1Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l1Bridge));
         l2Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l2Bridge));
     }
-    
+
     function testNameEjectionFromL2ToL1() public {
         // Register using just the label, as would be done in an .eth registry
-        uint256 tokenId = l2Registry.register("premiumname", user2, IRegistry(address(0x456)), address(0x789), LibEACBaseRoles.ALL_ROLES, uint64(block.timestamp + 365 days));
+        uint256 tokenId = l2Registry.register(
+            "premiumname",
+            user2,
+            IRegistry(address(0x456)),
+            address(0x789),
+            LibEACBaseRoles.ALL_ROLES,
+            uint64(block.timestamp + 365 days)
+        );
 
         TransferData memory transferData = TransferData({
             label: "premiumname",
@@ -81,7 +93,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
         vm.startPrank(user2);
         l2Registry.safeTransferFrom(user2, address(l2Controller), tokenId, 1, abi.encode(transferData));
         vm.stopPrank();
-        
+
         // Step 2: Simulate receiving the message on L1
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("premiumname");
         bytes memory bridgeMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);

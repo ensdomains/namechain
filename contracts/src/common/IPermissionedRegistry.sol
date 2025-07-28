@@ -24,8 +24,10 @@ interface IPermissionedRegistry is IStandardRegistry {
      * @return expiry The expiry date of the name.
      * @return tokenIdVersion The token ID version of the name.
      */
-    function getNameData(string calldata label) external view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion);    
-
+    function getNameData(string calldata label)
+        external
+        view
+        returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion);
 
     /**
      * @dev Fetches the access control resource ID for a given token ID.
@@ -34,15 +36,12 @@ interface IPermissionedRegistry is IStandardRegistry {
      */
     function getTokenIdResource(uint256 tokenId) external pure returns (bytes32);
 
-
     /**
      * @dev Fetches the token ID for a given access control resource ID.
      * @param resource The access control resource ID to fetch the token ID for.
      * @return The token ID for the resource ID.
      */
     function getResourceTokenId(bytes32 resource) external view returns (uint256);
-
-
 
     /**
      * @dev Fetches the number of assignees for a given role bitmap.
@@ -51,5 +50,8 @@ interface IPermissionedRegistry is IStandardRegistry {
      * @return counts The number of assignees for the role bitmap.
      * @return mask The mask of the role bitmap.
      */
-    function getRoleAssigneeCount(uint256 tokenId, uint256 roleBitmap) external view returns (uint256 counts, uint256 mask);
+    function getRoleAssigneeCount(uint256 tokenId, uint256 roleBitmap)
+        external
+        view
+        returns (uint256 counts, uint256 mask);
 }

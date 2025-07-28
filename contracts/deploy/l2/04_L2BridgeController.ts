@@ -16,11 +16,7 @@ export default execute(
     const l2BridgeController = await deploy("L2BridgeController", {
       account: deployer,
       artifact: artifacts.L2BridgeController,
-      args: [
-        l2Bridge.address,
-        ethRegistry.address,
-        registryDatastore.address
-      ],
+      args: [l2Bridge.address, ethRegistry.address, registryDatastore.address],
     });
 
     // Set the bridge controller on the bridge
@@ -50,6 +46,11 @@ export default execute(
   // finally you can pass tags and dependencies
   {
     tags: ["L2BridgeController", "registry", "l2"],
-    dependencies: ["ETHRegistry", "MockL2Bridge", "RegistryDatastore", "VerifiableFactory"],
+    dependencies: [
+      "ETHRegistry",
+      "MockL2Bridge",
+      "RegistryDatastore",
+      "VerifiableFactory",
+    ],
   },
-); 
+);

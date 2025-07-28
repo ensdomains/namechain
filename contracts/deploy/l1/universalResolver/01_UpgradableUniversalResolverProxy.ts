@@ -15,7 +15,9 @@ export default execute(
 
     if (network.tags.local) {
       const universalResolver =
-        get<(typeof artifacts["UniversalResolverV2"])["abi"]>("UniversalResolver");
+        get<(typeof artifacts)["UniversalResolverV2"]["abi"]>(
+          "UniversalResolver",
+        );
       await deploy("UpgradableUniversalResolverProxy", {
         account: deployer,
         artifact: artifacts.UpgradableUniversalResolverProxy,

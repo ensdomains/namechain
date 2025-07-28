@@ -24,14 +24,17 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
 
     modifier onlyNonExpiredTokenRoles(uint256 tokenId, uint256 roleBitmap) {
         _checkRoles(getTokenIdResource(tokenId), roleBitmap, _msgSender());
-        (, uint64 expires, ) = datastore.getSubregistry(tokenId);
+        (, uint64 expires,) = datastore.getSubregistry(tokenId);
         if (expires < block.timestamp) {
             revert NameExpired(tokenId);
         }
         _;
     }
 
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata, address _ownerAddress, uint256 _ownerRoles) BaseRegistry(_datastore) MetadataMixin(_metadata) {
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata, address _ownerAddress, uint256 _ownerRoles)
+        BaseRegistry(_datastore)
+        MetadataMixin(_metadata)
+    {
         _grantRoles(ROOT_RESOURCE, _ownerRoles, _ownerAddress, false);
 
         if (address(_metadata) == address(0)) {
@@ -39,7 +42,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         }
     }
 
-    function uri(uint256 tokenId ) public view override returns (string memory) {
+    function uri(uint256 tokenId) public view override returns (string memory) {
         return tokenURI(tokenId);
     }
 
@@ -50,20 +53,21 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         override(ERC1155Singleton, IERC1155Singleton)
         returns (address)
     {
-        (, uint64 expires, ) = datastore.getSubregistry(tokenId);
+        (, uint64 expires,) = datastore.getSubregistry(tokenId);
         if (expires < block.timestamp) {
             return address(0);
         }
         return super.ownerOf(tokenId);
     }
 
-    function register(string calldata label, address owner, IRegistry registry, address resolver, uint256 roleBitmap, uint64 expires)
-        public
-        virtual
-        override
-        onlyRootRoles(LibRegistryRoles.ROLE_REGISTRAR)
-        returns (uint256 tokenId)
-    {
+    function register(
+        string calldata label,
+        address owner,
+        IRegistry registry,
+        address resolver,
+        uint256 roleBitmap,
+        uint64 expires
+    ) public virtual override onlyRootRoles(LibRegistryRoles.ROLE_REGISTRAR) returns (uint256 tokenId) {
         uint64 oldExpiry;
         uint32 tokenIdVersion;
         (tokenId, oldExpiry, tokenIdVersion) = getNameData(label);
@@ -82,7 +86,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
             _burn(previousOwner, tokenId, 1);
             tokenIdVersion++; // so we have a fresh acl
         }
-        tokenId = _generateTokenId(tokenId, address(registry), expires, tokenIdVersion); 
+        tokenId = _generateTokenId(tokenId, address(registry), expires, tokenIdVersion);
 
         _mint(owner, tokenId, 1, "");
         _grantRoles(getTokenIdResource(tokenId), roleBitmap, owner, false);
@@ -94,12 +98,20 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         return tokenId;
     }
 
-    function setTokenObserver(uint256 tokenId, ITokenObserver observer) public override onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) {
+    function setTokenObserver(uint256 tokenId, ITokenObserver observer)
+        public
+        override
+        onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER)
+    {
         tokenObservers[tokenId] = observer;
         emit TokenObserverSet(tokenId, address(observer));
     }
 
-    function renew(uint256 tokenId, uint64 expires) public override onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_RENEW) {
+    function renew(uint256 tokenId, uint64 expires)
+        public
+        override
+        onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_RENEW)
+    {
         (address subregistry, uint64 oldExpiration, uint32 tokenIdVersion) = datastore.getSubregistry(tokenId);
         if (expires < oldExpiration) {
             revert CannotReduceExpiration(oldExpiration, expires);
@@ -130,22 +142,34 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         emit NameBurned(tokenId, msg.sender);
     }
 
-    function getSubregistry(string calldata label) external view virtual override(BaseRegistry, IRegistry) returns (IRegistry) {
+    function getSubregistry(string calldata label)
+        external
+        view
+        virtual
+        override(BaseRegistry, IRegistry)
+        returns (IRegistry)
+    {
         uint256 canonicalId = NameUtils.labelToCanonicalId(label);
-        (address subregistry, uint64 expires, ) = datastore.getSubregistry(canonicalId);
+        (address subregistry, uint64 expires,) = datastore.getSubregistry(canonicalId);
         if (expires <= block.timestamp) {
             return IRegistry(address(0));
         }
         return IRegistry(subregistry);
     }
 
-    function getResolver(string calldata label) external view virtual override(BaseRegistry, IRegistry) returns (address) {
+    function getResolver(string calldata label)
+        external
+        view
+        virtual
+        override(BaseRegistry, IRegistry)
+        returns (address)
+    {
         uint256 canonicalId = NameUtils.labelToCanonicalId(label);
-        (, uint64 expires, ) = datastore.getSubregistry(canonicalId);
+        (, uint64 expires,) = datastore.getSubregistry(canonicalId);
         if (expires <= block.timestamp) {
             return address(0);
         }
-        (address resolver, , ) = datastore.getResolver(canonicalId);
+        (address resolver,,) = datastore.getResolver(canonicalId);
         return resolver;
     }
 
@@ -166,18 +190,28 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         datastore.setResolver(tokenId, resolver, 0, 0);
     }
 
-    function getNameData(string calldata label) public view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion) {
+    function getNameData(string calldata label)
+        public
+        view
+        returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion)
+    {
         uint256 canonicalId = NameUtils.labelToCanonicalId(label);
         (, expiry, tokenIdVersion) = datastore.getSubregistry(canonicalId);
         tokenId = _constructTokenId(canonicalId, tokenIdVersion);
     }
 
     function getExpiry(uint256 tokenId) public view override returns (uint64) {
-        (, uint64 expires, ) = datastore.getSubregistry(tokenId);
+        (, uint64 expires,) = datastore.getSubregistry(tokenId);
         return expires;
     }
 
-    function supportsInterface(bytes4 interfaceId) public view virtual override(BaseRegistry, EnhancedAccessControl, IERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(BaseRegistry, EnhancedAccessControl, IERC165)
+        returns (bool)
+    {
         return interfaceId == type(IPermissionedRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
@@ -187,11 +221,16 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
 
     function getResourceTokenId(bytes32 resource) public view returns (uint256) {
         uint256 canonicalId = uint256(resource);
-        (, , uint32 tokenIdVersion) = datastore.getSubregistry(canonicalId);
+        (,, uint32 tokenIdVersion) = datastore.getSubregistry(canonicalId);
         return _constructTokenId(canonicalId, tokenIdVersion);
     }
 
-    function getRoleAssigneeCount(uint256 tokenId, uint256 roleBitmap) external view override returns (uint256 counts, uint256 mask) {
+    function getRoleAssigneeCount(uint256 tokenId, uint256 roleBitmap)
+        external
+        view
+        override
+        returns (uint256 counts, uint256 mask)
+    {
         return getAssigneeCount(getTokenIdResource(tokenId), roleBitmap);
     }
 
@@ -200,7 +239,11 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     /**
      * @dev Override the base registry _update function to transfer the roles to the new owner when the token is transferred.
      */
-    function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal virtual override {
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
+        internal
+        virtual
+        override
+    {
         super._update(from, to, ids, values);
 
         for (uint256 i = 0; i < ids.length; ++i) {
@@ -215,7 +258,13 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     /**
      * @dev Override the base registry _onRolesGranted function to regenerate the token when the roles are granted.
      */
-    function _onRolesGranted(bytes32 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
+    function _onRolesGranted(
+        bytes32 resource,
+        address, /*account*/
+        uint256, /*oldRoles*/
+        uint256, /*newRoles*/
+        uint256 /*roleBitmap*/
+    ) internal virtual override {
         uint256 tokenId = getResourceTokenId(resource);
         // skip just-burn/expired tokens
         address owner = ownerOf(tokenId);
@@ -227,7 +276,13 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     /**
      * @dev Override the base registry _onRolesRevoked function to regenerate the token when the roles are revoked.
      */
-    function _onRolesRevoked(bytes32 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
+    function _onRolesRevoked(
+        bytes32 resource,
+        address, /*account*/
+        uint256, /*oldRoles*/
+        uint256, /*newRoles*/
+        uint256 /*roleBitmap*/
+    ) internal virtual override {
         uint256 tokenId = getResourceTokenId(resource);
         // skip just-burn/expired tokens
         address owner = ownerOf(tokenId);
@@ -256,7 +311,11 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
      * @param tokenIdVersion The token id version to set.
      * @return newTokenId The new token id.
      */
-    function _generateTokenId(uint256 tokenId, address registry, uint64 expires, uint32 tokenIdVersion) internal virtual returns (uint256 newTokenId) {
+    function _generateTokenId(uint256 tokenId, address registry, uint64 expires, uint32 tokenIdVersion)
+        internal
+        virtual
+        returns (uint256 newTokenId)
+    {
         newTokenId = _constructTokenId(tokenId, tokenIdVersion);
         datastore.setSubregistry(newTokenId, registry, expires, tokenIdVersion);
     }

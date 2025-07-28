@@ -12,17 +12,14 @@ import {EnhancedAccessControl, LibEACBaseRoles} from "../common/EnhancedAccessCo
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 
 contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
-    uint256 private constant REGISTRATION_ROLE_BITMAP = 
-        LibRegistryRoles.ROLE_SET_SUBREGISTRY | 
-        LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN | 
-        LibRegistryRoles.ROLE_SET_RESOLVER | 
-        LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN |
-        LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
-        LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN;
+    uint256 private constant REGISTRATION_ROLE_BITMAP = LibRegistryRoles.ROLE_SET_SUBREGISTRY
+        | LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN | LibRegistryRoles.ROLE_SET_RESOLVER
+        | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN | LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER
+        | LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN;
 
     uint256 private constant ROLE_SET_PRICE_ORACLE = 1 << 20;
     uint256 private constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
-    
+
     uint256 private constant ROLE_SET_COMMITMENT_AGES = 1 << 24;
     uint256 private constant ROLE_SET_COMMITMENT_AGES_ADMIN = ROLE_SET_COMMITMENT_AGES << 128;
 
@@ -41,7 +38,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     uint256 public minCommitmentAge;
     uint256 public maxCommitmentAge;
 
-    mapping(bytes32 => uint256) public commitments;    
+    mapping(bytes32 => uint256) public commitments;
 
     constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge) {
         _grantRoles(ROOT_RESOURCE, LibEACBaseRoles.ALL_ROLES, _msgSender(), true);
@@ -72,22 +69,25 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
      * @return True if the name is available, false otherwise.
      */
     function available(string calldata name) external view returns (bool) {
-        (, uint64 expiry, ) = registry.getNameData(name);
+        (, uint64 expiry,) = registry.getNameData(name);
         return expiry < block.timestamp;
     }
-
 
     /**
      * @dev Get the price to register or renew a name.
      * @param name The name to get the price for.
      * @param duration The duration of the registration or renewal.
      * @return price The price to register or renew the name.
-     */ 
-    function rentPrice(string memory name, uint256 duration) public view override returns (IPriceOracle.Price memory price) {
-        (, uint64 expiry, ) = registry.getNameData(name);
+     */
+    function rentPrice(string memory name, uint256 duration)
+        public
+        view
+        override
+        returns (IPriceOracle.Price memory price)
+    {
+        (, uint64 expiry,) = registry.getNameData(name);
         price = prices.price(name, uint256(expiry), duration);
-    }    
-
+    }
 
     /**
      * @dev Make a commitment for a name.
@@ -106,20 +106,9 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         address subregistry,
         address resolver,
         uint64 duration
-    ) public pure override returns (bytes32) {        
-        return
-            keccak256(
-                abi.encode(
-                    name,
-                    owner,
-                    secret,
-                    subregistry,
-                    resolver,
-                    duration
-                )
-            );
+    ) public pure override returns (bytes32) {
+        return keccak256(abi.encode(name, owner, secret, subregistry, resolver, duration));
     }
-
 
     /**
      * @dev Commit a commitment.
@@ -133,7 +122,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
         emit CommitmentMade(commitment);
     }
-
 
     /**
      * @dev Register a name.
@@ -155,7 +143,9 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     ) external payable returns (uint256 tokenId) {
         uint256 totalPrice = checkPrice(name, duration);
 
-        _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
+        _consumeCommitment(
+            name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration)
+        );
 
         uint64 expiry = uint64(block.timestamp) + duration;
         tokenId = registry.register(name, owner, subregistry, resolver, REGISTRATION_ROLE_BITMAP, expiry);
@@ -175,7 +165,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     function renew(string calldata name, uint64 duration) external payable {
         uint256 totalPrice = checkPrice(name, duration);
 
-        (uint256 tokenId, uint64 expiry, ) = registry.getNameData(name);
+        (uint256 tokenId, uint64 expiry,) = registry.getNameData(name);
 
         registry.renew(tokenId, expiry + duration);
 
@@ -188,7 +178,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         emit NameRenewed(name, duration, tokenId, newExpiry);
     }
 
-
     function supportsInterface(bytes4 interfaceID) public view override(EnhancedAccessControl) returns (bool) {
         return interfaceID == type(IETHRegistrar).interfaceId || super.supportsInterface(interfaceID);
     }
@@ -197,7 +186,10 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         prices = _prices;
     }
 
-    function setCommitmentAges(uint256 _minCommitmentAge, uint256 _maxCommitmentAge) external onlyRoles(ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES) {
+    function setCommitmentAges(uint256 _minCommitmentAge, uint256 _maxCommitmentAge)
+        external
+        onlyRoles(ROOT_RESOURCE, ROLE_SET_COMMITMENT_AGES)
+    {
         if (_maxCommitmentAge <= _minCommitmentAge) {
             revert MaxCommitmentAgeTooLow();
         }
@@ -207,11 +199,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     /* Internal functions */
 
-    function _consumeCommitment(
-        string memory name,
-        uint64 duration,
-        bytes32 commitment
-    ) internal {
+    function _consumeCommitment(string memory name, uint64 duration, bytes32 commitment) internal {
         // Require an old enough commitment.
         uint256 thisCommitmentValidFrom = commitments[commitment] + minCommitmentAge;
         if (thisCommitmentValidFrom > block.timestamp) {
@@ -249,5 +237,4 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             revert InsufficientValue(totalPrice, msg.value);
         }
     }
-
 }

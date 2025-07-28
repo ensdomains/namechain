@@ -32,9 +32,11 @@ export const createMockRelay = ({
         try {
           const receipt = await expectSuccess(
             l2Client,
-            (l2Bridge.write as any).receiveMessage([message])
+            (l2Bridge.write as any).receiveMessage([message]),
           );
-          console.log(`Message relayed to L2, tx hash: ${receipt.transactionHash}`);
+          console.log(
+            `Message relayed to L2, tx hash: ${receipt.transactionHash}`,
+          );
         } catch (error) {
           console.error("Error relaying bridged message from L1 to L2:", error);
         }
@@ -51,9 +53,11 @@ export const createMockRelay = ({
         try {
           const receipt = await expectSuccess(
             l1Client,
-            (l1Bridge.write as any).receiveMessage([message])
+            (l1Bridge.write as any).receiveMessage([message]),
           );
-          console.log(`Message relayed to L1, tx hash: ${receipt.transactionHash}`);
+          console.log(
+            `Message relayed to L1, tx hash: ${receipt.transactionHash}`,
+          );
         } catch (error) {
           console.error("Error relaying bridged message from L2 to L1:", error);
         }
@@ -69,8 +73,14 @@ export const createMockRelay = ({
     message: Hex;
   }) =>
     (targetChain === "l1"
-      ? expectSuccess(l1Client, (l1Bridge.write as any).receiveMessage([message]))
-      : expectSuccess(l2Client, (l2Bridge.write as any).receiveMessage([message]))
+      ? expectSuccess(
+          l1Client,
+          (l1Bridge.write as any).receiveMessage([message]),
+        )
+      : expectSuccess(
+          l2Client,
+          (l2Bridge.write as any).receiveMessage([message]),
+        )
     )
       .then((receipt) => {
         console.log(

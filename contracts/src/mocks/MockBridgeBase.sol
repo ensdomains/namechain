@@ -13,10 +13,10 @@ import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 abstract contract MockBridgeBase is IBridge {
     // Custom errors
     error RenewalNotSupported();
-    
+
     // Event for message receipt acknowledgement
     event MessageProcessed(bytes message);
-    
+
     /**
      * @dev Simulate receiving a message.
      * Anyone can call this method with encoded message data
@@ -31,26 +31,20 @@ abstract contract MockBridgeBase is IBridge {
             (uint256 tokenId, uint64 newExpiry) = BridgeEncoder.decodeRenewal(message);
             _handleRenewalMessage(tokenId, newExpiry);
         }
-        
+
         // Emit event for tracking
         emit MessageProcessed(message);
     }
-    
+
     /**
      * @dev Abstract method for handling ejection messages
      * Must be implemented by concrete bridge contracts
      */
-    function _handleEjectionMessage(
-        bytes memory dnsEncodedName,
-        TransferData memory transferData
-    ) internal virtual;
-    
+    function _handleEjectionMessage(bytes memory dnsEncodedName, TransferData memory transferData) internal virtual;
+
     /**
      * @dev Abstract method for handling renewal messages
      * Must be implemented by concrete bridge contracts
      */
-    function _handleRenewalMessage(
-        uint256 tokenId,
-        uint64 newExpiry
-    ) internal virtual;
-} 
+    function _handleRenewalMessage(uint256 tokenId, uint64 newExpiry) internal virtual;
+}

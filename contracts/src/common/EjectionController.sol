@@ -34,7 +34,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     constructor(IPermissionedRegistry _registry, IBridge _bridge) {
         registry = _registry;
         bridge = _bridge;
-        
+
         // Grant admin roles to the deployer so they can manage bridge roles
         _grantRoles(ROOT_RESOURCE, LibBridgeRoles.ROLE_EJECTOR_ADMIN, msg.sender, true);
     }
@@ -42,14 +42,27 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     /**
      * Implements ERC165.supportsInterface
      */
-    function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, EnhancedAccessControl, IERC165) returns (bool) {
-        return interfaceId == type(EjectionController).interfaceId || interfaceId == type(IERC1155Receiver).interfaceId || super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC165, EnhancedAccessControl, IERC165)
+        returns (bool)
+    {
+        return interfaceId == type(EjectionController).interfaceId || interfaceId == type(IERC1155Receiver).interfaceId
+            || super.supportsInterface(interfaceId);
     }
 
     /**
      * Implements ERC1155Receiver.onERC1155Received
      */
-    function onERC1155Received(address /*operator*/, address /* from */, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual onlyRegistry returns (bytes4) {
+    function onERC1155Received(
+        address, /*operator*/
+        address, /* from */
+        uint256 tokenId,
+        uint256, /*amount*/
+        bytes calldata data
+    ) external virtual onlyRegistry returns (bytes4) {
         _processEjection(tokenId, data);
         return this.onERC1155Received.selector;
     }
@@ -57,9 +70,15 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     /**
      * Implements ERC1155Receiver.onERC1155BatchReceived
      */
-    function onERC1155BatchReceived(address /*operator*/, address /* from */, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual onlyRegistry returns (bytes4) { 
+    function onERC1155BatchReceived(
+        address, /*operator*/
+        address, /* from */
+        uint256[] memory tokenIds,
+        uint256[] memory, /*amounts*/
+        bytes calldata data
+    ) external virtual onlyRegistry returns (bytes4) {
         TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
-        
+
         _onEject(tokenIds, transferDataArray);
 
         return this.onERC1155BatchReceived.selector;
@@ -73,10 +92,10 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
      */
     function _processEjection(uint256 tokenId, bytes calldata data) internal {
         TransferData memory transferData = abi.decode(data, (TransferData));
-        
+
         TransferData[] memory transferDataArray = new TransferData[](1);
         transferDataArray[0] = transferData;
-        
+
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenId;
 

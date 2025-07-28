@@ -58,7 +58,10 @@ interface IEnhancedAccessControl is IERC165 {
     /**
      * @dev Get the no. of assignees for the roles in the given role bitmap.
      */
-    function getAssigneeCount(bytes32 resource, uint256 roleBitmap) external view returns (uint256 counts, uint256 mask);
+    function getAssigneeCount(bytes32 resource, uint256 roleBitmap)
+        external
+        view
+        returns (uint256 counts, uint256 mask);
 
     /**
      * @dev Grants all roles in the given role bitmap to `account`.
@@ -79,4 +82,4 @@ interface IEnhancedAccessControl is IERC165 {
      * @dev Revokes all roles in the given role bitmap from `account` in the ROOT_RESOURCE.
      */
     function revokeRootRoles(uint256 roleBitmap, address account) external returns (bool);
-} 
+}

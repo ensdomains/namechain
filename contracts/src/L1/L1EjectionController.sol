@@ -25,19 +25,24 @@ contract L1EjectionController is EjectionController {
     constructor(IPermissionedRegistry _registry, IBridge _bridge) EjectionController(_registry, _bridge) {}
 
     /**
-     * @dev Should be called when a name has been ejected from L2.  
+     * @dev Should be called when a name has been ejected from L2.
      *
      * @param transferData The transfer data for the name being ejected
      */
-    function completeEjectionFromL2(
-        TransferData memory transferData
-    ) 
-    external 
-    virtual 
-    onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
-    returns (uint256 tokenId) 
+    function completeEjectionFromL2(TransferData memory transferData)
+        external
+        virtual
+        onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
+        returns (uint256 tokenId)
     {
-        tokenId = registry.register(transferData.label, transferData.owner, IRegistry(transferData.subregistry), transferData.resolver, transferData.roleBitmap, transferData.expires);
+        tokenId = registry.register(
+            transferData.label,
+            transferData.owner,
+            IRegistry(transferData.subregistry),
+            transferData.resolver,
+            transferData.roleBitmap,
+            transferData.expires
+        );
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
         emit NameEjectedToL1(dnsEncodedName, tokenId);
     }
@@ -48,7 +53,11 @@ contract L1EjectionController is EjectionController {
      * @param tokenId The token ID of the name
      * @param newExpiry The new expiration timestamp
      */
-    function syncRenewal(uint256 tokenId, uint64 newExpiry) external virtual onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR) {
+    function syncRenewal(uint256 tokenId, uint64 newExpiry)
+        external
+        virtual
+        onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
+    {
         registry.renew(tokenId, newExpiry);
         emit RenewalSynchronized(tokenId, newExpiry);
     }
@@ -58,14 +67,14 @@ contract L1EjectionController is EjectionController {
     /**
      * Overrides the EjectionController._onEject function.
      */
-    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal override virtual {
+    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal virtual override {
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
             TransferData memory transferData = transferDataArray[i];
 
             // check that the label matches the token id
             _assertTokenIdMatchesLabel(tokenId, transferData.label);
-            
+
             // burn the token
             registry.burn(tokenId);
 

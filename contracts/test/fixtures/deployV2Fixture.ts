@@ -1,4 +1,7 @@
-import type { DefaultChainType, NetworkConnection } from "hardhat/types/network";
+import type {
+  DefaultChainType,
+  NetworkConnection,
+} from "hardhat/types/network";
 import {
   type Address,
   encodeFunctionData,
@@ -12,12 +15,11 @@ export { ROLES };
 
 export const MAX_EXPIRY = (1n << 64n) - 1n; // see: DatastoreUtils.sol
 
-
 export async function deployV2Fixture(
   networkConnection: NetworkConnection<DefaultChainType>,
   enableCcipRead = false,
 ) {
-const publicClient = await networkConnection.viem.getPublicClient({
+  const publicClient = await networkConnection.viem.getPublicClient({
     ccipRead: enableCcipRead ? undefined : false,
   });
   const [walletClient] = await networkConnection.viem.getWalletClients();
@@ -127,7 +129,12 @@ const publicClient = await networkConnection.viem.getPublicClient({
           // registry does not exist, create it
           const registry = await networkConnection.viem.deployContract(
             "PermissionedRegistry",
-            [datastore.address, metadataAddress, walletClient.account.address, roles],
+            [
+              datastore.address,
+              metadataAddress,
+              walletClient.account.address,
+              roles,
+            ],
           );
           registryAddress = registry.address;
           if (exists) {

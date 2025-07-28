@@ -15,37 +15,34 @@ import {TransferData} from "../common/TransferData.sol";
 contract MockL1Bridge is MockBridgeBase {
     // Ejection controller to call when receiving ejection messages
     L1EjectionController public ejectionController;
-    
+
     event NameBridgedToL2(bytes message);
-    
+
     function setEjectionController(L1EjectionController _ejectionController) external {
         ejectionController = _ejectionController;
     }
-    
+
     /**
      * @dev Override sendMessage to emit specific events based on message type
      */
     function sendMessage(bytes memory message) external override {
         emit NameBridgedToL2(message);
     }
-    
+
     /**
      * @dev Handle ejection messages specific to L1 bridge
      */
-    function _handleEjectionMessage(
-        bytes memory /*dnsEncodedName*/,
-        TransferData memory transferData
-    ) internal override {
+    function _handleEjectionMessage(bytes memory, /*dnsEncodedName*/ TransferData memory transferData)
+        internal
+        override
+    {
         ejectionController.completeEjectionFromL2(transferData);
     }
-    
+
     /**
      * @dev Handle renewal messages specific to L1 bridge
      */
-    function _handleRenewalMessage(
-        uint256 tokenId,
-        uint64 newExpiry
-    ) internal override {
+    function _handleRenewalMessage(uint256 tokenId, uint64 newExpiry) internal override {
         ejectionController.syncRenewal(tokenId, newExpiry);
     }
 }

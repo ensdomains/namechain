@@ -15,42 +15,39 @@ import {TransferData} from "../common/TransferData.sol";
 contract MockL2Bridge is MockBridgeBase {
     // Bridge controller to call when receiving messages
     L2BridgeController public bridgeController;
-        
+
     // Type-specific events with tokenId and data
     event NameBridgedToL1(bytes message);
-        
+
     function setBridgeController(L2BridgeController _bridgeController) external {
         bridgeController = _bridgeController;
     }
-    
+
     /**
      * @dev Send a message.
      */
     function sendMessage(bytes memory message) external override {
         BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
-        
+
         if (messageType == BridgeMessageType.EJECTION) {
             emit NameBridgedToL1(message);
         }
     }
-    
+
     /**
      * @dev Handle ejection messages specific to L2 bridge
      */
-    function _handleEjectionMessage(
-        bytes memory /*dnsEncodedName*/,
-        TransferData memory transferData
-    ) internal override {
+    function _handleEjectionMessage(bytes memory, /*dnsEncodedName*/ TransferData memory transferData)
+        internal
+        override
+    {
         bridgeController.completeEjectionFromL1(transferData);
     }
-    
+
     /**
      * @dev Handle renewal messages specific to L2 bridge
      */
-    function _handleRenewalMessage(
-        uint256 /*tokenId*/,
-        uint64 /*newExpiry*/
-    ) internal pure override {
+    function _handleRenewalMessage(uint256, /*tokenId*/ uint64 /*newExpiry*/ ) internal pure override {
         revert RenewalNotSupported();
     }
 }

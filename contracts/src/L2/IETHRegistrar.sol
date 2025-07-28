@@ -18,7 +18,9 @@ interface IETHRegistrar {
      * @param duration The duration of the registration.
      * @param tokenId The ID of the newly registered name.
      */
-    event NameRegistered(string name, address owner, IRegistry subregistry, address resolver, uint64 duration, uint256 tokenId);
+    event NameRegistered(
+        string name, address owner, IRegistry subregistry, address resolver, uint64 duration, uint256 tokenId
+    );
 
     /**
      * @dev Emitted when a name is renewed.
@@ -46,14 +48,12 @@ interface IETHRegistrar {
      */
     function available(string calldata name) external view returns (bool);
 
-
     /**
      * @dev Check if a name is valid.
      * @param name The name to check.
      * @return True if the name is valid, false otherwise.
      */
     function valid(string memory name) external view returns (bool);
-
 
     /**
      * @dev Get the price to register or renew a name.
@@ -83,7 +83,6 @@ interface IETHRegistrar {
         address resolver,
         uint64 duration
     ) external pure returns (bytes32);
-
 
     /**
      * @dev Commit a commitment.
