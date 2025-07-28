@@ -12,8 +12,7 @@ import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
 
-/// @title DNSAliasResolver
-/// @notice Gasless DNSSEC resolver that directs to another name.
+/// @notice Gasless DNSSEC resolver that forwards to another name.
 /// Rewrite: "*.nick.com" + `ENS1 <this> com eth` &rarr; "*.nick.eth"
 /// Replace: "nick.com" + `ENS1 <this> nick.eth` &rarr; "nick.eth"
 contract DNSAliasResolver is
@@ -23,6 +22,11 @@ contract DNSAliasResolver is
     IExtendedDNSResolver
 {
     IUniversalResolver public immutable universalResolver;
+
+    /// @dev The `name` did not end with `suffix`.
+    /// @param name The DNS-encoded name.
+    /// @param suffix THe DNS-encoded suffix.
+    error NoSuffixMatch(bytes name, bytes suffix);
 
     constructor(IUniversalResolver _universalResolver) CCIPReader(0) {
         universalResolver = _universalResolver;
@@ -65,9 +69,12 @@ contract DNSAliasResolver is
         );
     }
 
-    /// @dev Rewrite or replace name using context.
+    /// @dev Modify `name` using rewrite rule supplied via `context`.
     ///      If context is `<old-suffix> <new-suffix>`, rewrite name with new suffix.
     ///      Otherwise, replace name with context.
+	/// @param name The DNS-encoded name.
+	/// @param context The rewrite rule.
+	/// @return newName The modified DNS-encoded name.
     function _parseContext(
         bytes calldata name,
         bytes calldata context
@@ -75,41 +82,20 @@ contract DNSAliasResolver is
         uint256 sep = BytesUtils.find(context, 0, context.length, " ");
         if (sep < context.length) {
             bytes memory oldSuffix = NameCoder.encode(string(context[:sep]));
-            bytes memory newSuffix = NameCoder.encode(
-                string(context[sep + 1:])
-            );
-            (bool matched, , uint256 suffixOffset) = matchSuffix(
+            (bool matched, , , uint256 offset) = NameCoder.matchSuffix(
                 name,
                 0,
                 NameCoder.namehash(oldSuffix, 0)
             );
-            require(matched, "expected suffix match");
-            return abi.encodePacked(name[:suffixOffset], newSuffix);
-        } else {
-            return NameCoder.encode(string(context));
-        }
-    }
-
-    // ********************************************************************************
-    // https://github.com/ensdomains/ens-contracts/blob/fix/namecoder-iter/contracts/utils/NameCoder.sol#L270
-    // https://github.com/ensdomains/ens-contracts/pull/459
-    // ********************************************************************************
-    function matchSuffix(
-        bytes memory name,
-        uint256 offset,
-        bytes32 nodeSuffix
-    ) internal pure returns (bool matched, bytes32 node, uint256 suffixOffset) {
-        (bytes32 labelHash, uint256 next) = NameCoder.readLabel(name, offset);
-        if (labelHash != bytes32(0)) {
-            (matched, node, suffixOffset) = matchSuffix(name, next, nodeSuffix);
-            if (node == nodeSuffix) {
-                matched = true;
-                suffixOffset = next;
+            if (!matched) {
+                revert NoSuffixMatch(name, oldSuffix);
             }
-            node = keccak256(abi.encode(node, labelHash));
-        }
-        if (node == nodeSuffix) {
-            matched = true;
+			bytes memory newSuffix = NameCoder.encode(
+                string(context[sep + 1:])
+            );
+            return abi.encodePacked(name[:offset], newSuffix); // rewrite
+        } else {
+            return NameCoder.encode(string(context)); // replace
         }
     }
 }
