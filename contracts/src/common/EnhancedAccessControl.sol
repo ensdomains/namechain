@@ -45,7 +45,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     /**
      * @dev The `ROOT_RESOURCE`.
      */
-    uint256 public constant ROOT_RESOURCE = uint256(0);
+    uint256 public constant ROOT_RESOURCE = 0;
     
 
     /**

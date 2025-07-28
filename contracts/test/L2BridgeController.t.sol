@@ -287,7 +287,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         
         vm.expectRevert(abi.encodeWithSelector(
             IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-            uint256(0), // ROOT_RESOURCE
+            0, // ROOT_RESOURCE
             LibBridgeRoles.ROLE_EJECTOR,
             address(this)
         ));

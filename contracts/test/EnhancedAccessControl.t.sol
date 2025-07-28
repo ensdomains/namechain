@@ -42,8 +42,8 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
         _grantRoles(ROOT_RESOURCE, ROLE_A | ROLE_B | ROLE_C | ROLE_D | ADMIN_ROLE_A | ADMIN_ROLE_B | ADMIN_ROLE_C | ADMIN_ROLE_D, msg.sender, true);
         lastGrantedCount = 0;
         lastRevokedCount = 0;
-        lastGrantedResource = uint256(0);
-        lastRevokedResource = uint256(0);
+        lastGrantedResource = 0;
+        lastRevokedResource = 0;
         lastGrantedRoleBitmap = 0;
         lastRevokedRoleBitmap = 0;
         lastGrantedUpdatedRoles = 0;

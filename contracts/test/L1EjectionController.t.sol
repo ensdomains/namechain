@@ -618,7 +618,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Try to call completeEjectionFromL2 directly (without proper role)
         vm.expectRevert(abi.encodeWithSelector(
             IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-            uint256(0), // ROOT_RESOURCE
+            0, // ROOT_RESOURCE
             LibBridgeRoles.ROLE_EJECTOR,
             address(this)
         ));
@@ -645,7 +645,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Try to call syncRenewal directly (without proper role)
         vm.expectRevert(abi.encodeWithSelector(
             IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-            uint256(0), // ROOT_RESOURCE
+            0, // ROOT_RESOURCE
             LibBridgeRoles.ROLE_EJECTOR,
             address(this)
         ));

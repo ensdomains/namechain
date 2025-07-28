@@ -14,7 +14,7 @@ export const expectTransactionSuccess = async (
 export const labelToCanonicalId = (label: string) => {
   const id = BigInt(labelhash(label));
 
-  return `0x${getCanonicalId(id).toString(16)}`;
+  return getCanonicalId(id);
 };
 
 export const getCanonicalId = (id: bigint) => {
