@@ -13,7 +13,9 @@ import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {console} from "forge-std/console.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
-import {TestUtils} from "./utils/TestUtils.sol";
+import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
 contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -24,17 +26,15 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
     uint256 constant ROLE_UPDATE_METADATA_ADMIN = ROLE_UPDATE_METADATA << 128;
 
-    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 8;
-    uint256 constant ROLE_SET_RESOLVER = 1 << 12;
-    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
+    uint256 constant defaultRoleBitmap = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER;
     bytes32 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
         // Use the valid ALL_ROLES value for deployer roles
-        uint256 deployerRoles = TestUtils.ALL_ROLES;
-        registry = new PermissionedRegistry(datastore, metadata, deployerRoles);
+        uint256 deployerRoles = LibEACBaseRoles.ALL_ROLES;
+        registry = new PermissionedRegistry(datastore, metadata, address(this), deployerRoles);
     }
 
     function test_registry_metadata_token_uri() public {
@@ -56,7 +56,7 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                EnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
                 ROOT_RESOURCE,
                 ROLE_UPDATE_METADATA,
                 address(1)
@@ -68,7 +68,7 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
 
     function test_registry_metadata_supports_interface() public view {
         assertEq(metadata.supportsInterface(type(IRegistryMetadata).interfaceId), true);
-        assertEq(metadata.supportsInterface(type(EnhancedAccessControl).interfaceId), true);
+        assertEq(metadata.supportsInterface(type(IEnhancedAccessControl).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
 }

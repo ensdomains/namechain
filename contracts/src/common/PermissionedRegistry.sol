@@ -15,15 +15,9 @@ import {SimpleRegistryMetadata} from "./SimpleRegistryMetadata.sol";
 import {NameUtils} from "./NameUtils.sol";
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 import {ITokenObserver} from "./ITokenObserver.sol";
-import {RegistryRolesMixin} from "./RegistryRolesMixin.sol";
+import {LibRegistryRoles} from "./LibRegistryRoles.sol";
 
-contract PermissionedRegistry is
-    BaseRegistry,
-    EnhancedAccessControl,
-    IPermissionedRegistry,
-    MetadataMixin,
-    RegistryRolesMixin
-{
+contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissionedRegistry, MetadataMixin {
     event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
 
     mapping(uint256 => ITokenObserver) public tokenObservers;
@@ -37,11 +31,11 @@ contract PermissionedRegistry is
         _;
     }
 
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata, uint256 _deployerRoles)
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata, address _ownerAddress, uint256 _ownerRoles)
         BaseRegistry(_datastore)
         MetadataMixin(_metadata)
     {
-        _grantRoles(ROOT_RESOURCE, _deployerRoles, _msgSender(), false);
+        _grantRoles(ROOT_RESOURCE, _ownerRoles, _ownerAddress, false);
 
         if (address(_metadata) == address(0)) {
             _updateMetadataProvider(new SimpleRegistryMetadata());
@@ -73,7 +67,7 @@ contract PermissionedRegistry is
         address resolver,
         uint256 roleBitmap,
         uint64 expires
-    ) public virtual override onlyRootRoles(ROLE_REGISTRAR) returns (uint256 tokenId) {
+    ) public virtual override onlyRootRoles(LibRegistryRoles.ROLE_REGISTRAR) returns (uint256 tokenId) {
         uint64 oldExpiry;
         uint32 tokenIdVersion;
         (tokenId, oldExpiry, tokenIdVersion) = getNameData(label);
@@ -107,13 +101,17 @@ contract PermissionedRegistry is
     function setTokenObserver(uint256 tokenId, ITokenObserver observer)
         public
         override
-        onlyNonExpiredTokenRoles(tokenId, ROLE_SET_TOKEN_OBSERVER)
+        onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER)
     {
         tokenObservers[tokenId] = observer;
         emit TokenObserverSet(tokenId, address(observer));
     }
 
-    function renew(uint256 tokenId, uint64 expires) public override onlyNonExpiredTokenRoles(tokenId, ROLE_RENEW) {
+    function renew(uint256 tokenId, uint64 expires)
+        public
+        override
+        onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_RENEW)
+    {
         (address subregistry, uint64 oldExpiration, uint32 tokenIdVersion) = datastore.getSubregistry(tokenId);
         if (expires < oldExpiration) {
             revert CannotReduceExpiration(oldExpiration, expires);
@@ -130,23 +128,18 @@ contract PermissionedRegistry is
     }
 
     /**
-     * @dev Relinquish a name.
+     * @dev Burn a name.
      *      This will destroy the name and remove it from the registry.
      *
      * @param tokenId The token ID of the name to relinquish.
      */
-    function relinquish(uint256 tokenId) external override onlyTokenOwner(tokenId) {
+    function burn(uint256 tokenId) external override onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_BURN) {
         _burn(ownerOf(tokenId), tokenId, 1);
 
         datastore.setSubregistry(tokenId, address(0), 0, 0);
         datastore.setResolver(tokenId, address(0), 0, 0);
 
-        ITokenObserver observer = tokenObservers[tokenId];
-        if (address(observer) != address(0)) {
-            observer.onRelinquish(tokenId, msg.sender);
-        }
-
-        emit NameRelinquished(tokenId, msg.sender);
+        emit NameBurned(tokenId, msg.sender);
     }
 
     function getSubregistry(string calldata label)
@@ -183,7 +176,7 @@ contract PermissionedRegistry is
     function setSubregistry(uint256 tokenId, IRegistry registry)
         external
         override
-        onlyNonExpiredTokenRoles(tokenId, ROLE_SET_SUBREGISTRY)
+        onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_SET_SUBREGISTRY)
     {
         (, uint64 expires, uint32 tokenIdVersion) = datastore.getSubregistry(tokenId);
         datastore.setSubregistry(tokenId, address(registry), expires, tokenIdVersion);
@@ -192,7 +185,7 @@ contract PermissionedRegistry is
     function setResolver(uint256 tokenId, address resolver)
         external
         override
-        onlyNonExpiredTokenRoles(tokenId, ROLE_SET_RESOLVER)
+        onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_SET_RESOLVER)
     {
         datastore.setResolver(tokenId, resolver, 0, 0);
     }
@@ -230,6 +223,15 @@ contract PermissionedRegistry is
         uint256 canonicalId = uint256(resource);
         (,, uint32 tokenIdVersion) = datastore.getSubregistry(canonicalId);
         return _constructTokenId(canonicalId, tokenIdVersion);
+    }
+
+    function getRoleAssigneeCount(uint256 tokenId, uint256 roleBitmap)
+        external
+        view
+        override
+        returns (uint256 counts, uint256 mask)
+    {
+        return getAssigneeCount(getTokenIdResource(tokenId), roleBitmap);
     }
 
     // Internal/private methods

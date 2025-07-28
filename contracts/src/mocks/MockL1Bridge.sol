@@ -5,7 +5,7 @@ import {L1EjectionController} from "../L1/L1EjectionController.sol";
 import {MockBridgeBase} from "./MockBridgeBase.sol";
 import {BridgeMessageType} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
-import {TransferData, MigrationData} from "../common/TransferData.sol";
+import {TransferData} from "../common/TransferData.sol";
 
 /**
  * @title MockL1Bridge
@@ -40,13 +40,9 @@ contract MockL1Bridge is MockBridgeBase {
     }
 
     /**
-     * @dev Handle migration messages specific to L1 bridge
+     * @dev Handle renewal messages specific to L1 bridge
      */
-    function _handleMigrationMessage(bytes memory, /*dnsEncodedName*/ MigrationData memory /*migrationData*/ )
-        internal
-        pure
-        override
-    {
-        revert MigrationNotSupported();
+    function _handleRenewalMessage(uint256 tokenId, uint64 newExpiry) internal override {
+        ejectionController.syncRenewal(tokenId, newExpiry);
     }
 }

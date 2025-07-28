@@ -15,7 +15,12 @@ export default execute(
     await deploy("ETHRegistry", {
       account: deployer,
       artifact: artifacts.PermissionedRegistry,
-      args: [registryDatastore.address, registryMetadata.address, ROLES.ALL],
+      args: [
+        registryDatastore.address,
+        registryMetadata.address,
+        deployer,
+        ROLES.ALL,
+      ],
     });
   },
   // finally you can pass tags and dependencies

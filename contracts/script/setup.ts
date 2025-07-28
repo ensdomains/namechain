@@ -192,9 +192,10 @@ export async function setupCrossChainEnvironment() {
           l2Contracts<(typeof artifacts.PermissionedRegistry)["abi"]>(
             "ETHRegistry",
           ),
-        ejectionController: l2Contracts<
-          (typeof artifacts.L2EjectionController)["abi"]
-        >("L2EjectionController"),
+        bridgeController:
+          l2Contracts<(typeof artifacts.L2BridgeController)["abi"]>(
+            "L2BridgeController",
+          ),
         mockBridge:
           l2Contracts<(typeof artifacts.MockL2Bridge)["abi"]>("MockL2Bridge"),
         priceOracle:

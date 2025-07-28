@@ -5,9 +5,9 @@ import {EjectionController} from "../common/EjectionController.sol";
 import {TransferData} from "../common/TransferData.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
+import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
-import {IBridge} from "../common/IBridge.sol";
+import {IBridge, LibBridgeRoles} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 
@@ -16,7 +16,7 @@ import {NameUtils} from "../common/NameUtils.sol";
  * @dev L1 contract for ejection controller that facilitates migrations of names
  * between L1 and L2, as well as handling renewals.
  */
-contract L1EjectionController is EjectionController, RegistryRolesMixin {
+contract L1EjectionController is EjectionController {
     error NotTokenOwner(uint256 tokenId);
     error NameNotExpired(uint256 tokenId, uint64 expires);
 
@@ -32,7 +32,7 @@ contract L1EjectionController is EjectionController, RegistryRolesMixin {
     function completeEjectionFromL2(TransferData memory transferData)
         external
         virtual
-        onlyBridge
+        onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
         returns (uint256 tokenId)
     {
         tokenId = registry.register(
@@ -53,7 +53,11 @@ contract L1EjectionController is EjectionController, RegistryRolesMixin {
      * @param tokenId The token ID of the name
      * @param newExpiry The new expiration timestamp
      */
-    function syncRenewal(uint256 tokenId, uint64 newExpiry) external virtual {
+    function syncRenewal(uint256 tokenId, uint64 newExpiry)
+        external
+        virtual
+        onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
+    {
         registry.renew(tokenId, newExpiry);
         emit RenewalSynchronized(tokenId, newExpiry);
     }
@@ -71,7 +75,8 @@ contract L1EjectionController is EjectionController, RegistryRolesMixin {
             // check that the label matches the token id
             _assertTokenIdMatchesLabel(tokenId, transferData.label);
 
-            registry.relinquish(tokenId);
+            // burn the token
+            registry.burn(tokenId);
 
             // send the message to the bridge
             bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);

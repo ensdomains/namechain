@@ -18,7 +18,12 @@ export default execute(
     const l1EthRegistry = await deploy("L1ETHRegistry", {
       account: deployer,
       artifact: artifacts.PermissionedRegistry,
-      args: [registryDatastore.address, registryMetadata.address, ROLES.ALL],
+      args: [
+        registryDatastore.address,
+        registryMetadata.address,
+        deployer,
+        ROLES.ALL,
+      ],
     });
 
     await write(rootRegistry, {

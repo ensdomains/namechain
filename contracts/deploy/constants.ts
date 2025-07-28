@@ -4,13 +4,14 @@ interface Flags {
   [key: string]: bigint | Flags;
 }
 const FLAGS = {
-  // see: RegistryRolesMixin.sol
+  // see: LibRegistryRoles.sol
   EAC: {
     REGISTRAR: 1n << 0n,
     RENEW: 1n << 4n,
     SET_SUBREGISTRY: 1n << 8n,
     SET_RESOLVER: 1n << 12n,
     SET_TOKEN_OBSERVER: 1n << 16n,
+    BURN: 1n << 20n,
   },
   // see: L2/ETHRegistry.sol
   ETH: {
@@ -20,6 +21,10 @@ const FLAGS = {
   // see: L2/UserRegistry.sol
   USER: {
     UPGRADE: 1n << 20n,
+  },
+  // see: LibBridgeRoles.sol
+  BRIDGE: {
+    EJECTOR: 1n << 0n,
   },
 } as const satisfies Flags;
 function mapFlags(flags: Flags, fn: (x: bigint) => bigint): Flags {

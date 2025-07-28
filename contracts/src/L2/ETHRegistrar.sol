@@ -8,12 +8,14 @@ import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../common/NameUtils.sol";
-import {EnhancedAccessControl} from "../common/EnhancedAccessControl.sol";
-import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
+import {EnhancedAccessControl, LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
+import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 
-contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixin {
-    uint256 private constant REGISTRATION_ROLE_BITMAP =
-        ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;
+contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
+    uint256 private constant REGISTRATION_ROLE_BITMAP = LibRegistryRoles.ROLE_SET_SUBREGISTRY
+        | LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN | LibRegistryRoles.ROLE_SET_RESOLVER
+        | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN | LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER
+        | LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN;
 
     uint256 private constant ROLE_SET_PRICE_ORACLE = 1 << 20;
     uint256 private constant ROLE_SET_PRICE_ORACLE_ADMIN = ROLE_SET_PRICE_ORACLE << 128;
@@ -39,7 +41,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     mapping(bytes32 => uint256) public commitments;
 
     constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge) {
-        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender(), true);
+        _grantRoles(ROOT_RESOURCE, LibEACBaseRoles.ALL_ROLES, _msgSender(), true);
 
         registry = IPermissionedRegistry(_registry);
 

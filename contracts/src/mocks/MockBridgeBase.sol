@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {TransferData, MigrationData} from "../common/TransferData.sol";
+import {TransferData} from "../common/TransferData.sol";
 import {IBridge, BridgeMessageType} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 
@@ -12,7 +12,7 @@ import {BridgeEncoder} from "../common/BridgeEncoder.sol";
  */
 abstract contract MockBridgeBase is IBridge {
     // Custom errors
-    error MigrationNotSupported();
+    error RenewalNotSupported();
 
     // Event for message receipt acknowledgement
     event MessageProcessed(bytes message);
@@ -27,9 +27,9 @@ abstract contract MockBridgeBase is IBridge {
         if (messageType == BridgeMessageType.EJECTION) {
             (bytes memory dnsEncodedName, TransferData memory transferData) = BridgeEncoder.decodeEjection(message);
             _handleEjectionMessage(dnsEncodedName, transferData);
-        } else if (messageType == BridgeMessageType.MIGRATION) {
-            (bytes memory dnsEncodedName, MigrationData memory migrationData) = BridgeEncoder.decodeMigration(message);
-            _handleMigrationMessage(dnsEncodedName, migrationData);
+        } else if (messageType == BridgeMessageType.RENEWAL) {
+            (uint256 tokenId, uint64 newExpiry) = BridgeEncoder.decodeRenewal(message);
+            _handleRenewalMessage(tokenId, newExpiry);
         }
 
         // Emit event for tracking
@@ -43,10 +43,8 @@ abstract contract MockBridgeBase is IBridge {
     function _handleEjectionMessage(bytes memory dnsEncodedName, TransferData memory transferData) internal virtual;
 
     /**
-     * @dev Abstract method for handling migration messages
+     * @dev Abstract method for handling renewal messages
      * Must be implemented by concrete bridge contracts
      */
-    function _handleMigrationMessage(bytes memory dnsEncodedName, MigrationData memory migrationData)
-        internal
-        virtual;
+    function _handleRenewalMessage(uint256 tokenId, uint64 newExpiry) internal virtual;
 }

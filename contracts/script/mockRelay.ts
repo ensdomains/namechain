@@ -1,6 +1,5 @@
 import type { Client, Hash, Hex } from "viem";
 import { waitForTransactionReceipt } from "viem/actions";
-import { encodeAbiParameters, parseAbiParameters } from "viem";
 
 import type { L1Client, L1Contracts, L2Client, L2Contracts } from "./setup.js";
 

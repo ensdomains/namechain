@@ -6,7 +6,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {UniversalResolverV2, NameCoder} from "../../src/universalResolver/UniversalResolverV2.sol";
 import {PermissionedRegistry, IRegistry, IRegistryMetadata} from "../../src/common/PermissionedRegistry.sol";
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
-import {TestUtils} from "../utils/TestUtils.sol";
+import {LibEACBaseRoles} from "../../src/common/EnhancedAccessControl.sol";
 
 contract UniversalResolverTraversal is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -14,7 +14,8 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
     UniversalResolverV2 universalResolver;
 
     function _createRegistry() internal returns (PermissionedRegistry) {
-        return new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), TestUtils.ALL_ROLES);
+        return
+            new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
     }
 
     function setUp() public {
@@ -29,7 +30,7 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         // resolver:  0x1
         PermissionedRegistry ethRegistry = _createRegistry();
         rootRegistry.register(
-            "eth", address(this), ethRegistry, address(1), TestUtils.ALL_ROLES, uint64(block.timestamp + 1000)
+            "eth", address(this), ethRegistry, address(1), LibEACBaseRoles.ALL_ROLES, uint64(block.timestamp + 1000)
         );
 
         bytes memory name = NameCoder.encode("eth");
@@ -52,10 +53,10 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         PermissionedRegistry ethRegistry = _createRegistry();
         PermissionedRegistry testRegistry = _createRegistry();
         rootRegistry.register(
-            "eth", address(this), ethRegistry, address(0), TestUtils.ALL_ROLES, uint64(block.timestamp + 1000)
+            "eth", address(this), ethRegistry, address(0), LibEACBaseRoles.ALL_ROLES, uint64(block.timestamp + 1000)
         );
         ethRegistry.register(
-            "test", address(this), testRegistry, address(1), TestUtils.ALL_ROLES, uint64(block.timestamp + 1000)
+            "test", address(this), testRegistry, address(1), LibEACBaseRoles.ALL_ROLES, uint64(block.timestamp + 1000)
         );
 
         bytes memory name = NameCoder.encode("test.eth");
@@ -78,10 +79,10 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         PermissionedRegistry ethRegistry = _createRegistry();
         PermissionedRegistry testRegistry = _createRegistry();
         rootRegistry.register(
-            "eth", address(this), ethRegistry, address(1), TestUtils.ALL_ROLES, uint64(block.timestamp + 1000)
+            "eth", address(this), ethRegistry, address(1), LibEACBaseRoles.ALL_ROLES, uint64(block.timestamp + 1000)
         );
         ethRegistry.register(
-            "test", address(this), testRegistry, address(0), TestUtils.ALL_ROLES, uint64(block.timestamp + 1000)
+            "test", address(this), testRegistry, address(0), LibEACBaseRoles.ALL_ROLES, uint64(block.timestamp + 1000)
         );
 
         bytes memory name = NameCoder.encode("sub.test.eth");
@@ -104,10 +105,10 @@ contract UniversalResolverTraversal is Test, ERC1155Holder {
         PermissionedRegistry ethRegistry = _createRegistry();
         PermissionedRegistry testRegistry = _createRegistry();
         rootRegistry.register(
-            "eth", address(this), ethRegistry, address(1), TestUtils.ALL_ROLES, uint64(block.timestamp + 1000)
+            "eth", address(this), ethRegistry, address(1), LibEACBaseRoles.ALL_ROLES, uint64(block.timestamp + 1000)
         );
         ethRegistry.register(
-            "test", address(this), testRegistry, address(0), TestUtils.ALL_ROLES, uint64(block.timestamp + 1000)
+            "test", address(this), testRegistry, address(0), LibEACBaseRoles.ALL_ROLES, uint64(block.timestamp + 1000)
         );
 
         bytes memory name = NameCoder.encode("a.b.test.eth");

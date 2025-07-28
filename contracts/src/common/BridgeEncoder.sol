@@ -8,37 +8,11 @@ import {TransferData, MigrationData} from "./TransferData.sol";
  * @dev Library for encoding and decoding bridge messages.
  */
 library BridgeEncoder {
-    /// @dev Error thrown when message type is invalid for migration
-    error InvalidMigrationMessageType();
-
     /// @dev Error thrown when message type is invalid for ejection
     error InvalidEjectionMessageType();
 
-    /**
-     * @dev Encode a migration message.
-     */
-    function encodeMigration(bytes memory dnsEncodedName, MigrationData memory data)
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return abi.encode(uint256(BridgeMessageType.MIGRATION), dnsEncodedName, data);
-    }
-
-    /**
-     * @dev Decode a migration message.
-     */
-    function decodeMigration(bytes memory message)
-        internal
-        pure
-        returns (bytes memory dnsEncodedName, MigrationData memory data)
-    {
-        uint256 _messageType;
-        (_messageType, dnsEncodedName, data) = abi.decode(message, (uint256, bytes, MigrationData));
-        if (_messageType != uint256(BridgeMessageType.MIGRATION)) {
-            revert InvalidMigrationMessageType();
-        }
-    }
+    /// @dev Error thrown when message type is invalid for renewal
+    error InvalidRenewalMessageType();
 
     /**
      * @dev Encode an ejection message.
@@ -63,6 +37,24 @@ library BridgeEncoder {
         (_messageType, dnsEncodedName, data) = abi.decode(message, (uint256, bytes, TransferData));
         if (_messageType != uint256(BridgeMessageType.EJECTION)) {
             revert InvalidEjectionMessageType();
+        }
+    }
+
+    /**
+     * @dev Encode a renewal message.
+     */
+    function encodeRenewal(uint256 tokenId, uint64 newExpiry) internal pure returns (bytes memory) {
+        return abi.encode(uint256(BridgeMessageType.RENEWAL), tokenId, newExpiry);
+    }
+
+    /**
+     * @dev Decode a renewal message.
+     */
+    function decodeRenewal(bytes memory message) internal pure returns (uint256 tokenId, uint64 newExpiry) {
+        uint256 _messageType;
+        (_messageType, tokenId, newExpiry) = abi.decode(message, (uint256, uint256, uint64));
+        if (_messageType != uint256(BridgeMessageType.RENEWAL)) {
+            revert InvalidRenewalMessageType();
         }
     }
 
