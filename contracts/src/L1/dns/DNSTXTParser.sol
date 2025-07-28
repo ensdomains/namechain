@@ -3,8 +3,7 @@ pragma solidity >=0.8.13;
 
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
-/// @title DNSTXTParser
-/// @dev Library for parsing ENS records from DNS TXT data.
+/// @notice Library for parsing ENS records from DNS TXT data.
 ///
 /// The record data consists of a series of key=value pairs, separated by spaces. Keys
 /// may have an optional argument in square brackets, and values may be either unquoted

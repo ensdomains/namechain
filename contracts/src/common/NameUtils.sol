@@ -1,23 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.24;
+pragma solidity >=0.8.13;
 
 library NameUtils {
-    /// @dev Read a label at an offset from a DNS-encoded name.
-    ///      eg. `readLabel("\x03abc\x00", 0) = "abc"`.
-    /// @param name The name.
-    /// @param pos The offset of the label.
-    /// @return label The label.
-    function readLabel(
-        bytes memory name,
-        uint256 pos
-    ) internal pure returns (string memory label) {
-        uint256 len = uint8(name[pos]);
-        label = new string(len);
-        assembly {
-            mcopy(add(label, 32), add(add(name, 33), pos), len)
-        }
-    }
-
     /// @dev Convert a label to canonical id.
     /// @param label The label to convert.
     /// @return The canonical id corresponding to this label.
@@ -34,12 +18,17 @@ library NameUtils {
         return id ^ uint32(id);
     }
 
-    /**
-     * @dev DNS encodes a label as a .eth second-level domain.
-     * @param label The label to encode (e.g., "test" becomes "\x04test\x03eth\x00").
-     * @return The DNS-encoded name.
-     */
-    function dnsEncodeEthLabel(string memory label) internal pure returns (bytes memory) {
-        return abi.encodePacked(bytes1(uint8(bytes(label).length)), label, "\x03eth\x00");
+    /// @dev DNS encodes a label as a .eth second-level domain.
+    /// @param label The label to encode (e.g., "test" becomes "\x04test\x03eth\x00").
+    /// @return The DNS-encoded name.
+    function dnsEncodeEthLabel(
+        string memory label
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                bytes1(uint8(bytes(label).length)),
+                label,
+                "\x03eth\x00"
+            );
     }
 }

@@ -21,7 +21,6 @@ import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 
-/// @title DNSTXTResolver
 /// @notice Resolver that answers requests with the data encoded into the context of a DNSSEC "ENS1" TXT record.
 ///
 /// DNS TXT record format: `ENS1 dnsname.ens.eth <context>`.

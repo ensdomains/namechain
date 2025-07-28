@@ -7,6 +7,7 @@ import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165C
 
 import {CCIPBatcher, CCIPReader, OffchainLookup} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
 import {DNSSEC} from "@ens/contracts/dnssec-oracle/DNSSEC.sol";
+import {IDNSGateway} from "@ens/contracts/dnssec-oracle/IDNSGateway.sol";
 import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
 import {RegistryUtils as RegistryUtilsV1, ENS} from "@ens/contracts/universalResolver/RegistryUtils.sol";
 import {RegistryUtils, IRegistry} from "../../universalResolver/RegistryUtils.sol";
@@ -21,14 +22,6 @@ import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedReso
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 
-/// @dev Gateway interface for DNSSEC oracle.
-interface IDNSGateway {
-    function resolve(
-        bytes memory name,
-        uint16 qtype
-    ) external returns (DNSSEC.RRSetWithSignature[] memory);
-}
-
 /// @dev DNS class for the "Internet" according to RFC-1035.
 uint16 constant CLASS_INET = 1;
 
@@ -38,7 +31,6 @@ uint16 constant QTYPE_TXT = 16;
 /// @dev DNS TXT record prefix for ENS data.
 bytes constant TXT_PREFIX = "ENS1 ";
 
-/// @title DNSTLDResolver
 /// @notice Resolver that performs imported DNS fallback to V1 and gasless DNS resolution.
 ///
 /// 1. If there exists a resolver in V1, go to 4.
