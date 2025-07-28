@@ -15,7 +15,6 @@ import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
-import {NameMatcher} from "../common/NameMatcher.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {DedicatedResolverLayout} from "../common/DedicatedResolverLayout.sol";
 import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
@@ -154,8 +153,8 @@ contract ETHTLDResolver is
         bytes calldata name,
         bytes calldata data
     ) public view returns (bytes memory) {
-        (bool matched, , uint256 prevOffset, uint256 offset) = NameMatcher
-            .suffix(name, 0, nodeSuffix);
+        (bool matched, , uint256 prevOffset, uint256 offset) = NameCoder
+            .matchSuffix(name, 0, nodeSuffix);
         if (!matched) {
             revert UnreachableName(name);
         }
