@@ -16,6 +16,7 @@ import {NameUtils} from "./NameUtils.sol";
 import {IPermissionedRegistry} from "./IPermissionedRegistry.sol";
 import {ITokenObserver} from "./ITokenObserver.sol";
 import {LibRegistryRoles} from "./LibRegistryRoles.sol";
+import {IEnhancedAccessControl} from "./IEnhancedAccessControl.sol";
 
 contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissionedRegistry, MetadataMixin {
     event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
@@ -191,8 +192,34 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         return _constructTokenId(canonicalId, tokenIdVersion);
     }
 
-    function getRoleAssigneeCount(uint256 tokenId, uint256 roleBitmap) external view override returns (uint256 counts, uint256 mask) {
-        return getAssigneeCount(getTokenIdResource(tokenId), roleBitmap);
+    // Override EnhancedAccessControl methods to use tokenId instead of resource
+
+    function roles(uint256 tokenId, address account) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (uint256) {
+        return super.roles(getTokenIdResource(tokenId), account);
+    }
+
+    function roleCount(uint256 tokenId) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (uint256) {
+        return super.roleCount(getTokenIdResource(tokenId));
+    }
+
+    function hasRoles(uint256 tokenId, uint256 rolesBitmap, address account) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (bool) {
+        return super.hasRoles(getTokenIdResource(tokenId), rolesBitmap, account);
+    }
+
+    function hasAssignees(uint256 tokenId, uint256 roleBitmap) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (bool) {
+        return super.hasAssignees(getTokenIdResource(tokenId), roleBitmap);
+    }
+
+    function getAssigneeCount(uint256 tokenId, uint256 roleBitmap) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (uint256 counts, uint256 mask) {
+        return super.getAssigneeCount(getTokenIdResource(tokenId), roleBitmap);
+    }
+
+    function grantRoles(uint256 tokenId, uint256 roleBitmap, address account) public override(EnhancedAccessControl, IEnhancedAccessControl) returns (bool) {
+        return super.grantRoles(getTokenIdResource(tokenId), roleBitmap, account);
+    }
+
+    function revokeRoles(uint256 tokenId, uint256 roleBitmap, address account) public override(EnhancedAccessControl, IEnhancedAccessControl) returns (bool) {
+        return super.revokeRoles(getTokenIdResource(tokenId), roleBitmap, account);
     }
 
     // Internal/private methods

@@ -439,7 +439,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 tokenId3 = ethRegistry.register(testLabel3, user, ethRegistry, address(0), criticalRoles, expires);
         
         // Verify exactly one assignee per critical role
-        (uint256 counts, uint256 mask) = ethRegistry.getRoleAssigneeCount(tokenId3, criticalRoles);
+        (uint256 counts, uint256 mask) = ethRegistry.getAssigneeCount(tokenId3, criticalRoles);
         assertEq(counts & mask, criticalRoles, "Should have exactly one assignee for each critical role");
         
         bytes memory ejectionData = _createEjectionData(testLabel3, l1Owner, l1Subregistry, l1Resolver, expires, criticalRoles);

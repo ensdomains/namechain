@@ -32,7 +32,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @dev user roles within a resource stored as a bitmap.
      * Resource -> User -> RoleBitmap
      */
-    mapping(uint256 resource => mapping(address account => uint256 roleBitmap)) public roles;
+    mapping(uint256 resource => mapping(address account => uint256 roleBitmap)) private _roles;
 
     /**
      * @dev The number of assignees for a given role in a given resource.
@@ -40,12 +40,26 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * Each role's count is represented by 4 bits, in little-endian order.
      * This results in max. 64 roles, and 15 assignees per role.
      */
-    mapping(uint256 resource => uint256 roleCount) public roleCount;
+    mapping(uint256 resource => uint256 roleCount) private _roleCount;
 
     /**
      * @dev The `ROOT_RESOURCE`.
      */
     uint256 public constant ROOT_RESOURCE = 0;
+
+    /**
+     * @dev Returns the roles bitmap for an account in a resource.
+     */
+    function roles(uint256 resource, address account) public view virtual returns (uint256) {
+        return _roles[resource][account];
+    }
+
+    /**
+     * @dev Returns the role count bitmap for a resource.
+     */
+    function roleCount(uint256 resource) public view virtual returns (uint256) {
+        return _roleCount[resource];
+    }
     
 
     /**
@@ -87,7 +101,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @return `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`, `false` otherwise.
      */
     function hasRootRoles(uint256 rolesBitmap, address account) public view virtual returns (bool) {
-        return roles[ROOT_RESOURCE][account] & rolesBitmap == rolesBitmap;
+        return _roles[ROOT_RESOURCE][account] & rolesBitmap == rolesBitmap;
     }
 
     /**
@@ -99,7 +113,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @return `true` if `account` has been granted all the given roles in either `resource` or the `ROOT_RESOURCE`, `false` otherwise.
      */
     function hasRoles(uint256 resource, uint256 rolesBitmap, address account) public view virtual returns (bool) {
-        return (roles[ROOT_RESOURCE][account] | roles[resource][account]) & rolesBitmap == rolesBitmap;
+        return (_roles[ROOT_RESOURCE][account] | _roles[resource][account]) & rolesBitmap == rolesBitmap;
     }
 
 
@@ -125,7 +139,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      */
     function getAssigneeCount(uint256 resource, uint256 roleBitmap) public view virtual returns (uint256 counts, uint256 mask) {
         mask = _roleBitmapToMask(roleBitmap);
-        counts = roleCount[resource] & mask;
+        counts = _roleCount[resource] & mask;
     }
 
     /**
@@ -220,7 +234,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param executeCallbacks Whether to execute the callbacks.
      */
     function _copyRoles(uint256 resource, address srcAccount, address dstAccount, bool executeCallbacks) internal virtual {
-        uint256 srcRoles = roles[resource][srcAccount];
+        uint256 srcRoles = _roles[resource][srcAccount];
         _grantRoles(resource, srcRoles, dstAccount, executeCallbacks);
     }
 
@@ -235,11 +249,11 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      */
     function _grantRoles(uint256 resource, uint256 roleBitmap, address account, bool executeCallbacks) internal virtual returns (bool) {
         _checkRoleBitmap(roleBitmap);
-        uint256 currentRoles = roles[resource][account];
+        uint256 currentRoles = _roles[resource][account];
         uint256 updatedRoles = currentRoles | roleBitmap;
 
         if (currentRoles != updatedRoles) {
-            roles[resource][account] = updatedRoles;
+            _roles[resource][account] = updatedRoles;
             uint256 newlyAddedRoles = roleBitmap & ~currentRoles;
             _updateRoleCounts(resource, newlyAddedRoles, true);
             if (executeCallbacks) {
@@ -263,11 +277,11 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      */
     function _revokeRoles(uint256 resource, uint256 roleBitmap, address account, bool executeCallbacks) internal virtual returns (bool) {
         _checkRoleBitmap(roleBitmap);
-        uint256 currentRoles = roles[resource][account];
+        uint256 currentRoles = _roles[resource][account];
         uint256 updatedRoles = currentRoles & ~roleBitmap;
         
         if (currentRoles != updatedRoles) {
-            roles[resource][account] = updatedRoles;
+            _roles[resource][account] = updatedRoles;
             uint256 newlyRemovedRoles = roleBitmap & currentRoles;
             _updateRoleCounts(resource, newlyRemovedRoles, false); 
             if (executeCallbacks) {
@@ -298,16 +312,16 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
 
         if (isGrant) {
             // Check for overflow
-            if (_hasZeroNybbles(~(roleMask & roleCount[resource]))) {
+            if (_hasZeroNybbles(~(roleMask & _roleCount[resource]))) {
                 revert EACMaxAssignees(resource, roleBitmap);
             }
-            roleCount[resource] += roleBitmap;
+            _roleCount[resource] += roleBitmap;
         } else {
             // Check for underflow
-            if (_hasZeroNybbles(~(roleMask & ~roleCount[resource]))) {
+            if (_hasZeroNybbles(~(roleMask & ~_roleCount[resource]))) {
                 revert EACMinAssignees(resource, roleBitmap);
             }
-            roleCount[resource] -= roleBitmap;
+            _roleCount[resource] -= roleBitmap;
         }
     }
 
@@ -321,7 +335,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @return The settable roles for `account` within `resource`.
      */
     function _getSettableRoles(uint256 resource, address account) internal view virtual returns (uint256) {
-        uint256 adminRoleBitmap = (roles[resource][account] | roles[ROOT_RESOURCE][account]) & LibEACBaseRoles.ADMIN_ROLES;
+        uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) & LibEACBaseRoles.ADMIN_ROLES;
         return adminRoleBitmap | (adminRoleBitmap >> 128);
     }
 

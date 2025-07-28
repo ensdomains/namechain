@@ -3,8 +3,9 @@ pragma solidity >=0.8.13;
 
 import {IStandardRegistry} from "./IStandardRegistry.sol";
 import {ITokenObserver} from "./ITokenObserver.sol";
+import {IEnhancedAccessControl} from "./IEnhancedAccessControl.sol";
 
-interface IPermissionedRegistry is IStandardRegistry {
+interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     /**
      * @dev Event emitted when a token observer is set.
      */
@@ -41,15 +42,4 @@ interface IPermissionedRegistry is IStandardRegistry {
      * @return The token ID for the resource ID.
      */
     function getResourceTokenId(uint256 resource) external view returns (uint256);
-
-
-
-    /**
-     * @dev Fetches the number of assignees for a given role bitmap.
-     * @param tokenId The token ID to fetch the assignee count for.
-     * @param roleBitmap The role bitmap to fetch the assignee count for.
-     * @return counts The number of assignees for the role bitmap.
-     * @return mask The mask of the role bitmap.
-     */
-    function getRoleAssigneeCount(uint256 tokenId, uint256 roleBitmap) external view returns (uint256 counts, uint256 mask);
 }

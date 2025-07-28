@@ -810,7 +810,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     function test_getRoleAssigneeCount_single_role_single_assignee() public {
         uint256 tokenId = registry.register("counttest1", user1, registry, address(0), LibRegistryRoles.ROLE_SET_RESOLVER, uint64(block.timestamp) + 86400);
         
-        (uint256 counts,) = registry.getRoleAssigneeCount(tokenId, LibRegistryRoles.ROLE_SET_RESOLVER);
+        (uint256 counts,) = registry.getAssigneeCount(tokenId, LibRegistryRoles.ROLE_SET_RESOLVER);
         
         // ROLE_SET_RESOLVER is 1 << 12, so count of 1 should be at bit position 12
         uint256 expectedCount = 1 << 12;
@@ -831,7 +831,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         // Get the updated token ID after regenerations
         uint256 currentTokenId = registry.getResourceTokenId(resourceId);
         
-        (uint256 counts,) = registry.getRoleAssigneeCount(currentTokenId, LibRegistryRoles.ROLE_SET_RESOLVER);
+        (uint256 counts,) = registry.getAssigneeCount(currentTokenId, LibRegistryRoles.ROLE_SET_RESOLVER);
         
         // Should have count of 3 at bit position 12
         uint256 expectedCount = 3 << 12;
@@ -841,7 +841,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     function test_getRoleAssigneeCount_single_role_no_assignees() public {
         uint256 tokenId = registry.register("counttest3", user1, registry, address(0), LibRegistryRoles.ROLE_SET_RESOLVER, uint64(block.timestamp) + 86400);
         
-        (uint256 counts,) = registry.getRoleAssigneeCount(tokenId, LibRegistryRoles.ROLE_RENEW);
+        (uint256 counts,) = registry.getAssigneeCount(tokenId, LibRegistryRoles.ROLE_RENEW);
         
         assertEq(counts, 0, "Should have count of 0 for unassigned RENEW role");
     }
@@ -863,7 +863,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         
         // Query for SET_RESOLVER and RENEW roles
         uint256 queryBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_RENEW;
-        (uint256 counts,) = registry.getRoleAssigneeCount(currentTokenId, queryBitmap);
+        (uint256 counts,) = registry.getAssigneeCount(currentTokenId, queryBitmap);
         
         // user1 has SET_RESOLVER (from defaultRoleBitmap), user2 has SET_RESOLVER + RENEW, user3 has RENEW
         // SET_RESOLVER (1<<12): 2 assignees -> 2 << 12
@@ -877,7 +877,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         
         // Query for multiple roles where only SET_RESOLVER has assignees
         uint256 queryBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN;
-        (uint256 counts,) = registry.getRoleAssigneeCount(tokenId, queryBitmap);
+        (uint256 counts,) = registry.getAssigneeCount(tokenId, queryBitmap);
         
         // Only SET_RESOLVER should have 1 assignee
         uint256 expectedCount = 1 << 12;
@@ -887,7 +887,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     function test_getRoleAssigneeCount_all_default_roles() public {
         uint256 tokenId = registry.register("counttest6", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
         
-        (uint256 counts,) = registry.getRoleAssigneeCount(tokenId, defaultRoleBitmap);
+        (uint256 counts,) = registry.getAssigneeCount(tokenId, defaultRoleBitmap);
         
         // defaultRoleBitmap includes SET_SUBREGISTRY (1<<8), SET_RESOLVER (1<<12), SET_TOKEN_OBSERVER (1<<16)
         // Each should have 1 assignee
@@ -912,7 +912,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         
         // Query for all three roles
         uint256 queryBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN;
-        (uint256 counts,) = registry.getRoleAssigneeCount(currentTokenId, queryBitmap);
+        (uint256 counts,) = registry.getAssigneeCount(currentTokenId, queryBitmap);
         
         // user1: SET_RESOLVER
         // user2: SET_RESOLVER, RENEW  
@@ -935,7 +935,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenIdAfterGrant = registry.getResourceTokenId(resourceId);
         
         // Check count before revocation - should have 2 assignees for SET_RESOLVER
-        (uint256 countsBefore,) = registry.getRoleAssigneeCount(tokenIdAfterGrant, LibRegistryRoles.ROLE_SET_RESOLVER);
+        (uint256 countsBefore,) = registry.getAssigneeCount(tokenIdAfterGrant, LibRegistryRoles.ROLE_SET_RESOLVER);
         uint256 expectedCountBefore = 2 << 12;
         assertEq(countsBefore, expectedCountBefore, "Should have 2 assignees before revocation");
         
@@ -944,7 +944,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 tokenIdAfterRevoke = registry.getResourceTokenId(resourceId);
         
         // Check count after revocation - should have 1 assignee for SET_RESOLVER
-        (uint256 countsAfter,) = registry.getRoleAssigneeCount(tokenIdAfterRevoke, LibRegistryRoles.ROLE_SET_RESOLVER);
+        (uint256 countsAfter,) = registry.getAssigneeCount(tokenIdAfterRevoke, LibRegistryRoles.ROLE_SET_RESOLVER);
         uint256 expectedCountAfter = 1 << 12;
         assertEq(countsAfter, expectedCountAfter, "Should have 1 assignee after revocation");
     }
@@ -952,7 +952,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     function test_getRoleAssigneeCount_zero_bitmap() public {
         uint256 tokenId = registry.register("counttest9", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
         
-        (uint256 counts,) = registry.getRoleAssigneeCount(tokenId, 0);
+        (uint256 counts,) = registry.getAssigneeCount(tokenId, 0);
         
         assertEq(counts, 0, "Should have 0 counts for empty bitmap");
     }
@@ -962,7 +962,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         
         // Use a role that doesn't exist in the registry roles
         uint256 nonexistentRole = 1 << 24; // Role at bit 24
-        (uint256 counts,) = registry.getRoleAssigneeCount(tokenId, nonexistentRole);
+        (uint256 counts,) = registry.getAssigneeCount(tokenId, nonexistentRole);
         
         assertEq(counts, 0, "Should have 0 counts for nonexistent role");
     }
