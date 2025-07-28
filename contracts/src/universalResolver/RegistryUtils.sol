@@ -49,8 +49,7 @@ library RegistryUtils {
             }
             exactRegistry = exactRegistry.getSubregistry(label);
         }
-        // update namehash
-        node = keccak256(abi.encode(node, labelHash));
+        node = NameCoder.namehash(node, labelHash); // update namehash
     }
 
     /// @dev Find the exact registry for `name[offset:]`.
@@ -97,36 +96,10 @@ library RegistryUtils {
         bytes memory name,
         uint256 offset
     ) internal pure returns (string memory label) {
-        (uint8 size, ) = nextLabel(name, offset);
+        (uint8 size, ) = NameCoder.nextLabel(name, offset);
         label = new string(size);
         assembly {
             mcopy(add(label, 32), add(add(name, 33), offset), size)
-        }
-    }
-
-    // ********************************************************************************
-    // I'd like to move the following code here:
-    // https://github.com/ensdomains/ens-contracts/pull/459
-    // https://github.com/ensdomains/ens-contracts/blob/fix/namecoder-iter/contracts/utils/NameCoder.sol#L42
-    // ********************************************************************************
-
-    /// @dev Read the `size` of the label at `offset`.
-    ///      If `size = 0`, it must be the end of `name` (no junk at end).
-    ///      Reverts `DNSDecodingFailed`.
-    /// @param name The DNS-encoded name.
-    /// @param offset The offset into `name` to start reading.
-    /// @return size The size of the label in bytes.
-    /// @return nextOffset The offset into `name` of the next label.
-    function nextLabel(
-        bytes memory name,
-        uint256 offset
-    ) internal pure returns (uint8 size, uint256 nextOffset) {
-        assembly {
-            size := byte(0, mload(add(add(name, 32), offset))) // uint8(name[offset])
-            nextOffset := add(offset, add(1, size)) // offset + 1 + size
-        }
-        if (size > 0 ? nextOffset >= name.length : nextOffset != name.length) {
-            revert NameCoder.DNSDecodingFailed(name);
         }
     }
 }
