@@ -134,14 +134,15 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
             revert TokenIdMismatch(tokenId, expectedTokenId);
         }
         
-        // send migration data to L2
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(migrationData.transferData.label);
-        bytes memory message = BridgeEncoder.encodeMigration(dnsEncodedName, migrationData);
-        bridge.sendMessage(message);
-
-        // if migrated to L1 then also setup the name on the L1
+        // if migrated to L1 then setup the name on the L1
         if (migrationData.toL1) {
             l1EjectionController.completeEjectionFromL2(migrationData.transferData);
+        } 
+        // else send ejection message to L2
+        else {
+            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(migrationData.transferData.label);
+            bytes memory message = BridgeEncoder.encodeEjection(dnsEncodedName, migrationData.transferData);
+            bridge.sendMessage(message);
         }
     }
 }

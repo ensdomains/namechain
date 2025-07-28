@@ -6,7 +6,6 @@ import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/
 import { shouldSupportFeatures } from "../utils/supportsFeatures.js";
 import { deployV1Fixture } from "../fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
-import { dummyShapeshiftResolverArtifact } from "../fixtures/ens-contracts/DummyShapeshiftResolver.js";
 import { expectVar } from "../utils/expectVar.ts";
 import {
   bundleCalls,
@@ -31,9 +30,7 @@ const basicProfile: KnownProfile = {
 async function fixture() {
   const mainnetV1 = await deployV1Fixture(chain);
   const mainnetV2 = await deployV2Fixture(chain, true); // CCIP on UR
-  const ssResolver = await chain.viem.deployContract(
-    dummyShapeshiftResolverArtifact,
-  );
+  const ssResolver = await chain.viem.deployContract("DummyShapeshiftResolver");
   const mockDNSSEC = await chain.viem.deployContract("MockDNSSEC");
   const dnsTLDResolver = await chain.viem.deployContract("DNSTLDResolver", [
     mainnetV1.ensRegistry.address,

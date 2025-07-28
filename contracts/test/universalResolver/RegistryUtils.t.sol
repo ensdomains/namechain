@@ -6,7 +6,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {RegistryUtils, IRegistry, NameCoder} from "../../src/universalResolver/RegistryUtils.sol";
 import {PermissionedRegistry, IRegistryMetadata} from "../../src/common/PermissionedRegistry.sol";
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
-import {TestUtils} from "../utils/TestUtils.sol";
+import {LibEACBaseRoles} from "../../src/common/EnhancedAccessControl.sol";
 
 contract TestRegistryUtils is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -18,7 +18,8 @@ contract TestRegistryUtils is Test, ERC1155Holder {
             new PermissionedRegistry(
                 datastore,
                 IRegistryMetadata(address(0)),
-                TestUtils.ALL_ROLES
+                address(this),
+                LibEACBaseRoles.ALL_ROLES
             );
     }
     function _register(
@@ -32,7 +33,7 @@ contract TestRegistryUtils is Test, ERC1155Holder {
             address(this),
             registry,
             resolver,
-            TestUtils.ALL_ROLES,
+            LibEACBaseRoles.ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
     }
@@ -119,7 +120,7 @@ contract TestRegistryUtils is Test, ERC1155Holder {
             address(this),
             ethRegistry,
             resolverAddress,
-            TestUtils.ALL_ROLES,
+            LibEACBaseRoles.ALL_ROLES,
             uint64(block.timestamp + 1000)
         );
         vm.resumeGasMetering();

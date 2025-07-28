@@ -27,11 +27,11 @@ export async function deployV2Fixture(
     await networkConnection.viem.deployContract("RegistryDatastore");
   const rootRegistry = await networkConnection.viem.deployContract(
     "PermissionedRegistry",
-    [datastore.address, zeroAddress, ROLES.ALL],
+    [datastore.address, zeroAddress, walletClient.account.address, ROLES.ALL],
   );
   const ethRegistry = await networkConnection.viem.deployContract(
     "PermissionedRegistry",
-    [datastore.address, zeroAddress, ROLES.ALL],
+    [datastore.address, zeroAddress, walletClient.account.address, ROLES.ALL],
   );
   const universalResolver = await networkConnection.viem.deployContract(
     "UniversalResolverV2",
@@ -130,7 +130,7 @@ export async function deployV2Fixture(
           // registry does not exist, create it
           const registry = await networkConnection.viem.deployContract(
             "PermissionedRegistry",
-            [datastore.address, metadataAddress, roles],
+            [datastore.address, metadataAddress, walletClient.account.address, roles],
           );
           registryAddress = registry.address;
           if (exists) {

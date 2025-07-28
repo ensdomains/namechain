@@ -19,16 +19,29 @@ export default execute(
       args: [l1EthRegistry.address, l1Bridge.address],
     });
 
+    // Set the ejection controller on the bridge
     await write(l1Bridge, {
       functionName: "setEjectionController",
       args: [l1EjectionController.address],
       account: deployer,
     });
+
+    // Grant registrar and renew roles to the ejection controller on the eth registry
     await write(l1EthRegistry, {
       functionName: "grantRootRoles",
       args: [
-        ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW,
+        ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW | ROLES.OWNER.EAC.BURN,
         l1EjectionController.address,
+      ],
+      account: deployer,
+    });
+
+    // Grant bridge roles to the bridge on the ejection controller
+    await write(l1EjectionController, {
+      functionName: "grantRootRoles",
+      args: [
+        ROLES.OWNER.BRIDGE.EJECTOR,
+        l1Bridge.address,
       ],
       account: deployer,
     });

@@ -6,7 +6,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {DNSTLDResolver, ENS, IRegistry, DNSSEC, HexUtils} from "../../src/L1/dns/DNSTLDResolver.sol";
 import {PermissionedRegistry, IRegistryMetadata} from "../../src/common/PermissionedRegistry.sol";
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
-import {TestUtils} from "../utils/TestUtils.sol";
+import {LibEACBaseRoles} from "../../src/common/EnhancedAccessControl.sol";
 
 contract MockDNS is DNSTLDResolver {
     constructor(
@@ -49,7 +49,8 @@ contract DNSTLDResolverTest is Test, ERC1155Holder {
         rootRegistry = new PermissionedRegistry(
             datastore,
             IRegistryMetadata(address(0)),
-            TestUtils.ALL_ROLES
+            address(this),
+            LibEACBaseRoles.ALL_ROLES
         );
         dns = new MockDNS(rootRegistry);
     }
@@ -112,7 +113,7 @@ contract DNSTLDResolverTest is Test, ERC1155Holder {
             address(this),
             IRegistry(address(0)),
             resolver,
-            TestUtils.ALL_ROLES,
+            LibEACBaseRoles.ALL_ROLES,
             uint64(block.timestamp) + 86400
         );
         assertEq(dns.parseResolver("abc"), resolver);
