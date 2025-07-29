@@ -8,7 +8,6 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {EIP3668, OffchainLookup} from "@ens/contracts/ccipRead/EIP3668.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {UniversalResolver as UniversalResolverV1} from "@ens/contracts/universalResolver/UniversalResolver.sol";
@@ -24,7 +23,6 @@ contract ProxyTest is Test {
     UpgradableUniversalResolverProxy proxy;
     UniversalResolverV1 urV1;
     UniversalResolverV2 urV2;
-    GatewayProvider batchGatewayProvider;
 
     // Mock data for tests
     bytes dnsEncodedName = hex"0365746800"; // "eth"
@@ -40,10 +38,14 @@ contract ProxyTest is Test {
 
         string[] memory gatewayUrls = new string[](1);
         gatewayUrls[0] = "http://universal-offchain-resolver.local";
-        batchGatewayProvider = new GatewayProvider(gatewayUrls);
+        GatewayProvider batchGatewayProvider = new GatewayProvider(gatewayUrls);
 
         // Deploy the implementations
-        urV1 = new UniversalResolverV1(address(0), ENS(address(this)), batchGatewayProvider);
+        urV1 = new UniversalResolverV1(
+            address(0),
+            ENS(address(this)),
+            batchGatewayProvider
+        );
         urV2 = new UniversalResolverV2(
             IRegistry(address(0x0)),
             batchGatewayProvider
@@ -55,11 +57,11 @@ contract ProxyTest is Test {
         vm.stopPrank();
     }
 
-	/////// Mock ReverseClaimer ///////
+    /////// Mock ReverseClaimer ///////
     function claim(address) external pure returns (bytes32) {}
-	function owner(bytes32) external view returns (address) {
-		return address(this);
-	}
+    function owner(bytes32) external view returns (address) {
+        return address(this);
+    }
 
     /////// Core Functionality Tests ///////
 
