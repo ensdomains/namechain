@@ -182,16 +182,6 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         return interfaceId == type(IPermissionedRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    function getTokenIdResource(uint256 tokenId) public pure returns (uint256) {
-        return NameUtils.getCanonicalId(tokenId);
-    }
-
-    function getResourceTokenId(uint256 resource) public view returns (uint256) {
-        uint256 canonicalId = resource;
-        (, , uint32 tokenIdVersion) = datastore.getSubregistry(canonicalId);
-        return _constructTokenId(canonicalId, tokenIdVersion);
-    }
-
     // Override EnhancedAccessControl methods to use tokenId instead of resource
 
     function roles(uint256 tokenId, address account) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (uint256) {
@@ -223,6 +213,26 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     }
 
     // Internal/private methods
+
+    /**
+     * @dev Fetches the access control resource ID for a given token ID.
+     * @param tokenId The token ID to fetch the resource ID for.
+     * @return The access control resource ID for the token ID.
+     */
+    function getTokenIdResource(uint256 tokenId) internal pure returns (uint256) {
+        return NameUtils.getCanonicalId(tokenId);
+    }
+
+    /**
+     * @dev Fetches the token ID for a given access control resource ID.
+     * @param resource The access control resource ID to fetch the token ID for.
+     * @return The token ID for the resource ID.
+     */
+    function getResourceTokenId(uint256 resource) internal view returns (uint256) {
+        uint256 canonicalId = resource;
+        (, , uint32 tokenIdVersion) = datastore.getSubregistry(canonicalId);
+        return _constructTokenId(canonicalId, tokenIdVersion);
+    }
 
     /**
      * @dev Override the base registry _update function to transfer the roles to the new owner when the token is transferred.

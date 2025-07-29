@@ -26,20 +26,4 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
      * @return tokenIdVersion The token ID version of the name.
      */
     function getNameData(string calldata label) external view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion);    
-
-
-    /**
-     * @dev Fetches the access control resource ID for a given token ID.
-     * @param tokenId The token ID to fetch the resource ID for.
-     * @return The access control resource ID for the token ID.
-     */
-    function getTokenIdResource(uint256 tokenId) external pure returns (uint256);
-
-
-    /**
-     * @dev Fetches the token ID for a given access control resource ID.
-     * @param resource The access control resource ID to fetch the token ID for.
-     * @return The token ID for the resource ID.
-     */
-    function getResourceTokenId(uint256 resource) external view returns (uint256);
 }

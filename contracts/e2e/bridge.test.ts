@@ -12,6 +12,7 @@ import { setupCrossChainEnvironment } from "../script/setup.js";
 import {
   expectTransactionSuccess,
   labelToCanonicalId,
+  getCanonicalId,
   waitForEvent,
 } from "./utils.js";
 
@@ -53,9 +54,7 @@ test("name ejection", async () => {
   const owner = await l2.contracts.ethRegistry.read.ownerOf([tokenId]);
   console.log(`Token owner: ${owner}`);
 
-  const canonicalId = await l2.contracts.ethRegistry.read.getTokenIdResource([
-    tokenId,
-  ]);
+  const canonicalId = getCanonicalId(tokenId);
   console.log(`Canonical ID: ${canonicalId}`);
 
   const labelHash = labelToCanonicalId(label);
