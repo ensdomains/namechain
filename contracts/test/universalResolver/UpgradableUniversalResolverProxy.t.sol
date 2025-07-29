@@ -8,11 +8,12 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {EIP3668, OffchainLookup} from "@ens/contracts/ccipRead/EIP3668.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
-
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
-import {UniversalResolver} from "./mocks/MockUniversalResolverV1.sol";
+import {UniversalResolver as UniversalResolverV1} from "@ens/contracts/universalResolver/UniversalResolver.sol";
 import {UniversalResolverV2} from "../../src/universalResolver/UniversalResolverV2.sol";
+import {GatewayProvider} from "@ens/contracts/ccipRead/GatewayProvider.sol";
 import {IRegistry} from "../../src/common/IRegistry.sol";
 
 contract ProxyTest is Test {
@@ -21,13 +22,13 @@ contract ProxyTest is Test {
     address constant STRANGER = address(0x789);
 
     UpgradableUniversalResolverProxy proxy;
-    UniversalResolver urV1;
+    UniversalResolverV1 urV1;
     UniversalResolverV2 urV2;
+    GatewayProvider batchGatewayProvider;
 
     // Mock data for tests
     bytes dnsEncodedName = hex"0365746800"; // "eth"
     bytes mockData = hex"12345678";
-    string[] gatewayUrls;
     address mockResolver = address(0xabc);
 
     event Upgraded(address indexed implementation);
@@ -35,20 +36,30 @@ contract ProxyTest is Test {
     event AdminRemoved(address indexed admin);
 
     function setUp() public {
-        gatewayUrls = new string[](1);
-        gatewayUrls[0] = "http://universal-offchain-resolver.local";
-
         vm.startPrank(ADMIN);
 
+        string[] memory gatewayUrls = new string[](1);
+        gatewayUrls[0] = "http://universal-offchain-resolver.local";
+        batchGatewayProvider = new GatewayProvider(gatewayUrls);
+
         // Deploy the implementations
-        urV1 = new UniversalResolver(ENS(address(0x0)), gatewayUrls);
-        urV2 = new UniversalResolverV2(IRegistry(address(0x0)), gatewayUrls);
+        urV1 = new UniversalResolverV1(address(0), ENS(address(this)), batchGatewayProvider);
+        urV2 = new UniversalResolverV2(
+            IRegistry(address(0x0)),
+            batchGatewayProvider
+        );
 
         // Deploy the proxy with V1 implementation
         proxy = new UpgradableUniversalResolverProxy(ADMIN, address(urV1));
 
         vm.stopPrank();
     }
+
+	/////// Mock ReverseClaimer ///////
+    function claim(address) external pure returns (bytes32) {}
+	function owner(bytes32) external view returns (address) {
+		return address(this);
+	}
 
     /////// Core Functionality Tests ///////
 

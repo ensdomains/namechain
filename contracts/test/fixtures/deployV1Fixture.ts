@@ -1,44 +1,74 @@
 import type { NetworkConnection } from "hardhat/types/network";
-import { type Address, labelhash, namehash } from "viem";
+import { type Address, labelhash, namehash, zeroAddress } from "viem";
 import { splitName } from "../utils/utils.js";
 
 export async function deployV1Fixture<C extends NetworkConnection>(
-  networkConnection: C,
+  nc: C,
   enableCcipRead = false,
 ) {
-  const publicClient = await networkConnection.viem.getPublicClient({
+  const publicClient = await nc.viem.getPublicClient({
     ccipRead: enableCcipRead ? undefined : false,
   });
-  const [walletClient] = await networkConnection.viem.getWalletClients();
-  const ensRegistry =
-    await networkConnection.viem.deployContract('ENSRegistry');
-  const ethRegistrar = await networkConnection.viem.deployContract(
-    'BaseRegistrarImplementation',
+  const [walletClient] = await nc.viem.getWalletClients();
+  const ensRegistry = await nc.viem.deployContract("ENSRegistry");
+  const ethRegistrar = await nc.viem.deployContract(
+    "BaseRegistrarImplementation",
     [ensRegistry.address, namehash("eth")],
   );
-  const ownedResolver = await networkConnection.viem.deployContract(
-    'lib/ens-contracts/contracts/resolvers/OwnedResolver.sol:OwnedResolver'
-  );
-  const universalResolver = await networkConnection.viem.deployContract(
-    "lib/ens-contracts/contracts/universalResolver/UniversalResolver.sol:UniversalResolver",
-    [ensRegistry.address, ["x-batch-gateway:true"]],
+  const reverseRegistrar = await nc.viem.deployContract("ReverseRegistrar", [
+    ensRegistry.address,
+  ]);
+  await ensRegistry.write.setSubnodeOwner([
+    namehash(""),
+    labelhash("reverse"),
+    walletClient.account.address,
+  ]);
+  await ensRegistry.write.setSubnodeOwner([
+    namehash("reverse"),
+    labelhash("addr"),
+    reverseRegistrar.address,
+  ]);
+  const publicResolver = await nc.viem.deployContract("PublicResolver", [
+    ensRegistry.address,
+    zeroAddress, // TODO: this setup is incomplete
+    zeroAddress, // no wrapper, no controller
+    reverseRegistrar.address,
+  ]);
+  await reverseRegistrar.write.setDefaultResolver([publicResolver.address]);
+  const batchGatewayProvider = await nc.viem.deployContract("GatewayProvider", [
+    ["x-batch-gateway:true"],
+  ]);
+  const universalResolver = await nc.viem.deployContract(
+    "UniversalResolver",
+    [
+      walletClient.account.address,
+      ensRegistry.address,
+      batchGatewayProvider.address,
+    ],
     { client: { public: publicClient } },
   );
   await ethRegistrar.write.addController([walletClient.account.address]);
   await ensRegistry.write.setSubnodeRecord([
     namehash(""),
     labelhash("eth"),
-    ethRegistrar.address,
-    ownedResolver.address,
+    walletClient.account.address,
+    zeroAddress,
     0n,
   ]);
-  await ownedResolver.write.setAddr([namehash("eth"), ethRegistrar.address]);
+  await publicResolver.write.setAddr([namehash("eth"), ethRegistrar.address]);
+  await ensRegistry.write.setSubnodeOwner([
+    namehash(""),
+    labelhash("eth"),
+    ethRegistrar.address,
+  ]);
   return {
     publicClient,
     walletClient,
     ensRegistry,
+    reverseRegistrar,
     ethRegistrar,
-    ownedResolver,
+    publicResolver,
+    batchGatewayProvider,
     universalResolver,
     setupName,
   };
@@ -46,7 +76,7 @@ export async function deployV1Fixture<C extends NetworkConnection>(
   // except for "eth" (since registrar is known)
   async function setupName({
     name,
-    resolverAddress = ownedResolver.address,
+    resolverAddress = publicResolver.address,
   }: {
     name: string;
     resolverAddress?: Address;

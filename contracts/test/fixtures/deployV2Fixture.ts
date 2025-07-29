@@ -33,9 +33,13 @@ export async function deployV2Fixture(
     "PermissionedRegistry",
     [datastore.address, zeroAddress, walletClient.account.address, ROLES.ALL],
   );
+  const batchGatewayProvider = await networkConnection.viem.deployContract(
+    "GatewayProvider",
+    [["x-batch-gateway:true"]],
+  );
   const universalResolver = await networkConnection.viem.deployContract(
     "UniversalResolverV2",
-    [rootRegistry.address, ["x-batch-gateway:true"]],
+    [rootRegistry.address, batchGatewayProvider.address],
     { client: { public: publicClient } },
   );
   await rootRegistry.write.register([
@@ -60,6 +64,7 @@ export async function deployV2Fixture(
     datastore,
     rootRegistry,
     ethRegistry,
+    batchGatewayProvider,
     universalResolver,
     verifiableFactory,
     dedicatedResolver, // warning: this is owned by the default wallet
@@ -130,7 +135,12 @@ export async function deployV2Fixture(
           // registry does not exist, create it
           const registry = await networkConnection.viem.deployContract(
             "PermissionedRegistry",
-            [datastore.address, metadataAddress, walletClient.account.address, roles],
+            [
+              datastore.address,
+              metadataAddress,
+              walletClient.account.address,
+              roles,
+            ],
           );
           registryAddress = registry.address;
           if (exists) {
