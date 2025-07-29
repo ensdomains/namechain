@@ -19,7 +19,7 @@ import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import "../src/common/BaseRegistry.sol";
 import "../src/common/IStandardRegistry.sol";
 import "../src/common/NameUtils.sol";
-import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
+import {MockPermissionedRegistry} from "./mocks/MockPermissionedRegistry.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 import {IBridge, LibBridgeRoles} from "../src/common/IBridge.sol";
 
@@ -35,7 +35,7 @@ contract MockBridge is IBridge {
 
 contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl {
     RegistryDatastore datastore;
-    PermissionedRegistry registry;
+    MockPermissionedRegistry registry;
     L1EjectionController ejectionController;
     MockRegistryMetadata registryMetadata;
     MockBridge bridge;
@@ -132,7 +132,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         bridge = new MockBridge();
         
         // Deploy the registry
-        registry = new PermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
+        registry = new MockPermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
         
         // Create the real controller with the correct registry and bridge
         ejectionController = new L1EjectionController(registry, bridge);
@@ -186,7 +186,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
         assertEq(registry.getResolver(testLabel), MOCK_RESOLVER);
         
-        bytes32 resource = registry.getTokenIdResource(tokenId);
+        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
         assertTrue(registry.hasRoles(resource, expectedRoles, user), "Role bitmap should match the expected roles");
     }
 
@@ -618,7 +618,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Try to call completeEjectionFromL2 directly (without proper role)
         vm.expectRevert(abi.encodeWithSelector(
             IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-            bytes32(0), // ROOT_RESOURCE
+            0, // ROOT_RESOURCE
             LibBridgeRoles.ROLE_EJECTOR,
             address(this)
         ));
@@ -645,7 +645,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Try to call syncRenewal directly (without proper role)
         vm.expectRevert(abi.encodeWithSelector(
             IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-            bytes32(0), // ROOT_RESOURCE
+            0, // ROOT_RESOURCE
             LibBridgeRoles.ROLE_EJECTOR,
             address(this)
         ));

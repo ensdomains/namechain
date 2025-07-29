@@ -8,7 +8,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import "../src/L2/ETHRegistrar.sol";
-import "../src/common/PermissionedRegistry.sol";
+import "./mocks/MockPermissionedRegistry.sol";
 import "../src/common/RegistryDatastore.sol";
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 import {MockPriceOracle} from "../src/mocks/MockPriceOracle.sol";
@@ -22,7 +22,7 @@ import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
 contract TestETHRegistrar is Test, ERC1155Holder {
     RegistryDatastore datastore;
-    PermissionedRegistry registry;
+    MockPermissionedRegistry registry;
     ETHRegistrar registrar;
     MockPriceOracle priceOracle;
 
@@ -44,7 +44,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     uint256 constant ROLE_SET_COMMITMENT_AGES = 1 << 24;
     uint256 constant ROLE_SET_COMMITMENT_AGES_ADMIN = ROLE_SET_COMMITMENT_AGES << 128;
     
-    bytes32 constant ROOT_RESOURCE = 0;
+    uint256 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
         // Set the timestamp to a future date to avoid timestamp related issues
@@ -53,7 +53,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         datastore = new RegistryDatastore();
         // Use a defined ALL_ROLES value for deployer roles
         uint256 deployerRoles = LibEACBaseRoles.ALL_ROLES;
-        registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), address(this), deployerRoles);
+        registry = new MockPermissionedRegistry(datastore, new SimpleRegistryMetadata(), address(this), deployerRoles);
         priceOracle = new MockPriceOracle(BASE_PRICE, PREMIUM_PRICE);
         
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE);
@@ -278,7 +278,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             duration
         );
 
-        bytes32 resource = registry.getTokenIdResource(tokenId);
+        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
         assertTrue(registry.hasRoles(resource, LibEACBaseRoles.ALL_ROLES, owner));
     }
 
@@ -815,7 +815,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             REGISTRATION_DURATION
         );
 
-        bytes32 resource = registry.getTokenIdResource(tokenId);
+        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
 
         // Check individual roles
         uint256 ROLE_SET_SUBREGISTRY = 1 << 8;

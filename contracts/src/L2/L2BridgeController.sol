@@ -120,7 +120,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
                 LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
                 LibRegistryRoles.ROLE_SET_SUBREGISTRY |
                 LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
-            (uint256 counts, uint256 mask) = registry.getRoleAssigneeCount(tokenId, roleBitmap);
+            (uint256 counts, uint256 mask) = registry.getAssigneeCount(tokenId, roleBitmap);
             if (counts & mask != roleBitmap) {
                 revert TooManyRoleAssignees(tokenId, roleBitmap);
             }

@@ -21,7 +21,7 @@ import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 contract UserRegistryTest is Test, ERC1155Holder {
     // Test constants
     uint256 constant SALT = 12345;
-    bytes32 constant ROOT_RESOURCE = 0;
+    uint256 constant ROOT_RESOURCE = 0;
 
     uint256 constant ROLE_UPGRADE = 1 << 20;
     uint256 constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
@@ -109,9 +109,8 @@ contract UserRegistryTest is Test, ERC1155Holder {
         assertEq(proxy.ownerOf(tokenId), user1, "Domain should be owned by user1");
         
         // Verify roles were granted to the owner
-        bytes32 resource = proxy.getTokenIdResource(tokenId);
-        assertTrue(proxy.hasRoles(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY, user1), "User1 should have SET_SUBREGISTRY role");
-        assertTrue(proxy.hasRoles(resource, LibRegistryRoles.ROLE_SET_RESOLVER, user1), "User1 should have SET_RESOLVER role");
+        assertTrue(proxy.hasRoles(tokenId, LibRegistryRoles.ROLE_SET_SUBREGISTRY, user1), "User1 should have SET_SUBREGISTRY role");
+        assertTrue(proxy.hasRoles(tokenId, LibRegistryRoles.ROLE_SET_RESOLVER, user1), "User1 should have SET_RESOLVER role");
         
         // Verify the domain resolves correctly
         assertEq(address(proxy.getSubregistry(label)), address(0), "Subregistry should be zero address");
