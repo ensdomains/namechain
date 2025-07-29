@@ -11,6 +11,7 @@ import "../src/L2/ETHRegistrar.sol";
 import "./mocks/MockPermissionedRegistry.sol";
 import "../src/common/RegistryDatastore.sol";
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
+import {MockPriceOracle} from "../src/mocks/MockPriceOracle.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/EnhancedAccessControl.sol";
 import "../src/common/IEnhancedAccessControl.sol";
@@ -18,24 +19,6 @@ import "../src/common/NameUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
-
-contract MockPriceOracle is IPriceOracle {
-    uint256 public basePrice;
-    uint256 public premiumPrice;
-
-    constructor(uint256 _basePrice, uint256 _premiumPrice) {
-        basePrice = _basePrice;
-        premiumPrice = _premiumPrice;
-    }
-
-    function price(
-        string calldata /*name*/,
-        uint256 /*expires*/,
-        uint256 /*duration*/
-    ) external view returns (Price memory) {
-        return Price(basePrice, premiumPrice);
-    }
-}
 
 contract TestETHRegistrar is Test, ERC1155Holder {
     RegistryDatastore datastore;
