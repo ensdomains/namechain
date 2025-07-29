@@ -1,5 +1,5 @@
 import type { NetworkConnection } from "hardhat/types/network";
-import { labelhash, namehash } from "viem";
+import { type Address, labelhash, namehash } from "viem";
 import { splitName } from "../utils/utils.js";
 
 export async function deployV1Fixture<C extends NetworkConnection>(
@@ -44,7 +44,13 @@ export async function deployV1Fixture<C extends NetworkConnection>(
   };
   // clobbers registry ownership up to name
   // except for "eth" (since registrar is known)
-  async function setupName(name: string) {
+  async function setupName({
+    name,
+    resolverAddress = ownedResolver.address,
+  }: {
+    name: string;
+    resolverAddress?: Address;
+  }) {
     const labels = splitName(name);
     let i = labels.length;
     if (name.endsWith(".eth")) {
@@ -64,10 +70,7 @@ export async function deployV1Fixture<C extends NetworkConnection>(
       ]);
     }
     // set resolver on leaf
-    await ensRegistry.write.setResolver([
-      namehash(name),
-      ownedResolver.address,
-    ]);
+    await ensRegistry.write.setResolver([namehash(name), resolverAddress]);
     return { labels };
   }
 }

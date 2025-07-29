@@ -1,19 +1,18 @@
 import { afterAll, expect, test } from "bun:test";
-
 import {
   encodeAbiParameters,
   getAddress,
+  labelhash,
   parseAbiParameters,
+  toHex,
   zeroAddress,
 } from "viem";
+
 import { ROLES } from "../deploy/constants.js";
 import { createMockRelay } from "../script/mockRelay.js";
 import { setupCrossChainEnvironment } from "../script/setup.js";
-import {
-  expectTransactionSuccess,
-  labelToCanonicalId,
-  waitForEvent,
-} from "./utils.js";
+import { expectTransactionSuccess, waitForEvent } from "./utils.js";
+import { labelToCanonicalId } from "../test/utils/utils.ts";
 
 const { l1, l2, shutdown } = await setupCrossChainEnvironment();
 afterAll(shutdown);
@@ -36,14 +35,17 @@ test("name ejection", async () => {
   const roleBitmap = ROLES.ALL;
 
   console.log("Registering the name on L2...");
-  const registerTx = l2.contracts.ethRegistry.write.register([
-    label,
-    user,
-    l2.contracts.ethRegistry.address,
-    zeroAddress,
-    roleBitmap,
-    expiryTime,
-  ], {} as any);
+  const registerTx = l2.contracts.ethRegistry.write.register(
+    [
+      label,
+      user,
+      l2.contracts.ethRegistry.address,
+      zeroAddress,
+      roleBitmap,
+      expiryTime,
+    ],
+    {} as any,
+  );
   await expectTransactionSuccess(l2.client, registerTx);
   console.log(`Name registered on L2, tx hash: ${await registerTx}`);
 
@@ -58,11 +60,14 @@ test("name ejection", async () => {
   ]);
   console.log(`Canonical ID: ${canonicalId}`);
 
-  const labelHash = labelToCanonicalId(label);
-  console.log(`Label hash for "${label}": ${labelHash}`);
-  console.log(`Token ID for "${label}": 0x${tokenId.toString(16)}`);
-  console.log(`Does it match resource? ${labelHash === canonicalId}`);
-  expect(labelHash).toBe(canonicalId);
+  console.log(`      Label: ${label}`);
+  console.log(`  labelHash: ${labelhash(label)}`);
+  console.log(`    tokenId: ${toHex(tokenId, { size: 32 })}`);
+  console.log(`canonicalId: ${canonicalId}`);
+
+  expect(canonicalId, "canonical").toStrictEqual(
+    toHex(labelToCanonicalId(label), { size: 32 }),
+  );
 
   const transferDataParameters = [
     label,
@@ -81,17 +86,20 @@ test("name ejection", async () => {
   console.log("L2 controller", l2.contracts.bridgeController.address);
 
   console.log("Transferring token to L2BridgeController...");
-  const transferTx = l2.contracts.ethRegistry.write.safeTransferFrom([
-    owner,
-    l2.contracts.bridgeController.address,
-    tokenId,
-    1n,
-    encodedTransferData,
-  ], {} as any);
+  const transferTx = l2.contracts.ethRegistry.write.safeTransferFrom(
+    [
+      owner,
+      l2.contracts.bridgeController.address,
+      tokenId,
+      1n,
+      encodedTransferData,
+    ],
+    {} as any,
+  );
 
   // Wait for the NameBridgedToL1 event from L2 bridge (indicating ejection message sent)
-  const bridgeEvents = await waitForEvent(
-    ({ onLogs }) => l2.contracts.mockBridge.watchEvent.NameBridgedToL1({ onLogs }),
+  const bridgeEvents = await waitForEvent(({ onLogs }) =>
+    l2.contracts.mockBridge.watchEvent.NameBridgedToL1({ onLogs }),
   );
   await expectTransactionSuccess(l2.client, transferTx);
   console.log(
@@ -99,17 +107,21 @@ test("name ejection", async () => {
   );
 
   if ((bridgeEvents as any[]).length === 0) {
-    console.log("No NameBridgedToL1 event found on L2, manual relay might be needed");
+    console.log(
+      "No NameBridgedToL1 event found on L2, manual relay might be needed",
+    );
     throw new Error(
       "No NameBridgedToL1 event found on L2, manual relay might be needed",
     );
   } else {
-    console.log("NameBridgedToL1 event found on L2, automatic relay should work");
+    console.log(
+      "NameBridgedToL1 event found on L2, automatic relay should work",
+    );
   }
 
   // Add a delay to allow the relay transaction to complete
   console.log("Waiting for relay to complete...");
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  await new Promise((resolve) => setTimeout(resolve, 2000));
 
   console.log("Verifying registration on L1...");
   const actualL1Owner = await l1.contracts.ethRegistry.read.ownerOf([tokenId]);
@@ -132,14 +144,10 @@ test("round trip", async () => {
   const roleBitmap = ROLES.ALL;
 
   console.log("Registering the name on L2...");
-  const registerTx = l2.contracts.ethRegistry.write.register([
-    label,
-    l2User,
-    l2Subregistry,
-    resolver,
-    roleBitmap,
-    expiryTime,
-  ], {} as any);
+  const registerTx = l2.contracts.ethRegistry.write.register(
+    [label, l2User, l2Subregistry, resolver, roleBitmap, expiryTime],
+    {} as any,
+  );
   await expectTransactionSuccess(l2.client, registerTx);
   console.log(`Name registered on L2, tx hash: ${await registerTx}`);
 
@@ -159,17 +167,20 @@ test("round trip", async () => {
     [transferDataParametersToL1],
   );
 
-  const transferTxToL1 = l2.contracts.ethRegistry.write.safeTransferFrom([
-    l2User,
-    l2.contracts.bridgeController.address,
-    tokenId,
-    1n,
-    encodedTransferDataToL1,
-  ], {} as any);
+  const transferTxToL1 = l2.contracts.ethRegistry.write.safeTransferFrom(
+    [
+      l2User,
+      l2.contracts.bridgeController.address,
+      tokenId,
+      1n,
+      encodedTransferDataToL1,
+    ],
+    {} as any,
+  );
 
   // Wait for the NameBridgedToL1 event from L2 bridge (indicating ejection message sent)
-  const ejectionEvents = await waitForEvent(
-    ({ onLogs }) => l2.contracts.mockBridge.watchEvent.NameBridgedToL1({ onLogs }),
+  const ejectionEvents = await waitForEvent(({ onLogs }) =>
+    l2.contracts.mockBridge.watchEvent.NameBridgedToL1({ onLogs }),
   );
   await expectTransactionSuccess(l2.client, transferTxToL1);
   console.log(
@@ -181,12 +192,14 @@ test("round trip", async () => {
       "No NameBridgedToL1 event found on L2, manual relay might be needed",
     );
   } else {
-    console.log("NameBridgedToL1 event found on L2, automatic relay should work");
+    console.log(
+      "NameBridgedToL1 event found on L2, automatic relay should work",
+    );
   }
 
   // Add a delay to allow the relay transaction to complete
   console.log("Waiting for L2->L1 relay to complete...");
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  await new Promise((resolve) => setTimeout(resolve, 2000));
 
   const owner = await l1.contracts.ethRegistry.read.ownerOf([tokenId]);
   console.log(`Owner on L1: ${owner}`);
@@ -207,17 +220,20 @@ test("round trip", async () => {
     [transferDataParametersToL2],
   );
 
-  const transferTxToL2 = l1.contracts.ethRegistry.write.safeTransferFrom([
-    l1User,
-    l1.contracts.ejectionController.address,
-    tokenId,
-    1n,
-    encodedTransferDataToL2,
-  ], {} as any);
+  const transferTxToL2 = l1.contracts.ethRegistry.write.safeTransferFrom(
+    [
+      l1User,
+      l1.contracts.ejectionController.address,
+      tokenId,
+      1n,
+      encodedTransferDataToL2,
+    ],
+    {} as any,
+  );
 
   // Wait for the NameBridgedToL2 event from L1 bridge (indicating ejection message sent)
-  const migrationEvents = await waitForEvent(
-    ({ onLogs }) => l1.contracts.mockBridge.watchEvent.NameBridgedToL2({ onLogs }),
+  const migrationEvents = await waitForEvent(({ onLogs }) =>
+    l1.contracts.mockBridge.watchEvent.NameBridgedToL2({ onLogs }),
   );
   await expectTransactionSuccess(l1.client, transferTxToL2);
   console.log(
@@ -229,12 +245,14 @@ test("round trip", async () => {
       "No NameBridgedToL2 event found on L1, manual relay might be needed",
     );
   } else {
-    console.log("NameBridgedToL2 event found on L1, automatic relay should work");
+    console.log(
+      "NameBridgedToL2 event found on L1, automatic relay should work",
+    );
   }
 
   // Add a delay to allow the relay transaction to complete
   console.log("Waiting for L1->L2 relay to complete...");
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  await new Promise((resolve) => setTimeout(resolve, 2000));
 
   console.log("Verifying round trip results...");
 
