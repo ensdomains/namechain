@@ -186,7 +186,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
         assertEq(registry.getResolver(testLabel), MOCK_RESOLVER);
         
-        uint256 resource = registry.testGetTokenIdResource(tokenId);
+        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
         assertTrue(registry.hasRoles(resource, expectedRoles, user), "Role bitmap should match the expected roles");
     }
 

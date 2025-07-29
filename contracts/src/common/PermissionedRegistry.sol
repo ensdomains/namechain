@@ -24,7 +24,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     mapping(uint256 => ITokenObserver) public tokenObservers;
 
     modifier onlyNonExpiredTokenRoles(uint256 tokenId, uint256 roleBitmap) {
-        _checkRoles(getTokenIdResource(tokenId), roleBitmap, _msgSender());
+        _checkRoles(getResourceFromTokenId(tokenId), roleBitmap, _msgSender());
         (, uint64 expires, ) = datastore.getSubregistry(tokenId);
         if (expires < block.timestamp) {
             revert NameExpired(tokenId);
@@ -86,7 +86,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         tokenId = _generateTokenId(tokenId, address(registry), expires, tokenIdVersion); 
 
         _mint(owner, tokenId, 1, "");
-        _grantRoles(getTokenIdResource(tokenId), roleBitmap, owner, false);
+        _grantRoles(getResourceFromTokenId(tokenId), roleBitmap, owner, false);
 
         datastore.setResolver(tokenId, resolver, 0, 0);
 
@@ -185,31 +185,31 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     // Override EnhancedAccessControl methods to use tokenId instead of resource
 
     function roles(uint256 tokenId, address account) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (uint256) {
-        return super.roles(getTokenIdResource(tokenId), account);
+        return super.roles(getResourceFromTokenId(tokenId), account);
     }
 
     function roleCount(uint256 tokenId) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (uint256) {
-        return super.roleCount(getTokenIdResource(tokenId));
+        return super.roleCount(getResourceFromTokenId(tokenId));
     }
 
     function hasRoles(uint256 tokenId, uint256 rolesBitmap, address account) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (bool) {
-        return super.hasRoles(getTokenIdResource(tokenId), rolesBitmap, account);
+        return super.hasRoles(getResourceFromTokenId(tokenId), rolesBitmap, account);
     }
 
     function hasAssignees(uint256 tokenId, uint256 roleBitmap) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (bool) {
-        return super.hasAssignees(getTokenIdResource(tokenId), roleBitmap);
+        return super.hasAssignees(getResourceFromTokenId(tokenId), roleBitmap);
     }
 
     function getAssigneeCount(uint256 tokenId, uint256 roleBitmap) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (uint256 counts, uint256 mask) {
-        return super.getAssigneeCount(getTokenIdResource(tokenId), roleBitmap);
+        return super.getAssigneeCount(getResourceFromTokenId(tokenId), roleBitmap);
     }
 
     function grantRoles(uint256 tokenId, uint256 roleBitmap, address account) public override(EnhancedAccessControl, IEnhancedAccessControl) returns (bool) {
-        return super.grantRoles(getTokenIdResource(tokenId), roleBitmap, account);
+        return super.grantRoles(getResourceFromTokenId(tokenId), roleBitmap, account);
     }
 
     function revokeRoles(uint256 tokenId, uint256 roleBitmap, address account) public override(EnhancedAccessControl, IEnhancedAccessControl) returns (bool) {
-        return super.revokeRoles(getTokenIdResource(tokenId), roleBitmap, account);
+        return super.revokeRoles(getResourceFromTokenId(tokenId), roleBitmap, account);
     }
 
     // Internal/private methods
@@ -219,7 +219,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
      * @param tokenId The token ID to fetch the resource ID for.
      * @return The access control resource ID for the token ID.
      */
-    function getTokenIdResource(uint256 tokenId) internal pure returns (uint256) {
+    function getResourceFromTokenId(uint256 tokenId) internal pure returns (uint256) {
         return NameUtils.getCanonicalId(tokenId);
     }
 
@@ -228,7 +228,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
      * @param resource The access control resource ID to fetch the token ID for.
      * @return The token ID for the resource ID.
      */
-    function getResourceTokenId(uint256 resource) internal view returns (uint256) {
+    function getTokenIdFromResource(uint256 resource) internal view returns (uint256) {
         uint256 canonicalId = resource;
         (, , uint32 tokenIdVersion) = datastore.getSubregistry(canonicalId);
         return _constructTokenId(canonicalId, tokenIdVersion);
@@ -244,8 +244,8 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
             /*
             in _regenerateToken, we burn the token and then mint a new one. This flow below ensures the roles go from owner => zeroAddr => owner during this process.
             */
-            _copyRoles(getTokenIdResource(ids[i]), from, to, false);
-            _revokeAllRoles(getTokenIdResource(ids[i]), from, false);
+            _copyRoles(getResourceFromTokenId(ids[i]), from, to, false);
+            _revokeAllRoles(getResourceFromTokenId(ids[i]), from, false);
         }
     }
 
@@ -253,7 +253,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
      * @dev Override the base registry _onRolesGranted function to regenerate the token when the roles are granted.
      */
     function _onRolesGranted(uint256 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
-        uint256 tokenId = getResourceTokenId(resource);
+        uint256 tokenId = getTokenIdFromResource(resource);
         // skip just-burn/expired tokens
         address owner = ownerOf(tokenId);
         if (owner != address(0)) {
@@ -265,7 +265,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
      * @dev Override the base registry _onRolesRevoked function to regenerate the token when the roles are revoked.
      */
     function _onRolesRevoked(uint256 resource, address /*account*/, uint256 /*oldRoles*/, uint256 /*newRoles*/, uint256 /*roleBitmap*/) internal virtual override {
-        uint256 tokenId = getResourceTokenId(resource);
+        uint256 tokenId = getTokenIdFromResource(resource);
         // skip just-burn/expired tokens
         address owner = ownerOf(tokenId);
         if (owner != address(0)) {

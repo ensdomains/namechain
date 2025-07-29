@@ -278,7 +278,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             duration
         );
 
-        uint256 resource = registry.testGetTokenIdResource(tokenId);
+        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
         assertTrue(registry.hasRoles(resource, LibEACBaseRoles.ALL_ROLES, owner));
     }
 
@@ -815,7 +815,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             REGISTRATION_DURATION
         );
 
-        uint256 resource = registry.testGetTokenIdResource(tokenId);
+        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
 
         // Check individual roles
         uint256 ROLE_SET_SUBREGISTRY = 1 << 8;

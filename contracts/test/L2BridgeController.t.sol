@@ -234,7 +234,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertEq(resolverAddr, l2Resolver, "Resolver not set correctly after migration");
         
         // ROLE BITMAP VERIFICATION:
-        uint256 resource = ethRegistry.testGetTokenIdResource(_tokenId);
+        uint256 resource = ethRegistry.testGetResourceFromTokenId(_tokenId);
         assertTrue(ethRegistry.hasRoles(resource, originalRoles, l2Owner), "L2 owner should have original roles");
         assertFalse(ethRegistry.hasRoles(resource, ignoredRoles, l2Owner), "L2 owner should not have new roles");
     }
@@ -410,7 +410,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         ethRegistry.safeTransferFrom(user, address(controller), tokenId2, 1, ejectionData);
         
         // Scenario 2: Grant the missing roles, then add extra assignees
-        uint256 resource2 = ethRegistry.testGetTokenIdResource(tokenId2);
+        uint256 resource2 = ethRegistry.testGetResourceFromTokenId(tokenId2);
         ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_SUBREGISTRY, user);
         ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN, user);
         ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN, user);
@@ -478,7 +478,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 tokenId4 = ethRegistry.register(testLabel4, user, ethRegistry, address(0), criticalRoles, expires);
         
         // Get the resource ID (this stays stable across regenerations)
-        uint256 resourceId = ethRegistry.testGetTokenIdResource(tokenId4);
+        uint256 resourceId = ethRegistry.testGetResourceFromTokenId(tokenId4);
             
         // Add multiple assignees to ROLE_SET_RESOLVER (this should not affect ejection)
         address user2 = address(0x666);
