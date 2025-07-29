@@ -12,7 +12,6 @@ import {InterfaceResolver} from "@ens/contracts/resolvers/profiles/InterfaceReso
 import {NameResolver} from "@ens/contracts/resolvers/profiles/NameResolver.sol";
 import {PubkeyResolver} from "@ens/contracts/resolvers/profiles/PubkeyResolver.sol";
 import {TextResolver} from "@ens/contracts/resolvers/profiles/TextResolver.sol";
-import {ExtendedResolver} from "@ens/contracts/resolvers/profiles/ExtendedResolver.sol";
 import {Multicallable} from "@ens/contracts/resolvers/Multicallable.sol";
 
 /**
@@ -31,7 +30,6 @@ contract OwnedResolver is
     NameResolver,
     PubkeyResolver,
     TextResolver,
-    ExtendedResolver,
     Multicallable
 {
     function initialize(address _owner) public initializer {

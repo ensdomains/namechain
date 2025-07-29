@@ -648,7 +648,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_supportsInterface() public view {
         // Use type(IETHRegistrar).interfaceId directly
         bytes4 ethRegistrarInterfaceId = type(IETHRegistrar).interfaceId;
-        bytes4 eacInterfaceId = type(EnhancedAccessControl).interfaceId;
+        bytes4 eacInterfaceId = type(IEnhancedAccessControl).interfaceId;
         
         assertTrue(registrar.supportsInterface(ethRegistrarInterfaceId));
         assertTrue(registrar.supportsInterface(eacInterfaceId));
