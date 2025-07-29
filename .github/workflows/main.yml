@@ -38,6 +38,9 @@ jobs:
       - name: Run tests with coverage
         run: bun --filter contracts coverage
 
+      - name: Filter lcov file
+        run: ./contracts/sanitize-lcov.sh
+
       - name: Check types
         run: bun --filter contracts check:types
 
