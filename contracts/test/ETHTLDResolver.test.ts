@@ -14,23 +14,26 @@ import {
 } from "viem";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
-import { shouldSupportFeatures } from "./utils/supportsFeatures.ts";
-import { Gateway } from "../lib/unruggable-gateways/src/gateway.ts";
-import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.ts";
-import { deployArtifact } from "./fixtures/deployArtifact.ts";
-import { deployV1Fixture } from "./fixtures/deployV1Fixture.ts";
-import { deployV2Fixture } from "./fixtures/deployV2Fixture.ts";
-import { urgArtifact } from "./fixtures/externalArtifacts.ts";
-import { injectRPCCounter } from "./utils/hardhat.ts";
+
+import { shouldSupportFeatures } from "./utils/supportsFeatures.js";
+import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
+import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
+import { deployArtifact } from "./fixtures/deployArtifact.js";
+import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
+import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
+import { urgArtifact } from "./fixtures/externalArtifacts.js";
+import { expectVar } from "./utils/expectVar.ts";
+import { dnsEncodeName, getLabelAt } from "./utils/utils.js";
 import {
   COIN_TYPE_DEFAULT,
   COIN_TYPE_ETH,
   type KnownProfile,
+  type KnownResolution,
   PROFILE_ABI,
   bundleCalls,
   makeResolutions,
-} from "./utils/resolutions.ts";
-import { dnsEncodeName, expectVar, getLabelAt } from "./utils/utils.ts";
+} from "./utils/resolutions.js";
+import { injectRPCCounter } from "./utils/hardhat.js";
 
 const chain1 = injectRPCCounter(await hre.network.connect());
 const chain2 = injectRPCCounter(await hre.network.connect());
@@ -84,9 +87,9 @@ async function fixture() {
     owner: mainnetV2.walletClient.account.address,
   });
   const burnAddressV1 = "0x000000000000000000000000000000000000FadE";
-  const ETHTLDResolver = await deployResolver(32);
+  const ethTLDResolver = await deployResolver(32);
   return {
-    ETHTLDResolver,
+    ethTLDResolver,
     ethResolver,
     mainnetV1,
     burnAddressV1,
@@ -141,7 +144,7 @@ describe("ETHTLDResolver", () => {
   //afterAll(() => console.log(rpcs));
 
   shouldSupportInterfaces({
-    contract: () => loadFixture().then((F) => F.ETHTLDResolver),
+    contract: () => loadFixture().then((F) => F.ethTLDResolver),
     interfaces: [
       "IERC165",
       "IExtendedResolver",
@@ -151,7 +154,7 @@ describe("ETHTLDResolver", () => {
   });
 
   shouldSupportFeatures({
-    contract: () => loadFixture().then((F) => F.ETHTLDResolver),
+    contract: () => loadFixture().then((F) => F.ethTLDResolver),
     features: {
       RESOLVER: ["RESOLVE_MULTICALL"],
     },
@@ -200,7 +203,7 @@ describe("ETHTLDResolver", () => {
     const [answer, resolver] = await F.mainnetV2.universalResolver.read.resolve(
       [dnsEncodeName(kp.name), res.call],
     );
-    expectVar({ resolver }).toEqualAddress(F.ETHTLDResolver.address);
+    expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
     res.expect(answer);
   });
 
@@ -231,7 +234,7 @@ describe("ETHTLDResolver", () => {
           .toBeRevertedWithCustomError("ResolverError")
           .withArgs([
             encodeErrorResult({
-              abi: F.ETHTLDResolver.abi,
+              abi: F.ethTLDResolver.abi,
               errorName: "UnreachableName",
               args: [dnsEncodeName(name)],
             }),
@@ -260,7 +263,7 @@ describe("ETHTLDResolver", () => {
             dnsEncodeName(kp.name),
             res.call,
           ]);
-        expectVar({ resolver }).toEqualAddress(F.ETHTLDResolver.address);
+        expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
         res.expect(answer);
       });
     }
@@ -296,7 +299,7 @@ describe("ETHTLDResolver", () => {
             dnsEncodeName(kp.name),
             res.call,
           ]);
-        expectVar({ resolver }).toEqualAddress(F.ETHTLDResolver.address);
+        expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
         res.expect(answer);
       });
     }
@@ -348,7 +351,7 @@ describe("ETHTLDResolver", () => {
             dnsEncodeName(kp.name),
             res.call,
           ]);
-        expectVar({ resolver }).toEqualAddress(F.ETHTLDResolver.address);
+        expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
         res.expect(answer);
       });
     }
@@ -374,7 +377,7 @@ describe("ETHTLDResolver", () => {
           [res.writeDedicated],
         ]);
         await sync();
-        const answer = await F.ETHTLDResolver.read.resolve([
+        const answer = await F.ethTLDResolver.read.resolve([
           dnsEncodeName(kp.name),
           res.call,
         ]);
@@ -382,7 +385,7 @@ describe("ETHTLDResolver", () => {
         await chain2.networkHelpers.mine(2, { interval }); // wait for the name to expire
         await sync();
         await expect(
-          F.ETHTLDResolver.read.resolve([dnsEncodeName(kp.name), res.call]),
+          F.ethTLDResolver.read.resolve([dnsEncodeName(kp.name), res.call]),
         ).toBeRevertedWithCustomError("UnreachableName");
         // await expect(
         //   F.mainnetV2.universalResolver.read.resolve([
@@ -452,37 +455,36 @@ describe("ETHTLDResolver", () => {
             dnsEncodeName(kp.name),
             res.call,
           ]);
-        expectVar({ resolver }).toEqualAddress(F.ETHTLDResolver.address);
+        expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
         res.expect(answer);
       });
     }
-    // TODO: fix this after merges
-    // it("hasAddr()", async () => {
-    //   const F = await loadFixture();
-    //   const kp: KnownProfile = {
-    //     name: testNames[0],
-    //     hasAddresses: [
-    //       { coinType: COIN_TYPE_ETH, exists: false },
-    //       { coinType: COIN_TYPE_DEFAULT, exists: true },
-    //       { coinType: COIN_TYPE_DEFAULT | 1n, exists: false },
-    //       { coinType: 0n, exists: true },
-    //       { coinType: 1n, exists: false },
-    //     ],
-    //   };
-    //   await F.namechain.setupName(kp);
-    //   await F.namechain.dedicatedResolver.write.setAddr([0n, dummySelector]);
-    //   await F.namechain.dedicatedResolver.write.setAddr([
-    //     COIN_TYPE_DEFAULT,
-    //     testAddress,
-    //   ]);
-    //   await sync();
-    //   const bundle = bundleCalls(makeResolutions(kp));
-    //   const [answer] = await F.mainnetV2.universalResolver.read.resolve([
-    //     dnsEncodeName(kp.name),
-    //     bundle.call,
-    //   ]);
-    //   bundle.expect(answer);
-    // });
+    it("hasAddr()", async () => {
+      const F = await loadFixture();
+      const kp: KnownProfile = {
+        name: testNames[0],
+        hasAddresses: [
+          { coinType: COIN_TYPE_ETH, exists: false },
+          { coinType: COIN_TYPE_DEFAULT, exists: true },
+          { coinType: COIN_TYPE_DEFAULT | 1n, exists: false },
+          { coinType: 0n, exists: true },
+          { coinType: 1n, exists: false },
+        ],
+      };
+      await F.namechain.setupName(kp);
+      await F.namechain.dedicatedResolver.write.setAddr([0n, dummySelector]);
+      await F.namechain.dedicatedResolver.write.setAddr([
+        COIN_TYPE_DEFAULT,
+        testAddress,
+      ]);
+      await sync();
+      const bundle = bundleCalls(makeResolutions(kp));
+      const [answer] = await F.mainnetV2.universalResolver.read.resolve([
+        dnsEncodeName(kp.name),
+        bundle.call,
+      ]);
+      bundle.expect(answer);
+    });
     it("addr() w/fallback", async () => {
       const F = await loadFixture();
       const kp: KnownProfile = {
@@ -562,18 +564,18 @@ describe("ETHTLDResolver", () => {
           dnsEncodeName(kp.name),
           bundle.call,
         ]);
-      expectVar({ resolver }).toEqualAddress(F.ETHTLDResolver.address);
+      expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
       bundle.expect(answer);
     });
     describe("resolve(multicall)", () => {
       for (const max of [1, 2, 32, 254]) {
         it(`maxReadsPerRequest = ${max}`, async () => {
           const F = await loadFixture();
-          const ETHTLDResolver = max
+          const ethTLDResolver = max
             ? await F.deployResolver(max)
-            : F.ETHTLDResolver;
+            : F.ethTLDResolver;
           await expect(
-            ETHTLDResolver.read.maxReadsPerRequest(),
+            ethTLDResolver.read.maxReadsPerRequest(),
             "max",
           ).resolves.toStrictEqual(max);
           const bundle = bundleCalls(makeResolutions(kp));
@@ -583,7 +585,7 @@ describe("ETHTLDResolver", () => {
             data: bundle.writeDedicated,
           });
           await sync();
-          const answer = await ETHTLDResolver.read.resolve([
+          const answer = await ethTLDResolver.read.resolve([
             dnsEncodeName(kp.name),
             bundle.call,
           ]);

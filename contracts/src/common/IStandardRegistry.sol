@@ -34,9 +34,9 @@ interface IStandardRegistry is IRegistry {
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
 
     /**
-     * @dev Event emitted when a name is relinquished.
+     * @dev Event emitted when a name is burned.
      */
-    event NameRelinquished(uint256 indexed tokenId, address relinquishedBy);
+    event NameBurned(uint256 indexed tokenId, address burnedBy);
 
     /**
      * @dev Registers a new subdomain.
@@ -57,10 +57,10 @@ interface IStandardRegistry is IRegistry {
     function renew(uint256 tokenId, uint64 expires) external;
 
     /**
-     * @dev Relinquishes a subdomain.
-     * @param tokenId The token ID of the subdomain to relinquish.
+     * @dev Burns a subdomain.
+     * @param tokenId The token ID of the subdomain to burn.
      */
-    function relinquish(uint256 tokenId) external;
+    function burn(uint256 tokenId) external;
 
     /**
      * @dev Sets a subdomain.

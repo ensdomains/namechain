@@ -7,13 +7,14 @@ import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC16
 import {TransferData} from "./TransferData.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "./NameUtils.sol";
-import {IBridge} from "./IBridge.sol";
+import {IBridge, LibBridgeRoles} from "./IBridge.sol";
+import {EnhancedAccessControl, LibEACBaseRoles} from "./EnhancedAccessControl.sol";
 
 /**
  * @title EjectionController
  * @dev Base contract for the ejection controllers.
  */
-abstract contract EjectionController is IERC1155Receiver, ERC165 {
+abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccessControl {
     error UnauthorizedCaller(address caller);
     error InvalidLabel(uint256 tokenId, string label);
 
@@ -23,8 +24,8 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
     IPermissionedRegistry public immutable registry;
     IBridge public immutable bridge;
 
-    modifier onlyBridge() {
-        if (msg.sender != address(bridge)) {
+    modifier onlyRegistry() {
+        if (msg.sender != address(registry)) {
             revert UnauthorizedCaller(msg.sender);
         }
         _;
@@ -33,23 +34,44 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
     constructor(IPermissionedRegistry _registry, IBridge _bridge) {
         registry = _registry;
         bridge = _bridge;
+        
+        // Grant admin roles to the deployer so they can manage bridge roles
+        _grantRoles(ROOT_RESOURCE, LibBridgeRoles.ROLE_EJECTOR_ADMIN, msg.sender, true);
     }
 
     /**
      * Implements ERC165.supportsInterface
      */
-    function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, IERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, EnhancedAccessControl, IERC165) returns (bool) {
         return interfaceId == type(EjectionController).interfaceId || interfaceId == type(IERC1155Receiver).interfaceId || super.supportsInterface(interfaceId);
     }
 
     /**
      * Implements ERC1155Receiver.onERC1155Received
      */
-    function onERC1155Received(address /*operator*/, address /*from*/, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual returns (bytes4) {
-        if (msg.sender != address(registry)) {
-            revert UnauthorizedCaller(msg.sender);
-        }
+    function onERC1155Received(address /*operator*/, address /* from */, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual onlyRegistry returns (bytes4) {
+        _processEjection(tokenId, data);
+        return this.onERC1155Received.selector;
+    }
 
+    /**
+     * Implements ERC1155Receiver.onERC1155BatchReceived
+     */
+    function onERC1155BatchReceived(address /*operator*/, address /* from */, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual onlyRegistry returns (bytes4) { 
+        TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
+        
+        _onEject(tokenIds, transferDataArray);
+
+        return this.onERC1155BatchReceived.selector;
+    }
+
+    // Internal functions
+
+    /**
+     * @dev Core ejection logic for single token transfers
+     * Can be called by derived classes that need to customize onERC1155Received behavior
+     */
+    function _processEjection(uint256 tokenId, bytes calldata data) internal {
         TransferData memory transferData = abi.decode(data, (TransferData));
         
         TransferData[] memory transferDataArray = new TransferData[](1);
@@ -59,26 +81,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165 {
         tokenIds[0] = tokenId;
 
         _onEject(tokenIds, transferDataArray);
-
-        return this.onERC1155Received.selector;
     }
-
-    /**
-     * Implements ERC1155Receiver.onERC1155BatchReceived
-     */
-    function onERC1155BatchReceived(address /*operator*/, address /*from*/, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual returns (bytes4) {
-        if (msg.sender != address(registry)) {
-            revert UnauthorizedCaller(msg.sender);
-        }
-
-        TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
-        
-        _onEject(tokenIds, transferDataArray);
-
-        return this.onERC1155BatchReceived.selector;
-    }
-
-    // Internal functions
 
     /**
      * @dev Asserts that the label matches the token ID.

@@ -17,7 +17,7 @@ export async function deployV2Fixture<C extends NetworkConnection>(
   networkConnection: C,
   enableCcipRead = false,
 ) {
-const publicClient = await networkConnection.viem.getPublicClient({
+  const publicClient = await networkConnection.viem.getPublicClient({
     ccipRead: enableCcipRead ? undefined : false,
   });
   const [walletClient] = await networkConnection.viem.getWalletClients();
@@ -25,11 +25,11 @@ const publicClient = await networkConnection.viem.getPublicClient({
     await networkConnection.viem.deployContract("RegistryDatastore");
   const rootRegistry = await networkConnection.viem.deployContract(
     "PermissionedRegistry",
-    [datastore.address, zeroAddress, ROLES.ALL],
+    [datastore.address, zeroAddress, walletClient.account.address, ROLES.ALL],
   );
   const ethRegistry = await networkConnection.viem.deployContract(
     "PermissionedRegistry",
-    [datastore.address, zeroAddress, ROLES.ALL],
+    [datastore.address, zeroAddress, walletClient.account.address, ROLES.ALL],
   );
   const universalResolver = await networkConnection.viem.deployContract(
     "UniversalResolverV2",
@@ -94,14 +94,14 @@ const publicClient = await networkConnection.viem.getPublicClient({
     );
   }
   // creates registries up to the parent name
-  async function setupName({
+  async function setupName<exact_ extends boolean = false>({
     name,
     owner = walletClient.account.address,
     expiry = MAX_EXPIRY,
     roles = ROLES.ALL,
     resolverAddress = dedicatedResolver.address,
     metadataAddress = zeroAddress,
-    exact = false,
+    exact,
   }: {
     name: string;
     owner?: Address;
@@ -109,13 +109,13 @@ const publicClient = await networkConnection.viem.getPublicClient({
     roles?: bigint;
     resolverAddress?: Address;
     metadataAddress?: Address;
-    exact?: boolean;
+    exact?: exact_ | undefined;
   }) {
     const labels = splitName(name);
     if (!labels.length) throw new Error("expected name");
     const registries = [rootRegistry];
     while (true) {
-      const parentRegistry = registries[registries.length - 1];
+      const parentRegistry = registries[0];
       const label = labels[labels.length - registries.length];
       const [tokenId] = await parentRegistry.read.getNameData([label]);
       const registryOwner = await parentRegistry.read.ownerOf([tokenId]);
@@ -127,7 +127,7 @@ const publicClient = await networkConnection.viem.getPublicClient({
           // registry does not exist, create it
           const registry = await networkConnection.viem.deployContract(
             "PermissionedRegistry",
-            [datastore.address, metadataAddress, roles],
+            [datastore.address, metadataAddress, walletClient.account.address, roles],
           );
           registryAddress = registry.address;
           if (exists) {
@@ -137,9 +137,9 @@ const publicClient = await networkConnection.viem.getPublicClient({
               registryAddress,
             ]);
           }
-          registries.push(registry);
+          registries.unshift(registry);
         } else {
-          registries.push(
+          registries.unshift(
             await networkConnection.viem.getContractAt(
               "PermissionedRegistry",
               registryAddress,
@@ -166,10 +166,17 @@ const publicClient = await networkConnection.viem.getPublicClient({
       }
       if (leaf) {
         // invariants:
-        //  registries.length == labels.length - (exact ? 0 : 1)
-        //     parentRegistry == registries.at(exact ? -2 : -1)
-        //            tokenId == canonical(labelhash(labels.at(-1)))
-        return { registries, labels, tokenId, parentRegistry };
+        //  registries.length == labels.length
+        //     exactRegistry? == registries[0]
+        //     parentRegistry == registries[1]
+        //            tokenId == labelToCanonicalId(labels[0])
+        return {
+          labels,
+          tokenId,
+          parentRegistry,
+          exactRegistry: exact ? registries[0] : undefined,
+          registries: exact ? registries : [undefined, ...registries],
+        };
       }
     }
   }

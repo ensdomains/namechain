@@ -121,7 +121,7 @@ contract ETHTLDResolver is
     }
 
     /// @notice Set the resolver for "eth".
-    /// @dev Assumes resolver is not extended.
+    /// @dev Assumes resolver is `IExtendedResolver`.
     /// @param resolver The new resolver address.
     function setETHResolver(address resolver) external onlyOwner {
         ethResolver = resolver;
@@ -162,10 +162,7 @@ contract ETHTLDResolver is
             if (offset == prevOffset) {
                 ccipRead(
                     ethResolver,
-                    data,
-                    this.resolveEthCallback.selector, // ==> step 2
-                    IDENTITY_FUNCTION,
-                    ""
+                    abi.encodeCall(IExtendedResolver.resolve, (name, data))
                 );
             }
             (bytes32 labelHash, ) = NameCoder.readLabel(name, prevOffset);
@@ -188,14 +185,6 @@ contract ETHTLDResolver is
             _resolveNamechain(
                 State(parentRegistry, name, offset, multi, calls, 0)
             );
-    }
-
-    /// @dev CCIP-Read callback for `resolveWithRegistry()` from calling `ethResolver`.
-    function resolveEthCallback(
-        bytes calldata response,
-        bytes calldata
-    ) external pure returns (bytes memory) {
-        return response;
     }
 
     /// @dev State of Namechain resolution.

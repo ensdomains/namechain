@@ -7,6 +7,7 @@ import HardhatViem from "@nomicfoundation/hardhat-viem";
 import HardhatDeploy from "hardhat-deploy";
 
 import HardhatStorageLayoutPlugin from "./plugins/storage-layout/index.ts";
+import HardhatIgnoreWarningsPlugin from "./plugins/ignore-warnings/index.ts";
 
 const realAccounts = [
   configVariable("DEPLOYER_KEY"),
@@ -73,12 +74,19 @@ const config = {
       ],
     },
   },
+  shouldIgnoreWarnings: (path) => {
+    return (
+      path.startsWith("./lib/ens-contracts/") ||
+      path.startsWith("./lib/solsha1/")
+    );
+  },
   plugins: [
     HardhatNetworkHelpersPlugin,
     HardhatChaiMatchersViemPlugin,
     HardhatViem,
     HardhatKeystore,
     HardhatStorageLayoutPlugin,
+    HardhatIgnoreWarningsPlugin,
     HardhatDeploy,
   ],
 } satisfies HardhatUserConfig;

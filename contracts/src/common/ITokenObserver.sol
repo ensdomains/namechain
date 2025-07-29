@@ -12,11 +12,4 @@ interface ITokenObserver {
      * @param renewedBy The address that renewed the token.
      */
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external;
-
-    /**
-     * @dev Called when a token is relinquished.
-     * @param tokenId The token ID of the token that was relinquished.
-     * @param relinquishedBy The address that relinquished the token.
-     */
-    function onRelinquish(uint256 tokenId, address relinquishedBy) external;
 } 

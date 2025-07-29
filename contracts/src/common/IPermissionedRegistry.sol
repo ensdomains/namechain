@@ -3,8 +3,9 @@ pragma solidity >=0.8.13;
 
 import {IStandardRegistry} from "./IStandardRegistry.sol";
 import {ITokenObserver} from "./ITokenObserver.sol";
+import {IEnhancedAccessControl} from "./IEnhancedAccessControl.sol";
 
-interface IPermissionedRegistry is IStandardRegistry {
+interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     /**
      * @dev Event emitted when a token observer is set.
      */
