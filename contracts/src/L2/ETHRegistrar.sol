@@ -172,14 +172,14 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     ) external returns (uint256 tokenId) {
         // CHECKS: Validate commitment and get pricing (external calls for validation only)
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
-        
+        uint64 expiry = uint64(block.timestamp) + duration;
         // Get USD pricing breakdown
-        IPriceOracle.Price memory usdPrice = prices.price(name, 0, duration);
+        IPriceOracle.Price memory usdPrice = prices.price(name, expiry, duration);
         
         // Convert to token amount for payment and handle transfer
         {
             TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
-            uint256 tokenAmount = tokenOracle.priceInToken(name, 0, duration, token);
+            uint256 tokenAmount = tokenOracle.priceInToken(name, expiry, duration, token);
             // EFFECTS: Handle payment BEFORE state changes
             IERC20(token).safeTransferFrom(msg.sender, beneficiary, tokenAmount);
         }
