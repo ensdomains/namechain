@@ -8,10 +8,10 @@ import { deployV1Fixture } from "../fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
 import { expectVar } from "../utils/expectVar.ts";
 import {
+  type KnownProfile,
   bundleCalls,
   COIN_TYPE_DEFAULT,
   COIN_TYPE_ETH,
-  type KnownProfile,
   makeResolutions,
 } from "../utils/resolutions.js";
 import { dnsEncodeName } from "../utils/utils.js";
@@ -27,22 +27,31 @@ const basicProfile: KnownProfile = {
   addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
 };
 
+// sufficient to satisfy: `abi.decode(DNSSEC.RRSetWithSignature[])`
+const dnsOracleGateway =
+  'data:application/json,{"data":"0x0000000000000000000000000000000000000000000000000000000000000000"}';
+
 async function fixture() {
   const mainnetV1 = await deployV1Fixture(chain);
   const mainnetV2 = await deployV2Fixture(chain, true); // CCIP on UR
   const ssResolver = await chain.viem.deployContract("DummyShapeshiftResolver");
   const mockDNSSEC = await chain.viem.deployContract("MockDNSSEC");
+  const dnsTLDResolverV1 = await chain.viem.deployContract(
+    "OffchainDNSResolver",
+    [mainnetV1.ensRegistry.address, mockDNSSEC.address, dnsOracleGateway],
+  );
   const dnsTLDResolver = await chain.viem.deployContract("DNSTLDResolver", [
     mainnetV1.ensRegistry.address,
-    testAddress, // dnsTLDResolverV1
+    dnsTLDResolverV1.address,
     mainnetV2.rootRegistry.address,
     mockDNSSEC.address,
-    [
-      // "data" is sufficient to satisfy: `abi.decode(DNSSEC.RRSetWithSignature[])`
-      'data:application/json,{"data":"0x0000000000000000000000000000000000000000000000000000000000000000"}',
-    ],
+    [dnsOracleGateway],
     ["x-batch-gateway:true"],
   ]);
+  await mainnetV1.setupName({
+    name: "com",
+    resolverAddress: dnsTLDResolverV1.address,
+  });
   await mainnetV2.setupName({
     name: "com",
     resolverAddress: dnsTLDResolver.address,
@@ -57,6 +66,7 @@ async function fixture() {
     mainnetV2,
     ssResolver,
     mockDNSSEC,
+    dnsTLDResolverV1,
     dnsTLDResolver,
     dnsTXTResolver,
     async expectGasless(kp: KnownProfile) {

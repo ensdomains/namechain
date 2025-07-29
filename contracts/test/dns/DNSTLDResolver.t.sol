@@ -8,6 +8,7 @@ import {PermissionedRegistry, IRegistryMetadata} from "../../src/common/Permissi
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
 import {LibEACBaseRoles} from "../../src/common/EnhancedAccessControl.sol";
 
+// coverage:ignore-next-line
 contract MockDNS is DNSTLDResolver {
     constructor(
         IRegistry rootRegistry

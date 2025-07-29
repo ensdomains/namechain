@@ -6,6 +6,7 @@
     "**/node_modules": true,
     "**/cache": true,
     "**/artifacts": true,
-    "**/build": true
+    "**/build": true,
+    "**/deployments": true
   },
 }
