@@ -9,7 +9,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 
 import "../src/L2/ETHRegistrar.sol";
 import "../src/L2/TokenPriceOracle.sol";
-import "../src/common/PermissionedRegistry.sol";
+import "./mocks/MockPermissionedRegistryHelper.sol";
 import "../src/common/RegistryDatastore.sol";
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
@@ -19,10 +19,11 @@ import {Vm} from "forge-std/Vm.sol";
 import {TestUtils} from "./utils/TestUtils.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
 contract TestETHRegistrar is Test, ERC1155Holder {
     RegistryDatastore datastore;
-    PermissionedRegistry registry;
+    MockPermissionedRegistryHelper registry;
     ETHRegistrar registrar;
     TokenPriceOracle priceOracle;
     MockERC20 usdc;
@@ -69,9 +70,9 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         datastore = new RegistryDatastore();
         // Use a defined ALL_ROLES value for deployer roles
         uint256 deployerRoles = TestUtils.ALL_ROLES;
-        registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), deployerRoles);
+        registry = new MockPermissionedRegistryHelper(datastore, new SimpleRegistryMetadata(), address(this), deployerRoles);
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE, beneficiary);
-        registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(registrar));
+        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(registrar));
         
         // Mint tokens to test accounts
         uint256 tokenAmount = 1000000 * 1e6; // 1M USDC
@@ -339,7 +340,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(usdc)
         );
 
-        bytes32 resource = registry.getTokenIdResource(tokenId);
+        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
         assertTrue(registry.hasRoles(resource, TestUtils.ALL_ROLES, owner));
     }
 
@@ -808,7 +809,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(usdc)
         );
 
-        bytes32 resource = registry.getTokenIdResource(tokenId);
+        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
 
         // Check individual roles
         uint256 ROLE_SET_SUBREGISTRY = 1 << 8;

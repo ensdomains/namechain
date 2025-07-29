@@ -9,14 +9,18 @@ import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 import {TokenPriceOracle} from "./TokenPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../common/NameUtils.sol";
-import {EnhancedAccessControl} from "../common/EnhancedAccessControl.sol";
-import {RegistryRolesMixin} from "../common/RegistryRolesMixin.sol";
+import {EnhancedAccessControl, LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
+import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixin {
+contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     using SafeERC20 for IERC20;
-    uint256 private constant REGISTRATION_ROLE_BITMAP = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;
+    uint256 private constant REGISTRATION_ROLE_BITMAP = 
+        LibRegistryRoles.ROLE_SET_SUBREGISTRY | 
+        LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN | 
+        LibRegistryRoles.ROLE_SET_RESOLVER | 
+        LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
 
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
 
@@ -40,7 +44,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl, RegistryRolesMixi
     mapping(bytes32 => uint256) public commitments;    
 
     constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge, address _beneficiary) {
-        _grantRoles(ROOT_RESOURCE, ALL_ROLES, _msgSender(), true);
+        _grantRoles(ROOT_RESOURCE, LibEACBaseRoles.ALL_ROLES, _msgSender(), true);
 
         registry = IPermissionedRegistry(_registry);
 

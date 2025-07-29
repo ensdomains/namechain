@@ -13,6 +13,7 @@ import "../src/common/PermissionedRegistry.sol";
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
 import {TestUtils} from "./utils/TestUtils.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
 /**
  * @title ETHRegistrar Operational Risk Tests
@@ -118,7 +119,7 @@ contract ETHRegistrarOperationalRisksTest is Test, ERC1155Holder {
         
         // Deploy infrastructure
         datastore = new RegistryDatastore();
-        registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), TestUtils.ALL_ROLES);
+        registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), address(this), TestUtils.ALL_ROLES);
         
         // Deploy mock tokens
         usdc = new MockUSDCWithBlacklist();
@@ -150,7 +151,7 @@ contract ETHRegistrarOperationalRisksTest is Test, ERC1155Holder {
             beneficiary
         );
         
-        registry.grantRootRoles(ROLE_REGISTRAR | ROLE_RENEW, address(registrar));
+        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(registrar));
         
         // Setup user with tokens
         usdc.transfer(user, 1000 * 1e6);
