@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {IRegistry} from "../common/IRegistry.sol";
-import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
+import {ITokenPriceOracle} from "./ITokenPriceOracle.sol";
 
 /**
  * @dev Interface for the ETH Registrar.
@@ -69,7 +69,7 @@ interface IETHRegistrar {
      * @param duration The duration of the registration or renewal.
      * @return price The price to register or renew the name.
      */
-    function rentPrice(string memory name, uint256 duration) external view returns (IPriceOracle.Price memory price);
+    function rentPrice(string memory name, uint256 duration) external view returns (ITokenPriceOracle.Price memory price);
 
     /**
      * @dev Make a commitment for a name.

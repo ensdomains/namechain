@@ -5,7 +5,7 @@ import {IETHRegistrar} from "./IETHRegistrar.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {IERC1155Singleton} from "../common/IERC1155Singleton.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
-import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
+import {ITokenPriceOracle} from "./ITokenPriceOracle.sol";
 import {TokenPriceOracle} from "./TokenPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../common/NameUtils.sol";
@@ -36,14 +36,14 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     error DurationOverflow(uint64 expiry, uint64 duration);
 
     IPermissionedRegistry public immutable registry;
-    IPriceOracle public immutable prices;
+    ITokenPriceOracle public immutable prices;
     uint256 public immutable minCommitmentAge;
     uint256 public immutable maxCommitmentAge;
     address public immutable beneficiary;
 
     mapping(bytes32 => uint256) public commitments;    
 
-    constructor(address _registry, IPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge, address _beneficiary) {
+    constructor(address _registry, ITokenPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge, address _beneficiary) {
         _grantRoles(ROOT_RESOURCE, LibEACBaseRoles.ALL_ROLES, _msgSender(), true);
 
         registry = IPermissionedRegistry(_registry);
@@ -84,7 +84,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
      * @param duration The duration of the registration or renewal.
      * @return price The price to register or renew the name.
      */ 
-    function rentPrice(string memory name, uint256 duration) public view override returns (IPriceOracle.Price memory price) {
+    function rentPrice(string memory name, uint256 duration) public view override returns (ITokenPriceOracle.Price memory price) {
         (, uint64 expiry, ) = registry.getNameData(name);
         price = prices.price(name, uint256(expiry), duration);
     }
@@ -97,7 +97,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
      * @return tokenAmount The amount of tokens required.
      */
     function checkPrice(string memory name, uint256 duration, address token) public view returns (uint256 tokenAmount) {
-        TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
+        ITokenPriceOracle tokenOracle = prices;
         
         if (!tokenOracle.getTokenConfig(token).enabled) {
             revert TokenNotSupported(token);
@@ -178,11 +178,11 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
         uint64 expiry = uint64(block.timestamp) + duration;
         // Get USD pricing breakdown
-        IPriceOracle.Price memory usdPrice = prices.price(name, expiry, duration);
+        ITokenPriceOracle.Price memory usdPrice = prices.price(name, expiry, duration);
         
         // Convert to token amount for payment and handle transfer
         {
-            TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
+            ITokenPriceOracle tokenOracle = prices;
             uint256 tokenAmount = tokenOracle.priceInToken(name, expiry, duration, token);
             // EFFECTS: Handle payment BEFORE state changes
             IERC20(token).safeTransferFrom(msg.sender, beneficiary, tokenAmount);
@@ -211,11 +211,11 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         uint64 newExpiry = expiry + duration;
         
         // Get USD pricing breakdown
-        IPriceOracle.Price memory usdPrice = prices.price(name, uint256(expiry), duration);
+        ITokenPriceOracle.Price memory usdPrice = prices.price(name, uint256(expiry), duration);
         
         // Convert to token amount for payment and handle transfer
         {
-            TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
+            ITokenPriceOracle tokenOracle = prices;
             uint256 tokenAmount = tokenOracle.priceInToken(name, uint256(expiry), duration, token);
             // EFFECTS: Handle payment BEFORE state changes
             IERC20(token).safeTransferFrom(msg.sender, beneficiary, tokenAmount);
