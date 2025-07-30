@@ -50,10 +50,6 @@ contract TokenPriceOracle is ITokenPriceOracle {
         });
     }
 
-    function isTokenSupported(address token) external view returns (bool) {
-        return tokenConfigs[token].enabled;
-    }
-
     function getTokenConfig(address token) external view returns (TokenConfig memory) {
         return tokenConfigs[token];
     }

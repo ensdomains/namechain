@@ -15,16 +15,9 @@ interface ITokenPriceOracle is IPriceOracle {
     error TokenNotSupported(address token);
 
     /**
-     * @dev Check if a token is supported for payments
-     * @param token The token address to check
-     * @return True if the token is supported
-     */
-    function isTokenSupported(address token) external view returns (bool);
-
-    /**
      * @dev Get the configuration for a supported token
      * @param token The token address
-     * @return The token configuration
+     * @return The token configuration (check .enabled to see if supported)
      */
     function getTokenConfig(address token) external view returns (TokenConfig memory);
 

@@ -99,7 +99,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     function checkPrice(string memory name, uint256 duration, address token) public view returns (uint256 tokenAmount) {
         TokenPriceOracle tokenOracle = TokenPriceOracle(address(prices));
         
-        if (!tokenOracle.isTokenSupported(token)) {
+        if (!tokenOracle.getTokenConfig(token).enabled) {
             revert TokenNotSupported(token);
         }
 
@@ -189,7 +189,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         }
 
         // INTERACTIONS: Register name only after successful payment
-        tokenId = registry.register(name, owner, subregistry, resolver, REGISTRATION_ROLE_BITMAP, uint64(block.timestamp) + duration);
+        tokenId = registry.register(name, owner, subregistry, resolver, REGISTRATION_ROLE_BITMAP, expiry);
         
         emit NameRegistered(name, owner, subregistry, resolver, duration, tokenId, usdPrice.base, usdPrice.premium);
     }

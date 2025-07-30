@@ -63,11 +63,11 @@ contract TestTokenPriceOracle is Test {
         new TokenPriceOracle(tokens, decimals, rentPrices);
     }
     
-    function test_isTokenSupported() public view {
-        assertTrue(priceOracle.isTokenSupported(address(usdc)));
-        assertTrue(priceOracle.isTokenSupported(address(dai)));
-        assertFalse(priceOracle.isTokenSupported(address(wbtc))); // Not added in constructor
-        assertFalse(priceOracle.isTokenSupported(address(0)));
+    function test_getTokenConfig_enabled_status() public view {
+        assertTrue(priceOracle.getTokenConfig(address(usdc)).enabled);
+        assertTrue(priceOracle.getTokenConfig(address(dai)).enabled);
+        assertFalse(priceOracle.getTokenConfig(address(wbtc)).enabled); // Not added in constructor
+        assertFalse(priceOracle.getTokenConfig(address(0)).enabled);
     }
     
     function test_getTokenConfig() public view {
