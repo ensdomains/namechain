@@ -2,19 +2,14 @@
 pragma solidity >=0.8.13;
 
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
+import {ITokenPriceOracle} from "./ITokenPriceOracle.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
  * @dev TokenPriceOracle handles ERC20 token conversion rates with overridable pricing logic.
  * Inherits from this contract and override _premium() and _base() for custom pricing.
  */
-contract TokenPriceOracle is IPriceOracle {
-    struct TokenConfig {
-        uint8 decimals;
-        bool enabled;
-    }
-
-    error TokenNotSupported(address token);
+contract TokenPriceOracle is ITokenPriceOracle {
     error ArrayLengthMismatch();
     error EmptyRentPrices();
 
@@ -157,7 +152,8 @@ contract TokenPriceOracle is IPriceOracle {
 
 
     function supportsInterface(bytes4 interfaceId) public view virtual returns (bool) {
-        return interfaceId == type(IPriceOracle).interfaceId || 
+        return interfaceId == type(ITokenPriceOracle).interfaceId ||
+               interfaceId == type(IPriceOracle).interfaceId || 
                interfaceId == type(IERC165).interfaceId;
     }
 }

@@ -3,6 +3,7 @@ pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
 import "../src/L2/TokenPriceOracle.sol";
+import "../src/L2/ITokenPriceOracle.sol";
 import "../src/mocks/MockERC20.sol";
 
 contract TestTokenPriceOracle is Test {
@@ -70,16 +71,16 @@ contract TestTokenPriceOracle is Test {
     }
     
     function test_getTokenConfig() public view {
-        TokenPriceOracle.TokenConfig memory usdcConfig = priceOracle.getTokenConfig(address(usdc));
+        ITokenPriceOracle.TokenConfig memory usdcConfig = priceOracle.getTokenConfig(address(usdc));
         assertEq(usdcConfig.decimals, 6);
         assertTrue(usdcConfig.enabled);
         
-        TokenPriceOracle.TokenConfig memory daiConfig = priceOracle.getTokenConfig(address(dai));
+        ITokenPriceOracle.TokenConfig memory daiConfig = priceOracle.getTokenConfig(address(dai));
         assertEq(daiConfig.decimals, 18);
         assertTrue(daiConfig.enabled);
         
         // Test unsupported token returns default config
-        TokenPriceOracle.TokenConfig memory wbtcConfig = priceOracle.getTokenConfig(address(wbtc));
+        ITokenPriceOracle.TokenConfig memory wbtcConfig = priceOracle.getTokenConfig(address(wbtc));
         assertEq(wbtcConfig.decimals, 0);
         assertFalse(wbtcConfig.enabled);
     }
@@ -99,7 +100,7 @@ contract TestTokenPriceOracle is Test {
         uint256 expires = 0;
         uint256 duration = 365 days;
         
-        vm.expectRevert(abi.encodeWithSelector(TokenPriceOracle.TokenNotSupported.selector, address(wbtc)));
+        vm.expectRevert(abi.encodeWithSelector(ITokenPriceOracle.TokenNotSupported.selector, address(wbtc)));
         priceOracle.priceInToken(name, expires, duration, address(wbtc));
     }
     
@@ -154,6 +155,7 @@ contract TestTokenPriceOracle is Test {
     }
     
     function test_supportsInterface() public view {
+        assertTrue(priceOracle.supportsInterface(type(ITokenPriceOracle).interfaceId));
         assertTrue(priceOracle.supportsInterface(type(IPriceOracle).interfaceId));
         assertTrue(priceOracle.supportsInterface(type(IERC165).interfaceId));
         assertFalse(priceOracle.supportsInterface(0x12345678)); // Random interface
