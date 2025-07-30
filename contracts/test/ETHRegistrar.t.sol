@@ -365,11 +365,19 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // Wait for min commitment age
         vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
         
+        // Calculate the exact token amount needed for this registration
+        uint256 exactAmountNeeded = registrar.checkPrice(name, duration, address(usdc));
+        
         // Reset approval to 0 to simulate insufficient balance/approval
         usdc.approve(address(registrar), 0);
         
-        // Try to register with insufficient token approval - should revert
-        vm.expectRevert(); // Generic revert since ERC20 transfer will fail
+        // Try to register with insufficient token approval - should revert with exact error
+        vm.expectRevert(abi.encodeWithSelector(
+            bytes4(keccak256("ERC20InsufficientAllowance(address,uint256,uint256)")),
+            address(registrar), // spender
+            0,                  // current allowance
+            exactAmountNeeded   // needed amount
+        ));
         registrar.register(
             name, 
             owner, 
@@ -633,12 +641,20 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(usdc)
         );
         
+        // Calculate the exact token amount needed for renewal
+        uint64 renewalDuration = 180 days;
+        uint256 exactAmountNeeded = registrar.checkPrice(name, renewalDuration, address(usdc));
+        
         // Reset approval to 0 to simulate insufficient balance/approval
         usdc.approve(address(registrar), 0);
         
-        // Try to renew with insufficient token approval - should revert
-        uint64 renewalDuration = 180 days;
-        vm.expectRevert(); // Generic revert since ERC20 transfer will fail
+        // Try to renew with insufficient token approval - should revert with exact error
+        vm.expectRevert(abi.encodeWithSelector(
+            bytes4(keccak256("ERC20InsufficientAllowance(address,uint256,uint256)")),
+            address(registrar), // spender
+            0,                  // current allowance
+            exactAmountNeeded   // needed amount
+        ));
         registrar.renew(name, renewalDuration, address(usdc));
     }
 
