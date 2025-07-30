@@ -9,21 +9,21 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 
 import "../src/L2/ETHRegistrar.sol";
 import "../src/L2/TokenPriceOracle.sol";
-import "./mocks/MockPermissionedRegistryHelper.sol";
+import "./mocks/MockPermissionedRegistry.sol";
 import "../src/common/RegistryDatastore.sol";
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/EnhancedAccessControl.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import "../src/common/NameUtils.sol";
 import {Vm} from "forge-std/Vm.sol";
-import {TestUtils} from "./utils/TestUtils.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
 contract TestETHRegistrar is Test, ERC1155Holder {
     RegistryDatastore datastore;
-    MockPermissionedRegistryHelper registry;
+    MockPermissionedRegistry registry;
     ETHRegistrar registrar;
     TokenPriceOracle priceOracle;
     MockERC20 usdc;
@@ -69,8 +69,8 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // Setup registry and registrar
         datastore = new RegistryDatastore();
         // Use a defined ALL_ROLES value for deployer roles
-        uint256 deployerRoles = TestUtils.ALL_ROLES;
-        registry = new MockPermissionedRegistryHelper(datastore, new SimpleRegistryMetadata(), address(this), deployerRoles);
+        uint256 deployerRoles = LibEACBaseRoles.ALL_ROLES;
+        registry = new MockPermissionedRegistry(datastore, new SimpleRegistryMetadata(), address(this), deployerRoles);
         registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE, beneficiary);
         registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(registrar));
         
@@ -341,7 +341,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         );
 
         uint256 resource = registry.testGetResourceFromTokenId(tokenId);
-        assertTrue(registry.hasRoles(resource, TestUtils.ALL_ROLES, owner));
+        assertTrue(registry.hasRoles(resource, LibEACBaseRoles.ALL_ROLES, owner));
     }
 
     function test_Revert_insufficientTokenBalance() public {

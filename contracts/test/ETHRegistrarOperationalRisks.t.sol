@@ -12,7 +12,7 @@ import "../src/L2/TokenPriceOracle.sol";
 import "../src/common/PermissionedRegistry.sol";
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
-import {TestUtils} from "./utils/TestUtils.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
 /**
@@ -119,7 +119,7 @@ contract ETHRegistrarOperationalRisksTest is Test, ERC1155Holder {
         
         // Deploy infrastructure
         datastore = new RegistryDatastore();
-        registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), address(this), TestUtils.ALL_ROLES);
+        registry = new PermissionedRegistry(datastore, new SimpleRegistryMetadata(), address(this), LibEACBaseRoles.ALL_ROLES);
         
         // Deploy mock tokens
         usdc = new MockUSDCWithBlacklist();
