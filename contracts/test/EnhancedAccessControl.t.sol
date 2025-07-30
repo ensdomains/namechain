@@ -59,8 +59,8 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
         // Function that will revert if caller doesn't have the roles in root resource
     }
 
-    function copyRoles(uint256 resource, address srcAccount, address dstAccount) external {
-        _copyRoles(resource, srcAccount, dstAccount, true);
+    function transferRoles(uint256 resource, address srcAccount, address dstAccount) external {
+        _transferRoles(resource, srcAccount, dstAccount, true);
     }
 
     function revokeAllRoles(uint256 resource, address account) external returns (bool) {
@@ -101,8 +101,8 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
         return _revokeRoles(resource, roleBitmap, account, false);
     }
     
-    function copyRolesWithoutCallback(uint256 resource, address srcAccount, address dstAccount) external {
-        _copyRoles(resource, srcAccount, dstAccount, false);
+    function transferRolesWithoutCallback(uint256 resource, address srcAccount, address dstAccount) external {
+        _transferRoles(resource, srcAccount, dstAccount, false);
     }
     
     function revokeAllRolesWithoutCallback(uint256 resource, address account) external returns (bool) {
@@ -581,7 +581,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.supportsInterface(type(IEnhancedAccessControl).interfaceId));
     }
 
-    function test_copy_roles() public {
+    function test_transfer_roles() public {
         // Setup: Grant multiple roles to user1
         access.grantRoles(RESOURCE_1, ROLE_B, user1);
         access.grantRoles(RESOURCE_1, ROLE_A, user1);
@@ -598,33 +598,42 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Record logs to verify event emission
         vm.recordLogs();
         
-        // Copy roles from user1 to user2 for RESOURCE_1
-        access.copyRoles(RESOURCE_1, user1, user2);
+        // Transfer roles from user1 to user2 for RESOURCE_1
+        access.transferRoles(RESOURCE_1, user1, user2);
         
-        // Verify roles were copied correctly for RESOURCE_1
+        // Verify roles were transferred correctly for RESOURCE_1
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user2));
         
-        // Verify roles for RESOURCE_2 were not copied
+        // Verify roles for RESOURCE_2 were not transferred
         assertFalse(access.hasRoles(RESOURCE_2, ROLE_A, user2));
 
-        // Verify user1 still has all original roles
-        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
+        // Verify user1 no longer has roles in RESOURCE_1 (transferred away)
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
+        // But still has roles in RESOURCE_2 (not transferred)
         assertTrue(access.hasRoles(RESOURCE_2, ROLE_A, user1));
         
-        // Verify event was emitted correctly
+        // Verify events were emitted correctly (both revoke and grant)
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EACRolesGranted(uint256,uint256,address)"));
-        (uint256 resource, uint256 roleBitmap, address account) = abi.decode(entries[0].data, (uint256, uint256, address));
-        assertEq(resource, RESOURCE_1);
-        assertEq(account, user2);
+        assertEq(entries.length, 2);
         
-        // Check that the bitmap includes all roles (note: admin bits will be included too)
-        assertTrue((roleBitmap & ROLE_A) == ROLE_A);
-        assertTrue((roleBitmap & ROLE_B) == ROLE_B);
+        // First event should be EACRolesRevoked for user1
+        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(uint256,uint256,address)"));
+        (uint256 resource1, uint256 roleBitmap1, address account1) = abi.decode(entries[0].data, (uint256, uint256, address));
+        assertEq(resource1, RESOURCE_1);
+        assertEq(account1, user1);
+        assertTrue((roleBitmap1 & ROLE_A) == ROLE_A);
+        assertTrue((roleBitmap1 & ROLE_B) == ROLE_B);
+        
+        // Second event should be EACRolesGranted for user2
+        assertEq(entries[1].topics[0], keccak256("EACRolesGranted(uint256,uint256,address)"));
+        (uint256 resource2, uint256 roleBitmap2, address account2) = abi.decode(entries[1].data, (uint256, uint256, address));
+        assertEq(resource2, RESOURCE_1);
+        assertEq(account2, user2);
+        assertTrue((roleBitmap2 & ROLE_A) == ROLE_A);
+        assertTrue((roleBitmap2 & ROLE_B) == ROLE_B);
     }
 
-    function test_copy_roles_bitwise_or() public {
+    function test_transfer_roles_with_existing_roles() public {
         // Setup: Grant different roles to user1 and user2
         access.grantRoles(RESOURCE_1, ROLE_A, user1);
         access.grantRoles(RESOURCE_1, ROLE_B, user1);
@@ -638,23 +647,35 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Record logs to verify event emission
         vm.recordLogs();
 
-        // Copy roles from user1 to user2 for RESOURCE_1
-        // This should OR the roles, not overwrite them
-        access.copyRoles(RESOURCE_1, user1, user2);
+        // Transfer roles from user1 to user2 for RESOURCE_1
+        // This should OR the roles from user1 with user2's existing roles
+        access.transferRoles(RESOURCE_1, user1, user2);
         
-        // Verify user2 now has all roles (original + copied)
+        // Verify user1 no longer has their original roles (transferred away)
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
+        
+        // Verify user2 now has all roles (original + transferred)
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B | ROLE_C | ROLE_D, user2));
         
-        // Verify event was emitted correctly
+        // Verify events were emitted correctly (both revoke and grant)
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EACRolesGranted(uint256,uint256,address)"));
-        (uint256 resource, uint256 roleBitmap, address account) = abi.decode(entries[0].data, (uint256, uint256, address));
-        assertEq(resource, RESOURCE_1);
-        assertEq(account, user2);
-        // The bitmap should include ROLE_A and ROLE_B (and admin bits)
-        assertTrue((roleBitmap & ROLE_A) == ROLE_A);
-        assertTrue((roleBitmap & ROLE_B) == ROLE_B);
+        assertEq(entries.length, 2);
+        
+        // First event should be EACRolesRevoked for user1
+        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(uint256,uint256,address)"));
+        (uint256 resource1, uint256 roleBitmap1, address account1) = abi.decode(entries[0].data, (uint256, uint256, address));
+        assertEq(resource1, RESOURCE_1);
+        assertEq(account1, user1);
+        assertTrue((roleBitmap1 & ROLE_A) == ROLE_A);
+        assertTrue((roleBitmap1 & ROLE_B) == ROLE_B);
+        
+        // Second event should be EACRolesGranted for user2
+        assertEq(entries[1].topics[0], keccak256("EACRolesGranted(uint256,uint256,address)"));
+        (uint256 resource2, uint256 roleBitmap2, address account2) = abi.decode(entries[1].data, (uint256, uint256, address));
+        assertEq(resource2, RESOURCE_1);
+        assertEq(account2, user2);
+        assertTrue((roleBitmap2 & ROLE_A) == ROLE_A);
+        assertTrue((roleBitmap2 & ROLE_B) == ROLE_B);
     }
 
     function test_role_callback_hooks() public {
@@ -707,18 +728,33 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertEq(access.lastRevokedAccount(), user1);
         assertEq(access.lastRevokedCount(), 2);
         
-        // Test copying roles
+        // Test transferring roles
         access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
-        access.copyRoles(RESOURCE_1, user1, user2);
         
-        // Verify grant callback was called for the copy operation
+        // Store callback state before transfer since transferRoles uses executeCallbacks=true
+        uint256 countBeforeTransfer = access.lastGrantedCount();
+        uint256 revokeCountBeforeTransfer = access.lastRevokedCount();
+        
+        access.transferRoles(RESOURCE_1, user1, user2);
+        
+        // Verify both revoke and grant callbacks were called for the transfer operation
+        // First the revoke callback for user1
+        assertEq(access.lastRevokedResource(), RESOURCE_1);
+        assertEq(access.lastRevokedRoleBitmap(), ROLE_A | ROLE_B);
+        assertEq(access.lastRevokedOldRoles(), ROLE_A | ROLE_B);
+        assertEq(access.lastRevokedNewRoles(), 0);
+        assertEq(access.lastRevokedUpdatedRoles(), 0);
+        assertEq(access.lastRevokedAccount(), user1);
+        assertEq(access.lastRevokedCount(), revokeCountBeforeTransfer + 1);
+        
+        // Then the grant callback for user2
         assertEq(access.lastGrantedResource(), RESOURCE_1);
         assertEq(access.lastGrantedRoleBitmap(), ROLE_A | ROLE_B);
         assertEq(access.lastGrantedOldRoles(), 0);
         assertEq(access.lastGrantedNewRoles(), ROLE_A | ROLE_B);
         assertEq(access.lastGrantedUpdatedRoles(), ROLE_A | ROLE_B);
         assertEq(access.lastGrantedAccount(), user2);
-        assertEq(access.lastGrantedCount(), 3);
+        assertEq(access.lastGrantedCount(), countBeforeTransfer + 1);
     }
     
     function test_disable_callbacks() public {
@@ -744,17 +780,20 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // But the role should be revoked
         assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user1));
         
-        // Test copyRoles without callback
+        // Test transferRoles without callback
         access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
-        uint256 grantCountBeforeCopy = access.lastGrantedCount();
+        uint256 grantCountBeforeTransfer = access.lastGrantedCount();
+        uint256 revokeCountBeforeTransfer = access.lastRevokedCount();
         
-        access.copyRolesWithoutCallback(RESOURCE_1, user1, user2);
+        access.transferRolesWithoutCallback(RESOURCE_1, user1, user2);
         
-        // Verify grant callback was not called for the copy
-        assertEq(access.lastGrantedCount(), grantCountBeforeCopy);
+        // Verify neither revoke nor grant callbacks were called for the transfer
+        assertEq(access.lastGrantedCount(), grantCountBeforeTransfer);
+        assertEq(access.lastRevokedCount(), revokeCountBeforeTransfer);
         
-        // But the roles should be copied
-        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user2));
+        // But the roles should be transferred
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1)); // Revoked from user1
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user2)); // Granted to user2
         
         // Test revokeAllRoles without callback
         uint256 revokeCountBeforeRevokeAll = access.lastRevokedCount();
@@ -821,11 +860,14 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         access.grantRoles(RESOURCE_1, ROLE_C | ROLE_D, user2);
         assertEq(access.roles(RESOURCE_1, user2), ROLE_C | ROLE_D);
         
-        // Copy roles and verify
-        access.copyRoles(RESOURCE_1, user1, user2);
+        // Transfer roles and verify
+        access.transferRoles(RESOURCE_1, user1, user2);
         assertEq(access.roles(RESOURCE_1, user2), ROLE_A | ROLE_B | ROLE_C | ROLE_D);
         
-        // Verify root resource roles from user1 were not copied
+        // Verify user1 no longer has RESOURCE_1 roles (transferred away)
+        assertEq(access.roles(RESOURCE_1, user1), 0);
+        
+        // Verify root resource roles from user1 were not transferred
         assertTrue((access.roles(access.ROOT_RESOURCE(), user2) & ROLE_D) == 0);
         
         // Test that mapping is not affected for non-existent user

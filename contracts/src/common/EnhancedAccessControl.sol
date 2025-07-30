@@ -226,16 +226,24 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     }
 
     /**
-     * @dev Copies all roles from `srcAccount` to `dstAccount` within the same resource.
+     * @dev Transfers all roles from `srcAccount` to `dstAccount` within the same resource.
+     * 
+     * This function first revokes all roles from the source account, then grants them to the
+     * destination account. This prevents exceeding max assignees limits during transfer.
      *
-     * @param resource The resource to copy roles within.
-     * @param srcAccount The account to copy roles from.
-     * @param dstAccount The account to copy roles to.
+     * @param resource The resource to transfer roles within.
+     * @param srcAccount The account to transfer roles from.
+     * @param dstAccount The account to transfer roles to.
      * @param executeCallbacks Whether to execute the callbacks.
      */
-    function _copyRoles(uint256 resource, address srcAccount, address dstAccount, bool executeCallbacks) internal virtual {
+    function _transferRoles(uint256 resource, address srcAccount, address dstAccount, bool executeCallbacks) internal virtual {
         uint256 srcRoles = _roles[resource][srcAccount];
-        _grantRoles(resource, srcRoles, dstAccount, executeCallbacks);
+        if (srcRoles != 0) {
+            // First revoke roles from source account to free up assignee slots
+            _revokeRoles(resource, srcRoles, srcAccount, executeCallbacks);
+            // Then grant roles to destination account
+            _grantRoles(resource, srcRoles, dstAccount, executeCallbacks);
+        }
     }
 
     /**
