@@ -243,9 +243,9 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         for (uint256 i = 0; i < ids.length; ++i) {
             /*
             in _regenerateToken, we burn the token and then mint a new one. This flow below ensures the roles go from owner => zeroAddr => owner during this process.
+            Use _transferRoles to atomically transfer roles without exceeding max assignees limits.
             */
-            _copyRoles(getResourceFromTokenId(ids[i]), from, to, false);
-            _revokeAllRoles(getResourceFromTokenId(ids[i]), from, false);
+            _transferRoles(getResourceFromTokenId(ids[i]), from, to, false);
         }
     }
 
