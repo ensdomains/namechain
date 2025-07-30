@@ -8,7 +8,7 @@
     "test:forge": "forge test",
     "test:e2e": "bun test ./e2e/*.test.ts",
     "test": "bun run test:forge && bun run test:hardhat",
-    "coverage": "forge coverage --report lcov && bun run test:hardhat && bun run test:e2e",
+    "coverage": "forge coverage --report lcov && bun run test:hardhat && bun run test:e2e && bun run sanitize-lcov.sh",
     "clean": "forge clean && hardhat clean",
     "devnet": "bun ./script/runDevnet.ts",
     "check:types": "tsc --noEmit"
@@ -32,7 +32,7 @@
     "prool": "^0.0.24",
     "rocketh": "^0.11.18",
     "ts-node": "^10.9.2",
-    "viem": "^2.28.1",
+    "viem": "^2.31.6",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "3.1.3"
   },

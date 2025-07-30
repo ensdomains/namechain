@@ -8,7 +8,7 @@ import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Re
 
 
 import {L2BridgeController} from "../src/L2/L2BridgeController.sol";
-import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
+import {MockPermissionedRegistry} from "./mocks/MockPermissionedRegistry.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
@@ -55,7 +55,7 @@ contract MockBridge is IBridge {
 
 contract TestL2BridgeController is Test, ERC1155Holder {
     L2BridgeController controller;
-    PermissionedRegistry ethRegistry;
+    MockPermissionedRegistry ethRegistry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
     MockBridge bridge;
@@ -84,7 +84,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         bridge = new MockBridge();
         
         // Deploy ETH registry
-        ethRegistry = new PermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
+        ethRegistry = new MockPermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
         
         // Deploy combined bridge controller
         controller = new L2BridgeController(
@@ -234,7 +234,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertEq(resolverAddr, l2Resolver, "Resolver not set correctly after migration");
         
         // ROLE BITMAP VERIFICATION:
-        bytes32 resource = ethRegistry.getTokenIdResource(_tokenId);
+        uint256 resource = ethRegistry.testGetResourceFromTokenId(_tokenId);
         assertTrue(ethRegistry.hasRoles(resource, originalRoles, l2Owner), "L2 owner should have original roles");
         assertFalse(ethRegistry.hasRoles(resource, ignoredRoles, l2Owner), "L2 owner should not have new roles");
     }
@@ -287,7 +287,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         
         vm.expectRevert(abi.encodeWithSelector(
             IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-            bytes32(0), // ROOT_RESOURCE
+            0, // ROOT_RESOURCE
             LibBridgeRoles.ROLE_EJECTOR,
             address(this)
         ));
@@ -410,11 +410,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         ethRegistry.safeTransferFrom(user, address(controller), tokenId2, 1, ejectionData);
         
         // Scenario 2: Grant the missing roles, then add extra assignees
-        ethRegistry.grantRoles(bytes32(tokenId2), LibRegistryRoles.ROLE_SET_SUBREGISTRY, user);
-        ethRegistry.grantRoles(bytes32(tokenId2), LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN, user);
-        ethRegistry.grantRoles(bytes32(tokenId2), LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN, user);
+        uint256 resource2 = ethRegistry.testGetResourceFromTokenId(tokenId2);
+        ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_SUBREGISTRY, user);
+        ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN, user);
+        ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN, user);
         address secondUser = address(0x999);
-        ethRegistry.grantRoles(bytes32(tokenId2), LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, secondUser);
+        ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, secondUser);
         
         // Get the current token ID after regeneration
         (uint256 currentTokenId,,) = ethRegistry.getNameData(testLabel2);
@@ -438,7 +439,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 tokenId3 = ethRegistry.register(testLabel3, user, ethRegistry, address(0), criticalRoles, expires);
         
         // Verify exactly one assignee per critical role
-        (uint256 counts, uint256 mask) = ethRegistry.getAssigneeCount(bytes32(tokenId3), criticalRoles);
+        (uint256 counts, uint256 mask) = ethRegistry.getAssigneeCount(tokenId3, criticalRoles);
         assertEq(counts & mask, criticalRoles, "Should have exactly one assignee for each critical role");
         
         bytes memory ejectionData = _createEjectionData(testLabel3, l1Owner, l1Subregistry, l1Resolver, expires, criticalRoles);
@@ -477,7 +478,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 tokenId4 = ethRegistry.register(testLabel4, user, ethRegistry, address(0), criticalRoles, expires);
         
         // Get the resource ID (this stays stable across regenerations)
-        bytes32 resourceId = ethRegistry.getTokenIdResource(tokenId4);
+        uint256 resourceId = ethRegistry.testGetResourceFromTokenId(tokenId4);
             
         // Add multiple assignees to ROLE_SET_RESOLVER (this should not affect ejection)
         address user2 = address(0x666);

@@ -1,4 +1,7 @@
-import type { DefaultChainType, NetworkConnection } from "hardhat/types/network";
+import type {
+  DefaultChainType,
+  NetworkConnection,
+} from "hardhat/types/network";
 import {
   type Address,
   encodeFunctionData,
@@ -12,12 +15,11 @@ export { ROLES };
 
 export const MAX_EXPIRY = (1n << 64n) - 1n; // see: DatastoreUtils.sol
 
-
 export async function deployV2Fixture(
   networkConnection: NetworkConnection<DefaultChainType>,
   enableCcipRead = false,
 ) {
-const publicClient = await networkConnection.viem.getPublicClient({
+  const publicClient = await networkConnection.viem.getPublicClient({
     ccipRead: enableCcipRead ? undefined : false,
   });
   const [walletClient] = await networkConnection.viem.getWalletClients();
@@ -94,14 +96,15 @@ const publicClient = await networkConnection.viem.getPublicClient({
     );
   }
   // creates registries up to the parent name
-  async function setupName({
+
+  async function setupName<exact_ extends boolean = false>({
     name,
     owner = walletClient.account.address,
     expiry = MAX_EXPIRY,
     roles = ROLES.ALL,
     resolverAddress = dedicatedResolver.address,
     metadataAddress = zeroAddress,
-    exact = false,
+    exact,
   }: {
     name: string;
     owner?: Address;
@@ -109,13 +112,13 @@ const publicClient = await networkConnection.viem.getPublicClient({
     roles?: bigint;
     resolverAddress?: Address;
     metadataAddress?: Address;
-    exact?: boolean;
+    exact?: exact_ | undefined;
   }) {
     const labels = splitName(name);
     if (!labels.length) throw new Error("expected name");
     const registries = [rootRegistry];
     while (true) {
-      const parentRegistry = registries[registries.length - 1];
+      const parentRegistry = registries[0];
       const label = labels[labels.length - registries.length];
       const [tokenId] = await parentRegistry.read.getNameData([label]);
       const registryOwner = await parentRegistry.read.ownerOf([tokenId]);
@@ -137,9 +140,9 @@ const publicClient = await networkConnection.viem.getPublicClient({
               registryAddress,
             ]);
           }
-          registries.push(registry);
+          registries.unshift(registry);
         } else {
-          registries.push(
+          registries.unshift(
             await networkConnection.viem.getContractAt(
               "PermissionedRegistry",
               registryAddress,
@@ -166,10 +169,17 @@ const publicClient = await networkConnection.viem.getPublicClient({
       }
       if (leaf) {
         // invariants:
-        //  registries.length == labels.length - (exact ? 0 : 1)
-        //     parentRegistry == registries.at(exact ? -2 : -1)
-        //            tokenId == canonical(labelhash(labels.at(-1)))
-        return { registries, labels, tokenId, parentRegistry };
+        //  registries.length == labels.length
+        //     exactRegistry? == registries[0]
+        //     parentRegistry == registries[1]
+        //            tokenId == labelToCanonicalId(labels[0])
+        return {
+          labels,
+          tokenId,
+          parentRegistry,
+          exactRegistry: exact ? registries[0] : undefined,
+          registries: exact ? registries : [undefined, ...registries],
+        };
       }
     }
   }

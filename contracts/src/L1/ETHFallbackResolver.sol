@@ -3,9 +3,11 @@ pragma solidity >=0.8.13;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+
 import {GatewayFetcher} from "@unruggable/gateways/contracts/GatewayFetcher.sol";
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
 import {GatewayFetchTarget, IGatewayVerifier} from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
+
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
@@ -16,10 +18,8 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {DedicatedResolverLayout} from "../common/DedicatedResolverLayout.sol";
-
-// resolver features
-import {IFeatureSupporter} from "../common/IFeatureSupporter.sol";
-import {ResolverFeatures} from "../common/ResolverFeatures.sol";
+import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
+import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 
 // resolver profiles
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
@@ -84,7 +84,7 @@ contract ETHFallbackResolver is
         IGatewayVerifier _namechainVerifier,
         address _namechainDatastore,
         address _namechainEthRegistry
-    ) Ownable(msg.sender) {
+    ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
         ethRegistrarV1 = _ethRegistrarV1;
         universalResolverV1 = _universalResolverV1;
         burnAddressV1 = _burnAddressV1;
@@ -224,15 +224,19 @@ contract ETHFallbackResolver is
     ) external view returns (bytes memory) {
         (, uint256 labelCount, uint256 offset) = _countLabels(name);
         if (labelCount == 0) {
-            ccipRead(ethResolver, data, this.resolveEthCallback.selector, "");
+            ccipRead(
+                ethResolver,
+                data,
+                this.resolveEthCallback.selector,
+                IDENTITY_FUNCTION,
+                ""
+            );
         }
         (bytes32 labelHash, ) = NameCoder.readLabel(name, offset);
         if (_isActiveRegistrationV1(uint256(labelHash))) {
             ccipRead(
                 address(universalResolverV1),
-                abi.encodeCall(IUniversalResolver.resolve, (name, data)),
-                this.resolveV1Callback.selector,
-                ""
+                abi.encodeCall(IUniversalResolver.resolve, (name, data))
             );
         }
         (bool multi, bytes[] memory calls) = _parseCalls(data);
@@ -406,16 +410,6 @@ contract ETHFallbackResolver is
         bytes calldata /*extraData*/
     ) external pure returns (bytes memory result) {
         result = response;
-    }
-
-    /// @dev CCIP-Read callback for `resolve()` from calling `universalResolverV1` (step 2 of 2).
-    /// @param response The response data.
-    /// @return result The abi-encoded result.
-    function resolveV1Callback(
-        bytes calldata response,
-        bytes calldata /*extraData*/
-    ) external pure returns (bytes memory result) {
-        (result, ) = abi.decode(response, (bytes, address));
     }
 
     /// @dev CCIP-Read callback for `resolve()` from calling `namechainVerifier` (step 2 of 2).

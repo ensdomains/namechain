@@ -21,6 +21,9 @@ At present the following contracts are implemented:
 2. Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation)
 3. Install [bun](https://bun.sh/) 1.2+
 4. Install dependencies:
+5. (OPTIONAL) Install [lcov](https://github.com/linux-test-project/lcov) if you want to run coverage tests
+   * Mac: `brew install lcov`
+   * Ubuntu: `sudo apt-get install lcov`
 
 ```sh
 bun i

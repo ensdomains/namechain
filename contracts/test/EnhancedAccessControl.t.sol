@@ -8,8 +8,8 @@ import {EnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAcce
 import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 
 abstract contract MockRoles {
-    bytes32 public constant RESOURCE_1 = bytes32(keccak256("RESOURCE_1"));
-    bytes32 public constant RESOURCE_2 = bytes32(keccak256("RESOURCE_2"));
+    uint256 public constant RESOURCE_1 = uint256(keccak256("RESOURCE_1"));
+    uint256 public constant RESOURCE_2 = uint256(keccak256("RESOURCE_2"));
 
     uint256 public constant ROLE_A = 1 << 0;        // First nybble (bits 0-3)
     uint256 public constant ROLE_B = 1 << 4;       // Second nybble (bits 4-7)
@@ -28,7 +28,7 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
     uint256 public lastGrantedOldRoles;
     uint256 public lastGrantedNewRoles;
     address public lastGrantedAccount;
-    bytes32 public lastGrantedResource;
+    uint256 public lastGrantedResource;
     
     uint256 public lastRevokedCount;
     uint256 public lastRevokedRoleBitmap;
@@ -36,14 +36,14 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
     uint256 public lastRevokedOldRoles;
     uint256 public lastRevokedNewRoles;
     address public lastRevokedAccount;
-    bytes32 public lastRevokedResource;
+    uint256 public lastRevokedResource;
 
     constructor() EnhancedAccessControl() {
         _grantRoles(ROOT_RESOURCE, ROLE_A | ROLE_B | ROLE_C | ROLE_D | ADMIN_ROLE_A | ADMIN_ROLE_B | ADMIN_ROLE_C | ADMIN_ROLE_D, msg.sender, true);
         lastGrantedCount = 0;
         lastRevokedCount = 0;
-        lastGrantedResource = bytes32(0);
-        lastRevokedResource = bytes32(0);
+        lastGrantedResource = 0;
+        lastRevokedResource = 0;
         lastGrantedRoleBitmap = 0;
         lastRevokedRoleBitmap = 0;
         lastGrantedUpdatedRoles = 0;
@@ -59,15 +59,15 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
         // Function that will revert if caller doesn't have the roles in root resource
     }
 
-    function copyRoles(bytes32 resource, address srcAccount, address dstAccount) external {
+    function copyRoles(uint256 resource, address srcAccount, address dstAccount) external {
         _copyRoles(resource, srcAccount, dstAccount, true);
     }
 
-    function revokeAllRoles(bytes32 resource, address account) external returns (bool) {
+    function revokeAllRoles(uint256 resource, address account) external returns (bool) {
         return _revokeAllRoles(resource, account, true);
     }
 
-    function _onRolesGranted(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal override {
+    function _onRolesGranted(uint256 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal override {
         lastGrantedCount++;
         lastGrantedResource = resource;
         lastGrantedRoleBitmap = roleBitmap;
@@ -77,7 +77,7 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
         lastGrantedAccount = account;
     }
 
-    function _onRolesRevoked(bytes32 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal override {
+    function _onRolesRevoked(uint256 resource, address account, uint256 oldRoles, uint256 newRoles, uint256 roleBitmap) internal override {
         lastRevokedCount++;
         lastRevokedResource = resource;
         lastRevokedRoleBitmap = roleBitmap;
@@ -87,34 +87,34 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
         lastRevokedAccount = account;
     }
 
-    function grantRolesWithoutCallback(bytes32 resource, uint256 roleBitmap, address account) external canGrantRoles(resource, roleBitmap) returns (bool) {
+    function grantRolesWithoutCallback(uint256 resource, uint256 roleBitmap, address account) external canGrantRoles(resource, roleBitmap) returns (bool) {
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
         return _grantRoles(resource, roleBitmap, account, false);
     }
     
-    function revokeRolesWithoutCallback(bytes32 resource, uint256 roleBitmap, address account) external canGrantRoles(resource, roleBitmap) returns (bool) {
+    function revokeRolesWithoutCallback(uint256 resource, uint256 roleBitmap, address account) external canGrantRoles(resource, roleBitmap) returns (bool) {
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
         return _revokeRoles(resource, roleBitmap, account, false);
     }
     
-    function copyRolesWithoutCallback(bytes32 resource, address srcAccount, address dstAccount) external {
+    function copyRolesWithoutCallback(uint256 resource, address srcAccount, address dstAccount) external {
         _copyRoles(resource, srcAccount, dstAccount, false);
     }
     
-    function revokeAllRolesWithoutCallback(bytes32 resource, address account) external returns (bool) {
+    function revokeAllRolesWithoutCallback(uint256 resource, address account) external returns (bool) {
         return _revokeAllRoles(resource, account, false);
     }
     
     // Test helpers that bypass all authorization checks to test core logic
-    function grantRolesDirect(bytes32 resource, uint256 roleBitmap, address account) external returns (bool) {
+    function grantRolesDirect(uint256 resource, uint256 roleBitmap, address account) external returns (bool) {
         return _grantRoles(resource, roleBitmap, account, false);
     }
     
-    function revokeRolesDirect(bytes32 resource, uint256 roleBitmap, address account) external returns (bool) {
+    function revokeRolesDirect(uint256 resource, uint256 roleBitmap, address account) external returns (bool) {
         return _revokeRoles(resource, roleBitmap, account, false);
     }
 }
@@ -159,8 +159,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
         
-        assertEq(entries[0].topics[0], keccak256("EACRolesGranted(bytes32,uint256,address)"));
-        (bytes32 resource, uint256 emittedRoleBitmap, address account) = abi.decode(entries[0].data, (bytes32, uint256, address));
+        assertEq(entries[0].topics[0], keccak256("EACRolesGranted(uint256,uint256,address)"));
+        (uint256 resource, uint256 emittedRoleBitmap, address account) = abi.decode(entries[0].data, (uint256, uint256, address));
         assertEq(resource, RESOURCE_1);
         assertEq(emittedRoleBitmap, roleBitmap);
         assertEq(account, user1);
@@ -179,7 +179,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         
         entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        (bytes32 resource2, uint256 emittedRoleBitmap2, address account2) = abi.decode(entries[0].data, (bytes32, uint256, address));
+        (uint256 resource2, uint256 emittedRoleBitmap2, address account2) = abi.decode(entries[0].data, (uint256, uint256, address));
         assertEq(resource2, RESOURCE_1);
         assertEq(emittedRoleBitmap2, mixedRoleBitmap);
         assertEq(account2, user1);
@@ -228,7 +228,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
     
     // Test that grantRoles cannot be called with ROOT_RESOURCE
     function test_grant_roles_with_root_resource_not_allowed() public {
-        bytes32 rootResource = access.ROOT_RESOURCE();
+        uint256 rootResource = access.ROOT_RESOURCE();
         // Attempt to call grantRoles with ROOT_RESOURCE should revert
         vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACRootResourceNotAllowed.selector));
         access.grantRoles(rootResource, ROLE_A, user1);
@@ -239,7 +239,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
         assertTrue(access.hasRoles(RESOURCE_2, ROLE_A, user1));
-        assertTrue(access.hasRoles(bytes32(keccak256("ANY_OTHER_RESOURCE")), ROLE_A, user1));
+        assertTrue(access.hasRoles(uint256(keccak256("ANY_OTHER_RESOURCE")), ROLE_A, user1));
     }
 
     function test_has_root_roles() public {
@@ -359,8 +359,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Verify event was emitted correctly
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(bytes32,uint256,address)"));
-        (bytes32 resource, uint256 roles, address account) = abi.decode(entries[0].data, (bytes32, uint256, address));
+        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(uint256,uint256,address)"));
+        (uint256 resource, uint256 roles, address account) = abi.decode(entries[0].data, (uint256, uint256, address));
         assertEq(resource, RESOURCE_1);
         assertEq(roles, ROLE_A);
         assertEq(account, user1);
@@ -391,8 +391,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Verify event was emitted correctly
         entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(bytes32,uint256,address)"));
-        (resource, roles, account) = abi.decode(entries[0].data, (bytes32, uint256, address));
+        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(uint256,uint256,address)"));
+        (resource, roles, account) = abi.decode(entries[0].data, (uint256, uint256, address));
         assertEq(resource, RESOURCE_1);
         assertEq(roles, mixedRoleBitmap);
         assertEq(account, user1);
@@ -439,7 +439,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
     
     // Test that revokeRoles cannot be called with ROOT_RESOURCE
     function test_revoke_roles_with_root_resource_not_allowed() public {
-        bytes32 rootResource = access.ROOT_RESOURCE();
+        uint256 rootResource = access.ROOT_RESOURCE();
         // Attempt to call revokeRoles with ROOT_RESOURCE should revert
         vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACRootResourceNotAllowed.selector));
         access.revokeRoles(rootResource, ROLE_A, user1);
@@ -466,8 +466,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Verify event was emitted correctly
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(bytes32,uint256,address)"));
-        (bytes32 resource, uint256 roles, address account) = abi.decode(entries[0].data, (bytes32, uint256, address));
+        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(uint256,uint256,address)"));
+        (uint256 resource, uint256 roles, address account) = abi.decode(entries[0].data, (uint256, uint256, address));
         assertEq(resource, access.ROOT_RESOURCE());
         assertEq(roles, ROLE_A);
         assertEq(account, user1);
@@ -558,8 +558,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Verify event was emitted correctly
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(bytes32,uint256,address)"));
-        (bytes32 resource, uint256 roles, address account) = abi.decode(entries[0].data, (bytes32, uint256, address));
+        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(uint256,uint256,address)"));
+        (uint256 resource, uint256 roles, address account) = abi.decode(entries[0].data, (uint256, uint256, address));
         assertEq(resource, RESOURCE_1);
         assertTrue((roles & ROLE_A) == ROLE_A);
         assertTrue((roles & ROLE_B) == ROLE_B);
@@ -614,8 +614,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Verify event was emitted correctly
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EACRolesGranted(bytes32,uint256,address)"));
-        (bytes32 resource, uint256 roleBitmap, address account) = abi.decode(entries[0].data, (bytes32, uint256, address));
+        assertEq(entries[0].topics[0], keccak256("EACRolesGranted(uint256,uint256,address)"));
+        (uint256 resource, uint256 roleBitmap, address account) = abi.decode(entries[0].data, (uint256, uint256, address));
         assertEq(resource, RESOURCE_1);
         assertEq(account, user2);
         
@@ -648,8 +648,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Verify event was emitted correctly
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("EACRolesGranted(bytes32,uint256,address)"));
-        (bytes32 resource, uint256 roleBitmap, address account) = abi.decode(entries[0].data, (bytes32, uint256, address));
+        assertEq(entries[0].topics[0], keccak256("EACRolesGranted(uint256,uint256,address)"));
+        (uint256 resource, uint256 roleBitmap, address account) = abi.decode(entries[0].data, (uint256, uint256, address));
         assertEq(resource, RESOURCE_1);
         assertEq(account, user2);
         // The bitmap should include ROLE_A and ROLE_B (and admin bits)
@@ -684,7 +684,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertEq(access.lastRevokedCount(), 1);
 
         // Test granting roles that already exist (should not trigger callback)
-        bytes32 prevGrantedResource = access.lastGrantedResource();
+        uint256 prevGrantedResource = access.lastGrantedResource();
         uint256 prevGrantedRoleBitmap = access.lastGrantedRoleBitmap();
         uint256 prevGrantedCount = access.lastGrantedCount();
         
