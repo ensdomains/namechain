@@ -6,6 +6,7 @@ import "forge-std/console.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../src/L2/ETHRegistrar.sol";
 import "../src/L2/TokenPriceOracle.sol";
@@ -305,7 +306,7 @@ contract ETHRegistrarOperationalRisksTest is Test, ERC1155Holder {
         
         // Registration should fail because SafeERC20 catches the false return
         console.log("Attempting registration with false-returning token...");
-        vm.expectRevert(); // SafeERC20 will revert with SafeERC20FailedOperation
+        vm.expectRevert(abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, address(falseToken)));
         registrar.register("exploit", user, SECRET, registry, address(0), DURATION, address(falseToken));
         
         uint256 balanceAfter = falseToken.balanceOf(user);
