@@ -6,7 +6,6 @@ import {IRegistry} from "../common/IRegistry.sol";
 import {IERC1155Singleton} from "../common/IERC1155Singleton.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {ITokenPriceOracle} from "./ITokenPriceOracle.sol";
-import {TokenPriceOracle} from "./TokenPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {EnhancedAccessControl, LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
