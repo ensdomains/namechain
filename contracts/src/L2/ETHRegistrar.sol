@@ -36,7 +36,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     error DurationOverflow(uint64 expiry, uint64 duration);
 
     IPermissionedRegistry public immutable registry;
-    ITokenPriceOracle public immutable prices;
+    ITokenPriceOracle public immutable tokenPriceOracle;
     uint256 public immutable minCommitmentAge;
     uint256 public immutable maxCommitmentAge;
     address public immutable beneficiary;
@@ -52,7 +52,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             revert MaxCommitmentAgeTooLow();
         }
 
-        prices = _prices;
+        tokenPriceOracle = _prices;
         minCommitmentAge = _minCommitmentAge;
         maxCommitmentAge = _maxCommitmentAge;
         beneficiary = _beneficiary;
@@ -86,7 +86,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
      */ 
     function rentPrice(string memory name, uint256 duration) public view override returns (ITokenPriceOracle.Price memory price) {
         (, uint64 expiry, ) = registry.getNameData(name);
-        price = prices.price(name, uint256(expiry), duration);
+        price = tokenPriceOracle.price(name, uint256(expiry), duration);
     }
 
     /**
@@ -97,14 +97,12 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
      * @return tokenAmount The amount of tokens required.
      */
     function checkPrice(string memory name, uint256 duration, address token) public view returns (uint256 tokenAmount) {
-        ITokenPriceOracle tokenOracle = prices;
-        
-        if (!tokenOracle.getTokenConfig(token).enabled) {
+        if (!tokenPriceOracle.getTokenConfig(token).enabled) {
             revert TokenNotSupported(token);
         }
 
         (, uint64 expiry, ) = registry.getNameData(name);
-        tokenAmount = tokenOracle.priceInToken(name, uint256(expiry), duration, token);
+        tokenAmount = tokenPriceOracle.priceInToken(name, uint256(expiry), duration, token);
     }    
 
 
@@ -178,12 +176,11 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
         uint64 expiry = uint64(block.timestamp) + duration;
         // Get USD pricing breakdown
-        ITokenPriceOracle.Price memory usdPrice = prices.price(name, expiry, duration);
+        ITokenPriceOracle.Price memory usdPrice = tokenPriceOracle.price(name, expiry, duration);
         
         // Convert to token amount for payment and handle transfer
         {
-            ITokenPriceOracle tokenOracle = prices;
-            uint256 tokenAmount = tokenOracle.priceInToken(name, expiry, duration, token);
+            uint256 tokenAmount = tokenPriceOracle.priceInToken(name, expiry, duration, token);
             // EFFECTS: Handle payment BEFORE state changes
             IERC20(token).safeTransferFrom(msg.sender, beneficiary, tokenAmount);
         }
@@ -211,12 +208,11 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         uint64 newExpiry = expiry + duration;
         
         // Get USD pricing breakdown
-        ITokenPriceOracle.Price memory usdPrice = prices.price(name, uint256(expiry), duration);
+        ITokenPriceOracle.Price memory usdPrice = tokenPriceOracle.price(name, uint256(expiry), duration);
         
         // Convert to token amount for payment and handle transfer
         {
-            ITokenPriceOracle tokenOracle = prices;
-            uint256 tokenAmount = tokenOracle.priceInToken(name, uint256(expiry), duration, token);
+            uint256 tokenAmount = tokenPriceOracle.priceInToken(name, uint256(expiry), duration, token);
             // EFFECTS: Handle payment BEFORE state changes
             IERC20(token).safeTransferFrom(msg.sender, beneficiary, tokenAmount);
         }
