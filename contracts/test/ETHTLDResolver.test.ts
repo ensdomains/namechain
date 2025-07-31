@@ -87,7 +87,7 @@ async function fixture() {
     owner: mainnetV2.walletClient.account.address,
   });
   const burnAddressV1 = "0x000000000000000000000000000000000000FadE";
-  const ethTLDResolver = await deployResolver(32);
+  const ethTLDResolver = await deployWithMaxRequests(32);
   return {
     ethTLDResolver,
     ethResolver,
@@ -95,9 +95,9 @@ async function fixture() {
     burnAddressV1,
     mainnetV2,
     namechain,
-    deployResolver,
+    deployWithMaxRequests,
   } as const;
-  async function deployResolver(maxReadsPerRequest: number) {
+  async function deployWithMaxRequests(maxReadsPerRequest: number) {
     const resolver = await chain1.viem.deployContract(
       "ETHTLDResolver",
       [
@@ -572,7 +572,7 @@ describe("ETHTLDResolver", () => {
         it(`maxReadsPerRequest = ${max}`, async () => {
           const F = await loadFixture();
           const ethTLDResolver = max
-            ? await F.deployResolver(max)
+            ? await F.deployWithMaxRequests(max)
             : F.ethTLDResolver;
           await expect(
             ethTLDResolver.read.maxReadsPerRequest(),
