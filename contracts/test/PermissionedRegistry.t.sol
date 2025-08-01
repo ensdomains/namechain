@@ -14,6 +14,8 @@ import "../src/common/BaseRegistry.sol";
 import "../src/common/IPermissionedRegistry.sol";
 import "../src/L2/ETHRegistrar.sol";
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
+import {ITokenPriceOracle} from "../src/L2/ITokenPriceOracle.sol";
+import {TokenPriceOracle} from "../src/L2/TokenPriceOracle.sol";
 import "../src/common/ITokenObserver.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
@@ -29,7 +31,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     MockTokenObserver observer;
     RevertingTokenObserver revertingObserver;
     IRegistryMetadata metadata;
-    MockPriceOracle priceOracle;
+    ITokenPriceOracle priceOracle;
 
     // Role bitmaps for different permission configurations
 
@@ -50,8 +52,14 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry = new MockPermissionedRegistry(datastore, metadata, address(this), deployerRoles);
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
-        priceOracle = new MockPriceOracle();
-        registrar = new ETHRegistrar(address(registry), priceOracle, 60, 86400);
+        // Create TokenPriceOracle with minimal test setup
+        address[] memory tokens = new address[](0); // No tokens needed for basic tests
+        uint8[] memory decimals = new uint8[](0);
+        uint256[] memory rentPrices = new uint256[](1);
+        rentPrices[0] = 1000000; // 1 USD in 6 decimals
+        
+        priceOracle = ITokenPriceOracle(address(new TokenPriceOracle(tokens, decimals, rentPrices)));
+        registrar = new ETHRegistrar(address(registry), priceOracle, 60, 86400, address(0x99));
     }
 
     function test_constructor_sets_roles() public view {
@@ -1033,11 +1041,3 @@ contract RevertingTokenObserver is ITokenObserver {
     }
 }
 
-contract MockPriceOracle is IPriceOracle {
-    function price(string memory, uint256, uint256) external pure override returns (Price memory) {
-        return Price({
-            base: 0.01 ether,
-            premium: 0
-        });
-    }
-}
