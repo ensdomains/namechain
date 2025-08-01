@@ -15,6 +15,7 @@ docs/
 
 node_modules/
 cache_hardhat/
+edr-fork-cache/
 artifacts/
 typechain-types/
 
