@@ -18,6 +18,7 @@ const KNOWN: KnownProfile[] = [
   },
   {
     name: "raffy.xyz",
+    texts: [{ key: "avatar", value: "https://raffy.xyz/ens.jpg" }],
     addresses: [
       {
         coinType: COIN_TYPE_ETH,
