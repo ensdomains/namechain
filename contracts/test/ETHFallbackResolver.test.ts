@@ -240,10 +240,7 @@ describe("ETHFallbackResolver", () => {
         };
         const [res] = makeResolutions(kp);
         await F.mainnetV1.setupName(kp);
-        await F.mainnetV1.walletClient.sendTransaction({
-          to: F.mainnetV1.ownedResolver.address,
-          data: res.write, // V1 OwnedResolver lacks multicall()
-        });
+        await F.mainnetV1.publicResolver.write.multicall([[res.write]]);
         await sync();
         const [answer, resolver] =
           await F.mainnetV2.universalResolver.read.resolve([

@@ -3,6 +3,7 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {GatewayProvider} from "@ens/contracts/ccipRead/GatewayProvider.sol";
 import {DNSTLDResolver, ENS, IRegistry, DNSSEC, HexUtils} from "../../src/L1/dns/DNSTLDResolver.sol";
 import {PermissionedRegistry, IRegistryMetadata} from "../../src/common/PermissionedRegistry.sol";
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
@@ -18,8 +19,8 @@ contract MockDNS is DNSTLDResolver {
             address(0),
             rootRegistry,
             DNSSEC(address(0)),
-            new string[](0),
-            new string[](0)
+            new GatewayProvider(new string[](0)),
+            new GatewayProvider(new string[](0))
         )
     {}
     function readTXT(bytes memory v) external pure returns (bytes memory) {
