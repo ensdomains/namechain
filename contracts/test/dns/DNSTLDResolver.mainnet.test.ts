@@ -28,9 +28,9 @@ const KNOWN: KnownProfile[] = [
   },
 ];
 
-const url =
-  hre.config.networks.mainnet.type === "http" &&
-  (await hre.config.networks.mainnet.url.get());
+const url = await (async (config) => {
+  return config.type === "http" && config.url.get();
+})(hre.config.networks.mainnet).catch(() => {});
 
 let tests = () => {};
 if (url) {
