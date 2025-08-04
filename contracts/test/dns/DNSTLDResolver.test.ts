@@ -1,6 +1,6 @@
 import hre from "hardhat";
 import { describe, expect, it } from "vitest";
-import { concat, encodeErrorResult, stringToHex } from "viem";
+import { Address, concat, encodeErrorResult, stringToHex } from "viem";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
 
 import { shouldSupportFeatures } from "../utils/supportsFeatures.js";
@@ -57,10 +57,7 @@ async function fixture() {
     resolverAddress: dnsTLDResolver.address,
   });
   const dnsTXTResolver = await chain.viem.deployContract("DNSTXTResolver");
-  await mainnetV2.setupName({
-    name: dnsnameResolver,
-    resolverAddress: dnsTXTResolver.address,
-  });
+  await setupNamedResolver(dnsnameResolver, dnsTXTResolver.address);
   return {
     mainnetV1,
     mainnetV2,
@@ -69,20 +66,31 @@ async function fixture() {
     dnsTLDResolverV1,
     dnsTLDResolver,
     dnsTXTResolver,
-    async expectGasless(kp: KnownProfile) {
-      const bundle = bundleCalls(makeResolutions(kp));
-      const [answer, resolver] = await mainnetV2.universalResolver.read.resolve(
-        [dnsEncodeName(kp.name), bundle.call],
-      );
-      expectVar({ resolver }).toEqualAddress(dnsTLDResolver.address);
-      bundle.expect(answer);
-      const directAnswer = await dnsTLDResolver.read.resolve([
-        dnsEncodeName(kp.name),
-        bundle.call,
-      ]);
-      expectVar({ directAnswer }).toStrictEqual(answer);
-    },
+    expectGasless,
+    setupNamedResolver,
   };
+  async function expectGasless(kp: KnownProfile) {
+    const bundle = bundleCalls(makeResolutions(kp));
+    const [answer, resolver] = await mainnetV2.universalResolver.read.resolve([
+      dnsEncodeName(kp.name),
+      bundle.call,
+    ]);
+    expectVar({ resolver }).toEqualAddress(dnsTLDResolver.address);
+    bundle.expect(answer);
+    const directAnswer = await dnsTLDResolver.read.resolve([
+      dnsEncodeName(kp.name),
+      bundle.call,
+    ]);
+    expectVar({ directAnswer }).toStrictEqual(answer);
+  }
+  async function setupNamedResolver(name: string, resolver: Address) {
+    const res = await mainnetV2.deployDedicatedResolver();
+    await mainnetV2.setupName({
+      name,
+      resolverAddress: res.address,
+    });
+    await res.write.setAddr([COIN_TYPE_ETH, resolver]);
+  }
 }
 
 describe("DNSTLDResolver", () => {
@@ -211,10 +219,7 @@ describe("DNSTLDResolver", () => {
       testProfiles("onchain immediate", (kp) => async () => {
         const F = await chain.networkHelpers.loadFixture(fixture);
         const name = "myresolver.eth";
-        await F.mainnetV2.setupName({
-          name,
-          resolverAddress: F.ssResolver.address,
-        });
+        await F.setupNamedResolver(name, F.ssResolver.address);
         for (const res of makeResolutions(kp)) {
           await F.ssResolver.write.setResponse([res.call, res.answer]);
         }
@@ -227,10 +232,7 @@ describe("DNSTLDResolver", () => {
       testProfiles("offchain extended", (kp) => async () => {
         const F = await chain.networkHelpers.loadFixture(fixture);
         const name = "myresolver.eth";
-        await F.mainnetV2.setupName({
-          name,
-          resolverAddress: F.ssResolver.address,
-        });
+        await F.setupNamedResolver(name, F.ssResolver.address);
         await F.ssResolver.write.setExtended([true]);
         await F.ssResolver.write.setOffchain([true]);
         for (const res of makeResolutions(kp)) {

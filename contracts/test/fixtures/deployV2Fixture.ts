@@ -50,9 +50,7 @@ export async function deployV2Fixture(
     await networkConnection.viem.deployContract("VerifiableFactory");
   const dedicatedResolverImpl =
     await networkConnection.viem.deployContract("DedicatedResolver");
-  const dedicatedResolver = await deployDedicatedResolver({
-    owner: walletClient.account.address,
-  });
+  const dedicatedResolver = await deployDedicatedResolver();
   return {
     networkConnection,
     publicClient,
@@ -67,12 +65,12 @@ export async function deployV2Fixture(
     setupName,
   };
   async function deployDedicatedResolver({
-    owner,
+    owner = walletClient.account.address,
     salt = BigInt(labelhash(new Date().toISOString())),
   }: {
     owner: Address;
     salt?: bigint;
-  }) {
+  } = {}) {
     const wallet = await networkConnection.viem.getWalletClient(owner);
     const hash = await verifiableFactory.write.deployProxy([
       dedicatedResolverImpl.address,
