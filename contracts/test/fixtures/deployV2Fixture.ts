@@ -68,7 +68,7 @@ export async function deployV2Fixture(
     owner = walletClient.account.address,
     salt = BigInt(labelhash(new Date().toISOString())),
   }: {
-    owner: Address;
+    owner?: Address;
     salt?: bigint;
   } = {}) {
     const wallet = await networkConnection.viem.getWalletClient(owner);
