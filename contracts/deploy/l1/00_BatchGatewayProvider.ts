@@ -8,7 +8,7 @@ export default execute(
 	await deploy("BatchGatewayProvider", {
 	  account: deployer,
 	  artifact: artifacts.GatewayProvider,
-	  args: [['x-batch-gateway:true']],
+	  args: [deployer, ['x-batch-gateway:true']],
 	});
   },
   // finally you can pass tags and dependencies

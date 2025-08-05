@@ -42,7 +42,7 @@ async function fixture() {
   );
   const oracleGatewayProvider = await chain.viem.deployContract(
     "GatewayProvider",
-    [[dnsOracleGateway]],
+    [mainnetV2.walletClient.account.address, [dnsOracleGateway]],
   );
   const dnsTLDResolver = await chain.viem.deployContract("DNSTLDResolver", [
     mainnetV1.ensRegistry.address,

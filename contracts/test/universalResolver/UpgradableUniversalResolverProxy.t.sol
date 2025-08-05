@@ -38,7 +38,7 @@ contract ProxyTest is Test {
 
         string[] memory gatewayUrls = new string[](1);
         gatewayUrls[0] = "http://universal-offchain-resolver.local";
-        GatewayProvider batchGatewayProvider = new GatewayProvider(gatewayUrls);
+        GatewayProvider batchGatewayProvider = new GatewayProvider(address(this), gatewayUrls);
 
         // Deploy the implementations
         urV1 = new UniversalResolverV1(
@@ -47,7 +47,7 @@ contract ProxyTest is Test {
             batchGatewayProvider
         );
         urV2 = new UniversalResolverV2(
-            IRegistry(address(0x0)),
+            IRegistry(address(0)),
             batchGatewayProvider
         );
 

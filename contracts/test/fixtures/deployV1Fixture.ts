@@ -36,6 +36,7 @@ export async function deployV1Fixture<C extends NetworkConnection>(
   ]);
   await reverseRegistrar.write.setDefaultResolver([publicResolver.address]);
   const batchGatewayProvider = await nc.viem.deployContract("GatewayProvider", [
+    walletClient.account.address,
     ["x-batch-gateway:true"],
   ]);
   const universalResolver = await nc.viem.deployContract(

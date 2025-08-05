@@ -37,6 +37,7 @@ export async function deployV2Fixture(
     ROLES.ALL,
   ]);
   const batchGatewayProvider = await nc.viem.deployContract("GatewayProvider", [
+    walletClient.account.address,
     ["x-batch-gateway:true"],
   ]);
   const universalResolver = await nc.viem.deployContract(

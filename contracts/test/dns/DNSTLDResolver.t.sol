@@ -19,8 +19,8 @@ contract MockDNS is DNSTLDResolver {
             address(0),
             rootRegistry,
             DNSSEC(address(0)),
-            new GatewayProvider(new string[](0)),
-            new GatewayProvider(new string[](0))
+            new GatewayProvider(address(1), new string[](0)),
+            new GatewayProvider(address(1), new string[](0))
         )
     {}
     function readTXT(bytes memory v) external pure returns (bytes memory) {
