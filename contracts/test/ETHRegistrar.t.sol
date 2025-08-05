@@ -34,10 +34,17 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     address beneficiary = address(0x3);
     uint256 constant MIN_COMMITMENT_AGE = 60; // 1 minute
     uint256 constant MAX_COMMITMENT_AGE = 86400; // 1 day
-    // Using ENS-style pricing for realistic tests
-    uint256 constant PRICE_5_CHAR = 1; // 1 attousd/sec for 5+ chars
-    uint256 constant PRICE_4_CHAR = 2; // 2 attousd/sec for 4 chars  
-    uint256 constant PRICE_3_CHAR = 4; // 4 attousd/sec for 3 chars
+    // Realistic ENS pricing from https://docs.ens.domains/registry/eth 
+    // Using per-second rates calculated with high precision to avoid rounding to zero
+    // 5+ character names: $5/year ÷ 31,536,000 seconds = ~158.5 × 10^-9 USD/sec
+    // 4 character names: $160/year ÷ 31,536,000 seconds = ~5.072 × 10^-6 USD/sec  
+    // 3 character names: $640/year ÷ 31,536,000 seconds = ~20.289 × 10^-6 USD/sec
+    
+    // Scale up to avoid integer division rounding to zero
+    // Using nanodollars per second (1e9 scaling) then converting to 6-decimal USD
+    uint256 constant PRICE_5_CHAR = 158; // ~158.5 nanodollars/sec → multiply by duration to get total 
+    uint256 constant PRICE_4_CHAR = 5072; // ~5072 nanodollars/sec
+    uint256 constant PRICE_3_CHAR = 20289; // ~20289 nanodollars/sec
     uint64 constant REGISTRATION_DURATION = 365 days;
     bytes32 constant SECRET = bytes32(uint256(1234567890));
 
@@ -885,6 +892,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         uint256 price2 = registrar.checkPrice("ab", duration, address(usdc));
         assertEq(price2, 0);
     }
+
 
     receive() external payable {}
 } 
