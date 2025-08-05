@@ -50,7 +50,6 @@ export async function deployV2Fixture(
     await networkConnection.viem.deployContract("VerifiableFactory");
   const dedicatedResolverImpl =
     await networkConnection.viem.deployContract("DedicatedResolver");
-  const dedicatedResolver = await deployDedicatedResolver();
   return {
     networkConnection,
     publicClient,
@@ -60,7 +59,6 @@ export async function deployV2Fixture(
     ethRegistry,
     universalResolver,
     verifiableFactory,
-    dedicatedResolver, // warning: this is owned by the default wallet
     deployDedicatedResolver,
     setupName,
   };
@@ -94,13 +92,17 @@ export async function deployV2Fixture(
     );
   }
   // creates registries up to the parent name
-
-  async function setupName<exact_ extends boolean = false>({
+  // if exact, exactRegistry is setup
+  // if no resolverAddress, dedicatedResolver is deployed
+  async function setupName<
+    exact_ extends boolean = false,
+    resolver_ extends false | Address = false,
+  >({
     name,
     owner = walletClient.account.address,
     expiry = MAX_EXPIRY,
     roles = ROLES.ALL,
-    resolverAddress = dedicatedResolver.address,
+    resolverAddress,
     metadataAddress = zeroAddress,
     exact,
   }: {
@@ -108,12 +110,18 @@ export async function deployV2Fixture(
     owner?: Address;
     expiry?: bigint;
     roles?: bigint;
-    resolverAddress?: Address;
+    resolverAddress?: resolver_ | Address;
     metadataAddress?: Address;
-    exact?: exact_ | undefined;
+    exact?: exact_;
   }) {
     const labels = splitName(name);
     if (!labels.length) throw new Error("expected name");
+    const dedicatedResolver = resolverAddress
+      ? undefined
+      : await deployDedicatedResolver({ owner });
+    if (!resolverAddress) {
+      resolverAddress = dedicatedResolver?.address ?? zeroAddress;
+    }
     const registries = [rootRegistry];
     while (true) {
       const parentRegistry = registries[0];
@@ -128,7 +136,12 @@ export async function deployV2Fixture(
           // registry does not exist, create it
           const registry = await networkConnection.viem.deployContract(
             "PermissionedRegistry",
-            [datastore.address, metadataAddress, walletClient.account.address, roles],
+            [
+              datastore.address,
+              metadataAddress,
+              walletClient.account.address,
+              roles,
+            ],
           );
           registryAddress = registry.address;
           if (exists) {
@@ -167,16 +180,28 @@ export async function deployV2Fixture(
       }
       if (leaf) {
         // invariants:
+        //            tokenId == labelToCanonicalId(labels[0])
         //  registries.length == labels.length
         //     exactRegistry? == registries[0]
         //     parentRegistry == registries[1]
-        //            tokenId == labelToCanonicalId(labels[0])
+        // dedicatedResolver? == !resolverAddress
         return {
           labels,
           tokenId,
           parentRegistry,
-          exactRegistry: exact ? registries[0] : undefined,
-          registries: exact ? registries : [undefined, ...registries],
+          exactRegistry: (exact
+            ? registries[0]
+            : undefined) as exact_ extends true
+            ? (typeof registries)[number]
+            : undefined,
+          registries: (exact
+            ? registries
+            : [undefined, ...registries]) as exact_ extends true
+            ? typeof registries
+            : [undefined, ...typeof registries],
+          dedicatedResolver: dedicatedResolver as resolver_ extends false
+            ? NonNullable<typeof dedicatedResolver>
+            : undefined,
         };
       }
     }

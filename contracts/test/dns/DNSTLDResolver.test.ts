@@ -168,16 +168,14 @@ describe("DNSTLDResolver", () => {
   it("imported on V2", async () => {
     const F = await chain.networkHelpers.loadFixture(fixture);
     const bundle = bundleCalls(makeResolutions(basicProfile));
-    await F.mainnetV2.setupName(basicProfile);
-    await F.mainnetV2.dedicatedResolver.write.multicall([
+    const { dedicatedResolver } = await F.mainnetV2.setupName(basicProfile);
+    await dedicatedResolver.write.multicall([
       bundle.resolutions.map((x) => x.writeDedicated),
     ]);
     const [answer, resolver] = await F.mainnetV2.universalResolver.read.resolve(
       [dnsEncodeName(basicProfile.name), bundle.call],
     );
-    expectVar({ resolver }).toEqualAddress(
-      F.mainnetV2.dedicatedResolver.address,
-    );
+    expectVar({ resolver }).toEqualAddress(dedicatedResolver.address);
     bundle.expect(answer);
   });
 
@@ -203,12 +201,11 @@ describe("DNSTLDResolver", () => {
     describe("via address", () => {
       testProfiles("onchain immediate", (kp) => async () => {
         const F = await chain.networkHelpers.loadFixture(fixture);
+        const dedicatedResolver = await F.mainnetV2.deployDedicatedResolver();
         await F.mockDNSSEC.write.setResponse([
-          encodeRRs([
-            makeTXT(kp.name, `ENS1 ${F.mainnetV2.dedicatedResolver.address}`),
-          ]),
+          encodeRRs([makeTXT(kp.name, `ENS1 ${dedicatedResolver.address}`)]),
         ]);
-        await F.mainnetV2.dedicatedResolver.write.multicall([
+        await dedicatedResolver.write.multicall([
           makeResolutions(kp).map((x) => x.writeDedicated),
         ]);
         await F.expectGasless(kp);
