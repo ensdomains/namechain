@@ -81,4 +81,48 @@ contract TestStablePriceOracle is Test {
         vm.expectRevert(StablePriceOracle.InvalidRentPricesLength.selector);
         new StablePriceOracle(tokens, decimals, wrongRentPrices);
     }
+
+    function test_duration_calculations() public view {
+        // Test different durations
+        uint256 oneYear = 365 days;
+        uint256 twoYears = 2 * 365 days;
+        uint256 sixMonths = 182.5 days;
+        
+        // 5 character name for 2 years
+        IPriceOracle.Price memory price2y = priceOracle.price("alice", 0, twoYears);
+        assertEq(price2y.base, PRICE_5_LETTER * twoYears);
+        
+        // 4 character name for 6 months
+        IPriceOracle.Price memory price6m = priceOracle.price("test", 0, sixMonths);
+        assertEq(price6m.base, PRICE_4_LETTER * sixMonths);
+        
+        // 3 character name for exactly 1 year
+        IPriceOracle.Price memory price1y = priceOracle.price("xyz", 0, oneYear);
+        assertEq(price1y.base, PRICE_3_LETTER * oneYear);
+    }
+
+    function test_edge_case_names() public view {
+        uint256 duration = 365 days;
+        
+        // Empty name
+        IPriceOracle.Price memory priceEmpty = priceOracle.price("", 0, duration);
+        assertEq(priceEmpty.base, 0);
+        
+        // Very long name
+        IPriceOracle.Price memory priceLong = priceOracle.price("verylongdomainnamethatexceedsanyreasonablelength", 0, duration);
+        assertEq(priceLong.base, PRICE_5_LETTER * duration);
+        
+        // Unicode characters (counted as bytes)
+        IPriceOracle.Price memory priceUnicode = priceOracle.price(unicode"🦄", 0, duration);
+        assertEq(priceUnicode.base, PRICE_4_LETTER * duration); // 4 bytes for emoji
+    }
+
+    function test_token_conversion() public view {
+        string memory name = "alice";
+        uint256 duration = 365 days;
+        
+        // Test USDC conversion (6 decimals)
+        uint256 usdcAmount = priceOracle.priceInToken(name, 0, duration, address(usdc));
+        assertEq(usdcAmount, PRICE_5_LETTER * duration);
+    }
 }
