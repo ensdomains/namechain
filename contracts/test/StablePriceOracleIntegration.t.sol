@@ -27,10 +27,13 @@ contract TestStablePriceOracleIntegration is Test, ERC1155Holder {
     
     uint64 constant YEAR = 365 days;
     
-    // Pricing constants matching ENS mainnet (per-second rates)
-    uint256 constant PRICE_5_LETTER = (5 * 1e6) / YEAR; // $5/year converted to per-second
-    uint256 constant PRICE_4_LETTER = (160 * 1e6) / YEAR; // $160/year converted to per-second  
-    uint256 constant PRICE_3_LETTER = (640 * 1e6) / YEAR; // $640/year converted to per-second
+    // Ported from ENS ens-contracts TestStablePriceOracle.ts
+    // Price Array: [0, 0, 4, 2, 1] (attousd per second by name length)
+    uint256 constant PRICE_1_CHAR = 0; // 0 attousd/sec (not allowed)
+    uint256 constant PRICE_2_CHAR = 0; // 0 attousd/sec (not allowed)
+    uint256 constant PRICE_3_CHAR = 4; // 4 attousd/sec 
+    uint256 constant PRICE_4_CHAR = 2; // 2 attousd/sec
+    uint256 constant PRICE_5_CHAR = 1; // 1 attousd/sec (5+ chars)
     bytes32 constant SECRET = bytes32(uint256(1234567890));
     
     function setUp() public {
@@ -47,11 +50,11 @@ contract TestStablePriceOracleIntegration is Test, ERC1155Holder {
         decimals[0] = 6;
         
         uint256[] memory rentPrices = new uint256[](5);
-        rentPrices[0] = PRICE_5_LETTER;
-        rentPrices[1] = PRICE_4_LETTER;
-        rentPrices[2] = PRICE_3_LETTER;
-        rentPrices[3] = 0; // 2 char not supported
-        rentPrices[4] = 0; // 1 char not supported
+        rentPrices[0] = PRICE_5_CHAR; // 5+ chars
+        rentPrices[1] = PRICE_4_CHAR; // 4 chars
+        rentPrices[2] = PRICE_3_CHAR; // 3 chars
+        rentPrices[3] = PRICE_2_CHAR; // 2 chars (not supported)
+        rentPrices[4] = PRICE_1_CHAR; // 1 char (not supported)
         
         priceOracle = new StablePriceOracle(tokens, decimals, rentPrices);
         
@@ -78,14 +81,15 @@ contract TestStablePriceOracleIntegration is Test, ERC1155Holder {
     function test_registration_with_length_based_pricing() public {
         // Test registering names of different lengths
         
-        // 5 character name - $5/year (per-second rate * duration)
-        _testRegistration("alice", PRICE_5_LETTER * YEAR);
+        // Using ENS test names for consistency
+        // 5+ character name: 1 attousd/sec
+        _testRegistration("fubar", PRICE_5_CHAR * YEAR);
         
-        // 4 character name - $160/year  
-        _testRegistration("test", PRICE_4_LETTER * YEAR);
+        // 4 character name: 2 attousd/sec
+        _testRegistration("quux", PRICE_4_CHAR * YEAR);
         
-        // 3 character name - $640/year
-        _testRegistration("xyz", PRICE_3_LETTER * YEAR);
+        // 3 character name: 4 attousd/sec
+        _testRegistration("foo", PRICE_3_CHAR * YEAR);
     }
     
     function test_multi_year_registration_pricing() public {
@@ -93,7 +97,7 @@ contract TestStablePriceOracleIntegration is Test, ERC1155Holder {
         uint64 duration = 3 * YEAR; // 3 years
         
         // Check price
-        uint256 expectedCost = PRICE_5_LETTER * duration;
+        uint256 expectedCost = PRICE_5_CHAR * duration;
         uint256 actualCost = registrar.checkPrice(name, duration, address(usdc));
         assertEq(actualCost, expectedCost, "3-year registration price incorrect");
         
@@ -125,7 +129,7 @@ contract TestStablePriceOracleIntegration is Test, ERC1155Holder {
         uint64 initialExpiry = registry.getExpiry(tokenId);
         
         // Check renewal price
-        uint256 expectedRenewalCost = PRICE_4_LETTER * renewalDuration;
+        uint256 expectedRenewalCost = PRICE_4_CHAR * renewalDuration;
         uint256 actualRenewalCost = registrar.checkPrice(name, renewalDuration, address(usdc));
         assertEq(actualRenewalCost, expectedRenewalCost, "Renewal price incorrect");
         
@@ -155,7 +159,7 @@ contract TestStablePriceOracleIntegration is Test, ERC1155Holder {
     function test_beneficiary_receives_payments() public {
         string memory name = "premium"; // 7 char name
         uint64 duration = YEAR;
-        uint256 expectedCost = PRICE_5_LETTER * duration;
+        uint256 expectedCost = PRICE_5_CHAR * duration;
         
         uint256 beneficiaryBalanceBefore = usdc.balanceOf(beneficiary);
         
