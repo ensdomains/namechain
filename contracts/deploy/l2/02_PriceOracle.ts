@@ -14,11 +14,11 @@ export default execute(
 
     const tokenAddresses = [mockUSDC.address, mockDAI.address];
     const tokenDecimals = [6, 18]; // USDC: 6 decimals, DAI: 18 decimals
-    const rentPrices = [BASE_PRICE_USD]; // Array of rent prices (base price)
+    const rentPrices = [BASE_PRICE_USD, BASE_PRICE_USD, BASE_PRICE_USD, 0n, 0n]; // Array of rent prices (5 prices for StablePriceOracle)
 
     await deploy("PriceOracle", {
       account: deployer,
-      artifact: artifacts.TokenPriceOracle,
+      artifact: artifacts.StablePriceOracle,
       args: [
         tokenAddresses,
         tokenDecimals,
