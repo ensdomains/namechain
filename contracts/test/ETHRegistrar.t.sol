@@ -8,7 +8,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import "../src/L2/ETHRegistrar.sol";
-import "../src/L2/TokenPriceOracle.sol";
+import "../src/L2/StablePriceOracle.sol";
 import "./mocks/MockPermissionedRegistry.sol";
 import "../src/common/RegistryDatastore.sol";
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
@@ -25,7 +25,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     RegistryDatastore datastore;
     MockPermissionedRegistry registry;
     ETHRegistrar registrar;
-    TokenPriceOracle priceOracle;
+    StablePriceOracle priceOracle;
     MockERC20 usdc;
     MockERC20 dai;
 
@@ -34,8 +34,10 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     address beneficiary = address(0x3);
     uint256 constant MIN_COMMITMENT_AGE = 60; // 1 minute
     uint256 constant MAX_COMMITMENT_AGE = 86400; // 1 day
-    uint256 constant BASE_PRICE_USD = 10 * 1e6;  // $10 in 6 decimals (USDC standard)
-    uint256 constant PREMIUM_PRICE_USD = 0; // $0 in 6 decimals
+    // Using ENS-style pricing for realistic tests
+    uint256 constant PRICE_5_CHAR = 1; // 1 attousd/sec for 5+ chars
+    uint256 constant PRICE_4_CHAR = 2; // 2 attousd/sec for 4 chars  
+    uint256 constant PRICE_3_CHAR = 4; // 4 attousd/sec for 3 chars
     uint64 constant REGISTRATION_DURATION = 365 days;
     bytes32 constant SECRET = bytes32(uint256(1234567890));
 
@@ -52,7 +54,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         usdc = new MockERC20("USDC", "USDC", 6);
         dai = new MockERC20("DAI", "DAI", 18);
 
-        // Setup TokenPriceOracle
+        // Setup StablePriceOracle with length-based pricing
         address[] memory tokens = new address[](2);
         tokens[0] = address(usdc);
         tokens[1] = address(dai);
@@ -61,10 +63,15 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         decimals[0] = 6; // USDC
         decimals[1] = 18; // DAI
         
-        uint256[] memory rentPrices = new uint256[](1);
-        rentPrices[0] = BASE_PRICE_USD; // Use the test constant
+        // Price array: [5+char, 4char, 3char, 2char, 1char]  
+        uint256[] memory rentPrices = new uint256[](5);
+        rentPrices[0] = PRICE_5_CHAR; // 5+ chars
+        rentPrices[1] = PRICE_4_CHAR; // 4 chars
+        rentPrices[2] = PRICE_3_CHAR; // 3 chars  
+        rentPrices[3] = 0; // 2 chars (not supported)
+        rentPrices[4] = 0; // 1 char (not supported)
         
-        priceOracle = new TokenPriceOracle(tokens, decimals, rentPrices);
+        priceOracle = new StablePriceOracle(tokens, decimals, rentPrices);
 
         // Setup registry and registrar
         datastore = new RegistryDatastore();
@@ -175,20 +182,23 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         string memory name = "testname";
         IPriceOracle.Price memory price = registrar.rentPrice(name, REGISTRATION_DURATION);
         
-        assertEq(price.base, BASE_PRICE_USD);
-        assertEq(price.premium, PREMIUM_PRICE_USD);
+        uint256 expectedPrice = PRICE_5_CHAR * REGISTRATION_DURATION;
+        assertEq(price.base, expectedPrice);
+        assertEq(price.premium, 0);
     }
 
     function test_checkPrice() public view {
         string memory name = "testname";
         
-        // Check USDC price (6 decimals): $10 should be 10 * 10^6
-        uint256 usdcAmount = registrar.checkPrice(name, REGISTRATION_DURATION, address(usdc));
-        assertEq(usdcAmount, 10 * 1e6);
+        uint256 expectedBasePrice = PRICE_5_CHAR * REGISTRATION_DURATION;
         
-        // Check DAI price (18 decimals): $10 should be 10 * 10^18
+        // Check USDC price (6 decimals) - should match base price since both use 6 decimals
+        uint256 usdcAmount = registrar.checkPrice(name, REGISTRATION_DURATION, address(usdc));
+        assertEq(usdcAmount, expectedBasePrice);
+        
+        // Check DAI price (18 decimals) - should be scaled up by 10^12
         uint256 daiAmount = registrar.checkPrice(name, REGISTRATION_DURATION, address(dai));
-        assertEq(daiAmount, 10 * 1e18);
+        assertEq(daiAmount, expectedBasePrice * 1e12);
     }
 
     function test_makeCommitment() public view {
@@ -719,7 +729,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
         // Check initial balances
         uint256 initialBeneficiaryBalance = usdc.balanceOf(beneficiary);
-        uint256 expectedCost = 10 * 1e6; // $10 in USDC (base + premium)
+        uint256 expectedCost = PRICE_5_CHAR * duration; // "testname" is 8 chars -> uses PRICE_5_CHAR
 
         // Make commitment
         bytes32 commitment = registrar.makeCommitment(name, owner, secret, address(registry), resolver, duration);
@@ -841,6 +851,39 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // Check combined bitmap
         uint256 ROLE_BITMAP_REGISTRATION = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;
         assertTrue(registry.hasRoles(resource, ROLE_BITMAP_REGISTRATION, user1));
+    }
+
+    // New tests for StablePriceOracle length-based pricing integration
+    function test_length_based_pricing_integration() public view {
+        // Test different name lengths get different prices
+        uint64 duration = 365 days;
+        
+        // 3 character name: 4 attousd/sec
+        uint256 price3 = registrar.checkPrice("eth", duration, address(usdc));
+        assertEq(price3, PRICE_3_CHAR * duration);
+        
+        // 4 character name: 2 attousd/sec  
+        uint256 price4 = registrar.checkPrice("test", duration, address(usdc));
+        assertEq(price4, PRICE_4_CHAR * duration);
+        
+        // 5+ character name: 1 attousd/sec
+        uint256 price5 = registrar.checkPrice("alice", duration, address(usdc));
+        assertEq(price5, PRICE_5_CHAR * duration);
+        
+        // Very long name should use same as 5+ chars
+        uint256 priceLong = registrar.checkPrice("verylongname", duration, address(usdc));
+        assertEq(priceLong, PRICE_5_CHAR * duration);
+    }
+
+    function test_unsupported_name_lengths_pricing() public view {
+        uint64 duration = 365 days;
+        
+        // 1 and 2 character names should return 0 price (not supported)
+        uint256 price1 = registrar.checkPrice("a", duration, address(usdc));
+        assertEq(price1, 0);
+        
+        uint256 price2 = registrar.checkPrice("ab", duration, address(usdc));
+        assertEq(price2, 0);
     }
 
     receive() external payable {}
