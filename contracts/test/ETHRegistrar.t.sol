@@ -892,7 +892,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         assertEq(price2, 0);
     }
 
-
     receive() external payable {}
 } 
 
