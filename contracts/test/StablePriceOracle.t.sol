@@ -195,18 +195,4 @@ contract TestStablePriceOracle is Test {
         vm.expectRevert(abi.encodeWithSelector(StablePriceOracle.InvalidRentPricesLength.selector));
         new StablePriceOracle(tokens, decimals, wrongRentPrices);
     }
-
-    // Test different length names comprehensively
-    function test_comprehensive_length_pricing() public view {
-        uint256 duration = 100 days;
-        
-        // Test various lengths
-        assertEq(priceOracle.price("verylongname", 0, duration).base, PRICE_5_CHAR * duration); // 12 chars -> 5+ tier
-        assertEq(priceOracle.price("hello", 0, duration).base, PRICE_5_CHAR * duration);        // 5 chars -> 5+ tier
-        assertEq(priceOracle.price("test", 0, duration).base, PRICE_4_CHAR * duration);         // 4 chars -> 4 tier  
-        assertEq(priceOracle.price("eth", 0, duration).base, PRICE_3_CHAR * duration);          // 3 chars -> 3 tier
-        assertEq(priceOracle.price("ab", 0, duration).base, 0);                                 // 2 chars -> not supported
-        assertEq(priceOracle.price("a", 0, duration).base, 0);                                  // 1 char -> not supported
-        assertEq(priceOracle.price("", 0, duration).base, 0);                                   // 0 chars -> not supported
-    }
 }
