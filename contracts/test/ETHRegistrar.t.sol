@@ -564,6 +564,40 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         );
     }
 
+    function test_Revert_invalidOwner() public {
+        string memory name = "testname";
+        address owner = address(0); // Invalid owner - zero address
+        address resolver = address(0);
+        uint64 duration = REGISTRATION_DURATION;
+        bytes32 secret = SECRET;
+        
+        // Make commitment
+        bytes32 commitment = registrar.makeCommitment(
+            name, 
+            owner, 
+            secret, 
+            address(registry),
+            resolver,
+            duration
+        );
+        registrar.commit(commitment);
+        
+        // Wait for min commitment age
+        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
+        
+        // Try to register with invalid owner (address(0))
+        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.InvalidOwner.selector, owner));
+        registrar.register(
+            name, 
+            owner, 
+            secret,
+            registry,
+            resolver,
+            duration,
+            address(usdc)
+        );
+    }
+
     function test_renew() public {
         string memory name = "testname";
         address owner = address(this);

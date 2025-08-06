@@ -23,6 +23,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
 
+    error InvalidOwner(address owner);
     error MaxCommitmentAgeTooLow();
     error UnexpiredCommitmentExists(bytes32 commitment);
     error DurationTooShort(uint64 duration, uint256 minDuration);
@@ -173,6 +174,10 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     ) external returns (uint256 tokenId) {
         // CHECKS: Validate commitment and get pricing (external calls for validation only)
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
+        // validate owner
+        if (owner == address(0)) {
+            revert InvalidOwner(owner);
+        }
         uint64 expiry = uint64(block.timestamp) + duration;
         // Get USD pricing breakdown
         ITokenPriceOracle.Price memory usdPrice = tokenPriceOracle.price(name, expiry, duration);
