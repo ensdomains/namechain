@@ -36,7 +36,14 @@ import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceRe
 /// @dev The namehash of "eth".
 bytes32 constant ETH_NODE = keccak256(abi.encode(bytes32(0), keccak256("eth")));
 
-/// @notice Resolver that 
+/// @notice Resolver that performs ".eth" resolutions for Namechain (via gateway) or V1 (via fallback).
+/// 
+/// Mainnet ".eth" resolutions do not reach this resolver unless there are no resolvers set.
+///
+/// 1. If there is an active V1 registration, resolve using Universal Resolver for V1.
+/// 2. Otherwise, resolve using Namechain.
+/// 3. If no resolver is found, reverts `UnreachableName`.
+///
 contract ETHTLDResolver is
     IExtendedResolver,
     IFeatureSupporter,
@@ -197,7 +204,7 @@ contract ETHTLDResolver is
         uint256 index;
     }
 
-    /// @notice Resolve `name` on Namechain starting at `registry`.
+    /// @notice Resolve `state.name[:state.nameLength]` on Namechain starting at `state.registry`.
     /// @dev This function executes over multiple steps.
     ///
     /// `GatewayRequest` walkthrough:
@@ -249,11 +256,10 @@ contract ETHTLDResolver is
             uint8(max < 2 ? 2 : max + 1)
         );
         {
-            bytes32 labelHash;
             uint256 offset;
             while (offset < state.nameLength) {
+                bytes32 labelHash;
                 (labelHash, offset) = NameCoder.readLabel(state.name, offset);
-                if (labelHash == bytes32(0)) break;
                 req.push(NameUtils.getCanonicalId(uint256(labelHash)));
             }
         }
