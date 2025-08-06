@@ -736,7 +736,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
         // Check initial balances
         uint256 initialBeneficiaryBalance = usdc.balanceOf(beneficiary);
-        uint256 expectedCost = PRICE_5_CHAR * duration; // "testname" is 8 chars -> uses PRICE_5_CHAR
+        uint256 expectedCost = PRICE_5_CHAR * duration;
 
         // Make commitment
         bytes32 commitment = registrar.makeCommitment(name, owner, secret, address(registry), resolver, duration);
@@ -860,7 +860,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         assertTrue(registry.hasRoles(resource, ROLE_BITMAP_REGISTRATION, user1));
     }
 
-    // New tests for StablePriceOracle length-based pricing integration
     function test_length_based_pricing_integration() public view {
         // Test different name lengths get different prices
         uint64 duration = 365 days;
