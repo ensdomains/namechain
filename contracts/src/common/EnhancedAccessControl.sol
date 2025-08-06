@@ -147,6 +147,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      *
      * The caller must have all the necessary admin roles for the roles being granted.
      * Cannot be used with ROOT_RESOURCE directly, use grantRootRoles instead.
+     * Cannot be used to grant admin roles, admin roles must be granted through other mechanisms.
      *
      * @param resource The resource to grant roles within.
      * @param roleBitmap The roles bitmap to grant.
@@ -157,6 +158,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
+        _checkNoAdminRoles(roleBitmap);
         return _grantRoles(resource, roleBitmap, account, true);
     }
 
@@ -164,12 +166,14 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @dev Grants all roles in the given role bitmap to `account` in the ROOT_RESOURCE.
      *
      * The caller must have all the necessary admin roles for the roles being granted.
+     * Cannot be used to grant admin roles, admin roles must be granted through other mechanisms.
      *
      * @param roleBitmap The roles bitmap to grant.
      * @param account The account to grant roles to.
      * @return `true` if the roles were granted, `false` otherwise.
      */
     function grantRootRoles(uint256 roleBitmap, address account) public virtual canGrantRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
+        _checkNoAdminRoles(roleBitmap);
         return _grantRoles(ROOT_RESOURCE, roleBitmap, account, true);
     }
 
@@ -178,6 +182,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      *
      * The caller must have all the necessary admin roles for the roles being revoked.
      * Cannot be used with ROOT_RESOURCE directly, use revokeRootRoles instead.
+     * Cannot be used to revoke admin roles, admin roles must be revoked through other mechanisms.
      *
      * @param resource The resource to revoke roles within.
      * @param roleBitmap The roles bitmap to revoke.
@@ -188,6 +193,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
+        _checkNoAdminRoles(roleBitmap);
         return _revokeRoles(resource, roleBitmap, account, true);
     }
 
@@ -195,12 +201,14 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @dev Revokes all roles in the given role bitmap from `account` in the ROOT_RESOURCE.
      *
      * The caller must have all the necessary admin roles for the roles being revoked.
+     * Cannot be used to revoke admin roles, admin roles must be revoked through other mechanisms.
      *
      * @param roleBitmap The roles bitmap to revoke.
      * @param account The account to revoke roles from.
      * @return `true` if the roles were revoked, `false` otherwise.
      */
     function revokeRootRoles(uint256 roleBitmap, address account) public virtual canGrantRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
+        _checkNoAdminRoles(roleBitmap);
         return _revokeRoles(ROOT_RESOURCE, roleBitmap, account, true);
     }
 
@@ -379,6 +387,17 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     function _checkRoleBitmap(uint256 roleBitmap) private pure {
         if ((roleBitmap & ~LibEACBaseRoles.ALL_ROLES) != 0) {
             revert EACInvalidRoleBitmap(roleBitmap);
+        }
+    }
+
+    /**
+     * @dev Checks if a role bitmap contains any admin roles and reverts if it does.
+     *
+     * @param roleBitmap The role bitmap to check.
+     */
+    function _checkNoAdminRoles(uint256 roleBitmap) private pure {
+        if ((roleBitmap & LibEACBaseRoles.ADMIN_ROLES) != 0) {
+            revert EACAdminRolesNotAllowed(roleBitmap);
         }
     }
 

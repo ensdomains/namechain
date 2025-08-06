@@ -19,6 +19,7 @@ interface IEnhancedAccessControl is IERC165 {
     error EACMaxAssignees(uint256 resource, uint256 role);
     error EACMinAssignees(uint256 resource, uint256 role);
     error EACInvalidRoleBitmap(uint256 roleBitmap);
+    error EACAdminRolesNotAllowed(uint256 roleBitmap);
 
     // Events
     event EACRolesGranted(uint256 resource, uint256 roleBitmap, address account);
