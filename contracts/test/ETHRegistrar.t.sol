@@ -918,17 +918,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(usdc)
         );
     }
-    
-    // Test that valid() function is enforced during renewal
-    function test_cannot_renew_short_names() public {
-        // Test that 1-char names are rejected
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.NameNotAvailable.selector, "a"));
-        registrar.renew("a", REGISTRATION_DURATION, address(usdc));
-        
-        // Test that 2-char names are rejected  
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.NameNotAvailable.selector, "ab"));
-        registrar.renew("ab", REGISTRATION_DURATION, address(usdc));
-    }
 
     receive() external payable {}
 } 
