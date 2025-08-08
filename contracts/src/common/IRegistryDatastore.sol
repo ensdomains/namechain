@@ -10,7 +10,7 @@ pragma solidity >=0.8.13;
  */
 interface IRegistryDatastore {
     event SubregistryUpdate(address indexed registry, uint256 indexed id, address subregistry, uint64 expiry, uint32 data);
-    event ResolverUpdate(address indexed registry, uint256 indexed id, address resolver, uint64 expiry, uint32 data);
+    event ResolverUpdate(uint256 indexed id, address resolver, uint64 expiry, uint32 data);
 
     function getSubregistry(address registry, uint256 id)
         external
