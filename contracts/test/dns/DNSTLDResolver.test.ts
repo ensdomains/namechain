@@ -40,13 +40,17 @@ async function fixture() {
     "OffchainDNSResolver",
     [mainnetV1.ensRegistry.address, mockDNSSEC.address, dnsOracleGateway],
   );
+  const oracleGatewayProvider = await chain.viem.deployContract(
+    "GatewayProvider",
+    [mainnetV2.walletClient.account.address, [dnsOracleGateway]],
+  );
   const dnsTLDResolver = await chain.viem.deployContract("DNSTLDResolver", [
     mainnetV1.ensRegistry.address,
     dnsTLDResolverV1.address,
     mainnetV2.rootRegistry.address,
     mockDNSSEC.address,
-    [dnsOracleGateway],
-    ["x-batch-gateway:true"],
+    oracleGatewayProvider.address,
+    mainnetV2.batchGatewayProvider.address,
   ]);
   await mainnetV1.setupName({
     name: "com",
@@ -64,6 +68,7 @@ async function fixture() {
     ssResolver,
     mockDNSSEC,
     dnsTLDResolverV1,
+    oracleGatewayProvider,
     dnsTLDResolver,
     dnsTXTResolver,
     expectGasless,
@@ -129,10 +134,7 @@ describe("DNSTLDResolver", () => {
       const F = await chain.networkHelpers.loadFixture(fixture);
       await F.mainnetV1.setupName(kp);
       for (const res of makeResolutions(kp)) {
-        await F.mainnetV1.walletClient.sendTransaction({
-          to: F.mainnetV1.ownedResolver.address,
-          data: res.write, // V1 OwnedResolver lacks multicall()
-        });
+        await F.mainnetV1.publicResolver.write.multicall([[res.write]]);
       }
       await F.expectGasless(kp);
     });

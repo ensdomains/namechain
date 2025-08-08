@@ -58,13 +58,20 @@ if (url) {
       "DNSSEC",
       await dnsTLDResolverV1.read.oracle(),
     );
+    const oracleGatewayProvider = await chain.viem.deployContract(
+      "GatewayProvider",
+      [
+        mainnetV2.walletClient.account.address,
+        [await dnsTLDResolverV1.read.gatewayURL()],
+      ],
+    );
     const dnsTLDResolver = await chain.viem.deployContract("DNSTLDResolver", [
       ensRegistry.address,
       dnsTLDResolverV1.address,
       mainnetV2.rootRegistry.address,
       DNSSEC.address,
-      [await dnsTLDResolverV1.read.gatewayURL()],
-      ["x-batch-gateway:true"],
+      oracleGatewayProvider.address,
+      mainnetV2.batchGatewayProvider.address,
     ]);
     for (const name of ["dnsname.ens.eth"]) {
       await mainnetV2.setupName({

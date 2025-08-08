@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.24;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 import {CCIPBatcher, CCIPReader, OffchainLookup} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
+import {IGatewayProvider} from "@ens/contracts/ccipRead/IGatewayProvider.sol";
 import {DNSSEC} from "@ens/contracts/dnssec-oracle/DNSSEC.sol";
 import {IDNSGateway} from "@ens/contracts/dnssec-oracle/IDNSGateway.sol";
 import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
@@ -43,15 +43,18 @@ contract DNSTLDResolver is
     IFeatureSupporter,
     IExtendedResolver,
     CCIPBatcher,
-    Ownable,
     ERC165
 {
     ENS public immutable ensRegistryV1;
     address public immutable dnsTLDResolverV1;
     IRegistry public immutable rootRegistry;
     DNSSEC public immutable dnssecOracle;
-    string[] _oracleGateways;
-    string[] _batchGateways;
+
+    /// @dev Shared DNSSEC oracle gateway provider.
+    IGatewayProvider public immutable oracleGatewayProvider;
+
+    /// @dev Shared batch gateway provider.
+    IGatewayProvider public immutable batchGatewayProvider;
 
     /// @dev `name` does not exist.
     ///      Error selector: `0x5fe9a5df`
@@ -67,15 +70,15 @@ contract DNSTLDResolver is
         address _dnsTLDResolverV1,
         IRegistry _rootRegistry,
         DNSSEC _dnssecOracle,
-        string[] memory __oracleGateways,
-        string[] memory __batchGateways
-    ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
+        IGatewayProvider _oracleGatewayProvider,
+        IGatewayProvider _batchGatewayProvider
+    ) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
         ensRegistryV1 = _ensRegistryV1;
         dnsTLDResolverV1 = _dnsTLDResolverV1;
         rootRegistry = _rootRegistry;
         dnssecOracle = _dnssecOracle;
-        _oracleGateways = __oracleGateways;
-        _batchGateways = __batchGateways;
+        oracleGatewayProvider = _oracleGatewayProvider;
+        batchGatewayProvider = _batchGatewayProvider;
     }
 
     /// @inheritdoc ERC165
@@ -91,30 +94,6 @@ contract DNSTLDResolver is
     /// @inheritdoc IFeatureSupporter
     function supportsFeature(bytes4 feature) public pure returns (bool) {
         return ResolverFeatures.RESOLVE_MULTICALL == feature;
-    }
-
-    /// @notice Set the DNSSEC oracle gateways.
-    /// @param gateways The gateway URLs.
-    function setOracleGateways(string[] memory gateways) external onlyOwner {
-        _oracleGateways = gateways;
-    }
-
-    /// @notice Get the DNSSEC oracle gateways.
-    /// @return The gateway URLs.
-    function oracleGateways() external view returns (string[] memory) {
-        return _oracleGateways;
-    }
-
-    /// @notice Set the batch gateways.
-    /// @param gateways The batch gateway URLs.
-    function setBatchGateways(string[] memory gateways) external onlyOwner {
-        _batchGateways = gateways;
-    }
-
-    /// @notice Get the batch gateways.
-    /// @return The batch gateway URLs.
-    function batchGateways() external view returns (string[] memory) {
-        return _batchGateways;
     }
 
     /// @notice Resolve `name` using V1 or DNSSEC.
@@ -134,7 +113,7 @@ contract DNSTLDResolver is
         }
         revert OffchainLookup(
             address(this),
-            _oracleGateways,
+            oracleGatewayProvider.gateways(),
             abi.encodeCall(IDNSGateway.resolve, (name, QTYPE_TXT)),
             this.resolveOracleCallback.selector, // ==> step 2
             abi.encode(name, data)
@@ -278,7 +257,7 @@ contract DNSTLDResolver is
             address(this),
             abi.encodeCall(
                 this.ccipBatch,
-                (createBatch(resolver, calls, _batchGateways))
+                (createBatch(resolver, calls, batchGatewayProvider.gateways()))
             ),
             this.resolveBatchCallback.selector,
             IDENTITY_FUNCTION,
