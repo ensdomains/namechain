@@ -18,7 +18,7 @@ abstract contract ResolverCaller is CCIPBatcher {
     /// @param name The DNS-encoded ENS name.
     error UnreachableName(bytes name);
 
-    /// @notice Efficiently call another resolver.
+    /// @notice Perform forward resolution.
     ///
     /// 1. if `IExtendedResolver`, `resolver.resolve(name, calldata)`.
     /// 2. otherwise, `resolver.staticall(calldata)`.
@@ -28,42 +28,40 @@ abstract contract ResolverCaller is CCIPBatcher {
     /// - If (1), the calldata is `multicall()`, and the resolver supports `RESOLVE_MULTICALL` feature,
     ///   the call is performed directly without the batch gateway.
     /// - Otherwise, the call is performed with the batch gateway.
-    ///   If the calldata is `multicall()` it is disassembled, called separately, and reassembled.
+    ///   If the calldata is `multicall()`, it is disassembled, called separately, and reassembled.
     ///
-	/// Call this function with `ccipRead()` to intercept the response.
-	///
+    /// Call this function with `ccipRead()` to intercept the response.
+    ///
     /// @dev Reverts `UnreachableName` if resolver is not a contract.
     /// @param resolver The resolver to call.
     /// @param name The name to resolve.
-    /// @param call The resolver calldata.
+    /// @param data The resolver calldata.
+	/// @param batchGateways The batch gateway URLs.
     function callResolver(
         address resolver,
         bytes memory name,
-        bytes memory call,
+        bytes memory data,
         string[] memory batchGateways
     ) public view {
         if (resolver.code.length == 0) {
             revert UnreachableName(name);
         }
-        bool multi = bytes4(call) == IMulticallable.multicall.selector;
-
+        bool multi = bytes4(data) == IMulticallable.multicall.selector;
         bytes[] memory calls;
         if (multi) {
             calls = abi.decode(
-                BytesUtils.substring(call, 4, call.length - 4),
+                BytesUtils.substring(data, 4, data.length - 4),
                 (bytes[])
             );
         } else {
             calls = new bytes[](1);
-            calls[0] = call;
+            calls[0] = data;
         }
-        bool extended;
-        if (
-            ERC165Checker.supportsERC165InterfaceUnchecked(
-                resolver,
-                type(IExtendedResolver).interfaceId
-            )
-        ) {
+        bool extended = ERC165Checker.supportsERC165InterfaceUnchecked(
+            resolver,
+            type(IExtendedResolver).interfaceId
+        );
+        if (extended) {
             bool direct = ERC165Checker.supportsERC165InterfaceUnchecked(
                 resolver,
                 type(IFeatureSupporter).interfaceId
@@ -75,10 +73,9 @@ abstract contract ResolverCaller is CCIPBatcher {
             if (direct) {
                 ccipRead(
                     resolver,
-                    abi.encodeCall(IExtendedResolver.resolve, (name, call))
+                    abi.encodeCall(IExtendedResolver.resolve, (name, data))
                 );
             } else {
-                extended = true;
                 for (uint256 i; i < calls.length; ++i) {
                     calls[i] = abi.encodeCall(
                         IExtendedResolver.resolve,
