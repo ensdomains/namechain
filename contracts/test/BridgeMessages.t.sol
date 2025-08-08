@@ -59,9 +59,10 @@ contract TestBridgeMessages is Test {
         l1Bridge.setEjectionController(l1Controller);
         l2Bridge.setBridgeController(l2Controller);
         
-        // Grant necessary roles
-        registry.grantRootRoles(LibEACBaseRoles.ALL_ROLES, address(l1Controller));
-        registry.grantRootRoles(LibEACBaseRoles.ALL_ROLES, address(l2Controller));
+        // Grant necessary roles (filter out admin roles since they're restricted)
+        uint256 regularRoles = LibEACBaseRoles.ALL_ROLES & ~LibEACBaseRoles.ADMIN_ROLES;
+        registry.grantRootRoles(regularRoles, address(l1Controller));
+        registry.grantRootRoles(regularRoles, address(l2Controller));
         
         // Grant bridge roles so the bridges can call the controllers
         l1Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l1Bridge));

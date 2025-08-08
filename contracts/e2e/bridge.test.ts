@@ -12,7 +12,7 @@ import { ROLES } from "../deploy/constants.js";
 import { createMockRelay } from "../script/mockRelay.js";
 import { setupCrossChainEnvironment } from "../script/setup.js";
 import { expectTransactionSuccess, waitForEvent } from "./utils.js";
-import { labelToCanonicalId } from "../test/utils/utils.ts";
+import { labelToCanonicalId, getCanonicalId } from "../test/utils/utils.ts";
 
 const { l1, l2, shutdown } = await setupCrossChainEnvironment();
 afterAll(shutdown);
@@ -55,9 +55,7 @@ test("name ejection", async () => {
   const owner = await l2.contracts.ethRegistry.read.ownerOf([tokenId]);
   console.log(`Token owner: ${owner}`);
 
-  const canonicalId = await l2.contracts.ethRegistry.read.getTokenIdResource([
-    tokenId,
-  ]);
+  const canonicalId = getCanonicalId(tokenId);
   console.log(`Canonical ID: ${canonicalId}`);
 
   console.log(`      Label: ${label}`);
@@ -66,7 +64,7 @@ test("name ejection", async () => {
   console.log(`canonicalId: ${canonicalId}`);
 
   expect(canonicalId, "canonical").toStrictEqual(
-    toHex(labelToCanonicalId(label), { size: 32 }),
+    labelToCanonicalId(label),
   );
 
   const transferDataParameters = [

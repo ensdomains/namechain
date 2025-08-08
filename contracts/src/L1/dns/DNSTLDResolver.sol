@@ -20,6 +20,7 @@ import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 // resolver profiles
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
+import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 
 /// @dev DNS class for the "Internet" according to RFC-1035.
@@ -339,11 +340,16 @@ contract DNSTLDResolver is
                 return addr;
             }
         }
-        (, resolver, , ) = RegistryUtils.findResolver(
-            rootRegistry,
-            NameCoder.encode(string(v)),
-            0
-        );
+        bytes memory name = NameCoder.encode(string(v));
+        (, address r, , ) = RegistryUtils.findResolver(rootRegistry, name, 0);
+        if (r != address(0)) {
+            // according to V1, this must be immediate onchain
+            try IAddrResolver(r).addr(NameCoder.namehash(name, 0)) returns (
+                address payable a
+            ) {
+                resolver = a;
+            } catch {}
+        }
     }
 
     /// @dev Decode `v[off:end]` as raw TXT chunks.

@@ -3,19 +3,19 @@ import { type Address, labelhash, namehash, zeroAddress } from "viem";
 import { splitName } from "../utils/utils.js";
 
 export async function deployV1Fixture<C extends NetworkConnection>(
-  nc: C,
+  network: C,
   enableCcipRead = false,
 ) {
-  const publicClient = await nc.viem.getPublicClient({
+  const publicClient = await network.viem.getPublicClient({
     ccipRead: enableCcipRead ? undefined : false,
   });
-  const [walletClient] = await nc.viem.getWalletClients();
-  const ensRegistry = await nc.viem.deployContract("ENSRegistry");
-  const ethRegistrar = await nc.viem.deployContract(
+  const [walletClient] = await network.viem.getWalletClients();
+  const ensRegistry = await network.viem.deployContract("ENSRegistry");
+  const ethRegistrar = await network.viem.deployContract(
     "BaseRegistrarImplementation",
     [ensRegistry.address, namehash("eth")],
   );
-  const reverseRegistrar = await nc.viem.deployContract("ReverseRegistrar", [
+  const reverseRegistrar = await network.viem.deployContract("ReverseRegistrar", [
     ensRegistry.address,
   ]);
   await ensRegistry.write.setSubnodeOwner([
@@ -28,18 +28,18 @@ export async function deployV1Fixture<C extends NetworkConnection>(
     labelhash("addr"),
     reverseRegistrar.address,
   ]);
-  const publicResolver = await nc.viem.deployContract("PublicResolver", [
+  const publicResolver = await network.viem.deployContract("PublicResolver", [
     ensRegistry.address,
     zeroAddress, // TODO: this setup is incomplete
     zeroAddress, // no wrapper, no controller
     reverseRegistrar.address,
   ]);
   await reverseRegistrar.write.setDefaultResolver([publicResolver.address]);
-  const batchGatewayProvider = await nc.viem.deployContract("GatewayProvider", [
+  const batchGatewayProvider = await network.viem.deployContract("GatewayProvider", [
     walletClient.account.address,
     ["x-batch-gateway:true"],
   ]);
-  const universalResolver = await nc.viem.deployContract(
+  const universalResolver = await network.viem.deployContract(
     "UniversalResolver",
     [
       walletClient.account.address,
@@ -63,6 +63,7 @@ export async function deployV1Fixture<C extends NetworkConnection>(
     ethRegistrar.address,
   ]);
   return {
+	network,
     publicClient,
     walletClient,
     ensRegistry,

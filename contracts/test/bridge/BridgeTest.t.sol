@@ -7,7 +7,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
 import {IRegistryDatastore} from "../../src/common/IRegistryDatastore.sol";
-import {PermissionedRegistry} from "../../src/common/PermissionedRegistry.sol";
+import {MockPermissionedRegistry} from "../mocks/MockPermissionedRegistry.sol";
 import {IPermissionedRegistry} from "../../src/common/IPermissionedRegistry.sol";
 import {IRegistryMetadata} from "../../src/common/IRegistryMetadata.sol";
 import {NameUtils} from "../../src/common/NameUtils.sol";
@@ -26,8 +26,8 @@ import {IBridge, LibBridgeRoles} from "../../src/common/IBridge.sol";
 contract BridgeTest is Test, EnhancedAccessControl {
     RegistryDatastore datastore;
 
-    PermissionedRegistry l1Registry;
-    PermissionedRegistry l2Registry;
+    MockPermissionedRegistry l1Registry;
+    MockPermissionedRegistry l2Registry;
     MockL1Bridge l1Bridge;
     MockL2Bridge l2Bridge;
     L1EjectionController l1Controller;
@@ -40,8 +40,8 @@ contract BridgeTest is Test, EnhancedAccessControl {
     function setUp() public {
         // Deploy registries
         datastore = new RegistryDatastore();
-        l1Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
-        l2Registry = new PermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
+        l1Registry = new MockPermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
+        l2Registry = new MockPermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
 
         // Deploy bridges
         l1Bridge = new MockL1Bridge();
@@ -92,6 +92,6 @@ contract BridgeTest is Test, EnhancedAccessControl {
         assertEq(address(l1Registry.getSubregistry("premiumname")), transferData.subregistry);
         assertEq(l1Registry.getResolver("premiumname"), transferData.resolver);
         assertEq(l1Registry.getExpiry(tokenId), transferData.expires);
-        assertEq(l1Registry.roles(l1Registry.getTokenIdResource(tokenId), transferData.owner), transferData.roleBitmap);
+        assertEq(l1Registry.roles(l1Registry.testGetResourceFromTokenId(tokenId), transferData.owner), transferData.roleBitmap);
     }
 }
