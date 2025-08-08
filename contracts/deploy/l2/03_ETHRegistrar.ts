@@ -12,7 +12,7 @@ export default execute(
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
     const priceOracle =
-      get<(typeof artifacts.TokenPriceOracle)["abi"]>("PriceOracle");
+      get<(typeof artifacts["src/L2/StablePriceOracle.sol/StablePriceOracle"])["abi"]>("PriceOracle");
 
     // Use owner as beneficiary, or deployer if owner is not set
     const beneficiary = owner || deployer;

@@ -172,6 +172,10 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         uint64 duration,
         address token
     ) external returns (uint256 tokenId) {
+        if (!valid(name)) {
+            revert NameNotAvailable(name);
+        }
+        
         // CHECKS: Validate commitment and get pricing (external calls for validation only)
         _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
         // validate owner
