@@ -15,8 +15,14 @@ import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
 
 /// @notice Gasless DNSSEC resolver that forwards to another name.
-/// Rewrite: "*.nick.com" + `ENS1 <this> com eth` &rarr; "*.nick.eth"
-/// Replace: "nick.com" + `ENS1 <this> nick.eth` &rarr; "nick.eth"
+///
+/// Format: `ENS1 <this> <context>`
+///
+/// 1. Rewrite: `<oldSuffix> <newSuffix>`
+///    eg. `*.nick.com` + `com base.eth` &rarr; `*.nick.base.eth`
+/// 2. Replace: `<newName>`
+///    eg. `nick.com` + `nick.eth` &rarr; `nick.eth`
+///
 contract DNSAliasResolver is
     ERC165,
     ResolverCaller,
@@ -56,14 +62,14 @@ contract DNSAliasResolver is
         return ResolverFeatures.RESOLVE_MULTICALL == feature;
     }
 
-    /// @dev Resolve the records using the name stored in the context.
+    /// @dev Resolve the records after applying rewrite rule.
     function resolve(
         bytes calldata name,
         bytes calldata data,
         bytes calldata context
     ) external view returns (bytes memory) {
         bytes memory newName = _parseContext(name, context);
-        (, address resolver, , ) = RegistryUtils.findResolver(
+        (, address resolver, bytes32 node, ) = RegistryUtils.findResolver(
             rootRegistry,
             newName,
             0
@@ -71,17 +77,12 @@ contract DNSAliasResolver is
         callResolver(
             resolver,
             newName,
-            ResolverProfileRewriter.replaceNode(
-                data,
-                NameCoder.namehash(newName, 0)
-            ),
+            ResolverProfileRewriter.replaceNode(data, node),
             batchGatewayProvider.gateways()
         );
     }
 
-    /// @dev Modify `name` using rewrite rule supplied via `context`.
-    ///      If context is `<old-suffix> <new-suffix>`, rewrite name with new suffix.
-    ///      Otherwise, replace name with context.
+    /// @dev Modify `name` using rewrite rule in `context`.
     /// @param name The DNS-encoded name.
     /// @param context The rewrite rule.
     /// @return newName The modified DNS-encoded name.
