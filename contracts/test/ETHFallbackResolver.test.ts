@@ -83,9 +83,7 @@ async function fixture() {
     args: [[ccip.endpoint], 0, hooksAddress],
     libs: { GatewayVM },
   });
-  const ethResolver = await mainnetV2.deployDedicatedResolver({
-    owner: mainnetV2.walletClient.account.address,
-  });
+  const ethResolver = await mainnetV2.deployDedicatedResolver();
   const burnAddressV1 = "0x000000000000000000000000000000000000FadE";
   const ethFallbackResolver = await chain1.viem.deployContract(
     "ETHFallbackResolver",
@@ -276,10 +274,8 @@ describe("ETHFallbackResolver", () => {
           tokenId,
         ]);
         expectVar({ available }).toStrictEqual(false);
-        await F.namechain.setupName({ name });
-        await F.namechain.dedicatedResolver.write.multicall([
-          [res.writeDedicated],
-        ]);
+        const { dedicatedResolver } = await F.namechain.setupName({ name });
+        await dedicatedResolver.write.multicall([[res.writeDedicated]]);
         await sync();
         const [answer, resolver] =
           await F.mainnetV2.universalResolver.read.resolve([
@@ -300,20 +296,16 @@ describe("ETHFallbackResolver", () => {
           name,
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
         };
-        await F.mainnetV2.setupName(kp);
         const [res] = makeResolutions(kp);
-        await F.mainnetV2.dedicatedResolver.write.multicall([
-          [res.writeDedicated],
-        ]);
+        const { dedicatedResolver } = await F.mainnetV2.setupName(kp);
+        await dedicatedResolver.write.multicall([[res.writeDedicated]]);
         await sync();
         const [answer, resolver] =
           await F.mainnetV2.universalResolver.read.resolve([
             dnsEncodeName(kp.name),
             res.call,
           ]);
-        expectVar({ resolver }).toEqualAddress(
-          F.mainnetV2.dedicatedResolver.address,
-        );
+        expectVar({ resolver }).toEqualAddress(dedicatedResolver.address);
         res.expect(answer);
       });
     }
@@ -327,11 +319,9 @@ describe("ETHFallbackResolver", () => {
           name,
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
         };
-        await F.namechain.setupName(kp);
         const [res] = makeResolutions(kp);
-        await F.namechain.dedicatedResolver.write.multicall([
-          [res.writeDedicated],
-        ]);
+        const { dedicatedResolver } = await F.namechain.setupName(kp);
+        await dedicatedResolver.write.multicall([[res.writeDedicated]]);
         await sync();
         const [answer, resolver] =
           await F.mainnetV2.universalResolver.read.resolve([
@@ -355,12 +345,12 @@ describe("ETHFallbackResolver", () => {
         const interval = 1000n;
         await sync();
         const { timestamp } = await F.namechain.publicClient.getBlock();
-        await F.namechain.setupName({
+        const [res] = makeResolutions(kp);
+        const { dedicatedResolver } = await F.namechain.setupName({
           name: kp.name,
           expiry: timestamp + interval,
         });
-        const [res] = makeResolutions(kp);
-        await F.namechain.dedicatedResolver.write.multicall([
+        await dedicatedResolver.write.multicall([
           [res.writeDedicated],
         ]);
         await sync();
@@ -435,8 +425,8 @@ describe("ETHFallbackResolver", () => {
       if (res.write.length <= 2) continue;
       it(res.desc, async () => {
         const F = await loadFixture();
-        await F.namechain.setupName(kp);
-        await F.namechain.dedicatedResolver.write.multicall([
+        const { dedicatedResolver } = await F.namechain.setupName(kp);
+        await dedicatedResolver.write.multicall([
           [res.writeDedicated],
         ]);
         await sync();
@@ -461,9 +451,9 @@ describe("ETHFallbackResolver", () => {
           { coinType: 1n, exists: false },
         ],
       };
-      await F.namechain.setupName(kp);
-      await F.namechain.dedicatedResolver.write.setAddr([0n, dummySelector]);
-      await F.namechain.dedicatedResolver.write.setAddr([
+     const { dedicatedResolver } =  await F.namechain.setupName(kp);
+      await dedicatedResolver.write.setAddr([0n, dummySelector]);
+      await dedicatedResolver.write.setAddr([
         COIN_TYPE_DEFAULT,
         testAddress,
       ]);
@@ -486,8 +476,8 @@ describe("ETHFallbackResolver", () => {
           { coinType: 0n, value: "0x" },
         ],
       };
-      await F.namechain.setupName(kp);
-      await F.namechain.dedicatedResolver.write.setAddr([
+      const { dedicatedResolver } = await F.namechain.setupName(kp);
+      await dedicatedResolver.write.setAddr([
         COIN_TYPE_DEFAULT,
         testAddress,
       ]);
@@ -510,8 +500,8 @@ describe("ETHFallbackResolver", () => {
       };
       const [nul, ty1, ty8] = makeResolutions(kp);
       const F = await loadFixture();
-      await F.namechain.setupName(kp);
-      await F.namechain.dedicatedResolver.write.multicall([
+      const { dedicatedResolver } = await F.namechain.setupName(kp);
+      await dedicatedResolver.write.multicall([
         [ty1.writeDedicated, ty8.writeDedicated],
       ]);
       await check(1n, ty1);
@@ -537,9 +527,9 @@ describe("ETHFallbackResolver", () => {
     it(`multicall()`, async () => {
       const F = await loadFixture();
       const bundle = bundleCalls(makeResolutions(kp));
-      await F.namechain.setupName(kp);
+      const { dedicatedResolver } = await F.namechain.setupName(kp);
       await F.namechain.walletClient.sendTransaction({
-        to: F.namechain.dedicatedResolver.address,
+        to: dedicatedResolver.address,
         data: bundle.writeDedicated,
       });
       await sync();
