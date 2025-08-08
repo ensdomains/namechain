@@ -36,7 +36,7 @@ contract DNSAliasResolver is
     constructor(
         IRegistry _rootRegistry,
         IGatewayProvider _batchGatewayProvider
-    ) CCIPReader(0) {
+    ) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
         rootRegistry = _rootRegistry;
         batchGatewayProvider = _batchGatewayProvider;
     }

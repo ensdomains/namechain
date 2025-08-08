@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.24;
+pragma solidity >=0.8.13;
 
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
@@ -34,8 +34,8 @@ abstract contract ResolverCaller is CCIPBatcher {
     ///
     /// @dev Reverts `UnreachableName` if resolver is not a contract.
     /// @param resolver The resolver to call.
-    /// @param name The name to resolve.
-    /// @param data The resolver calldata.
+    /// @param name The DNS-encoded ENS name.
+    /// @param data The calldata for the resolution.
 	/// @param batchGateways The batch gateway URLs.
     function callResolver(
         address resolver,

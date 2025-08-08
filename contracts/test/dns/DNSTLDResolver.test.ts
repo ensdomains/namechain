@@ -1,6 +1,6 @@
 import hre from "hardhat";
 import { describe, expect, it } from "vitest";
-import { Address, concat, encodeErrorResult, stringToHex } from "viem";
+import { type Address, concat, encodeErrorResult, stringToHex } from "viem";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
 
 import { shouldSupportFeatures } from "../utils/supportsFeatures.js";
