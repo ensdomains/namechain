@@ -98,8 +98,8 @@ async function fixture() {
     const resolver = await chain1.viem.deployContract(
       "ETHTLDResolver",
       [
-        mainnetV1.ethRegistrar.address,
-        mainnetV1.universalResolver.address,
+        mainnetV1.ensRegistry.address,
+        mainnetV1.batchGatewayProvider.address,
         burnAddressV1,
         ethResolver.address,
         verifierAddress,

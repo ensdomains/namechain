@@ -5,7 +5,7 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {IGatewayProvider} from "@ens/contracts/ccipRead/IGatewayProvider.sol";
-import {ResolverCaller} from "../ResolverCaller.sol";
+import {ResolverCaller} from "../../universalResolver/ResolverCaller.sol";
 import {RegistryUtils, IRegistry} from "../../universalResolver/RegistryUtils.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
