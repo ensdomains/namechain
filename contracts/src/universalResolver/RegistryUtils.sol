@@ -80,7 +80,7 @@ library RegistryUtils {
         IRegistry rootRegistry,
         bytes calldata name,
         uint256 offset
-    ) external view returns (IRegistry parentRegistry) {
+    ) internal view returns (IRegistry parentRegistry) {
         (bytes32 labelHash, uint256 next) = NameCoder.readLabel(name, offset);
         if (labelHash != bytes32(0)) {
             parentRegistry = findExactRegistry(rootRegistry, name, next);
