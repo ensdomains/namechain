@@ -78,7 +78,7 @@ library RegistryUtils {
     /// @return parentRegistry The parent registry or null if not found.
     function findParentRegistry(
         IRegistry rootRegistry,
-        bytes calldata name,
+        bytes memory name,
         uint256 offset
     ) internal view returns (IRegistry parentRegistry) {
         (bytes32 labelHash, uint256 next) = NameCoder.readLabel(name, offset);
