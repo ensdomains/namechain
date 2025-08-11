@@ -3,10 +3,12 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {GatewayProvider} from "@ens/contracts/ccipRead/GatewayProvider.sol";
 import {DNSTLDResolver, ENS, IRegistry, DNSSEC, HexUtils} from "../../src/L1/dns/DNSTLDResolver.sol";
 import {PermissionedRegistry, IRegistryMetadata} from "../../src/common/PermissionedRegistry.sol";
 import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
 import {LibEACBaseRoles} from "../../src/common/EnhancedAccessControl.sol";
+import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 
 // coverage:ignore-next-line
 contract MockDNS is DNSTLDResolver {
@@ -18,8 +20,8 @@ contract MockDNS is DNSTLDResolver {
             address(0),
             rootRegistry,
             DNSSEC(address(0)),
-            new string[](0),
-            new string[](0)
+            new GatewayProvider(address(1), new string[](0)),
+            new GatewayProvider(address(1), new string[](0))
         )
     {}
     function readTXT(bytes memory v) external pure returns (bytes memory) {
@@ -40,7 +42,7 @@ contract MockDNS is DNSTLDResolver {
     }
 }
 
-contract DNSTLDResolverTest is Test, ERC1155Holder {
+contract DNSTLDResolverTest is Test, ERC1155Holder, IAddrResolver {
     RegistryDatastore datastore;
     PermissionedRegistry rootRegistry;
     MockDNS dns;
@@ -107,17 +109,21 @@ contract DNSTLDResolverTest is Test, ERC1155Holder {
         );
     }
 
+	// mock IAddrResolver
+	function addr(bytes32) public pure returns (address payable) {
+		return payable(address(1));
+	}
+
     function test_parseResolver_name() external {
-        address resolver = address(1);
         rootRegistry.register(
             "abc",
             address(this),
             IRegistry(address(0)),
-            resolver,
+            address(this),
             LibEACBaseRoles.ALL_ROLES,
             uint64(block.timestamp) + 86400
         );
-        assertEq(dns.parseResolver("abc"), resolver);
+        assertEq(dns.parseResolver("abc"), addr(bytes32(0)));
     }
 
     function testFuzz_parseResolver_address(address a) external view {

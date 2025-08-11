@@ -1,6 +1,6 @@
 import hre from "hardhat";
 import { describe, expect, it } from "vitest";
-import { concat, encodeErrorResult, stringToHex } from "viem";
+import { Address, concat, encodeErrorResult, stringToHex } from "viem";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
 
 import { shouldSupportFeatures } from "../utils/supportsFeatures.js";
@@ -40,13 +40,17 @@ async function fixture() {
     "OffchainDNSResolver",
     [mainnetV1.ensRegistry.address, mockDNSSEC.address, dnsOracleGateway],
   );
+  const oracleGatewayProvider = await chain.viem.deployContract(
+    "GatewayProvider",
+    [mainnetV2.walletClient.account.address, [dnsOracleGateway]],
+  );
   const dnsTLDResolver = await chain.viem.deployContract("DNSTLDResolver", [
     mainnetV1.ensRegistry.address,
     dnsTLDResolverV1.address,
     mainnetV2.rootRegistry.address,
     mockDNSSEC.address,
-    [dnsOracleGateway],
-    ["x-batch-gateway:true"],
+    oracleGatewayProvider.address,
+    mainnetV2.batchGatewayProvider.address,
   ]);
   await mainnetV1.setupName({
     name: "com",
@@ -57,32 +61,41 @@ async function fixture() {
     resolverAddress: dnsTLDResolver.address,
   });
   const dnsTXTResolver = await chain.viem.deployContract("DNSTXTResolver");
-  await mainnetV2.setupName({
-    name: dnsnameResolver,
-    resolverAddress: dnsTXTResolver.address,
-  });
+  await setupNamedResolver(dnsnameResolver, dnsTXTResolver.address);
   return {
     mainnetV1,
     mainnetV2,
     ssResolver,
     mockDNSSEC,
     dnsTLDResolverV1,
+    oracleGatewayProvider,
     dnsTLDResolver,
     dnsTXTResolver,
-    async expectGasless(kp: KnownProfile) {
-      const bundle = bundleCalls(makeResolutions(kp));
-      const [answer, resolver] = await mainnetV2.universalResolver.read.resolve(
-        [dnsEncodeName(kp.name), bundle.call],
-      );
-      expectVar({ resolver }).toEqualAddress(dnsTLDResolver.address);
-      bundle.expect(answer);
-      const directAnswer = await dnsTLDResolver.read.resolve([
-        dnsEncodeName(kp.name),
-        bundle.call,
-      ]);
-      expectVar({ directAnswer }).toStrictEqual(answer);
-    },
+    expectGasless,
+    setupNamedResolver,
   };
+  async function expectGasless(kp: KnownProfile) {
+    const bundle = bundleCalls(makeResolutions(kp));
+    const [answer, resolver] = await mainnetV2.universalResolver.read.resolve([
+      dnsEncodeName(kp.name),
+      bundle.call,
+    ]);
+    expectVar({ resolver }).toEqualAddress(dnsTLDResolver.address);
+    bundle.expect(answer);
+    const directAnswer = await dnsTLDResolver.read.resolve([
+      dnsEncodeName(kp.name),
+      bundle.call,
+    ]);
+    expectVar({ directAnswer }).toStrictEqual(answer);
+  }
+  async function setupNamedResolver(name: string, resolver: Address) {
+    const res = await mainnetV2.deployDedicatedResolver();
+    await mainnetV2.setupName({
+      name,
+      resolverAddress: res.address,
+    });
+    await res.write.setAddr([COIN_TYPE_ETH, resolver]);
+  }
 }
 
 describe("DNSTLDResolver", () => {
@@ -121,10 +134,7 @@ describe("DNSTLDResolver", () => {
       const F = await chain.networkHelpers.loadFixture(fixture);
       await F.mainnetV1.setupName(kp);
       for (const res of makeResolutions(kp)) {
-        await F.mainnetV1.walletClient.sendTransaction({
-          to: F.mainnetV1.ownedResolver.address,
-          data: res.write, // V1 OwnedResolver lacks multicall()
-        });
+        await F.mainnetV1.publicResolver.write.multicall([[res.write]]);
       }
       await F.expectGasless(kp);
     });
@@ -160,16 +170,14 @@ describe("DNSTLDResolver", () => {
   it("imported on V2", async () => {
     const F = await chain.networkHelpers.loadFixture(fixture);
     const bundle = bundleCalls(makeResolutions(basicProfile));
-    await F.mainnetV2.setupName(basicProfile);
-    await F.mainnetV2.dedicatedResolver.write.multicall([
+    const { dedicatedResolver } = await F.mainnetV2.setupName(basicProfile);
+    await dedicatedResolver.write.multicall([
       bundle.resolutions.map((x) => x.writeDedicated),
     ]);
     const [answer, resolver] = await F.mainnetV2.universalResolver.read.resolve(
       [dnsEncodeName(basicProfile.name), bundle.call],
     );
-    expectVar({ resolver }).toEqualAddress(
-      F.mainnetV2.dedicatedResolver.address,
-    );
+    expectVar({ resolver }).toEqualAddress(dedicatedResolver.address);
     bundle.expect(answer);
   });
 
@@ -195,12 +203,11 @@ describe("DNSTLDResolver", () => {
     describe("via address", () => {
       testProfiles("onchain immediate", (kp) => async () => {
         const F = await chain.networkHelpers.loadFixture(fixture);
+        const dedicatedResolver = await F.mainnetV2.deployDedicatedResolver();
         await F.mockDNSSEC.write.setResponse([
-          encodeRRs([
-            makeTXT(kp.name, `ENS1 ${F.mainnetV2.dedicatedResolver.address}`),
-          ]),
+          encodeRRs([makeTXT(kp.name, `ENS1 ${dedicatedResolver.address}`)]),
         ]);
-        await F.mainnetV2.dedicatedResolver.write.multicall([
+        await dedicatedResolver.write.multicall([
           makeResolutions(kp).map((x) => x.writeDedicated),
         ]);
         await F.expectGasless(kp);
@@ -211,10 +218,7 @@ describe("DNSTLDResolver", () => {
       testProfiles("onchain immediate", (kp) => async () => {
         const F = await chain.networkHelpers.loadFixture(fixture);
         const name = "myresolver.eth";
-        await F.mainnetV2.setupName({
-          name,
-          resolverAddress: F.ssResolver.address,
-        });
+        await F.setupNamedResolver(name, F.ssResolver.address);
         for (const res of makeResolutions(kp)) {
           await F.ssResolver.write.setResponse([res.call, res.answer]);
         }
@@ -227,10 +231,7 @@ describe("DNSTLDResolver", () => {
       testProfiles("offchain extended", (kp) => async () => {
         const F = await chain.networkHelpers.loadFixture(fixture);
         const name = "myresolver.eth";
-        await F.mainnetV2.setupName({
-          name,
-          resolverAddress: F.ssResolver.address,
-        });
+        await F.setupNamedResolver(name, F.ssResolver.address);
         await F.ssResolver.write.setExtended([true]);
         await F.ssResolver.write.setOffchain([true]);
         for (const res of makeResolutions(kp)) {

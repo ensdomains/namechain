@@ -28,4 +28,18 @@ contract MockPermissionedRegistry is PermissionedRegistry {
     function testGetTokenIdFromResource(uint256 resource) public view returns (uint256) {
         return getTokenIdFromResource(resource);
     }
+
+    /**
+     * @dev Test helper that bypasses admin role restrictions - for testing only
+     */
+    function grantRolesDirect(uint256 resource, uint256 roleBitmap, address account) external returns (bool) {
+        return _grantRoles(resource, roleBitmap, account, false);
+    }
+    
+    /**
+     * @dev Test helper that bypasses admin role restrictions - for testing only
+     */
+    function revokeRolesDirect(uint256 resource, uint256 roleBitmap, address account) external returns (bool) {
+        return _revokeRoles(resource, roleBitmap, account, false);
+    }
 } 
