@@ -11,6 +11,14 @@ library DatastoreUtils {
         packed = (uint256(data) << 224) | (uint256(expiry) << 160) | uint256(uint160(addr));
     }
 
+    /// @dev Pack `(address, data)` together into a word for resolver storage.
+    /// @param addr The address to pack.
+    /// @param data The data to pack.
+    /// @return packed The packed word.
+    function packResolver(address addr, uint32 data) internal pure returns (uint256 packed) {
+        packed = (uint256(data) << 160) | uint256(uint160(addr));
+    }
+
     /// @dev Unpack a word into `(address, expiry, data)`.
     /// @param packed The packed word.
     /// @return addr The packed address.
@@ -20,5 +28,14 @@ library DatastoreUtils {
         addr = address(uint160(packed));
         expiry = uint64(packed >> 160);
         data = uint32(packed >> 224);
+    }
+
+    /// @dev Unpack a resolver word into `(address, data)`.
+    /// @param packed The packed word.
+    /// @return addr The packed address.
+    /// @return data The packed data.
+    function unpackResolver(uint256 packed) internal pure returns (address addr, uint32 data) {
+        addr = address(uint160(packed));
+        data = uint32(packed >> 160);
     }
 }

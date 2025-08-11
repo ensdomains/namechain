@@ -29,12 +29,12 @@ contract RegistryDatastore is IRegistryDatastore {
     function getResolver(address registry, uint256 id)
         public
         view
-        returns (address resolver, uint64 expiry, uint32 data)
+        returns (address resolver, uint32 data)
     {
-        (resolver, expiry, data) = DatastoreUtils.unpack(entries[registry][NameUtils.getCanonicalId(id)].resolverData);
+        (resolver, data) = DatastoreUtils.unpackResolver(entries[registry][NameUtils.getCanonicalId(id)].resolverData);
     }
 
-    function getResolver(uint256 id) external view returns (address resolver, uint64 expiry, uint32 data) {
+    function getResolver(uint256 id) external view returns (address resolver, uint32 data) {
         return getResolver(msg.sender, id);
     }
 
@@ -43,8 +43,8 @@ contract RegistryDatastore is IRegistryDatastore {
         entries[msg.sender][id].registryData = DatastoreUtils.pack(subregistry, expiry, data);
     }
 
-    function setResolver(uint256 id, address resolver, uint64 expiry, uint32 data) external {
+    function setResolver(uint256 id, address resolver, uint32 data) external {
         id = NameUtils.getCanonicalId(id);
-        entries[msg.sender][id].resolverData = DatastoreUtils.pack(resolver, expiry, data);
+        entries[msg.sender][id].resolverData = DatastoreUtils.packResolver(resolver, data);
     }
 }

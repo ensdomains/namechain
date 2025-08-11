@@ -21,7 +21,7 @@ import {IEnhancedAccessControl} from "./IEnhancedAccessControl.sol";
 contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissionedRegistry, MetadataMixin {
     event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
     event SubregistryUpdate(uint256 indexed id, address subregistry, uint64 expiry, uint32 data);
-    event ResolverUpdate(uint256 indexed id, address resolver, uint64 expiry, uint32 data);
+    event ResolverUpdate(uint256 indexed id, address resolver, uint32 data);
 
     mapping(uint256 => ITokenObserver) public tokenObservers;
 
@@ -90,8 +90,8 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         _mint(owner, tokenId, 1, "");
         _grantRoles(getResourceFromTokenId(tokenId), roleBitmap, owner, false);
 
-        datastore.setResolver(tokenId, resolver, 0, 0);
-        emit ResolverUpdate(tokenId, resolver, 0, 0);
+        datastore.setResolver(tokenId, resolver, 0);
+        emit ResolverUpdate(tokenId, resolver, 0);
 
         emit NewSubname(tokenId, label);
 
@@ -132,8 +132,8 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         datastore.setSubregistry(tokenId, address(0), 0, 0);
         emit SubregistryUpdate(tokenId, address(0), 0, 0);
         
-        datastore.setResolver(tokenId, address(0), 0, 0);
-        emit ResolverUpdate(tokenId, address(0), 0, 0);
+        datastore.setResolver(tokenId, address(0), 0);
+        emit ResolverUpdate(tokenId, address(0), 0);
 
         emit NameBurned(tokenId, msg.sender);
     }
@@ -153,7 +153,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         if (expires <= block.timestamp) {
             return address(0);
         }
-        (address resolver, , ) = datastore.getResolver(canonicalId);
+        (address resolver, ) = datastore.getResolver(canonicalId);
         return resolver;
     }
 
@@ -172,8 +172,8 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         override
         onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_SET_RESOLVER)
     {
-        datastore.setResolver(tokenId, resolver, 0, 0);
-        emit ResolverUpdate(tokenId, resolver, 0, 0);
+        datastore.setResolver(tokenId, resolver, 0);
+        emit ResolverUpdate(tokenId, resolver, 0);
     }
 
     function getNameData(string calldata label) public view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion) {
