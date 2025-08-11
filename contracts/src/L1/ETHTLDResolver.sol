@@ -71,7 +71,7 @@ contract ETHTLDResolver is
     /// @notice The maximum number of reads per gateway request.
     /// @dev Valid range [1, 254].
     ///      Actual limit: gateway proof size and/or gas limit.
-    uint8 public maxReadsPerRequest;
+    uint8 public immutable maxReadsPerRequest;
 
     /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;

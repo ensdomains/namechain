@@ -13,7 +13,7 @@ import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedReso
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 
 abstract contract ResolverCaller is CCIPBatcher {
-    /// @dev `name` does not exist.
+    /// @dev `name` cannot be resolved.
     ///      Error selector: `0x5fe9a5df`
     /// @param name The DNS-encoded ENS name.
     error UnreachableName(bytes name);
