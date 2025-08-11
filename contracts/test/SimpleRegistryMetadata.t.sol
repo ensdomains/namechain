@@ -13,6 +13,9 @@ import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {console} from "forge-std/console.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 import {EnhancedAccessControl} from "../src/common/EnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
 contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -23,19 +26,19 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
     uint256 constant ROLE_UPDATE_METADATA_ADMIN = ROLE_UPDATE_METADATA << 128;
 
-    uint256 constant ROLE_SET_SUBREGISTRY = 1 << 8;
-    uint256 constant ROLE_SET_RESOLVER = 1 << 12;
-    uint256 constant defaultRoleBitmap = ROLE_SET_SUBREGISTRY | ROLE_SET_RESOLVER;
-    bytes32 constant ROOT_RESOURCE = 0;
+
+    uint256 constant defaultRoleBitmap = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER;
+    uint256 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
-        // Use a defined ALL_ROLES value for deployer roles
-        uint256 deployerRoles = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+        // Use the valid ALL_ROLES value for deployer roles
+        uint256 deployerRoles = LibEACBaseRoles.ALL_ROLES;
         registry = new PermissionedRegistry(
             datastore,
             metadata,
+            address(this),
             deployerRoles
         );
     }
@@ -55,14 +58,14 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
         (uint256 tokenId, , ) = registry.getNameData("test");
         string memory expectedUri = "ipfs://test";
 
-        vm.expectRevert(abi.encodeWithSelector(EnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_UPDATE_METADATA, address(1))); 
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, ROOT_RESOURCE, ROLE_UPDATE_METADATA, address(1))); 
         vm.prank(address(1));
         metadata.setTokenUri(tokenId, expectedUri);
     }
 
     function test_registry_metadata_supports_interface() public view {
         assertEq(metadata.supportsInterface(type(IRegistryMetadata).interfaceId), true);
-        assertEq(metadata.supportsInterface(type(EnhancedAccessControl).interfaceId), true);
+        assertEq(metadata.supportsInterface(type(IEnhancedAccessControl).interfaceId), true);
         assertEq(metadata.supportsInterface(type(IERC165).interfaceId), true);
     }
 } 

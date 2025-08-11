@@ -1,4 +1,4 @@
-import type { DefaultChainType, NetworkConnection } from "hardhat/types/network";
+import type { NetworkConnection } from "hardhat/types/network";
 import {
   type Address,
   encodeFunctionData,
@@ -12,28 +12,30 @@ export { ROLES };
 
 export const MAX_EXPIRY = (1n << 64n) - 1n; // see: DatastoreUtils.sol
 
-
-export async function deployV2Fixture(
-  networkConnection: NetworkConnection<DefaultChainType>,
+export async function deployV2Fixture<C extends NetworkConnection>(
+  network: C,
   enableCcipRead = false,
 ) {
-const publicClient = await networkConnection.viem.getPublicClient({
+  const publicClient = await network.viem.getPublicClient({
     ccipRead: enableCcipRead ? undefined : false,
   });
-  const [walletClient] = await networkConnection.viem.getWalletClients();
-  const datastore =
-    await networkConnection.viem.deployContract("RegistryDatastore");
-  const rootRegistry = await networkConnection.viem.deployContract(
+  const [walletClient] = await network.viem.getWalletClients();
+  const datastore = await network.viem.deployContract("RegistryDatastore");
+  const rootRegistry = await network.viem.deployContract(
     "PermissionedRegistry",
-    [datastore.address, zeroAddress, ROLES.ALL],
+    [datastore.address, zeroAddress, walletClient.account.address, ROLES.ALL],
   );
-  const ethRegistry = await networkConnection.viem.deployContract(
+  const ethRegistry = await network.viem.deployContract(
     "PermissionedRegistry",
-    [datastore.address, zeroAddress, ROLES.ALL],
+    [datastore.address, zeroAddress, walletClient.account.address, ROLES.ALL],
   );
-  const universalResolver = await networkConnection.viem.deployContract(
-    "UniversalResolver",
-    [rootRegistry.address, ["x-batch-gateway:true"]],
+  const batchGatewayProvider = await network.viem.deployContract(
+    "GatewayProvider",
+    [walletClient.account.address, ["x-batch-gateway:true"]],
+  );
+  const universalResolver = await network.viem.deployContract(
+    "UniversalResolverV2",
+    [rootRegistry.address, batchGatewayProvider.address],
     { client: { public: publicClient } },
   );
   await rootRegistry.write.register([
@@ -45,33 +47,30 @@ const publicClient = await networkConnection.viem.getPublicClient({
     MAX_EXPIRY,
   ]);
   const verifiableFactory =
-    await networkConnection.viem.deployContract("VerifiableFactory");
+    await network.viem.deployContract("VerifiableFactory");
   const dedicatedResolverImpl =
-    await networkConnection.viem.deployContract("DedicatedResolver");
-  const dedicatedResolver = await deployDedicatedResolver({
-    owner: walletClient.account.address,
-  });
+    await network.viem.deployContract("DedicatedResolver");
   return {
-    networkConnection,
+    network,
     publicClient,
     walletClient,
     datastore,
     rootRegistry,
     ethRegistry,
+    batchGatewayProvider,
     universalResolver,
     verifiableFactory,
-    dedicatedResolver, // warning: this is owned by the default wallet
     deployDedicatedResolver,
     setupName,
   };
   async function deployDedicatedResolver({
-    owner,
+    owner = walletClient.account.address,
     salt = BigInt(labelhash(new Date().toISOString())),
   }: {
-    owner: Address;
+    owner?: Address;
     salt?: bigint;
-  }) {
-    const wallet = await networkConnection.viem.getWalletClient(owner);
+  } = {}) {
+    const wallet = await network.viem.getWalletClient(owner);
     const hash = await verifiableFactory.write.deployProxy([
       dedicatedResolverImpl.address,
       salt,
@@ -87,35 +86,48 @@ const publicClient = await networkConnection.viem.getPublicClient({
       eventName: "ProxyDeployed",
       logs: receipt.logs,
     });
-    return networkConnection.viem.getContractAt(
+    return network.viem.getContractAt(
       "DedicatedResolver",
       log.args.proxyAddress,
-      { client: { wallet } },
+      {
+        client: { wallet },
+      },
     );
   }
   // creates registries up to the parent name
-  async function setupName({
+  // if exact, exactRegistry is setup
+  // if no resolverAddress, dedicatedResolver is deployed
+  async function setupName<
+    exact_ extends boolean = false,
+    resolver_ extends false | Address = false,
+  >({
     name,
     owner = walletClient.account.address,
     expiry = MAX_EXPIRY,
     roles = ROLES.ALL,
-    resolverAddress = dedicatedResolver.address,
+    resolverAddress,
     metadataAddress = zeroAddress,
-    exact = false,
+    exact,
   }: {
     name: string;
     owner?: Address;
     expiry?: bigint;
     roles?: bigint;
-    resolverAddress?: Address;
+    resolverAddress?: resolver_ | Address;
     metadataAddress?: Address;
-    exact?: boolean;
+    exact?: exact_;
   }) {
     const labels = splitName(name);
     if (!labels.length) throw new Error("expected name");
+    const dedicatedResolver = resolverAddress
+      ? undefined
+      : await deployDedicatedResolver({ owner });
+    if (!resolverAddress) {
+      resolverAddress = dedicatedResolver?.address ?? zeroAddress;
+    }
     const registries = [rootRegistry];
     while (true) {
-      const parentRegistry = registries[registries.length - 1];
+      const parentRegistry = registries[0];
       const label = labels[labels.length - registries.length];
       const [tokenId] = await parentRegistry.read.getNameData([label]);
       const registryOwner = await parentRegistry.read.ownerOf([tokenId]);
@@ -125,9 +137,14 @@ const publicClient = await networkConnection.viem.getPublicClient({
       if (!leaf || exact) {
         if (registryAddress === zeroAddress) {
           // registry does not exist, create it
-          const registry = await networkConnection.viem.deployContract(
+          const registry = await network.viem.deployContract(
             "PermissionedRegistry",
-            [datastore.address, metadataAddress, roles],
+            [
+              datastore.address,
+              metadataAddress,
+              walletClient.account.address,
+              roles,
+            ],
           );
           registryAddress = registry.address;
           if (exists) {
@@ -137,10 +154,10 @@ const publicClient = await networkConnection.viem.getPublicClient({
               registryAddress,
             ]);
           }
-          registries.push(registry);
+          registries.unshift(registry);
         } else {
-          registries.push(
-            await networkConnection.viem.getContractAt(
+          registries.unshift(
+            await network.viem.getContractAt(
               "PermissionedRegistry",
               registryAddress,
             ),
@@ -166,10 +183,29 @@ const publicClient = await networkConnection.viem.getPublicClient({
       }
       if (leaf) {
         // invariants:
-        //  registries.length == labels.length - (exact ? 0 : 1)
-        //     parentRegistry == registries.at(exact ? -2 : -1)
-        //            tokenId == canonical(labelhash(labels.at(-1)))
-        return { registries, labels, tokenId, parentRegistry };
+        //            tokenId == labelToCanonicalId(labels[0])
+        //  registries.length == labels.length
+        //     exactRegistry? == registries[0]
+        //     parentRegistry == registries[1]
+        // dedicatedResolver? == !resolverAddress
+        return {
+          labels,
+          tokenId,
+          parentRegistry,
+          exactRegistry: (exact
+            ? registries[0]
+            : undefined) as exact_ extends true
+            ? (typeof registries)[number]
+            : undefined,
+          registries: (exact
+            ? registries
+            : [undefined, ...registries]) as exact_ extends true
+            ? typeof registries
+            : [undefined, ...typeof registries],
+          dedicatedResolver: dedicatedResolver as resolver_ extends false
+            ? NonNullable<typeof dedicatedResolver>
+            : undefined,
+        };
       }
     }
   }

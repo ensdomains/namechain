@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {IRegistry} from "../common/IRegistry.sol";
-import {IPriceOracle} from "./IPriceOracle.sol";
+import {ITokenPriceOracle} from "./ITokenPriceOracle.sol";
 
 /**
  * @dev Interface for the ETH Registrar.
@@ -17,8 +17,13 @@ interface IETHRegistrar {
      * @param resolver The resolver used for the registration.
      * @param duration The duration of the registration.
      * @param tokenId The ID of the newly registered name.
+     * @param baseCost The base cost component in USD (USD_DECIMALS precision).
+     * @param premium The premium cost component in USD (USD_DECIMALS precision).
      */
-    event NameRegistered(string name, address owner, IRegistry subregistry, address resolver, uint64 duration, uint256 tokenId);
+    event NameRegistered(
+        string name, address owner, IRegistry subregistry, address resolver, uint64 duration, uint256 tokenId,
+        uint256 baseCost, uint256 premium
+    );
 
     /**
      * @dev Emitted when a name is renewed.
@@ -27,8 +32,10 @@ interface IETHRegistrar {
      * @param duration The duration of the renewal.
      * @param tokenId The ID of the renewed name.
      * @param newExpiry The new expiry of the name.
+     * @param cost The cost in USD (USD_DECIMALS precision). Renewals have no premium.
      */
-    event NameRenewed(string name, uint64 duration, uint256 tokenId, uint64 newExpiry);
+    event NameRenewed(string name, uint64 duration, uint256 tokenId, uint64 newExpiry,
+                     uint256 cost);
 
     /**
      * @dev Emitted when a commitment is made.
@@ -62,7 +69,7 @@ interface IETHRegistrar {
      * @param duration The duration of the registration or renewal.
      * @return price The price to register or renew the name.
      */
-    function rentPrice(string memory name, uint256 duration) external view returns (IPriceOracle.Price memory price);
+    function rentPrice(string memory name, uint256 duration) external view returns (ITokenPriceOracle.Price memory price);
 
     /**
      * @dev Make a commitment for a name.
@@ -93,7 +100,7 @@ interface IETHRegistrar {
     function commit(bytes32 commitment) external;
 
     /**
-     * @dev Register a name.
+     * @dev Register a name with ERC20 token payment.
      *
      * @param name The name to register.
      * @param owner The address of the owner of the name.
@@ -101,6 +108,7 @@ interface IETHRegistrar {
      * @param subregistry The registry to use for the registration.
      * @param resolver The resolver to use for the registration.
      * @param duration The duration of the registration.
+     * @param token The ERC20 token address for payment.
      *
      * @return The ID of the newly registered name.
      */
@@ -110,14 +118,16 @@ interface IETHRegistrar {
         bytes32 secret,
         IRegistry subregistry,
         address resolver,
-        uint64 duration
-    ) external payable returns (uint256);
+        uint64 duration,
+        address token
+    ) external returns (uint256);
 
     /**
-     * @dev Renew a name.
+     * @dev Renew a name with ERC20 token payment.
      *
      * @param name The name to renew.
      * @param duration The duration of the renewal.
+     * @param token The ERC20 token address for payment.
      */
-    function renew(string calldata name, uint64 duration) external payable;
+    function renew(string calldata name, uint64 duration, address token) external;
 }
