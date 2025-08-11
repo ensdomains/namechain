@@ -12,10 +12,9 @@ export default execute(
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
     
-    // PriceOracle can be either StablePriceOracle or ExponentialPremiumPriceOracle
-    // Both inherit from TokenPriceOracle and have compatible interfaces
+    // PriceOracle is always ExponentialPremiumPriceOracle now
     const priceOracle =
-      get<(typeof artifacts["src/L2/TokenPriceOracle.sol/TokenPriceOracle"])["abi"]>("PriceOracle");
+      get<(typeof artifacts["src/L2/ExponentialPremiumPriceOracle.sol/ExponentialPremiumPriceOracle"])["abi"]>("PriceOracle");
 
     // Use owner as beneficiary, or deployer if owner is not set
     const beneficiary = owner || deployer;
