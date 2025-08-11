@@ -62,11 +62,36 @@ export default execute(
       return;
     }
 
-    await deploy("UpgradableUniversalResolverProxy", {
-      account: deployer,
-      artifact: artifacts.UpgradableUniversalResolverProxy,
-      args: [owner, v1UniversalResolverDeploymentJson.address],
-    });
+    const contractAddressMap = {
+      mainnet: "0xED73a03F19e8D849E44a39252d222c6ad5217E1e",
+      sepolia: "0x3c85752a5d47DD09D677C645Ff2A938B38fbFEbA",
+      holesky: "0x9b37980C10bc0A31Bb61d740De46444853fe2359",
+    } as const;
+
+    const args = [
+      owner,
+      contractAddressMap[
+        config.network.name as keyof typeof contractAddressMap
+      ],
+    ] as const;
+
+    console.log("Proxy args", args);
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+
+    await deploy(
+      "UpgradableUniversalResolverProxy",
+      {
+        account: deployer,
+        artifact: artifacts.UpgradableUniversalResolverProxy,
+        args,
+      },
+      {
+        deterministic: {
+          type: "create3",
+          salt: "0xdeac7148fb7f566f1fc8c8d6720530de8809f3658cf10141ceee7ba0d45eef85",
+        },
+      },
+    );
   },
   { tags: ["UpgradableUniversalResolverProxy", "l1", "universalResolver"] },
 );
