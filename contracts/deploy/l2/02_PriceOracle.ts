@@ -1,5 +1,6 @@
 /// we import what we need from the @rocketh alias, see ../rocketh.ts
 import { artifacts, execute } from "@rocketh";
+import { PREMIUM_CONFIG } from "../constants";
 
 // USD prices in 6 decimals (USDC standard)
 const BASE_PRICE_USD = 10n * 10n**6n;     // $10.00
@@ -14,24 +15,28 @@ export default execute(
 
     const tokenAddresses = [mockUSDC.address, mockDAI.address];
     const tokenDecimals = [6, 18]; // USDC: 6 decimals, DAI: 18 decimals
-    const rentPrices = [BASE_PRICE_USD, BASE_PRICE_USD, BASE_PRICE_USD, 0n, 0n]; // Array of rent prices (5 prices for StablePriceOracle)
+    const rentPrices = [BASE_PRICE_USD, BASE_PRICE_USD, BASE_PRICE_USD, 0n, 0n]; // Array of rent prices (5 prices for ExponentialPremiumPriceOracle)
 
-    // Use the full path to access StablePriceOracle from artifacts
-    const StablePriceOracle = artifacts["src/L2/StablePriceOracle.sol/StablePriceOracle"];
+    // Always deploy ExponentialPremiumPriceOracle
+    const ExponentialPremiumPriceOracle = artifacts["src/L2/ExponentialPremiumPriceOracle.sol/ExponentialPremiumPriceOracle"];
 
     await deploy("PriceOracle", {
       account: deployer,
-      artifact: StablePriceOracle,
+      artifact: ExponentialPremiumPriceOracle,
       args: [
         tokenAddresses,
         tokenDecimals,
         rentPrices,
+        PREMIUM_CONFIG.START_PREMIUM_USD,
+        PREMIUM_CONFIG.TOTAL_DAYS,
       ],
     });
 
-    console.log(`✅ TokenPriceOracle deployed with:`)
+    console.log(`✅ ExponentialPremiumPriceOracle deployed with:`);
     console.log(`   - Base Price: $${Number(BASE_PRICE_USD) / 10**6}`);
     console.log(`   - Rent Prices: [${rentPrices.map(p => `$${Number(p) / 10**6}`).join(', ')}]`);
+    console.log(`   - Start Premium: $${Number(PREMIUM_CONFIG.START_PREMIUM_USD) / 10**6}`);
+    console.log(`   - Decay Period: ${Number(PREMIUM_CONFIG.TOTAL_DAYS)} days`);
     console.log(`   - Supported Tokens:`);
     console.log(`     - MockUSDC (6 decimals): ${tokenAddresses[0]}`);
     console.log(`     - MockDAI (18 decimals): ${tokenAddresses[1]}`);

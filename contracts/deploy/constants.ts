@@ -1,5 +1,11 @@
 export const MAX_EXPIRY = (1n << 64n) - 1n; // see: DatastoreUtils.sol
 
+// Premium pricing constants for ExponentialPremiumPriceOracle
+export const PREMIUM_CONFIG = {
+  START_PREMIUM_USD: 100_000_000n * 10n**6n, // $100 million in 6 decimals
+  TOTAL_DAYS: 21n, // 21-day decay period (premium halves each day)
+} as const;
+
 interface Flags {
   [key: string]: bigint | Flags;
 }

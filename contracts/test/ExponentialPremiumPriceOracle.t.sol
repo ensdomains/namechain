@@ -18,8 +18,8 @@ contract TestExponentialPremiumPriceOracle is Test {
     uint256 constant PRICE_4_CHAR = 5072;  // ~$160/year
     uint256 constant PRICE_3_CHAR = 20289; // ~$640/year
     
-    // Premium constants
-    uint256 constant START_PREMIUM_USD = 100 * 1e6; // $100 in 6 decimals
+    // Premium constants  
+    uint256 constant START_PREMIUM_USD = 100_000_000 * 1e6; // $100 million in 6 decimals
     uint256 constant TOTAL_DAYS = 21; // 21-day decay period
 
     function setUp() public {
