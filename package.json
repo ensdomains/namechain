@@ -1,14 +1,21 @@
 {
   "name": "namechain",
   "private": true,
+  "engines": {
+    "node": "^24.1.0",
+    "bun": "^1.2.15"
+  },
   "workspaces": [
     "contracts"
   ],
   "devDependencies": {
-    "typescript": "^5.4.5"
+    "typescript": "^5.8.3"
+  },
+  "resolutions": {
+    "viem": "2.31.6"
   },
   "patchedDependencies": {
-    "@nomicfoundation/hardhat-viem@3.0.0-next.8": "patches/@nomicfoundation%2Fhardhat-viem@3.0.0-next.8.patch",
     "rocketh@0.11.20": "patches/rocketh@0.11.20.patch"
-  }
+  },
+  "engineStrict": true
 }

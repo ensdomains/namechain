@@ -1,4 +1,4 @@
-import { labelhash, type Client, type Hash } from "viem";
+import type { Client, Hash } from "viem";
 import { waitForTransactionReceipt } from "viem/actions";
 
 export const expectTransactionSuccess = async (
@@ -9,21 +9,6 @@ export const expectTransactionSuccess = async (
   const receipt = await waitForTransactionReceipt(client, { hash: txHash });
   if (receipt.status !== "success") throw new Error("Transaction failed!");
   return receipt;
-};
-
-export const labelToCanonicalId = (label: string) => {
-  const id = BigInt(labelhash(label));
-
-  return `0x${getCanonicalId(id).toString(16)}`;
-};
-
-export const getCanonicalId = (id: bigint) => {
-  const idBigInt = BigInt(id);
-  const mask = BigInt(
-    "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000",
-  );
-
-  return idBigInt & mask;
 };
 
 export const waitForEvent = async <

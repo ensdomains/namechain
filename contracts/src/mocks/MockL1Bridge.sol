@@ -1,79 +1,51 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {MockBridgeHelper} from "./MockBridgeHelper.sol";
-import {TransferData} from "../common/EjectionController.sol";
-import {MockL1EjectionController} from "./MockL1EjectionController.sol";
-import {IBridge} from "./IBridge.sol";
+import {L1EjectionController} from "../L1/L1EjectionController.sol";
+import {MockBridgeBase} from "./MockBridgeBase.sol";
+import {BridgeMessageType} from "../common/IBridge.sol";
+import {BridgeEncoder} from "../common/BridgeEncoder.sol";
+import {TransferData} from "../common/TransferData.sol";
 
 /**
  * @title MockL1Bridge
- * @dev Generic mock L1 bridge for testing cross-chain communication
+ * @dev Generic mock L1-to-L2 bridge for testing cross-chain communication
  * Accepts arbitrary messages as bytes and calls the appropriate controller methods
  */
-contract MockL1Bridge is IBridge {
-    // Event for outgoing messages from L1 to L2
-    event L1ToL2Message(bytes message);
+contract MockL1Bridge is MockBridgeBase {
+    // Ejection controller to call when receiving ejection messages
+    L1EjectionController public ejectionController;
     
-    // Event for message receipt acknowledgement
-    event MessageProcessed(bytes message);
-
-    // Target controller to call when receiving messages
-    MockL1EjectionController public targetController;
-    MockBridgeHelper public bridgeHelper;
+    event NameBridgedToL2(bytes message);
     
-    constructor(MockBridgeHelper _bridgeHelper) {
-        bridgeHelper = _bridgeHelper;
-    }
-    
-    function setTargetController(MockL1EjectionController _targetController) external {
-        targetController = _targetController;
+    function setEjectionController(L1EjectionController _ejectionController) external {
+        ejectionController = _ejectionController;
     }
     
     /**
-     * @dev Send a message from L1 to L2
-     * In a real bridge, this would initiate cross-chain communication
-     * For testing, it just emits an event that can be listened for
+     * @dev Override sendMessage to emit specific events based on message type
      */
-    function sendMessageToL2(uint256 tokenId, TransferData memory transferData) external override {
-        bytes memory message = bridgeHelper.encodeEjectionMessage(
-            tokenId,
-            transferData
-        );
-
-        // Simply emit the message for testing purposes
-        emit L1ToL2Message(message);
-    }
-
-    function sendMessageToL1(uint256 /*tokenId*/, TransferData memory /*transferData*/) external pure override {
-        revert("Not implemented");
+    function sendMessage(bytes memory message) external override {
+        emit NameBridgedToL2(message);
     }
     
     /**
-     * @dev Simulate receiving a message from L2
-     * Anyone can call this method with encoded message data
+     * @dev Handle ejection messages specific to L1 bridge
      */
-    function receiveMessageFromL2(bytes calldata message) external {
-        // Determine the message type and call the appropriate controller method
-        bytes4 messageType = bytes4(message[:4]);
-        
-        if (messageType == bytes4(keccak256("NAME_EJECTION"))) {
-            // Decode the ejection message
-            try bridgeHelper.decodeEjectionMessage(message) returns (
-                uint256 /*tokenId*/,
-                TransferData memory _transferData
-            ) {
-                targetController.completeEjectionFromL2(_transferData);
-            } catch Error(string memory reason) {
-                // Handle known errors
-                revert(string(abi.encodePacked("L1Bridge decoding failed: ", reason)));
-            } catch (bytes memory /*lowLevelData*/) {
-                // Handle unknown errors
-                revert("L1Bridge decoding failed with unknown error");
-            }
-        }
-        
-        // Emit event for tracking
-        emit MessageProcessed(message);
+    function _handleEjectionMessage(
+        bytes memory /*dnsEncodedName*/,
+        TransferData memory transferData
+    ) internal override {
+        ejectionController.completeEjectionFromL2(transferData);
+    }
+    
+    /**
+     * @dev Handle renewal messages specific to L1 bridge
+     */
+    function _handleRenewalMessage(
+        uint256 tokenId,
+        uint64 newExpiry
+    ) internal override {
+        ejectionController.syncRenewal(tokenId, newExpiry);
     }
 }

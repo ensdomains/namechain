@@ -1,12 +1,10 @@
-// import { labelhash, namehash } from "viem";
+import { labelhash } from "viem";
 
-import type { Fixture } from "@nomicfoundation/hardhat-network-helpers/types";
-import type {
-  DefaultChainType,
-  NetworkConnection,
-} from "hardhat/types/network";
-
-export { expectVar } from "../../lib/ens-contracts/test/fixtures/expectVar.js";
+// import type { ccipRequest } from "viem";
+// export type CCIPReadOption =
+//   | { request: typeof ccipRequest }
+//   | undefined
+//   | false;
 
 export {
   dnsEncodeName,
@@ -23,6 +21,16 @@ export {
 //   m.push(Uint8Array.of(0));
 //   return concat(m);
 // }
+
+// see: NameUtils.labelToCanonicalId()
+export function labelToCanonicalId(label: string) {
+  return getCanonicalId(BigInt(labelhash(label)));
+}
+
+// see: NameUtils.getCanonicalId
+export function getCanonicalId(id: bigint) {
+  return id ^ BigInt.asUintN(32, id);
+}
 
 // export function dnsEncodeName(name: string) {
 //   return bytesToHex(packetToBytes(name));
@@ -54,13 +62,4 @@ export function getParentName(name: string) {
 //          5 => ""
 export function getLabelAt(name: string, index: number) {
   return splitName(name).at(index) ?? "";
-}
-
-export function createFixture<T>(
-  networkConnection: NetworkConnection<DefaultChainType>,
-  fixture: (n: NetworkConnection<DefaultChainType>) => Fixture<T>,
-) {
-  const initialisedFixture = fixture(networkConnection);
-  return async () =>
-    networkConnection.networkHelpers.loadFixture(initialisedFixture);
 }

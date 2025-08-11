@@ -1,16 +1,9 @@
-import type {
-  DefaultChainType,
-  NetworkConnection,
-} from "hardhat/types/network";
-import { labelhash, namehash } from "viem";
+import type { NetworkConnection } from "hardhat/types/network";
+import { type Address, labelhash, namehash } from "viem";
 import { splitName } from "../utils/utils.js";
-import { baseRegistrarImplementationArtifact } from "./ens-contracts/BaseRegistrarImplementation.js";
-import { ensRegistryArtifact } from "./ens-contracts/ENSRegistry.js";
-import { ownedResolverArtifact } from "./ens-contracts/OwnedResolver.js";
-import { universalResolverArtifact } from "./ens-contracts/UniversalResolver.js";
 
-export async function deployV1Fixture(
-  networkConnection: NetworkConnection<DefaultChainType>,
+export async function deployV1Fixture<C extends NetworkConnection>(
+  networkConnection: C,
   enableCcipRead = false,
 ) {
   const publicClient = await networkConnection.viem.getPublicClient({
@@ -18,20 +11,18 @@ export async function deployV1Fixture(
   });
   const [walletClient] = await networkConnection.viem.getWalletClients();
   const ensRegistry =
-    await networkConnection.viem.deployContract(ensRegistryArtifact);
+    await networkConnection.viem.deployContract('ENSRegistry');
   const ethRegistrar = await networkConnection.viem.deployContract(
-    baseRegistrarImplementationArtifact,
+    'BaseRegistrarImplementation',
     [ensRegistry.address, namehash("eth")],
   );
   const ownedResolver = await networkConnection.viem.deployContract(
-    ownedResolverArtifact,
+    'lib/ens-contracts/contracts/resolvers/OwnedResolver.sol:OwnedResolver'
   );
   const universalResolver = await networkConnection.viem.deployContract(
-    universalResolverArtifact,
+    "lib/ens-contracts/contracts/universalResolver/UniversalResolver.sol:UniversalResolver",
     [ensRegistry.address, ["x-batch-gateway:true"]],
-    {
-      client: { public: publicClient },
-    },
+    { client: { public: publicClient } },
   );
   await ethRegistrar.write.addController([walletClient.account.address]);
   await ensRegistry.write.setSubnodeRecord([
@@ -53,7 +44,13 @@ export async function deployV1Fixture(
   };
   // clobbers registry ownership up to name
   // except for "eth" (since registrar is known)
-  async function setupName(name: string) {
+  async function setupName({
+    name,
+    resolverAddress = ownedResolver.address,
+  }: {
+    name: string;
+    resolverAddress?: Address;
+  }) {
     const labels = splitName(name);
     let i = labels.length;
     if (name.endsWith(".eth")) {
@@ -73,10 +70,7 @@ export async function deployV1Fixture(
       ]);
     }
     // set resolver on leaf
-    await ensRegistry.write.setResolver([
-      namehash(name),
-      ownedResolver.address,
-    ]);
+    await ensRegistry.write.setResolver([namehash(name), resolverAddress]);
     return { labels };
   }
 }

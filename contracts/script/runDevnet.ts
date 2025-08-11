@@ -1,6 +1,14 @@
+import { createMockRelay } from "./mockRelay.js";
 import { setupCrossChainEnvironment } from "./setup.js";
 
 const env = await setupCrossChainEnvironment();
+
+createMockRelay({
+  l1Bridge: env.l1.contracts.mockBridge,
+  l2Bridge: env.l2.contracts.mockBridge,
+  l1Client: env.l1.client,
+  l2Client: env.l2.client,
+});
 
 console.log("\nAvailable Test Accounts:");
 console.log("=======================");
@@ -18,5 +26,5 @@ l2Accounts.forEach((address: string, index: number) => {
 });
 
 console.log("\nChain Info:");
-console.log(`L1 Chain ID: ${env.l1.client.chain.id}`);
-console.log(`L2 Chain ID: ${env.l2.client.chain.id}`);
+console.log(`L1 Chain ID: ${(env.l1.client.chain as any)?.id ?? "unknown"}`);
+console.log(`L2 Chain ID: ${(env.l2.client.chain as any)?.id ?? "unknown"}`);

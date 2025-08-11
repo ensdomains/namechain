@@ -108,21 +108,41 @@ export async function setupCrossChainEnvironment() {
     "test test test test test test test test test test test junk",
   );
 
+  const l1Chain = {
+    id: l1Config.chainId,
+    name: 'L1 Local',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: {
+      default: { http: [`http://127.0.0.1:${l1.port}`] },
+      public: { http: [`http://127.0.0.1:${l1.port}`] },
+    },
+  } as const;
+
+  const l2Chain = {
+    id: l2Config.chainId,
+    name: 'L2 Local',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: {
+      default: { http: [`http://127.0.0.1:${l2.port}`] },
+      public: { http: [`http://127.0.0.1:${l2.port}`] },
+    },
+  } as const;
+
   const l1Client = createClient({
+    chain: l1Chain,
     transport: webSocket(`ws://127.0.0.1:${l1.port}`, {
       retryCount: 0,
     }),
     account,
-    chain: l1Deploy.network.chain,
   });
   const l1Contracts = createDeploymentGetter(l1Deploy, l1Client);
 
   const l2Client = createClient({
+    chain: l2Chain,
     transport: webSocket(`ws://127.0.0.1:${l2.port}`, {
       retryCount: 0,
     }),
     account,
-    chain: l2Deploy.network.chain,
   });
   const l2Contracts = createDeploymentGetter(l2Deploy, l2Client);
 
@@ -135,15 +155,11 @@ export async function setupCrossChainEnvironment() {
       },
       contracts: {
         ejectionController: l1Contracts<
-          (typeof artifacts.MockL1EjectionController)["abi"]
+          (typeof artifacts.L1EjectionController)["abi"]
         >("L1EjectionController"),
         ethRegistry:
           l1Contracts<(typeof artifacts.PermissionedRegistry)["abi"]>(
             "L1ETHRegistry",
-          ),
-        mockBridgeHelper:
-          l1Contracts<(typeof artifacts.MockBridgeHelper)["abi"]>(
-            "MockBridgeHelper",
           ),
         mockBridge:
           l1Contracts<(typeof artifacts.MockL1Bridge)["abi"]>("MockL1Bridge"),
@@ -159,7 +175,7 @@ export async function setupCrossChainEnvironment() {
           (typeof artifacts.SimpleRegistryMetadata)["abi"]
         >("SimpleRegistryMetadata"),
         universalResolver:
-          l1Contracts<(typeof artifacts.UniversalResolver)["abi"]>(
+          l1Contracts<(typeof artifacts.UniversalResolverV2)["abi"]>(
             "UniversalResolver",
           ),
       },
@@ -176,13 +192,9 @@ export async function setupCrossChainEnvironment() {
           l2Contracts<(typeof artifacts.PermissionedRegistry)["abi"]>(
             "ETHRegistry",
           ),
-        ejectionController: l2Contracts<
-          (typeof artifacts.MockL2EjectionController)["abi"]
-        >("L2EjectionController"),
-        mockBridgeHelper:
-          l2Contracts<(typeof artifacts.MockBridgeHelper)["abi"]>(
-            "MockBridgeHelper",
-          ),
+        bridgeController: l2Contracts<
+          (typeof artifacts.L2BridgeController)["abi"]
+        >("L2BridgeController"),
         mockBridge:
           l2Contracts<(typeof artifacts.MockL2Bridge)["abi"]>("MockL2Bridge"),
         priceOracle:

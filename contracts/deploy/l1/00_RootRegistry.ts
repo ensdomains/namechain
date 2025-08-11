@@ -1,8 +1,6 @@
 /// we import what we need from the @rocketh alias, see ../rocketh.ts
 import { artifacts, execute } from "@rocketh";
-import { maxUint256 } from "viem";
-
-const ALL_ROLES = maxUint256;
+import { ROLES } from "../constants.js";
 
 export default execute(
   async ({ deploy, namedAccounts, get }) => {
@@ -17,7 +15,7 @@ export default execute(
     await deploy("RootRegistry", {
       account: deployer,
       artifact: artifacts.PermissionedRegistry,
-      args: [registryDatastore.address, registryMetadata.address, ALL_ROLES],
+      args: [registryDatastore.address, registryMetadata.address, deployer, ROLES.ALL],
     });
   },
   // finally you can pass tags and dependencies

@@ -10,6 +10,9 @@ jobs:
     name: Contract tests
     runs-on: ubuntu-latest
     steps:
+      - name: Install lcov
+        run: sudo apt-get install lcov
+
       - name: Cache git folder
         uses: actions/cache@v4
         with:
@@ -23,20 +26,23 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: Use Node 24
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: ".nvmrc"
 
-      - name: Use Bun 1.2.2
-        uses: oven-sh/setup-bun@v1
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.2.2
+          bun-version-file: ".bun-version"
 
       - run: bun install --frozen-lockfile
 
       - name: Run tests with coverage
         run: bun --filter contracts coverage
+
+      - name: Check types
+        run: bun --filter contracts check:types
 
       - name: Generate coverage report
         run: bunx @lcov-viewer/cli lcov -o ./contracts/coverage ./contracts/lcov.info
