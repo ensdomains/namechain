@@ -1,6 +1,6 @@
 /// we import what we need from the @rocketh alias, see ../rocketh.ts
 import { artifacts, execute } from "@rocketh";
-import { PREMIUM_CONFIG } from "../constants";
+import { PREMIUM_CONFIG } from "../constants.js";
 
 // USD prices in 6 decimals (USDC standard)
 const BASE_PRICE_USD = 10n * 10n**6n;     // $10.00
