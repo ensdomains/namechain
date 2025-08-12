@@ -3,10 +3,11 @@
 
 pragma solidity ^0.8.20;
 
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
 import {IEnhancedAccessControl} from "./IEnhancedAccessControl.sol";
+import {HCAContext} from "../hca/HCAContext.sol";
 
 library LibEACBaseRoles {
     uint256 constant public ALL_ROLES = 0x1111111111111111111111111111111111111111111111111111111111111111;
@@ -27,7 +28,7 @@ library LibEACBaseRoles {
  * - Each role is represented by a nybble (4 bits), in little-endian order.
  * - If a given role left-most nybble bit is located at index N then the corresponding admin role nybble starts at bit position N << 128.
  */
-abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessControl {
+abstract contract EnhancedAccessControl is HCAContext, ERC165, IEnhancedAccessControl {
     /**
      * @dev user roles within a resource stored as a bitmap.
      * Resource -> User -> RoleBitmap

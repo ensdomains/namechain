@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts (last updated v5.0.1) (utils/Context.sol)
 
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.27;
 
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
-interface IHCAFactory {
-    function getGSAFromHCA(address hca) external view returns (address);
-}
+import {IHCAFactory} from "./IHCAFactory.sol";
 
 /**
  * @dev Provides information about the current execution context, including the
@@ -24,8 +22,8 @@ abstract contract HCAContext is Context {
         IHCAFactory(0x0000000000000000000000000000000000000000);
 
     function _msgSender() internal view virtual override returns (address) {
-        address gsa = HCA_FACTORY.getGSAFromHCA(msg.sender);
-        if (gsa == address(0)) return msg.sender;
-        return gsa;
+        address accountOwner = HCA_FACTORY.getAccountOwner(msg.sender);
+        if (accountOwner == address(0)) return msg.sender;
+        return accountOwner;
     }
 }

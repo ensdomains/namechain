@@ -25,3 +25,17 @@
 [submodule "contracts/lib/solsha1"]
 	path = contracts/lib/solsha1
 	url = https://github.com/ensdomains/solsha1
+[submodule "lib/scw-contracts"]
+	branch = main
+[submodule "contracts/lib/nexus"]
+	path = contracts/lib/nexus
+	url = https://github.com/bcnmy/nexus
+[submodule "contracts/lib/solady"]
+	path = contracts/lib/solady
+	url = https://github.com/vectorized/solady
+[submodule "contracts/lib/account-abstraction"]
+	path = contracts/lib/account-abstraction
+	url = https://github.com/eth-infinitism/account-abstraction
+[submodule "contracts/lib/erc7739Validator"]
+	path = contracts/lib/erc7739Validator
+	url = https://github.com/erc7579/erc7739Validator

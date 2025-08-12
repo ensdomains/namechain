@@ -3,18 +3,18 @@
 // ERC1155 implementation that supports only a single token per ID. Stores owner instead of balance to allow
 // fetching ownership information for a tokenId via `ownerOf`.
 // Portions from OpenZeppelin Contracts (last updated v5.0.0) (token/ERC1155/ERC1155.sol)
-pragma solidity >=0.8.13;
+pragma solidity ^0.8.27;
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IERC1155MetadataURI} from "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
 import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {ERC1155Utils} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Utils.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Arrays} from "@openzeppelin/contracts/utils/Arrays.sol";
 
-import {HCAContext} from "./HCAContext.sol";
+import {IERC1155Singleton} from "./IERC1155Singleton.sol";
+import {HCAContext} from "../hca/HCAContext.sol";
 
 abstract contract ERC1155Singleton is HCAContext, ERC165, IERC1155Singleton, IERC1155Errors, IERC1155MetadataURI {
     using Arrays for uint256[];

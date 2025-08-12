@@ -5,6 +5,10 @@
 @unruggable/gateways/=lib/unruggable-gateways/
 @ensdomains/verifiable-factory/=lib/verifiable-factory/src/
 forge-std/=lib/forge-std/src/
+nexus/=lib/nexus/contracts
+solady/=lib/solady/src
+erc7739Validator/=lib/erc7739Validator/src
+account-abstraction/=lib/account-abstraction/contracts
 lib/ens-contracts/:@openzeppelin/contracts=lib/openzeppelin-contracts-v4/contracts
 lib/ens-contracts/:@openzeppelin/contracts-v5=lib/openzeppelin-contracts/contracts
 lib/ens-contracts/:@ensdomains/solsha1/contracts=lib/solsha1/contracts
