@@ -2,7 +2,6 @@
 pragma solidity >=0.8.13;
 
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
-import {DatastoreUtils} from "./DatastoreUtils.sol";
 import {NameUtils} from "./NameUtils.sol";
 
 contract RegistryDatastore is IRegistryDatastore {
@@ -19,7 +18,7 @@ contract RegistryDatastore is IRegistryDatastore {
         returns (address subregistry, uint64 expiry, uint32 data)
     {
         (subregistry, data, expiry) =
-            DatastoreUtils.unpack(entries[registry][NameUtils.getCanonicalId(id)].registryData);
+            unpack(entries[registry][NameUtils.getCanonicalId(id)].registryData);
     }
 
     function getSubregistry(uint256 id) external view returns (address subregistry, uint64 expiry, uint32 data) {
@@ -33,7 +32,7 @@ contract RegistryDatastore is IRegistryDatastore {
     {
         address _resolver;
         uint64 _expiry;
-        (_resolver, data, _expiry) = DatastoreUtils.unpack(entries[registry][NameUtils.getCanonicalId(id)].resolverData);
+        (_resolver, data, _expiry) = unpack(entries[registry][NameUtils.getCanonicalId(id)].resolverData);
         resolver = _resolver;
     }
 
@@ -43,11 +42,31 @@ contract RegistryDatastore is IRegistryDatastore {
 
     function setSubregistry(uint256 id, address subregistry, uint64 expiry, uint32 data) external {
         id = NameUtils.getCanonicalId(id);
-        entries[msg.sender][id].registryData = DatastoreUtils.pack(subregistry, data, expiry);
+        entries[msg.sender][id].registryData = pack(subregistry, data, expiry);
     }
 
     function setResolver(uint256 id, address resolver, uint32 data) external {
         id = NameUtils.getCanonicalId(id);
-        entries[msg.sender][id].resolverData = DatastoreUtils.pack(resolver, data, 0);
+        entries[msg.sender][id].resolverData = pack(resolver, data, 0);
+    }
+
+    /// @dev Pack `(address, data, expiry)` together into a word.
+    /// @param addr The address to pack.
+    /// @param data The data to pack.
+    /// @param expiry The expiry to pack.
+    /// @return packed The packed word.
+    function pack(address addr, uint32 data, uint64 expiry) internal pure returns (uint256 packed) {
+        packed = (uint256(expiry) << 192) | (uint256(data) << 160) | uint256(uint160(addr));
+    }
+
+    /// @dev Unpack a word into `(address, data, expiry)`.
+    /// @param packed The packed word.
+    /// @return addr The packed address.
+    /// @return data The packed data.
+    /// @return expiry The packed expiry.
+    function unpack(uint256 packed) internal pure returns (address addr, uint32 data, uint64 expiry) {
+        addr = address(uint160(packed));
+        data = uint32(packed >> 160);
+        expiry = uint64(packed >> 192);
     }
 }
