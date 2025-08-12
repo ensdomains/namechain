@@ -20,6 +20,9 @@ abstract contract ResolverCaller is CCIPBatcher {
 
     /// @notice Perform forward resolution.
     ///
+    /// If ENSIP-22 is supported, performs a direct call.
+    /// Call this function with `ccipRead()` to intercept the response.
+    ///
     /// 1. if `IExtendedResolver`, `resolver.resolve(name, calldata)`.
     /// 2. otherwise, `resolver.staticall(calldata)`.
     ///
@@ -29,8 +32,6 @@ abstract contract ResolverCaller is CCIPBatcher {
     ///   the call is performed directly without the batch gateway.
     /// - Otherwise, the call is performed with the batch gateway.
     ///   If the calldata is `multicall()`, it is disassembled, called separately, and reassembled.
-    ///
-    /// Call this function with `ccipRead()` to intercept the response.
     ///
     /// @dev Reverts `UnreachableName` if resolver is not a contract.
     /// @param resolver The resolver to call.
@@ -93,13 +94,13 @@ abstract contract ResolverCaller is CCIPBatcher {
                 this.ccipBatch,
                 (createBatch(resolver, calls, batchGateways))
             ),
-            this.resolveBatchCallback.selector,
+            this.resolveBatchCallback.selector, // ==> step 2
             IDENTITY_FUNCTION,
             abi.encode(multi, extended)
         );
     }
 
-    /// @dev CCIP-Read callback for `_callResolver()` from batch calling the gasless DNS resolver.
+    /// @dev CCIP-Read callback for `callResolver()` from batch calling the gasless DNS resolver.
     /// @param response The response data from the batch gateway.
     /// @param extraData The abi-encoded properties of the call.
     /// @return result The response from the resolver.
