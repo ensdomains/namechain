@@ -58,10 +58,15 @@ contract L1EjectionController is EjectionController {
     /**
      * Overrides the EjectionController._onEject function.
      */
-    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal override virtual {
+    function _onEject(address from, uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal override virtual {
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
             TransferData memory transferData = transferDataArray[i];
+
+            // Validate that the from address matches the owner in transfer data
+            if (from != transferData.owner) {
+                revert OwnerMismatch(from, transferData.owner);
+            }
 
             // check that the label matches the token id
             _assertTokenIdMatchesLabel(tokenId, transferData.label);

@@ -142,7 +142,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         // Prepare the data for ejection with label and expiry
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
         uint256 roleBitmap = LibEACBaseRoles.ALL_ROLES;
-        bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        bytes memory ejectionData = _createEjectionData(testLabel, user, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Make sure user still owns the token
         assertEq(ethRegistry.ownerOf(tokenId), user);
@@ -193,7 +193,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 tokenId2 = ethRegistry.register(label2, user, ethRegistry, address(0), originalRoles, expiryTime);        
         
         // First eject the name so the controller owns it
-        bytes memory ejectionData = _createEjectionData(label2, l1Owner, l1Subregistry, l1Resolver, expiryTime, originalRoles);
+        bytes memory ejectionData = _createEjectionData(label2, user, l1Subregistry, l1Resolver, expiryTime, originalRoles);
         vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId2, 1, ejectionData);
         
@@ -305,7 +305,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
         uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
-        bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        bytes memory ejectionData = _createEjectionData(testLabel, user, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
         
@@ -345,7 +345,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         string memory invalidLabel = "invalid";
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
         uint256 roleBitmap = LibEACBaseRoles.ALL_ROLES;
-        bytes memory ejectionData = _createEjectionData(invalidLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        bytes memory ejectionData = _createEjectionData(invalidLabel, user, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Make sure user still owns the token
         assertEq(ethRegistry.ownerOf(tokenId), user);
@@ -356,11 +356,27 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
     }
 
+    function test_Revert_eject_owner_mismatch() public {
+        // Prepare the data for ejection with wrong owner
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        uint256 roleBitmap = LibEACBaseRoles.ALL_ROLES;
+        address wrongOwner = address(0x9999);
+        bytes memory ejectionData = _createEjectionData(testLabel, wrongOwner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        
+        // Make sure user still owns the token
+        assertEq(ethRegistry.ownerOf(tokenId), user);
+        
+        // User transfers the token to the bridge controller, should revert with OwnerMismatch
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.OwnerMismatch.selector, user, wrongOwner));
+        vm.prank(user);
+        ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
+    }
+
     function test_Revert_onERC1155Received_UnauthorizedCaller() public {
         // Prepare valid data for ejection
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
         uint256 roleBitmap = LibEACBaseRoles.ALL_ROLES;
-        bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        bytes memory ejectionData = _createEjectionData(testLabel, user, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Try to call onERC1155Received directly (not through registry)
         vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
@@ -371,7 +387,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
         uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
-        bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        bytes memory ejectionData = _createEjectionData(testLabel, user, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
         
@@ -402,7 +418,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
             LibRegistryRoles.ROLE_SET_SUBREGISTRY |
             LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
-        bytes memory ejectionData = _createEjectionData(testLabel2, l1Owner, l1Subregistry, l1Resolver, expires, criticalRoles);
+        bytes memory ejectionData = _createEjectionData(testLabel2, user, l1Subregistry, l1Resolver, expires, criticalRoles);
         
         // Should fail due to missing ROLE_SET_SUBREGISTRY and admin roles
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.TooManyRoleAssignees.selector, tokenId2, criticalRoles));
@@ -442,7 +458,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         (uint256 counts, uint256 mask) = ethRegistry.getAssigneeCount(tokenId3, criticalRoles);
         assertEq(counts & mask, criticalRoles, "Should have exactly one assignee for each critical role");
         
-        bytes memory ejectionData = _createEjectionData(testLabel3, l1Owner, l1Subregistry, l1Resolver, expires, criticalRoles);
+        bytes memory ejectionData = _createEjectionData(testLabel3, user, l1Subregistry, l1Resolver, expires, criticalRoles);
         
         vm.recordLogs();
         vm.prank(user);
@@ -490,7 +506,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         // Get the current token ID after regeneration
         (uint256 currentTokenId,,) = ethRegistry.getNameData(testLabel4);
         
-        bytes memory ejectionData = _createEjectionData(testLabel4, l1Owner, l1Subregistry, l1Resolver, expires, 0);
+        bytes memory ejectionData = _createEjectionData(testLabel4, user, l1Subregistry, l1Resolver, expires, 0);
         
         // Ejection should succeed despite multiple resolver role assignees
         vm.prank(user);

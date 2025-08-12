@@ -376,8 +376,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
         (uint256 tokenId,,) = registry.getNameData(testLabel);
 
-        // Setup ejection data
-        address expectedOwner = address(1);
+        // Setup ejection data - use address(this) as owner since that's who is calling safeTransferFrom
+        address expectedOwner = address(this);
         address expectedSubregistry = address(2);
         address expectedResolver = address(3);
         uint64 expectedExpiry = uint64(block.timestamp + 86400);
@@ -423,9 +423,9 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
         (uint256 tokenId,,) = registry.getNameData(testLabel);
 
-        // Setup ejection data with invalid label
+        // Setup ejection data with invalid label - use address(this) as owner since that's who is calling safeTransferFrom
         string memory invalidLabel = "invalid";
-        address expectedOwner = address(1);
+        address expectedOwner = address(this);
         address expectedSubregistry = address(2);
         address expectedResolver = address(3);
         uint64 expectedExpiry = uint64(block.timestamp + 86400);
@@ -445,6 +445,35 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         registry.safeTransferFrom(address(this), address(ejectionController), tokenId, 1, data);
     }
 
+    function test_Revert_ejectToNamechain_owner_mismatch() public {
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        
+        // Register the name directly using the registry
+        registry.register(testLabel, address(this), registry, MOCK_RESOLVER, roleBitmap, expiryTime);
+
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
+
+        // Setup ejection data with wrong owner (not the address calling safeTransferFrom)
+        address wrongOwner = address(0x9999);
+        address expectedSubregistry = address(2);
+        address expectedResolver = address(3);
+        uint64 expectedExpiry = uint64(block.timestamp + 86400);
+        uint256 expectedRoleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        
+        bytes memory data = _createEjectionData(
+            wrongOwner, 
+            expectedSubregistry, 
+            expectedResolver, 
+            expectedExpiry,
+            expectedRoleBitmap
+        );
+
+        // Transfer should revert due to owner mismatch
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.OwnerMismatch.selector, address(this), wrongOwner));
+        registry.safeTransferFrom(address(this), address(ejectionController), tokenId, 1, data);
+    }
+
     
     function test_onERC1155BatchReceived() public {
         (uint256[] memory ids, uint256[] memory amounts, bytes memory data) = _setupBatchTransferTest();
@@ -459,6 +488,51 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         }
         
         _verifyBatchEventEmission();
+    }
+
+    function test_Revert_onERC1155BatchReceived_owner_mismatch() public {
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        
+        // Register names
+        registry.register("test1", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
+        registry.register("test2", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
+        
+        // Get token IDs
+        (uint256 tokenId1,,) = registry.getNameData("test1");
+        (uint256 tokenId2,,) = registry.getNameData("test2");
+        
+        // Setup arrays
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = tokenId1;
+        ids[1] = tokenId2;
+        
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+        
+        // Create batch data with one correct owner and one wrong owner
+        address[] memory owners = new address[](2);
+        address[] memory subregistries = new address[](2);
+        address[] memory resolvers = new address[](2);
+        uint64[] memory expiries = new uint64[](2);
+        uint256[] memory roleBitmaps = new uint256[](2);
+        
+        owners[0] = address(this); // Correct owner
+        owners[1] = address(0x9999); // Wrong owner
+        subregistries[0] = address(10);
+        subregistries[1] = address(11);
+        resolvers[0] = address(100);
+        resolvers[1] = address(101);
+        expiries[0] = uint64(block.timestamp + 86400);
+        expiries[1] = uint64(block.timestamp + 86400 * 2);
+        roleBitmaps[0] = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        roleBitmaps[1] = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        
+        bytes memory data = _createBatchEjectionData(owners, subregistries, resolvers, expiries, roleBitmaps);
+        
+        // Should revert when processing the second token with wrong owner
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.OwnerMismatch.selector, address(this), address(0x9999)));
+        registry.safeBatchTransferFrom(address(this), address(ejectionController), ids, amounts, data);
     }
     
     function _setupBatchTransferTest() internal returns (uint256[] memory ids, uint256[] memory amounts, bytes memory data) {
@@ -500,7 +574,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         uint256[] memory roleBitmaps = new uint256[](3);
         
         for (uint256 i = 0; i < 3; i++) {
-            owners[i] = address(uint160(i + 1));
+            owners[i] = address(this); // Use address(this) since that's who is calling safeBatchTransferFrom
             subregistries[i] = address(uint160(i + 10));
             resolvers[i] = address(uint160(i + 100));
             expiries[i] = uint64(block.timestamp + 86400 * (i + 1));
@@ -556,7 +630,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         uint256[] memory roleBitmaps = new uint256[](2);
         
         for (uint256 i = 0; i < 2; i++) {
-            owners[i] = address(uint160(i + 1));
+            owners[i] = address(this); // Use address(this) since that's who is calling safeBatchTransferFrom
             subregistries[i] = address(uint160(i + 10));
             resolvers[i] = address(uint160(i + 100));
             expiries[i] = uint64(block.timestamp + 86400);

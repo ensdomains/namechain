@@ -78,7 +78,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     ) external virtual override onlyRegistry returns (bytes4) {
         // If from is not address(0), it's not a mint operation - process as ejection
         if (from != address(0)) {
-            _processEjection(tokenId, data);
+            _processEjection(from, tokenId, data);
         }
         
         return this.onERC1155Received.selector;
@@ -95,10 +95,15 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     /**
      * Overrides the EjectionController._onEject function.
      */
-    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal virtual override {
+    function _onEject(address from, uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal virtual override {
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
             TransferData memory transferData = transferDataArray[i];
+
+            // Validate that the from address matches the owner in transfer data
+            if (from != transferData.owner) {
+                revert OwnerMismatch(from, transferData.owner);
+            }
 
             // check that the label matches the token id
             _assertTokenIdMatchesLabel(tokenId, transferData.label);

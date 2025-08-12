@@ -116,11 +116,11 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
     /**
      * Helper method to create properly encoded migration data for transfers
      */
-    function _createMigrationData(string memory label) internal pure returns (MigrationData memory) {
+    function _createMigrationData(string memory label) internal view returns (MigrationData memory) {
         return MigrationData({
             transferData: TransferData({
                 label: label,
-                owner: address(0),
+                owner: user,
                 subregistry: address(0),
                 resolver: address(0),
                 roleBitmap: 0,
@@ -138,13 +138,31 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         return MigrationData({
             transferData: TransferData({
                 label: label,
-                owner: address(0x1111),
+                owner: user,
                 subregistry: address(0x2222),
                 resolver: address(0x3333),
                 roleBitmap: 0,
                 expires: uint64(block.timestamp + 86400) // Valid future expiration
             }),
             toL1: toL1,
+            data: ""
+        });
+    }
+
+    /**
+     * Helper method to create properly encoded migration data with specific owner
+     */
+    function _createMigrationDataWithOwner(string memory label, address owner) internal pure returns (MigrationData memory) {
+        return MigrationData({
+            transferData: TransferData({
+                label: label,
+                owner: owner,
+                subregistry: address(0x2222),
+                resolver: address(0x3333),
+                roleBitmap: 0,
+                expires: 0
+            }),
+            toL1: false,
             data: ""
         });
     }
@@ -774,6 +792,136 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.TokenIdMismatch.selector, tokenId2, expectedTokenId));
         vm.prank(user);
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
+    }
+
+    function test_Revert_migrateUnwrappedEthName_owner_mismatch() public {
+        // Register a name in the v1 registrar
+        vm.prank(controller);
+        ethRegistryV1.register(testTokenId, user, 86400);
+        
+        // Verify user owns the token
+        assertEq(ethRegistryV1.ownerOf(testTokenId), user);
+        
+        // Create migration data with wrong owner (not the actual token owner)
+        address wrongOwner = address(0x9999);
+        MigrationData memory migrationData = _createMigrationDataWithOwner(testLabel, wrongOwner);
+        bytes memory data = abi.encode(migrationData);
+        
+        // Try to transfer - should revert with OwnerMismatch
+        vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.OwnerMismatch.selector, user, wrongOwner));
+        vm.prank(user);
+        ethRegistryV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
+    }
+
+    function test_Revert_migrateWrappedEthName_single_owner_mismatch() public {
+        // Wrap a name (simulate) - this should mint the token to the user
+        nameWrapper.wrapETH2LD(testLabel, user, 0, address(0));
+        // Ensure fuses are 0 (unlocked)
+        nameWrapper.setFuses(testTokenId, 0);
+        
+        // Verify user owns the wrapped token
+        assertEq(nameWrapper.balanceOf(user, testTokenId), 1);
+        
+        // Create migration data with wrong owner (not the actual token owner)
+        address wrongOwner = address(0x9999);
+        MigrationData memory migrationData = _createMigrationDataWithOwner(testLabel, wrongOwner);
+        bytes memory data = abi.encode(migrationData);
+        
+        // Try to transfer - should revert with OwnerMismatch
+        vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.OwnerMismatch.selector, user, wrongOwner));
+        vm.prank(user);
+        nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
+    }
+
+    function test_Revert_migrateWrappedEthName_batch_owner_mismatch() public {
+        string memory label1 = "ownertest1";
+        string memory label2 = "ownertest2";
+        uint256 tokenId1 = uint256(keccak256(bytes(label1)));
+        uint256 tokenId2 = uint256(keccak256(bytes(label2)));
+
+        nameWrapper.wrapETH2LD(label1, user, 0, address(0));
+        nameWrapper.setFuses(tokenId1, 0); // Unlocked
+        nameWrapper.wrapETH2LD(label2, user, 0, address(0));
+        nameWrapper.setFuses(tokenId2, 0); // Unlocked
+        
+        // Verify user owns the wrapped tokens
+        assertEq(nameWrapper.balanceOf(user, tokenId1), 1);
+        assertEq(nameWrapper.balanceOf(user, tokenId2), 1);
+        
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = tokenId1;
+        tokenIds[1] = tokenId2;
+        
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+        
+        // Create migration data - first one correct, second one with wrong owner
+        address wrongOwner = address(0x9999);
+        MigrationData[] memory migrationDataArray = new MigrationData[](2);
+        migrationDataArray[0] = _createMigrationDataWithOwner(label1, user); // correct owner
+        migrationDataArray[1] = _createMigrationDataWithOwner(label2, wrongOwner); // wrong owner
+        
+        bytes memory data = abi.encode(migrationDataArray);
+        
+        // Should revert when processing the second token with wrong owner
+        vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.OwnerMismatch.selector, user, wrongOwner));
+        vm.prank(user);
+        nameWrapper.safeBatchTransferFrom(user, address(migrationController), tokenIds, amounts, data);
+    }
+
+    function test_migrateUnwrappedEthName_correct_owner() public {
+        // Register a name in the v1 registrar
+        vm.prank(controller);
+        ethRegistryV1.register(testTokenId, user, 86400);
+        
+        // Verify user owns the token
+        assertEq(ethRegistryV1.ownerOf(testTokenId), user);
+        
+        // Create migration data with correct owner
+        MigrationData memory migrationData = _createMigrationDataWithOwner(testLabel, user);
+        bytes memory data = abi.encode(migrationData);
+        
+        vm.recordLogs();
+        
+        // Transfer to migration controller (should succeed)
+        vm.prank(user);
+        ethRegistryV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
+        
+        // Verify the migration controller now owns the token
+        assertEq(ethRegistryV1.ownerOf(testTokenId), address(migrationController));
+        
+        // Get logs for assertions
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        
+        // Check for migration event from the bridge
+        _assertBridgeMigrationEventWithLogs(testLabel, entries);
+    }
+
+    function test_migrateWrappedEthName_single_correct_owner() public {
+        // Wrap a name (simulate) - this should mint the token to the user
+        nameWrapper.wrapETH2LD(testLabel, user, 0, address(0));
+        // Ensure fuses are 0 (unlocked)
+        nameWrapper.setFuses(testTokenId, 0);
+        
+        // Verify user owns the wrapped token
+        assertEq(nameWrapper.balanceOf(user, testTokenId), 1);
+        
+        // Create migration data with correct owner
+        MigrationData memory migrationData = _createMigrationDataWithOwner(testLabel, user);
+        bytes memory data = abi.encode(migrationData);
+        
+        vm.recordLogs();
+        
+        // Transfer wrapped token to migration controller (should succeed)
+        vm.prank(user);
+        nameWrapper.safeTransferFrom(user, address(migrationController), testTokenId, 1, data);
+        
+        // Get logs for assertions
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        
+        // Check for migration event from the bridge
+        _assertBridgeMigrationEventWithLogs(testLabel, entries);
     }
 
 } 

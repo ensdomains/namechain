@@ -22,6 +22,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     error MigrationFailed();
     error TokenIdMismatch(uint256 tokenId, uint256 expectedTokenId);
     error MigrationNotSupported();
+    error OwnerMismatch(address from, address owner);
 
     IBaseRegistrar public immutable ethRegistryV1;
     INameWrapper public immutable nameWrapper;
@@ -47,7 +48,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     /**
      * Implements ERC1155Receiver.onERC1155Received
      */
-    function onERC1155Received(address /*operator*/, address /*from*/, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual returns (bytes4) {
+    function onERC1155Received(address /*operator*/, address from, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual returns (bytes4) {
         if (msg.sender != address(nameWrapper)) {
             revert UnauthorizedCaller(msg.sender);
         }
@@ -59,7 +60,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenId;
 
-        _migrateWrappedEthNames(tokenIds, migrationDataArray);
+        _migrateWrappedEthNames(from, tokenIds, migrationDataArray);
         
         return this.onERC1155Received.selector;
     }
@@ -67,14 +68,14 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     /**
      * Implements ERC1155Receiver.onERC1155BatchReceived
      */
-    function onERC1155BatchReceived(address /*operator*/, address /*from*/, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual returns (bytes4) {
+    function onERC1155BatchReceived(address /*operator*/, address from, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual returns (bytes4) {
         if (msg.sender != address(nameWrapper)) {
             revert UnauthorizedCaller(msg.sender);
         }
 
         (MigrationData[] memory migrationDataArray) = abi.decode(data, (MigrationData[]));
 
-        _migrateWrappedEthNames(tokenIds, migrationDataArray);
+        _migrateWrappedEthNames(from, tokenIds, migrationDataArray);
 
         return this.onERC1155BatchReceived.selector;
     }
@@ -84,14 +85,14 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
      *
      * If this is called then it means an unwrapped .eth name is being migrated to v2.
      */
-    function onERC721Received(address /*operator*/, address /*from*/, uint256 tokenId, bytes calldata data) external virtual returns (bytes4) {
+    function onERC721Received(address /*operator*/, address from, uint256 tokenId, bytes calldata data) external virtual returns (bytes4) {
         if (msg.sender != address(ethRegistryV1)) {
             revert UnauthorizedCaller(msg.sender);
         }
         
         (MigrationData memory migrationData) = abi.decode(data, (MigrationData));
 
-        _migrateNameViaBridge(tokenId, migrationData);
+        _migrateNameViaBridge(from, tokenId, migrationData);
 
         return this.onERC721Received.selector;
     }
@@ -102,10 +103,11 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
      * @dev Called when wrapped .eth 2LD names are being migrated to v2.
      * Only supports unlocked names - reverts for locked names.
      *
+     * @param from The address that initiated the migration.
      * @param tokenIds The token IDs of the .eth names.
      * @param migrationDataArray The migration data for each .eth name.
      */
-    function _migrateWrappedEthNames(uint256[] memory tokenIds, MigrationData[] memory migrationDataArray) internal {                
+    function _migrateWrappedEthNames(address from, uint256[] memory tokenIds, MigrationData[] memory migrationDataArray) internal {                
         for (uint256 i = 0; i < tokenIds.length; i++) {
             (, uint32 fuses, ) = nameWrapper.getData(tokenIds[i]);
             
@@ -116,7 +118,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
                 bytes32 labelHash = bytes32(tokenIds[i]);
                 nameWrapper.unwrapETH2LD(labelHash, address(this), address(this));
                 // now migrate
-                _migrateNameViaBridge(tokenIds[i], migrationDataArray[i]);
+                _migrateNameViaBridge(from, tokenIds[i], migrationDataArray[i]);
             }
         }
     }
@@ -124,16 +126,22 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     /**
      * @dev Migrate a name via the bridge.
      *
+     * @param from The address that initiated the migration.
      * @param tokenId The token ID of the .eth name.
      * @param migrationData The migration data.
      */
-    function _migrateNameViaBridge(uint256 tokenId, MigrationData memory migrationData) internal {
+    function _migrateNameViaBridge(address from, uint256 tokenId, MigrationData memory migrationData) internal {
+        // Validate that the from address matches the owner in migration data
+        if (from != migrationData.transferData.owner) {
+            revert OwnerMismatch(from, migrationData.transferData.owner);
+        }
+
         // Validate that tokenId matches the label hash
         uint256 expectedTokenId = uint256(keccak256(bytes(migrationData.transferData.label)));
         if (tokenId != expectedTokenId) {
             revert TokenIdMismatch(tokenId, expectedTokenId);
         }
-        
+
         // if migrated to L1 then setup the name on the L1
         if (migrationData.toL1) {
             l1EjectionController.completeEjectionFromL2(migrationData.transferData);

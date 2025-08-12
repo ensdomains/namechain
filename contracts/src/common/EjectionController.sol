@@ -17,6 +17,7 @@ import {EnhancedAccessControl, LibEACBaseRoles} from "./EnhancedAccessControl.so
 abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccessControl {
     error UnauthorizedCaller(address caller);
     error InvalidLabel(uint256 tokenId, string label);
+    error OwnerMismatch(address from, address owner);
 
     event NameEjectedToL1(bytes dnsEncodedName, uint256 tokenId);
     event NameEjectedToL2(bytes dnsEncodedName, uint256 tokenId);
@@ -49,18 +50,18 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     /**
      * Implements ERC1155Receiver.onERC1155Received
      */
-    function onERC1155Received(address /*operator*/, address /* from */, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual onlyRegistry returns (bytes4) {
-        _processEjection(tokenId, data);
+    function onERC1155Received(address /*operator*/, address from, uint256 tokenId, uint256 /*amount*/, bytes calldata data) external virtual onlyRegistry returns (bytes4) {
+        _processEjection(from, tokenId, data);
         return this.onERC1155Received.selector;
     }
 
     /**
      * Implements ERC1155Receiver.onERC1155BatchReceived
      */
-    function onERC1155BatchReceived(address /*operator*/, address /* from */, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual onlyRegistry returns (bytes4) { 
+    function onERC1155BatchReceived(address /*operator*/, address from, uint256[] memory tokenIds, uint256[] memory /*amounts*/, bytes calldata data) external virtual onlyRegistry returns (bytes4) { 
         TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
         
-        _onEject(tokenIds, transferDataArray);
+        _onEject(from, tokenIds, transferDataArray);
 
         return this.onERC1155BatchReceived.selector;
     }
@@ -71,7 +72,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
      * @dev Core ejection logic for single token transfers
      * Can be called by derived classes that need to customize onERC1155Received behavior
      */
-    function _processEjection(uint256 tokenId, bytes calldata data) internal {
+    function _processEjection(address from, uint256 tokenId, bytes calldata data) internal {
         TransferData memory transferData = abi.decode(data, (TransferData));
         
         TransferData[] memory transferDataArray = new TransferData[](1);
@@ -80,7 +81,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenId;
 
-        _onEject(tokenIds, transferDataArray);
+        _onEject(from, tokenIds, transferDataArray);
     }
 
     /**
@@ -98,8 +99,9 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     /**
      * @dev Called when names are ejected.
      *
+     * @param from The address that initiated the ejection
      * @param tokenIds Array of token IDs of the names being ejected
      * @param transferDataArray Array of transfer data items
      */
-    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal virtual;
+    function _onEject(address from, uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal virtual;
 }
