@@ -14,12 +14,11 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 interface IEnhancedAccessControl is IERC165 {
     // Errors
     error EACUnauthorizedAccountRoles(uint256 resource, uint256 roleBitmap, address account);
-    error EACUnauthorizedAccountAdminRoles(uint256 resource, uint256 roleBitmap, address account);
+    error EACCannotGrantRoles(uint256 resource, uint256 roleBitmap, address account);
     error EACRootResourceNotAllowed();
     error EACMaxAssignees(uint256 resource, uint256 role);
     error EACMinAssignees(uint256 resource, uint256 role);
     error EACInvalidRoleBitmap(uint256 roleBitmap);
-    error EACAdminRolesNotAllowed(uint256 roleBitmap);
 
     // Events
     event EACRolesGranted(uint256 resource, uint256 roleBitmap, address account);
