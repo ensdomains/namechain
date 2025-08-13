@@ -193,7 +193,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
         // User1 tries to grant roles without permission
         vm.expectRevert(
             abi.encodeWithSelector(
-                IEnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector,
+                IEnhancedAccessControl.EACCannotGrantRoles.selector,
                 ROOT_RESOURCE,
                 LibRegistryRoles.ROLE_REGISTRAR,
                 user1
