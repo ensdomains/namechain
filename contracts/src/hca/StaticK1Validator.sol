@@ -288,8 +288,9 @@ contract StaticK1Validator is IValidator, IK1Validator, ERC7739Validator {
         // verify signer
         // owner can not be zero address in this contract
         if (_recoverSigner(hash, signature) == owner) return true;
-        if (_recoverSigner(hash.toEthSignedMessageHash(), signature) == owner)
+        if (_recoverSigner(hash.toEthSignedMessageHash(), signature) == owner) {
             return true;
+        }
         return false;
     }
 

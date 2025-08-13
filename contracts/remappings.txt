@@ -9,6 +9,9 @@ nexus/=lib/nexus/contracts
 solady/=lib/solady/src
 erc7739Validator/=lib/erc7739Validator/src
 account-abstraction/=lib/account-abstraction/contracts
+
+lib/nexus/:lib-prep/=lib/lib-prep/src
+
 lib/ens-contracts/:@openzeppelin/contracts=lib/openzeppelin-contracts-v4/contracts
 lib/ens-contracts/:@openzeppelin/contracts-v5=lib/openzeppelin-contracts/contracts
 lib/ens-contracts/:@ensdomains/solsha1/contracts=lib/solsha1/contracts

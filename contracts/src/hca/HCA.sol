@@ -3,10 +3,11 @@ pragma solidity ^0.8.27;
 
 import {Nexus} from "nexus/Nexus.sol";
 
+import {IHCA} from "./IHCA.sol";
 import {IHCAFactory} from "./IHCAFactory.sol";
 import {IK1Validator} from "./IK1Validator.sol";
 
-contract HCA is Nexus {
+contract HCA is Nexus, IHCA {
     IHCAFactory private immutable _HCA_FACTORY;
 
     error HCAFactoryCannotBeZero();
@@ -24,44 +25,20 @@ contract HCA is Nexus {
         IHCAFactory hcaFactory_,
         address entryPoint_,
         address defaultValidator_,
-        bytes memory initData_
-    ) Nexus(entryPoint_, defaultValidator_, initData_) {
+        bytes memory initDataTemplate_
+    ) Nexus(entryPoint_, defaultValidator_, initDataTemplate_) {
         if (address(hcaFactory_) == address(0)) revert HCAFactoryCannotBeZero();
         _HCA_FACTORY = hcaFactory_;
-    }
-
-    fallback() external payable {
-        bytes32 s;
-        // don't allow 721/1155 transfers
-        /// @solidity memory-safe-assembly
-        assembly {
-            s := shr(224, calldataload(0))
-            // 0x150b7a02: `onERC721Received(address,address,uint256,bytes)`.
-            // 0xf23a6e61: `onERC1155Received(address,address,uint256,uint256,bytes)`.
-            // 0xbc197c81: `onERC1155BatchReceived(address,address,uint256[],uint256[],bytes)`.
-            if or(eq(s, 0x150b7a02), or(eq(s, 0xf23a6e61), eq(s, 0xbc197c81))) {
-                mstore(0x20, s) // Store `msg.sig`.
-                revert(0, 0)
-            }
-        }
-        _fallback(msg.data);
     }
 
     function installModule(
         uint256 moduleTypeId,
         address module,
         bytes calldata initData
-    ) external payable override {
+    ) external payable virtual override {
         if (isInitialized()) revert AccountAlreadyInitialized();
-        super.installModule(moduleTypeId, module, initData);
-    }
-
-    function uninstallModule(
-        uint256 /* moduleTypeId */,
-        address /* module */,
-        bytes calldata /* deInitData */
-    ) external payable override {
-        revert UninstallModuleNotAllowed();
+        _installModule(moduleTypeId, module, initData);
+        emit ModuleInstalled(moduleTypeId, module);
     }
 
     function getOwner() external view returns (address) {
@@ -71,7 +48,36 @@ contract HCA is Nexus {
 
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyHCAFactory {
+    ) internal virtual override onlyHCAFactory {
         super._authorizeUpgrade(newImplementation);
+    }
+
+    function _uninstallValidator(
+        address,
+        /* validator */ bytes calldata /* data */
+    ) internal virtual override {
+        revert UninstallModuleNotAllowed();
+    }
+
+    function _uninstallExecutor(
+        address,
+        /* executor */ bytes calldata /* data */
+    ) internal virtual override {
+        revert UninstallModuleNotAllowed();
+    }
+
+    function _uninstallFallbackHandler(
+        address,
+        /* fallbackHandler */ bytes calldata /* data */
+    ) internal virtual override {
+        revert UninstallModuleNotAllowed();
+    }
+
+    function _uninstallHook(
+        address,
+        /* hook */ uint256,
+        /* hookType */ bytes calldata /* data */
+    ) internal virtual override {
+        revert UninstallModuleNotAllowed();
     }
 }
