@@ -7,7 +7,7 @@ import "forge-std/console.sol";
 import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
 import {MockL2Bridge} from "../src/mocks/MockL2Bridge.sol";
 import {MockBridgeBase} from "../src/mocks/MockBridgeBase.sol";
-import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
+import {L1BridgeController} from "../src/L1/L1BridgeController.sol";
 import {L2BridgeController} from "../src/L2/L2BridgeController.sol";
 import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
 import {IBridge, BridgeMessageType, LibBridgeRoles} from "../src/common/IBridge.sol";
@@ -27,7 +27,7 @@ contract MockRegistryMetadata is IRegistryMetadata {
 contract TestBridgeMessages is Test {
     MockL1Bridge l1Bridge;
     MockL2Bridge l2Bridge;
-    L1EjectionController l1Controller;
+    L1BridgeController l1Controller;
     L2BridgeController l2Controller;
     PermissionedRegistry registry;
     RegistryDatastore datastore;
@@ -52,11 +52,11 @@ contract TestBridgeMessages is Test {
         l2Bridge = new MockL2Bridge();
         
         // Deploy controllers
-        l1Controller = new L1EjectionController(registry, l1Bridge);
+        l1Controller = new L1BridgeController(registry, l1Bridge);
         l2Controller = new L2BridgeController(l2Bridge, registry, datastore);
         
         // Set up bridge controllers
-        l1Bridge.setEjectionController(l1Controller);
+        l1Bridge.setBridgeController(l1Controller);
         l2Bridge.setBridgeController(l2Controller);
         
         // Grant necessary roles (filter out admin roles since they're restricted)

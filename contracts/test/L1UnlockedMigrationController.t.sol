@@ -21,7 +21,7 @@ import {TransferData, MigrationData} from "../src/common/TransferData.sol";
 import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
 import {IBridge, BridgeMessageType, LibBridgeRoles} from "../src/common/IBridge.sol";
 import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
-import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
+import {L1BridgeController} from "../src/L1/L1BridgeController.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
@@ -102,7 +102,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
     MockL1Bridge mockBridge;
     
     // Real components for testing
-    L1EjectionController realL1EjectionController;
+    L1BridgeController realL1BridgeController;
     RegistryDatastore datastore;
     PermissionedRegistry registry;
     MockRegistryMetadata registryMetadata;
@@ -224,7 +224,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1BridgeController) && entries[i].topics[0] == expectedSig) {
                 // NameEjectedToL1(bytes dnsEncodedName, uint256 tokenId)
                 (bytes memory dnsEncodedName, ) = abi.decode(entries[i].data, (bytes, uint256));
                 // Extract label from DNS encoded name (first byte is length, then the label)
@@ -259,13 +259,13 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         // Deploy mock bridge
         mockBridge = new MockL1Bridge();
         
-        // Deploy REAL L1EjectionController with real dependencies
-        realL1EjectionController = new L1EjectionController(registry, mockBridge);
+        // Deploy REAL L1BridgeController with real dependencies
+        realL1BridgeController = new L1BridgeController(registry, mockBridge);
         
         // Grant necessary roles to the ejection controller
         registry.grantRootRoles(
             LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, 
-            address(realL1EjectionController)
+            address(realL1BridgeController)
         );
         
         // Deploy migration controller with the REAL ejection controller
@@ -273,11 +273,11 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
             ethRegistryV1, 
             INameWrapper(address(nameWrapper)), 
             mockBridge, 
-            realL1EjectionController
+            realL1BridgeController
         );
         
         // Grant ROLE_EJECTOR to the migration controller so it can call the ejection controller
-        realL1EjectionController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(migrationController));
+        realL1BridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(migrationController));
         
         testTokenId = uint256(keccak256(bytes(testLabel)));
     }
@@ -286,7 +286,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         assertEq(address(migrationController.ethRegistryV1()), address(ethRegistryV1));
         assertEq(address(migrationController.nameWrapper()), address(nameWrapper));
         assertEq(address(migrationController.bridge()), address(mockBridge));
-        assertEq(address(migrationController.l1EjectionController()), address(realL1EjectionController));
+        assertEq(address(migrationController.l1BridgeController()), address(realL1BridgeController));
         assertEq(migrationController.owner(), address(this));
     }
 
@@ -322,7 +322,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1BridgeController) && entries[i].topics[0] == expectedSig) {
                 l1MigratorEventCount++;
             }
         }
@@ -423,7 +423,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1BridgeController) && entries[i].topics[0] == expectedSig) {
                 l1MigratorEventCount++;
             }
         }
@@ -508,7 +508,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1BridgeController) && entries[i].topics[0] == expectedSig) {
                 l1MigratorEventCount++;
             }
         }
@@ -566,7 +566,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1BridgeController) && entries[i].topics[0] == expectedSig) {
                 l1MigratorEventCount++;
             }
         }

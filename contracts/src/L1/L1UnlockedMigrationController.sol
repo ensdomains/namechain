@@ -10,7 +10,7 @@ import {TransferData, MigrationData} from "../common/TransferData.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBridge} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
-import {L1EjectionController} from "./L1EjectionController.sol";
+import {L1BridgeController} from "./L1BridgeController.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 
 /**
@@ -26,13 +26,13 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     IBaseRegistrar public immutable ethRegistryV1;
     INameWrapper public immutable nameWrapper;
     IBridge public immutable bridge;
-    L1EjectionController public immutable l1EjectionController;
+    L1BridgeController public immutable l1BridgeController;
 
-    constructor(IBaseRegistrar _ethRegistryV1, INameWrapper _nameWrapper, IBridge _bridge, L1EjectionController _l1EjectionController) Ownable(msg.sender) {
+    constructor(IBaseRegistrar _ethRegistryV1, INameWrapper _nameWrapper, IBridge _bridge, L1BridgeController _l1BridgeController) Ownable(msg.sender) {
         ethRegistryV1 = _ethRegistryV1;
         nameWrapper = _nameWrapper;
         bridge = _bridge;
-        l1EjectionController = _l1EjectionController;
+        l1BridgeController = _l1BridgeController;
     }
 
     /**
@@ -136,7 +136,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
         
         // if migrated to L1 then setup the name on the L1
         if (migrationData.toL1) {
-            l1EjectionController.completeEjectionFromL2(migrationData.transferData);
+            l1BridgeController.completeEjectionFromL2(migrationData.transferData);
         } 
         // else send ejection message to L2
         else {

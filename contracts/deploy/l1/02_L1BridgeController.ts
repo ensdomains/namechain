@@ -13,31 +13,31 @@ export default execute(
     const l1Bridge =
       get<(typeof artifacts.MockL1Bridge)["abi"]>("MockL1Bridge");
 
-    const l1EjectionController = await deploy("L1EjectionController", {
+    const l1BridgeController = await deploy("L1BridgeController", {
       account: deployer,
-      artifact: artifacts.L1EjectionController,
+      artifact: artifacts.L1BridgeController,
       args: [l1EthRegistry.address, l1Bridge.address],
     });
 
-    // Set the ejection controller on the bridge
+    // Set the bridge controller on the bridge
     await write(l1Bridge, {
-      functionName: "setEjectionController",
-      args: [l1EjectionController.address],
+      functionName: "setBridgeController",
+      args: [l1BridgeController.address],
       account: deployer,
     });
 
-    // Grant registrar and renew roles to the ejection controller on the eth registry
+    // Grant registrar and renew roles to the bridge controller on the eth registry
     await write(l1EthRegistry, {
       functionName: "grantRootRoles",
       args: [
         ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW | ROLES.OWNER.EAC.BURN,
-        l1EjectionController.address,
+        l1BridgeController.address,
       ],
       account: deployer,
     });
 
-    // Grant bridge roles to the bridge on the ejection controller
-    await write(l1EjectionController, {
+    // Grant bridge roles to the bridge on the bridge controller
+    await write(l1BridgeController, {
       functionName: "grantRootRoles",
       args: [
         ROLES.OWNER.BRIDGE.EJECTOR,
@@ -48,7 +48,7 @@ export default execute(
   },
   // finally you can pass tags and dependencies
   {
-    tags: ["L1EjectionController", "registry", "l1"],
+    tags: ["L1BridgeController", "registry", "l1"],
     dependencies: ["L1ETHRegistry", "MockL1Bridge"],
   },
 );

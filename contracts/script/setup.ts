@@ -154,9 +154,9 @@ export async function setupCrossChainEnvironment() {
         deployer: account,
       },
       contracts: {
-        ejectionController: l1Contracts<
-          (typeof artifacts.L1EjectionController)["abi"]
-        >("L1EjectionController"),
+        bridgeController: l1Contracts<
+          (typeof artifacts.L1BridgeController)["abi"]
+        >("L1BridgeController"),
         ethRegistry:
           l1Contracts<(typeof artifacts.PermissionedRegistry)["abi"]>(
             "L1ETHRegistry",

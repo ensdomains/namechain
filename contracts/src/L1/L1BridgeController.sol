@@ -12,11 +12,11 @@ import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 
 /**
- * @title L1EjectionController
- * @dev L1 contract for ejection controller that facilitates migrations of names
+ * @title L1BridgeController
+ * @dev L1 contract for bridge controller that facilitates migrations of names
  * between L1 and L2, as well as handling renewals.
  */
-contract L1EjectionController is EjectionController {
+contract L1BridgeController is EjectionController {
     error NotTokenOwner(uint256 tokenId);
     error NameNotExpired(uint256 tokenId, uint64 expires);
 
