@@ -14,8 +14,8 @@ interface IRegistryDatastore {
         view
         returns (address subregistry, uint64 expiry, uint32 data);
     function getSubregistry(uint256 id) external view returns (address subregistry, uint64 expiry, uint32 data);
-    function getResolver(address registry, uint256 id) external view returns (address resolver, uint64 expiry, uint32 data);
-    function getResolver(uint256 id) external view returns (address resolver, uint64 expiry, uint32 data);
+    function getResolver(address registry, uint256 id) external view returns (address resolver, uint32 data);
+    function getResolver(uint256 id) external view returns (address resolver, uint32 data);
     function setSubregistry(uint256 id, address subregistry, uint64 expiry, uint32 data) external;
-    function setResolver(uint256 id, address resolver, uint64 expiry, uint32 data) external;
+    function setResolver(uint256 id, address resolver, uint32 data) external;
 }
