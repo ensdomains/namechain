@@ -34,7 +34,7 @@ const l2Config = {
 };
 
 const urgConfig = {
-  port: 8000,
+  port: 8547,
 };
 
 function createDeploymentGetter<C extends Client>(

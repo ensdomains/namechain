@@ -1,7 +1,7 @@
 import { describe, it, beforeAll, afterAll } from "vitest";
 import { zeroAddress } from "viem";
 
-import { setupCrossChainEnvironment } from "./setup.js";
+import { setupCrossChainEnvironment } from "../script/setup.js";
 import { dnsEncodeName } from "../test/utils/utils.js";
 import {
   COIN_TYPE_ETH,
