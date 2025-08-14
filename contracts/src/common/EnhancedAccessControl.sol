@@ -158,7 +158,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
-        _checkNoAdminRoles(roleBitmap);
         return _grantRoles(resource, roleBitmap, account, true);
     }
 
@@ -173,7 +172,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @return `true` if the roles were granted, `false` otherwise.
      */
     function grantRootRoles(uint256 roleBitmap, address account) public virtual canGrantRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
-        _checkNoAdminRoles(roleBitmap);
         return _grantRoles(ROOT_RESOURCE, roleBitmap, account, true);
     }
 
@@ -193,7 +191,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
-        _checkNoAdminRoles(roleBitmap);
         return _revokeRoles(resource, roleBitmap, account, true);
     }
 
@@ -208,7 +205,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @return `true` if the roles were revoked, `false` otherwise.
      */
     function revokeRootRoles(uint256 roleBitmap, address account) public virtual canGrantRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
-        _checkNoAdminRoles(roleBitmap);
         return _revokeRoles(ROOT_RESOURCE, roleBitmap, account, true);
     }
 
@@ -229,7 +225,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     function _checkCanGrantRoles(uint256 resource, uint256 roleBitmap, address account) internal view virtual {
         uint256 settableRoles = _getSettableRoles(resource, account);
         if ((roleBitmap & ~settableRoles) != 0) {
-            revert EACUnauthorizedAccountAdminRoles(resource, roleBitmap, account);
+            revert EACCannotGrantRoles(resource, roleBitmap, account);
         }
     }
 
@@ -352,7 +348,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      */
     function _getSettableRoles(uint256 resource, address account) internal view virtual returns (uint256) {
         uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) & LibEACBaseRoles.ADMIN_ROLES;
-        return adminRoleBitmap | (adminRoleBitmap >> 128);
+        return adminRoleBitmap >> 128;
     }
 
     /**
@@ -390,16 +386,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         }
     }
 
-    /**
-     * @dev Checks if a role bitmap contains any admin roles and reverts if it does.
-     *
-     * @param roleBitmap The role bitmap to check.
-     */
-    function _checkNoAdminRoles(uint256 roleBitmap) private pure {
-        if ((roleBitmap & LibEACBaseRoles.ADMIN_ROLES) != 0) {
-            revert EACAdminRolesNotAllowed(roleBitmap);
-        }
-    }
+
 
     /**
      * @dev Converts a role bitmap to a mask.

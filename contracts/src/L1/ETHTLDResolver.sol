@@ -271,8 +271,8 @@ contract ETHTLDResolver is
             GatewayRequest memory cmd = GatewayFetcher.newCommand();
             cmd.pushOutput(0); // parent registry
             cmd.follow().follow(); // entry[registry][labelHash]
-            cmd.read(); // read registryData
-            cmd.dup().shl(32).shr(192); // extract expiry
+            cmd.read(); // read registryData (see: RegistryDatastore.sol)
+            cmd.dup().shr(192); // extract expiry
             cmd.push(block.timestamp).gt().assertNonzero(1); // require expiry > timestamp
             cmd.shl(96).shr(96); // extract registry
             cmd.offset(1).read().shl(96).shr(96); // read resolverData => extract resolver

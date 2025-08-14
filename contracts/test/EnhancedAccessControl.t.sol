@@ -194,7 +194,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
         
         // user1 attempts to grant ROLE_A which requires ADMIN_ROLE_A admin
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector, RESOURCE_1, ROLE_A, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, RESOURCE_1, ROLE_A, user1));
         vm.prank(user1);
         access.grantRoles(RESOURCE_1, ROLE_A, user2);
     }
@@ -414,7 +414,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         
         // user1 attempts to revoke ROLE_A from user2, but doesn't have ADMIN_ROLE_A admin
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector, RESOURCE_1, ROLE_A, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, RESOURCE_1, ROLE_A, user1));
         EnhancedAccessControl(address(access)).revokeRoles(RESOURCE_1, ROLE_A, user2);
         vm.stopPrank();
         
@@ -506,7 +506,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         
         // user1 attempts to revoke ROLE_A from user2, but doesn't have ADMIN_ROLE_A admin
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountAdminRoles.selector, access.ROOT_RESOURCE(), ROLE_A, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, access.ROOT_RESOURCE(), ROLE_A, user1));
         EnhancedAccessControl(address(access)).revokeRootRoles(ROLE_A, user2);
         vm.stopPrank();
         
@@ -1623,17 +1623,17 @@ contract EnhancedAccessControlTest is Test, MockRoles {
 
     function test_grantRoles_rejects_admin_roles() public {
         // Test that grantRoles reverts when trying to grant admin roles
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACAdminRolesNotAllowed.selector, ADMIN_ROLE_A));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, RESOURCE_1, ADMIN_ROLE_A, admin));
         access.grantRoles(RESOURCE_1, ADMIN_ROLE_A, user1);
         
         // Test with a mix of regular and admin roles
         uint256 mixedRoles = ROLE_A | ADMIN_ROLE_A;
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACAdminRolesNotAllowed.selector, mixedRoles));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, RESOURCE_1, mixedRoles, admin));
         access.grantRoles(RESOURCE_1, mixedRoles, user1);
         
         // Test with multiple admin roles
         uint256 multipleAdminRoles = ADMIN_ROLE_A | ADMIN_ROLE_B;
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACAdminRolesNotAllowed.selector, multipleAdminRoles));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, RESOURCE_1, multipleAdminRoles, admin));
         access.grantRoles(RESOURCE_1, multipleAdminRoles, user1);
         
         // Test that regular roles still work
@@ -1651,17 +1651,17 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasRootRoles(ADMIN_ROLE_A, user1));
         
         // Test that revokeRoles reverts when trying to revoke admin roles
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACAdminRolesNotAllowed.selector, ADMIN_ROLE_A));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, RESOURCE_1, ADMIN_ROLE_A, admin));
         access.revokeRoles(RESOURCE_1, ADMIN_ROLE_A, user1);
         
         // Test with a mix of regular and admin roles
         uint256 mixedRoles = ROLE_A | ADMIN_ROLE_A;
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACAdminRolesNotAllowed.selector, mixedRoles));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, RESOURCE_1, mixedRoles, admin));
         access.revokeRoles(RESOURCE_1, mixedRoles, user1);
         
         // Test with multiple admin roles
         uint256 multipleAdminRoles = ADMIN_ROLE_A | ADMIN_ROLE_B;
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACAdminRolesNotAllowed.selector, multipleAdminRoles));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, RESOURCE_1, multipleAdminRoles, admin));
         access.revokeRoles(RESOURCE_1, multipleAdminRoles, user1);
         
         // Test that regular roles can still be revoked
@@ -1674,11 +1674,11 @@ contract EnhancedAccessControlTest is Test, MockRoles {
 
     function test_grantRootRoles_rejects_admin_roles() public {
         // Test that grantRootRoles now rejects admin roles
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACAdminRolesNotAllowed.selector, ADMIN_ROLE_A | ADMIN_ROLE_B));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, access.ROOT_RESOURCE(), ADMIN_ROLE_A | ADMIN_ROLE_B, admin));
         access.grantRootRoles(ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
         
         // Test single admin role rejection
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACAdminRolesNotAllowed.selector, ADMIN_ROLE_A));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, access.ROOT_RESOURCE(), ADMIN_ROLE_A, admin));
         access.grantRootRoles(ADMIN_ROLE_A, user1);
         
         // Test that regular roles still work
@@ -1692,11 +1692,11 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasRootRoles(ROLE_A | ROLE_B, user1));
         
         // Test that revokeRootRoles now rejects admin roles
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACAdminRolesNotAllowed.selector, ADMIN_ROLE_A));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, access.ROOT_RESOURCE(), ADMIN_ROLE_A, admin));
         access.revokeRootRoles(ADMIN_ROLE_A, user1);
         
         // Test with multiple admin roles
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACAdminRolesNotAllowed.selector, ADMIN_ROLE_A | ADMIN_ROLE_B));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, access.ROOT_RESOURCE(), ADMIN_ROLE_A | ADMIN_ROLE_B, admin));
         access.revokeRootRoles(ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
         
         // Test that regular roles can still be revoked

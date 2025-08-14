@@ -67,6 +67,6 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
      * @return resolver The address of a resolver responsible for this name, or `address(0)` if none exists.
      */
     function getResolver(string calldata label) external view virtual returns (address resolver) {
-        (resolver, ,) = datastore.getResolver(NameUtils.labelToCanonicalId(label));
+        (resolver, ) = datastore.getResolver(NameUtils.labelToCanonicalId(label));
     }
 }

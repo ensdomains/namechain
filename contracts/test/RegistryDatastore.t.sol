@@ -46,31 +46,27 @@ contract TestRegistryDatastore is Test {
     }
 
     function test_GetSetResolver_MsgSender() public {
-        datastore.setResolver(id, address(this), expiryTime, data);
+        datastore.setResolver(id, address(this), data);
 
-        (address resolver, uint64 expiry, uint32 returnedData) = datastore.getResolver(id);
+        (address resolver, uint32 returnedData) = datastore.getResolver(id);
         vm.assertEq(resolver, address(this));
-        vm.assertEq(expiry, expiryTime);
         vm.assertEq(returnedData, data);
 
-        (resolver, expiry, returnedData) = datastore.getResolver(address(this), id);
+        (resolver, returnedData) = datastore.getResolver(address(this), id);
         vm.assertEq(resolver, address(this));
-        vm.assertEq(expiry, expiryTime);
         vm.assertEq(returnedData, data);
     }
 
     function test_GetSetResolver_OtherRegistry() public {
         DummyRegistry r = new DummyRegistry(datastore);
-        r.setResolver(id, address(this), expiryTime, data);
+        r.setResolver(id, address(this), data);
 
-        (address resolver, uint64 expiry, uint32 returnedData) = datastore.getResolver(id);
+        (address resolver, uint32 returnedData) = datastore.getResolver(id);
         vm.assertEq(resolver, address(0));
-        vm.assertEq(expiry, 0);
         vm.assertEq(returnedData, 0);
 
-        (resolver, expiry, returnedData) = datastore.getResolver(address(r), id);
+        (resolver, returnedData) = datastore.getResolver(address(r), id);
         vm.assertEq(resolver, address(this));
-        vm.assertEq(expiry, expiryTime);
         vm.assertEq(returnedData, data);
     }
 }
@@ -86,7 +82,7 @@ contract DummyRegistry {
         datastore.setSubregistry(id, subregistry, expiry, data);
     }
 
-    function setResolver(uint256 id, address resolver, uint64 expiry, uint32 data) public {
-        datastore.setResolver(id, resolver, expiry, data);
+    function setResolver(uint256 id, address resolver, uint32 data) public {
+        datastore.setResolver(id, resolver, data);
     }
 }
