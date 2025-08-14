@@ -98,8 +98,8 @@ async function fixture() {
     const resolver = await chain1.viem.deployContract(
       "ETHTLDResolver",
       [
-        mainnetV1.ethRegistrar.address,
-        mainnetV1.universalResolver.address,
+        mainnetV1.ensRegistry.address,
+        mainnetV1.batchGatewayProvider.address,
         burnAddressV1,
         ethResolver.address,
         verifierAddress,
@@ -547,9 +547,7 @@ describe("ETHTLDResolver", () => {
       for (const max of [1, 2, 32, 254]) {
         it(`maxReadsPerRequest = ${max}`, async () => {
           const F = await loadFixture();
-          const ethTLDResolver = max
-            ? await F.deployWithMaxRequests(max)
-            : F.ethTLDResolver;
+          const ethTLDResolver = await F.deployWithMaxRequests(max);
           await expect(
             ethTLDResolver.read.maxReadsPerRequest(),
             "max",
