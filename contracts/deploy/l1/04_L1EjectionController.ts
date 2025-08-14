@@ -1,6 +1,5 @@
-/// we import what we need from the @rocketh alias, see ../rocketh.ts
 import { artifacts, execute } from "@rocketh";
-import { ROLES } from "../constants.js";
+import { ROLES } from "../constants.ts";
 
 export default execute(
   async ({ get, deploy, namedAccounts, execute: write }) => {
@@ -46,7 +45,6 @@ export default execute(
       account: deployer,
     });
   },
-  // finally you can pass tags and dependencies
   {
     tags: ["L1EjectionController", "registry", "l1"],
     dependencies: ["L1ETHRegistry", "MockL1Bridge"],
