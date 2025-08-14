@@ -14,7 +14,7 @@ import { setupCrossChainEnvironment } from "../script/setup.js";
 import { expectTransactionSuccess, waitForEvent } from "./utils.js";
 import { labelToCanonicalId, getCanonicalId } from "../test/utils/utils.ts";
 
-const { l1, l2, shutdown } = await setupCrossChainEnvironment();
+const { l1, l2, accounts, shutdown } = await setupCrossChainEnvironment();
 afterAll(shutdown);
 const relayer = createMockRelay({
   l1Bridge: l1.contracts.mockBridge,
@@ -26,26 +26,23 @@ afterAll(relayer.removeListeners);
 
 test("name ejection", async () => {
   const label = "premium";
-  const name = "premium.eth";
-  const user = l2.accounts.deployer.address;
-  const l1Owner = l1.accounts.deployer.address;
+  //const name = "premium.eth";
+  const user = accounts[1];
+  const l1Owner = accounts[2];
   const l1Subregistry = l1.contracts.ethRegistry.address;
   const l1Resolver = zeroAddress;
   const expiryTime = BigInt(Math.floor(Date.now() / 1000) + 31536000); // 1 year from now
   const roleBitmap = ROLES.ALL;
 
   console.log("Registering the name on L2...");
-  const registerTx = l2.contracts.ethRegistry.write.register(
-    [
-      label,
-      user,
-      l2.contracts.ethRegistry.address,
-      zeroAddress,
-      roleBitmap,
-      expiryTime,
-    ],
-    {} as any,
-  );
+  const registerTx = l2.contracts.ethRegistry.write.register([
+    label,
+    user.address,
+    l2.contracts.ethRegistry.address,
+    zeroAddress,
+    roleBitmap,
+    expiryTime,
+  ]);
   await expectTransactionSuccess(l2.client, registerTx);
   console.log(`Name registered on L2, tx hash: ${await registerTx}`);
 
@@ -63,13 +60,11 @@ test("name ejection", async () => {
   console.log(`    tokenId: ${toHex(tokenId, { size: 32 })}`);
   console.log(`canonicalId: ${canonicalId}`);
 
-  expect(canonicalId, "canonical").toStrictEqual(
-    labelToCanonicalId(label),
-  );
+  expect(canonicalId, "canonical").toStrictEqual(labelToCanonicalId(label));
 
   const transferDataParameters = [
     label,
-    l1Owner,
+    l1Owner.address,
     l1Subregistry,
     l1Resolver,
     roleBitmap,
@@ -92,7 +87,7 @@ test("name ejection", async () => {
       1n,
       encodedTransferData,
     ],
-    {} as any,
+    { account: owner },
   );
 
   // Wait for the NameBridgedToL1 event from L2 bridge (indicating ejection message sent)
@@ -124,7 +119,7 @@ test("name ejection", async () => {
   console.log("Verifying registration on L1...");
   const actualL1Owner = await l1.contracts.ethRegistry.read.ownerOf([tokenId]);
   console.log(`Owner on L1: ${actualL1Owner}`);
-  expect(actualL1Owner).toBe(l1Owner);
+  expect(actualL1Owner).toBe(l1Owner.address);
   console.log("✓ Name successfully registered on L1");
 
   // In assertions, use bridgeEvents[0].args.dnsEncodedName and bridgeEvents[0].args.data
@@ -132,9 +127,9 @@ test("name ejection", async () => {
 
 test("round trip", async () => {
   const label = "roundtrip";
-  const name = "roundtrip.eth";
-  const l1User = l1.accounts.deployer.address;
-  const l2User = l2.accounts.deployer.address;
+  //const name = "roundtrip.eth";
+  const l1User = accounts[1].address;
+  const l2User = accounts[1].address;
   const l2Subregistry = l2.contracts.ethRegistry.address;
   const l1Subregistry = l1.contracts.ethRegistry.address;
   const resolver = zeroAddress;
@@ -142,10 +137,14 @@ test("round trip", async () => {
   const roleBitmap = ROLES.ALL;
 
   console.log("Registering the name on L2...");
-  const registerTx = l2.contracts.ethRegistry.write.register(
-    [label, l2User, l2Subregistry, resolver, roleBitmap, expiryTime],
-    {} as any,
-  );
+  const registerTx = l2.contracts.ethRegistry.write.register([
+    label,
+    l2User,
+    l2Subregistry,
+    resolver,
+    roleBitmap,
+    expiryTime,
+  ]);
   await expectTransactionSuccess(l2.client, registerTx);
   console.log(`Name registered on L2, tx hash: ${await registerTx}`);
 
@@ -173,7 +172,7 @@ test("round trip", async () => {
       1n,
       encodedTransferDataToL1,
     ],
-    {} as any,
+    { account: l1User },
   );
 
   // Wait for the NameBridgedToL1 event from L2 bridge (indicating ejection message sent)
@@ -226,7 +225,7 @@ test("round trip", async () => {
       1n,
       encodedTransferDataToL2,
     ],
-    {} as any,
+    { account: l1User },
   );
 
   // Wait for the NameBridgedToL2 event from L1 bridge (indicating ejection message sent)
