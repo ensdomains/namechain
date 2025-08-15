@@ -23,7 +23,11 @@ struct MigrationData {
      */
     bool toL1;
     /**
-     * @dev Additional data for the migration (e.g to hold proof data).
+     * @dev (Optional) DNS-encoded name of name being migrated.
      */
-    bytes data;
+    bytes dnsEncodedName;
+    /**
+     * @dev (Optional) Salt for CREATE2 deployments.
+     */
+    bytes salt;
 }

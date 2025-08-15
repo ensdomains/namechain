@@ -127,7 +127,8 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 expires: 0
             }),
             toL1: false,
-            data: ""
+            dnsEncodedName: "",
+            salt: ""
         });
     }
 
@@ -145,7 +146,8 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 expires: uint64(block.timestamp + 86400) // Valid future expiration
             }),
             toL1: toL1,
-            data: ""
+            dnsEncodedName: "",
+            salt: ""
         });
     }
 

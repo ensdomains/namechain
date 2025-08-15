@@ -16,6 +16,7 @@ import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 import {VerifiableFactory} from "../../lib/verifiable-factory/src/VerifiableFactory.sol";
 import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../common/IRegistryMetadata.sol";
+import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 
 contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
@@ -105,12 +106,13 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
                 revert InconsistentFusesState();
             }
             
-            // Burn all required fuses: CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_UNWRAP, 
+            // Burn all required fuses: CANNOT_BURN_FUSES, CANNOT_TRANSFER, 
             // CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE
+            //
+            // NOTE: CANNOT_UNWRAP is already burnt
             uint16 fusesToBurn = uint16(
                 CANNOT_BURN_FUSES | 
                 CANNOT_TRANSFER | 
-                CANNOT_UNWRAP | 
                 CANNOT_SET_RESOLVER | 
                 CANNOT_SET_TTL | 
                 CANNOT_CREATE_SUBDOMAIN | 
@@ -118,8 +120,8 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             );
             nameWrapper.setFuses(bytes32(tokenIds[i]), fusesToBurn);
             
-            // Create MigratedWrappedNameRegistry using factory with salt from data
-            uint256 salt = uint256(keccak256(migrationDataArray[i].data));
+            // Create MigratedWrappedNameRegistry using factory with salt
+            uint256 salt = uint256(keccak256(migrationDataArray[i].salt));
             bytes memory initData = abi.encodeWithSignature(
                 "initialize(address,address,address,uint256,address)",
                 datastore,
@@ -129,6 +131,12 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
                 universalResolver
             );
             address subregistry = factory.deployProxy(migratedRegistryImplementation, salt, initData);
+            
+            // Grant L1BridgeController REGISTRAR role on the new subregistry for subdomain migrations
+            IPermissionedRegistry(subregistry).grantRootRoles(
+                LibRegistryRoles.ROLE_REGISTRAR, 
+                address(l1BridgeController)
+            );
             
             // Update transferData with the new subregistry
             TransferData memory transferData = migrationDataArray[i].transferData;
@@ -144,8 +152,11 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
                 revert TokenIdMismatch(tokenIds[i], expectedTokenId);
             }
             
-            // Always migrate locked names to L1
-            l1BridgeController.completeEjectionFromL2(transferData);
+            // Get the DNS-encoded name from the migration data
+            bytes memory dnsEncodedName = migrationDataArray[i].dnsEncodedName;
+            
+            // Migrate locked name using the DNS-encoded name for hierarchy traversal
+            l1BridgeController.handleLockedNameMigration(dnsEncodedName, transferData);
         }
     }
 }
