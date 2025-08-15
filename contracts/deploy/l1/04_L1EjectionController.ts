@@ -2,8 +2,7 @@ import { artifacts, execute } from "@rocketh";
 import { ROLES } from "../constants.ts";
 
 export default execute(
-  async ({ get, deploy, namedAccounts, execute: write }) => {
-    const { deployer } = namedAccounts;
+  async ({ get, deploy, execute, namedAccounts: { deployer} }) => {
 
     const l1EthRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("L1ETHRegistry");
@@ -19,14 +18,14 @@ export default execute(
     });
 
     // Set the ejection controller on the bridge
-    await write(l1Bridge, {
+    await execute(l1Bridge, {
       functionName: "setEjectionController",
       args: [l1EjectionController.address],
       account: deployer,
     });
 
     // Grant registrar and renew roles to the ejection controller on the eth registry
-    await write(l1EthRegistry, {
+    await execute(l1EthRegistry, {
       functionName: "grantRootRoles",
       args: [
         ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW | ROLES.OWNER.EAC.BURN,
@@ -36,7 +35,7 @@ export default execute(
     });
 
     // Grant bridge roles to the bridge on the ejection controller
-    await write(l1EjectionController, {
+    await execute(l1EjectionController, {
       functionName: "grantRootRoles",
       args: [
         ROLES.OWNER.BRIDGE.EJECTOR,

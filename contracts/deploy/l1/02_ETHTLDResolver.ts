@@ -61,7 +61,7 @@ export default execute<{
       address: log.args.proxyAddress,
     };
 
-    const ethDedicatedResolver = await get<
+    const ethDedicatedResolver = get<
       (typeof artifacts.DedicatedResolver)["abi"]
     >("ETHDedicatedResolver");
 

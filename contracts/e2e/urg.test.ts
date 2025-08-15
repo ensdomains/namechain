@@ -34,7 +34,7 @@ describe("Urg", () => {
       const resolver = await env.l2.deployDedicatedResolver(owner);
       await resolver.write.multicall([sets.map((x) => x.writeDedicated)]);
 
-      await env.l2.contracts.ethRegistry.write.register([
+      const hash = await env.l2.contracts.ethRegistry.write.register([
         label,
         owner.address,
         zeroAddress,
@@ -42,8 +42,9 @@ describe("Urg", () => {
         0n,
         BigInt(Math.floor(Date.now() / 1000) + 10000),
       ]);
+      await env.l2.client.waitForTransactionReceipt({ hash }); // TODO: sync?
 
-      const bundle = bundleCalls(makeResolutions({ ...get, name }));
+      const bundle = bundleCalls(gets);
       const [answer] = await env.l1.contracts.universalResolver.read.resolve([
         dnsEncodeName(name),
         bundle.call,
