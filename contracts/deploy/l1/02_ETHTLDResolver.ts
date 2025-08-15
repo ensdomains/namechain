@@ -56,14 +56,14 @@ export default execute<{
     });
 
     // ???
-    deployments["ETHDedicatedResolver"] = {
+    const selfName = "ETHSelfResolver";
+    deployments[selfName] = {
       ...dedicatedResolverImpl,
       address: log.args.proxyAddress,
     };
 
-    const ethDedicatedResolver = get<
-      (typeof artifacts.DedicatedResolver)["abi"]
-    >("ETHDedicatedResolver");
+    const ethSelfResolver =
+      get<(typeof artifacts.DedicatedResolver)["abi"]>(selfName);
 
     const ethTLDResolver = await deploy("ETHTLDResolver", {
       account: deployer,
@@ -72,7 +72,7 @@ export default execute<{
         ethRegistrarV1.address,
         universalResolverV1.address,
         zeroAddress, // burnAddressV1
-        ethDedicatedResolver.address,
+        ethSelfResolver.address,
         args.verifierAddress,
         args.l2Deploy.deployments.RegistryDatastore.address,
         args.l2Deploy.deployments.ETHRegistry.address,
@@ -80,7 +80,7 @@ export default execute<{
       ],
     });
 
-    await execute(ethDedicatedResolver, {
+    await execute(ethSelfResolver, {
       account: deployer,
       functionName: "setAddr",
       args: [60n, ethTLDResolver.address],

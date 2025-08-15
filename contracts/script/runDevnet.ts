@@ -1,4 +1,4 @@
-import { type Address, toHex } from "viem";
+import { toHex } from "viem";
 import { createMockRelay } from "./mockRelay.js";
 import { setupCrossChainEnvironment } from "./setup.js";
 
@@ -8,10 +8,7 @@ const env = await setupCrossChainEnvironment({
   urgPort: 8457,
 });
 
-let killed = false;
-process.on("SIGINT", async () => {
-  if (killed) return;
-  killed = true;
+process.once("SIGINT", async () => {
   console.log("\nShutting down...");
   await env.shutdown();
   process.exit();
@@ -41,17 +38,12 @@ console.log({
 });
 
 function dump(deployment: typeof env.l1 | typeof env.l2) {
-  const { client, hostPort, contracts, ...rest } = deployment;
+  const { client, hostPort, contracts } = deployment;
   return {
     chain: toHex(client.chain.id),
     endpoint: `{http,ws}://${hostPort}`,
-    contracts: extractAddresses(contracts),
-    //...rest,
+    contracts: Object.fromEntries(
+      Object.entries(contracts).map(([k, v]) => [k, v.address]),
+    ),
   };
-}
-
-function extractAddresses(obj: Record<string, { address: Address }>) {
-  return Object.fromEntries(
-    Object.entries(obj).map(([k, v]) => [k, v.address]),
-  );
 }

@@ -176,7 +176,7 @@ export async function setupCrossChainEnvironment({
       ),
     );
     gateway.allowHistorical = true;
-	gateway.commitDepth = 0;
+    gateway.commitDepth = 0;
     gateway.disableCache();
     const ccip = await serve(gateway, {
       protocol: "raw",
@@ -227,16 +227,33 @@ export async function setupCrossChainEnvironment({
       transport: l1Transport,
       anvil: l1Anvil,
       contracts: {
+        // v1+v2
+        batchGatewayProvider: l1Contracts<"GatewayProvider">(
+          "BatchGatewayProvider",
+        ),
+        // v1
+        ensRegistryV1: l1Contracts<"ENSRegistry">("ENSRegistryV1"),
+        ethRegistrarV1:
+          l1Contracts<"BaseRegistrarImplementation">("ETHRegistrarV1"),
+        reverseRegistrarV1:
+          l1Contracts<"ReverseRegistrar">("ReverseRegistrarV1"),
+        publicResolverV1: l1Contracts<"PublicResolver">("PublicResolverV1"),
+        universalResolverV1: l1Contracts<"UniversalResolver">(
+          "UniversalResolverV1",
+        ),
+        // v2
         ejectionController: l1Contracts("L1EjectionController"),
         ethRegistry: l1Contracts("L1ETHRegistry"),
+        ethSelfResolver: l1Contracts<"DedicatedResolver">("ETHSelfResolver"),
         ethTLDResolver: l1Contracts("ETHTLDResolver"),
         //dnsTLDResolver: l1Contracts("DNSTLDResolver"),
         mockBridge: l1Contracts("MockL1Bridge"),
-        registryDatastore: l1Contracts("RegistryDatastore"),
         rootRegistry: l1Contracts<"PermissionedRegistry">("RootRegistry"),
-        simpleRegistryMetadata: l1Contracts("SimpleRegistryMetadata"),
         universalResolver:
           l1Contracts<"UniversalResolverV2">("UniversalResolver"),
+        // shared
+        registryDatastore: l1Contracts("RegistryDatastore"),
+        simpleRegistryMetadata: l1Contracts("SimpleRegistryMetadata"),
         dedicatedResolverFactory: l1Contracts<"VerifiableFactory">(
           "DedicatedResolverFactory",
         ),
@@ -254,11 +271,13 @@ export async function setupCrossChainEnvironment({
       transport: l2Transport,
       anvil: l2Anvil,
       contracts: {
+        // v2
         ethRegistrar: l2Contracts("ETHRegistrar"),
         ethRegistry: l2Contracts<"PermissionedRegistry">("ETHRegistry"),
         bridgeController: l2Contracts("L2BridgeController"),
         mockBridge: l2Contracts("MockL2Bridge"),
         priceOracle: l2Contracts<"IPriceOracle">("PriceOracle"),
+        // shared
         registryDatastore: l2Contracts("RegistryDatastore"),
         simpleRegistryMetadata: l2Contracts("SimpleRegistryMetadata"),
         dedicatedResolverFactory: l2Contracts<"VerifiableFactory">(
