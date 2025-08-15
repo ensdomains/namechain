@@ -21,7 +21,7 @@ export const createMockRelay = ({
   l1Client: L1Client;
   l2Client: L2Client;
 }) => {
-  console.log("Creating mock bridge...");
+  console.log('[Mock Relay] Deploying...');
 
   // Listen for L1 bridge events (ejection/migration to L2)
   const unwatchL1Bridge = l1Bridge.watchEvent.NameBridgedToL2({
@@ -87,6 +87,8 @@ export const createMockRelay = ({
     unwatchL1Bridge();
     unwatchL2Bridge();
   };
+
+  console.log('[Mock Relay] Deployed');
 
   return {
     manualRelay,
