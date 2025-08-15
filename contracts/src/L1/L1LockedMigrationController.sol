@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {TransferData, MigrationData} from "../common/TransferData.sol";
@@ -100,13 +100,22 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
                 revert NameNotLocked();
             }
             
-            // Check for inconsistent fuse state
-            if ((fuses & CANNOT_BURN_FUSES) != 0 && (fuses & CANNOT_TRANSFER) == 0) {
+            // Cannot migrate if CANNOT_BURN_FUSES is already burnt
+            if ((fuses & CANNOT_BURN_FUSES) != 0) {
                 revert InconsistentFusesState();
             }
             
-            // Burn CANNOT_TRANSFER and CANNOT_BURN_FUSES fuses
-            uint16 fusesToBurn = uint16(CANNOT_TRANSFER | CANNOT_BURN_FUSES);
+            // Burn all required fuses: CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_UNWRAP, 
+            // CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE
+            uint16 fusesToBurn = uint16(
+                CANNOT_BURN_FUSES | 
+                CANNOT_TRANSFER | 
+                CANNOT_UNWRAP | 
+                CANNOT_SET_RESOLVER | 
+                CANNOT_SET_TTL | 
+                CANNOT_CREATE_SUBDOMAIN | 
+                CANNOT_APPROVE
+            );
             nameWrapper.setFuses(bytes32(tokenIds[i]), fusesToBurn);
             
             // Create MigratedWrappedNameRegistry using factory with salt from data
@@ -125,12 +134,9 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             TransferData memory transferData = migrationDataArray[i].transferData;
             transferData.subregistry = subregistry;
             
-            // Check if CANNOT_SET_RESOLVER fuse is burnt and adjust roles accordingly
-            if (fuses & CANNOT_SET_RESOLVER != 0) {
-                // Remove ROLE_SET_RESOLVER and ROLE_SET_RESOLVER_ADMIN from roleBitmap
-                transferData.roleBitmap = transferData.roleBitmap & 
-                    ~(LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN);
-            }
+            // Since CANNOT_SET_RESOLVER is always burnt, remove resolver roles from roleBitmap
+            transferData.roleBitmap = transferData.roleBitmap & 
+                ~(LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN);
             
             // Validate that tokenId matches the label hash
             uint256 expectedTokenId = uint256(keccak256(bytes(transferData.label)));

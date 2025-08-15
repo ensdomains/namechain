@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 
 import {L1LockedMigrationController} from "../src/L1/L1LockedMigrationController.sol";
@@ -130,7 +130,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
     }
 
     function test_onERC1155Received_locked_name() public {
-        // Setup locked name (CANNOT_UNWRAP is set)
+        // Setup locked name (CANNOT_UNWRAP is set, CANNOT_BURN_FUSES is NOT set)
         uint32 lockedFuses = CANNOT_UNWRAP;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
@@ -157,15 +157,20 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         // Verify selector returned
         assertEq(selector, controller.onERC1155Received.selector, "Should return correct selector");
         
-        // Verify fuses were burnt
+        // Verify all required fuses were burnt
         (, uint32 newFuses, ) = nameWrapper.getData(testTokenId);
-        assertTrue((newFuses & CANNOT_TRANSFER) != 0, "CANNOT_TRANSFER should be burnt");
         assertTrue((newFuses & CANNOT_BURN_FUSES) != 0, "CANNOT_BURN_FUSES should be burnt");
+        assertTrue((newFuses & CANNOT_TRANSFER) != 0, "CANNOT_TRANSFER should be burnt");
+        assertTrue((newFuses & CANNOT_UNWRAP) != 0, "CANNOT_UNWRAP should be burnt");
+        assertTrue((newFuses & CANNOT_SET_RESOLVER) != 0, "CANNOT_SET_RESOLVER should be burnt");
+        assertTrue((newFuses & CANNOT_SET_TTL) != 0, "CANNOT_SET_TTL should be burnt");
+        assertTrue((newFuses & CANNOT_CREATE_SUBDOMAIN) != 0, "CANNOT_CREATE_SUBDOMAIN should be burnt");
+        assertTrue((newFuses & CANNOT_APPROVE) != 0, "CANNOT_APPROVE should be burnt");
     }
 
-    function test_onERC1155Received_removes_resolver_roles_when_cannot_set_resolver() public {
-        // Setup locked name with CANNOT_SET_RESOLVER
-        uint32 lockedFuses = CANNOT_UNWRAP | CANNOT_SET_RESOLVER;
+    function test_onERC1155Received_always_removes_resolver_roles() public {
+        // Setup locked name (CANNOT_BURN_FUSES not set so migration can proceed)
+        uint32 lockedFuses = CANNOT_UNWRAP;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
         // Prepare migration data with resolver roles
@@ -195,9 +200,9 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
-        // Verify resolver roles were removed
-        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) == 0, "ROLE_SET_RESOLVER should be removed");
-        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) == 0, "ROLE_SET_RESOLVER_ADMIN should be removed");
+        // Verify resolver roles were removed (always removed now since CANNOT_SET_RESOLVER is always burnt)
+        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) == 0, "ROLE_SET_RESOLVER should always be removed");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) == 0, "ROLE_SET_RESOLVER_ADMIN should always be removed");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_SUBREGISTRY) != 0, "ROLE_SET_SUBREGISTRY should remain");
     }
 
@@ -227,10 +232,10 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
 
-    function test_Revert_inconsistent_fuses() public {
-        // Setup inconsistent fuses: CANNOT_BURN_FUSES set but CANNOT_TRANSFER not set
-        uint32 inconsistentFuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES;
-        nameWrapper.setFuseData(testTokenId, inconsistentFuses, uint64(block.timestamp + 86400));
+    function test_Revert_cannot_burn_fuses_already_set() public {
+        // Setup with CANNOT_BURN_FUSES already set - migration should fail
+        uint32 fuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES;
+        nameWrapper.setFuseData(testTokenId, fuses, uint64(block.timestamp + 86400));
         
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
@@ -247,7 +252,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         
         bytes memory data = abi.encode(migrationData);
         
-        // Should revert due to inconsistent fuses
+        // Should revert because CANNOT_BURN_FUSES is already set
         vm.expectRevert(L1LockedMigrationController.InconsistentFusesState.selector);
         vm.prank(address(nameWrapper));
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
@@ -315,7 +320,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         for (uint256 i = 0; i < 3; i++) {
             tokenIds[i] = uint256(keccak256(bytes(labels[i])));
             
-            // Setup locked name
+            // Setup locked name (CANNOT_BURN_FUSES not set)
             uint32 lockedFuses = CANNOT_UNWRAP;
             nameWrapper.setFuseData(tokenIds[i], lockedFuses, uint64(block.timestamp + 86400));
             
@@ -343,17 +348,22 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         
         assertEq(selector, controller.onERC1155BatchReceived.selector, "Should return correct selector");
         
-        // Verify all names were processed
+        // Verify all names were processed with all fuses burnt
         for (uint256 i = 0; i < 3; i++) {
             (, uint32 newFuses, ) = nameWrapper.getData(tokenIds[i]);
-            assertTrue((newFuses & CANNOT_TRANSFER) != 0, "CANNOT_TRANSFER should be burnt");
             assertTrue((newFuses & CANNOT_BURN_FUSES) != 0, "CANNOT_BURN_FUSES should be burnt");
+            assertTrue((newFuses & CANNOT_TRANSFER) != 0, "CANNOT_TRANSFER should be burnt");
+            assertTrue((newFuses & CANNOT_UNWRAP) != 0, "CANNOT_UNWRAP should be burnt");
+            assertTrue((newFuses & CANNOT_SET_RESOLVER) != 0, "CANNOT_SET_RESOLVER should be burnt");
+            assertTrue((newFuses & CANNOT_SET_TTL) != 0, "CANNOT_SET_TTL should be burnt");
+            assertTrue((newFuses & CANNOT_CREATE_SUBDOMAIN) != 0, "CANNOT_CREATE_SUBDOMAIN should be burnt");
+            assertTrue((newFuses & CANNOT_APPROVE) != 0, "CANNOT_APPROVE should be burnt");
         }
     }
 
 
     function test_subregistry_creation() public {
-        // Setup locked name
+        // Setup locked name (CANNOT_BURN_FUSES not set)
         uint32 lockedFuses = CANNOT_UNWRAP;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
