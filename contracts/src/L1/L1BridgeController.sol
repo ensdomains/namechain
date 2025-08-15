@@ -23,6 +23,7 @@ contract L1BridgeController is EjectionController {
     error ParentNotMigrated(bytes dnsEncodedName, uint256 offset);
 
     event RenewalSynchronized(uint256 tokenId, uint64 newExpiry);
+    event LockedNameMigratedToL1(bytes dnsEncodedName, uint256 tokenId);
 
     constructor(IPermissionedRegistry _registry, IBridge _bridge) EjectionController(_registry, _bridge) {}
 
@@ -65,7 +66,7 @@ contract L1BridgeController is EjectionController {
         
         // Register the name in the parent registry
         tokenId = _registerName(transferData, IPermissionedRegistry(address(parentRegistry)));
-        emit NameEjectedToL1(dnsEncodedName, tokenId);
+        emit LockedNameMigratedToL1(dnsEncodedName, tokenId);
     }
 
     /**
@@ -79,7 +80,28 @@ contract L1BridgeController is EjectionController {
         emit RenewalSynchronized(tokenId, newExpiry);
     }
 
-    // Private functions
+    // Internal functions
+
+    /**
+     * Overrides the EjectionController._onEject function.
+     */
+    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal override virtual {
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            uint256 tokenId = tokenIds[i];
+            TransferData memory transferData = transferDataArray[i];
+
+            // check that the label matches the token id
+            _assertTokenIdMatchesLabel(tokenId, transferData.label);
+            
+            // burn the token
+            registry.burn(tokenId);
+
+            // send the message to the bridge
+            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
+            bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferData));
+            emit NameEjectedToL2(dnsEncodedName, tokenId);
+        }
+    }
 
     /**
      * @dev Registers a name in the specified registry.
@@ -138,7 +160,12 @@ contract L1BridgeController is EjectionController {
         IRegistry parentOfParentRegistry = _findParentRegistryForMigration(dnsEncodedName, nextOffset);
         
         // Now get the parent's label and check if it exists
-        string memory parentLabel = _readLabel(dnsEncodedName, nextOffset);
+        // Extract the label string from the DNS-encoded name using NameCoder
+        (uint8 labelLength, ) = NameCoder.nextLabel(dnsEncodedName, nextOffset);
+        string memory parentLabel = new string(labelLength);
+        assembly {
+            mcopy(add(parentLabel, 32), add(add(dnsEncodedName, 33), nextOffset), labelLength)
+        }
         IRegistry parentSubregistry = parentOfParentRegistry.getSubregistry(parentLabel);
         
         // If the parent's subregistry doesn't exist, the parent hasn't been migrated yet
@@ -148,45 +175,5 @@ contract L1BridgeController is EjectionController {
         
         // Return the parent's registry where the current label should be registered
         return parentSubregistry;
-    }
-
-    /**
-     * @dev Reads a label from a DNS-encoded name at the specified offset.
-     *
-     * @param name The DNS-encoded name
-     * @param offset The offset to read from
-     */
-    function _readLabel(
-        bytes memory name,
-        uint256 offset
-    ) private pure returns (string memory label) {
-        (uint8 size, ) = NameCoder.nextLabel(name, offset);
-        label = new string(size);
-        assembly {
-            mcopy(add(label, 32), add(add(name, 33), offset), size)
-        }
-    }
-
-    // Internal functions
-
-    /**
-     * Overrides the EjectionController._onEject function.
-     */
-    function _onEject(uint256[] memory tokenIds, TransferData[] memory transferDataArray) internal override virtual {
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            uint256 tokenId = tokenIds[i];
-            TransferData memory transferData = transferDataArray[i];
-
-            // check that the label matches the token id
-            _assertTokenIdMatchesLabel(tokenId, transferData.label);
-            
-            // burn the token
-            registry.burn(tokenId);
-
-            // send the message to the bridge
-            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
-            bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferData));
-            emit NameEjectedToL2(dnsEncodedName, tokenId);
-        }
     }
 }
