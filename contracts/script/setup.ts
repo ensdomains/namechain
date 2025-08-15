@@ -9,6 +9,7 @@ import {
   keccak256,
   stringToBytes,
   publicActions,
+  testActions,
   type Client,
   type GetContractReturnType,
 } from "viem";
@@ -142,12 +143,16 @@ export async function setupCrossChainEnvironment({
       chain: l1ChainInfo,
       transport: l1Transport,
       account: deployer,
-    }).extend(publicActions);
+    })
+      .extend(publicActions)
+      .extend(testActions({ mode: "anvil" }));
     const l2Client = createWalletClient({
       chain: l2ChainInfo,
       transport: l2Transport,
       account: deployer,
-    }).extend(publicActions);
+    })
+      .extend(publicActions)
+      .extend(testActions({ mode: "anvil" }));
 
     console.log("Deploying L2 Contracts...");
     const l2Deploy = await executeDeployScripts(
@@ -301,8 +306,12 @@ export async function setupCrossChainEnvironment({
         gatewayURL: ccip.endpoint,
         verifierAddress,
       },
+      sync,
       shutdown,
     };
+    async function sync() {
+      await Promise.all([l1, l2].map((x) => x.client.mine({ blocks: 1 })));
+    }
     async function deployDedicatedResolver(
       this: typeof l1 | typeof l2,
       account = this.client.account,

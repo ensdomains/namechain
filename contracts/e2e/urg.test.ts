@@ -42,7 +42,7 @@ describe("Urg", () => {
         0n,
         BigInt(Math.floor(Date.now() / 1000) + 10000),
       ]);
-      await env.l2.client.waitForTransactionReceipt({ hash }); // TODO: sync?
+      await env.sync();
 
       const bundle = bundleCalls(gets);
       const [answer] = await env.l1.contracts.universalResolver.read.resolve([
