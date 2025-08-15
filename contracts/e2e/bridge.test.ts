@@ -221,7 +221,7 @@ test("round trip", async () => {
   const transferTxToL2 = l1.contracts.ethRegistry.write.safeTransferFrom(
     [
       l1User,
-      l1.contracts.ejectionController.address,
+      l1.contracts.bridgeController.address,
       tokenId,
       1n,
       encodedTransferDataToL2,
@@ -235,7 +235,7 @@ test("round trip", async () => {
   );
   await expectTransactionSuccess(l1.client, transferTxToL2);
   console.log(
-    `Token transferred to L1EjectionController, tx hash: ${await transferTxToL2}`,
+    `Token transferred to L1BridgeController, tx hash: ${await transferTxToL2}`,
   );
 
   if ((migrationEvents as any[]).length === 0) {

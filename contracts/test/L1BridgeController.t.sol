@@ -9,7 +9,7 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistry.sol";
-import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
+import {L1BridgeController} from "../src/L1/L1BridgeController.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
 import {TransferData} from "../src/common/TransferData.sol";
 import {EnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
@@ -33,10 +33,10 @@ contract MockBridge is IBridge {
     function sendMessage(bytes memory) external override {}
 }
 
-contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl {
+contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     RegistryDatastore datastore;
     MockPermissionedRegistry registry;
-    L1EjectionController ejectionController;
+    L1BridgeController bridgeController;
     MockRegistryMetadata registryMetadata;
     MockBridge bridge;
     address constant MOCK_RESOLVER = address(0xabcd);
@@ -135,14 +135,14 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         registry = new MockPermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
         
         // Create the real controller with the correct registry and bridge
-        ejectionController = new L1EjectionController(registry, bridge);
+        bridgeController = new L1BridgeController(registry, bridge);
 
         // grant roles to registry operations
         registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(this));
-        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, address(ejectionController));
+        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, address(bridgeController));
         
-        // Grant bridge roles to the bridge mock so it can call the ejection controller
-        ejectionController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(bridge));
+        // Grant bridge roles to the bridge mock so it can call the bridge controller
+        bridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(bridge));
     }
 
     function test_eject_from_namechain_unlocked() public {
@@ -157,7 +157,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        ejectionController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), address(this));
@@ -177,7 +177,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        ejectionController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), user);
@@ -204,7 +204,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        ejectionController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionFromL2(transferData);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundNewSubname = false;
@@ -239,12 +239,12 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        ejectionController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionFromL2(transferData);
         
         // Try to eject again while not expired
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameAlreadyRegistered.selector, testLabel));
         vm.prank(address(bridge));
-        ejectionController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionFromL2(transferData);
     }
 
     function test_updateExpiration() public {
@@ -259,7 +259,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        ejectionController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -270,7 +270,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         uint64 newExpiry = uint64(block.timestamp) + 200;
         
         vm.prank(address(bridge));
-        ejectionController.syncRenewal(tokenId, newExpiry);
+        bridgeController.syncRenewal(tokenId, newExpiry);
 
         // Verify new expiry was set
         (,uint64 updatedExpiry,) = datastore.getSubregistry(address(registry), tokenId);
@@ -289,7 +289,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        ejectionController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -298,7 +298,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         vm.recordLogs();
         
         vm.prank(address(bridge));
-        ejectionController.syncRenewal(tokenId, newExpiry);
+        bridgeController.syncRenewal(tokenId, newExpiry);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundNameRenewed = false;
@@ -329,7 +329,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        ejectionController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -337,7 +337,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameExpired.selector, tokenId));
         vm.prank(address(bridge));
-        ejectionController.syncRenewal(tokenId, uint64(block.timestamp) + 200);
+        bridgeController.syncRenewal(tokenId, uint64(block.timestamp) + 200);
     }
 
     function test_Revert_updateExpiration_reduce_expiry() public {
@@ -352,7 +352,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        ejectionController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -364,7 +364,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             )
         );
         vm.prank(address(bridge));
-        ejectionController.syncRenewal(tokenId, newExpiry);
+        bridgeController.syncRenewal(tokenId, newExpiry);
     }
 
     function test_ejectToNamechain() public {
@@ -392,7 +392,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         );
 
         vm.recordLogs();
-        registry.safeTransferFrom(address(this), address(ejectionController), tokenId, 1, data);
+        registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, data);
 
         // Check that the token is now owned by address(0)
         assertEq(registry.ownerOf(tokenId), address(0), "Token should have no owner after ejection");
@@ -442,7 +442,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
         // Transfer should revert due to invalid label
         vm.expectRevert(abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId, invalidLabel));
-        registry.safeTransferFrom(address(this), address(ejectionController), tokenId, 1, data);
+        registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, data);
     }
 
     
@@ -451,7 +451,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         
         // Execute batch transfer
         vm.recordLogs();
-        registry.safeBatchTransferFrom(address(this), address(ejectionController), ids, amounts, data);
+        registry.safeBatchTransferFrom(address(this), address(bridgeController), ids, amounts, data);
         
         // Verify all tokens were processed correctly
         for (uint256 i = 0; i < ids.length; i++) {
@@ -567,7 +567,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         
         // Should revert due to invalid label for tokenId2
         vm.expectRevert(abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId2, "invalid"));
-        registry.safeBatchTransferFrom(address(this), address(ejectionController), ids, amounts, data);
+        registry.safeBatchTransferFrom(address(this), address(bridgeController), ids, amounts, data);
     }
     
     /**
@@ -622,7 +622,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             LibBridgeRoles.ROLE_EJECTOR,
             address(this)
         ));
-        ejectionController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionFromL2(transferData);
     }
 
     function test_Revert_syncRenewal_not_bridge() public {
@@ -638,7 +638,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         
         // First create a name to renew
         vm.prank(address(bridge));
-        ejectionController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionFromL2(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -649,7 +649,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             LibBridgeRoles.ROLE_EJECTOR,
             address(this)
         ));
-        ejectionController.syncRenewal(tokenId, uint64(block.timestamp + 86400 * 2));
+        bridgeController.syncRenewal(tokenId, uint64(block.timestamp + 86400 * 2));
     }
 }
 
