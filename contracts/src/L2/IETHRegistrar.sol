@@ -12,9 +12,10 @@ uint8 constant PRICE_DECIMALS = 12;
  */
 interface IETHRegistrar {
 
-	error NameNotAvailable(string label);
-	error NameNotValid(string label);
-	error NameNotRenewable(string label);
+	//error NameNotAvailable(string label);
+	error InvalidName(string label);
+	error NameNotRegistered(string label);
+    error NameAlreadyRegistered(string label);
 	
     error PaymentTokenNotSupported(IERC20Metadata paymentToken);
 	

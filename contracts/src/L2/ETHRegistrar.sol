@@ -101,12 +101,14 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     }
 
     /// @inheritdoc IETHRegistrar
-    function isPaymentToken(IERC20Metadata token) external view returns (bool) {
-        return _isPaymentToken[token];
+    function isPaymentToken(
+        IERC20Metadata paymentToken
+    ) external view returns (bool) {
+        return _isPaymentToken[paymentToken];
     }
 
     /// @inheritdoc IETHRegistrar
-    function isValid(string memory label) public pure returns (bool) {
+    function isValid(string memory label) external pure returns (bool) {
         return _isValid(StringUtils.strlen(label));
     }
 
@@ -116,7 +118,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     }
 
     /// @inheritdoc IETHRegistrar
-    function isAvailable(string memory label) public view returns (bool) {
+    function isAvailable(string memory label) external view returns (bool) {
         (, uint64 expiry, ) = ethRegistry.getNameData(label);
         return _isAvailable(expiry);
     }
@@ -136,7 +138,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     ) public view returns (uint256) {
         uint256 ncp = StringUtils.strlen(label);
         if (!_isValid(ncp)) {
-            revert NameNotValid(label);
+            revert InvalidName(label);
         }
         uint256 baseRate = baseRatePerCp[
             (ncp > baseRatePerCp.length ? baseRatePerCp.length : ncp) - 1
@@ -144,11 +146,18 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         return baseRate * duration;
     }
 
-    /// @dev Get premium price relative to `expiry`.
+    /// @dev Get premium price for a name.
     /// @param label The name to price.
     /// @return The premium price.
     function premiumPrice(string memory label) public view returns (uint256) {
         (, uint64 expiry, ) = ethRegistry.getNameData(label);
+        return premiumPrice(expiry);
+    }
+
+    /// @dev Get premium price for an expiry.
+    /// @param expiry The expiry time, in seconds.
+    /// @return The premium price.
+    function premiumPrice(uint256 expiry) public view returns (uint256) {
         uint256 decayPrice = PriceUtils.halving(
             premiumStartingPrice,
             1 days,
@@ -212,17 +221,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     }
 
     /// @dev Assert that a commitment is timely, then delete it.
-    function _consumeCommitment(
-        string memory label,
-        uint64 duration,
-        bytes32 commitment
-    ) internal {
-        if (!isAvailable(label)) {
-            revert NameNotAvailable(label);
-        }
-        if (duration < minRegistrationDuration) {
-            revert DurationTooShort(duration, minRegistrationDuration);
-        }
+    function _consumeCommitment(bytes32 commitment) internal {
         uint256 commitTime = commitments[commitment];
         uint256 minTime = commitTime + minCommitmentAge;
         if (minTime > block.timestamp) {
@@ -245,10 +244,14 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         uint64 duration,
         IERC20Metadata paymentToken
     ) external onlyPaymentToken(paymentToken) returns (uint256 tokenId) {
-        // CHECKS: Validate commitment and get pricing (external calls for validation only)
+        (, uint64 expiry, ) = ethRegistry.getNameData(label);
+        if (!_isAvailable(expiry)) {
+            revert NameAlreadyRegistered(label);
+        }
+        if (duration < minRegistrationDuration) {
+            revert DurationTooShort(duration, minRegistrationDuration);
+        }
         _consumeCommitment(
-            label,
-            duration,
             makeCommitment(
                 label,
                 owner,
@@ -263,7 +266,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             revert InvalidOwner();
         }
         uint256 base = basePrice(label, duration);
-        uint256 premium = premiumPrice(label);
+        uint256 premium = premiumPrice(expiry);
         uint256 tokenAmount = PriceUtils.convertDecimals(
             base + premium,
             priceDecimals,
@@ -305,7 +308,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         // CHECKS: Get current data and validate pricing
         (uint256 tokenId, uint64 expiry, ) = ethRegistry.getNameData(label);
         if (_isAvailable(expiry)) {
-            revert NameNotRenewable(label);
+            revert NameNotRegistered(label);
         }
 
         // Check for overflow before any state changes
