@@ -4,24 +4,6 @@ pragma solidity >=0.8.13;
 library PriceUtils {
     error AmountOverflow(uint256 amount, uint256 scale);
 
-    uint256 internal constant PRECISION = 1e18;
-    uint256 internal constant bit1 = 999989423469314432; // 0.5 ^ 1/65536 * (10 ** 18)
-    uint256 internal constant bit2 = 999978847050491904; // 0.5 ^ 2/65536 * (10 ** 18)
-    uint256 internal constant bit3 = 999957694548431104;
-    uint256 internal constant bit4 = 999915390886613504;
-    uint256 internal constant bit5 = 999830788931929088;
-    uint256 internal constant bit6 = 999661606496243712;
-    uint256 internal constant bit7 = 999323327502650752;
-    uint256 internal constant bit8 = 998647112890970240;
-    uint256 internal constant bit9 = 997296056085470080;
-    uint256 internal constant bit10 = 994599423483633152;
-    uint256 internal constant bit11 = 989228013193975424;
-    uint256 internal constant bit12 = 978572062087700096;
-    uint256 internal constant bit13 = 957603280698573696;
-    uint256 internal constant bit14 = 917004043204671232;
-    uint256 internal constant bit15 = 840896415253714560;
-    uint256 internal constant bit16 = 707106781186547584;
-
     function convertDecimals(
         uint256 inAmount,
         uint8 inDecimals,
@@ -51,6 +33,24 @@ library PriceUtils {
             return inAmount;
         }
     }
+
+    uint256 constant PRECISION = 1e18;
+    uint256 constant bit1 = 999989423469314432; // 0.5 ^ 1/65536 * (10 ** 18)
+    uint256 constant bit2 = 999978847050491904; // 0.5 ^ 2/65536 * (10 ** 18)
+    uint256 constant bit3 = 999957694548431104;
+    uint256 constant bit4 = 999915390886613504;
+    uint256 constant bit5 = 999830788931929088;
+    uint256 constant bit6 = 999661606496243712;
+    uint256 constant bit7 = 999323327502650752;
+    uint256 constant bit8 = 998647112890970240;
+    uint256 constant bit9 = 997296056085470080;
+    uint256 constant bit10 = 994599423483633152;
+    uint256 constant bit11 = 989228013193975424;
+    uint256 constant bit12 = 978572062087700096;
+    uint256 constant bit13 = 957603280698573696;
+    uint256 constant bit14 = 917004043204671232;
+    uint256 constant bit15 = 840896415253714560;
+    uint256 constant bit16 = 707106781186547584;
 
     /// @dev Compute `initial / 2^(elapsed/half)`.
     /// @param initial The Initial value.

@@ -146,25 +146,35 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         return baseRate * duration;
     }
 
+    /// @dev Get premium price for a duration after expiry.
+    /// @param duration The time after expiration, in seconds.
+    /// @return The premium price.
+    function premiumPriceAfter(uint64 duration) public view returns (uint256) {
+        uint256 decayPrice = PriceUtils.halving(
+            premiumStartingPrice,
+            1 days,
+            duration
+        );
+        uint256 endPrice = premiumStartingPrice >> premiumDays;
+        return decayPrice > endPrice ? decayPrice - endPrice : 0;
+    }
+
     /// @dev Get premium price for a name.
     /// @param label The name to price.
     /// @return The premium price.
     function premiumPrice(string memory label) public view returns (uint256) {
         (, uint64 expiry, ) = ethRegistry.getNameData(label);
-        return premiumPrice(expiry);
+        return _premiumPriceFromExpiry(expiry);
     }
 
-    /// @dev Get premium price for an expiry.
-    /// @param expiry The expiry time, in seconds.
-    /// @return The premium price.
-    function premiumPrice(uint256 expiry) public view returns (uint256) {
-        uint256 decayPrice = PriceUtils.halving(
-            premiumStartingPrice,
-            1 days,
-            block.timestamp > expiry ? block.timestamp - expiry : 0
-        );
-        uint256 endPrice = premiumStartingPrice >> premiumDays;
-        return decayPrice > endPrice ? decayPrice - endPrice : 0;
+    /// @dev Get premium price for an expiry relative to now.
+    function _premiumPriceFromExpiry(
+        uint64 expiry
+    ) internal view returns (uint256) {
+        return
+            block.timestamp >= expiry
+                ? premiumPriceAfter(uint64(block.timestamp) - expiry)
+                : 0;
     }
 
     /// @inheritdoc IETHRegistrar
@@ -266,7 +276,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             revert InvalidOwner();
         }
         uint256 base = basePrice(label, duration);
-        uint256 premium = premiumPrice(expiry);
+        uint256 premium = _premiumPriceFromExpiry(expiry);
         uint256 tokenAmount = PriceUtils.convertDecimals(
             base + premium,
             priceDecimals,
