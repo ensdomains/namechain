@@ -93,7 +93,4 @@ interface IStandardRegistry is IRegistry {
      * @return The expiry date of the subdomain.
      */
     function getExpiry(uint256 tokenId) external view returns (uint64);
-
-    /// @dev The last recorded owner of the token regardless of expiration status.
-    function mostRecentOwnerOf(uint256 tokenId) external view returns (address);
 }

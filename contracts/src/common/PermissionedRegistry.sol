@@ -61,13 +61,6 @@ contract PermissionedRegistry is
         return tokenURI(tokenId);
     }
 
-    /// @dev The last recorded owner of the token regardless of expiration status.
-    function mostRecentOwnerOf(
-        uint256 tokenId
-    ) external view returns (address) {
-        return super.ownerOf(tokenId);
-    }
-
     function ownerOf(
         uint256 tokenId
     )
