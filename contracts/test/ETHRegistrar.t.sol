@@ -141,7 +141,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
     function _register(
         RegisterArgs memory args
-    ) public returns (uint256 tokenId) {
+    ) external returns (uint256 tokenId) {
         bytes32 commitment = _makeCommitment(args);
         vm.startPrank(args.sender);
         ethRegistrar.commit(commitment);
@@ -218,7 +218,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     function test_isAvailable() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         assertTrue(ethRegistrar.isAvailable(args.label));
-        _register(args);
+        this._register(args);
         assertFalse(ethRegistrar.isAvailable(args.label));
     }
 
@@ -393,7 +393,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
     function test_Revert_register_nameNotAvailable() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        _register(args);
+        this._register(args);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IETHRegistrar.NameAlreadyRegistered.selector,
@@ -430,7 +430,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
     function test_renew() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        uint256 tokenId = _register(args);
+        uint256 tokenId = this._register(args);
         uint256 expiry0 = ethRegistry.getExpiry(tokenId);
         vm.expectEmit(false, false, false, false);
         emit IETHRegistrar.NameRenewed(
@@ -458,7 +458,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
     function test_Revert_renew_insufficientAllowance() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        _register(args);
+        this._register(args);
         vm.prank(args.sender);
         tokenUSDC.approve(address(ethRegistrar), 0);
         (uint256 base, ) = ethRegistrar.rentPrice(
@@ -502,13 +502,13 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             args.paymentToken
         );
         uint256 balance0 = args.paymentToken.balanceOf(beneficiary);
-        _register(args);
+        this._register(args);
         assertEq(args.paymentToken.balanceOf(beneficiary), balance0 + base);
     }
 
     function test_renew_pays_beneficiary() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        _register(args);
+        this._register(args);
         uint256 balance0 = args.paymentToken.balanceOf(beneficiary);
         (uint256 base, ) = ethRegistrar.rentPrice(
             args.label,
@@ -521,7 +521,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
     function test_registry_bitmap() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        uint256 tokenId = _register(args);
+        uint256 tokenId = this._register(args);
         uint256 resource = ethRegistry.testGetResourceFromTokenId(tokenId);
         assertTrue(
             ethRegistry.hasRoles(
