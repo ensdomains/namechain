@@ -197,8 +197,6 @@ export async function setupCrossChainEnvironment() {
         >("L2BridgeController"),
         mockBridge:
           l2Contracts<(typeof artifacts.MockL2Bridge)["abi"]>("MockL2Bridge"),
-        priceOracle:
-          l2Contracts<(typeof artifacts.IPriceOracle)["abi"]>("PriceOracle"),
         registryDatastore:
           l2Contracts<(typeof artifacts.RegistryDatastore)["abi"]>(
             "RegistryDatastore",
