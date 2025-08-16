@@ -1,271 +1,338 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IETHRegistrar} from "./IETHRegistrar.sol";
-import {IRegistry} from "../common/IRegistry.sol";
-import {IERC1155Singleton} from "../common/IERC1155Singleton.sol";
-import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
-import {ITokenPriceOracle} from "./ITokenPriceOracle.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {NameUtils} from "../common/NameUtils.sol";
-import {EnhancedAccessControl, LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
-import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import {IETHRegistrar, PRICE_DECIMALS} from "./IETHRegistrar.sol";
+import {IRegistry} from "../common/IRegistry.sol";
+import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
+import {EnhancedAccessControl, LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
+import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
+import {StringUtils} from "@ens/contracts/utils/StringUtils.sol";
+import {PriceUtils} from "../common/PriceUtils.sol";
+
+uint256 constant REGISTRATION_ROLE_BITMAP = LibRegistryRoles
+    .ROLE_SET_SUBREGISTRY |
+    LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN |
+    LibRegistryRoles.ROLE_SET_RESOLVER |
+    LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
+
 contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
-    using SafeERC20 for IERC20;
-    uint256 private constant REGISTRATION_ROLE_BITMAP = 
-        LibRegistryRoles.ROLE_SET_SUBREGISTRY | 
-        LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN | 
-        LibRegistryRoles.ROLE_SET_RESOLVER | 
-        LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
+    struct ConstructorArgs {
+        IPermissionedRegistry ethRegistry;
+        address beneficiary;
+        uint64 minCommitmentAge;
+        uint64 maxCommitmentAge;
+        uint64 minRegistrationDuration;
+        uint64 gracePeriod;
+        uint256[5] baseRatePerCp;
+        uint64 premiumDays;
+        uint256 premiumStartingPrice;
+        IERC20Metadata[] paymentTokens;
+    }
 
-    uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
+    uint8 public constant priceDecimals = PRICE_DECIMALS; // fixed, otherwise needs included in events
 
-    error InvalidOwner(address owner);
-    error MaxCommitmentAgeTooLow();
-    error UnexpiredCommitmentExists(bytes32 commitment);
-    error DurationTooShort(uint64 duration, uint256 minDuration);
-    error CommitmentTooNew(bytes32 commitment, uint256 validFrom, uint256 blockTimestamp);
-    error CommitmentTooOld(bytes32 commitment, uint256 validTo, uint256 blockTimestamp);
-    error NameNotAvailable(string name);
-    error InsufficientValue(uint256 required, uint256 provided);
-    error TokenNotSupported(address token);
-    /// @dev Thrown when duration would overflow when added to expiry time
-    error DurationOverflow(uint64 expiry, uint64 duration);
-
-    IPermissionedRegistry public immutable registry;
-    ITokenPriceOracle public immutable tokenPriceOracle;
-    uint256 public immutable minCommitmentAge;
-    uint256 public immutable maxCommitmentAge;
+    IPermissionedRegistry public immutable ethRegistry;
     address public immutable beneficiary;
+    uint64 public immutable minCommitmentAge;
+    uint64 public immutable maxCommitmentAge;
+    uint64 public immutable minRegistrationDuration;
+    uint64 public immutable gracePeriod;
+    uint256[5] public baseRatePerCp; // rate = price/sec
+    uint64 public immutable premiumDays;
+    uint256 public immutable premiumStartingPrice;
 
-    mapping(bytes32 => uint256) public commitments;    
+    mapping(IERC20Metadata => bool) _isPaymentToken;
+    mapping(bytes32 => uint256) public commitments;
 
-    constructor(address _registry, ITokenPriceOracle _prices, uint256 _minCommitmentAge, uint256 _maxCommitmentAge, address _beneficiary) {
-        _grantRoles(ROOT_RESOURCE, LibEACBaseRoles.ALL_ROLES, _msgSender(), true);
-
-        registry = IPermissionedRegistry(_registry);
-
-        if (_maxCommitmentAge <= _minCommitmentAge) {
+    constructor(ConstructorArgs memory args) {
+        if (args.maxCommitmentAge <= args.minCommitmentAge) {
             revert MaxCommitmentAgeTooLow();
         }
-
-        tokenPriceOracle = _prices;
-        minCommitmentAge = _minCommitmentAge;
-        maxCommitmentAge = _maxCommitmentAge;
-        beneficiary = _beneficiary;
-    }
-
-    /**
-     * @dev Check if a name is valid.
-     * @param name The name to check.
-     * @return True if the name is valid, false otherwise.
-     */
-    function valid(string memory name) public pure returns (bool) {
-        return bytes(name).length >= 3;
-    }
-
-    /**
-     * @dev Check if a name is available.
-     * @param name The name to check.
-     * @return True if the name is available, false otherwise.
-     */
-    function available(string calldata name) external view returns (bool) {
-        (, uint64 expiry, ) = registry.getNameData(name);
-        return expiry < block.timestamp;
-    }
-
-
-    /**
-     * @dev Get the price to register or renew a name.
-     * @param name The name to get the price for.
-     * @param duration The duration of the registration or renewal.
-     * @return price The price to register or renew the name.
-     */ 
-    function rentPrice(string memory name, uint256 duration) public view override returns (ITokenPriceOracle.Price memory price) {
-        (, uint64 expiry, ) = registry.getNameData(name);
-        price = tokenPriceOracle.price(name, uint256(expiry), duration);
-    }
-
-    /**
-     * @dev Check the price of a name and get the required token amount.
-     * @param name The name to check the price for.
-     * @param duration The duration of the registration or renewal.
-     * @param token The ERC20 token address.
-     * @return tokenAmount The amount of tokens required.
-     */
-    function checkPrice(string memory name, uint256 duration, address token) public view returns (uint256 tokenAmount) {
-        if (!tokenPriceOracle.getTokenConfig(token).enabled) {
-            revert TokenNotSupported(token);
+        _grantRoles(
+            ROOT_RESOURCE,
+            LibEACBaseRoles.ALL_ROLES,
+            _msgSender(),
+            true
+        );
+        ethRegistry = args.ethRegistry;
+        beneficiary = args.beneficiary;
+        minCommitmentAge = args.minCommitmentAge;
+        maxCommitmentAge = args.maxCommitmentAge;
+        minRegistrationDuration = args.minRegistrationDuration;
+        gracePeriod = args.gracePeriod;
+        baseRatePerCp = args.baseRatePerCp;
+        premiumDays = args.premiumDays;
+        premiumStartingPrice = args.premiumStartingPrice;
+        for (uint256 i; i < args.paymentTokens.length; i++) {
+            _setPaymentToken(args.paymentTokens[i], true);
         }
+    }
 
-        (, uint64 expiry, ) = registry.getNameData(name);
-        tokenAmount = tokenPriceOracle.priceInToken(name, uint256(expiry), duration, token);
-    }    
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(EnhancedAccessControl) returns (bool) {
+        return
+            interfaceId == type(IETHRegistrar).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
 
+    // function setPaymentToken(IERC20Metadata paymentToken, bool supported) external onlyRootRoles(LibRegistryRoles.ROLE_CONFIGURE_ADMIN) {
+    // 	_setPaymentToken(token, supported);
+    // }
 
-    /**
-     * @dev Make a commitment for a name.
-     * @param name The name to commit.
-     * @param owner The address of the owner of the name.
-     * @param secret The secret of the name.
-     * @param subregistry The registry to use for the commitment.
-     * @param resolver The resolver to use for the commitment.
-     * @param duration The duration of the commitment.
-     * @return The commitment.
-     */
+    /// @dev Internal logic for enabling a payment token.
+    function _setPaymentToken(
+        IERC20Metadata paymentToken,
+        bool supported
+    ) internal {
+        _isPaymentToken[paymentToken] = supported;
+        emit PaymentTokenChanged(paymentToken, supported);
+    }
+
+    modifier onlyPaymentToken(IERC20Metadata paymentToken) {
+        if (!_isPaymentToken[paymentToken]) {
+            revert PaymentTokenNotSupported(paymentToken);
+        }
+        _;
+    }
+
+    /// @inheritdoc IETHRegistrar
+    function isPaymentToken(IERC20Metadata token) external view returns (bool) {
+        return _isPaymentToken[token];
+    }
+
+    /// @inheritdoc IETHRegistrar
+    function isValid(string memory label) public pure returns (bool) {
+        return _isValid(StringUtils.strlen(label));
+    }
+
+    /// @dev Internal logic for valid label length.
+    function _isValid(uint256 ncp) internal pure returns (bool) {
+        return ncp >= 3;
+    }
+
+    /// @inheritdoc IETHRegistrar
+    function isAvailable(string memory label) public view returns (bool) {
+        (, uint64 expiry, ) = ethRegistry.getNameData(label);
+        return _isAvailable(expiry);
+    }
+
+    /// @dev Internal logic for registration availability.
+    function _isAvailable(uint256 expiry) internal view returns (bool) {
+        return expiry + gracePeriod < block.timestamp;
+    }
+
+    /// @dev Get base price to register or renew `label` with `duration`.
+    /// @param label The name to price.
+    /// @param duration The duration to price, in seconds.
+    /// @return The base price.
+    function basePrice(
+        string memory label,
+        uint64 duration
+    ) public view returns (uint256) {
+        uint256 ncp = StringUtils.strlen(label);
+        if (!_isValid(ncp)) {
+            revert NameNotValid(label);
+        }
+        uint256 baseRate = baseRatePerCp[
+            (ncp > baseRatePerCp.length ? baseRatePerCp.length : ncp) - 1
+        ];
+        return baseRate * duration;
+    }
+
+    /// @dev Get premium price relative to `expiry`.
+    /// @param label The name to price.
+    /// @return The premium price.
+    function premiumPrice(string memory label) public view returns (uint256) {
+        (, uint64 expiry, ) = ethRegistry.getNameData(label);
+        uint256 decayPrice = PriceUtils.halving(
+            premiumStartingPrice,
+            1 days,
+            block.timestamp > expiry ? block.timestamp - expiry : 0
+        );
+        uint256 endPrice = premiumStartingPrice >> premiumDays;
+        return decayPrice > endPrice ? decayPrice - endPrice : 0;
+    }
+
+    /// @inheritdoc IETHRegistrar
+    function rentPrice(
+        string memory label,
+        uint64 duration
+    ) public view returns (uint256 base, uint256 premium) {
+        base = basePrice(label, duration);
+        premium = premiumPrice(label);
+    }
+
+    /// @inheritdoc IETHRegistrar
+    function rentPrice(
+        string memory label,
+        uint64 duration,
+        IERC20Metadata paymentToken
+    )
+        external
+        view
+        onlyPaymentToken(paymentToken)
+        returns (uint256 base, uint256 premium)
+    {
+        (base, premium) = rentPrice(label, duration);
+        uint256 total = base + premium;
+        uint8 decimals = paymentToken.decimals();
+        base = PriceUtils.convertDecimals(base, priceDecimals, decimals);
+        premium =
+            PriceUtils.convertDecimals(total, priceDecimals, decimals) -
+            base;
+    }
+
+    /// @inheritdoc IETHRegistrar
     function makeCommitment(
         string memory name,
         address owner,
         bytes32 secret,
-        address subregistry,
+        IRegistry subregistry,
         address resolver,
         uint64 duration
-    ) public pure override returns (bytes32) {        
+    ) public pure override returns (bytes32) {
         return
             keccak256(
-                abi.encode(
-                    name,
-                    owner,
-                    secret,
-                    subregistry,
-                    resolver,
-                    duration
-                )
+                abi.encode(name, owner, secret, subregistry, resolver, duration)
             );
     }
 
-
-    /**
-     * @dev Commit a commitment.
-     * @param commitment The commitment to commit.
-     */
-    function commit(bytes32 commitment) public override {
+    /// @inheritdoc IETHRegistrar
+    function commit(bytes32 commitment) external {
         if (commitments[commitment] + maxCommitmentAge >= block.timestamp) {
             revert UnexpiredCommitmentExists(commitment);
         }
         commitments[commitment] = block.timestamp;
-
         emit CommitmentMade(commitment);
     }
 
+    /// @dev Assert that a commitment is timely, then delete it.
+    function _consumeCommitment(
+        string memory label,
+        uint64 duration,
+        bytes32 commitment
+    ) internal {
+        if (!isAvailable(label)) {
+            revert NameNotAvailable(label);
+        }
+        if (duration < minRegistrationDuration) {
+            revert DurationTooShort(duration, minRegistrationDuration);
+        }
+        uint256 commitTime = commitments[commitment];
+        uint256 minTime = commitTime + minCommitmentAge;
+        if (minTime > block.timestamp) {
+            revert CommitmentTooNew(commitment, minTime, block.timestamp);
+        }
+        uint256 maxTime = commitTime + maxCommitmentAge;
+        if (maxTime <= block.timestamp) {
+            revert CommitmentTooOld(commitment, maxTime, block.timestamp);
+        }
+        delete (commitments[commitment]);
+    }
 
-    /**
-     * @dev Register a name with ERC20 token payment.
-     * @param name The name to register.
-     * @param owner The owner of the name.
-     * @param secret The secret of the name.
-     * @param subregistry The subregistry to register the name in.
-     * @param resolver The resolver to use for the registration.
-     * @param duration The duration of the registration.
-     * @param token The ERC20 token address for payment.
-     * @return tokenId The token ID of the registered name.
-     */
+    /// @inheritdoc IETHRegistrar
     function register(
-        string calldata name,
+        string memory label,
         address owner,
         bytes32 secret,
         IRegistry subregistry,
         address resolver,
         uint64 duration,
-        address token
-    ) external returns (uint256 tokenId) {
-        if (!valid(name)) {
-            revert NameNotAvailable(name);
-        }
-        
+        IERC20Metadata paymentToken
+    ) external onlyPaymentToken(paymentToken) returns (uint256 tokenId) {
         // CHECKS: Validate commitment and get pricing (external calls for validation only)
-        _consumeCommitment(name, duration, makeCommitment(name, owner, secret, address(subregistry), resolver, duration));
+        _consumeCommitment(
+            label,
+            duration,
+            makeCommitment(
+                label,
+                owner,
+                secret,
+                subregistry,
+                resolver,
+                duration
+            )
+        );
         // validate owner
         if (owner == address(0)) {
-            revert InvalidOwner(owner);
+            revert InvalidOwner();
         }
-        uint64 expiry = uint64(block.timestamp) + duration;
-        // Get USD pricing breakdown
-        ITokenPriceOracle.Price memory usdPrice = tokenPriceOracle.price(name, expiry, duration);
-        
-        // Convert to token amount for payment and handle transfer
-        {
-            uint256 tokenAmount = tokenPriceOracle.priceInToken(name, expiry, duration, token);
-            // EFFECTS: Handle payment BEFORE state changes
-            IERC20(token).safeTransferFrom(msg.sender, beneficiary, tokenAmount);
-        }
-
-        // INTERACTIONS: Register name only after successful payment
-        tokenId = registry.register(name, owner, subregistry, resolver, REGISTRATION_ROLE_BITMAP, expiry);
-        
-        emit NameRegistered(name, owner, subregistry, resolver, duration, tokenId, usdPrice.base, usdPrice.premium);
+        uint256 base = basePrice(label, duration);
+        uint256 premium = premiumPrice(label);
+        uint256 tokenAmount = PriceUtils.convertDecimals(
+            base + premium,
+            priceDecimals,
+            paymentToken.decimals()
+        );
+        SafeERC20.safeTransferFrom(
+            paymentToken,
+            _msgSender(),
+            beneficiary,
+            tokenAmount
+        );
+        tokenId = ethRegistry.register(
+            label,
+            owner,
+            subregistry,
+            resolver,
+            REGISTRATION_ROLE_BITMAP,
+            uint64(block.timestamp) + duration
+        );
+        emit NameRegistered(
+            label,
+            owner,
+            subregistry,
+            resolver,
+            duration,
+            tokenId,
+            paymentToken,
+            base,
+            premium
+        );
     }
 
-    /**
-     * @dev Renew a name with ERC20 token payment.
-     * @param name The name to renew.
-     * @param duration The duration of the renewal.
-     * @param token The ERC20 token address for payment.
-     */
-    function renew(string calldata name, uint64 duration, address token) external {
+    /// @inheritdoc IETHRegistrar
+    function renew(
+        string memory label,
+        uint64 duration,
+        IERC20Metadata paymentToken
+    ) external onlyPaymentToken(paymentToken) {
         // CHECKS: Get current data and validate pricing
-        (uint256 tokenId, uint64 expiry, ) = registry.getNameData(name);
-        
+        (uint256 tokenId, uint64 expiry, ) = ethRegistry.getNameData(label);
+        if (_isAvailable(expiry)) {
+            revert NameNotRenewable(label);
+        }
+
         // Check for overflow before any state changes
         if (expiry > type(uint64).max - duration) {
             revert DurationOverflow(expiry, duration);
         }
         uint64 newExpiry = expiry + duration;
-        
-        // Get USD pricing breakdown
-        ITokenPriceOracle.Price memory usdPrice = tokenPriceOracle.price(name, uint256(expiry), duration);
-        
-        // Convert to token amount for payment and handle transfer
-        {
-            uint256 tokenAmount = tokenPriceOracle.priceInToken(name, uint256(expiry), duration, token);
-            // EFFECTS: Handle payment BEFORE state changes
-            IERC20(token).safeTransferFrom(msg.sender, beneficiary, tokenAmount);
-        }
-        
-        // INTERACTIONS: Renew name only after successful payment
-        registry.renew(tokenId, newExpiry);
-        
-        emit NameRenewed(name, duration, tokenId, newExpiry, usdPrice.base);
+        uint256 base = basePrice(label, duration);
+        uint256 tokenAmount = PriceUtils.convertDecimals(
+            base,
+            priceDecimals,
+            paymentToken.decimals()
+        );
+        SafeERC20.safeTransferFrom(
+            paymentToken,
+            _msgSender(),
+            beneficiary,
+            tokenAmount
+        );
+        ethRegistry.renew(tokenId, newExpiry);
+        emit NameRenewed(
+            label,
+            duration,
+            tokenId,
+            newExpiry,
+            paymentToken,
+            base
+        );
     }
-
-
-    function supportsInterface(bytes4 interfaceID) public view override(EnhancedAccessControl) returns (bool) {
-        return interfaceID == type(IETHRegistrar).interfaceId || super.supportsInterface(interfaceID);
-    }
-
-    /* Internal functions */
-
-    function _consumeCommitment(
-        string memory name,
-        uint64 duration,
-        bytes32 commitment
-    ) internal {
-        // Require an old enough commitment.
-        uint256 thisCommitmentValidFrom = commitments[commitment] + minCommitmentAge;
-        if (thisCommitmentValidFrom > block.timestamp) {
-            revert CommitmentTooNew(commitment, thisCommitmentValidFrom, block.timestamp);
-        }
-
-        // Commit must not be too old
-        uint256 thisCommitmentValidTo = commitments[commitment] + maxCommitmentAge;
-        if (thisCommitmentValidTo <= block.timestamp) {
-            revert CommitmentTooOld(commitment, thisCommitmentValidTo, block.timestamp);
-        }
-
-        // Name must be available
-        if (!this.available(name)) {
-            revert NameNotAvailable(name);
-        }
-
-        if (duration < MIN_REGISTRATION_DURATION) {
-            revert DurationTooShort(duration, MIN_REGISTRATION_DURATION);
-        }
-
-        delete (commitments[commitment]);
-    }
-
-
 }
