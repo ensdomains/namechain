@@ -1,4 +1,3 @@
-/// we import what we need from the @rocketh alias, see ../rocketh.ts
 import { artifacts, execute } from "@rocketh";
 import { ROLES } from "../constants.ts";
 import {
@@ -36,6 +35,7 @@ export default execute(
       ),
     );
 
+    const SEC_PER_DAY = 86400n;
     const ethRegistrar = await deploy("ETHRegistrar", {
       account: deployer,
       artifact: artifacts.ETHRegistrar,
@@ -44,12 +44,13 @@ export default execute(
           ethRegistry: ethRegistry.address,
           beneficiary,
           minCommitmentAge: 60n, // 1 minute,
-          maxCommitmentAge: 86400n, // 1 day,
-          minRegistrationDuration: 28n * 86400n,
-          gracePeriod: 90n * 86400n,
+          maxCommitmentAge: SEC_PER_DAY,
+          minRegistrationDuration: 28n * SEC_PER_DAY,
+          gracePeriod: 90n * SEC_PER_DAY,
           baseRatePerCp,
-          premiumDays: 21n,
-          premiumStartingPrice: 100_000_000n * 10n ** BigInt(PRICE_DECIMALS),
+          premiumPeriod: 21n * SEC_PER_DAY,
+          premiumHalvingPeriod: SEC_PER_DAY,
+          premiumPriceInitial: 100_000_000n * 10n ** BigInt(PRICE_DECIMALS),
           paymentTokens: [mockUSDC.address, mockDAI.address],
         },
       ],
@@ -64,7 +65,6 @@ export default execute(
       account: deployer,
     });
   },
-  // finally you can pass tags and dependencies
   {
     tags: ["ETHRegistrar", "registry", "l2"],
     dependencies: ["ETHRegistry", "MockTokens"],

@@ -28,22 +28,26 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         uint64 minRegistrationDuration;
         uint64 gracePeriod;
         uint256[5] baseRatePerCp;
-        uint64 premiumDays;
-        uint256 premiumStartingPrice;
+        uint64 premiumPeriod;
+        uint64 premiumHalvingPeriod;
+        uint256 premiumPriceInitial;
         IERC20Metadata[] paymentTokens;
     }
 
     uint8 public constant priceDecimals = PRICE_DECIMALS; // fixed, otherwise needs included in events
 
-    IPermissionedRegistry public immutable ethRegistry;
+    IPermissionedRegistry public immutable ethRegistry; // [register, expiry)
     address public immutable beneficiary;
-    uint64 public immutable minCommitmentAge;
+    uint64 public immutable minCommitmentAge; // [min, max)
     uint64 public immutable maxCommitmentAge;
-    uint64 public immutable minRegistrationDuration;
+    uint64 public immutable minRegistrationDuration; // [min, inf)
     uint64 public immutable gracePeriod;
     uint256[5] public baseRatePerCp; // rate = price/sec
-    uint64 public immutable premiumDays;
-    uint256 public immutable premiumStartingPrice;
+    uint64 public immutable premiumPeriod;
+    uint64 public immutable premiumHalvingPeriod;
+
+    uint256 public immutable premiumPriceInitial;
+    uint256 public immutable premiumPriceOffset;
 
     mapping(IERC20Metadata => bool) _isPaymentToken;
     mapping(bytes32 => uint256) public commitments;
@@ -65,8 +69,14 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         minRegistrationDuration = args.minRegistrationDuration;
         gracePeriod = args.gracePeriod;
         baseRatePerCp = args.baseRatePerCp;
-        premiumDays = args.premiumDays;
-        premiumStartingPrice = args.premiumStartingPrice;
+        premiumPeriod = args.premiumPeriod;
+        premiumHalvingPeriod = args.premiumHalvingPeriod;
+        premiumPriceInitial = args.premiumPriceInitial;
+        premiumPriceOffset = PriceUtils.halving(
+            args.premiumPriceInitial,
+            args.premiumHalvingPeriod,
+            args.premiumPeriod
+        );
         for (uint256 i; i < args.paymentTokens.length; i++) {
             _setPaymentToken(args.paymentTokens[i], true);
         }
@@ -125,7 +135,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     /// @dev Internal logic for registration availability.
     function _isAvailable(uint256 expiry) internal view returns (bool) {
-        return expiry + gracePeriod < block.timestamp;
+        return block.timestamp >= expiry + gracePeriod;
     }
 
     /// @dev Get base price to register or renew `label` with `duration`.
@@ -150,13 +160,13 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     /// @param duration The time after expiration, in seconds.
     /// @return The premium price.
     function premiumPriceAfter(uint64 duration) public view returns (uint256) {
-        uint256 decayPrice = PriceUtils.halving(
-            premiumStartingPrice,
-            1 days,
-            duration
-        );
-        uint256 endPrice = premiumStartingPrice >> premiumDays;
-        return decayPrice > endPrice ? decayPrice - endPrice : 0;
+        if (duration > premiumPeriod) return 0;
+        return
+            PriceUtils.halving(
+                premiumPriceInitial,
+                premiumHalvingPeriod,
+                duration
+            ) - premiumPriceOffset;
     }
 
     /// @dev Get premium price for a name.
@@ -171,10 +181,9 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     function _premiumPriceFromExpiry(
         uint64 expiry
     ) internal view returns (uint256) {
-        return
-            block.timestamp >= expiry
-                ? premiumPriceAfter(uint64(block.timestamp) - expiry)
-                : 0;
+        uint64 t0 = expiry + gracePeriod;
+        uint64 t = uint64(block.timestamp);
+        return t >= t0 ? premiumPriceAfter(t - t0) : 0;
     }
 
     /// @inheritdoc IETHRegistrar

@@ -61,9 +61,11 @@ library PriceUtils {
         uint256 half,
         uint256 elapsed
     ) internal pure returns (uint256) {
+        if (initial == 0 || half == 0) return 0;
+        if (elapsed == 0) return initial;
         uint256 x = (elapsed * PRECISION) / half;
         uint256 i = x / PRECISION;
-        uint256 f = (x - i * PRECISION);
+        uint256 f = x - i * PRECISION;
         return _addFraction(initial >> i, (f << 16) / PRECISION);
     }
 

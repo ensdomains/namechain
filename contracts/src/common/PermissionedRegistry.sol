@@ -37,8 +37,7 @@ contract PermissionedRegistry is
 
     modifier onlyNonExpiredTokenRoles(uint256 tokenId, uint256 roleBitmap) {
         _checkRoles(getResourceFromTokenId(tokenId), roleBitmap, _msgSender());
-        (, uint64 expires, ) = datastore.getSubregistry(tokenId);
-        if (expires < block.timestamp) {
+        if (_isExpired(getExpiry(tokenId))) {
             revert NameExpired(tokenId);
         }
         _;
@@ -61,6 +60,29 @@ contract PermissionedRegistry is
         return tokenURI(tokenId);
     }
 
+    function getNameData(
+        string calldata label
+    )
+        public
+        view
+        returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion)
+    {
+        uint256 canonicalId = NameUtils.labelToCanonicalId(label);
+        (, expiry, tokenIdVersion) = datastore.getSubregistry(canonicalId);
+        tokenId = _constructTokenId(canonicalId, tokenIdVersion);
+    }
+
+    function getExpiry(uint256 tokenId) public view override returns (uint64) {
+        (, uint64 expires, ) = datastore.getSubregistry(tokenId);
+        return expires;
+    }
+
+    /// @dev Internal logic for expired status.
+    /// @notice Only use of `block.timestamp`.
+    function _isExpired(uint64 expires) internal view returns (bool) {
+        return block.timestamp >= expires;
+    }
+
     function ownerOf(
         uint256 tokenId
     )
@@ -70,11 +92,10 @@ contract PermissionedRegistry is
         override(ERC1155Singleton, IERC1155Singleton)
         returns (address)
     {
-        (, uint64 expires, ) = datastore.getSubregistry(tokenId);
-        if (expires < block.timestamp) {
-            return address(0);
-        }
-        return super.ownerOf(tokenId);
+        return
+            _isExpired(getExpiry(tokenId))
+                ? address(0)
+                : super.ownerOf(tokenId);
     }
 
     function register(
@@ -95,11 +116,11 @@ contract PermissionedRegistry is
         uint32 tokenIdVersion;
         (tokenId, oldExpiry, tokenIdVersion) = getNameData(label);
 
-        if (oldExpiry >= block.timestamp) {
+        if (!_isExpired(oldExpiry)) {
             revert NameAlreadyRegistered(label);
         }
 
-        if (expires < block.timestamp) {
+        if (_isExpired(expires)) {
             revert CannotSetPastExpiration(expires);
         }
 
@@ -207,10 +228,7 @@ contract PermissionedRegistry is
         (address subregistry, uint64 expires, ) = datastore.getSubregistry(
             canonicalId
         );
-        if (expires <= block.timestamp) {
-            return IRegistry(address(0));
-        }
-        return IRegistry(subregistry);
+        return IRegistry(_isExpired(expires) ? address(0) : subregistry);
     }
 
     function getResolver(
@@ -223,8 +241,7 @@ contract PermissionedRegistry is
         returns (address)
     {
         uint256 canonicalId = NameUtils.labelToCanonicalId(label);
-        (, uint64 expires, ) = datastore.getSubregistry(canonicalId);
-        if (expires <= block.timestamp) {
+        if (_isExpired(getExpiry(canonicalId))) {
             return address(0);
         }
         (address resolver, ) = datastore.getResolver(canonicalId);
@@ -266,23 +283,6 @@ contract PermissionedRegistry is
     {
         datastore.setResolver(tokenId, resolver, 0);
         emit ResolverUpdate(tokenId, resolver, 0);
-    }
-
-    function getNameData(
-        string calldata label
-    )
-        public
-        view
-        returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion)
-    {
-        uint256 canonicalId = NameUtils.labelToCanonicalId(label);
-        (, expiry, tokenIdVersion) = datastore.getSubregistry(canonicalId);
-        tokenId = _constructTokenId(canonicalId, tokenIdVersion);
-    }
-
-    function getExpiry(uint256 tokenId) public view override returns (uint64) {
-        (, uint64 expires, ) = datastore.getSubregistry(tokenId);
-        return expires;
     }
 
     function supportsInterface(
