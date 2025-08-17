@@ -16,7 +16,7 @@ import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedD
 ///
 /// Format: `ENS1 <this> <context>`
 ///
-/// 1. Continue: `<parentRegistry> <suffix>`
+/// 1. Continue: `context = <parentRegistry> <suffix>`
 ///    eg. "*.nick.com" + `ENS1 <this> 0x1234 com" &rarr; 0x1234 w/["nick", ...]
 ///
 contract DNSRegistryResolver is
