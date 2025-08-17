@@ -2,7 +2,7 @@ import { artifacts, execute } from "@rocketh";
 import { ROLES } from "../constants.ts";
 import {
   rateFromAnnualPrice,
-  formatRateAsAnnualPrice,
+  formatAnnualPriceFromRate,
   PRICE_DECIMALS,
 } from "../../test/utils/price.ts";
 
@@ -30,7 +30,7 @@ export default execute(
     console.table(
       baseRatePerCp.flatMap((rate, i) =>
         rate
-          ? { cp: 1 + i, rate, yearly: formatRateAsAnnualPrice(rate, 2) }
+          ? { cp: 1 + i, rate, yearly: formatAnnualPriceFromRate(rate, 2) }
           : [],
       ),
     );

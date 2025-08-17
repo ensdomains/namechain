@@ -1,7 +1,7 @@
 type Rounding = "nearest" | "floor" | "ceil";
 
 export const PRICE_DECIMALS = 12; // see: IETHRegistrar.sol
-const SECONDS_PER_YEAR = 31_557_600n; // exact (365.25 * 86400)
+export const SEC_PER_YEAR = 31_557_600n; // exact (365.25 * 86400)
 
 function divRound(n: bigint, d: bigint, mode: Rounding): bigint {
   if (mode === "floor") return n / d;
@@ -10,20 +10,16 @@ function divRound(n: bigint, d: bigint, mode: Rounding): bigint {
   return (n + d / 2n) / d;
 }
 
-/**
- * exact: dollars/year (string, up to 9 decimal places) -> nd/s (bigint)
- * examples of valid inputs: "12", "12.3", "12.345678901"
- */
+// examples of valid inputs: "12", "12.3", "12.345678901"
 export function rateFromAnnualPrice(
   pricePerYear: string,
   rounding: Rounding = "ceil",
 ) {
   if (!/^\d+(\.\d+)?$/.test(pricePerYear)) throw new Error("expected price");
-  const [dollars, fracRaw = ""] = pricePerYear.split(".");
-  if (fracRaw.length > PRICE_DECIMALS) throw new Error("too many decimals");
-  const frac = fracRaw.slice(0, PRICE_DECIMALS).padStart(PRICE_DECIMALS, "0");
-  const ndPerYear = BigInt(dollars) * 10n ** BigInt(PRICE_DECIMALS) + BigInt(frac);
-  return divRound(ndPerYear, SECONDS_PER_YEAR, rounding);
+  const [i, f = ""] = pricePerYear.split(".");
+  const decimals = f.slice(0, PRICE_DECIMALS).padStart(PRICE_DECIMALS, "0");
+  const perYear = BigInt(i) * 10n ** BigInt(PRICE_DECIMALS) + BigInt(decimals);
+  return divRound(perYear, SEC_PER_YEAR, rounding);
 }
 
 function formatFixed(n: bigint, decimals: number): string {
@@ -34,16 +30,19 @@ function formatFixed(n: bigint, decimals: number): string {
   return `${i}.${f}`;
 }
 
-export function formatRateAsAnnualPrice(
+export function formatAnnualPriceFromRate(
   rate: bigint,
   decimals = PRICE_DECIMALS,
   rounding: Rounding = "nearest",
 ): string {
-  if (decimals < 0 || decimals > PRICE_DECIMALS) {
-    throw new Error(`decimals must be 0..${PRICE_DECIMALS}`);
+  if (decimals < 0 || !Number.isInteger(decimals)) {
+    throw new Error(`invalid decimals: ${decimals}`);
   }
-  const perYear = rate * SECONDS_PER_YEAR;
-  const divisor = 10n ** BigInt(PRICE_DECIMALS - decimals);
-  const scaled = divRound(perYear, divisor, rounding);
+  const perYear = rate * SEC_PER_YEAR;
+  const diff = BigInt(PRICE_DECIMALS - decimals);
+  const scaled =
+    diff > 0
+      ? divRound(perYear, 10n ** diff, rounding)
+      : perYear * 10n ** -diff;
   return formatFixed(scaled, decimals);
 }
