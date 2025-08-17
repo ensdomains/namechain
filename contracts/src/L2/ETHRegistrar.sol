@@ -42,10 +42,9 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     uint64 public immutable maxCommitmentAge;
     uint64 public immutable minRegistrationDuration; // [min, inf)
     uint64 public immutable gracePeriod;
-    uint256[5] public baseRatePerCp; // rate = price/sec
+    uint256[5] baseRatePerCp; // rate = price/sec
     uint64 public immutable premiumPeriod;
     uint64 public immutable premiumHalvingPeriod;
-
     uint256 public immutable premiumPriceInitial;
     uint256 public immutable premiumPriceOffset;
 
@@ -139,6 +138,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     }
 
     /// @dev Get base price to register or renew `label` with `duration`.
+    /// @notice Use `duration = 1` for rate (price/sec).
     /// @param label The name to price.
     /// @param duration The duration to price, in seconds.
     /// @return The base price.
@@ -160,7 +160,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     /// @param duration The time after expiration, in seconds.
     /// @return The premium price.
     function premiumPriceAfter(uint64 duration) public view returns (uint256) {
-        if (duration > premiumPeriod) return 0;
+        if (duration >= premiumPeriod) return 0;
         return
             PriceUtils.halving(
                 premiumPriceInitial,
