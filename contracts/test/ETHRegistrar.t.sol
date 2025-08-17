@@ -410,7 +410,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
     function test_Revert_register_commitmentTooOld() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        uint256 dt = 2;
+        uint256 dt = 1;
         args.wait = ethRegistrar.maxCommitmentAge() + dt;
         uint256 t = block.timestamp + args.wait;
         vm.expectRevert(
