@@ -60,7 +60,7 @@ export async function setupCrossChainEnvironment({
   numAccounts?: number;
   mnemonic?: string;
 } = {}) {
-  console.log("Setting up cross-chain ENS v2 environment...");
+  console.log("Deploying ENSv2...");
 
   const l1Anvil = anvil({
     chainId: l1ChainId,
@@ -78,7 +78,7 @@ export async function setupCrossChainEnvironment({
   // use same accounts on both chains
   const accounts = Array.from({ length: numAccounts }, (_, i) =>
     Object.assign(mnemonicToAccount(mnemonic, { addressIndex: i }), {
-      name: "",
+      name: `unnamed${i}`, // default name
     }),
   );
 
@@ -93,25 +93,22 @@ export async function setupCrossChainEnvironment({
     await Promise.allSettled(finalizers.map((f) => f()));
   }
 
-  // parse `host:port` from the anvil boot message
-  function parseHost(lines: string[]) {
-    const match = lines
-      .join("\n")
-      .trim()
-      .match(/Listening on (.*)$/);
-    if (!match) throw new Error(`expected host`);
-    return match[1];
-  }
-
   try {
+    console.log("Launching L1");
     await l1Anvil.start();
     finalizers.push(() => l1Anvil.stop());
 
+    console.log("Launching L2");
     await l2Anvil.start();
     finalizers.push(() => l2Anvil.stop());
 
-    const l1HostPort = parseHost(l1Anvil.messages.get());
-    const l2HostPort = parseHost(l2Anvil.messages.get());
+    // parse `host:port` from the anvil boot message
+    const [l1HostPort, l2HostPort] = [l1Anvil, l2Anvil].map((anvil) => {
+      const message = anvil.messages.get().join("\n").trim();
+      const match = message.match(/Listening on (.*)$/);
+      if (!match) throw new Error(`expected host: ${message}`);
+      return match[1];
+    });
 
     const transportOptions = {
       retryCount: 0,
@@ -154,7 +151,7 @@ export async function setupCrossChainEnvironment({
       .extend(publicActions)
       .extend(testActions({ mode: "anvil" }));
 
-    console.log("Deploying L2 Contracts...");
+    console.log("Deploying L2");
     const l2Deploy = await executeDeployScripts(
       resolveConfig({
         network: {
@@ -166,13 +163,11 @@ export async function setupCrossChainEnvironment({
           publicInfo: l2ChainInfo, // squelches error
         },
         askBeforeProceeding: false,
-        accounts: Object.fromEntries(
-          accounts.filter((x) => x.name).map((x) => [x.name, x.address]),
-        ),
+        accounts: Object.fromEntries(accounts.map((x) => [x.name, x.address])),
       }),
     );
 
-    console.log("Deploying Urg..");
+    console.log("Launching Urg");
     const gateway = new Gateway(
       new UncheckedRollup(
         new WebSocketProvider(`ws://${l2HostPort}`, l2Client.chain.id, {
@@ -189,6 +184,7 @@ export async function setupCrossChainEnvironment({
     });
     finalizers.push(ccip.shutdown);
 
+    console.log("Deploying Urg");
     const GatewayVM = await deployArtifact(l1Client, {
       file: urgArtifact("GatewayVM"),
     });
@@ -201,7 +197,7 @@ export async function setupCrossChainEnvironment({
       libs: { GatewayVM },
     });
 
-    console.log("Deploying L1 Contracts...");
+    console.log("Deploying L1");
     const l1Deploy = await executeDeployScripts(
       resolveConfig({
         network: {
@@ -223,7 +219,7 @@ export async function setupCrossChainEnvironment({
       },
     );
 
-    console.log("Cross-chain environment setup complete!");
+    console.log("Deployed ENSv2");
 
     const l1Contracts = createDeploymentGetter(l1Deploy, l1Client);
     const l1 = {
@@ -296,9 +292,7 @@ export async function setupCrossChainEnvironment({
     };
     return {
       accounts,
-      namedAccounts: Object.fromEntries(
-        accounts.filter((x) => x.name).map((x) => [x.name, x]),
-      ),
+      namedAccounts: Object.fromEntries(accounts.map((x) => [x.name, x])),
       l1,
       l2,
       urg: {

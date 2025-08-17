@@ -19,8 +19,8 @@ export default execute<{
   ) => {
     if (!args) throw new Error("expected L2 deployment");
 
-    const ethRegistrarV1 = get("ETHRegistrarV1");
-    const universalResolverV1 = get("UniversalResolverV1");
+    const ensRegistryV1 = get("ENSRegistryV1");
+    const batchGatewayProvider = get("BatchGatewayProvider");
 
     const verifiableFactory = get<(typeof artifacts.VerifiableFactory)["abi"]>(
       "DedicatedResolverFactory",
@@ -69,8 +69,8 @@ export default execute<{
       account: deployer,
       artifact: artifacts.ETHTLDResolver,
       args: [
-        ethRegistrarV1.address,
-        universalResolverV1.address,
+        ensRegistryV1.address,
+        batchGatewayProvider.address,
         zeroAddress, // burnAddressV1
         ethSelfResolver.address,
         args.verifierAddress,

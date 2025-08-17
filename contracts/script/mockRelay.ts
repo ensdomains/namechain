@@ -10,7 +10,7 @@ const expectSuccess = async (client: Client, hashPromise: Promise<Hash>) => {
   return receipt;
 };
 
-export const createMockRelay = ({
+export function createMockRelay({
   l1Bridge,
   l2Bridge,
   l1Client,
@@ -20,9 +20,7 @@ export const createMockRelay = ({
   l2Bridge: L2Contracts["mockBridge"];
   l1Client: L1Client;
   l2Client: L2Client;
-}) => {
-  console.log('[Mock Relay] Deploying...');
-
+}) {
   // Listen for L1 bridge events (ejection/migration to L2)
   const unwatchL1Bridge = l1Bridge.watchEvent.NameBridgedToL2({
     onLogs: async (logs: any[]) => {
@@ -32,9 +30,11 @@ export const createMockRelay = ({
         try {
           const receipt = await expectSuccess(
             l2Client,
-            (l2Bridge.write as any).receiveMessage([message])
+            (l2Bridge.write as any).receiveMessage([message]),
           );
-          console.log(`Message relayed to L2, tx hash: ${receipt.transactionHash}`);
+          console.log(
+            `Message relayed to L2, tx hash: ${receipt.transactionHash}`,
+          );
         } catch (error) {
           console.error("Error relaying bridged message from L1 to L2:", error);
         }
@@ -51,9 +51,11 @@ export const createMockRelay = ({
         try {
           const receipt = await expectSuccess(
             l1Client,
-            (l1Bridge.write as any).receiveMessage([message])
+            (l1Bridge.write as any).receiveMessage([message]),
           );
-          console.log(`Message relayed to L1, tx hash: ${receipt.transactionHash}`);
+          console.log(
+            `Message relayed to L1, tx hash: ${receipt.transactionHash}`,
+          );
         } catch (error) {
           console.error("Error relaying bridged message from L2 to L1:", error);
         }
@@ -69,8 +71,14 @@ export const createMockRelay = ({
     message: Hex;
   }) =>
     (targetChain === "l1"
-      ? expectSuccess(l1Client, (l1Bridge.write as any).receiveMessage([message]))
-      : expectSuccess(l2Client, (l2Bridge.write as any).receiveMessage([message]))
+      ? expectSuccess(
+          l1Client,
+          (l1Bridge.write as any).receiveMessage([message]),
+        )
+      : expectSuccess(
+          l2Client,
+          (l2Bridge.write as any).receiveMessage([message]),
+        )
     )
       .then((receipt) => {
         console.log(
@@ -88,12 +96,11 @@ export const createMockRelay = ({
     unwatchL2Bridge();
   };
 
-  console.log('[Mock Relay] Deployed');
-
+  console.log("Created Mock Relay");
   return {
     manualRelay,
     removeListeners,
   };
-};
+}
 
 export type MockRelay = ReturnType<typeof createMockRelay>;
