@@ -18,10 +18,10 @@ import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedD
 ///
 /// Format: `ENS1 <this> <context>`
 ///
-/// 1. Rewrite: `<oldSuffix> <newSuffix>`
-///    eg. `*.nick.com` + `com base.eth` &rarr; `*.nick.base.eth`
-/// 2. Replace: `<newName>`
-///    eg. `nick.com` + `nick.eth` &rarr; `nick.eth`
+/// 1. Rewrite: `context = <oldSuffix> <newSuffix>`
+///    eg. `*.nick.com` + `ENS1 <this> com base.eth` &rarr; `*.nick.base.eth`
+/// 2. Replace: `context = <newName>`
+///    eg. `notdot.net` + `ENS1 <this> nick.eth` &rarr; `nick.eth`
 ///
 contract DNSAliasResolver is
     ERC165,
