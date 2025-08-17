@@ -44,8 +44,8 @@ function createDeploymentGetter<C extends Client>(
 }
 
 export async function setupCrossChainEnvironment({
-  l1ChainId = 0xeeeeee,
-  l2ChainId = l1ChainId + 1,
+  l2ChainId = 0xeeeeee,
+  l1ChainId = l2ChainId - 1,
   l1Port = 0,
   l2Port = 0,
   urgPort = 0,
