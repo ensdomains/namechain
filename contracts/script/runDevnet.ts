@@ -6,6 +6,7 @@ const env = await setupCrossChainEnvironment({
   l1Port: 8545,
   l2Port: 8456,
   urgPort: 8457,
+  saveDeployments: true,
 });
 
 process.once("SIGINT", async () => {

@@ -10,13 +10,15 @@ import {
   stringToBytes,
   publicActions,
   testActions,
+  type Chain,
   type Client,
   type GetContractReturnType,
 } from "viem";
 import { waitForTransactionReceipt } from "viem/actions";
 import { mnemonicToAccount } from "viem/accounts";
-
 import { artifacts } from "@rocketh";
+import { rmdir } from "node:fs/promises";
+
 import { deployArtifact } from "../test/fixtures/deployArtifact.js";
 import { urgArtifact } from "../test/fixtures/externalArtifacts.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
@@ -51,6 +53,7 @@ export async function setupCrossChainEnvironment({
   urgPort = 0,
   numAccounts = 5,
   mnemonic = "test test test test test test test test test test test junk",
+  saveDeployments = false,
 }: {
   l1ChainId?: number;
   l2ChainId?: number;
@@ -59,6 +62,7 @@ export async function setupCrossChainEnvironment({
   urgPort?: number;
   numAccounts?: number;
   mnemonic?: string;
+  saveDeployments?: boolean;
 } = {}) {
   console.log("Deploying ENSv2...");
 
@@ -118,54 +122,64 @@ export async function setupCrossChainEnvironment({
     const l1Transport = webSocket(`ws://${l1HostPort}`, transportOptions);
     const l2Transport = webSocket(`ws://${l2HostPort}`, transportOptions);
 
-    const l1ChainInfo = {
-      id: l1ChainId,
-      name: "L1 Local",
-      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-      rpcUrls: {
-        default: { http: [`http://${l1HostPort}`] },
-      },
-    };
-
-    const l2ChainInfo = {
-      id: l2ChainId,
-      name: "L2 Local",
-      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-      rpcUrls: {
-        default: { http: [`http://${l2HostPort}`] },
-      },
-    };
-
     const l1Client = createWalletClient({
-      chain: l1ChainInfo,
+      chain: {
+        id: l1ChainId,
+        name: "L1 Local",
+        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        rpcUrls: {
+          default: { http: [`http://${l1HostPort}`] },
+        },
+      },
       transport: l1Transport,
       account: deployer,
     })
       .extend(publicActions)
       .extend(testActions({ mode: "anvil" }));
     const l2Client = createWalletClient({
-      chain: l2ChainInfo,
+      chain: {
+        id: l2ChainId,
+        name: "L2 Local",
+        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        rpcUrls: {
+          default: { http: [`http://${l2HostPort}`] },
+        },
+      },
       transport: l2Transport,
       account: deployer,
     })
       .extend(publicActions)
       .extend(testActions({ mode: "anvil" }));
 
+    async function deploy(tag: string, chain: Chain, args?: any) {
+      const name = `${tag}-local`;
+      if (saveDeployments) {
+        await rmdir(new URL(`../deployments/${name}`, import.meta.url), {
+          recursive: true,
+        });
+      }
+      return executeDeployScripts(
+        resolveConfig({
+          network: {
+            nodeUrl: chain.rpcUrls.default.http[0],
+            name,
+            tags: [tag, "local"],
+            fork: false,
+            scripts: [`deploy/${tag}`, "deploy/shared"],
+            publicInfo: chain as any, // silly mutability type error
+          },
+          askBeforeProceeding: false,
+          saveDeployments,
+          accounts: Object.fromEntries(
+            accounts.map((x) => [x.name, x.address]),
+          ),
+        }),
+        args,
+      );
+    }
+
     console.log("Deploying L2");
-    const l2Deploy = await executeDeployScripts(
-      resolveConfig({
-        network: {
-          nodeUrl: `http://${l2HostPort}`,
-          name: "l2-local",
-          tags: ["l2", "local"],
-          fork: false,
-          scripts: ["deploy/l2", "deploy/shared"],
-          publicInfo: l2ChainInfo, // squelches error
-        },
-        askBeforeProceeding: false,
-        accounts: Object.fromEntries(accounts.map((x) => [x.name, x.address])),
-      }),
-    );
+    const l2Deploy = await deploy("l2", l2Client.chain);
 
     console.log("Launching Urg");
     const gateway = new Gateway(
@@ -198,26 +212,10 @@ export async function setupCrossChainEnvironment({
     });
 
     console.log("Deploying L1");
-    const l1Deploy = await executeDeployScripts(
-      resolveConfig({
-        network: {
-          nodeUrl: `http://${l1HostPort}`,
-          name: "l1-local",
-          tags: ["l1", "local"],
-          fork: false,
-          scripts: ["deploy/l1", "deploy/shared"],
-          publicInfo: l1ChainInfo,
-        },
-        askBeforeProceeding: false,
-        accounts: Object.fromEntries(
-          accounts.filter((x) => x.name).map((x) => [x.name, x.address]),
-        ),
-      }),
-      {
-        l2Deploy,
-        verifierAddress,
-      },
-    );
+    const l1Deploy = await deploy("l1", l1Client.chain, {
+      l2Deploy,
+      verifierAddress,
+    });
 
     console.log("Deployed ENSv2");
 
