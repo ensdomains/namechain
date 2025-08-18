@@ -6,11 +6,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 contract MockERC20 is ERC20 {
     uint8 private _decimals;
 
-    constructor(
-        string memory name,
-        string memory symbol,
-        uint8 decimals_
-    ) ERC20(name, symbol) {
+    constructor(string memory symbol, uint8 decimals_) ERC20(symbol, symbol) {
         _decimals = decimals_;
     }
 
@@ -27,10 +23,10 @@ contract MockERC20 is ERC20 {
     }
 }
 
-contract MockBlacklist is MockERC20 {
+contract MockERC20Blacklist is MockERC20 {
     error Blacklisted(address);
     mapping(address => bool) public isBlacklisted;
-    constructor() MockERC20("USDC", "USDC", 6) {}
+    constructor() MockERC20("USDC", 6) {}
     function setBlacklisted(address account, bool blacklisted) external {
         isBlacklisted[account] = blacklisted;
     }
@@ -45,8 +41,8 @@ contract MockBlacklist is MockERC20 {
     }
 }
 
-contract MockVoidReturn is MockERC20 {
-    constructor() MockERC20("USDT", "USDT", 6) {}
+contract MockERC20VoidReturn is MockERC20 {
+    constructor() MockERC20("USDT", 6) {}
     function transferFrom(
         address from,
         address to,
@@ -59,9 +55,9 @@ contract MockVoidReturn is MockERC20 {
     }
 }
 
-contract MockFalseReturn is MockERC20 {
+contract MockERC20FalseReturn is MockERC20 {
     bool public shouldFail;
-    constructor() MockERC20("False Return Token", "FALSE", 18) {}
+    constructor() MockERC20("FALSE", 18) {}
     function transferFrom(
         address,
         address,
