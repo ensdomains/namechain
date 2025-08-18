@@ -4,12 +4,8 @@ pragma solidity >=0.8.13;
 import {IRegistry} from "../common/IRegistry.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
-/// @dev Decimals for prices and rates.
-uint8 constant PRICE_DECIMALS = 12;
-
 /// @notice Interface for the ".eth" registrar which manages registration/renewal for ".eth" registry.
-///         Prices and rates relative to `priceDecimals()`.
-/// @dev Interface selector: `0x92349baa`
+/// @dev Interface selector: `0xa3839be4`
 interface IETHRegistrar {
     /// @notice `label` has no rent price.
     /// @dev Error selector: `0x90ecde1b`
@@ -33,7 +29,7 @@ interface IETHRegistrar {
 
     /// @notice `duration` less than `minDuration`.
     /// @dev Error selector: `0xa096b844`
-    error DurationTooShort(uint64 duration, uint256 minDuration);
+    error DurationTooShort(uint64 duration, uint64 minDuration);
 
     /// @notice `maxCommitmentAge` was not greater than `minCommitmentAge`.
     /// @dev Error selector: `0x3e5aa838`
@@ -62,7 +58,7 @@ interface IETHRegistrar {
     /// @notice Support for `paymentToken` has changed.
     event PaymentTokenChanged(IERC20Metadata paymentToken, bool supported);
 
-    /// @dev `commitment` is recorded onchain at `block.timestamp`.
+    /// @dev `commitment` was recorded onchain at `block.timestamp`.
     /// @param commitment The commitment hash from `makeCommitment()`.
     event CommitmentMade(bytes32 commitment);
 
@@ -75,8 +71,8 @@ interface IETHRegistrar {
     /// @param duration The registration duration, in seconds.
     /// @param paymentToken The ERC-20 used for payment.
     /// @param referer The referer hash.
-    /// @param base The base price.
-    /// @param premium The premium price.
+    /// @param base The base price, relative to `paymentToken`.
+    /// @param premium The premium price, relative to `paymentToken`.
     event NameRegistered(
         uint256 indexed tokenId,
         string label,
@@ -97,7 +93,7 @@ interface IETHRegistrar {
     /// @param newExpiry The new expiry, in seconds.
     /// @param paymentToken The ERC-20 used for payment.
     /// @param referer The referer hash.
-    /// @param base The base price.
+    /// @param base The base price, relative to `paymentToken`.
     event NameRenewed(
         uint256 indexed tokenId,
         string label,
@@ -126,19 +122,6 @@ interface IETHRegistrar {
     function isPaymentToken(
         IERC20Metadata paymentToken
     ) external view returns (bool);
-
-    /// @dev Number of decimals for prices and rates.
-    function priceDecimals() external view returns (uint8);
-
-    /// @dev Get rent price for `name` with `duration`.
-    /// @param label The name to price.
-    /// @param duration The duration to price, in seconds.
-    /// @return base The base price.
-    /// @return premium The premium price.
-    function rentPrice(
-        string memory label,
-        uint64 duration
-    ) external view returns (uint256 base, uint256 premium);
 
     /// @notice Same as `rentPrice()` but relative to `paymentToken`.
     /// @param label The name to price.

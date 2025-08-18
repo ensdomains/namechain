@@ -5,7 +5,8 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {IETHRegistrar, PRICE_DECIMALS} from "./IETHRegistrar.sol";
+import {IETHRegistrar} from "./IETHRegistrar.sol";
+import {ITokenPriceOracle} from "./ITokenPriceOracle.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {EnhancedAccessControl, LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
@@ -27,6 +28,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         uint64 maxCommitmentAge;
         uint64 minRegistrationDuration;
         uint64 gracePeriod;
+        uint8 priceDecimals;
+        ITokenPriceOracle priceOracle;
         uint256[5] baseRatePerCp;
         uint64 premiumPeriod;
         uint64 premiumHalvingPeriod;
@@ -34,14 +37,14 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IERC20Metadata[] paymentTokens;
     }
 
-    uint8 public constant priceDecimals = PRICE_DECIMALS; // fixed, otherwise needs included in events
-
     IPermissionedRegistry public immutable ethRegistry; // [register, expiry)
     address public immutable beneficiary;
     uint64 public immutable minCommitmentAge; // [min, max)
     uint64 public immutable maxCommitmentAge;
     uint64 public immutable minRegistrationDuration; // [min, inf)
     uint64 public immutable gracePeriod;
+    uint8 public immutable priceDecimals;
+    ITokenPriceOracle public immutable priceOracle;
     uint256[5] baseRatePerCp; // rate = price/sec
     uint64 public immutable premiumPeriod;
     uint64 public immutable premiumHalvingPeriod;
@@ -67,6 +70,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         maxCommitmentAge = args.maxCommitmentAge;
         minRegistrationDuration = args.minRegistrationDuration;
         gracePeriod = args.gracePeriod;
+        priceDecimals = args.priceDecimals;
+        priceOracle = args.priceOracle;
         baseRatePerCp = args.baseRatePerCp;
         premiumPeriod = args.premiumPeriod;
         premiumHalvingPeriod = args.premiumHalvingPeriod;
@@ -137,7 +142,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         return block.timestamp >= expiry + gracePeriod;
     }
 
-    /// @notice Get base price to register or renew `label` with `duration`.
+    /// @notice Get base price to register or renew `label` for `duration`.
     ///         Use `duration = 1` for rate (price/sec).
     /// @param label The name to price.
     /// @param duration The duration to price, in seconds.
@@ -157,7 +162,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     }
 
     /// @notice Get premium price for a duration after expiry and grace.
-	///         Positive over `[0, premiumPeriod)`.
+    ///         Positive over `[0, premiumPeriod)`.
     /// @param duration The time after expiration, in seconds.
     /// @return The premium price.
     function premiumPriceAfter(uint64 duration) public view returns (uint256) {
@@ -187,7 +192,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         return t >= t0 ? premiumPriceAfter(t - t0) : 0;
     }
 
-    /// @inheritdoc IETHRegistrar
+    /// @notice Convenience for `basePrice()` and `premiumPrice()`.
     function rentPrice(
         string memory label,
         uint64 duration
@@ -202,18 +207,24 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         uint64 duration,
         IERC20Metadata paymentToken
     )
-        external
+        public
         view
         onlyPaymentToken(paymentToken)
         returns (uint256 base, uint256 premium)
     {
-        base = basePrice(label, duration);
-        uint256 total = base + premiumPrice(label);
-        uint8 decimals = paymentToken.decimals();
-        base = PriceUtils.convertDecimals(base, priceDecimals, decimals);
-        premium =
-            PriceUtils.convertDecimals(total, priceDecimals, decimals) -
-            base; // ensure: f(a+b) - f(a) == f(b)
+        premium = premiumPrice(label);
+        uint256 total = basePrice(label, duration) + premium;
+        uint256 amount = priceOracle.getTokenAmount(
+            total,
+            priceDecimals,
+            paymentToken
+        );
+        if (premium == 0) {
+            base = amount;
+        } else {
+            premium = (amount * premium) / total;
+            base = amount - premium; // ensure: f(a+b) - f(a) == f(b)
+        }
     }
 
     /// @inheritdoc IETHRegistrar
@@ -288,18 +299,16 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
                 duration
             )
         );
-        uint256 base = basePrice(label, duration); // reverts if !isValid()
-        uint256 premium = _premiumPriceFromExpiry(expiry);
-        uint256 tokenAmount = PriceUtils.convertDecimals(
-            base + premium,
-            priceDecimals,
-            paymentToken.decimals()
-        );
+        (uint256 base, uint256 premium) = rentPrice(
+            label,
+            duration,
+            paymentToken
+        ); // reverts if !isValid()
         SafeERC20.safeTransferFrom(
             paymentToken,
             _msgSender(),
             beneficiary,
-            tokenAmount
+            base + premium
         );
         tokenId = ethRegistry.register(
             label,
@@ -318,8 +327,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             duration,
             paymentToken,
             referer,
-            base, // in priceDecimals()
-            premium //
+            base,
+            premium
         );
     }
 
@@ -338,17 +347,12 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         if (oldExpiry > type(uint64).max - duration) {
             revert DurationOverflow(oldExpiry, duration);
         }
-        uint256 base = basePrice(label, duration);
-        uint256 tokenAmount = PriceUtils.convertDecimals(
-            base,
-            priceDecimals,
-            paymentToken.decimals()
-        );
+        (uint256 base, ) = rentPrice(label, duration, paymentToken);
         SafeERC20.safeTransferFrom(
             paymentToken,
             _msgSender(),
             beneficiary,
-            tokenAmount
+            base
         );
         uint64 expires = oldExpiry + duration;
         ethRegistry.renew(tokenId, expires);
@@ -359,7 +363,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             expires,
             paymentToken,
             referer,
-            base // in priceDecimals()
+            base
         );
     }
 }

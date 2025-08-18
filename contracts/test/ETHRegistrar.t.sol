@@ -11,7 +11,8 @@ import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165C
 import {MockERC20, MockERC20Blacklist, MockERC20VoidReturn, MockERC20FalseReturn} from "../src/mocks/MockERC20.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
-import {ETHRegistrar, IETHRegistrar, IRegistry, PriceUtils, PRICE_DECIMALS, REGISTRATION_ROLE_BITMAP} from "../src/L2/ETHRegistrar.sol";
+import {MockStableTokenPriceOracle} from "../src/mocks/MockStableTokenPriceOracle.sol";
+import {ETHRegistrar, IETHRegistrar, IRegistry, PriceUtils, REGISTRATION_ROLE_BITMAP} from "../src/L2/ETHRegistrar.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
@@ -33,6 +34,7 @@ contract TestETHRegistrar is Test {
 
     uint64 constant SEC_PER_YEAR = 31_557_600; // 365.25
 
+    uint8 constant PRICE_DECIMALS = 12;
     uint256 constant PRICE_SCALE = 10 ** PRICE_DECIMALS;
     uint256 constant RATE_5_CHAR = (5 * PRICE_SCALE) / SEC_PER_YEAR;
     uint256 constant RATE_4_CHAR = (160 * PRICE_SCALE) / SEC_PER_YEAR;
@@ -50,6 +52,8 @@ contract TestETHRegistrar is Test {
             LibEACBaseRoles.ALL_ROLES
         );
 
+		console.logBytes4(type(IETHRegistrar).interfaceId);
+
         IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](5);
         paymentTokens[0] = tokenUSDC = new MockERC20("USDC", 6);
         paymentTokens[1] = tokenDAI = new MockERC20("DAI", 18);
@@ -65,6 +69,8 @@ contract TestETHRegistrar is Test {
                 maxCommitmentAge: 1 days,
                 minRegistrationDuration: 28 days,
                 gracePeriod: 90 days,
+                priceDecimals: PRICE_DECIMALS,
+                priceOracle: new MockStableTokenPriceOracle(),
                 baseRatePerCp: [0, 0, RATE_3_CHAR, RATE_4_CHAR, RATE_5_CHAR],
                 premiumPeriod: 21 days,
                 premiumHalvingPeriod: 1 days,
@@ -192,7 +198,7 @@ contract TestETHRegistrar is Test {
 
     function test_premiumPriceAfter_end() external view {
         uint64 dur = ethRegistrar.premiumPeriod();
-		uint64 dt = 1;
+        uint64 dt = 1;
         assertGt(ethRegistrar.premiumPriceAfter(dur - dt), 0, "before");
         assertEq(ethRegistrar.premiumPriceAfter(dur), 0, "at");
         assertEq(ethRegistrar.premiumPriceAfter(dur + dt), 0, "after");
