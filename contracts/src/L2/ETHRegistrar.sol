@@ -49,7 +49,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     uint256 public immutable premiumPriceOffset;
 
     mapping(IERC20Metadata => bool) _isPaymentToken;
-    mapping(bytes32 => uint256) public commitments;
+    mapping(bytes32 => uint64) public _commitTime;
 
     constructor(ConstructorArgs memory args) {
         if (args.maxCommitmentAge <= args.minCommitmentAge) {
@@ -118,11 +118,11 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     /// @inheritdoc IETHRegistrar
     function isValid(string memory label) external pure returns (bool) {
-        return _isValid(StringUtils.strlen(label));
+        return _isValidLength(StringUtils.strlen(label));
     }
 
     /// @dev Internal logic for valid label length.
-    function _isValid(uint256 ncp) internal pure returns (bool) {
+    function _isValidLength(uint256 ncp) internal pure returns (bool) {
         return ncp >= 3;
     }
 
@@ -147,8 +147,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         uint64 duration
     ) public view returns (uint256) {
         uint256 ncp = StringUtils.strlen(label);
-        if (!_isValid(ncp)) {
-            revert InvalidName(label);
+        if (!_isValidLength(ncp)) {
+            revert NoRentPrice(label);
         }
         uint256 baseRate = baseRatePerCp[
             (ncp > baseRatePerCp.length ? baseRatePerCp.length : ncp) - 1
@@ -231,26 +231,32 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     }
 
     /// @inheritdoc IETHRegistrar
+    function commitmentTime(bytes32 commitment) external view returns (uint64) {
+        return _commitTime[commitment];
+    }
+
+    /// @inheritdoc IETHRegistrar
     function commit(bytes32 commitment) external {
-        if (commitments[commitment] + maxCommitmentAge >= block.timestamp) {
+        if (_commitTime[commitment] + maxCommitmentAge > block.timestamp) {
             revert UnexpiredCommitmentExists(commitment);
         }
-        commitments[commitment] = block.timestamp;
+        _commitTime[commitment] = uint64(block.timestamp);
         emit CommitmentMade(commitment);
     }
 
-    /// @dev Assert that a commitment is timely, then delete it.
+    /// @dev Assert `commitment` is timely, then delete it.
     function _consumeCommitment(bytes32 commitment) internal {
-        uint256 commitTime = commitments[commitment];
-        uint256 minTime = commitTime + minCommitmentAge;
-        if (minTime > block.timestamp) {
-            revert CommitmentTooNew(commitment, minTime, block.timestamp);
+        uint64 t = uint64(block.timestamp);
+        uint64 t0 = _commitTime[commitment];
+        uint64 tMin = t0 + minCommitmentAge;
+        if (t < tMin) {
+            revert CommitmentTooNew(commitment, tMin, t);
         }
-        uint256 maxTime = commitTime + maxCommitmentAge;
-        if (maxTime <= block.timestamp) {
-            revert CommitmentTooOld(commitment, maxTime, block.timestamp);
+        uint64 tMax = t0 + maxCommitmentAge;
+        if (t >= tMax) {
+            revert CommitmentTooOld(commitment, tMax, t);
         }
-        delete (commitments[commitment]);
+        delete _commitTime[commitment];
     }
 
     /// @inheritdoc IETHRegistrar
@@ -261,7 +267,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IRegistry subregistry,
         address resolver,
         uint64 duration,
-        IERC20Metadata paymentToken
+        IERC20Metadata paymentToken,
+        bytes32 referer
     ) external onlyPaymentToken(paymentToken) returns (uint256 tokenId) {
         (, uint64 expiry, ) = ethRegistry.getNameData(label);
         if (!_isAvailable(expiry)) {
@@ -280,10 +287,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
                 duration
             )
         );
-        // validate owner
-        if (owner == address(0)) {
-            revert InvalidOwner();
-        }
         uint256 base = basePrice(label, duration);
         uint256 premium = _premiumPriceFromExpiry(expiry);
         uint256 tokenAmount = PriceUtils.convertDecimals(
@@ -306,13 +309,14 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             uint64(block.timestamp) + duration
         );
         emit NameRegistered(
+            tokenId,
             label,
             owner,
             subregistry,
             resolver,
             duration,
-            tokenId,
             paymentToken,
+            referer,
             base,
             premium
         );
@@ -322,19 +326,18 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     function renew(
         string memory label,
         uint64 duration,
-        IERC20Metadata paymentToken
+        IERC20Metadata paymentToken,
+        bytes32 referer
     ) external onlyPaymentToken(paymentToken) {
-        // CHECKS: Get current data and validate pricing
-        (uint256 tokenId, uint64 expiry, ) = ethRegistry.getNameData(label);
-        if (_isAvailable(expiry)) {
+        (uint256 tokenId, uint64 oldExpiry, ) = ethRegistry.getNameData(label);
+        if (_isAvailable(oldExpiry)) {
             revert NameNotRegistered(label);
         }
-
         // Check for overflow before any state changes
-        if (expiry > type(uint64).max - duration) {
-            revert DurationOverflow(expiry, duration);
+        if (oldExpiry > type(uint64).max - duration) {
+            revert DurationOverflow(oldExpiry, duration);
         }
-        uint64 newExpiry = expiry + duration;
+        uint64 expires = oldExpiry + duration;
         uint256 base = basePrice(label, duration);
         uint256 tokenAmount = PriceUtils.convertDecimals(
             base,
@@ -347,13 +350,14 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             beneficiary,
             tokenAmount
         );
-        ethRegistry.renew(tokenId, newExpiry);
+        ethRegistry.renew(tokenId, expires);
         emit NameRenewed(
+            tokenId,
             label,
             duration,
-            tokenId,
-            newExpiry,
+            expires,
             paymentToken,
+            referer,
             base
         );
     }

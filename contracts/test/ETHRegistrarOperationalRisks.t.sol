@@ -2,461 +2,211 @@
 pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
-import "forge-std/console.sol";
-import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {MockERC20} from "../src/mocks/MockERC20.sol";
-import "../src/L2/ETHRegistrar.sol";
-import "../src/common/PermissionedRegistry.sol";
-import "../src/common/RegistryDatastore.sol";
-import "../src/common/SimpleRegistryMetadata.sol";
+import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
+import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
+import {ETHRegistrar, IRegistry} from "../src/L2/ETHRegistrar.sol";
+import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 
-/**
- * @title ETHRegistrar Operational Risk Tests
- * @notice Tests for real-world operational risks when using trusted tokens (USDC, USDT, DAI)
- * These tests focus on practical issues that could affect production deployment.
- */
-/*
-// Mock USDC with blacklist functionality (similar to real USDC)
-contract MockUSDCWithBlacklist is MockERC20 {
-
-	
-    mapping(address => bool) public blacklisted;
-    address public blacklister;
-
-    constructor() MockERC20("USD Coin", "USDC", 6) {
-        blacklister = msg.sender;
-        _mint(msg.sender, 1000000 * 1e6);
+contract MockBlacklist is MockERC20 {
+    error Blacklisted(address);
+    mapping(address => bool) public isBlacklisted;
+    constructor() MockERC20("USDC", "USDC", 6) {}
+    function setBlacklisted(address account, bool blacklisted) external {
+        isBlacklisted[account] = blacklisted;
     }
-
-    function blacklist(address account) external {
-        require(msg.sender == blacklister, "Not blacklister");
-        blacklisted[account] = true;
-    }
-
-    function unblacklist(address account) external {
-        require(msg.sender == blacklister, "Not blacklister");
-        blacklisted[account] = false;
-    }
-
     function transferFrom(
         address from,
         address to,
         uint256 amount
     ) public override returns (bool) {
-        require(!blacklisted[from], "Account blacklisted");
-        require(!blacklisted[to], "Account blacklisted");
+        if (isBlacklisted[from]) revert Blacklisted(from);
+        if (isBlacklisted[to]) revert Blacklisted(to);
         return super.transferFrom(from, to, amount);
     }
 }
 
-// Mock USDT-like token that doesn't return values
-contract MockUSDTNoReturn is MockERC20 {
-    constructor() MockERC20("Tether USD", "USDT", 6) {
-        _mint(msg.sender, 1000000 * 1e6);
-    }
-
-    // USDT doesn't return bool on transferFrom
+contract MockVoidReturn is MockERC20 {
+    constructor() MockERC20("USDT", "USDT", 6) {}
     function transferFrom(
         address from,
         address to,
         uint256 amount
     ) public override returns (bool) {
         super.transferFrom(from, to, amount);
-        // Simulate USDT by not returning anything (Solidity will return false)
         assembly {
-            return(0, 0)
+            return(0, 0) // return void
         }
     }
 }
 
-// Token that returns false on failure instead of reverting
-contract MockTokenFalseReturn is MockERC20 {
+contract MockFalseReturn is MockERC20 {
     bool public shouldFail;
-
-    constructor() MockERC20("False Return Token", "FALSE", 18) {
-        _mint(msg.sender, 1000000 * 1e18);
-    }
-
-    function setShouldFail(bool _shouldFail) external {
-        shouldFail = _shouldFail;
-    }
-
+    constructor() MockERC20("False Return Token", "FALSE", 18) {}
     function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) public override returns (bool) {
-        if (shouldFail) {
-            return false; // Return false instead of reverting
-        }
-        return super.transferFrom(from, to, amount);
+        address,
+        address,
+        uint256
+    ) public pure override returns (bool) {
+        return false; // return false instead of revert
     }
 }
 
-contract ETHRegistrarOperationalRisksTest is Test, ERC1155Holder {
+/// @notice Tests for real-world operational risks when using trusted tokens (USDC, USDT, DAI)
+///         These tests focus on practical issues that could affect production deployment.
+contract TestETHRegistrarOperationalRisks is Test {
     RegistryDatastore datastore;
-    PermissionedRegistry registry;
-    ETHRegistrar registrar;
-	FixedPriceOracle rentPriceOracle;
-    TokenPriceOracle tokenPriceOracle;
+    PermissionedRegistry ethRegistry;
+    ETHRegistrar ethRegistrar;
 
-    MockUSDCWithBlacklist tokenUSDC;
-    MockUSDTNoReturn tokenUSDT;
-    MockTokenFalseReturn tokenFalse;
+    MockERC20 tokenOkay;
+    MockBlacklist tokenBlack;
+    MockVoidReturn tokenVoid;
+    MockFalseReturn tokenFalse;
 
-    address user = address(0x1234);
-    address beneficiary = address(0x5678);
-    address blacklister = address(0x9999);
-
-    uint256 constant MIN_COMMITMENT_AGE = 60;
-    uint256 constant MAX_COMMITMENT_AGE = 86400;
-    uint256 constant ROLE_REGISTRAR = 1 << 0;
-    uint256 constant ROLE_RENEW = 1 << 4;
-
-    bytes32 constant SECRET = bytes32(uint256(12345));
-    uint64 constant DURATION = 365 days;
+    address user = makeAddr("user");
+    address beneficiary = makeAddr("beneficiary");
 
     function setUp() public {
-        vm.warp(2_000_000_000);
+        vm.warp(2_000_000_000); // avoid timestamp issues
 
-        // Deploy infrastructure
         datastore = new RegistryDatastore();
-        registry = new PermissionedRegistry(
+
+        ethRegistry = new PermissionedRegistry(
             datastore,
             new SimpleRegistryMetadata(),
             address(this),
             LibEACBaseRoles.ALL_ROLES
         );
 
-        // Deploy mock tokens
-        tokenUSDC = new MockUSDCWithBlacklist();
-        tokenUSDT = new MockUSDTNoReturn();
-        tokenFalse = new MockTokenFalseReturn();
+        IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](4);
+        paymentTokens[0] = tokenOkay = new MockERC20("USD", "USD", 6);
+        paymentTokens[1] = tokenBlack = new MockBlacklist();
+        paymentTokens[2] = tokenVoid = new MockVoidReturn();
+        paymentTokens[3] = tokenFalse = new MockFalseReturn();
 
-        // Setup price oracle with all tokens
-        IERC20Metadata[] memory tokens = new IERC20Metadata[](3);
-        tokens[0] = tokenUSDC;
-        tokens[1] = tokenUSDT;
-        tokens[2] = tokenFalse;
-        tokenPriceOracle = new TokenPriceOracle(tokens);
+        ETHRegistrar.ConstructorArgs memory args;
+        args.ethRegistry = ethRegistry;
+        args.beneficiary = makeAddr("beneficiary");
+        args.maxCommitmentAge = 1;
+        args.minRegistrationDuration = 1;
+        args.paymentTokens = paymentTokens;
+        ethRegistrar = new ETHRegistrar(args);
 
-		rentPriceOracle = new FixedPriceOracle([uint256(0), 0, 0, 0, 0]);
-
-        // Deploy registrar
-        registrar = new ETHRegistrar(
-            registry,
-			rentPriceOracle,
-            tokenPriceOracle,
-            MIN_COMMITMENT_AGE,
-            MAX_COMMITMENT_AGE,
-            beneficiary
-        );
-
-        registry.grantRootRoles(
+        ethRegistry.grantRootRoles(
             LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW,
-            address(registrar)
+            address(ethRegistrar)
         );
 
-        // Setup user with tokens
-        tokenUSDC.transfer(user, 1000 * 1e6);
-        tokenUSDT.transfer(user, 1000 * 1e6);
-        tokenFalse.transfer(user, 1000 * 1e18);
+        for (uint256 i; i < paymentTokens.length; i++) {
+            MockERC20 token = MockERC20(address(paymentTokens[i]));
+            token.mint(user, 1e9 * 10 ** token.decimals());
+            vm.prank(user);
+            token.approve(address(ethRegistrar), type(uint256).max);
+        }
+    }
 
-        vm.startPrank(user);
-        tokenUSDC.approve(address(registrar), type(uint256).max);
-        tokenUSDT.approve(address(registrar), type(uint256).max);
-        tokenFalse.approve(address(registrar), type(uint256).max);
+    struct RegisterArgs {
+        address sender;
+        string label;
+        address owner;
+        bytes32 secret;
+        IRegistry subregistry;
+        address resolver;
+        uint64 duration;
+        IERC20Metadata paymentToken;
+        bytes32 referer;
+        uint256 wait;
+    }
+
+    function _defaultRegisterArgs()
+        internal
+        view
+        returns (RegisterArgs memory args)
+    {
+        args.label = "testname";
+        args.sender = user;
+        args.owner = user;
+        args.paymentToken = tokenOkay;
+        args.duration = ethRegistrar.minRegistrationDuration();
+        args.wait = ethRegistrar.minCommitmentAge();
+    }
+
+    function _register(
+        RegisterArgs memory args
+    ) external returns (uint256 tokenId) {
+        bytes32 commitment = ethRegistrar.makeCommitment(
+            args.label,
+            args.owner,
+            args.secret,
+            args.subregistry,
+            args.resolver,
+            args.duration
+        );
+        vm.startPrank(args.sender);
+        ethRegistrar.commit(commitment);
+        vm.warp(block.timestamp + args.wait);
+        tokenId = ethRegistrar.register(
+            args.label,
+            args.owner,
+            args.secret,
+            args.subregistry,
+            args.resolver,
+            args.duration,
+            args.paymentToken,
+            args.referer
+        );
         vm.stopPrank();
     }
 
-    function test_user_blacklisted_cannot_renew() public {
-        console.log("\n=== User Blacklisted - Cannot Renew Test ===");
-        console.log(
-            "Real operational risk: User gets blacklisted by USDC after registering"
+    function test_blacklist_user() external {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        tokenBlack.setBlacklisted(user, true);
+        vm.expectRevert(
+            abi.encodeWithSelector(MockBlacklist.Blacklisted.selector, user)
         );
-
-        vm.startPrank(user);
-
-        // User successfully registers with USDC
-        bytes32 commitment = registrar.makeCommitment(
-            "valuable",
-            user,
-            SECRET,
-            registry,
-            address(0),
-            DURATION
-        );
-        registrar.commit(commitment);
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-
-        console.log("1. User registers name with USDC...");
-        registrar.register(
-            "valuable",
-            user,
-            SECRET,
-            registry,
-            address(0),
-            DURATION,
-            tokenUSDC
-        );
-        console.log("   [SUCCESS] Registration successful");
-
-        vm.stopPrank();
-
-        // User gets blacklisted by USDC (e.g., regulatory action)
-        console.log("2. User gets blacklisted by USDC issuer...");
-        tokenUSDC.blacklist(user);
-        console.log("   [SUCCESS] User blacklisted");
-
-        // Now user cannot renew their valuable name with USDC
-        vm.startPrank(user);
-        console.log("3. User attempts to renew name with USDC...");
-        vm.expectRevert("Account blacklisted");
-        registrar.renew("valuable", DURATION, tokenUSDC);
-        console.log(
-            "   [FAIL] Renewal with USDC failed - user is blacklisted!"
-        );
-
-        // But user can still renew with other tokens (like USDT)
-        console.log(
-            "4. User attempts to renew with alternative token (USDT)..."
-        );
-        registrar.renew("valuable", DURATION, tokenUSDT);
-        console.log(
-            "   [SUCCESS] Renewal with USDT successful - user keeps their name!"
-        );
-
-        vm.stopPrank();
-
-        console.log(
-            "\n[INFO] Mitigation: Support multiple payment tokens for resilience"
-        );
+        args.paymentToken = tokenBlack;
+        this._register(args);
+        args.paymentToken = tokenOkay;
+        this._register(args);
     }
 
-    function test_beneficiary_blacklisted_breaks_registrar() public {
-        console.log(
-            "\n=== Beneficiary Blacklisted - Registrar Broken Test ==="
+    function test_blacklist_beneficiary() external {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        tokenBlack.setBlacklisted(ethRegistrar.beneficiary(), true);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                MockBlacklist.Blacklisted.selector,
+                ethRegistrar.beneficiary()
+            )
         );
-        console.log(
-            "Critical operational risk: If beneficiary gets blacklisted, entire registrar fails"
-        );
-
-        vm.startPrank(user);
-
-        // Make commitment
-        bytes32 commitment = registrar.makeCommitment(
-            "test",
-            user,
-            SECRET,
-            registry,
-            address(0),
-            DURATION
-        );
-        registrar.commit(commitment);
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-
-        console.log("1. Normal registration works...");
-        registrar.register(
-            "test",
-            user,
-            SECRET,
-            registry,
-            address(0),
-            DURATION,
-            tokenUSDC
-        );
-        console.log("   [SUCCESS] Registration successful");
-
-        vm.stopPrank();
-
-        // Beneficiary gets blacklisted (e.g., multisig flagged, contract issue)
-        console.log("2. Beneficiary gets blacklisted by USDC...");
-        tokenUSDC.blacklist(beneficiary);
-        console.log("   [SUCCESS] Beneficiary blacklisted");
-
-        // Now ALL registrations with USDC fail
-        vm.startPrank(user);
-        commitment = registrar.makeCommitment(
-            "blocked",
-            user,
-            SECRET,
-            registry,
-            address(0),
-            DURATION
-        );
-        registrar.commit(commitment);
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-
-        console.log("3. Any user attempts new registration with USDC...");
-        vm.expectRevert("Account blacklisted");
-        registrar.register(
-            "blocked",
-            user,
-            SECRET,
-            registry,
-            address(0),
-            DURATION,
-            tokenUSDC
-        );
-        console.log("   [FAIL] ALL registrations with USDC now fail!");
-
-        console.log("4. Renewals with USDC also fail...");
-        vm.expectRevert("Account blacklisted");
-        registrar.renew("test", DURATION, tokenUSDC);
-        console.log("   [FAIL] ALL renewals with USDC fail!");
-
-        // But other tokens still work
-        console.log(
-            "5. User tries registration with alternative token (USDT)..."
-        );
-        commitment = registrar.makeCommitment(
-            "alternative",
-            user,
-            SECRET,
-            registry,
-            address(0),
-            DURATION
-        );
-        registrar.commit(commitment);
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-        registrar.register(
-            "alternative",
-            user,
-            SECRET,
-            registry,
-            address(0),
-            DURATION,
-            tokenUSDT
-        );
-        console.log("   [SUCCESS] Registration with USDT works!");
-
-        console.log("6. Renewal with alternative token also works...");
-        registrar.renew("alternative", DURATION, tokenUSDT);
-        console.log("   [SUCCESS] Renewal with USDT works!");
-
-        vm.stopPrank();
+        args.paymentToken = tokenBlack;
+        this._register(args);
+        args.paymentToken = tokenOkay;
+        this._register(args);
     }
 
-    function test_safeerc20_handles_tokenUSDT_no_return() public {
-        console.log("\n=== SafeERC20 Handles USDT No Return Value ===");
-        console.log(
-            "Validates that SafeERC20 properly handles USDT-style tokens"
-        );
-
-        vm.startPrank(user);
-
-        // Make commitment
-        bytes32 commitment = registrar.makeCommitment(
-            "tokenUSDT-test",
-            user,
-            SECRET,
-            registry,
-            address(0),
-            DURATION
-        );
-        registrar.commit(commitment);
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-
-        uint256 balanceBefore = tokenUSDT.balanceOf(user);
-        console.log("User USDT balance before:", balanceBefore);
-
-        // Registration should work despite USDT not returning a value
-        console.log("Registering with USDT (no return value)...");
-        registrar.register(
-            "tokenUSDT-test",
-            user,
-            SECRET,
-            registry,
-            address(0),
-            DURATION,
-            tokenUSDT
-        );
-
-        uint256 balanceAfter = tokenUSDT.balanceOf(user);
-        console.log("User USDT balance after:", balanceAfter);
-        console.log("Payment made:", balanceBefore - balanceAfter);
-
-        assertTrue(
-            balanceBefore > balanceAfter,
-            "Payment should have been made"
-        );
-        assertTrue(
-            !registrar.available("tokenUSDT-test"),
-            "Name should be registered"
-        );
-        console.log("[SUCCESS] SafeERC20 successfully handled USDT transfer");
-
-        vm.stopPrank();
+    function test_noReturn_allowed_with_SafeERC20() public {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        args.paymentToken = tokenVoid;
+        this._register(args);
     }
 
-    function test_safeerc20_prevents_false_return_exploit() public {
-        console.log("\n=== SafeERC20 Prevents False Return Exploit ===");
-        console.log(
-            "Validates that SafeERC20 catches tokens that return false instead of reverting"
-        );
-
-        vm.startPrank(user);
-
-        // Make commitment
-        bytes32 commitment = registrar.makeCommitment(
-            "exploit",
-            user,
-            SECRET,
-            registry,
-            address(0),
-            DURATION
-        );
-        registrar.commit(commitment);
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-
-        // Set token to return false on transfer
-        tokenFalse.setShouldFail(true);
-
-        uint256 balanceBefore = tokenFalse.balanceOf(user);
-        console.log("User balance before failed registration:", balanceBefore);
-
-        // Registration should fail because SafeERC20 catches the false return
-        console.log("Attempting registration with false-returning token...");
+    function test_falseReturn_rejected_with_SafeERC20() public {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        args.paymentToken = tokenFalse;
         vm.expectRevert(
             abi.encodeWithSelector(
                 SafeERC20.SafeERC20FailedOperation.selector,
                 tokenFalse
             )
         );
-        registrar.register(
-            "exploit",
-            user,
-            SECRET,
-            registry,
-            address(0),
-            DURATION,
-            tokenFalse
-        );
-
-        uint256 balanceAfter = tokenFalse.balanceOf(user);
-        console.log("User balance after failed registration:", balanceAfter);
-
-        assertEq(
-            balanceBefore,
-            balanceAfter,
-            "No payment should have been made"
-        );
-        assertTrue(
-            registrar.available("exploit"),
-            "Name should still be available"
-        );
-        console.log(
-            "[SUCCESS] SafeERC20 successfully prevented false return exploit"
-        );
-
-        vm.stopPrank();
+        this._register(args);
     }
 }
-
-	*/
