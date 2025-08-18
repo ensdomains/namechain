@@ -49,7 +49,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     uint256 public immutable premiumPriceOffset;
 
     mapping(IERC20Metadata => bool) _isPaymentToken;
-    mapping(bytes32 => uint64) public _commitTime;
+    mapping(bytes32 => uint64) _commitTime;
 
     constructor(ConstructorArgs memory args) {
         if (args.maxCommitmentAge <= args.minCommitmentAge) {
