@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.8.13;
+
+import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+
+import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
+import {IGatewayProvider} from "@ens/contracts/ccipRead/IGatewayProvider.sol";
+import {ResolverCaller} from "../../universalResolver/ResolverCaller.sol";
+import {RegistryUtils, IRegistry} from "../../universalResolver/RegistryUtils.sol";
+import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {ResolverProfileRewriter} from "../../common/ResolverProfileRewriter.sol";
+import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
+import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
+import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
+
+/// @notice Gasless DNSSEC resolver that forwards to another name.
+///
+/// Format: `ENS1 <this> <context>`
+///
+/// 1. Rewrite: `context = <oldSuffix> <newSuffix>`
+///    eg. `*.nick.com` + `ENS1 <this> com base.eth` &rarr; `*.nick.base.eth`
+/// 2. Replace: `context = <newName>`
+///    eg. `notdot.net` + `ENS1 <this> nick.eth` &rarr; `nick.eth`
+///
+contract DNSAliasResolver is
+    ERC165,
+    ResolverCaller,
+    IFeatureSupporter,
+    IExtendedDNSResolver
+{
+    IRegistry public immutable rootRegistry;
+
+    /// @dev Shared batch gateway provider.
+    IGatewayProvider public immutable batchGatewayProvider;
+
+    /// @dev The `name` did not end with `suffix`.
+    /// @param name The DNS-encoded name.
+    /// @param suffix THe DNS-encoded suffix.
+    error NoSuffixMatch(bytes name, bytes suffix);
+
+    constructor(
+        IRegistry _rootRegistry,
+        IGatewayProvider _batchGatewayProvider
+    ) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
+        rootRegistry = _rootRegistry;
+        batchGatewayProvider = _batchGatewayProvider;
+    }
+
+    /// @inheritdoc ERC165
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC165) returns (bool) {
+        return
+            type(IExtendedDNSResolver).interfaceId == interfaceId ||
+            type(IFeatureSupporter).interfaceId == interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+
+    /// @inheritdoc IFeatureSupporter
+    function supportsFeature(bytes4 feature) external pure returns (bool) {
+        return ResolverFeatures.RESOLVE_MULTICALL == feature;
+    }
+
+    /// @dev Resolve the records after applying rewrite rule.
+    function resolve(
+        bytes calldata name,
+        bytes calldata data,
+        bytes calldata context
+    ) external view returns (bytes memory) {
+        bytes memory newName = _parseContext(name, context);
+        (, address resolver, bytes32 node, ) = RegistryUtils.findResolver(
+            rootRegistry,
+            newName,
+            0
+        );
+        callResolver(
+            resolver,
+            newName,
+            ResolverProfileRewriter.replaceNode(data, node),
+            batchGatewayProvider.gateways()
+        );
+    }
+
+    /// @dev Modify `name` using rewrite rule in `context`.
+    /// @param name The DNS-encoded name.
+    /// @param context The rewrite rule.
+    /// @return newName The modified DNS-encoded name.
+    function _parseContext(
+        bytes calldata name,
+        bytes calldata context
+    ) internal pure returns (bytes memory newName) {
+        uint256 sep = BytesUtils.find(context, 0, context.length, " ");
+        if (sep < context.length) {
+            bytes memory oldSuffix = NameCoder.encode(string(context[:sep]));
+            (bool matched, , , uint256 offset) = NameCoder.matchSuffix(
+                name,
+                0,
+                NameCoder.namehash(oldSuffix, 0)
+            );
+            if (!matched) {
+                revert NoSuffixMatch(name, oldSuffix);
+            }
+            bytes memory newSuffix = NameCoder.encode(
+                string(context[sep + 1:])
+            );
+            return abi.encodePacked(name[:offset], newSuffix); // rewrite
+        } else {
+            return NameCoder.encode(string(context)); // replace
+        }
+    }
+}
