@@ -5,9 +5,10 @@ import "forge-std/Test.sol";
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC20Errors, IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
-import {MockERC20} from "../src/mocks/MockERC20.sol";
+import {MockERC20, MockBlacklist, MockVoidReturn, MockFalseReturn} from "../src/mocks/MockERC20.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {ETHRegistrar, IETHRegistrar, IRegistry, PriceUtils, PRICE_DECIMALS, REGISTRATION_ROLE_BITMAP} from "../src/L2/ETHRegistrar.sol";
@@ -23,6 +24,9 @@ contract TestETHRegistrar is Test {
 
     MockERC20 tokenUSDC;
     MockERC20 tokenDAI;
+    MockBlacklist tokenBlack;
+    MockVoidReturn tokenVoid;
+    MockFalseReturn tokenFalse;
 
     address user = makeAddr("user1");
     address beneficiary = makeAddr("beneficiary");
@@ -46,9 +50,12 @@ contract TestETHRegistrar is Test {
             LibEACBaseRoles.ALL_ROLES
         );
 
-        IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](2);
+        IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](5);
         paymentTokens[0] = tokenUSDC = new MockERC20("USDC", "USDC", 6);
         paymentTokens[1] = tokenDAI = new MockERC20("DAI", "DAI", 18);
+		paymentTokens[2] = tokenBlack = new MockBlacklist();
+        paymentTokens[3] = tokenVoid = new MockVoidReturn();
+        paymentTokens[4] = tokenFalse = new MockFalseReturn();
 
         ethRegistrar = new ETHRegistrar(
             ETHRegistrar.ConstructorArgs({
@@ -568,5 +575,51 @@ contract TestETHRegistrar is Test {
                 args.owner
             )
         );
+    }
+
+	
+    function test_blacklist_user() external {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        tokenBlack.setBlacklisted(user, true);
+        vm.expectRevert(
+            abi.encodeWithSelector(MockBlacklist.Blacklisted.selector, user)
+        );
+        args.paymentToken = tokenBlack;
+        this._register(args);
+        args.paymentToken = tokenUSDC;
+        this._register(args);
+    }
+
+    function test_blacklist_beneficiary() external {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        tokenBlack.setBlacklisted(ethRegistrar.beneficiary(), true);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                MockBlacklist.Blacklisted.selector,
+                ethRegistrar.beneficiary()
+            )
+        );
+        args.paymentToken = tokenBlack;
+        this._register(args);
+        args.paymentToken = tokenUSDC;
+        this._register(args);
+    }
+
+    function test_noReturn_accepted_with_SafeERC20() public {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        args.paymentToken = tokenVoid;
+        this._register(args);
+    }
+
+    function test_falseReturn_rejected_with_SafeERC20() public {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        args.paymentToken = tokenFalse;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SafeERC20.SafeERC20FailedOperation.selector,
+                tokenFalse
+            )
+        );
+        this._register(args);
     }
 }
