@@ -86,13 +86,6 @@ contract TestETHRegistrar is Test {
         }
     }
 
-    function _expectEmit(bytes32 topic) internal {
-        vm.expectEmit(false, false, false, false);
-        assembly {
-            log1(0, 0, topic)
-        }
-    }
-
     function test_Revert_constructor_emptyRange() external {
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -100,7 +93,7 @@ contract TestETHRegistrar is Test {
             )
         );
         ETHRegistrar.ConstructorArgs memory args;
-        args.minCommitmentAge = args.maxCommitmentAge = 100;
+        args.minCommitmentAge = args.maxCommitmentAge = 1;
         new ETHRegistrar(args);
     }
 
@@ -111,8 +104,7 @@ contract TestETHRegistrar is Test {
             )
         );
         ETHRegistrar.ConstructorArgs memory args;
-        args.minCommitmentAge = 100;
-        args.maxCommitmentAge = 1;
+        args.minCommitmentAge = 1;
         new ETHRegistrar(args);
     }
 
@@ -142,7 +134,7 @@ contract TestETHRegistrar is Test {
                 PRICE_DECIMALS,
                 tokenUSDC.decimals()
             ),
-            "yearUSDC"
+            "USDC"
         );
         (base, ) = ethRegistrar.rentPrice(label, dur, tokenDAI);
         assertEq(
@@ -152,7 +144,7 @@ contract TestETHRegistrar is Test {
                 PRICE_DECIMALS,
                 tokenDAI.decimals()
             ),
-            "yearDAI"
+            "DAI"
         );
     }
 
@@ -200,9 +192,10 @@ contract TestETHRegistrar is Test {
 
     function test_premiumPriceAfter_end() external view {
         uint64 dur = ethRegistrar.premiumPeriod();
-        assertGt(ethRegistrar.premiumPriceAfter(dur - 1 hours), 0, "before");
+		uint64 dt = 1;
+        assertGt(ethRegistrar.premiumPriceAfter(dur - dt), 0, "before");
         assertEq(ethRegistrar.premiumPriceAfter(dur), 0, "at");
-        assertEq(ethRegistrar.premiumPriceAfter(dur + 1 hours), 0, "after");
+        assertEq(ethRegistrar.premiumPriceAfter(dur + dt), 0, "after");
     }
 
     struct RegisterArgs {
@@ -316,9 +309,9 @@ contract TestETHRegistrar is Test {
 
     function test_isAvailable() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        assertTrue(ethRegistrar.isAvailable(args.label));
+        assertTrue(ethRegistrar.isAvailable(args.label), "before");
         this._register(args);
-        assertFalse(ethRegistrar.isAvailable(args.label));
+        assertFalse(ethRegistrar.isAvailable(args.label), "after");
     }
 
     function test_register() external {
@@ -371,8 +364,8 @@ contract TestETHRegistrar is Test {
             abi.encodeWithSelector(
                 IERC20Errors.ERC20InsufficientAllowance.selector,
                 address(ethRegistrar), // spender
-                0, // current allowance
-                base + premium // needed amount
+                0, // allowance
+                base + premium // needed
             )
         );
         this._register(args);
@@ -380,7 +373,6 @@ contract TestETHRegistrar is Test {
 
     function test_Revert_register_insufficientBalance() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        vm.prank(args.sender);
         tokenUSDC.nuke(args.sender);
         (uint256 base, uint256 premium) = ethRegistrar.rentPrice(
             args.label,
@@ -390,9 +382,9 @@ contract TestETHRegistrar is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IERC20Errors.ERC20InsufficientBalance.selector,
-                args.sender,
-                0, // current allowance
-                base + premium // needed amount
+                args.sender, // sender
+                0, // allowance
+                base + premium // needed
             )
         );
         this._register(args);

@@ -26,7 +26,7 @@ contract MockERC20 is ERC20 {
 contract MockERC20Blacklist is MockERC20 {
     error Blacklisted(address);
     mapping(address => bool) public isBlacklisted;
-    constructor() MockERC20("USDC", 6) {}
+    constructor() MockERC20("BLACK", 6) {}
     function setBlacklisted(address account, bool blacklisted) external {
         isBlacklisted[account] = blacklisted;
     }
@@ -42,7 +42,7 @@ contract MockERC20Blacklist is MockERC20 {
 }
 
 contract MockERC20VoidReturn is MockERC20 {
-    constructor() MockERC20("USDT", 6) {}
+    constructor() MockERC20("VOID", 6) {}
     function transferFrom(
         address from,
         address to,

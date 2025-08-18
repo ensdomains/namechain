@@ -52,8 +52,8 @@ library PriceUtils {
     uint256 constant bit15 = 840896415253714560;
     uint256 constant bit16 = 707106781186547584;
 
-    /// @dev Compute `initial / 2^(elapsed/half)`.
-    /// @param initial The Initial value.
+    /// @dev Compute `initial / 2 ** (elapsed / half)`.
+    /// @param initial The initial value.
     /// @param half The halving period.
     /// @param elapsed The elapsed duration.
     function halving(
