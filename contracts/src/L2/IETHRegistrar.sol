@@ -123,7 +123,7 @@ interface IETHRegistrar {
         IERC20Metadata paymentToken
     ) external view returns (bool);
 
-    /// @notice Same as `rentPrice()` but relative to `paymentToken`.
+    /// @dev Get rent price for `name` with `duration`.
     /// @param label The name to price.
     /// @param duration The duration to price, in seconds.
     /// @param paymentToken The ERC-20 to use.

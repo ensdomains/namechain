@@ -192,15 +192,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         return t >= t0 ? premiumPriceAfter(t - t0) : 0;
     }
 
-    /// @notice Convenience for `basePrice()` and `premiumPrice()`.
-    function rentPrice(
-        string memory label,
-        uint64 duration
-    ) external view returns (uint256 base, uint256 premium) {
-        base = basePrice(label, duration);
-        premium = premiumPrice(label);
-    }
-
     /// @inheritdoc IETHRegistrar
     function rentPrice(
         string memory label,
@@ -219,12 +210,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             priceDecimals,
             paymentToken
         );
-        if (premium == 0) {
-            base = amount;
-        } else {
-            premium = (amount * premium) / total;
-            base = amount - premium; // ensure: f(a+b) - f(a) == f(b)
-        }
+        premium = (amount * premium) / total;
+        base = amount - premium; // ensure: f(a+b) - f(a) == f(b)
     }
 
     /// @inheritdoc IETHRegistrar
@@ -309,7 +296,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             _msgSender(),
             beneficiary,
             base + premium
-        );
+        ); // reverts if payment failed
         tokenId = ethRegistry.register(
             label,
             owner,
@@ -317,7 +304,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             resolver,
             REGISTRATION_ROLE_BITMAP,
             uint64(block.timestamp) + duration
-        );
+        ); // reverts if owner is null
         emit NameRegistered(
             tokenId,
             label,

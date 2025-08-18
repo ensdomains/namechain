@@ -52,8 +52,6 @@ contract TestETHRegistrar is Test {
             LibEACBaseRoles.ALL_ROLES
         );
 
-		console.logBytes4(type(IETHRegistrar).interfaceId);
-
         IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](5);
         paymentTokens[0] = tokenUSDC = new MockERC20("USDC", 6);
         paymentTokens[1] = tokenDAI = new MockERC20("DAI", 18);
@@ -126,11 +124,10 @@ contract TestETHRegistrar is Test {
     }
 
     function _testRentPrice(string memory label, uint256 rate) internal view {
-        (uint256 base, uint256 premium) = ethRegistrar.rentPrice(label, 1);
+        uint256 base = ethRegistrar.basePrice(label, 1);
         assertEq(base, rate, "rate");
-        assertEq(premium, 0, "premium");
         uint64 dur = SEC_PER_YEAR;
-        (base, ) = ethRegistrar.rentPrice(label, dur);
+        base = ethRegistrar.basePrice(label, dur);
         assertEq(base, rate * dur, "year");
         (base, ) = ethRegistrar.rentPrice(label, dur, tokenUSDC);
         assertEq(
@@ -159,21 +156,21 @@ contract TestETHRegistrar is Test {
         vm.expectRevert(
             abi.encodeWithSelector(IETHRegistrar.NoRentPrice.selector, label)
         );
-        ethRegistrar.rentPrice(label, 0);
+        ethRegistrar.basePrice(label, 0);
     }
     function test_rentPrice_1() external {
         string memory label = "a";
         vm.expectRevert(
             abi.encodeWithSelector(IETHRegistrar.NoRentPrice.selector, label)
         );
-        ethRegistrar.rentPrice(label, 0);
+        ethRegistrar.basePrice(label, 0);
     }
     function test_rentPrice_2() external {
         string memory label = "ab";
         vm.expectRevert(
             abi.encodeWithSelector(IETHRegistrar.NoRentPrice.selector, label)
         );
-        ethRegistrar.rentPrice(label, 0);
+        ethRegistrar.basePrice(label, 0);
     }
     function test_rentPrice_3() external view {
         _testRentPrice("abc", RATE_3_CHAR);
@@ -340,7 +337,7 @@ contract TestETHRegistrar is Test {
         RegisterArgs memory args = _defaultRegisterArgs();
         this._register(args);
         vm.warp(block.timestamp + args.duration + ethRegistrar.gracePeriod());
-        (, uint256 premium) = ethRegistrar.rentPrice(args.label, args.duration);
+        uint256 premium = ethRegistrar.premiumPrice(args.label);
         assertEq(premium, ethRegistrar.premiumPriceAfter(0));
     }
 
@@ -353,7 +350,7 @@ contract TestETHRegistrar is Test {
                 ethRegistrar.gracePeriod() +
                 ethRegistrar.premiumPeriod()
         );
-        (, uint256 premium) = ethRegistrar.rentPrice(args.label, args.duration);
+        uint256 premium = ethRegistrar.premiumPrice(args.label);
         assertEq(premium, 0);
     }
 
