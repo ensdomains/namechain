@@ -289,7 +289,7 @@ contract TestETHRegistrar is Test {
         emit IETHRegistrar.CommitmentMade(commitment);
         ethRegistrar.commit(commitment);
         assertEq(
-            ethRegistrar.commitmentTime(commitment),
+            ethRegistrar.commitmentAt(commitment),
             block.timestamp,
             "time"
         );

@@ -231,7 +231,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     }
 
     /// @inheritdoc IETHRegistrar
-    function commitmentTime(bytes32 commitment) external view returns (uint64) {
+    function commitmentAt(bytes32 commitment) external view returns (uint64) {
         return _commitTime[commitment];
     }
 

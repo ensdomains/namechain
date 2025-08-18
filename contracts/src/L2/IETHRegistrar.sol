@@ -113,9 +113,9 @@ interface IETHRegistrar {
     /// @param label The name to check.
     /// @return `true` if the `label` is valid.
     function isValid(string memory label) external view returns (bool);
-	
+
     /// @dev Check if `label` is available for registration.
-	/// @notice Does not check if normalized or valid.
+    /// @notice Does not check if normalized or valid.
     /// @param label The name to check.
     /// @return `true` if the `label` is available.
     function isAvailable(string memory label) external view returns (bool);
@@ -169,10 +169,10 @@ interface IETHRegistrar {
         uint64 duration
     ) external pure returns (bytes32);
 
-	/// @notice Get time of commitment.
+    /// @notice Get timestamp of `commitment`.
     /// @param commitment The commitment hash.
-	/// @return The commitment time, in seconds.
-	function commitmentTime(bytes32 commitment) external view returns (uint64);
+    /// @return The commitment time, in seconds.
+    function commitmentAt(bytes32 commitment) external view returns (uint64);
 
     /// @notice Registration step #1: record intent to register without revealing any information.
     /// @dev Emits `CommitmentMade` or reverts with `UnexpiredCommitmentExists`.
