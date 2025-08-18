@@ -29,12 +29,12 @@ describe("Urg", () => {
       title = `${title} => ${gets.map((x) => x.desc)}`;
     }
     it(title, async () => {
-      const owner = env.accounts[1];
+      const { owner } = env.namedAccounts;
 
       const resolver = await env.l2.deployDedicatedResolver(owner);
       await resolver.write.multicall([sets.map((x) => x.writeDedicated)]);
 
-      const hash = await env.l2.contracts.ethRegistry.write.register([
+      await env.l2.contracts.ethRegistry.write.register([
         label,
         owner.address,
         zeroAddress,
@@ -42,8 +42,8 @@ describe("Urg", () => {
         0n,
         BigInt(Math.floor(Date.now() / 1000) + 10000),
       ]);
-      await env.sync();
 
+      await env.sync();
       const bundle = bundleCalls(gets);
       const [answer] = await env.l1.contracts.universalResolver.read.resolve([
         dnsEncodeName(name),
