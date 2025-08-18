@@ -137,8 +137,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         return block.timestamp >= expiry + gracePeriod;
     }
 
-    /// @dev Get base price to register or renew `label` with `duration`.
-    /// @notice Use `duration = 1` for rate (price/sec).
+    /// @notice Get base price to register or renew `label` with `duration`.
+    ///         Use `duration = 1` for rate (price/sec).
     /// @param label The name to price.
     /// @param duration The duration to price, in seconds.
     /// @return The base price.
@@ -156,7 +156,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         return baseRate * duration;
     }
 
-    /// @dev Get premium price for a duration after expiry.
+    /// @notice Get premium price for a duration after expiry and grace.
+	///         Positive over `[0, premiumPeriod)`.
     /// @param duration The time after expiration, in seconds.
     /// @return The premium price.
     function premiumPriceAfter(uint64 duration) public view returns (uint256) {
@@ -169,7 +170,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             ) - premiumPriceOffset;
     }
 
-    /// @dev Get premium price for a name.
+    /// @notice Get premium price for a name.
     /// @param label The name to price.
     /// @return The premium price.
     function premiumPrice(string memory label) public view returns (uint256) {
@@ -190,7 +191,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     function rentPrice(
         string memory label,
         uint64 duration
-    ) public view returns (uint256 base, uint256 premium) {
+    ) external view returns (uint256 base, uint256 premium) {
         base = basePrice(label, duration);
         premium = premiumPrice(label);
     }
@@ -206,13 +207,13 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         onlyPaymentToken(paymentToken)
         returns (uint256 base, uint256 premium)
     {
-        (base, premium) = rentPrice(label, duration);
-        uint256 total = base + premium;
+        base = basePrice(label, duration);
+        uint256 total = base + premiumPrice(label);
         uint8 decimals = paymentToken.decimals();
         base = PriceUtils.convertDecimals(base, priceDecimals, decimals);
         premium =
             PriceUtils.convertDecimals(total, priceDecimals, decimals) -
-            base;
+            base; // ensure: f(a+b) - f(a) == f(b)
     }
 
     /// @inheritdoc IETHRegistrar
@@ -287,7 +288,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
                 duration
             )
         );
-        uint256 base = basePrice(label, duration);
+        uint256 base = basePrice(label, duration); // reverts if !isValid()
         uint256 premium = _premiumPriceFromExpiry(expiry);
         uint256 tokenAmount = PriceUtils.convertDecimals(
             base + premium,
@@ -317,8 +318,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             duration,
             paymentToken,
             referer,
-            base,
-            premium
+            base, // in priceDecimals()
+            premium //
         );
     }
 
@@ -337,7 +338,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         if (oldExpiry > type(uint64).max - duration) {
             revert DurationOverflow(oldExpiry, duration);
         }
-        uint64 expires = oldExpiry + duration;
         uint256 base = basePrice(label, duration);
         uint256 tokenAmount = PriceUtils.convertDecimals(
             base,
@@ -350,6 +350,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             beneficiary,
             tokenAmount
         );
+        uint64 expires = oldExpiry + duration;
         ethRegistry.renew(tokenId, expires);
         emit NameRenewed(
             tokenId,
@@ -358,7 +359,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             expires,
             paymentToken,
             referer,
-            base
+            base // in priceDecimals()
         );
     }
 }
