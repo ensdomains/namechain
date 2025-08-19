@@ -170,7 +170,7 @@ export async function setupCrossChainEnvironment({
             publicInfo: {
               name,
               nativeCurrency: chain.nativeCurrency,
-              rpcUrls: { default: {...chain.rpcUrls.default} } },
+              rpcUrls: { default: { http: [...chain.rpcUrls.default.http] } },
             },
           },
           askBeforeProceeding: false,
@@ -307,7 +307,9 @@ export async function setupCrossChainEnvironment({
       shutdown,
     };
     async function sync() {
-      await Promise.all([l1, l2].map((x) => x.client.mine({ blocks: 1 })));
+      //await Promise.all([l1, l2].map((x) => x.client.mine({ blocks: 1 })));
+      const args = { blocks: 1 };
+      await Promise.all([l1Client.mine(args), l2Client.mine(args)]);
     }
     async function deployDedicatedResolver(
       this: typeof l1 | typeof l2,
@@ -340,7 +342,7 @@ export async function setupCrossChainEnvironment({
         logs: receipt.logs,
       });
       return getContract({
-        abi: artifacts.DedicatedResolver.abi,
+        abi: this.contracts.dedicatedResolverImpl.abi,
         address: log.args.proxyAddress,
         client,
       });
