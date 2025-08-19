@@ -3,7 +3,7 @@ import { labelhash, namehash, zeroAddress } from "viem";
 
 // TODO: replace with full ens-contracts deploy
 export default execute(
-  async ({ deploy, execute, get, namedAccounts: { deployer } }) => {
+  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
     const batchGatewayProvider = get<(typeof artifacts.GatewayProvider)["abi"]>(
       "BatchGatewayProvider",
     );
@@ -25,13 +25,13 @@ export default execute(
       args: [ensRegistry.address],
     });
 
-	await execute(ensRegistry, {
+	await write(ensRegistry, {
       account: deployer,
       functionName: "setSubnodeOwner",
       args: [namehash(""), labelhash("reverse"), deployer],
     });
 
-    await execute(ensRegistry, {
+    await write(ensRegistry, {
       account: deployer,
       functionName: "setSubnodeOwner",
       args: [namehash("reverse"), labelhash("addr"), reverseRegistrar.address],
@@ -48,7 +48,7 @@ export default execute(
       ],
     });
 
-    await execute(reverseRegistrar, {
+    await write(reverseRegistrar, {
       account: deployer,
       functionName: "setDefaultResolver",
       args: [publicResolver.address],
@@ -64,25 +64,25 @@ export default execute(
       ],
     });
 
-    await execute(ethRegistrar, {
+    await write(ethRegistrar, {
       account: deployer,
       functionName: "addController",
       args: [deployer],
     });
 
-    await execute(ensRegistry, {
+    await write(ensRegistry, {
       account: deployer,
       functionName: "setSubnodeRecord",
       args: [namehash(""), labelhash("eth"), deployer, zeroAddress, 0n],
     });
 
-    await execute(publicResolver, {
+    await write(publicResolver, {
       account: deployer,
       functionName: "setAddr",
       args: [namehash("eth"), ethRegistrar.address],
     });
 
-    await execute(ensRegistry, {
+    await write(ensRegistry, {
       account: deployer,
       functionName: "setSubnodeOwner",
       args: [namehash(""), labelhash("eth"), ethRegistrar.address],

@@ -2,7 +2,7 @@ import { artifacts, execute } from "@rocketh";
 import { MAX_EXPIRY, ROLES } from "../constants.ts";
 
 export default execute(
-  async ({ deploy, execute, get, namedAccounts: { deployer } }) => {
+  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
     const rootRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("RootRegistry");
 
@@ -27,7 +27,7 @@ export default execute(
       ],
     });
 
-    await execute(rootRegistry, {
+    await write(rootRegistry, {
       functionName: "register",
       args: [
         "eth",

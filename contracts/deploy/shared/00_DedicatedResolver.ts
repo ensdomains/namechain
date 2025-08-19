@@ -6,6 +6,7 @@ export default execute(
       account: deployer,
       artifact: artifacts.VerifiableFactory,
     });
+
     await deploy("DedicatedResolverImpl", {
       account: deployer,
       artifact: artifacts.DedicatedResolver,

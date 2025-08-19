@@ -8,7 +8,7 @@ import {
 
 export default execute(
   async (
-    { deploy, execute, get, save, namedAccounts: { deployer }, network },
+    { deploy, execute: write, get, save, namedAccounts: { deployer }, network },
     args,
   ) => {
     if (!args?.l2Deploy) throw new Error("expected L2 deployment");
@@ -28,7 +28,7 @@ export default execute(
       (typeof artifacts.DedicatedResolver)["abi"]
     >("DedicatedResolverImpl");
 
-    const hash = await execute(verifiableFactory, {
+    const hash = await write(verifiableFactory, {
       account: deployer,
       functionName: "deployProxy",
       args: [
@@ -74,7 +74,7 @@ export default execute(
       ],
     });
 
-    await execute(ethSelfResolver, {
+    await write(ethSelfResolver, {
       account: deployer,
       functionName: "setAddr",
       args: [60n, ethTLDResolver.address],
