@@ -16,7 +16,7 @@ import {
 } from "viem";
 import { waitForTransactionReceipt } from "viem/actions";
 import { mnemonicToAccount } from "viem/accounts";
-import { artifacts } from "@rocketh";
+import { type Arguments, artifacts } from "@rocketh";
 import { rm } from "node:fs/promises";
 
 import { deployArtifact } from "../test/fixtures/deployArtifact.js";
@@ -151,7 +151,7 @@ export async function setupCrossChainEnvironment({
       .extend(publicActions)
       .extend(testActions({ mode: "anvil" }));
 
-    async function deploy(tag: string, chain: Chain, args?: any) {
+    async function deploy(tag: string, chain: Chain, args?: Arguments) {
       const name = `${tag}-local`;
       if (saveDeployments) {
         await rm(new URL(`../deployments/${name}`, import.meta.url), {

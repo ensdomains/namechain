@@ -69,7 +69,7 @@ type L1Arguments = {
   };
   verifierAddress: Address;
 };
-type Arguments = L1Arguments | undefined;
+export type Arguments = L1Arguments | undefined;
 const execute = _execute as <
   Deployments extends UnknownDeployments = UnknownDeployments,
 >(

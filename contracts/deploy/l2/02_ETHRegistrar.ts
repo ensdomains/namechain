@@ -7,16 +7,21 @@ import {
 } from "../../test/utils/price.ts";
 
 export default execute(
-  async ({ deploy, namedAccounts, get, execute: write }) => {
-    const { deployer, owner } = namedAccounts;
-
+  async ({
+    deploy,
+    execute: write,
+    get,
+    namedAccounts: { deployer, owner },
+  }) => {
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
-    const tokenPriceOracle = get("StableTokenPriceOracle");
+    const tokenPriceOracle = get<
+      (typeof artifacts.StableTokenPriceOracle)["abi"]
+    >("StableTokenPriceOracle");
 
-    const mockUSDC = get("MockUSDC");
-    const mockDAI = get("MockDAI");
+    const mockUSDC = get<(typeof artifacts.MockERC20)["abi"]>("MockUSDC");
+    const mockDAI = get<(typeof artifacts.MockERC20)["abi"]>("MockDAI");
 
     // Use owner as beneficiary, or deployer if owner is not set
     const beneficiary = owner || deployer;
