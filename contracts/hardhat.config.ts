@@ -16,16 +16,16 @@ const realAccounts = [
 
 const config = {
   networks: {
-    "l1-local": {
-      url: "http://127.0.0.1:8545",
-      type: "http",
-      chainId: 31337,
-    },
-    "l2-local": {
-      url: "http://127.0.0.1:8546",
-      type: "http",
-      chainId: 31338,
-    },
+    // "l1-local": {
+    //   url: "http://127.0.0.1:8545",
+    //   type: "http",
+    //   chainId: 31337,
+    // },
+    // "l2-local": {
+    //   url: "http://127.0.0.1:8546",
+    //   type: "http",
+    //   chainId: 31338,
+    // },
     mainnet: {
       url: configVariable("MAINNET_RPC_URL"),
       type: "http",
