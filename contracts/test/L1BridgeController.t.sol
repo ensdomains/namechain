@@ -680,6 +680,130 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         ));
         bridgeController.syncRenewal(tokenId, uint64(block.timestamp + 86400 * 2));
     }
+
+    function test_handleLockedNameMigration() public {
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+        });
+        
+        // Create DNS-encoded name using NameUtils
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
+        
+        vm.recordLogs();
+        
+        // Call through the bridge (using vm.prank to simulate bridge calling)
+        vm.prank(address(bridge));
+        uint256 tokenId = bridgeController.handleLockedNameMigration(dnsEncodedName, transferData);
+        
+        // Verify the name was registered
+        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
+        assertEq(registeredTokenId, tokenId);
+        assertEq(registry.ownerOf(tokenId), address(this));
+        
+        // Verify the LockedNameMigratedToL1 event was emitted
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        bool foundLockedMigrationEvent = false;
+        bytes32 lockedMigrationSig = keccak256("LockedNameMigratedToL1(bytes,uint256)");
+        
+        for (uint256 i = 0; i < entries.length; i++) {
+            if (entries[i].topics[0] == lockedMigrationSig) {
+                foundLockedMigrationEvent = true;
+                break;
+            }
+        }
+        assertTrue(foundLockedMigrationEvent, "LockedNameMigratedToL1 event not found");
+    }
+    
+    function test_Revert_ejectToL2_locked_name() public {
+        // First, migrate a locked name
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+        });
+        
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
+        
+        vm.prank(address(bridge));
+        uint256 tokenId = bridgeController.handleLockedNameMigration(dnsEncodedName, transferData);
+        
+        // Now try to eject the locked name - it should fail
+        bytes memory ejectionData = _createEjectionData(
+            address(1),
+            address(2), 
+            address(3), 
+            uint64(block.timestamp + 86400),
+            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(L1BridgeController.LockedNameCannotBeEjected.selector, tokenId));
+        registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, ejectionData);
+    }
+
+    function test_Revert_batchEjectToL2_locked_name() public {
+        // First, migrate a locked name
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+        });
+        
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
+        
+        vm.prank(address(bridge));
+        uint256 lockedTokenId = bridgeController.handleLockedNameMigration(dnsEncodedName, transferData);
+        
+        // Register a regular name for batch testing
+        registry.register("test2", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
+        (uint256 regularTokenId,,) = registry.getNameData("test2");
+        
+        // Setup batch data with the locked name and a regular name
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = lockedTokenId;
+        tokenIds[1] = regularTokenId;
+        
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+        
+        // Create batch transfer data
+        TransferData[] memory transferDataArray = new TransferData[](2);
+        transferDataArray[0] = TransferData({
+            label: testLabel,
+            owner: address(1),
+            subregistry: address(2),
+            resolver: address(3),
+            expires: uint64(block.timestamp + 86400),
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+        });
+        transferDataArray[1] = TransferData({
+            label: "test2",
+            owner: address(1),
+            subregistry: address(2),
+            resolver: address(3),
+            expires: uint64(block.timestamp + 86400),
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+        });
+        
+        bytes memory batchData = abi.encode(transferDataArray);
+
+        vm.expectRevert(abi.encodeWithSelector(L1BridgeController.LockedNameCannotBeEjected.selector, lockedTokenId));
+        registry.safeBatchTransferFrom(address(this), address(bridgeController), tokenIds, amounts, batchData);
+    }
 }
 
 

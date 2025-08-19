@@ -409,7 +409,6 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
         
         // Verify a subregistry was created
-        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
         address actualSubregistry = address(registry.getSubregistry(testLabel));
         assertTrue(actualSubregistry != address(0), "Subregistry should be created");
         

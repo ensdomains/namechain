@@ -22,9 +22,13 @@ contract L1BridgeController is EjectionController {
     error NameNotExpired(uint256 tokenId, uint64 expires);
     error ParentNotMigrated(bytes dnsEncodedName, uint256 offset);
     error InvalidOwner();
+    error LockedNameCannotBeEjected(uint256 tokenId);
 
     event RenewalSynchronized(uint256 tokenId, uint64 newExpiry);
     event LockedNameMigratedToL1(bytes dnsEncodedName, uint256 tokenId);
+
+    // Mapping to track locked names by tokenId
+    mapping(uint256 => bool) private isLocked;
 
     constructor(IPermissionedRegistry _registry, IBridge _bridge) EjectionController(_registry, _bridge) {}
 
@@ -67,6 +71,10 @@ contract L1BridgeController is EjectionController {
         
         // Register the name in the parent registry
         tokenId = _registerName(transferData, IPermissionedRegistry(address(parentRegistry)));
+        
+        // Mark this name as locked to prevent future ejections
+        isLocked[tokenId] = true;
+        
         emit LockedNameMigratedToL1(dnsEncodedName, tokenId);
     }
 
@@ -90,6 +98,11 @@ contract L1BridgeController is EjectionController {
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
             TransferData memory transferData = transferDataArray[i];
+
+            // check if this is a locked name that cannot be ejected
+            if (isLocked[tokenId]) {
+                revert LockedNameCannotBeEjected(tokenId);
+            }
 
             // check that the owner is not null address
             if (transferData.owner == address(0)) {
@@ -152,11 +165,20 @@ contract L1BridgeController is EjectionController {
         }
         
         // Check if there's another label after this one
-        (bytes32 nextLabelHash, ) = NameCoder.readLabel(dnsEncodedName, nextOffset);
+        (bytes32 nextLabelHash, uint256 afterNextOffset) = NameCoder.readLabel(dnsEncodedName, nextOffset);
         
         // If the next label is the null terminator, this is a 2LD
         // The parent is the root registry
         if (nextLabelHash == bytes32(0)) {
+            return IRegistry(address(registry));
+        }
+        
+        // Check if the next label is "eth" and what comes after it
+        (bytes32 afterEthLabelHash, ) = NameCoder.readLabel(dnsEncodedName, afterNextOffset);
+        
+        // If we have "something.eth" (where "eth" is followed by null terminator)
+        // then this is a .eth 2LD and should be registered in the root registry
+        if (nextLabelHash == keccak256("eth") && afterEthLabelHash == bytes32(0)) {
             return IRegistry(address(registry));
         }
         
