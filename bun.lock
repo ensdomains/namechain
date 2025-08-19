@@ -39,7 +39,6 @@
   },
   "patchedDependencies": {
     "rocketh@0.11.20": "patches/rocketh@0.11.20.patch",
-    "hardhat-deploy@2.0.0-next.31": "patches/hardhat-deploy@2.0.0-next.31.patch",
   },
   "overrides": {
     "viem": "2.31.6",
