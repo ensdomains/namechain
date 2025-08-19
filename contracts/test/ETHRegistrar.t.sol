@@ -351,6 +351,20 @@ contract TestETHRegistrar is Test {
         assertEq(premium, 0);
     }
 
+    function test_register_premium_mostRecentOwner() external {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        this._register(args);
+        vm.warp(block.timestamp + args.duration);
+        (uint256 base, ) = ethRegistrar.rentPrice(
+            args.label,
+            args.duration,
+            args.paymentToken
+        );
+        uint256 balance0 = args.paymentToken.balanceOf(args.owner);
+        this._register(args);
+        assertEq(balance0 - base, args.paymentToken.balanceOf(args.owner));
+    }
+
     function test_Revert_register_insufficientAllowance() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         vm.prank(args.sender);

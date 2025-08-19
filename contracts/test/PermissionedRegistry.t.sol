@@ -572,8 +572,13 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
             uint64(block.timestamp) + 86400
         );
         registry.burn(tokenId);
-        vm.assertEq(registry.ownerOf(tokenId), address(0));
-        vm.assertEq(address(registry.getSubregistry("test2")), address(0));
+        vm.assertEq(registry.ownerOf(tokenId), address(0), "owner");
+        vm.assertEq(
+            address(registry.getSubregistry("test2")),
+            address(0),
+            "registry"
+        );
+        vm.assertEq(registry.mostRecentOwnerOf(tokenId), address(0), "recent"); // does not survive burn
     }
 
     function test_burn_revokes_roles() public {
@@ -677,38 +682,46 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     }
 
     function test_expired_name_has_no_owner() public {
+        address user = makeAddr("user");
         uint256 tokenId = registry.register(
             "test2",
-            address(this),
+            user,
             registry,
             address(0),
             defaultRoleBitmap,
             uint64(block.timestamp) + 100
         );
         vm.warp(block.timestamp + 101);
-        assertEq(registry.ownerOf(tokenId), address(0));
+        assertEq(registry.ownerOf(tokenId), address(0), "owner");
+        assertEq(registry.mostRecentOwnerOf(tokenId), user, "recent");
     }
 
     function test_expired_name_can_be_reregistered() public {
-        registry.register(
-            "test2",
-            address(this),
+        string memory label = "test2";
+        address user = makeAddr("user");
+        uint256 tokenId = registry.register(
+            label,
+            user,
             registry,
             address(0),
             defaultRoleBitmap,
             uint64(block.timestamp) + 100
         );
+        assertEq(registry.ownerOf(tokenId), user, "owner0");
         vm.warp(block.timestamp + 101);
-
+        assertEq(registry.ownerOf(tokenId), address(0), "owner1");
+        assertEq(registry.mostRecentOwnerOf(tokenId), user, "recent");
+        address newUser = makeAddr("newUser");
         uint256 newTokenId = registry.register(
-            "test2",
-            address(1),
+            label,
+            newUser,
             registry,
             address(0),
             defaultRoleBitmap,
             uint64(block.timestamp) + 100
         );
-        assertEq(registry.ownerOf(newTokenId), address(1));
+        assertEq(registry.ownerOf(newTokenId), newUser, "owner2");
+        assertEq(tokenId + 1, newTokenId, "token++");
     }
 
     function test_expired_name_returns_zero_subregistry() public {
@@ -1713,6 +1726,27 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertTrue(
             registry.hasRoles(resourceId, LibRegistryRoles.ROLE_RENEW, user2)
         );
+    }
+
+    function test_token_regeneration_mostRecentOwnerOf() public {
+        address user = makeAddr("user");
+        uint256 tokenId = registry.register(
+            "regenerate4",
+            user,
+            registry,
+            address(0),
+            defaultRoleBitmap,
+            uint64(block.timestamp) + 100
+        );
+        uint256 resourceId = registry.testGetResourceFromTokenId(tokenId);
+        registry.grantRoles(resourceId, LibRegistryRoles.ROLE_RENEW, user);
+        uint256 newTokenId = registry.testGetTokenIdFromResource(resourceId);
+        assertNotEq(tokenId, newTokenId, "token");
+        vm.warp(block.timestamp + 101);
+        assertEq(registry.ownerOf(tokenId), address(0), "owner0");
+        assertEq(registry.mostRecentOwnerOf(tokenId), address(0), "recent0");
+        assertEq(registry.ownerOf(newTokenId), address(0), "owner1");
+        assertEq(registry.mostRecentOwnerOf(newTokenId), user, "recent1");
     }
 
     // getRoleAssigneeCount tests
