@@ -303,7 +303,8 @@ export async function setupCrossChainEnvironment({
       shutdown,
     };
     async function sync() {
-      await Promise.all([l1, l2].map((x) => x.client.mine({ blocks: 1 })));
+      const args = { blocks: 1 };
+      await Promise.all([l1.client.mine(args), l2.client.mine(args)]);
     }
     async function deployDedicatedResolver(
       this: typeof l1 | typeof l2,
