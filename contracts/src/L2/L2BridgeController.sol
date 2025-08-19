@@ -23,6 +23,7 @@ import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 contract L2BridgeController is EjectionController, ITokenObserver {
     error NotTokenOwner(uint256 tokenId);
     error TooManyRoleAssignees(uint256 tokenId, uint256 roleBitmap);
+    error InvalidOwner();
 
     IRegistryDatastore public immutable datastore;
 
@@ -99,6 +100,11 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
             TransferData memory transferData = transferDataArray[i];
+
+            // check that the owner is not null address
+            if (transferData.owner == address(0)) {
+                revert InvalidOwner();
+            }
 
             // check that the label matches the token id
             _assertTokenIdMatchesLabel(tokenId, transferData.label);

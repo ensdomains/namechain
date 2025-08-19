@@ -445,6 +445,35 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, data);
     }
 
+    function test_Revert_ejectToL2_null_owner() public {
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        
+        // Register the name directly using the registry
+        registry.register(testLabel, address(this), registry, MOCK_RESOLVER, roleBitmap, expiryTime);
+
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
+
+        // Setup ejection data with null owner
+        address nullOwner = address(0);
+        address expectedSubregistry = address(2);
+        address expectedResolver = address(3);
+        uint64 expectedExpiry = uint64(block.timestamp + 86400);
+        uint256 expectedRoleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        
+        bytes memory data = _createEjectionData(
+            nullOwner, 
+            expectedSubregistry, 
+            expectedResolver, 
+            expectedExpiry,
+            expectedRoleBitmap
+        );
+
+        // Transfer should revert due to null owner
+        vm.expectRevert(abi.encodeWithSelector(L1BridgeController.InvalidOwner.selector));
+        registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, data);
+    }
+
     
     function test_onERC1155BatchReceived() public {
         (uint256[] memory ids, uint256[] memory amounts, bytes memory data) = _setupBatchTransferTest();

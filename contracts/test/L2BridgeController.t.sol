@@ -498,4 +498,27 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         
         assertEq(ethRegistry.ownerOf(currentTokenId), address(controller), "Ejection should succeed");
     }
+
+    function test_Revert_ejectToL1_null_owner() public {
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        uint256 roleBitmap = 
+            LibRegistryRoles.ROLE_SET_RESOLVER | 
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY | 
+            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
+            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+
+        // Register a token for testing with a unique label
+        string memory nullOwnerTestLabel = "nullOwnerTest";
+        uint256 testTokenId = ethRegistry.register(nullOwnerTestLabel, user, ethRegistry, address(0), roleBitmap, expiryTime);
+        
+        // Setup ejection data with null owner
+        address nullOwner = address(0);
+        bytes memory ejectionData = _createEjectionData(nullOwnerTestLabel, nullOwner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        
+        // Transfer should revert due to null owner
+        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.InvalidOwner.selector));
+        vm.prank(user);
+        ethRegistry.safeTransferFrom(user, address(controller), testTokenId, 1, ejectionData);
+    }
 } 

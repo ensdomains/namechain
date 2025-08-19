@@ -21,6 +21,7 @@ contract L1BridgeController is EjectionController {
     error NotTokenOwner(uint256 tokenId);
     error NameNotExpired(uint256 tokenId, uint64 expires);
     error ParentNotMigrated(bytes dnsEncodedName, uint256 offset);
+    error InvalidOwner();
 
     event RenewalSynchronized(uint256 tokenId, uint64 newExpiry);
     event LockedNameMigratedToL1(bytes dnsEncodedName, uint256 tokenId);
@@ -89,6 +90,11 @@ contract L1BridgeController is EjectionController {
         for (uint256 i = 0; i < tokenIds.length; i++) {
             uint256 tokenId = tokenIds[i];
             TransferData memory transferData = transferDataArray[i];
+
+            // check that the owner is not null address
+            if (transferData.owner == address(0)) {
+                revert InvalidOwner();
+            }
 
             // check that the label matches the token id
             _assertTokenIdMatchesLabel(tokenId, transferData.label);

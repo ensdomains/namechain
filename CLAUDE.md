@@ -1,9 +1,3 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-
 # Forge/foundry tests
 
 - When running tests they should be run from the contracts/ subfolder.
