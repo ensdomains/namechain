@@ -11,8 +11,10 @@ export default execute(
 
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
+    
+    // PriceOracle is always ExponentialPremiumPriceOracle now
     const priceOracle =
-      get<(typeof artifacts["src/L2/StablePriceOracle.sol/StablePriceOracle"])["abi"]>("PriceOracle");
+      get<(typeof artifacts["src/L2/ExponentialPremiumPriceOracle.sol/ExponentialPremiumPriceOracle"])["abi"]>("PriceOracle");
 
     // Use owner as beneficiary, or deployer if owner is not set
     const beneficiary = owner || deployer;
