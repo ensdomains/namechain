@@ -1,4 +1,3 @@
-/// we import what we need from the @rocketh alias, see ../rocketh.ts
 import { artifacts, execute } from "@rocketh";
 import { ROLES } from "../constants.js";
 
@@ -8,6 +7,7 @@ export default execute(
 
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
+
     const registryMetadata = get<
       (typeof artifacts.SimpleRegistryMetadata)["abi"]
     >("SimpleRegistryMetadata");
@@ -15,10 +15,14 @@ export default execute(
     await deploy("ETHRegistry", {
       account: deployer,
       artifact: artifacts.PermissionedRegistry,
-      args: [registryDatastore.address, registryMetadata.address, deployer, ROLES.ALL],
+      args: [
+        registryDatastore.address,
+        registryMetadata.address,
+        deployer,
+        ROLES.ALL,
+      ],
     });
   },
-  // finally you can pass tags and dependencies
   {
     tags: ["ETHRegistry", "l2"],
     dependencies: ["RegistryDatastore", "RegistryMetadata"],

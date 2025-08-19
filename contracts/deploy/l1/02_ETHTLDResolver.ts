@@ -1,30 +1,29 @@
 import { artifacts, execute } from "@rocketh";
 import {
-  type Address,
   type RpcLog,
   encodeFunctionData,
   parseEventLogs,
   zeroAddress,
 } from "viem";
 
-export default execute<{
-  l2Deploy: {
-    deployments: Record<string, { address: Address }>;
-  };
-  verifierAddress: Address;
-}>(
+export default execute(
   async (
-    { deploy, execute, get, deployments, namedAccounts: { deployer }, network },
+    { deploy, execute, get, save, namedAccounts: { deployer }, network },
     args,
   ) => {
-    if (!args) throw new Error("expected L2 deployment");
+    if (!args?.l2Deploy) throw new Error("expected L2 deployment");
 
-    const ensRegistryV1 = get("ENSRegistryV1");
-    const batchGatewayProvider = get("BatchGatewayProvider");
+    const ensRegistryV1 =
+      get<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistryV1");
+
+    const batchGatewayProvider = get<(typeof artifacts.GatewayProvider)["abi"]>(
+      "BatchGatewayProvider",
+    );
 
     const verifiableFactory = get<(typeof artifacts.VerifiableFactory)["abi"]>(
       "DedicatedResolverFactory",
     );
+
     const dedicatedResolverImpl = get<
       (typeof artifacts.DedicatedResolver)["abi"]
     >("DedicatedResolverImpl");
@@ -55,15 +54,10 @@ export default execute<{
       logs: receipt.logs,
     });
 
-    // ???
-    const selfName = "ETHSelfResolver";
-    deployments[selfName] = {
+    const ethSelfResolver = await save("ETHSelfResolver", {
       ...dedicatedResolverImpl,
       address: log.args.proxyAddress,
-    };
-
-    const ethSelfResolver =
-      get<(typeof artifacts.DedicatedResolver)["abi"]>(selfName);
+    });
 
     const ethTLDResolver = await deploy("ETHTLDResolver", {
       account: deployer,

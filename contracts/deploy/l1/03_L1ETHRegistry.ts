@@ -5,9 +5,16 @@ export default execute(
   async ({ deploy, execute, get, namedAccounts: { deployer } }) => {
     const rootRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("RootRegistry");
-    const registryDatastore = get("RegistryDatastore");
-    const registryMetadata = get("SimpleRegistryMetadata");
-    const ethTLDResolver = get("ETHTLDResolver");
+
+    const registryDatastore =
+      get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
+
+    const registryMetadata = get<
+      (typeof artifacts.SimpleRegistryMetadata)["abi"]
+    >("SimpleRegistryMetadata");
+
+    const ethTLDResolver =
+      get<(typeof artifacts.ETHTLDResolver)["abi"]>("ETHTLDResolver");
 
     const ethRegistry = await deploy("L1ETHRegistry", {
       account: deployer,

@@ -1,9 +1,10 @@
 import { artifacts, execute } from "@rocketh";
 import { labelhash, namehash, zeroAddress } from "viem";
 
+// TODO: replace with full ens-contracts deploy
 export default execute(
   async ({ deploy, execute, get, namedAccounts: { deployer } }) => {
-    const batchGatewayProvider = get(
+    const batchGatewayProvider = get<(typeof artifacts.GatewayProvider)["abi"]>(
       "BatchGatewayProvider",
     );
 

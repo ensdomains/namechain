@@ -3,8 +3,12 @@ import { ROLES } from "../constants.js";
 
 export default execute(
   async ({ deploy, get, namedAccounts: { deployer } }) => {
-    const registryDatastore = get("RegistryDatastore");
-    const registryMetadata = get("SimpleRegistryMetadata");
+    const registryDatastore =
+      get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
+
+    const registryMetadata = get<
+      (typeof artifacts.SimpleRegistryMetadata)["abi"]
+    >("SimpleRegistryMetadata");
 
     await deploy("RootRegistry", {
       account: deployer,

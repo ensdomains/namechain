@@ -57,7 +57,33 @@ export { artifacts };
 import {
   execute as _execute,
   loadAndExecuteDeployments,
-  type NamedAccountExecuteFunction,
+  type DeployScriptFunction,
+  type DeployScriptModule,
+  type UnknownDeployments,
+  type UnresolvedNetworkSpecificData,
 } from "rocketh";
-const execute = _execute as NamedAccountExecuteFunction<typeof config.accounts>;
+import type { Address } from "viem";
+type L1Arguments = {
+  l2Deploy: {
+    deployments: Record<string, { address: Address }>;
+  };
+  verifierAddress: Address;
+};
+type Arguments = L1Arguments | undefined;
+const execute = _execute as <
+  Deployments extends UnknownDeployments = UnknownDeployments,
+>(
+  callback: DeployScriptFunction<
+    typeof config.accounts,
+    UnresolvedNetworkSpecificData,
+    Arguments,
+    Deployments
+  >,
+  options: { tags?: string[]; dependencies?: string[]; id?: string },
+) => DeployScriptModule<
+  typeof config.accounts,
+  UnresolvedNetworkSpecificData,
+  Arguments,
+  Deployments
+>;
 export { execute, loadAndExecuteDeployments };
