@@ -262,7 +262,7 @@ export async function setupCrossChainEnvironment({
         ),
       },
       deployDedicatedResolver,
-    };
+    } as const;
 
     const l2Contracts = createDeploymentGetter(l2Deploy, l2Client);
     const l2 = {
@@ -288,7 +288,7 @@ export async function setupCrossChainEnvironment({
         ),
       },
       deployDedicatedResolver,
-    };
+    } as const;
     return {
       accounts,
       namedAccounts: Object.fromEntries(accounts.map((x) => [x.name, x])),
@@ -303,8 +303,7 @@ export async function setupCrossChainEnvironment({
       shutdown,
     };
     async function sync() {
-      const args = { blocks: 1 };
-      await Promise.all([l1.client.mine(args), l2.client.mine(args)]);
+      await Promise.all([l1, l2].map((x) => x.client.mine({ blocks: 1 })));
     }
     async function deployDedicatedResolver(
       this: typeof l1 | typeof l2,
