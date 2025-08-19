@@ -2,9 +2,7 @@ import { artifacts, execute } from "@rocketh";
 import { ROLES } from "../constants.js";
 
 export default execute(
-  async ({ deploy, namedAccounts, get }) => {
-    const { deployer } = namedAccounts;
-
+  async ({ deploy, get, namedAccounts: { deployer } }) => {
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
 

@@ -2,11 +2,10 @@
 import { artifacts, execute } from "@rocketh";
 
 export default execute(
-  async ({ deploy, namedAccounts, get }) => {
-    const { deployer } = namedAccounts;
-
+  async ({ deploy, get, namedAccounts: { deployer } }) => {
     const rootRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("RootRegistry");
+
     const batchGatewayProvider = get<(typeof artifacts.GatewayProvider)["abi"]>(
       "BatchGatewayProvider",
     );
