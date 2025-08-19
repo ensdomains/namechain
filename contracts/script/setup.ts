@@ -242,7 +242,6 @@ export async function setupCrossChainEnvironment({
         ),
         // v2
         bridgeController: l1Contracts("L1BridgeController"),
-        ejectionController: l1Contracts("L1EjectionController"),
         ethRegistry: l1Contracts("L1ETHRegistry"),
         ethSelfResolver: l1Contracts<"DedicatedResolver">("ETHSelfResolver"),
         ethTLDResolver: l1Contracts("ETHTLDResolver"),
