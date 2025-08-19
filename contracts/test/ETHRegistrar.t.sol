@@ -11,8 +11,8 @@ import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165C
 import {MockERC20, MockERC20Blacklist, MockERC20VoidReturn, MockERC20FalseReturn} from "../src/mocks/MockERC20.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
-import {MockStableTokenPriceOracle} from "../src/mocks/MockStableTokenPriceOracle.sol";
-import {ETHRegistrar, IETHRegistrar, IRegistry, PriceUtils, REGISTRATION_ROLE_BITMAP} from "../src/L2/ETHRegistrar.sol";
+import {StableTokenPriceOracle} from "../src/L2/StableTokenPriceOracle.sol";
+import {ETHRegistrar, IETHRegistrar, IRegistry, REGISTRATION_ROLE_BITMAP} from "../src/L2/ETHRegistrar.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
@@ -21,6 +21,7 @@ import {NameUtils} from "../src/common/NameUtils.sol";
 contract TestETHRegistrar is Test {
     RegistryDatastore datastore;
     PermissionedRegistry ethRegistry;
+    StableTokenPriceOracle tokenPriceOracle;
     ETHRegistrar ethRegistrar;
 
     MockERC20 tokenUSDC;
@@ -52,6 +53,8 @@ contract TestETHRegistrar is Test {
             LibEACBaseRoles.ALL_ROLES
         );
 
+        tokenPriceOracle = new StableTokenPriceOracle();
+
         IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](5);
         paymentTokens[0] = tokenUSDC = new MockERC20("USDC", 6);
         paymentTokens[1] = tokenDAI = new MockERC20("DAI", 18);
@@ -66,13 +69,12 @@ contract TestETHRegistrar is Test {
                 minCommitmentAge: 1 minutes,
                 maxCommitmentAge: 1 days,
                 minRegistrationDuration: 28 days,
-                gracePeriod: 90 days,
                 priceDecimals: PRICE_DECIMALS,
-                priceOracle: new MockStableTokenPriceOracle(),
                 baseRatePerCp: [0, 0, RATE_3_CHAR, RATE_4_CHAR, RATE_5_CHAR],
                 premiumPeriod: 21 days,
                 premiumHalvingPeriod: 1 days,
                 premiumPriceInitial: 100_000_000 * PRICE_SCALE,
+                tokenPriceOracle: tokenPriceOracle,
                 paymentTokens: paymentTokens
             })
         );
@@ -132,20 +134,20 @@ contract TestETHRegistrar is Test {
         (base, ) = ethRegistrar.rentPrice(label, dur, tokenUSDC);
         assertEq(
             base,
-            PriceUtils.convertDecimals(
+            tokenPriceOracle.getTokenAmount(
                 rate * dur,
                 PRICE_DECIMALS,
-                tokenUSDC.decimals()
+                tokenUSDC
             ),
             "USDC"
         );
         (base, ) = ethRegistrar.rentPrice(label, dur, tokenDAI);
         assertEq(
             base,
-            PriceUtils.convertDecimals(
+            tokenPriceOracle.getTokenAmount(
                 rate * dur,
                 PRICE_DECIMALS,
-                tokenDAI.decimals()
+                tokenDAI
             ),
             "DAI"
         );
@@ -336,7 +338,7 @@ contract TestETHRegistrar is Test {
     function test_register_premium_start() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         this._register(args);
-        vm.warp(block.timestamp + args.duration + ethRegistrar.gracePeriod());
+        vm.warp(block.timestamp + args.duration);
         uint256 premium = ethRegistrar.premiumPrice(args.label);
         assertEq(premium, ethRegistrar.premiumPriceAfter(0));
     }
@@ -344,12 +346,7 @@ contract TestETHRegistrar is Test {
     function test_register_premium_end() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         this._register(args);
-        vm.warp(
-            block.timestamp +
-                args.duration +
-                ethRegistrar.gracePeriod() +
-                ethRegistrar.premiumPeriod()
-        );
+        vm.warp(block.timestamp + args.duration + ethRegistrar.premiumPeriod());
         uint256 premium = ethRegistrar.premiumPrice(args.label);
         assertEq(premium, 0);
     }
@@ -473,21 +470,6 @@ contract TestETHRegistrar is Test {
         }
         this._renew(args);
         assertEq(ethRegistry.getExpiry(tokenId), expiry0 + args.duration);
-    }
-
-    function test_renew_gracePeriod() external {
-        RegisterArgs memory args = _defaultRegisterArgs();
-        uint256 tokenId = this._register(args);
-        assertEq(ethRegistry.ownerOf(tokenId), args.owner, "owner0");
-        assertFalse(ethRegistrar.isAvailable(args.label), "avail0");
-        uint256 t = block.timestamp +
-            args.duration +
-            ethRegistrar.gracePeriod();
-        vm.warp(t - 1);
-        assertEq(ethRegistry.ownerOf(tokenId), address(0), "owner1");
-        assertFalse(ethRegistrar.isAvailable(args.label), "avail1");
-        vm.warp(t);
-        assertTrue(ethRegistrar.isAvailable(args.label), "avail2");
     }
 
     function test_Revert_renew_nameNotRegistered() external {

@@ -2,38 +2,6 @@
 pragma solidity >=0.8.13;
 
 library PriceUtils {
-    error AmountOverflow(uint256 amount, uint256 scale);
-
-    function convertDecimals(
-        uint256 inAmount,
-        uint8 inDecimals,
-        uint8 outDecimals
-    ) internal pure returns (uint256) {
-        if (outDecimals < inDecimals) {
-            uint8 decimalDiff = inDecimals - outDecimals;
-            uint256 scale = 10 ** decimalDiff;
-            uint256 remainder = inAmount % scale;
-            inAmount /= scale;
-            // For precision loss mitigation, round up if there's a remainder
-            // This ensures users don't pay less than intended due to truncation
-            if (remainder > 0) {
-                inAmount += 1;
-            }
-            return inAmount;
-        } else if (outDecimals > inDecimals) {
-            uint8 decimalDiff = outDecimals - inDecimals;
-            uint256 scale = 10 ** decimalDiff;
-            // Check for overflow: if usdAmount * 10^decimalDiff > type(uint256).max
-            // Rearranged: if usdAmount > type(uint256).max / 10^decimalDiff
-            if (inAmount > type(uint256).max / scale) {
-                revert AmountOverflow(inAmount, scale);
-            }
-            return inAmount * scale;
-        } else {
-            return inAmount;
-        }
-    }
-
     uint256 constant PRECISION = 1e18;
     uint256 constant bit1 = 999989423469314432; // 0.5 ^ 1/65536 * (10 ** 18)
     uint256 constant bit2 = 999978847050491904; // 0.5 ^ 2/65536 * (10 ** 18)

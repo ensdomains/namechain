@@ -83,6 +83,13 @@ contract PermissionedRegistry is
         return block.timestamp >= expires;
     }
 
+    /// @inheritdoc IPermissionedRegistry
+    function mostRecentOwnerOf(
+        uint256 tokenId
+    ) external view returns (address) {
+        return super.ownerOf(tokenId);
+    }
+
     function ownerOf(
         uint256 tokenId
     )

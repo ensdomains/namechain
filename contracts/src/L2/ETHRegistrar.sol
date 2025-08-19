@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IETHRegistrar} from "./IETHRegistrar.sol";
 import {ITokenPriceOracle} from "./ITokenPriceOracle.sol";
@@ -27,13 +28,12 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         uint64 minCommitmentAge;
         uint64 maxCommitmentAge;
         uint64 minRegistrationDuration;
-        uint64 gracePeriod;
         uint8 priceDecimals;
-        ITokenPriceOracle priceOracle;
         uint256[5] baseRatePerCp;
         uint64 premiumPeriod;
         uint64 premiumHalvingPeriod;
         uint256 premiumPriceInitial;
+        ITokenPriceOracle tokenPriceOracle;
         IERC20Metadata[] paymentTokens;
     }
 
@@ -42,15 +42,13 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     uint64 public immutable minCommitmentAge; // [min, max)
     uint64 public immutable maxCommitmentAge;
     uint64 public immutable minRegistrationDuration; // [min, inf)
-    uint64 public immutable gracePeriod;
     uint8 public immutable priceDecimals;
-    ITokenPriceOracle public immutable priceOracle;
     uint256[5] baseRatePerCp; // rate = price/sec
     uint64 public immutable premiumPeriod;
     uint64 public immutable premiumHalvingPeriod;
     uint256 public immutable premiumPriceInitial;
     uint256 public immutable premiumPriceOffset;
-
+    ITokenPriceOracle public immutable tokenPriceOracle;
     mapping(IERC20Metadata => bool) _isPaymentToken;
     mapping(bytes32 => uint64) _commitTime;
 
@@ -69,9 +67,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         minCommitmentAge = args.minCommitmentAge;
         maxCommitmentAge = args.maxCommitmentAge;
         minRegistrationDuration = args.minRegistrationDuration;
-        gracePeriod = args.gracePeriod;
         priceDecimals = args.priceDecimals;
-        priceOracle = args.priceOracle;
         baseRatePerCp = args.baseRatePerCp;
         premiumPeriod = args.premiumPeriod;
         premiumHalvingPeriod = args.premiumHalvingPeriod;
@@ -81,6 +77,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             args.premiumHalvingPeriod,
             args.premiumPeriod
         );
+        tokenPriceOracle = args.tokenPriceOracle;
         for (uint256 i; i < args.paymentTokens.length; i++) {
             _setPaymentToken(args.paymentTokens[i], true);
         }
@@ -139,7 +136,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     /// @dev Internal logic for registration availability.
     function _isAvailable(uint256 expiry) internal view returns (bool) {
-        return block.timestamp >= expiry + gracePeriod;
+        return block.timestamp >= expiry;
     }
 
     /// @notice Get base price to register or renew `label` for `duration`.
@@ -161,7 +158,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         return baseRate * duration;
     }
 
-    /// @notice Get premium price for a duration after expiry and grace.
+    /// @notice Get premium price for a duration after expiry.
     ///         Positive over `[0, premiumPeriod)`.
     /// @param duration The time after expiration, in seconds.
     /// @return The premium price.
@@ -187,9 +184,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     function _premiumPriceFromExpiry(
         uint64 expiry
     ) internal view returns (uint256) {
-        uint64 t0 = expiry + gracePeriod;
         uint64 t = uint64(block.timestamp);
-        return t >= t0 ? premiumPriceAfter(t - t0) : 0;
+        return t >= expiry ? premiumPriceAfter(t - expiry) : 0;
     }
 
     /// @inheritdoc IETHRegistrar
@@ -205,12 +201,12 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     {
         premium = premiumPrice(label);
         uint256 total = basePrice(label, duration) + premium;
-        uint256 amount = priceOracle.getTokenAmount(
+        uint256 amount = tokenPriceOracle.getTokenAmount(
             total,
             priceDecimals,
             paymentToken
         );
-        premium = (amount * premium) / total;
+        premium = Math.mulDiv(amount, premium, total);
         base = amount - premium; // ensure: f(a+b) - f(a) == f(b)
     }
 
@@ -269,8 +265,9 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IERC20Metadata paymentToken,
         bytes32 referer
     ) external onlyPaymentToken(paymentToken) returns (uint256 tokenId) {
-        (, uint64 expiry, ) = ethRegistry.getNameData(label);
-        if (!_isAvailable(expiry)) {
+        uint64 oldExpiry;
+        (tokenId, oldExpiry, ) = ethRegistry.getNameData(label);
+        if (!_isAvailable(oldExpiry)) {
             revert NameAlreadyRegistered(label);
         }
         if (duration < minRegistrationDuration) {
@@ -291,6 +288,9 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             duration,
             paymentToken
         ); // reverts if !isValid()
+        if (owner == ethRegistry.mostRecentOwnerOf(tokenId)) {
+            premium = 0;
+        }
         SafeERC20.safeTransferFrom(
             paymentToken,
             _msgSender(),

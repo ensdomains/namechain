@@ -5,11 +5,6 @@ export default execute(
   async ({ deploy, namedAccounts }) => {
     const { deployer } = namedAccounts;
 
-	await deploy("MockStableTokenPriceOracle", {
-	  account: deployer,
-	  artifact: artifacts.MockStableTokenPriceOracle,
-	});
-
     // Use our local MockERC20 contract
     const MockERC20 = artifacts["src/mocks/MockERC20.sol/MockERC20"];
 

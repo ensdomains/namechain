@@ -6,18 +6,6 @@ import "forge-std/Test.sol";
 import {PriceUtils} from "../src/common/PriceUtils.sol";
 
 contract TestPriceUtils is Test {
-    function test_convertDecimals() external pure {
-        assertEq(PriceUtils.convertDecimals(1, 1, 1), 1);
-        assertEq(PriceUtils.convertDecimals(100, 2, 0), 1);
-        assertEq(PriceUtils.convertDecimals(1, 0, 2), 100);
-
-        assertEq(PriceUtils.convertDecimals(1000, 3, 0), 1);
-        assertEq(PriceUtils.convertDecimals(1001, 3, 0), 2);
-        assertEq(PriceUtils.convertDecimals(1999, 3, 0), 2);
-
-        assertEq(PriceUtils.convertDecimals(1234_0000_0000, 8, 0), 1234);
-    }
-
     function test_halving_pow2() external pure {
         for (uint256 i; i < 255; i++) {
             assertEq(PriceUtils.halving(1 << 255, 1, i), 1 << (255 - i));

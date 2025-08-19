@@ -13,7 +13,8 @@ export default execute(
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
-    const mockPriceOracle = get("MockStableTokenPriceOracle");
+    const tokenPriceOracle = get("StableTokenPriceOracle");
+
     const mockUSDC = get("MockUSDC");
     const mockDAI = get("MockDAI");
 
@@ -47,9 +48,8 @@ export default execute(
           minCommitmentAge: 60n, // 1 minute,
           maxCommitmentAge: SEC_PER_DAY,
           minRegistrationDuration: 28n * SEC_PER_DAY,
-          gracePeriod: 90n * SEC_PER_DAY,
           priceDecimals: PRICE_DECIMALS,
-          priceOracle: mockPriceOracle.address,
+          tokenPriceOracle: tokenPriceOracle.address,
           baseRatePerCp,
           premiumPeriod: 21n * SEC_PER_DAY,
           premiumHalvingPeriod: SEC_PER_DAY,
@@ -70,6 +70,6 @@ export default execute(
   },
   {
     tags: ["ETHRegistrar", "registry", "l2"],
-    dependencies: ["ETHRegistry", "MockTokens"],
+    dependencies: ["ETHRegistry", "MockTokens", "StableTokenPriceOracle"],
   },
 );
