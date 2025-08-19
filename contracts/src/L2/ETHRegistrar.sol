@@ -173,11 +173,19 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     }
 
     /// @notice Get premium price for a name.
+    ///         Waived if `owner` was the latest owner.
     /// @param label The name to price.
+    /// @param owner The owner for the registration.
     /// @return The premium price.
-    function premiumPrice(string memory label) public view returns (uint256) {
-        (, uint64 expiry, ) = ethRegistry.getNameData(label);
-        return _premiumPriceFromExpiry(expiry);
+    function premiumPrice(
+        string memory label,
+        address owner
+    ) public view returns (uint256) {
+        (uint256 tokenId, uint64 expiry, ) = ethRegistry.getNameData(label);
+        return
+            owner != address(0) && owner == ethRegistry.latestOwnerOf(tokenId)
+                ? 0
+                : _premiumPriceFromExpiry(expiry);
     }
 
     /// @dev Get premium price for an expiry relative to now.
@@ -191,6 +199,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     /// @inheritdoc IETHRegistrar
     function rentPrice(
         string memory label,
+        address owner,
         uint64 duration,
         IERC20Metadata paymentToken
     )
@@ -199,7 +208,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         onlyPaymentToken(paymentToken)
         returns (uint256 base, uint256 premium)
     {
-        premium = premiumPrice(label);
+        premium = premiumPrice(label, owner);
         uint256 total = basePrice(label, duration) + premium;
         uint256 amount = tokenPriceOracle.getTokenAmount(
             total,
@@ -265,8 +274,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IERC20Metadata paymentToken,
         bytes32 referer
     ) external onlyPaymentToken(paymentToken) returns (uint256 tokenId) {
-        uint64 oldExpiry;
-        (tokenId, oldExpiry, ) = ethRegistry.getNameData(label);
+        (, uint64 oldExpiry, ) = ethRegistry.getNameData(label);
         if (!_isAvailable(oldExpiry)) {
             revert NameAlreadyRegistered(label);
         }
@@ -285,12 +293,10 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         );
         (uint256 base, uint256 premium) = rentPrice(
             label,
+            owner,
             duration,
             paymentToken
         ); // reverts if !isValid()
-        if (owner == ethRegistry.mostRecentOwnerOf(tokenId)) {
-            premium = 0;
-        }
         SafeERC20.safeTransferFrom(
             paymentToken,
             _msgSender(),
@@ -334,7 +340,12 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         if (oldExpiry > type(uint64).max - duration) {
             revert DurationOverflow(oldExpiry, duration);
         }
-        (uint256 base, ) = rentPrice(label, duration, paymentToken);
+        (uint256 base, ) = rentPrice(
+            label,
+            ethRegistry.ownerOf(tokenId),
+            duration,
+            paymentToken
+        );
         SafeERC20.safeTransferFrom(
             paymentToken,
             _msgSender(),

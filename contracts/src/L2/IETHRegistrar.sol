@@ -58,7 +58,7 @@ interface IETHRegistrar {
     /// @notice Support for `paymentToken` has changed.
     event PaymentTokenChanged(IERC20Metadata paymentToken, bool supported);
 
-    /// @dev `commitment` was recorded onchain at `block.timestamp`.
+    /// @notice `commitment` was recorded onchain at `block.timestamp`.
     /// @param commitment The commitment hash from `makeCommitment()`.
     event CommitmentMade(bytes32 commitment);
 
@@ -104,33 +104,35 @@ interface IETHRegistrar {
         uint256 base
     );
 
-    /// @dev Check if a `label` is registerable.
-    /// @notice Does not check if normalized.
+    /// @notice Check if a `label` is registerable.
+    /// @dev Does not check if normalized.
     /// @param label The name to check.
     /// @return `true` if the `label` is valid.
     function isValid(string memory label) external view returns (bool);
 
-    /// @dev Check if `label` is available for registration.
-    /// @notice Does not check if normalized or valid.
+    /// @notice Check if `label` is available for registration.
+    /// @dev Does not check if normalized or valid.
     /// @param label The name to check.
     /// @return `true` if the `label` is available.
     function isAvailable(string memory label) external view returns (bool);
 
-    /// @dev Check if `paymentToken` is accepted for payment.
+    /// @notice Check if `paymentToken` is accepted for payment.
     /// @param paymentToken The ERC20 to check.
     /// @return `true` if `paymentToken` is accepted.
     function isPaymentToken(
         IERC20Metadata paymentToken
     ) external view returns (bool);
 
-    /// @dev Get rent price for `name` with `duration`.
+    /// @notice Get rent price for `name` with `duration`.
     /// @param label The name to price.
+    /// @param owner The owner address.
     /// @param duration The duration to price, in seconds.
     /// @param paymentToken The ERC-20 to use.
     /// @return base The base price, relative to `paymentToken`.
     /// @return premium The premium price, relative to `paymentToken`.
     function rentPrice(
         string memory label,
+        address owner,
         uint64 duration,
         IERC20Metadata paymentToken
     ) external view returns (uint256 base, uint256 premium);

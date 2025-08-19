@@ -21,11 +21,11 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
         ITokenObserver observer
     ) external;
 
-    /// @notice Get the most recent owner of a token.
-    /// @dev If the token was burned, returns null.
+    /// @notice Get the latest owner of a token.
+    ///         If the token was burned, returns null.
     /// @param tokenId The token ID to query.
-    /// @return The most recent owner address.
-    function mostRecentOwnerOf(uint256 tokenId) external view returns (address);
+    /// @return The latest owner address.
+    function latestOwnerOf(uint256 tokenId) external view returns (address);
 
     /**
      * @dev Fetches the name data for a label.

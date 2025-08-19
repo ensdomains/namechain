@@ -578,7 +578,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
             address(0),
             "registry"
         );
-        vm.assertEq(registry.mostRecentOwnerOf(tokenId), address(0), "recent"); // does not survive burn
+        vm.assertEq(registry.latestOwnerOf(tokenId), address(0), "latest"); // does not survive burn
     }
 
     function test_burn_revokes_roles() public {
@@ -693,7 +693,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         );
         vm.warp(block.timestamp + 101);
         assertEq(registry.ownerOf(tokenId), address(0), "owner");
-        assertEq(registry.mostRecentOwnerOf(tokenId), user, "recent");
+        assertEq(registry.latestOwnerOf(tokenId), user, "latest");
     }
 
     function test_expired_name_can_be_reregistered() public {
@@ -710,7 +710,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertEq(registry.ownerOf(tokenId), user, "owner0");
         vm.warp(block.timestamp + 101);
         assertEq(registry.ownerOf(tokenId), address(0), "owner1");
-        assertEq(registry.mostRecentOwnerOf(tokenId), user, "recent");
+        assertEq(registry.latestOwnerOf(tokenId), user, "latest");
         address newUser = makeAddr("newUser");
         uint256 newTokenId = registry.register(
             label,
@@ -1728,7 +1728,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         );
     }
 
-    function test_token_regeneration_mostRecentOwnerOf() public {
+    function test_token_regeneration_latestOwnerOf() public {
         address user = makeAddr("user");
         uint256 tokenId = registry.register(
             "regenerate4",
@@ -1744,9 +1744,9 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertNotEq(tokenId, newTokenId, "token");
         vm.warp(block.timestamp + 101);
         assertEq(registry.ownerOf(tokenId), address(0), "owner0");
-        assertEq(registry.mostRecentOwnerOf(tokenId), address(0), "recent0");
+        assertEq(registry.latestOwnerOf(tokenId), address(0), "latest0");
         assertEq(registry.ownerOf(newTokenId), address(0), "owner1");
-        assertEq(registry.mostRecentOwnerOf(newTokenId), user, "recent1");
+        assertEq(registry.latestOwnerOf(newTokenId), user, "latest1");
     }
 
     // getRoleAssigneeCount tests

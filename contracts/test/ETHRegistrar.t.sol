@@ -131,7 +131,7 @@ contract TestETHRegistrar is Test {
         uint64 dur = SEC_PER_YEAR;
         base = ethRegistrar.basePrice(label, dur);
         assertEq(base, rate * dur, "year");
-        (base, ) = ethRegistrar.rentPrice(label, dur, tokenUSDC);
+        (base, ) = ethRegistrar.rentPrice(label, address(0), dur, tokenUSDC);
         assertEq(
             base,
             tokenPriceOracle.getTokenAmount(
@@ -141,7 +141,7 @@ contract TestETHRegistrar is Test {
             ),
             "USDC"
         );
-        (base, ) = ethRegistrar.rentPrice(label, dur, tokenDAI);
+        (base, ) = ethRegistrar.rentPrice(label, address(0), dur, tokenDAI);
         assertEq(
             base,
             tokenPriceOracle.getTokenAmount(
@@ -339,7 +339,7 @@ contract TestETHRegistrar is Test {
         RegisterArgs memory args = _defaultRegisterArgs();
         this._register(args);
         vm.warp(block.timestamp + args.duration);
-        uint256 premium = ethRegistrar.premiumPrice(args.label);
+        uint256 premium = ethRegistrar.premiumPrice(args.label, address(0));
         assertEq(premium, ethRegistrar.premiumPriceAfter(0));
     }
 
@@ -347,22 +347,28 @@ contract TestETHRegistrar is Test {
         RegisterArgs memory args = _defaultRegisterArgs();
         this._register(args);
         vm.warp(block.timestamp + args.duration + ethRegistrar.premiumPeriod());
-        uint256 premium = ethRegistrar.premiumPrice(args.label);
+        uint256 premium = ethRegistrar.premiumPrice(args.label, address(0));
         assertEq(premium, 0);
     }
 
-    function test_register_premium_mostRecentOwner() external {
+    function test_register_premium_latestOwner() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         this._register(args);
         vm.warp(block.timestamp + args.duration);
-        (uint256 base, ) = ethRegistrar.rentPrice(
+        (uint256 base, uint256 premium) = ethRegistrar.rentPrice(
             args.label,
+            args.owner,
             args.duration,
             args.paymentToken
         );
+        assertEq(premium, 0, "premium");
         uint256 balance0 = args.paymentToken.balanceOf(args.owner);
         this._register(args);
-        assertEq(balance0 - base, args.paymentToken.balanceOf(args.owner));
+        assertEq(
+            balance0 - base,
+            args.paymentToken.balanceOf(args.owner),
+            "balance"
+        );
     }
 
     function test_Revert_register_insufficientAllowance() external {
@@ -371,6 +377,7 @@ contract TestETHRegistrar is Test {
         tokenUSDC.approve(address(ethRegistrar), 0);
         (uint256 base, uint256 premium) = ethRegistrar.rentPrice(
             args.label,
+            args.owner,
             args.duration,
             args.paymentToken
         );
@@ -390,6 +397,7 @@ contract TestETHRegistrar is Test {
         tokenUSDC.nuke(args.sender);
         (uint256 base, uint256 premium) = ethRegistrar.rentPrice(
             args.label,
+            args.owner,
             args.duration,
             args.paymentToken
         );
@@ -504,6 +512,7 @@ contract TestETHRegistrar is Test {
         tokenUSDC.approve(address(ethRegistrar), 0);
         (uint256 base, ) = ethRegistrar.rentPrice(
             args.label,
+            args.owner,
             args.duration,
             args.paymentToken
         );
@@ -535,6 +544,7 @@ contract TestETHRegistrar is Test {
         RegisterArgs memory args = _defaultRegisterArgs();
         (uint256 base, ) = ethRegistrar.rentPrice(
             args.label,
+            args.owner,
             args.duration,
             args.paymentToken
         );
@@ -549,6 +559,7 @@ contract TestETHRegistrar is Test {
         uint256 balance0 = args.paymentToken.balanceOf(beneficiary);
         (uint256 base, ) = ethRegistrar.rentPrice(
             args.label,
+            args.owner,
             args.duration,
             args.paymentToken
         );

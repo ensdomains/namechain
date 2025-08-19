@@ -84,7 +84,7 @@ contract PermissionedRegistry is
     }
 
     /// @inheritdoc IPermissionedRegistry
-    function mostRecentOwnerOf(
+    function latestOwnerOf(
         uint256 tokenId
     ) external view returns (address) {
         return super.ownerOf(tokenId);
