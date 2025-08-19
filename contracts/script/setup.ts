@@ -276,7 +276,7 @@ export async function setupCrossChainEnvironment({
         ethRegistry: l2Contracts<"PermissionedRegistry">("ETHRegistry"),
         bridgeController: l2Contracts("L2BridgeController"),
         mockBridge: l2Contracts("MockL2Bridge"),
-        priceOracle: l2Contracts("StableTokenPriceOracle"),
+        tokenPriceOracle: l2Contracts("StableTokenPriceOracle"),
         // shared
         registryDatastore: l2Contracts("RegistryDatastore"),
         simpleRegistryMetadata: l2Contracts("SimpleRegistryMetadata"),

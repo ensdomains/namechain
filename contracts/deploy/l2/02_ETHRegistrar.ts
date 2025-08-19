@@ -20,8 +20,9 @@ export default execute(
       (typeof artifacts.StableTokenPriceOracle)["abi"]
     >("StableTokenPriceOracle");
 
-    const mockUSDC = get<(typeof artifacts.MockERC20)["abi"]>("MockUSDC");
-    const mockDAI = get<(typeof artifacts.MockERC20)["abi"]>("MockDAI");
+    const MockERC20 = artifacts["src/mocks/MockERC20.sol/MockERC20"];
+    const mockUSDC = get<(typeof MockERC20)["abi"]>("MockUSDC");
+    const mockDAI = get<(typeof MockERC20)["abi"]>("MockDAI");
 
     // Use owner as beneficiary, or deployer if owner is not set
     const beneficiary = owner || deployer;
