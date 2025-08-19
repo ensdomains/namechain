@@ -167,7 +167,11 @@ export async function setupCrossChainEnvironment({
             tags: [tag, "local"],
             fork: false,
             scripts: [`deploy/${tag}`, "deploy/shared"],
-            publicInfo: chain as any, // silly mutability type error
+            publicInfo: {
+              name,
+              nativeCurrency: chain.nativeCurrency,
+              rpcUrls: { default: {...chain.rpcUrls.default} } },
+            },
           },
           askBeforeProceeding: false,
           saveDeployments,
@@ -262,7 +266,7 @@ export async function setupCrossChainEnvironment({
         ),
       },
       deployDedicatedResolver,
-    } as const;
+    };
 
     const l2Contracts = createDeploymentGetter(l2Deploy, l2Client);
     const l2 = {
@@ -288,7 +292,7 @@ export async function setupCrossChainEnvironment({
         ),
       },
       deployDedicatedResolver,
-    } as const;
+    };
     return {
       accounts,
       namedAccounts: Object.fromEntries(accounts.map((x) => [x.name, x])),

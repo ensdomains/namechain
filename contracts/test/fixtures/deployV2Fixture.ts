@@ -12,8 +12,8 @@ export { ROLES };
 
 export const MAX_EXPIRY = (1n << 64n) - 1n; // see: DatastoreUtils.sol
 
-export async function deployV2Fixture<C extends NetworkConnection>(
-  network: C,
+export async function deployV2Fixture(
+  network: NetworkConnection,
   enableCcipRead = false,
 ) {
   const publicClient = await network.viem.getPublicClient({
