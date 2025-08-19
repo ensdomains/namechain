@@ -134,14 +134,16 @@ contract ETHTLDResolver is
         ethResolver = resolver;
     }
 
-    /// @dev Determine if labelhash is actively registered on V1.
-    /// @param id The labelhash of the "eth" 2LD.
-    /// @return True if the registration is active.
-    function _isActiveRegistrationV1(uint256 id) internal view returns (bool) {
+    /// @dev Determine if actively registered on V1.
+    /// @param labelHash The labelhash of the "eth" 2LD.
+    /// @return `true` if the registration is active.
+    function isActiveRegistrationV1(
+        uint256 labelHash
+    ) public view returns (bool) {
         // TODO: add final migration logic
         return
-            ethRegistrarV1.nameExpires(id) >= block.timestamp &&
-            ethRegistrarV1.ownerOf(id) != burnAddressV1;
+            ethRegistrarV1.nameExpires(labelHash) >= block.timestamp &&
+            ethRegistrarV1.ownerOf(labelHash) != burnAddressV1;
     }
 
     /// @notice Same as `resolveWithRegistry()` but starts at "eth".
@@ -176,7 +178,7 @@ contract ETHTLDResolver is
                 );
             }
             (bytes32 labelHash, ) = NameCoder.readLabel(name, prevOffset);
-            if (_isActiveRegistrationV1(uint256(labelHash))) {
+            if (isActiveRegistrationV1(uint256(labelHash))) {
                 (address resolver, , ) = RegistryUtilsV1.findResolver(
                     registryV1,
                     name,
