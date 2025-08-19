@@ -2,32 +2,35 @@
 import { artifacts, execute } from "@rocketh";
 
 export default execute(
-  async ({ deploy, namedAccounts }) => {
-    const { deployer } = namedAccounts;
-
+  async ({ deploy, read, namedAccounts: { deployer } }) => {
     // Use our local MockERC20 contract
     const MockERC20 = artifacts["src/mocks/MockERC20.sol/MockERC20"];
 
-    // Deploy MockUSDC (6 decimals)
     const mockUSDC = await deploy("MockUSDC", {
       account: deployer,
       artifact: MockERC20,
       args: ["USDC", 6],
     });
 
-    // Deploy MockDAI (18 decimals)  
     const mockDAI = await deploy("MockDAI", {
       account: deployer,
       artifact: MockERC20,
       args: ["DAI", 18],
     });
 
-    console.log(`✅ Mock tokens deployed:`);
-    console.log(`   - MockUSDC (6 decimals): ${mockUSDC.address}`);
-    console.log(`   - MockDAI (18 decimals): ${mockDAI.address}`);
+    console.table(
+      await Promise.all(
+        [mockUSDC, mockDAI].map(async (x) => {
+          const [symbol, decimals] = await Promise.all([
+            read(x, { functionName: "symbol" }),
+            read(x, { functionName: "decimals" }),
+          ]);
+          return { symbol, decimals, address: x.address };
+        }),
+      ),
+    );
   },
   {
     tags: ["MockTokens", "mocks", "l2"],
-    dependencies: [],
   },
 );

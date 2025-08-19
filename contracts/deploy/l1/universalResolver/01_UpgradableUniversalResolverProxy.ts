@@ -10,12 +10,18 @@ const deploymentsPath = resolve(
 );
 
 export default execute(
-  async ({ deploy, config, get, namedAccounts, network }) => {
-    const { deployer, owner } = namedAccounts;
-
+  async ({
+    deploy,
+    get,
+    namedAccounts: { deployer, owner },
+    network,
+    config,
+  }) => {
     if (network.tags.local) {
       const universalResolver =
-        get<(typeof artifacts["UniversalResolverV2"])["abi"]>("UniversalResolver");
+        get<(typeof artifacts)["UniversalResolverV2"]["abi"]>(
+          "UniversalResolver",
+        );
       await deploy("UpgradableUniversalResolverProxy", {
         account: deployer,
         artifact: artifacts.UpgradableUniversalResolverProxy,
@@ -38,5 +44,7 @@ export default execute(
       args: [owner, v1UniversalResolverDeploymentJson.address],
     });
   },
-  { tags: ["UpgradableUniversalResolverProxy", "l1", "universalResolver"] },
+  {
+    tags: ["UpgradableUniversalResolverProxy", "l1", "universalResolver"],
+  },
 );

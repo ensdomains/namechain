@@ -11,6 +11,7 @@
     "coverage": "forge coverage --report lcov && bun run test:hardhat && bun run test:e2e && bun run sanitize-lcov.sh",
     "clean": "forge clean && hardhat clean",
     "devnet": "bun ./script/runDevnet.ts",
+    "devnet:clean": "bun run test && bun ./script/runDevnet.ts",
     "check:types": "tsc --noEmit"
   },
   "devDependencies": {
