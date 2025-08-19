@@ -8,10 +8,12 @@ import {GatewayFetcher} from "@unruggable/gateways/contracts/GatewayFetcher.sol"
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
 import {GatewayFetchTarget, IGatewayVerifier} from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
 
-import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
+import {IGatewayProvider} from "@ens/contracts/ccipRead/IGatewayProvider.sol";
+import {ResolverCaller} from "../universalResolver/ResolverCaller.sol";
+import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
+import {RegistryUtils as RegistryUtilsV1, ENS} from "@ens/contracts/universalResolver/RegistryUtils.sol";
 import {IRegistryResolver} from "../common/IRegistryResolver.sol";
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
-import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
@@ -37,7 +39,7 @@ import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceRe
 bytes32 constant ETH_NODE = keccak256(abi.encode(bytes32(0), keccak256("eth")));
 
 /// @notice Resolver that performs ".eth" resolutions for Namechain (via gateway) or V1 (via fallback).
-/// 
+///
 /// Mainnet ".eth" resolutions do not reach this resolver unless there are no resolvers set.
 ///
 /// 1. If there is an active V1 registration, resolve using Universal Resolver for V1.
@@ -49,24 +51,27 @@ contract ETHTLDResolver is
     IFeatureSupporter,
     IRegistryResolver,
     GatewayFetchTarget,
-    CCIPReader,
+    ResolverCaller,
     Ownable,
     ERC165
 {
     using GatewayFetcher for GatewayRequest;
 
+    ENS public immutable registryV1;
     IBaseRegistrar public immutable ethRegistrarV1;
-    IUniversalResolver public immutable universalResolverV1;
     address public immutable burnAddressV1;
     address public ethResolver;
     IGatewayVerifier public namechainVerifier;
     address public immutable namechainDatastore;
     address public immutable namechainEthRegistry;
 
+    /// @dev Shared batch gateway provider.
+    IGatewayProvider public immutable batchGatewayProvider;
+
     /// @notice The maximum number of reads per gateway request.
     /// @dev Valid range [1, 254].
     ///      Actual limit: gateway proof size and/or gas limit.
-    uint8 public maxReadsPerRequest;
+    uint8 public immutable maxReadsPerRequest;
 
     /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;
@@ -74,18 +79,13 @@ contract ETHTLDResolver is
     /// @dev `GatewayRequest` exit code which indicates no resolver was found.
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
 
-    /// @notice `name` does not exist.
-    /// @dev Error selector: `0x5fe9a5df`
-    /// @param name The DNS-encoded ENS name.
-    error UnreachableName(bytes name);
-
     /// @notice The resolver profile cannot be answered.
     /// @dev Error selector: `0x7b1c461b`
     error UnsupportedResolverProfile(bytes4 selector);
 
     constructor(
-        IBaseRegistrar _ethRegistrarV1,
-        IUniversalResolver _universalResolverV1,
+        ENS _registryV1,
+        IGatewayProvider _batchGatewayProvider,
         address _burnAddressV1,
         address _ethResolver,
         IGatewayVerifier _namechainVerifier,
@@ -93,8 +93,9 @@ contract ETHTLDResolver is
         address _namechainEthRegistry,
         uint8 _maxReadsPerRequest
     ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
-        ethRegistrarV1 = _ethRegistrarV1;
-        universalResolverV1 = _universalResolverV1;
+        registryV1 = _registryV1;
+        ethRegistrarV1 = IBaseRegistrar(_registryV1.owner(ETH_NODE));
+        batchGatewayProvider = _batchGatewayProvider;
         burnAddressV1 = _burnAddressV1;
         ethResolver = _ethResolver;
         namechainVerifier = _namechainVerifier;
@@ -128,19 +129,21 @@ contract ETHTLDResolver is
     }
 
     /// @notice Set the resolver for "eth".
-    /// @dev Assumes resolver is `IExtendedResolver`.
     /// @param resolver The new resolver address.
     function setETHResolver(address resolver) external onlyOwner {
         ethResolver = resolver;
     }
 
-    /// @dev Determine if labelhash is actively registered on V1.
-    /// @param id The labelhash of the "eth" 2LD.
-    /// @return True if the registration is active.
-    function _isActiveRegistrationV1(uint256 id) internal view returns (bool) {
+    /// @dev Determine if actively registered on V1.
+    /// @param labelHash The labelhash of the "eth" 2LD.
+    /// @return `true` if the registration is active.
+    function isActiveRegistrationV1(
+        uint256 labelHash
+    ) public view returns (bool) {
+        // TODO: add final migration logic
         return
-            ethRegistrarV1.nameExpires(id) >= block.timestamp &&
-            ethRegistrarV1.ownerOf(id) != burnAddressV1;
+            ethRegistrarV1.nameExpires(labelHash) >= block.timestamp &&
+            ethRegistrarV1.ownerOf(labelHash) != burnAddressV1;
     }
 
     /// @notice Same as `resolveWithRegistry()` but starts at "eth".
@@ -167,16 +170,25 @@ contract ETHTLDResolver is
         }
         if (nodeSuffix == ETH_NODE) {
             if (offset == prevOffset) {
-                ccipRead(
+                callResolver(
                     ethResolver,
-                    abi.encodeCall(IExtendedResolver.resolve, (name, data))
+                    name,
+                    data,
+                    batchGatewayProvider.gateways()
                 );
             }
             (bytes32 labelHash, ) = NameCoder.readLabel(name, prevOffset);
-            if (_isActiveRegistrationV1(uint256(labelHash))) {
-                ccipRead(
-                    address(universalResolverV1),
-                    abi.encodeCall(IUniversalResolver.resolve, (name, data))
+            if (isActiveRegistrationV1(uint256(labelHash))) {
+                (address resolver, , ) = RegistryUtilsV1.findResolver(
+                    registryV1,
+                    name,
+                    0
+                );
+                callResolver(
+                    resolver,
+                    name,
+                    data,
+                    batchGatewayProvider.gateways()
                 );
             }
         }
@@ -196,12 +208,12 @@ contract ETHTLDResolver is
 
     /// @dev State of Namechain resolution.
     struct State {
-        address registry;
+        address registry; // starting parent registry
         bytes name;
-        uint256 nameLength;
-        bool multi;
-        bytes[] data;
-        uint256 index;
+        uint256 nameLength; // name[:nameLength] are the labels to resolve
+        bool multi; // true if multicall
+        bytes[] data; // data[:index] = answers
+        uint256 index; // data[index:] = calls
     }
 
     /// @notice Resolve `state.name[:state.nameLength]` on Namechain starting at `state.registry`.
