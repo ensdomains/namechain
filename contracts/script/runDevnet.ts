@@ -1,6 +1,6 @@
 import { toHex } from "viem";
 import { createMockRelay } from "./mockRelay.js";
-import { setupCrossChainEnvironment } from "./setup.js";
+import { setupCrossChainEnvironment, type ChainDeployment } from "./setup.js";
 
 const env = await setupCrossChainEnvironment({
   l1Port: 8545,
@@ -15,12 +15,7 @@ process.once("SIGINT", async () => {
   process.exit();
 });
 
-createMockRelay({
-  l1Bridge: env.l1.contracts.mockBridge,
-  l2Bridge: env.l2.contracts.mockBridge,
-  l1Client: env.l1.client,
-  l2Client: env.l2.client,
-});
+createMockRelay(env);
 
 console.log("\nAvailable Test Accounts:");
 console.log("========================");
@@ -34,7 +29,7 @@ console.log({
   l2: dump(env.l2),
 });
 
-function dump(deployment: typeof env.l1 | typeof env.l2) {
+function dump(deployment: ChainDeployment) {
   const { client, hostPort, contracts } = deployment;
   return {
     chain: toHex(client.chain.id),
