@@ -2,24 +2,22 @@ import { anvil } from "prool/instances";
 import { executeDeployScripts, resolveConfig, type Environment } from "rocketh";
 import {
   createWalletClient,
-  encodeFunctionData,
   getContract,
-  parseEventLogs,
   webSocket,
   keccak256,
   stringToBytes,
   publicActions,
   testActions,
+  type Account,
   type Chain,
   type Client,
-  type GetContractReturnType,
 } from "viem";
-import { waitForTransactionReceipt } from "viem/actions";
 import { mnemonicToAccount } from "viem/accounts";
 import { type Arguments, artifacts } from "@rocketh";
 import { rm } from "node:fs/promises";
 
 import { deployArtifact } from "../test/fixtures/deployArtifact.js";
+import { deployVerifiableProxy } from "../test/fixtures/deployVerifiableProxy.js";
 import { urgArtifact } from "../test/fixtures/externalArtifacts.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { WebSocketProvider } from "ethers/providers";
@@ -31,17 +29,15 @@ function createDeploymentGetter<C extends Client>(
   client: C,
 ) {
   return <ContractName extends keyof typeof artifacts>(
-    name: ContractName | string,
+    contractName: ContractName,
+    deployedName: string = contractName,
   ) => {
-    const deployment = environment.get(name);
+    const deployment = environment.get(deployedName);
     return getContract({
-      abi: deployment.abi,
+      abi: deployment.abi as (typeof artifacts)[ContractName]["abi"],
       address: deployment.address,
       client,
-    }) as unknown as GetContractReturnType<
-      (typeof artifacts)[ContractName]["abi"],
-      C
-    >;
+    });
   };
 }
 
@@ -229,39 +225,48 @@ export async function setupCrossChainEnvironment({
       hostPort: l1HostPort,
       client: l1Client,
       transport: l1Transport,
-      anvil: l1Anvil,
       contracts: {
         // v1+v2
-        batchGatewayProvider: l1Contracts<"GatewayProvider">(
+        batchGatewayProvider: l1Contracts(
+          "GatewayProvider",
           "BatchGatewayProvider",
         ),
         // v1
-        ensRegistryV1: l1Contracts<"ENSRegistry">("ENSRegistryV1"),
-        ethRegistrarV1:
-          l1Contracts<"BaseRegistrarImplementation">("ETHRegistrarV1"),
-        reverseRegistrarV1:
-          l1Contracts<"ReverseRegistrar">("ReverseRegistrarV1"),
-        publicResolverV1: l1Contracts<"PublicResolver">("PublicResolverV1"),
-        universalResolverV1: l1Contracts<"UniversalResolver">(
+        ensRegistryV1: l1Contracts("ENSRegistry", "ENSRegistryV1"),
+        ethRegistrarV1: l1Contracts(
+          "BaseRegistrarImplementation",
+          "ETHRegistrarV1",
+        ),
+        reverseRegistrarV1: l1Contracts(
+          "ReverseRegistrar",
+          "ReverseRegistrarV1",
+        ),
+        publicResolverV1: l1Contracts("PublicResolver", "PublicResolverV1"),
+        universalResolverV1: l1Contracts(
+          "UniversalResolver",
           "UniversalResolverV1",
         ),
         // v2
         ejectionController: l1Contracts("L1EjectionController"),
-        ethRegistry: l1Contracts("L1ETHRegistry"),
-        ethSelfResolver: l1Contracts<"DedicatedResolver">("ETHSelfResolver"),
+        ethRegistry: l1Contracts("PermissionedRegistry", "ETHRegistry"),
+        ethSelfResolver: l1Contracts("DedicatedResolver", "ETHSelfResolver"),
         ethTLDResolver: l1Contracts("ETHTLDResolver"),
         //dnsTLDResolver: l1Contracts("DNSTLDResolver"),
         mockBridge: l1Contracts("MockL1Bridge"),
-        rootRegistry: l1Contracts<"PermissionedRegistry">("RootRegistry"),
-        universalResolver:
-          l1Contracts<"UniversalResolverV2">("UniversalResolver"),
+        rootRegistry: l1Contracts("PermissionedRegistry", "RootRegistry"),
+        universalResolver: l1Contracts(
+          "UniversalResolverV2",
+          "UniversalResolver",
+        ),
         // shared
         registryDatastore: l1Contracts("RegistryDatastore"),
         simpleRegistryMetadata: l1Contracts("SimpleRegistryMetadata"),
-        dedicatedResolverFactory: l1Contracts<"VerifiableFactory">(
+        dedicatedResolverFactory: l1Contracts(
+          "VerifiableFactory",
           "DedicatedResolverFactory",
         ),
-        dedicatedResolverImpl: l1Contracts<"DedicatedResolver">(
+        dedicatedResolverImpl: l1Contracts(
+          "DedicatedResolver",
           "DedicatedResolverImpl",
         ),
       },
@@ -273,21 +278,22 @@ export async function setupCrossChainEnvironment({
       hostPort: l2HostPort,
       client: l2Client,
       transport: l2Transport,
-      anvil: l2Anvil,
       contracts: {
         // v2
         ethRegistrar: l2Contracts("ETHRegistrar"),
-        ethRegistry: l2Contracts<"PermissionedRegistry">("ETHRegistry"),
+        ethRegistry: l2Contracts("PermissionedRegistry", "ETHRegistry"),
         bridgeController: l2Contracts("L2BridgeController"),
         mockBridge: l2Contracts("MockL2Bridge"),
         tokenPriceOracle: l2Contracts("StableTokenPriceOracle"),
         // shared
         registryDatastore: l2Contracts("RegistryDatastore"),
         simpleRegistryMetadata: l2Contracts("SimpleRegistryMetadata"),
-        dedicatedResolverFactory: l2Contracts<"VerifiableFactory">(
+        dedicatedResolverFactory: l2Contracts(
+          "VerifiableFactory",
           "DedicatedResolverFactory",
         ),
-        dedicatedResolverImpl: l2Contracts<"DedicatedResolver">(
+        dedicatedResolverImpl: l2Contracts(
+          "DedicatedResolver",
           "DedicatedResolverImpl",
         ),
       },
@@ -307,44 +313,24 @@ export async function setupCrossChainEnvironment({
       shutdown,
     };
     async function sync() {
-      //await Promise.all([l1, l2].map((x) => x.client.mine({ blocks: 1 })));
       const args = { blocks: 1 };
       await Promise.all([l1Client.mine(args), l2Client.mine(args)]);
     }
     async function deployDedicatedResolver(
       this: typeof l1 | typeof l2,
-      account = this.client.account,
+      account: Account,
       salt = BigInt(keccak256(stringToBytes(new Date().toISOString()))),
     ) {
-      const client = createWalletClient({
-        chain: this.client.chain,
-        transport: this.transport,
-        account,
-      });
-      const hash = await client.writeContract({
-        address: this.contracts.dedicatedResolverFactory.address,
-        abi: this.contracts.dedicatedResolverFactory.abi,
-        functionName: "deployProxy",
-        args: [
-          this.contracts.dedicatedResolverImpl.address,
-          salt,
-          encodeFunctionData({
-            abi: this.contracts.dedicatedResolverImpl.abi,
-            functionName: "initialize",
-            args: [account.address],
-          }),
-        ],
-      });
-      const receipt = await waitForTransactionReceipt(client, { hash });
-      const [log] = parseEventLogs({
-        abi: this.contracts.dedicatedResolverFactory.abi,
-        eventName: "ProxyDeployed",
-        logs: receipt.logs,
-      });
-      return getContract({
-        abi: this.contracts.dedicatedResolverImpl.abi,
-        address: log.args.proxyAddress,
-        client,
+      return deployVerifiableProxy({
+        walletClient: createWalletClient({
+          chain: this.client.chain,
+          transport: this.transport,
+          account,
+        }),
+        factoryAddress: this.contracts.dedicatedResolverFactory.address,
+        implAddress: this.contracts.dedicatedResolverImpl.address,
+        implAbi: this.contracts.dedicatedResolverImpl.abi,
+        salt,
       });
     }
   } catch (err) {
