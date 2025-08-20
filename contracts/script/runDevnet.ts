@@ -1,4 +1,4 @@
-import { toHex } from "viem";
+import { toHex, labelhash, zeroAddress } from "viem";
 import { createMockRelay } from "./mockRelay.js";
 import { setupCrossChainEnvironment } from "./setup.js";
 
@@ -20,6 +20,59 @@ createMockRelay({
   l1Client: env.l1.client,
   l2Client: env.l2.client,
 });
+
+// Register default test names on L2
+async function registerTestNames() {
+  console.log("\n📝 Registering default test names on L2...");
+
+  const testNames = ["test", "example", "demo"];
+  const owner = env.accounts[1]; // Use second account as owner
+
+  for (const label of testNames) {
+    try {
+      // Deploy a dedicated resolver for this name (same as test)
+      const resolver = await env.l2.deployDedicatedResolver(owner);
+
+      // Register the name exactly like in urg.test.ts
+      await env.l2.contracts.ethRegistry.write.register([
+        label,
+        owner.address,
+        zeroAddress,
+        resolver.address,
+        0n,
+        BigInt(Math.floor(Date.now() / 1000) + 10000),
+      ]);
+
+      // Set some default records
+      await resolver.write.setAddr(
+        [
+          60n, // ETH coin type
+          owner.address,
+        ],
+        { account: owner },
+      );
+
+      await resolver.write.setText(
+        ["description", `Default test name: ${label}.eth`],
+        { account: owner },
+      );
+
+      console.log(`   ✅ Registered ${label}.eth`);
+      console.log(`      Owner: ${owner.address}`);
+      console.log(`      Resolver: ${resolver.address}`);
+    } catch (error) {
+      console.log(`   ⚠️  Failed to register ${label}.eth: ${error.message}`);
+    }
+  }
+
+  console.log("\n📋 Test names registered:");
+  console.log("   - test.eth");
+  console.log("   - example.eth");
+  console.log("   - demo.eth");
+}
+
+// Register test names
+await registerTestNames();
 
 console.log("\nAvailable Test Accounts:");
 console.log("========================");
