@@ -1,106 +1,103 @@
-import type { Client, Hash, Hex } from "viem";
-import { waitForTransactionReceipt } from "viem/actions";
+import type { Hex } from "viem";
+import type { CrossChainEnvironment } from "./setup.js";
 
-import type { L1Client, L1Contracts, L2Client, L2Contracts } from "./setup.js";
+export function createMockRelay(env: CrossChainEnvironment) {
+  const { bridge } = env.namedAccounts;
+  const l1 = env.l1.contracts.MockL1Bridge;
+  const l2 = env.l2.contracts.MockL2Bridge;
+  const map = new Map<
+    Hex,
+    {
+      resolve: () => void;
+      reject: (reason?: any) => void;
+    }
+  >();
 
-const expectSuccess = async (client: Client, hashPromise: Promise<Hash>) => {
-  const txHash = await hashPromise;
-  const receipt = await waitForTransactionReceipt(client, { hash: txHash });
-  if (receipt.status !== "success") throw new Error("Transaction failed!");
-  return receipt;
-};
+  async function sendToL2(message: Hex) {
+    console.log("Relaying bridged message from L1 to L2");
+    try {
+      const hash = await l2.write.receiveMessage([message]);
+      const receipt = await env.l2.client.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") throw new Error("Transaction failed!");
+      console.log(`Message relayed to L2, tx hash: ${hash}`);
+      return receipt;
+    } catch (err) {
+      console.error("Error relaying bridged message from L1 to L2:", err);
+      throw err;
+    }
+  }
 
-export function createMockRelay({
-  l1Bridge,
-  l2Bridge,
-  l1Client,
-  l2Client,
-}: {
-  l1Bridge: L1Contracts["mockBridge"];
-  l2Bridge: L2Contracts["mockBridge"];
-  l1Client: L1Client;
-  l2Client: L2Client;
-}) {
-  // Listen for L1 bridge events (ejection/migration to L2)
-  const unwatchL1Bridge = l1Bridge.watchEvent.NameBridgedToL2({
-    onLogs: async (logs: any[]) => {
-      for (const log of logs) {
-        console.log("Relaying bridged message from L1 to L2");
-        const { message } = log.args;
-        try {
-          const receipt = await expectSuccess(
-            l2Client,
-            (l2Bridge.write as any).receiveMessage([message]),
-          );
-          console.log(
-            `Message relayed to L2, tx hash: ${receipt.transactionHash}`,
-          );
-        } catch (error) {
-          console.error("Error relaying bridged message from L1 to L2:", error);
-        }
-      }
-    },
-  });
-
-  // Listen for L2 bridge events (ejection to L1)
-  const unwatchL2Bridge = l2Bridge.watchEvent.NameBridgedToL1({
-    onLogs: async (logs: any[]) => {
-      for (const log of logs) {
-        console.log("Relaying bridged message from L2 to L1");
-        const { message } = log.args;
-        try {
-          const receipt = await expectSuccess(
-            l1Client,
-            (l1Bridge.write as any).receiveMessage([message]),
-          );
-          console.log(
-            `Message relayed to L1, tx hash: ${receipt.transactionHash}`,
-          );
-        } catch (error) {
-          console.error("Error relaying bridged message from L2 to L1:", error);
-        }
-      }
-    },
-  });
-
-  const manualRelay = async ({
-    targetChain,
-    message,
-  }: {
-    targetChain: "l1" | "l2";
-    message: Hex;
-  }) =>
-    (targetChain === "l1"
-      ? expectSuccess(
-          l1Client,
-          (l1Bridge.write as any).receiveMessage([message]),
-        )
-      : expectSuccess(
-          l2Client,
-          (l2Bridge.write as any).receiveMessage([message]),
-        )
-    )
-      .then((receipt) => {
-        console.log(
-          `Message relayed to ${targetChain}, tx hash: ${receipt.transactionHash}`,
-        );
-        return receipt;
-      })
-      .catch((e) => {
-        console.error(`Error in manual relay:`, e);
-        throw e;
+  async function sendToL1(message: Hex) {
+    console.log("Relaying bridged message from L2 to L1");
+    try {
+      const hash = await l1.write.receiveMessage([message], {
+        account: bridge,
       });
+      const receipt = await env.l1.client.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") throw new Error("Transaction failed!");
+      console.log(`Message relayed to L1, tx hash: ${hash}`);
+      return receipt;
+    } catch (err) {
+      console.error("Error relaying bridged message from L2 to L1:", err);
+      throw err;
+    }
+  }
 
-  const removeListeners = () => {
-    unwatchL1Bridge();
-    unwatchL2Bridge();
-  };
+  const unwatchL1 = l1.watchEvent.NameBridgedToL2({
+    onLogs: async (logs) => {
+      for (const log of logs) {
+        const { message } = log.args;
+        if (!message) continue;
+        const waiter = map.get(log.transactionHash);
+        map.delete(log.transactionHash);
+        try {
+          await sendToL2(message);
+          waiter?.resolve();
+        } catch (err: any) {
+          waiter?.reject(err);
+        }
+      }
+    },
+  });
+
+  const unwatchL2 = l2.watchEvent.NameBridgedToL1({
+    onLogs: async (logs) => {
+      for (const log of logs) {
+        const { message } = log.args;
+        if (!message) continue;
+        const waiter = map.get(log.transactionHash);
+        map.delete(log.transactionHash);
+        try {
+          await sendToL1(message);
+          waiter?.resolve();
+        } catch (err: any) {
+          waiter?.reject(err);
+        }
+      }
+    },
+  });
+
+  async function waitFor(tx: Promise<Hex>) {
+    const hash = await tx;
+    const { promise, resolve, reject } = Promise.withResolvers<void>();
+    map.set(hash, { resolve, reject });
+    const receipt = await Promise.any([
+      env.l1.client.waitForTransactionReceipt({ hash }),
+      env.l2.client.waitForTransactionReceipt({ hash }),
+    ]);
+    return promise.then(() => receipt);
+  }
 
   console.log("Created Mock Relay");
   return {
-    manualRelay,
-    removeListeners,
+    waitFor,
+    sendToL1,
+    sendToL2,
+    removeListeners() {
+      unwatchL1();
+      unwatchL2();
+    },
   };
 }
 
-export type MockRelay = ReturnType<typeof createMockRelay>;
+export type MockRelayer = ReturnType<typeof createMockRelay>;

@@ -1,7 +1,7 @@
 import { describe, it, beforeAll, afterAll } from "vitest";
 import { zeroAddress } from "viem";
 
-import { setupCrossChainEnvironment } from "../script/setup.js";
+import { type CrossChainEnvironment, setupCrossChainEnvironment } from "../script/setup.js";
 import { dnsEncodeName } from "../test/utils/utils.js";
 import {
   COIN_TYPE_ETH,
@@ -12,7 +12,7 @@ import {
 } from "../test/utils/resolutions.js";
 
 describe("Urg", () => {
-  let env: Awaited<ReturnType<typeof setupCrossChainEnvironment>>;
+  let env: CrossChainEnvironment;
   beforeAll(async () => {
     env = await setupCrossChainEnvironment();
     afterAll(env.shutdown);
@@ -34,7 +34,7 @@ describe("Urg", () => {
       const resolver = await env.l2.deployDedicatedResolver(owner);
       await resolver.write.multicall([sets.map((x) => x.writeDedicated)]);
 
-      await env.l2.contracts.ethRegistry.write.register([
+      await env.l2.contracts.ETHRegistry.write.register([
         label,
         owner.address,
         zeroAddress,
@@ -45,7 +45,7 @@ describe("Urg", () => {
 
       await env.sync();
       const bundle = bundleCalls(gets);
-      const [answer] = await env.l1.contracts.universalResolver.read.resolve([
+      const [answer] = await env.l1.contracts.UniversalResolver.read.resolve([
         dnsEncodeName(name),
         bundle.call,
       ]);

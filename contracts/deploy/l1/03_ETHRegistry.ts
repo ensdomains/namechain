@@ -16,7 +16,7 @@ export default execute(
     const ethTLDResolver =
       get<(typeof artifacts.ETHTLDResolver)["abi"]>("ETHTLDResolver");
 
-    const ethRegistry = await deploy("L1ETHRegistry", {
+    const ethRegistry = await deploy("ETHRegistry", {
       account: deployer,
       artifact: artifacts.PermissionedRegistry,
       args: [

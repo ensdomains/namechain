@@ -2,47 +2,109 @@ import { anvil } from "prool/instances";
 import { executeDeployScripts, resolveConfig, type Environment } from "rocketh";
 import {
   createWalletClient,
-  encodeFunctionData,
   getContract,
-  parseEventLogs,
   webSocket,
-  keccak256,
-  stringToBytes,
   publicActions,
   testActions,
+  type Account,
+  type Address,
   type Chain,
-  type Client,
+  type Transport,
+  Client,
+  Abi,
   type GetContractReturnType,
 } from "viem";
-import { waitForTransactionReceipt } from "viem/actions";
 import { mnemonicToAccount } from "viem/accounts";
 import { type Arguments, artifacts } from "@rocketh";
 import { rm } from "node:fs/promises";
 
 import { deployArtifact } from "../test/fixtures/deployArtifact.js";
+import { deployVerifiableProxy } from "../test/fixtures/deployVerifiableProxy.ts";
 import { urgArtifact } from "../test/fixtures/externalArtifacts.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { WebSocketProvider } from "ethers/providers";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { serve } from "@namestone/ezccip/serve";
 
-function createDeploymentGetter<C extends Client>(
-  environment: Environment,
-  client: C,
-) {
-  return <ContractName extends keyof typeof artifacts>(
-    name: ContractName | string,
-  ) => {
-    const deployment = environment.get(name);
-    return getContract({
-      abi: deployment.abi,
-      address: deployment.address,
-      client,
-    }) as unknown as GetContractReturnType<
-      (typeof artifacts)[ContractName]["abi"],
-      C
-    >;
-  };
+type DeployedArtifacts = Record<string, Abi>;
+
+const sharedContracts = {
+  RegistryDatastore: artifacts.RegistryDatastore.abi,
+  SimpleRegistryMetadata: artifacts.SimpleRegistryMetadata.abi,
+  DedicatedResolverFactory: artifacts.VerifiableFactory.abi,
+  DedicatedResolverImpl: artifacts.DedicatedResolver.abi,
+} as const satisfies DeployedArtifacts;
+
+const l1Contracts = {
+  ...sharedContracts,
+  // v1
+  BatchGatewayProvider: artifacts.GatewayProvider.abi,
+  ENSRegistryV1: artifacts.ENSRegistry.abi,
+  ETHRegistrarV1: artifacts.BaseRegistrarImplementation.abi,
+  ReverseRegistrarV1: artifacts.ReverseRegistrar.abi,
+  PublicResolverV1: artifacts.PublicResolver.abi,
+  UniversalResolverV1: artifacts.UniversalResolver.abi,
+  // v2
+  MockL1Bridge: artifacts.MockL1Bridge.abi,
+  L1EjectionController: artifacts.L1EjectionController.abi,
+  ETHRegistry: artifacts.PermissionedRegistry.abi,
+  ETHSelfResolver: artifacts.DedicatedResolver.abi,
+  ETHTLDResolver: artifacts.ETHTLDResolver.abi,
+  //DNSTLDResolver: artifacts.DNSTLDResolver.abi,
+  RootRegistry: artifacts.PermissionedRegistry.abi,
+  UniversalResolver: artifacts.UniversalResolverV2.abi,
+} as const satisfies DeployedArtifacts;
+
+const l2Contracts = {
+  ...sharedContracts,
+  MockL2Bridge: artifacts.MockL2Bridge.abi,
+  L2BridgeController: artifacts.L2BridgeController.abi,
+  ETHRegistrar: artifacts.ETHRegistrar.abi,
+  ETHRegistry: artifacts.PermissionedRegistry.abi,
+  StableTokenPriceOracle: artifacts.StableTokenPriceOracle.abi,
+} as const satisfies DeployedArtifacts;
+
+export class ChainDeployment<
+  A extends typeof sharedContracts & DeployedArtifacts = typeof sharedContracts,
+  C extends Client<Transport, Chain, Account> = Client<
+    Transport,
+    Chain,
+    Account
+  >,
+> {
+  readonly contracts: { [K in keyof A]: GetContractReturnType<A[K], C> };
+  constructor(
+    readonly client: C,
+    readonly hostPort: string,
+    readonly transport: Transport,
+    readonly env: Environment,
+    namedArtifacts: A,
+  ) {
+    this.contracts = Object.fromEntries(
+      Object.entries(namedArtifacts).map(([name, abi]) => {
+        const deployment = env.get(name);
+        const contract = getContract({
+          abi: deployment.abi,
+          address: deployment.address,
+          client,
+        }) as unknown as GetContractReturnType<typeof abi, C>;
+        return [name, contract];
+      }),
+    ) as typeof this.contracts;
+  }
+  deployDedicatedResolver(account: Account, salt?: bigint) {
+    return deployVerifiableProxy({
+      walletClient: createWalletClient({
+        chain: this.client.chain,
+        transport: this.transport,
+        account,
+      }),
+      factoryAddress: this.contracts.DedicatedResolverFactory.address,
+      implAddress: this.contracts.DedicatedResolverImpl.address,
+      implAbi: this.contracts.DedicatedResolverImpl.abi,
+      salt,
+    });
+  }
 }
 
 export async function setupCrossChainEnvironment({
@@ -89,7 +151,8 @@ export async function setupCrossChainEnvironment({
   // name accounts (exposed as `namedAccounts` in rocketh)
   const deployer = accounts[0];
   deployer.name = "deployer";
-  accounts[1].name = "owner";
+  accounts[1].name = "bridge";
+  accounts[2].name = "owner";
 
   // shutdown functions for partial initialization
   const finalizers: (() => Promise<void>)[] = [];
@@ -122,36 +185,38 @@ export async function setupCrossChainEnvironment({
     const l1Transport = webSocket(`ws://${l1HostPort}`, transportOptions);
     const l2Transport = webSocket(`ws://${l2HostPort}`, transportOptions);
 
+    const nativeCurrency = { name: "Ether", symbol: "ETH", decimals: 18 };
+    const pollingInterval = 25;
+
     const l1Client = createWalletClient({
       chain: {
         id: l1ChainId,
         name: "L1 Local",
-        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-        rpcUrls: {
-          default: { http: [`http://${l1HostPort}`] },
-        },
+        nativeCurrency,
+        rpcUrls: { default: { http: [`http://${l1HostPort}`] } },
       },
       transport: l1Transport,
       account: deployer,
-    })
-      .extend(publicActions)
-      .extend(testActions({ mode: "anvil" }));
-    const l2Client = createWalletClient({
-      chain: {
-        id: l2ChainId,
-        name: "L2 Local",
-        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-        rpcUrls: {
-          default: { http: [`http://${l2HostPort}`] },
-        },
-      },
-      transport: l2Transport,
-      account: deployer,
+      pollingInterval,
     })
       .extend(publicActions)
       .extend(testActions({ mode: "anvil" }));
 
-    async function deploy(tag: string, chain: Chain, args?: Arguments) {
+    const l2Client = createWalletClient({
+      chain: {
+        id: l2ChainId,
+        name: "L2 Local",
+        nativeCurrency,
+        rpcUrls: { default: { http: [`http://${l2HostPort}`] } },
+      },
+      transport: l2Transport,
+      account: deployer,
+      pollingInterval,
+    })
+      .extend(publicActions)
+      .extend(testActions({ mode: "anvil" }));
+
+    async function deployRocketh(tag: string, chain: Chain, args?: Arguments) {
       const name = `${tag}-local`;
       if (saveDeployments) {
         await rm(new URL(`../deployments/${name}`, import.meta.url), {
@@ -184,7 +249,7 @@ export async function setupCrossChainEnvironment({
     }
 
     console.log("Deploying L2");
-    const l2Deploy = await deploy("l2", l2Client.chain);
+    const l2Deploy = await deployRocketh("l2", l2Client.chain);
 
     console.log("Launching Urg");
     const gateway = new Gateway(
@@ -217,82 +282,29 @@ export async function setupCrossChainEnvironment({
     });
 
     console.log("Deploying L1");
-    const l1Deploy = await deploy("l1", l1Client.chain, {
+    const l1Deploy = await deployRocketh("l1", l1Client.chain, {
       l2Deploy,
       verifierAddress,
     });
 
     console.log("Deployed ENSv2");
 
-    const l1Contracts = createDeploymentGetter(l1Deploy, l1Client);
-    const l1 = {
-      hostPort: l1HostPort,
-      client: l1Client,
-      transport: l1Transport,
-      anvil: l1Anvil,
-      contracts: {
-        // v1+v2
-        batchGatewayProvider: l1Contracts<"GatewayProvider">(
-          "BatchGatewayProvider",
-        ),
-        // v1
-        ensRegistryV1: l1Contracts<"ENSRegistry">("ENSRegistryV1"),
-        ethRegistrarV1:
-          l1Contracts<"BaseRegistrarImplementation">("ETHRegistrarV1"),
-        reverseRegistrarV1:
-          l1Contracts<"ReverseRegistrar">("ReverseRegistrarV1"),
-        publicResolverV1: l1Contracts<"PublicResolver">("PublicResolverV1"),
-        universalResolverV1: l1Contracts<"UniversalResolver">(
-          "UniversalResolverV1",
-        ),
-        // v2
-        ejectionController: l1Contracts("L1EjectionController"),
-        ethRegistry: l1Contracts("L1ETHRegistry"),
-        ethSelfResolver: l1Contracts<"DedicatedResolver">("ETHSelfResolver"),
-        ethTLDResolver: l1Contracts("ETHTLDResolver"),
-        //dnsTLDResolver: l1Contracts("DNSTLDResolver"),
-        mockBridge: l1Contracts("MockL1Bridge"),
-        rootRegistry: l1Contracts<"PermissionedRegistry">("RootRegistry"),
-        universalResolver:
-          l1Contracts<"UniversalResolverV2">("UniversalResolver"),
-        // shared
-        registryDatastore: l1Contracts("RegistryDatastore"),
-        simpleRegistryMetadata: l1Contracts("SimpleRegistryMetadata"),
-        dedicatedResolverFactory: l1Contracts<"VerifiableFactory">(
-          "DedicatedResolverFactory",
-        ),
-        dedicatedResolverImpl: l1Contracts<"DedicatedResolver">(
-          "DedicatedResolverImpl",
-        ),
-      },
-      deployDedicatedResolver,
-    };
+    const l1 = new ChainDeployment(
+      l1Client,
+      l1HostPort,
+      l1Transport,
+      l1Deploy,
+      l1Contracts,
+    );
 
-    const l2Contracts = createDeploymentGetter(l2Deploy, l2Client);
-    const l2 = {
-      hostPort: l2HostPort,
-      client: l2Client,
-      transport: l2Transport,
-      anvil: l2Anvil,
-      contracts: {
-        // v2
-        ethRegistrar: l2Contracts("ETHRegistrar"),
-        ethRegistry: l2Contracts<"PermissionedRegistry">("ETHRegistry"),
-        bridgeController: l2Contracts("L2BridgeController"),
-        mockBridge: l2Contracts("MockL2Bridge"),
-        tokenPriceOracle: l2Contracts("StableTokenPriceOracle"),
-        // shared
-        registryDatastore: l2Contracts("RegistryDatastore"),
-        simpleRegistryMetadata: l2Contracts("SimpleRegistryMetadata"),
-        dedicatedResolverFactory: l2Contracts<"VerifiableFactory">(
-          "DedicatedResolverFactory",
-        ),
-        dedicatedResolverImpl: l2Contracts<"DedicatedResolver">(
-          "DedicatedResolverImpl",
-        ),
-      },
-      deployDedicatedResolver,
-    };
+    const l2 = new ChainDeployment(
+      l2Client,
+      l2HostPort,
+      l2Transport,
+      l2Deploy,
+      l2Contracts,
+    );
+
     return {
       accounts,
       namedAccounts: Object.fromEntries(accounts.map((x) => [x.name, x])),
@@ -305,57 +317,18 @@ export async function setupCrossChainEnvironment({
       },
       sync,
       shutdown,
-    };
+    } as const;
     async function sync() {
       //await Promise.all([l1, l2].map((x) => x.client.mine({ blocks: 1 })));
       const args = { blocks: 1 };
       await Promise.all([l1Client.mine(args), l2Client.mine(args)]);
-    }
-    async function deployDedicatedResolver(
-      this: typeof l1 | typeof l2,
-      account = this.client.account,
-      salt = BigInt(keccak256(stringToBytes(new Date().toISOString()))),
-    ) {
-      const client = createWalletClient({
-        chain: this.client.chain,
-        transport: this.transport,
-        account,
-      });
-      const hash = await client.writeContract({
-        address: this.contracts.dedicatedResolverFactory.address,
-        abi: this.contracts.dedicatedResolverFactory.abi,
-        functionName: "deployProxy",
-        args: [
-          this.contracts.dedicatedResolverImpl.address,
-          salt,
-          encodeFunctionData({
-            abi: this.contracts.dedicatedResolverImpl.abi,
-            functionName: "initialize",
-            args: [account.address],
-          }),
-        ],
-      });
-      const receipt = await waitForTransactionReceipt(client, { hash });
-      const [log] = parseEventLogs({
-        abi: this.contracts.dedicatedResolverFactory.abi,
-        eventName: "ProxyDeployed",
-        logs: receipt.logs,
-      });
-      return getContract({
-        abi: this.contracts.dedicatedResolverImpl.abi,
-        address: log.args.proxyAddress,
-        client,
-      });
     }
   } catch (err) {
     await shutdown();
     throw err;
   }
 }
+
 export type CrossChainEnvironment = Awaited<
   ReturnType<typeof setupCrossChainEnvironment>
 >;
-export type L1Contracts = CrossChainEnvironment["l1"]["contracts"];
-export type L2Contracts = CrossChainEnvironment["l2"]["contracts"];
-export type L1Client = CrossChainEnvironment["l1"]["client"];
-export type L2Client = CrossChainEnvironment["l2"]["client"];
