@@ -12,6 +12,7 @@
     "clean": "forge clean && hardhat clean",
     "devnet": "bun ./script/runDevnet.ts",
     "aakit": "bun ./script/deployAAkit.ts",
+    "devnet:clean": "bun run test && bun ./script/runDevnet.ts",
     "check:types": "tsc --noEmit"
   },
   "devDependencies": {

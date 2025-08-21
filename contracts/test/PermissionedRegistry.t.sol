@@ -14,6 +14,8 @@ import "../src/common/BaseRegistry.sol";
 import "../src/common/IPermissionedRegistry.sol";
 import "../src/L2/ETHRegistrar.sol";
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
+import {ITokenPriceOracle} from "../src/L2/ITokenPriceOracle.sol";
+import {TokenPriceOracle} from "../src/L2/TokenPriceOracle.sol";
 import "../src/common/ITokenObserver.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
@@ -29,7 +31,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     MockTokenObserver observer;
     RevertingTokenObserver revertingObserver;
     IRegistryMetadata metadata;
-    MockPriceOracle priceOracle;
+    ITokenPriceOracle priceOracle;
 
     // Role bitmaps for different permission configurations
 
@@ -50,8 +52,14 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry = new MockPermissionedRegistry(datastore, metadata, address(this), deployerRoles);
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
-        priceOracle = new MockPriceOracle();
-        registrar = new ETHRegistrar(address(registry), priceOracle, 60, 86400);
+        // Create TokenPriceOracle with minimal test setup
+        address[] memory tokens = new address[](0); // No tokens needed for basic tests
+        uint8[] memory decimals = new uint8[](0);
+        uint256[] memory rentPrices = new uint256[](1);
+        rentPrices[0] = 1000000; // 1 USD in 6 decimals
+        
+        priceOracle = ITokenPriceOracle(address(new TokenPriceOracle(tokens, decimals, rentPrices)));
+        registrar = new ETHRegistrar(address(registry), priceOracle, 60, 86400, address(0x99));
     }
 
     function test_constructor_sets_roles() public view {
@@ -957,6 +965,50 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertEq(counts, 0, "Should have 0 counts for empty bitmap");
     }
 
+    function test_transfer_succeeds_with_max_assignees_BET_430() public {
+        // Register a token with default roles
+        address tokenOwner = makeAddr("tokenOwner");
+        uint256 tokenId = registry.register("maxtransfertest", tokenOwner, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        
+        uint256 resourceId = registry.testGetResourceFromTokenId(tokenId);
+        
+        // Create 14 additional addresses and grant them the same role as the token owner has
+        address[] memory additionalUsers = new address[](14);
+        for (uint256 i = 0; i < 14; i++) {
+            additionalUsers[i] = makeAddr(string(abi.encodePacked("maxUser", i)));
+            // Grant ROLE_SET_RESOLVER to reach max assignees (owner + 14 others = 15 total)
+            registry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, additionalUsers[i]);
+        }
+        
+        // Get the current token ID after role grants (which may have triggered regeneration)
+        uint256 currentTokenId = registry.testGetTokenIdFromResource(resourceId);
+        
+        // Verify we have 15 assignees for ROLE_SET_RESOLVER (max allowed)
+        (uint256 counts,) = registry.getAssigneeCount(currentTokenId, LibRegistryRoles.ROLE_SET_RESOLVER);
+        uint256 expectedCount = 15 << 12; // ROLE_SET_RESOLVER is at bit 12, so count goes to position 12
+        assertEq(counts, expectedCount, "Should have 15 assignees for ROLE_SET_RESOLVER");
+        
+        // Now attempt to transfer the token to a new address
+        address newOwner = makeAddr("newTokenOwner");
+        
+        // This transfer should NOT fail even though we're at max assignees
+        vm.prank(tokenOwner);
+        registry.safeTransferFrom(tokenOwner, newOwner, currentTokenId, 1, "");
+        
+        // Verify the transfer succeeded
+        assertEq(registry.ownerOf(currentTokenId), newOwner, "Token should be transferred to new owner");
+        
+        // Verify the new owner has the roles
+        assertTrue(registry.hasRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, newOwner), "New owner should have ROLE_SET_RESOLVER");
+        
+        // Verify the old owner no longer has roles  
+        assertFalse(registry.hasRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, tokenOwner), "Old owner should no longer have ROLE_SET_RESOLVER");
+        
+        // Verify we still have 15 total assignees (the 14 additional users + new owner)
+        (uint256 countsAfter,) = registry.getAssigneeCount(currentTokenId, LibRegistryRoles.ROLE_SET_RESOLVER);
+        assertEq(countsAfter, expectedCount, "Should still have 15 assignees after transfer");
+    }
+
     function test_getRoleAssigneeCount_nonexistent_role() public {
         uint256 tokenId = registry.register("counttest10", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
         
@@ -989,11 +1041,3 @@ contract RevertingTokenObserver is ITokenObserver {
     }
 }
 
-contract MockPriceOracle is IPriceOracle {
-    function price(string memory, uint256, uint256) external pure override returns (Price memory) {
-        return Price({
-            base: 0.01 ether,
-            premium: 0
-        });
-    }
-}

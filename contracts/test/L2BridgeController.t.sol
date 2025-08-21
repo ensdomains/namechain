@@ -412,8 +412,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         // Scenario 2: Grant the missing roles, then add extra assignees
         uint256 resource2 = ethRegistry.testGetResourceFromTokenId(tokenId2);
         ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_SUBREGISTRY, user);
-        ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN, user);
-        ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN, user);
+        ethRegistry.grantRolesDirect(resource2, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN, user);
+        ethRegistry.grantRolesDirect(resource2, LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN, user);
         address secondUser = address(0x999);
         ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, secondUser);
         

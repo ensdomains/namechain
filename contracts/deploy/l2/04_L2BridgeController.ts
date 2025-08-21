@@ -3,24 +3,22 @@ import { artifacts, execute } from "@rocketh";
 import { ROLES } from "../constants.ts";
 
 export default execute(
-  async ({ get, deploy, namedAccounts, execute: write }) => {
+  async ({ deploy, execute: write, get, namedAccounts }) => {
     const { deployer } = namedAccounts;
 
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
+
     const l2Bridge =
       get<(typeof artifacts.MockL2Bridge)["abi"]>("MockL2Bridge");
+
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
 
     const l2BridgeController = await deploy("L2BridgeController", {
       account: deployer,
       artifact: artifacts.L2BridgeController,
-      args: [
-        l2Bridge.address,
-        ethRegistry.address,
-        registryDatastore.address
-      ],
+      args: [l2Bridge.address, ethRegistry.address, registryDatastore.address],
     });
 
     // Set the bridge controller on the bridge
@@ -50,6 +48,11 @@ export default execute(
   // finally you can pass tags and dependencies
   {
     tags: ["L2BridgeController", "registry", "l2"],
-    dependencies: ["ETHRegistry", "MockL2Bridge", "RegistryDatastore", "VerifiableFactory"],
+    dependencies: [
+      "ETHRegistry",
+      "MockL2Bridge",
+      "RegistryDatastore",
+      "VerifiableFactory",
+    ],
   },
-); 
+);

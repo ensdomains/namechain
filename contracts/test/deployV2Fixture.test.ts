@@ -1,5 +1,5 @@
 import hre from "hardhat";
-import type { Address } from "viem";
+import { zeroAddress, type Address } from "viem";
 import { describe, expect, it } from "vitest";
 
 import { deployV2Fixture, ROLES } from "./fixtures/deployV2Fixture.ts";
@@ -29,18 +29,25 @@ function expectRegistries(
 describe("deployV2Fixture", () => {
   it("setupName()", async () => {
     const F = await loadFixture();
-    const { labels, tokenId, parentRegistry, exactRegistry, registries } =
-      await F.setupName({
-        name: "test.eth",
-      });
+    const {
+      labels,
+      tokenId,
+      parentRegistry,
+      exactRegistry,
+      registries,
+      dedicatedResolver,
+    } = await F.setupName({
+      name: "test.eth",
+    });
     expectVar({ labels }).toStrictEqual(["test", "eth"]);
     expectVar({ tokenId }).toEqual(labelToCanonicalId("test"));
     expectVar({ parentRegistry }).toEqual(registries[1]);
     expectVar({ exactRegistry }).toBeUndefined();
+    expectVar({ dedicatedResolver }).toBeDefined();
     expectRegistries(registries, [undefined, F.ethRegistry, F.rootRegistry]);
   });
 
-  it("setupName() w/ exact", async () => {
+  it("setupName() w/exact", async () => {
     const F = await loadFixture();
     const { labels, tokenId, parentRegistry, exactRegistry, registries } =
       await F.setupName({
@@ -56,6 +63,15 @@ describe("deployV2Fixture", () => {
       F.ethRegistry,
       F.rootRegistry,
     ]);
+  });
+
+  it("setupName() w/resolver", async () => {
+    const F = await loadFixture();
+    const { dedicatedResolver } = await F.setupName({
+      name: "test.eth",
+      resolverAddress: zeroAddress,
+    });
+    expectVar({ dedicatedResolver }).toBeUndefined();
   });
 
   it("overlapping names", async () => {

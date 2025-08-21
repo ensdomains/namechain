@@ -2,21 +2,23 @@
 import { artifacts, execute } from "@rocketh";
 
 export default execute(
-  async ({ deploy, namedAccounts, get }) => {
-    const { deployer } = namedAccounts;
-
+  async ({ deploy, get, namedAccounts: { deployer } }) => {
     const rootRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("RootRegistry");
+
+    const batchGatewayProvider = get<(typeof artifacts.GatewayProvider)["abi"]>(
+      "BatchGatewayProvider",
+    );
 
     await deploy("UniversalResolver", {
       account: deployer,
       artifact: artifacts.UniversalResolverV2,
-      args: [rootRegistry.address, ["x-batch-gateway:true"]],
+      args: [rootRegistry.address, batchGatewayProvider.address],
     });
   },
   // finally you can pass tags and dependencies
   {
     tags: ["UniversalResolver", "l1"],
-    dependencies: ["RootRegistry"],
+    dependencies: ["RootRegistry", "BatchGatewayProvider"],
   },
 );
