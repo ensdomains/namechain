@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-library PriceUtils {
+library HalvingUtils {
     uint256 constant PRECISION = 1e18;
     uint256 constant bit1 = 999989423469314432; // 0.5 ^ 1/65536 * (10 ** 18)
     uint256 constant bit2 = 999978847050491904; // 0.5 ^ 2/65536 * (10 ** 18)

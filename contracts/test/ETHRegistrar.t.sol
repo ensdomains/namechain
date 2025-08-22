@@ -8,10 +8,11 @@ import {IERC20Errors, IERC1155Errors} from "@openzeppelin/contracts/interfaces/d
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
-import {MockERC20, MockERC20Blacklist, MockERC20VoidReturn, MockERC20FalseReturn} from "../src/mocks/MockERC20.sol";
+import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {StableTokenPriceOracle} from "../src/L2/StableTokenPriceOracle.sol";
+import {StandardRentPriceOracle, IRentPriceOracle} from "../src/L2/StandardRentPriceOracle.sol";
 import {ETHRegistrar, IETHRegistrar, IRegistry, REGISTRATION_ROLE_BITMAP} from "../src/L2/ETHRegistrar.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
@@ -21,16 +22,16 @@ import {NameUtils} from "../src/common/NameUtils.sol";
 contract TestETHRegistrar is Test {
     RegistryDatastore datastore;
     PermissionedRegistry ethRegistry;
+
     StableTokenPriceOracle tokenPriceOracle;
+    StandardRentPriceOracle rentPriceOracle;
     ETHRegistrar ethRegistrar;
 
     MockERC20 tokenUSDC;
     MockERC20 tokenDAI;
     MockERC20Blacklist tokenBlack;
-    MockERC20VoidReturn tokenVoid;
-    MockERC20FalseReturn tokenFalse;
 
-    address user = makeAddr("user1");
+    address user = makeAddr("user");
     address beneficiary = makeAddr("beneficiary");
 
     uint64 constant SEC_PER_YEAR = 31_557_600; // 365.25
@@ -55,28 +56,28 @@ contract TestETHRegistrar is Test {
 
         tokenPriceOracle = new StableTokenPriceOracle();
 
-        IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](5);
+        IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](3);
         paymentTokens[0] = tokenUSDC = new MockERC20("USDC", 6);
         paymentTokens[1] = tokenDAI = new MockERC20("DAI", 18);
         paymentTokens[2] = tokenBlack = new MockERC20Blacklist();
-        paymentTokens[3] = tokenVoid = new MockERC20VoidReturn();
-        paymentTokens[4] = tokenFalse = new MockERC20FalseReturn();
+
+        rentPriceOracle = new StandardRentPriceOracle(
+            PRICE_DECIMALS,
+            [0, 0, RATE_3_CHAR, RATE_4_CHAR, RATE_5_CHAR],
+            21 days,
+            1 days,
+            100_000_000 * PRICE_SCALE,
+            tokenPriceOracle,
+            paymentTokens
+        );
 
         ethRegistrar = new ETHRegistrar(
-            ETHRegistrar.ConstructorArgs({
-                ethRegistry: ethRegistry,
-                beneficiary: beneficiary,
-                minCommitmentAge: 1 minutes,
-                maxCommitmentAge: 1 days,
-                minRegistrationDuration: 28 days,
-                priceDecimals: PRICE_DECIMALS,
-                baseRatePerCp: [0, 0, RATE_3_CHAR, RATE_4_CHAR, RATE_5_CHAR],
-                premiumPeriod: 21 days,
-                premiumHalvingPeriod: 1 days,
-                premiumPriceInitial: 100_000_000 * PRICE_SCALE,
-                tokenPriceOracle: tokenPriceOracle,
-                paymentTokens: paymentTokens
-            })
+            ethRegistry,
+            beneficiary,
+            1 minutes, // minCommitmentAge
+            1 days, // maxCommitmentAge
+            28 days, // minRegisterDuration
+            rentPriceOracle
         );
 
         ethRegistry.grantRootRoles(
@@ -98,9 +99,14 @@ contract TestETHRegistrar is Test {
                 IETHRegistrar.MaxCommitmentAgeTooLow.selector
             )
         );
-        ETHRegistrar.ConstructorArgs memory args;
-        args.minCommitmentAge = args.maxCommitmentAge = 1;
-        new ETHRegistrar(args);
+        new ETHRegistrar(
+            ethRegistry,
+            beneficiary,
+            1, // minCommitmentAge
+            1, // maxCommitmentAge
+            0,
+            rentPriceOracle
+        );
     }
 
     function test_Revert_constructor_invalidRange() external {
@@ -109,9 +115,14 @@ contract TestETHRegistrar is Test {
                 IETHRegistrar.MaxCommitmentAgeTooLow.selector
             )
         );
-        ETHRegistrar.ConstructorArgs memory args;
-        args.minCommitmentAge = 1;
-        new ETHRegistrar(args);
+        new ETHRegistrar(
+            ethRegistry,
+            beneficiary,
+            1, // minCommitmentAge
+            0, // maxCommitmentAge
+            0,
+            rentPriceOracle
+        );
     }
 
     function test_isValid() external view {
@@ -123,84 +134,6 @@ contract TestETHRegistrar is Test {
         assertTrue(ethRegistrar.isValid("abce"));
         assertTrue(ethRegistrar.isValid("abcde"));
         assertTrue(ethRegistrar.isValid("abcdefghijklmnopqrstuvwxyz"));
-    }
-
-    function _testRentPrice(string memory label, uint256 rate) internal view {
-        uint256 base = ethRegistrar.basePrice(label, 1);
-        assertEq(base, rate, "rate");
-        uint64 dur = SEC_PER_YEAR;
-        base = ethRegistrar.basePrice(label, dur);
-        assertEq(base, rate * dur, "year");
-        (base, ) = ethRegistrar.rentPrice(label, address(0), dur, tokenUSDC);
-        assertEq(
-            base,
-            tokenPriceOracle.getTokenAmount(
-                rate * dur,
-                PRICE_DECIMALS,
-                tokenUSDC
-            ),
-            "USDC"
-        );
-        (base, ) = ethRegistrar.rentPrice(label, address(0), dur, tokenDAI);
-        assertEq(
-            base,
-            tokenPriceOracle.getTokenAmount(
-                rate * dur,
-                PRICE_DECIMALS,
-                tokenDAI
-            ),
-            "DAI"
-        );
-    }
-
-    function test_rentPrice_0() external {
-        string memory label;
-        vm.expectRevert(
-            abi.encodeWithSelector(IETHRegistrar.NoRentPrice.selector, label)
-        );
-        ethRegistrar.basePrice(label, 0);
-    }
-    function test_rentPrice_1() external {
-        string memory label = "a";
-        vm.expectRevert(
-            abi.encodeWithSelector(IETHRegistrar.NoRentPrice.selector, label)
-        );
-        ethRegistrar.basePrice(label, 0);
-    }
-    function test_rentPrice_2() external {
-        string memory label = "ab";
-        vm.expectRevert(
-            abi.encodeWithSelector(IETHRegistrar.NoRentPrice.selector, label)
-        );
-        ethRegistrar.basePrice(label, 0);
-    }
-    function test_rentPrice_3() external view {
-        _testRentPrice("abc", RATE_3_CHAR);
-    }
-    function test_rentPrice_4() external view {
-        _testRentPrice("abcd", RATE_4_CHAR);
-    }
-    function test_rentPrice_5() external view {
-        _testRentPrice("abcde", RATE_5_CHAR);
-    }
-    function test_rentPrice_long() external view {
-        _testRentPrice("abcdefghijklmnopqrstuvwxyz", RATE_5_CHAR);
-    }
-
-    function test_premiumPriceAfter_start() external view {
-        assertEq(
-            ethRegistrar.premiumPriceAfter(0),
-            ethRegistrar.premiumPriceInitial() -
-                ethRegistrar.premiumPriceOffset()
-        );
-    }
-
-    function test_premiumPriceAfter_end() external view {
-        uint64 dur = ethRegistrar.premiumPeriod();
-        uint64 dt = 1;
-        assertGt(ethRegistrar.premiumPriceAfter(dur - dt), 0, "before");
-        assertEq(ethRegistrar.premiumPriceAfter(dur), 0, "at");
-        assertEq(ethRegistrar.premiumPriceAfter(dur + dt), 0, "after");
     }
 
     struct RegisterArgs {
@@ -225,7 +158,7 @@ contract TestETHRegistrar is Test {
         args.sender = user;
         args.owner = user;
         args.paymentToken = tokenUSDC;
-        args.duration = ethRegistrar.minRegistrationDuration();
+        args.duration = ethRegistrar.minRegisterDuration();
         args.wait = ethRegistrar.minCommitmentAge() + 1;
     }
 
@@ -337,18 +270,21 @@ contract TestETHRegistrar is Test {
 
     function test_register_premium_start() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        this._register(args);
-        vm.warp(block.timestamp + args.duration);
-        uint256 premium = ethRegistrar.premiumPrice(args.label, address(0));
-        assertEq(premium, ethRegistrar.premiumPriceAfter(0));
+        uint256 tokenId = this._register(args);
+        uint64 expiry = ethRegistry.getExpiry(tokenId);
+        vm.warp(expiry);
+        assertEq(
+            rentPriceOracle.premiumPrice(expiry),
+            rentPriceOracle.premiumPriceAfter(0)
+        );
     }
 
     function test_register_premium_end() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        this._register(args);
-        vm.warp(block.timestamp + args.duration + ethRegistrar.premiumPeriod());
-        uint256 premium = ethRegistrar.premiumPrice(args.label, address(0));
-        assertEq(premium, 0);
+        uint256 tokenId = this._register(args);
+        uint64 expiry = ethRegistry.getExpiry(tokenId);
+        vm.warp(expiry + rentPriceOracle.premiumPeriod());
+        assertEq(rentPriceOracle.premiumPrice(expiry), 0);
     }
 
     function test_register_premium_latestOwner() external {
@@ -458,12 +394,12 @@ contract TestETHRegistrar is Test {
 
     function test_Revert_register_durationTooShort() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        args.duration = ethRegistrar.minRegistrationDuration() - 1;
+        args.duration = ethRegistrar.minRegisterDuration() - 1;
         vm.expectRevert(
             abi.encodeWithSelector(
                 IETHRegistrar.DurationTooShort.selector,
                 args.duration,
-                ethRegistrar.minRegistrationDuration()
+                ethRegistrar.minRegisterDuration()
             )
         );
         this._register(args);
@@ -606,24 +542,6 @@ contract TestETHRegistrar is Test {
         args.paymentToken = tokenBlack;
         this._register(args);
         args.paymentToken = tokenUSDC;
-        this._register(args);
-    }
-
-    function test_noReturn_accepted_with_SafeERC20() public {
-        RegisterArgs memory args = _defaultRegisterArgs();
-        args.paymentToken = tokenVoid;
-        this._register(args);
-    }
-
-    function test_falseReturn_rejected_with_SafeERC20() public {
-        RegisterArgs memory args = _defaultRegisterArgs();
-        args.paymentToken = tokenFalse;
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                SafeERC20.SafeERC20FailedOperation.selector,
-                tokenFalse
-            )
-        );
         this._register(args);
     }
 }
