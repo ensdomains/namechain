@@ -3,6 +3,7 @@ pragma solidity >=0.8.13;
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
+/// @notice Interface for pricing registration and renewals.
 /// @dev Interface selector: `0x678a6296`.
 interface IRentPriceOracle {
     /// @notice `label` has no rent price.
@@ -26,6 +27,7 @@ interface IRentPriceOracle {
     function isValid(string memory label) external view returns (bool);
 
     /// @notice Get rent price for `label`.
+    /// @dev Reverts `PaymentTokenNotSupported` or `NotRentable`.
     /// @param label The name.
     /// @param expiry The latest expiry, in seconds.
     /// @param duration The duration to price, in seconds.

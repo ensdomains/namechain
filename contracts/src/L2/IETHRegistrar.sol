@@ -5,7 +5,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 
 import {IRegistry} from "../common/IRegistry.sol";
 
-/// @notice Interface for the ".eth" registrar which manages registration/renewal for ".eth" registry.
+/// @notice Interface for the ".eth" registrar which manages the ".eth" registry.
 /// @dev Interface selector: `0x9daffb72`
 interface IETHRegistrar {
     /// @notice `label` is not registered.
@@ -177,7 +177,7 @@ interface IETHRegistrar {
     ) external returns (uint256);
 
     /// @notice Renew an existing registration.
-    /// @dev Emits `NameRenewed` or
+    /// @dev Emits `NameRenewed` or reverts with a variety of errors.
     /// @param label The name to renew.
     /// @param duration The registration extension, in seconds.
     /// @param paymentToken The ERC-20 to use for payment.

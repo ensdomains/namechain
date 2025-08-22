@@ -34,9 +34,9 @@ contract TestRentPriceOracle is Test {
         rentPriceOracle = new StandardRentPriceOracle(
             PRICE_DECIMALS,
             [0, 0, RATE_3_CHAR, RATE_4_CHAR, RATE_5_CHAR],
-            21 days,
-            1 days,
-            100_000_000 * PRICE_SCALE,
+            21 days, // premiumPeriod
+            1 days, // premiumHavingPeriod
+            100_000_000 * PRICE_SCALE, // premiumPriceInitial
             tokenPriceOracle,
             paymentTokens
         );

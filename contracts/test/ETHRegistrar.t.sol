@@ -35,7 +35,6 @@ contract TestETHRegistrar is Test {
     address beneficiary = makeAddr("beneficiary");
 
     uint64 constant SEC_PER_YEAR = 31_557_600; // 365.25
-
     uint8 constant PRICE_DECIMALS = 12;
     uint256 constant PRICE_SCALE = 10 ** PRICE_DECIMALS;
     uint256 constant RATE_5_CHAR = (5 * PRICE_SCALE) / SEC_PER_YEAR;
@@ -43,7 +42,6 @@ contract TestETHRegistrar is Test {
     uint256 constant RATE_3_CHAR = (640 * PRICE_SCALE) / SEC_PER_YEAR;
 
     function setUp() external {
-        vm.warp(2_000_000_000); // avoid timestamp issues
 
         datastore = new RegistryDatastore();
 
@@ -91,6 +89,8 @@ contract TestETHRegistrar is Test {
             vm.prank(user);
             token.approve(address(ethRegistrar), type(uint256).max);
         }
+
+        vm.warp(rentPriceOracle.premiumPeriod()); // avoid timestamp issues
     }
 
     function test_Revert_constructor_emptyRange() external {
