@@ -4,3 +4,7 @@
 node_modules/
 
 .DS_Store
+
+# Build artifacts and temporary files
+*.tar.gz
+foundry_nightly_*
