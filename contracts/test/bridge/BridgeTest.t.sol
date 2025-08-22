@@ -11,7 +11,7 @@ import {MockPermissionedRegistry} from "../mocks/MockPermissionedRegistry.sol";
 import {IPermissionedRegistry} from "../../src/common/IPermissionedRegistry.sol";
 import {IRegistryMetadata} from "../../src/common/IRegistryMetadata.sol";
 import {NameUtils} from "../../src/common/NameUtils.sol";
-import {L1EjectionController} from "../../src/L1/L1EjectionController.sol";
+import {L1BridgeController} from "../../src/L1/L1BridgeController.sol";
 import {L2BridgeController} from "../../src/L2/L2BridgeController.sol";
 import {MockL1Bridge} from "../../src/mocks/MockL1Bridge.sol";
 import {MockL2Bridge} from "../../src/mocks/MockL2Bridge.sol";
@@ -30,7 +30,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
     MockPermissionedRegistry l2Registry;
     MockL1Bridge l1Bridge;
     MockL2Bridge l2Bridge;
-    L1EjectionController l1Controller;
+    L1BridgeController l1Controller;
     L2BridgeController l2Controller;
     
     // Test accounts
@@ -48,11 +48,11 @@ contract BridgeTest is Test, EnhancedAccessControl {
         l2Bridge = new MockL2Bridge();
         
         // Deploy controllers
-        l1Controller = new L1EjectionController(l1Registry, l1Bridge);
+        l1Controller = new L1BridgeController(l1Registry, l1Bridge);
         l2Controller = new L2BridgeController(l2Bridge, l2Registry, datastore);
         
         // Set the controller contracts as targets for the bridges
-        l1Bridge.setEjectionController(l1Controller);
+        l1Bridge.setBridgeController(l1Controller);
         l2Bridge.setBridgeController(l2Controller);
         
         // Grant necessary roles to controllers

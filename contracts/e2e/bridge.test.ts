@@ -231,7 +231,7 @@ describe("Bridge", () => {
     const transferTxToL2 = env.l1.contracts.ethRegistry.write.safeTransferFrom(
       [
         l1User,
-        env.l1.contracts.ejectionController.address,
+        env.l1.contracts.bridgeController.address,
         tokenId,
         1n,
         encodedTransferDataToL2,
@@ -245,7 +245,7 @@ describe("Bridge", () => {
     );
     await expectTransactionSuccess(env.l1.client, transferTxToL2);
     console.log(
-      `Token transferred to L1EjectionController, tx hash: ${await transferTxToL2}`,
+      `Token transferred to L1BridgeController, tx hash: ${await transferTxToL2}`,
     );
 
     if ((migrationEvents as any[]).length === 0) {
