@@ -1,6 +1,7 @@
 import { toHex } from "viem";
-import { createMockRelay } from "./mockRelay.js";
 import { setupCrossChainEnvironment } from "./setup.js";
+import { createMockRelay } from "./mockRelay.js";
+import { registerTestNames } from "./testNames.js";
 
 const env = await setupCrossChainEnvironment({
   l1Port: 8545,
@@ -24,15 +25,7 @@ createMockRelay({
 
 console.log("\nAvailable Test Accounts:");
 console.log("========================");
-console.table(env.accounts.map(({ name, address }, i) => ({ name, address })));
-
-console.log("\nDeployments:");
-console.log("============");
-console.log({
-  urg: (({ gateway, ...a }) => a)(env.urg),
-  l1: dump(env.l1),
-  l2: dump(env.l2),
-});
+console.table(env.accounts.map(({ name, address }) => ({ name, address })));
 
 function dump(deployment: typeof env.l1 | typeof env.l2) {
   const { client, hostPort, contracts } = deployment;
@@ -44,3 +37,15 @@ function dump(deployment: typeof env.l1 | typeof env.l2) {
     ),
   };
 }
+
+console.log("\nDeployments:");
+console.log("============");
+console.log({
+  urg: (({ gateway, ...a }) => a)(env.urg),
+  l1: dump(env.l1),
+  l2: dump(env.l2),
+});
+
+await registerTestNames(env, ["test", "example", "demo"]);
+
+console.log("\nReady!");

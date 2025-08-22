@@ -44,5 +44,7 @@ export default execute(
       args: [owner, v1UniversalResolverDeploymentJson.address],
     });
   },
-  { tags: ["UpgradableUniversalResolverProxy", "l1", "universalResolver"] },
+  {
+    tags: ["UpgradableUniversalResolverProxy", "l1", "universalResolver"],
+  },
 );

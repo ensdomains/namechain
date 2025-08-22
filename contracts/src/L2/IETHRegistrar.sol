@@ -2,132 +2,200 @@
 pragma solidity >=0.8.13;
 
 import {IRegistry} from "../common/IRegistry.sol";
-import {ITokenPriceOracle} from "./ITokenPriceOracle.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
-/**
- * @dev Interface for the ETH Registrar.
- */
+/// @notice Interface for the ".eth" registrar which manages registration/renewal for ".eth" registry.
+/// @dev Interface selector: `0xa3839be4`
 interface IETHRegistrar {
-    /**
-     * @dev Emitted when a name is registered.
-     *
-     * @param name The name that was registered.
-     * @param owner The address of the owner of the name.
-     * @param subregistry The registry used for the registration.
-     * @param resolver The resolver used for the registration.
-     * @param duration The duration of the registration.
-     * @param tokenId The ID of the newly registered name.
-     * @param baseCost The base cost component in USD (USD_DECIMALS precision).
-     * @param premium The premium cost component in USD (USD_DECIMALS precision).
-     */
-    event NameRegistered(
-        string name, address owner, IRegistry subregistry, address resolver, uint64 duration, uint256 tokenId,
-        uint256 baseCost, uint256 premium
+    /// @notice `label` has no rent price.
+    /// @dev Error selector: `0x90ecde1b`
+    error NoRentPrice(string label);
+
+    /// @notice `label` is not registered.
+    /// @dev Error selector: `0xf2b502e2`
+    error NameNotRegistered(string label);
+
+    /// @notice `label is already registered.
+    /// @dev Error selector: `0x6dbb87d0`
+    error NameAlreadyRegistered(string label);
+
+    /// @notice `paymentToken` is not supported for payment.
+    /// @dev Error selector: `0x02e2ae9e`
+    error PaymentTokenNotSupported(IERC20Metadata paymentToken);
+
+    /// @notice `duration + expiry` overflows.
+    /// @dev Error selector: `0x674a4652`
+    error DurationOverflow(uint64 expiry, uint64 duration);
+
+    /// @notice `duration` less than `minDuration`.
+    /// @dev Error selector: `0xa096b844`
+    error DurationTooShort(uint64 duration, uint64 minDuration);
+
+    /// @notice `maxCommitmentAge` was not greater than `minCommitmentAge`.
+    /// @dev Error selector: `0x3e5aa838`
+    error MaxCommitmentAgeTooLow();
+
+    /// @notice `commitment` is still usable for registration.
+    /// @dev Error selector: `0x0a059d71`
+    error UnexpiredCommitmentExists(bytes32 commitment);
+
+    /// @notice `commitment` cannot be consumed yet.
+    /// @dev Error selector: `0x6be614e3`
+    error CommitmentTooNew(
+        bytes32 commitment,
+        uint64 validFrom,
+        uint64 blockTimestamp
     );
 
-    /**
-     * @dev Emitted when a name is renewed.
-     *
-     * @param name The name that was renewed.
-     * @param duration The duration of the renewal.
-     * @param tokenId The ID of the renewed name.
-     * @param newExpiry The new expiry of the name.
-     * @param cost The cost in USD (USD_DECIMALS precision). Renewals have no premium.
-     */
-    event NameRenewed(string name, uint64 duration, uint256 tokenId, uint64 newExpiry,
-                     uint256 cost);
+    /// @notice `commitment` has expired.
+    /// @dev Error selector: `0x0cb9df3f`
+    error CommitmentTooOld(
+        bytes32 commitment,
+        uint64 validTo,
+        uint64 blockTimestamp
+    );
 
-    /**
-     * @dev Emitted when a commitment is made.
-     *
-     * @param commitment The commitment that was made.
-     */
+    /// @notice Support for `paymentToken` has changed.
+    event PaymentTokenChanged(IERC20Metadata paymentToken, bool supported);
+
+    /// @notice `commitment` was recorded onchain at `block.timestamp`.
+    /// @param commitment The commitment hash from `makeCommitment()`.
     event CommitmentMade(bytes32 commitment);
 
-    /**
-     * @dev Returns true if the specified name is available for registration.
-     *
-     * @param name The name to check.
-     *
-     * @return True if the name is available, false otherwise.
-     */
-    function available(string calldata name) external view returns (bool);
+    /// @notice `{label}.eth` was registered for `duration`.
+    /// @param tokenId The registry token id.
+    /// @param label The name of the registration.
+    /// @param owner The owner address.
+    /// @param subregistry The initial registry address.
+    /// @param resolver The initial resolver address.
+    /// @param duration The registration duration, in seconds.
+    /// @param paymentToken The ERC-20 used for payment.
+    /// @param referer The referer hash.
+    /// @param base The base price, relative to `paymentToken`.
+    /// @param premium The premium price, relative to `paymentToken`.
+    event NameRegistered(
+        uint256 indexed tokenId,
+        string label,
+        address owner,
+        IRegistry subregistry,
+        address resolver,
+        uint64 duration,
+        IERC20Metadata paymentToken,
+        bytes32 referer,
+        uint256 base,
+        uint256 premium
+    );
 
+    /// @notice `{label}.eth` was extended by `duration`.
+    /// @param tokenId The registry token id.
+    /// @param label The name of the renewal.
+    /// @param duration The duration extension, in seconds.
+    /// @param newExpiry The new expiry, in seconds.
+    /// @param paymentToken The ERC-20 used for payment.
+    /// @param referer The referer hash.
+    /// @param base The base price, relative to `paymentToken`.
+    event NameRenewed(
+        uint256 indexed tokenId,
+        string label,
+        uint64 duration,
+        uint64 newExpiry,
+        IERC20Metadata paymentToken,
+        bytes32 referer,
+        uint256 base
+    );
 
-    /**
-     * @dev Check if a name is valid.
-     * @param name The name to check.
-     * @return True if the name is valid, false otherwise.
-     */
-    function valid(string memory name) external view returns (bool);
+    /// @notice Check if a `label` is registerable.
+    /// @dev Does not check if normalized.
+    /// @param label The name to check.
+    /// @return `true` if the `label` is valid.
+    function isValid(string memory label) external view returns (bool);
 
+    /// @notice Check if `label` is available for registration.
+    /// @dev Does not check if normalized or valid.
+    /// @param label The name to check.
+    /// @return `true` if the `label` is available.
+    function isAvailable(string memory label) external view returns (bool);
 
-    /**
-     * @dev Get the price to register or renew a name.
-     *
-     * @param name The name to get the price for.
-     * @param duration The duration of the registration or renewal.
-     * @return price The price to register or renew the name.
-     */
-    function rentPrice(string memory name, uint256 duration) external view returns (ITokenPriceOracle.Price memory price);
+    /// @notice Check if `paymentToken` is accepted for payment.
+    /// @param paymentToken The ERC20 to check.
+    /// @return `true` if `paymentToken` is accepted.
+    function isPaymentToken(
+        IERC20Metadata paymentToken
+    ) external view returns (bool);
 
-    /**
-     * @dev Make a commitment for a name.
-     *
-     * @param name The name to commit.
-     * @param owner The address of the owner of the name.
-     * @param secret The secret of the name.
-     * @param subregistry The registry to use for the commitment.
-     * @param resolver The resolver to use for the commitment.
-     * @param duration The duration of the commitment.
-     * @return The commitment.
-     */
+    /// @notice Get rent price for `name` with `duration`.
+    /// @param label The name to price.
+    /// @param owner The owner address.
+    /// @param duration The duration to price, in seconds.
+    /// @param paymentToken The ERC-20 to use.
+    /// @return base The base price, relative to `paymentToken`.
+    /// @return premium The premium price, relative to `paymentToken`.
+    function rentPrice(
+        string memory label,
+        address owner,
+        uint64 duration,
+        IERC20Metadata paymentToken
+    ) external view returns (uint256 base, uint256 premium);
+
+    /// @notice Compute hash of registration parameters.
+    /// @param label The name to register.
+    /// @param owner The owner address.
+    /// @param secret The secret for the registration.
+    /// @param subregistry The initial registry address.
+    /// @param resolver The initial resolver address.
+    /// @param duration The registration duration, in seconds.
+    /// @return The commitment hash.
     function makeCommitment(
-        string calldata name,
+        string memory label,
         address owner,
         bytes32 secret,
-        address subregistry,
+        IRegistry subregistry,
         address resolver,
         uint64 duration
     ) external pure returns (bytes32);
 
+    /// @notice Get timestamp of `commitment`.
+    /// @param commitment The commitment hash.
+    /// @return The commitment time, in seconds.
+    function commitmentAt(bytes32 commitment) external view returns (uint64);
 
-    /**
-     * @dev Commit a commitment.
-     *
-     * @param commitment The commitment to commit.
-     */
+    /// @notice Registration step #1: record intent to register without revealing any information.
+    /// @dev Emits `CommitmentMade` or reverts with `UnexpiredCommitmentExists`.
+    /// @param commitment The commitment hash.
     function commit(bytes32 commitment) external;
 
-    /**
-     * @dev Register a name with ERC20 token payment.
-     *
-     * @param name The name to register.
-     * @param owner The address of the owner of the name.
-     * @param secret The secret of the name.
-     * @param subregistry The registry to use for the registration.
-     * @param resolver The resolver to use for the registration.
-     * @param duration The duration of the registration.
-     * @param token The ERC20 token address for payment.
-     *
-     * @return The ID of the newly registered name.
-     */
+    /// @notice Registration step #2: reveal committed registration parameters, then register `{label}.eth`.
+    /// @dev Emits `NameRegistered` or reverts with a variety of errors.
+    /// @param label The name from commitment.
+    /// @param owner The owner from commitment.
+    /// @param secret The secret from commitment.
+    /// @param subregistry The registry from commitment.
+    /// @param resolver The resolver from commitment.
+    /// @param duration The registration from commitment.
+    /// @param paymentToken The ERC-20 to use for payment.
+    /// @param referer The referer hash.
+    /// @return `tokenId` for the registration.
     function register(
-        string calldata name,
+        string memory label,
         address owner,
         bytes32 secret,
         IRegistry subregistry,
         address resolver,
         uint64 duration,
-        address token
+        IERC20Metadata paymentToken,
+        bytes32 referer
     ) external returns (uint256);
 
-    /**
-     * @dev Renew a name with ERC20 token payment.
-     *
-     * @param name The name to renew.
-     * @param duration The duration of the renewal.
-     * @param token The ERC20 token address for payment.
-     */
-    function renew(string calldata name, uint64 duration, address token) external;
+    /// @notice Renew an existing registration.
+    /// @dev Emits `NameRenewed` or
+    /// @param label The name to renew.
+    /// @param duration The registration extension, in seconds.
+    /// @param paymentToken The ERC-20 to use for payment.
+    /// @param referer The referer hash.
+    function renew(
+        string memory label,
+        uint64 duration,
+        IERC20Metadata paymentToken,
+        bytes32 referer
+    ) external;
 }

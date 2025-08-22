@@ -2,8 +2,8 @@ import type { NetworkConnection } from "hardhat/types/network";
 import { type Address, labelhash, namehash, zeroAddress } from "viem";
 import { splitName } from "../utils/utils.js";
 
-export async function deployV1Fixture<C extends NetworkConnection>(
-  network: C,
+export async function deployV1Fixture(
+  network: NetworkConnection,
   enableCcipRead = false,
 ) {
   const publicClient = await network.viem.getPublicClient({
@@ -15,9 +15,10 @@ export async function deployV1Fixture<C extends NetworkConnection>(
     "BaseRegistrarImplementation",
     [ensRegistry.address, namehash("eth")],
   );
-  const reverseRegistrar = await network.viem.deployContract("ReverseRegistrar", [
-    ensRegistry.address,
-  ]);
+  const reverseRegistrar = await network.viem.deployContract(
+    "ReverseRegistrar",
+    [ensRegistry.address],
+  );
   await ensRegistry.write.setSubnodeOwner([
     namehash(""),
     labelhash("reverse"),
@@ -35,10 +36,10 @@ export async function deployV1Fixture<C extends NetworkConnection>(
     reverseRegistrar.address,
   ]);
   await reverseRegistrar.write.setDefaultResolver([publicResolver.address]);
-  const batchGatewayProvider = await network.viem.deployContract("GatewayProvider", [
-    walletClient.account.address,
-    ["x-batch-gateway:true"],
-  ]);
+  const batchGatewayProvider = await network.viem.deployContract(
+    "GatewayProvider",
+    [walletClient.account.address, ["x-batch-gateway:true"]],
+  );
   const universalResolver = await network.viem.deployContract(
     "UniversalResolver",
     [
@@ -63,7 +64,7 @@ export async function deployV1Fixture<C extends NetworkConnection>(
     ethRegistrar.address,
   ]);
   return {
-	network,
+    network,
     publicClient,
     walletClient,
     ensRegistry,
