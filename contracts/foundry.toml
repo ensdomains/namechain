@@ -10,6 +10,8 @@ evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
 solc = "0.8.25"
+auto_detect_solc = false
+offline = true
 
 [fuzz]
 runs = 4096

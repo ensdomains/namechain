@@ -10,6 +10,14 @@ jobs:
     name: Contract tests
     runs-on: ubuntu-latest
     steps:
+      - name: Install solc 0.8.25 via apt (before firewall is enabled)
+        run: |
+          # Install solidity compiler from Ubuntu repositories
+          sudo add-apt-repository ppa:ethereum/ethereum
+          sudo apt-get update
+          sudo apt-get install solc=1:0.8.25+commit.b61c2a91.Linux.g++
+        continue-on-error: true
+
       - name: Install lcov
         run: sudo apt-get install lcov
 
@@ -25,6 +33,8 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly-09fe3e041369a816365a020f715ad6f94dbce9f2
 
       - name: Setup Node
         uses: actions/setup-node@v4
