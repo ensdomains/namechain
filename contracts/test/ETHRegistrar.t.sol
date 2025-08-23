@@ -5,17 +5,16 @@ import "forge-std/Test.sol";
 
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IERC20Errors, IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
+import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {StableTokenPriceOracle} from "../src/L2/StableTokenPriceOracle.sol";
 import {StandardRentPriceOracle, IRentPriceOracle} from "../src/L2/StandardRentPriceOracle.sol";
-import {ETHRegistrar, IETHRegistrar, IRegistry, REGISTRATION_ROLE_BITMAP} from "../src/L2/ETHRegistrar.sol";
-import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
-import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {ETHRegistrar, IETHRegistrar, IRegistry, REGISTRATION_ROLE_BITMAP, ROLE_SET_ORACLE} from "../src/L2/ETHRegistrar.sol";
+import {EnhancedAccessControl, IEnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 
@@ -42,7 +41,6 @@ contract TestETHRegistrar is Test {
     uint256 constant RATE_3_CHAR = (640 * PRICE_SCALE) / SEC_PER_YEAR;
 
     function setUp() external {
-
         datastore = new RegistryDatastore();
 
         ethRegistry = new PermissionedRegistry(
@@ -123,6 +121,56 @@ contract TestETHRegistrar is Test {
             0,
             rentPriceOracle
         );
+    }
+
+    function test_setRentPriceOracle() external {
+        IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](1);
+        paymentTokens[0] = tokenUSDC;
+        StandardRentPriceOracle oracle = new StandardRentPriceOracle(
+            tokenUSDC.decimals(),
+            [uint256(1), 2, 3, 4, 0],
+            0, // \
+            0, //  disabled premium
+            0, // /
+            tokenPriceOracle,
+            paymentTokens
+        );
+        ethRegistrar.setRentPriceOracle(oracle);
+        assertTrue(ethRegistrar.isValid("ab"), "ab");
+        assertFalse(ethRegistrar.isValid("abcdef"), "abcdef");
+        assertFalse(ethRegistrar.isPaymentToken(tokenDAI), "DAI");
+        (uint256 base, ) = ethRegistrar.rentPrice(
+            "a",
+            address(0),
+            1,
+            tokenUSDC
+        );
+        assertEq(base, 1, "rent"); // 1 * 10^x / 10^x = 1
+    }
+
+    function test_Revert_setRentPriceOracle() external {
+        IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](1);
+        paymentTokens[0] = tokenUSDC;
+        StandardRentPriceOracle oracle = new StandardRentPriceOracle(
+            0,
+            [uint256(0), 0, 0, 0, 0],
+            0,
+            0,
+            0,
+            tokenPriceOracle,
+            paymentTokens
+        );
+        vm.startPrank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                uint256(0),
+                ROLE_SET_ORACLE,
+                user
+            )
+        );
+        ethRegistrar.setRentPriceOracle(oracle);
+        vm.stopPrank();
     }
 
     function test_isValid() external view {

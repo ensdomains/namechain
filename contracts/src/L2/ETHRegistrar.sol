@@ -92,15 +92,15 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IERC20Metadata paymentToken
     ) public view returns (uint256 base, uint256 premium) {
         (uint256 tokenId, uint64 expiry, ) = registry.getNameData(label);
-        (base, premium) = rentPriceOracle.rentPrice(
-            label,
-            expiry,
-            duration,
-            paymentToken
-        );
-        if (owner != address(0) && owner == registry.latestOwnerOf(tokenId)) {
-            premium = 0;
-        }
+        return
+            rentPriceOracle.rentPrice(
+                label,
+                owner != address(0) && owner == registry.latestOwnerOf(tokenId)
+                    ? 0
+                    : expiry,
+                duration,
+                paymentToken
+            );
     }
 
     /// @inheritdoc IETHRegistrar

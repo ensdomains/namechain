@@ -97,13 +97,11 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
     /// @return The base rate or 0 if not rentable.
     function baseRate(string memory label) public view returns (uint256) {
         uint256 ncp = StringUtils.strlen(label);
+        if (ncp == 0) return 0;
         return
-            ncp == 0
-                ? 0
-                : baseRatePerCp[
-                    (ncp > baseRatePerCp.length ? baseRatePerCp.length : ncp) -
-                        1
-                ];
+            baseRatePerCp[
+                (ncp > baseRatePerCp.length ? baseRatePerCp.length : ncp) - 1
+            ];
     }
 
     /// @notice Get premium price for an expiry relative to now.
@@ -117,13 +115,12 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
     /// @param duration The time after expiration, in seconds.
     /// @return The premium price.
     function premiumPriceAfter(uint64 duration) public view returns (uint256) {
+        if (duration >= premiumPeriod) return 0;
         return
-            duration >= premiumPeriod
-                ? 0
-                : HalvingUtils.halving(
-                    premiumPriceInitial,
-                    premiumHalvingPeriod,
-                    duration
-                ) - premiumPriceOffset;
+            HalvingUtils.halving(
+                premiumPriceInitial,
+                premiumHalvingPeriod,
+                duration
+            ) - premiumPriceOffset;
     }
 }

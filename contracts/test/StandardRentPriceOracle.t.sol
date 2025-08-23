@@ -40,6 +40,8 @@ contract TestRentPriceOracle is Test {
             tokenPriceOracle,
             paymentTokens
         );
+
+        vm.warp(rentPriceOracle.premiumPeriod()); // avoid timestamp issues
     }
 
     function test_supportsInterface() external view {
