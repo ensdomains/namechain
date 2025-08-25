@@ -5,7 +5,7 @@ export default execute(
   async ({ deploy, execute: write, get, namedAccounts: { deployer} }) => {
 
     const l1EthRegistry =
-      get<(typeof artifacts.PermissionedRegistry)["abi"]>("L1ETHRegistry");
+      get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
     // TODO: real bridge
     const l1Bridge =
@@ -46,6 +46,6 @@ export default execute(
   },
   {
     tags: ["L1EjectionController", "registry", "l1"],
-    dependencies: ["L1ETHRegistry", "MockL1Bridge"],
+    dependencies: ["ETHRegistry", "MockL1Bridge"],
   },
 );

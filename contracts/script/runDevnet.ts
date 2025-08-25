@@ -24,7 +24,7 @@ createMockRelay({
 
 console.log("\nAvailable Test Accounts:");
 console.log("========================");
-console.table(env.accounts.map(({ name, address }, i) => ({ name, address })));
+console.table(env.accounts.map(({ name, address }) => ({ name, address })));
 
 console.log("\nDeployments:");
 console.log("============");
