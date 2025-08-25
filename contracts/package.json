@@ -12,6 +12,10 @@
     "clean": "forge clean && hardhat clean",
     "devnet": "bun ./script/runDevnet.ts",
     "aakit": "bun ./script/deployAAkit.ts",
+    "list-names": "bun ./script/listRegisteredNames.ts",
+    "watch-names": "bun ./script/watchNameRegistrations.ts",
+    "cors-proxy": "bun ./script/corsProxy.ts",
+    "mint-tokens": "bun ./script/mintTokensDirect.ts",
     "check:types": "tsc --noEmit"
   },
   "devDependencies": {
