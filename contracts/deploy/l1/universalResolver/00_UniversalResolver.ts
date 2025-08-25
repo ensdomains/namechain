@@ -1,4 +1,3 @@
-/// we import what we need from the @rocketh alias, see ../rocketh.ts
 import { artifacts, execute } from "@rocketh";
 
 export default execute(
@@ -16,7 +15,6 @@ export default execute(
       args: [rootRegistry.address, batchGatewayProvider.address],
     });
   },
-  // finally you can pass tags and dependencies
   {
     tags: ["UniversalResolver", "l1"],
     dependencies: ["RootRegistry", "BatchGatewayProvider"],
