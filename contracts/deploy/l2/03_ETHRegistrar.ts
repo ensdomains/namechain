@@ -6,13 +6,19 @@ const MIN_COMMITMENT_AGE = 60n; // 1 minute
 const MAX_COMMITMENT_AGE = 86400n; // 1 day
 
 export default execute(
-  async ({ deploy, namedAccounts, get, execute: write }) => {
-    const { deployer, owner } = namedAccounts;
-
+  async ({
+    deploy,
+    execute: write,
+    get,
+    namedAccounts: { deployer, owner },
+  }) => {
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
+
     const priceOracle =
-      get<(typeof artifacts["src/L2/StablePriceOracle.sol/StablePriceOracle"])["abi"]>("PriceOracle");
+      get<
+        (typeof artifacts)["src/L2/StablePriceOracle.sol/StablePriceOracle"]["abi"]
+      >("PriceOracle");
 
     // Use owner as beneficiary, or deployer if owner is not set
     const beneficiary = owner || deployer;
@@ -38,7 +44,6 @@ export default execute(
       account: deployer,
     });
   },
-  // finally you can pass tags and dependencies
   {
     tags: ["ETHRegistrar", "registry", "l2"],
     dependencies: ["ETHRegistry", "PriceOracle"],

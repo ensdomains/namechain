@@ -190,7 +190,7 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
           answer: encodeFunctionResult({ abi, functionName, result: value }),
           expect(data) {
             const actual = decodeFunctionResult({ abi, functionName, data });
-            expect(actual, this.desc).toStrictEqual(value);
+            expect(actual, this.desc).toStrictEqual(value.toLowerCase());
           },
           write: encodeFunctionData({
             abi,

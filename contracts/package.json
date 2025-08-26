@@ -16,6 +16,7 @@
     "watch-names": "bun ./script/watchNameRegistrations.ts",
     "cors-proxy": "bun ./script/corsProxy.ts",
     "mint-tokens": "bun ./script/mintTokensDirect.ts",
+    "devnet:clean": "bun run test && bun ./script/runDevnet.ts",
     "check:types": "tsc --noEmit"
   },
   "devDependencies": {

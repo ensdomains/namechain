@@ -1,7 +1,31 @@
+import { toHex } from "viem";
 import { createMockRelay } from "./mockRelay.js";
 import { setupCrossChainEnvironment } from "./setup.js";
 
-const env = await setupCrossChainEnvironment();
+const banner = `
+███╗   ██╗ █████╗ ███╗   ███╗███████╗ ██████╗██╗  ██╗ █████╗ ██╗███╗   ██╗
+████╗  ██║██╔══██╗████╗ ████║██╔════╝██╔════╝██║  ██║██╔══██╗██║████╗  ██║
+██╔██╗ ██║███████║██╔████╔██║█████╗  ██║     ███████║███████║██║██╔██╗ ██║
+██║╚██╗██║██╔══██║██║╚██╔╝██║██╔══╝  ██║     ██╔══██║██╔══██║██║██║╚██╗██║
+██║ ╚████║██║  ██║██║ ╚═╝ ██║███████╗╚██████╗██║  ██║██║  ██║██║██║ ╚████║
+╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
+`;
+
+console.log(banner);
+console.log("🚀 Starting NameChain Development Environment...\n");
+
+const env = await setupCrossChainEnvironment({
+  l1Port: 8545,
+  l2Port: 8456,
+  urgPort: 8457,
+  saveDeployments: true,
+});
+
+process.once("SIGINT", async () => {
+  console.log("\nShutting down...");
+  await env.shutdown();
+  process.exit();
+});
 
 createMockRelay({
   l1Bridge: env.l1.contracts.mockBridge,
@@ -10,21 +34,48 @@ createMockRelay({
   l2Client: env.l2.client,
 });
 
-console.log("\nAvailable Test Accounts:");
-console.log("=======================");
+console.log("\n📋 Available Test Accounts:");
+console.log("============================");
+console.table(env.accounts.map(({ name, address }, i) => ({ name, address })));
 
-const l2Accounts = (await env.l2.client.request({
-  method: "eth_accounts",
-})) as string[];
+console.log("\n🏗️  Deployments:");
+console.log("=================");
 
-console.log("\nL1 and L2 Chain Test Accounts:");
-l2Accounts.forEach((address: string, index: number) => {
-  const privateKey = `0x${(BigInt("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80") + BigInt(index)).toString(16)}`;
-  console.log(`Account ${index + 1}: ${address}`);
-  console.log(`Private Key: ${privateKey}`);
-  console.log("---");
-});
+const urgDeployment = (({ gateway, ...a }) => a)(env.urg);
+const l1Deployment = dump(env.l1);
+const l2Deployment = dump(env.l2);
 
-console.log("\nChain Info:");
-console.log(`L1 Chain ID: ${(env.l1.client.chain as any)?.id ?? "unknown"}`);
-console.log(`L2 Chain ID: ${(env.l2.client.chain as any)?.id ?? "unknown"}`);
+console.log("\n🔗 URG (Universal Resolver Gateway):");
+console.table(Object.entries(urgDeployment).map(([key, value]) => ({ 
+  Component: key, 
+  Address: typeof value === 'string' ? value : JSON.stringify(value) 
+})));
+
+console.log("\n🌐 L1 (Layer 1):");
+console.table(Object.entries(l1Deployment.contracts).map(([name, address]) => ({ 
+  Contract: name, 
+  Address: address 
+})));
+
+console.log("\n⚡ L2 (Layer 2):");
+console.table(Object.entries(l2Deployment.contracts).map(([name, address]) => ({ 
+  Contract: name, 
+  Address: address 
+})));
+
+console.log("\n🔌 Endpoints:");
+console.table([
+  { Layer: "L1", Endpoint: l1Deployment.endpoint, ChainID: l1Deployment.chain },
+  { Layer: "L2", Endpoint: l2Deployment.endpoint, ChainID: l2Deployment.chain }
+]);
+
+function dump(deployment: typeof env.l1 | typeof env.l2) {
+  const { client, hostPort, contracts } = deployment;
+  return {
+    chain: toHex(client.chain.id),
+    endpoint: `{http,ws}://${hostPort}`,
+    contracts: Object.fromEntries(
+      Object.entries(contracts).map(([k, v]) => [k, v.address]),
+    ),
+  };
+}
