@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
@@ -137,7 +137,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
 
     function test_onERC1155Received_locked_name() public {
         // Setup locked name (CANNOT_UNWRAP is set, CANNOT_BURN_FUSES is NOT set)
-        uint32 lockedFuses = CANNOT_UNWRAP;
+        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
         // Prepare migration data
@@ -177,7 +177,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
 
     function test_onERC1155Received_roles_based_on_fuses_not_input() public {
         // Setup locked name with no additional fuses burnt (CANNOT_SET_RESOLVER not burnt)
-        uint32 lockedFuses = CANNOT_UNWRAP;
+        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
         // Prepare migration data - the roleBitmap should be ignored completely
@@ -224,8 +224,8 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
     }
 
     function test_Revert_onERC1155Received_not_locked() public {
-        // Setup unlocked name (CANNOT_UNWRAP is NOT set)
-        uint32 unlockedFuses = 0;
+        // Setup unlocked name (CANNOT_UNWRAP is NOT set, but IS_DOT_ETH is set)
+        uint32 unlockedFuses = IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, unlockedFuses, uint64(block.timestamp + 86400));
         
         MigrationData memory migrationData = MigrationData({
@@ -252,7 +252,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
 
     function test_Revert_cannot_burn_fuses_already_set() public {
         // Setup with CANNOT_BURN_FUSES already set - migration should fail
-        uint32 fuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES;
+        uint32 fuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, fuses, uint64(block.timestamp + 86400));
         
         MigrationData memory migrationData = MigrationData({
@@ -279,7 +279,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
 
     function test_Revert_token_id_mismatch() public {
         // Setup locked name
-        uint32 lockedFuses = CANNOT_UNWRAP;
+        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
         // Use wrong label that doesn't match tokenId
@@ -342,7 +342,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             tokenIds[i] = uint256(keccak256(bytes(labels[i])));
             
             // Setup locked name (CANNOT_BURN_FUSES not set)
-            uint32 lockedFuses = CANNOT_UNWRAP;
+            uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
             nameWrapper.setFuseData(tokenIds[i], lockedFuses, uint64(block.timestamp + 86400));
             
             // DNS encode each label as .eth domain
@@ -396,7 +396,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
 
     function test_subregistry_creation() public {
         // Setup locked name (CANNOT_BURN_FUSES not set)
-        uint32 lockedFuses = CANNOT_UNWRAP;
+        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
         // Prepare migration data with unique salt
@@ -435,7 +435,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
 
     function test_fuse_role_mapping_no_fuses_burnt() public {
         // Setup locked name with only CANNOT_UNWRAP (no other fuses burnt)
-        uint32 lockedFuses = CANNOT_UNWRAP;
+        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
         // Prepare migration data - incoming roleBitmap should be ignored
@@ -480,7 +480,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
 
     function test_fuse_role_mapping_resolver_fuse_burnt() public {
         // Setup locked name with CANNOT_SET_RESOLVER already burnt
-        uint32 lockedFuses = CANNOT_UNWRAP | CANNOT_SET_RESOLVER;
+        uint32 lockedFuses = CANNOT_UNWRAP | CANNOT_SET_RESOLVER | IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
         // Prepare migration data
@@ -525,7 +525,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
 
     function test_fuses_burnt_after_migration_completes() public {
         // Setup locked name (CANNOT_BURN_FUSES not set so migration can proceed)
-        uint32 initialFuses = CANNOT_UNWRAP;
+        uint32 initialFuses = CANNOT_UNWRAP | IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, initialFuses, uint64(block.timestamp + 86400));
         
         // Prepare migration data
@@ -565,5 +565,34 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
         assertTrue(registeredTokenId != 0, "Name should be successfully registered");
     }
+
+    function test_Revert_invalid_non_eth_name() public {
+        // Setup locked name without IS_DOT_ETH fuse (not a .eth domain)
+        uint32 lockedFuses = CANNOT_UNWRAP; // Missing IS_DOT_ETH
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
+        
+        // Prepare migration data
+        MigrationData memory migrationData = MigrationData({
+            transferData: TransferData({
+                label: testLabel,
+                owner: user,
+                subregistry: address(0), // Will be created by factory
+                resolver: address(0xABCD),
+                expires: uint64(block.timestamp + 86400),
+                roleBitmap: LibRegistryRoles.ROLE_SET_SUBREGISTRY
+            }),
+            toL1: true,
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
+            salt: abi.encodePacked(testLabel, block.timestamp)
+        });
+        
+        bytes memory data = abi.encode(migrationData);
+        
+        // Should revert because IS_DOT_ETH fuse is not set
+        vm.expectRevert(abi.encodeWithSelector(L1LockedMigrationController.NotDotEthName.selector, testTokenId));
+        vm.prank(address(nameWrapper));
+        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+    }
+
 
 }

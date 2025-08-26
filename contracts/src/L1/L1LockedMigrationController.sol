@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {TransferData, MigrationData} from "../common/TransferData.sol";
@@ -25,6 +25,7 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     error TokenIdMismatch(uint256 tokenId, uint256 expectedTokenId);
     error InconsistentFusesState();
     error NameNotLocked();
+    error NotDotEthName(uint256 tokenId);
 
     IBaseRegistrar public immutable ethRegistryV1;
     INameWrapper public immutable nameWrapper;
@@ -104,6 +105,11 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             // Cannot migrate if CANNOT_BURN_FUSES is already burnt
             if ((fuses & CANNOT_BURN_FUSES) != 0) {
                 revert InconsistentFusesState();
+            }
+            
+            // Validate that this is a .eth name using the IS_DOT_ETH fuse
+            if ((fuses & IS_DOT_ETH) == 0) {
+                revert NotDotEthName(tokenIds[i]);
             }
             
             // Create MigratedWrappedNameRegistry using factory with salt
