@@ -22,7 +22,7 @@ async function checkDevnetRunning(): Promise<boolean> {
     });
     
     const l2Client = createPublicClient({
-      transport: http("http://localhost:8546"),
+      transport: http("http://localhost:8456"),
     });
 
     // Try to get the chain ID from both chains
@@ -32,7 +32,7 @@ async function checkDevnetRunning(): Promise<boolean> {
     ]);
 
     log(`✓ L1 devnet running on localhost:8545 (Chain ID: ${l1ChainId})`, "green");
-    log(`✓ L2 devnet running on localhost:8546 (Chain ID: ${l2ChainId})`, "green");
+    log(`✓ L2 devnet running on localhost:8456 (Chain ID: ${l2ChainId})`, "green");
     
     return true;
   } catch (error) {
