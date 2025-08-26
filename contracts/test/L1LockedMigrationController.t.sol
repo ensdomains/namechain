@@ -245,7 +245,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         bytes memory data = abi.encode(migrationData);
         
         // Should revert because name is not locked
-        vm.expectRevert(L1LockedMigrationController.NameNotLocked.selector);
+        vm.expectRevert(abi.encodeWithSelector(L1LockedMigrationController.NameNotLocked.selector, testTokenId));
         vm.prank(address(nameWrapper));
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
@@ -272,7 +272,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         bytes memory data = abi.encode(migrationData);
         
         // Should revert because CANNOT_BURN_FUSES is already set
-        vm.expectRevert(L1LockedMigrationController.InconsistentFusesState.selector);
+        vm.expectRevert(abi.encodeWithSelector(L1LockedMigrationController.InconsistentFusesState.selector, testTokenId));
         vm.prank(address(nameWrapper));
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
     }

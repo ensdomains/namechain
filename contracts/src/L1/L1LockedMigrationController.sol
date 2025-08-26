@@ -23,8 +23,8 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     error UnauthorizedCaller(address caller);   
     error MigrationFailed();
     error TokenIdMismatch(uint256 tokenId, uint256 expectedTokenId);
-    error InconsistentFusesState();
-    error NameNotLocked();
+    error InconsistentFusesState(uint256 tokenId);
+    error NameNotLocked(uint256 tokenId);
     error NotDotEthName(uint256 tokenId);
 
     IBaseRegistrar public immutable ethRegistryV1;
@@ -99,12 +99,12 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             
             // Check if name is locked
             if (fuses & CANNOT_UNWRAP == 0) {
-                revert NameNotLocked();
+                revert NameNotLocked(tokenIds[i]);
             }
             
             // Cannot migrate if CANNOT_BURN_FUSES is already burnt
             if ((fuses & CANNOT_BURN_FUSES) != 0) {
-                revert InconsistentFusesState();
+                revert InconsistentFusesState(tokenIds[i]);
             }
             
             // Validate that this is a .eth name using the IS_DOT_ETH fuse
