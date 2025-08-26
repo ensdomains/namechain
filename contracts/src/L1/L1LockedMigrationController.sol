@@ -128,16 +128,11 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             TransferData memory transferData = migrationDataArray[i].transferData;
             transferData.subregistry = subregistry;
             
-            // setup roles
-            transferData.roleBitmap = 
-                LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_RENEW_ADMIN;
+            // setup roles based on fuses
+            transferData.roleBitmap = LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_RENEW_ADMIN;
             // setting resolver ability
             if (fuses & CANNOT_SET_RESOLVER == 0) {
                 transferData.roleBitmap = transferData.roleBitmap | LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
-            }            
-            // registering subdomains
-            if (fuses & CANNOT_CREATE_SUBDOMAIN == 0) {
-                transferData.roleBitmap = transferData.roleBitmap | LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN;
             }
             
             // Validate that tokenId matches the label hash

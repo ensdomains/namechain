@@ -29,8 +29,6 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
 
     /**
      * @dev Initializes the MigratedWrappedNameRegistry contract.
-     * @param _datastore The registry datastore contract.
-     * @param _metadata The registry metadata contract.
      * @param _ownerAddress The address that will own this registry.
      * @param _ownerRoles The roles to grant to the owner.
      * @param _universalResolver The universal resolver for fallback resolution.
