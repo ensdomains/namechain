@@ -7,6 +7,7 @@ import "forge-std/console.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 import {L1LockedMigrationController} from "../src/L1/L1LockedMigrationController.sol";
 import {L1BridgeController} from "../src/L1/L1BridgeController.sol";
@@ -21,6 +22,7 @@ import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {IBridge, LibBridgeRoles} from "../src/common/IBridge.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
+import {NameUtils} from "../src/common/NameUtils.sol";
 import {MockPermissionedRegistry} from "./mocks/MockPermissionedRegistry.sol";
 import {EnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 
@@ -147,7 +149,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(4), "test", uint8(0)), // DNS encode "test"
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"), // DNS encode "test.eth"
             salt: abi.encodePacked(testLabel, block.timestamp)
         });
         
@@ -189,7 +191,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                            LibRegistryRoles.ROLE_SET_SUBREGISTRY
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(4), "test", uint8(0)), // DNS encode "test"
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"), // DNS encode "test.eth"
             salt: abi.encodePacked(testLabel, block.timestamp)
         });
         
@@ -225,7 +227,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(4), "test", uint8(0)), // DNS encode "test"
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"), // DNS encode "test.eth"
             salt: abi.encodePacked(testLabel, block.timestamp)
         });
         
@@ -252,7 +254,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(4), "test", uint8(0)), // DNS encode "test"
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"), // DNS encode "test.eth"
             salt: abi.encodePacked(testLabel, block.timestamp)
         });
         
@@ -280,7 +282,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(10), "wronglabel", uint8(0)), // DNS encode "wronglabel"
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("wronglabel"), // DNS encode "wronglabel.eth"
             salt: abi.encodePacked(testLabel, block.timestamp)
         });
         
@@ -304,7 +306,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(4), "test", uint8(0)), // DNS encode "test"
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"), // DNS encode "test.eth"
             salt: abi.encodePacked(testLabel, block.timestamp)
         });
         
@@ -332,14 +334,14 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             uint32 lockedFuses = CANNOT_UNWRAP;
             nameWrapper.setFuseData(tokenIds[i], lockedFuses, uint64(block.timestamp + 86400));
             
-            // DNS encode each label
+            // DNS encode each label as .eth domain
             bytes memory dnsEncodedName;
             if (i == 0) {
-                dnsEncodedName = abi.encodePacked(uint8(5), "test1", uint8(0));
+                dnsEncodedName = NameUtils.dnsEncodeEthLabel("test1");
             } else if (i == 1) {
-                dnsEncodedName = abi.encodePacked(uint8(5), "test2", uint8(0));
+                dnsEncodedName = NameUtils.dnsEncodeEthLabel("test2");
             } else {
-                dnsEncodedName = abi.encodePacked(uint8(5), "test3", uint8(0));
+                dnsEncodedName = NameUtils.dnsEncodeEthLabel("test3");
             }
             
             migrationDataArray[i] = MigrationData({
@@ -398,7 +400,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(4), "test", uint8(0)), // DNS encode "test"
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"), // DNS encode "test.eth"
             salt: saltData
         });
         
@@ -438,7 +440,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_REGISTRAR
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(6), "parent", uint8(0)), // DNS encode "parent"
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("parent"), // DNS encode "parent.eth"
             salt: abi.encodePacked(parentLabel, block.timestamp)
         });
         
@@ -472,7 +474,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(3), "sub", uint8(6), "parent", uint8(0)), // DNS encode "sub.parent"
+            dnsEncodedName: NameCoder.encode("sub.parent.eth"), // DNS encode "sub.parent.eth"
             salt: abi.encodePacked(subLabel, parentLabel, block.timestamp)
         });
         
@@ -516,7 +518,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(3), "sub", uint8(11), "nonexistent", uint8(0)), // DNS encode "sub.nonexistent"
+            dnsEncodedName: NameCoder.encode("sub.nonexistent.eth"), // DNS encode "sub.nonexistent.eth"
             salt: abi.encodePacked(subLabel, "nonexistent", block.timestamp)
         });
         
@@ -525,7 +527,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         // Should revert because parent "nonexistent" hasn't been migrated
         // The offset should be 4 (pointing to "nonexistent" label start)
         vm.expectRevert(abi.encodeWithSelector(L1BridgeController.ParentNotMigrated.selector, 
-            abi.encodePacked(uint8(3), "sub", uint8(11), "nonexistent", uint8(0)), 
+            NameCoder.encode("sub.nonexistent.eth"), 
             4
         ));
         vm.prank(address(nameWrapper));
@@ -551,7 +553,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_REGISTRAR
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(11), "grandparent", uint8(0)),
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("grandparent"), // DNS encode "grandparent.eth"
             salt: abi.encodePacked(grandparentLabel, "1")
         });
         
@@ -578,7 +580,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_REGISTRAR
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(6), "parent", uint8(11), "grandparent", uint8(0)),
+            dnsEncodedName: NameCoder.encode("parent.grandparent.eth"), // DNS encode "parent.grandparent.eth"
             salt: abi.encodePacked(parentLabel, "2")
         });
         
@@ -606,7 +608,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(5), "child", uint8(6), "parent", uint8(11), "grandparent", uint8(0)),
+            dnsEncodedName: NameCoder.encode("child.parent.grandparent.eth"), // DNS encode "child.parent.grandparent.eth"
             salt: abi.encodePacked(childLabel, "3")
         });
         
@@ -642,7 +644,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_REGISTRAR
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(11), "grandparent", uint8(0)),
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("grandparent"), // DNS encode "grandparent.eth"
             salt: abi.encodePacked(grandparentLabel, block.timestamp)
         });
         
@@ -666,12 +668,12 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
             }),
             toL1: true,
-            dnsEncodedName: abi.encodePacked(uint8(5), "child", uint8(6), "parent", uint8(11), "grandparent", uint8(0)),
+            dnsEncodedName: NameCoder.encode("child.parent.grandparent.eth"), // DNS encode "child.parent.grandparent.eth"
             salt: abi.encodePacked(childLabel, "parent", "grandparent", block.timestamp)
         });
         
         // Should revert because intermediate parent hasn't been migrated
-        bytes memory dnsName = abi.encodePacked(uint8(5), "child", uint8(6), "parent", uint8(11), "grandparent", uint8(0));
+        bytes memory dnsName = NameCoder.encode("child.parent.grandparent.eth"); // "child.parent.grandparent.eth"
         vm.expectRevert(abi.encodeWithSelector(L1BridgeController.ParentNotMigrated.selector, dnsName, 6));
         vm.prank(address(nameWrapper));
         controller.onERC1155Received(owner, owner, childTokenId, 1, abi.encode(childMigrationData));

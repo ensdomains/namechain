@@ -804,6 +804,44 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         vm.expectRevert(abi.encodeWithSelector(L1BridgeController.LockedNameCannotBeEjected.selector, lockedTokenId));
         registry.safeBatchTransferFrom(address(this), address(bridgeController), tokenIds, amounts, batchData);
     }
+
+    function test_Revert_handleLockedNameMigration_empty_name() public {
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+        });
+        
+        // Create empty DNS-encoded name (just null terminator)
+        bytes memory emptyDnsEncodedName = hex"00";
+        
+        vm.expectRevert(abi.encodeWithSelector(L1BridgeController.InvalidNameForMigration.selector, emptyDnsEncodedName));
+        vm.prank(address(bridge));
+        bridgeController.handleLockedNameMigration(emptyDnsEncodedName, transferData);
+    }
+
+    function test_Revert_handleLockedNameMigration_non_eth_domain() public {
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        TransferData memory transferData = TransferData({
+            label: testLabel,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+        });
+        
+        // Create DNS-encoded name for "test.com" (non-.eth domain)
+        bytes memory nonEthDnsEncodedName = hex"04746573740363686d00";
+        
+        vm.expectRevert(abi.encodeWithSelector(L1BridgeController.InvalidNameForMigration.selector, nonEthDnsEncodedName));
+        vm.prank(address(bridge));
+        bridgeController.handleLockedNameMigration(nonEthDnsEncodedName, transferData);
+    }
 }
 
 
