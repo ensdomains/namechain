@@ -8,6 +8,7 @@ import {
   stringToBytes,
   publicActions,
   testActions,
+  zeroAddress,
   type Account,
   type Chain,
   type Client,
@@ -24,6 +25,7 @@ import { WebSocketProvider } from "ethers/providers";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { serve } from "@namestone/ezccip/serve";
 import { patchArtifactsV1 } from "./patchArtifactsV1.ts";
+import { MAX_EXPIRY, ROLES } from "../deploy/constants.ts";
 
 function createDeploymentGetter<C extends Client>(
   environment: Environment,
@@ -40,6 +42,12 @@ function createDeploymentGetter<C extends Client>(
       client,
     });
   };
+}
+
+function deploymentAddresses(env: Environment) {
+  return Object.fromEntries(
+    Object.entries(env.deployments).map(([key, { address }]) => [key, address]),
+  );
 }
 
 export async function setupCrossChainEnvironment({
@@ -103,6 +111,9 @@ export async function setupCrossChainEnvironment({
     await l2Anvil.start();
     finalizers.push(() => l2Anvil.stop());
 
+    //l1Anvil.on("message", console.log);
+    //l2Anvil.on("message", console.log);
+
     // parse `host:port` from the anvil boot message
     const [l1HostPort, l2HostPort] = [l1Anvil, l2Anvil].map((anvil) => {
       const message = anvil.messages.get().join("\n").trim();
@@ -119,17 +130,18 @@ export async function setupCrossChainEnvironment({
     const l1Transport = webSocket(`ws://${l1HostPort}`, transportOptions);
     const l2Transport = webSocket(`ws://${l2HostPort}`, transportOptions);
 
+    const pollingInterval = 25;
+    const nativeCurrency = { name: "Ether", symbol: "ETH", decimals: 18 };
     const l1Client = createWalletClient({
       chain: {
         id: l1ChainId,
         name: "L1 Local",
-        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-        rpcUrls: {
-          default: { http: [`http://${l1HostPort}`] },
-        },
+        nativeCurrency,
+        rpcUrls: { default: { http: [`http://${l1HostPort}`] } },
       },
       transport: l1Transport,
       account: deployer,
+      pollingInterval,
     })
       .extend(publicActions)
       .extend(testActions({ mode: "anvil" }));
@@ -137,13 +149,12 @@ export async function setupCrossChainEnvironment({
       chain: {
         id: l2ChainId,
         name: "L2 Local",
-        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-        rpcUrls: {
-          default: { http: [`http://${l2HostPort}`] },
-        },
+        nativeCurrency,
+        rpcUrls: { default: { http: [`http://${l2HostPort}`] } },
       },
       transport: l2Transport,
       account: deployer,
+      pollingInterval,
     })
       .extend(publicActions)
       .extend(testActions({ mode: "anvil" }));
@@ -227,19 +238,21 @@ export async function setupCrossChainEnvironment({
       verifierAddress,
     });
 
-    console.log("Deployed ENSv2");
-
     const l1Contracts = createDeploymentGetter(l1Deploy, l1Client);
-    console.log(Object.keys(l1Deploy.deployments));
     const l1 = {
       hostPort: l1HostPort,
       client: l1Client,
       transport: l1Transport,
+      deployments: deploymentAddresses(l1Deploy),
       contracts: {
         // v1+v2
         batchGatewayProvider: l1Contracts(
           "GatewayProvider",
           "BatchGatewayProvider",
+        ),
+        dnssecGatewayProvider: l1Contracts(
+          "GatewayProvider",
+          "DNSSECGatewayProvider",
         ),
         // v1
         rootV1: l1Contracts("Root"),
@@ -247,17 +260,18 @@ export async function setupCrossChainEnvironment({
         ethRegistrarV1: l1Contracts("BaseRegistrarImplementation"),
         reverseRegistrarV1: l1Contracts("ReverseRegistrar"),
         publicResolverV1: l1Contracts("PublicResolver"),
+        nameWrapperV1: l1Contracts("NameWrapper"),
         //universalResolverV1: l1Contracts("UniversalResolver"),
-        dnssecImpl: l1Contracts("DNSSECImpl"),
         // v2
         ejectionController: l1Contracts("L1EjectionController"),
         ethRegistry: l1Contracts("PermissionedRegistry", "ETHRegistry"),
         ethSelfResolver: l1Contracts("DedicatedResolver", "ETHSelfResolver"),
         ethTLDResolver: l1Contracts("ETHTLDResolver"),
-        //dnsTLDResolver: l1Contracts("DNSTLDResolver"),
+        dnsTLDResolver: l1Contracts("DNSTLDResolver"),
+        dnsTXTResolver: l1Contracts("DNSTXTResolver"),
         mockBridge: l1Contracts("MockL1Bridge"),
         rootRegistry: l1Contracts("PermissionedRegistry", "RootRegistry"),
-        universalResolver: l1Contracts("UniversalResolverV2", "UniversalResolver"),
+        universalResolver: l1Contracts("UniversalResolverV2"),
         // shared
         registryDatastore: l1Contracts("RegistryDatastore"),
         simpleRegistryMetadata: l1Contracts("SimpleRegistryMetadata"),
@@ -270,7 +284,9 @@ export async function setupCrossChainEnvironment({
           "DedicatedResolverImpl",
         ),
       },
+      createClient,
       deployDedicatedResolver,
+      deployPermissionedRegistry,
     };
 
     const l2Contracts = createDeploymentGetter(l2Deploy, l2Client);
@@ -278,6 +294,7 @@ export async function setupCrossChainEnvironment({
       hostPort: l2HostPort,
       client: l2Client,
       transport: l2Transport,
+      deployments: deploymentAddresses(l2Deploy),
       contracts: {
         // v2
         ethRegistrar: l2Contracts("ETHRegistrar"),
@@ -297,8 +314,45 @@ export async function setupCrossChainEnvironment({
           "DedicatedResolverImpl",
         ),
       },
+      createClient,
       deployDedicatedResolver,
+      deployPermissionedRegistry,
     };
+
+    {
+      // create registry for "ens.eth"
+      const ens_ethRegistry = await l1.deployPermissionedRegistry(deployer);
+      // create resolver for "dnsname.ens.eth"
+      const ens_ethResolver = await l1.deployDedicatedResolver(deployer);
+      await ens_ethResolver.write.setAddr([
+        60n,
+        l1.contracts.dnsTXTResolver.address, // set to DNSTXTResolver
+      ]);
+      // create "ens.eth"
+      await l1.contracts.ethRegistry.write.register([
+        "ens",
+        deployer.address,
+        ens_ethRegistry.address,
+        zeroAddress,
+        0n,
+        MAX_EXPIRY,
+      ]);
+      // create "dnsname.ens.eth"
+      await ens_ethRegistry.write.register([
+        "dnsname",
+        deployer.address,
+        zeroAddress,
+        ens_ethResolver.address,
+        0n,
+        MAX_EXPIRY,
+      ]);
+      console.log("Setup ens.eth");
+    }
+
+    await sync();
+
+    console.log("Deployed ENSv2");
+
     return {
       accounts,
       namedAccounts: Object.fromEntries(accounts.map((x) => [x.name, x])),
@@ -316,21 +370,50 @@ export async function setupCrossChainEnvironment({
       const args = { blocks: 1 };
       await Promise.all([l1Client.mine(args), l2Client.mine(args)]);
     }
+    function createClient(this: typeof l1 | typeof l2, account: Account) {
+      return createWalletClient({
+        chain: this.client.chain,
+        transport: this.transport,
+        account,
+      });
+    }
     async function deployDedicatedResolver(
       this: typeof l1 | typeof l2,
       account: Account,
       salt = BigInt(keccak256(stringToBytes(new Date().toISOString()))),
     ) {
       return deployVerifiableProxy({
-        walletClient: createWalletClient({
-          chain: this.client.chain,
-          transport: this.transport,
-          account,
-        }),
+        walletClient: this.createClient(account),
         factoryAddress: this.contracts.dedicatedResolverFactory.address,
         implAddress: this.contracts.dedicatedResolverImpl.address,
         implAbi: this.contracts.dedicatedResolverImpl.abi,
         salt,
+      });
+    }
+    async function deployPermissionedRegistry(
+      this: typeof l1 | typeof l2,
+      account: Account,
+      roles = ROLES.ALL,
+    ) {
+      const client = this.createClient(account);
+      const abi = artifacts.PermissionedRegistry.abi;
+      const hash = await client.deployContract({
+        abi,
+        bytecode: artifacts.PermissionedRegistry.bytecode,
+        args: [
+          this.contracts.registryDatastore.address,
+          this.contracts.simpleRegistryMetadata.address,
+          account.address,
+          roles,
+        ],
+      });
+      const receipt = await this.client.waitForTransactionReceipt({
+        hash,
+      });
+      return getContract({
+        abi,
+        address: receipt.contractAddress!,
+        client,
       });
     }
   } catch (err) {
@@ -338,6 +421,7 @@ export async function setupCrossChainEnvironment({
     throw err;
   }
 }
+
 export type CrossChainEnvironment = Awaited<
   ReturnType<typeof setupCrossChainEnvironment>
 >;

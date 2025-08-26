@@ -16,7 +16,7 @@ export async function patchArtifactsV1() {
   const json = JSON.parse(code.slice(prefix, suffix));
   for (const [key, value] of Object.entries(json)) {
     if (key.startsWith("lib/ens-contracts/")) {
-      json[value.contractName] = value;
+      json[(value as any).contractName] = value;
     }
   }
 

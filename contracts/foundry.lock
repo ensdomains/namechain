@@ -5,7 +5,7 @@
   "lib/ens-contracts": {
     "branch": {
       "name": "feature/fet-1938-migrate-ens-contracts-deployment-script-to-hh-v3-rocketh",
-      "rev": "ea3fc7383cbc272791e6c5d3a2576212d64d797b"
+      "rev": "06748be7fc1994a14e2956e61594925e972a7e0d"
     }
   },
   "lib/forge-std": {

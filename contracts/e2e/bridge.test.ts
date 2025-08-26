@@ -16,18 +16,16 @@ import { labelToCanonicalId, getCanonicalId } from "../test/utils/utils.ts";
 
 describe("Bridge", () => {
   let env: Awaited<ReturnType<typeof setupCrossChainEnvironment>>;
-  let relayer: ReturnType<typeof createMockRelay>;
   beforeAll(async () => {
     env = await setupCrossChainEnvironment();
-    afterAll(env.shutdown);
-    relayer = createMockRelay({
+    createMockRelay({
       l1Bridge: env.l1.contracts.mockBridge,
       l2Bridge: env.l2.contracts.mockBridge,
       l1Client: env.l1.client,
       l2Client: env.l2.client,
     });
-    afterAll(relayer.removeListeners);
   });
+  afterAll(() => env?.shutdown);
 
   it("name ejection", async () => {
     const label = "premium";

@@ -9,14 +9,14 @@ export default execute(
       "BatchGatewayProvider",
     );
 
-    await deploy("UniversalResolver", {
+    await deploy("UniversalResolverV2", {
       account: deployer,
       artifact: artifacts.UniversalResolverV2,
       args: [rootRegistry.address, batchGatewayProvider.address],
     });
   },
   {
-    tags: ["UniversalResolver", "l1"],
+    tags: ["UniversalResolverV2", "l1"],
     dependencies: ["RootRegistry", "BatchGatewayProvider"],
   },
 );

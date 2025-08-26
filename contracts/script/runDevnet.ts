@@ -34,13 +34,13 @@ console.log({
   l2: dump(env.l2),
 });
 
+console.log("\nReady!");
+
 function dump(deployment: typeof env.l1 | typeof env.l2) {
-  const { client, hostPort, contracts } = deployment;
+  const { client, hostPort, deployments } = deployment;
   return {
     chain: toHex(client.chain.id),
     endpoint: `{http,ws}://${hostPort}`,
-    contracts: Object.fromEntries(
-      Object.entries(contracts).map(([k, v]) => [k, v.address]),
-    ),
+    deployments,
   };
 }

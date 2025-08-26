@@ -82,6 +82,10 @@ export default execute(
   },
   {
     tags: ["ETHTLDResolver", "l1"],
-    dependencies: ["DedicatedResolver", "ENSRegistry", "BatchGatewayProvider"],
+    dependencies: [
+      "DedicatedResolver",
+      "BaseRegistrarImplementation", // "ENSRegistry"
+      "BatchGatewayProvider",
+    ],
   },
 );
