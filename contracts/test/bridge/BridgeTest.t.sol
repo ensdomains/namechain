@@ -48,7 +48,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
         l2Bridge = new MockL2Bridge();
         
         // Deploy controllers
-        l1Controller = new L1BridgeController(l1Registry, l1Bridge, l1Registry);
+        l1Controller = new L1BridgeController(l1Registry, l1Bridge);
         l2Controller = new L2BridgeController(l2Bridge, l2Registry, datastore);
         
         // Set the controller contracts as targets for the bridges

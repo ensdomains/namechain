@@ -30,17 +30,11 @@ contract L1BridgeController is EjectionController {
 
     // Mapping to track locked names by tokenId
     mapping(uint256 => bool) private isLocked;
-    
-    // Root registry for handling TLD registrations
-    IPermissionedRegistry public immutable rootRegistry;
 
     constructor(
         IPermissionedRegistry _registry, 
-        IBridge _bridge,
-        IPermissionedRegistry _rootRegistry
-    ) EjectionController(_registry, _bridge) {
-        rootRegistry = _rootRegistry;
-    }
+        IBridge _bridge
+    ) EjectionController(_registry, _bridge) {}
 
     /**
      * @dev Should be called when a name has been ejected from L2.  
@@ -55,20 +49,18 @@ contract L1BridgeController is EjectionController {
     onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
     returns (uint256 tokenId) 
     {
-        tokenId = _registerName(transferData, registry);
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
+        bytes memory dnsEncodedName;
+        (tokenId, dnsEncodedName) = _registerName(transferData, registry);
         emit NameEjectedToL1(dnsEncodedName, tokenId);
     }
 
     /**
-     * @dev Handles migration of a locked name by traversing the registry hierarchy.
-     * Finds the parent registry and registers the name there.
+     * @dev Handles migration of a locked .eth 2LD name.
+     * Registers the name directly in the eth registry.
      *
-     * @param dnsEncodedName The DNS-encoded name of the full domain
      * @param transferData The transfer data for the name being migrated
      */
     function handleLockedNameMigration(
-        bytes memory dnsEncodedName,
         TransferData memory transferData
     )
     external
@@ -76,11 +68,8 @@ contract L1BridgeController is EjectionController {
     onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
     returns (uint256 tokenId)
     {
-        // Find the parent registry for this name
-        IRegistry parentRegistry = _findParentRegistryForMigration(dnsEncodedName, 0);
-        
-        // Register the name in the parent registry
-        tokenId = _registerName(transferData, IPermissionedRegistry(address(parentRegistry)));
+        bytes memory dnsEncodedName;
+        (tokenId, dnsEncodedName) = _registerName(transferData, registry);
         
         // Mark this name as locked to prevent future ejections
         isLocked[tokenId] = true;
@@ -141,7 +130,7 @@ contract L1BridgeController is EjectionController {
     function _registerName(
         TransferData memory transferData,
         IPermissionedRegistry targetRegistry
-    ) private returns (uint256 tokenId) {
+    ) private returns (uint256 tokenId, bytes memory dnsEncodedName) {
         tokenId = targetRegistry.register(
             transferData.label,
             transferData.owner,
@@ -150,52 +139,7 @@ contract L1BridgeController is EjectionController {
             transferData.roleBitmap,
             transferData.expires
         );
+        dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
     }
 
-    /**
-     * @dev Finds the parent registry for a DNS-encoded domain name using pure recursion.
-     * Handles any top-level domain (TLD) uniformly without special cases.
-     * Returns the registry where the leftmost label should be registered.
-     *
-     * @param dnsEncodedName The DNS-encoded name (can be any TLD)
-     * @param offset The current offset in the name
-     */
-    function _findParentRegistryForMigration(
-        bytes memory dnsEncodedName,
-        uint256 offset
-    ) private view returns (IRegistry) {
-        // Read the current label and next label
-        (bytes32 labelHash, uint256 nextOffset) = NameCoder.readLabel(dnsEncodedName, offset);
-        
-        // If we're at the end (null terminator), this is invalid for migration
-        if (labelHash == bytes32(0)) {
-            revert InvalidNameForMigration(dnsEncodedName);
-        }
-        
-        // If next label is null, current label is a TLD - return rootRegistry as parent
-        if (dnsEncodedName[nextOffset] == 0) {
-            return IRegistry(address(rootRegistry));
-        }
-        
-        // Recursively find where the next part should be registered  
-        IRegistry parentRegistry = _findParentRegistryForMigration(dnsEncodedName, nextOffset);
-        
-        // Extract the next label string from the DNS-encoded name
-        (uint8 nextLabelLength, ) = NameCoder.nextLabel(dnsEncodedName, nextOffset);
-        string memory nextLabel = new string(nextLabelLength);
-        assembly {
-            mcopy(add(nextLabel, 32), add(add(dnsEncodedName, 33), nextOffset), nextLabelLength)
-        }
-        
-        // Get the subregistry for the next label from its parent
-        IRegistry nextSubregistry = parentRegistry.getSubregistry(nextLabel);
-        
-        // If the subregistry doesn't exist, the parent hasn't been migrated yet
-        if (address(nextSubregistry) == address(0)) {
-            revert ParentNotMigrated(dnsEncodedName, nextOffset);
-        }
-        
-        // Return the subregistry where the current label should be registered
-        return nextSubregistry;
-    }
 }

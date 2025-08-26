@@ -34,12 +34,10 @@ contract MockBridge is IBridge {
 }
 
 contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
-    RegistryDatastore rootDatastore;
-    RegistryDatastore ethDatastore;
-    MockPermissionedRegistry rootRegistry;
-    MockPermissionedRegistry ethRegistry;
+    RegistryDatastore datastore;
+    MockPermissionedRegistry registry;
     L1BridgeController bridgeController;
-    MockRegistryMetadata ethRegistryMetadata;
+    MockRegistryMetadata registryMetadata;
     MockBridge bridge;
     address constant MOCK_RESOLVER = address(0xabcd);
     address user = address(0x1234);
@@ -56,7 +54,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
      */
     function _createEjectionData(
         address l2Owner,
-        address l2SubethRegistry,
+        address l2Subregistry,
         address l2Resolver,
         uint64 expiryTime,
         uint256 roleBitmap
@@ -64,7 +62,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: l2Owner,
-            subregistry: l2SubethRegistry,
+            subregistry: l2Subregistry,
             resolver: l2Resolver,
             expires: expiryTime,
             roleBitmap: roleBitmap
@@ -78,7 +76,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     function _createEjectionDataWithLabel(
         string memory label,
         address l2Owner,
-        address l2SubethRegistry,
+        address l2Subregistry,
         address l2Resolver,
         uint64 expiryTime,
         uint256 roleBitmap
@@ -86,7 +84,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: label,
             owner: l2Owner,
-            subregistry: l2SubethRegistry,
+            subregistry: l2Subregistry,
             resolver: l2Resolver,
             expires: expiryTime,
             roleBitmap: roleBitmap
@@ -129,26 +127,19 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     }
     
     function setUp() public {
-        rootDatastore = new RegistryDatastore();
-        ethDatastore = new RegistryDatastore();
-        ethRegistryMetadata = new MockRegistryMetadata();
+        datastore = new RegistryDatastore();
+        registryMetadata = new MockRegistryMetadata();
         bridge = new MockBridge();
         
-        // Deploy the root ethRegistry
-        rootRegistry = new MockPermissionedRegistry(rootDatastore, ethRegistryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
+        // Deploy the eth registry
+        registry = new MockPermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
         
-        // Deploy the eth ethRegistry  
-        ethRegistry = new MockPermissionedRegistry(ethDatastore, ethRegistryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
-        
-        // Set up eth as a subregistry of root
-        rootRegistry.register("eth", address(this), ethRegistry, address(0), LibRegistryRoles.ROLE_SET_SUBREGISTRY, uint64(block.timestamp + 365 days));
-        
-        // Create the real controller with the eth ethRegistry, bridge, and root ethRegistry
-        bridgeController = new L1BridgeController(ethRegistry, bridge, rootRegistry);
+        // Create the real controller with the eth registry and bridge
+        bridgeController = new L1BridgeController(registry, bridge);
 
-        // grant roles to ethRegistry operations
-        ethRegistry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(this));
-        ethRegistry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, address(bridgeController));
+        // grant roles to registry operations
+        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(this));
+        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, address(bridgeController));
         
         // Grant bridge roles to the bridge mock so it can call the bridge controller
         bridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(bridge));
@@ -159,7 +150,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: address(this),
-            subregistry: address(ethRegistry),
+            subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
@@ -168,8 +159,8 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         vm.prank(address(bridge));
         bridgeController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = ethRegistry.getNameData(testLabel);
-        assertEq(ethRegistry.ownerOf(tokenId), address(this));
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        assertEq(registry.ownerOf(tokenId), address(this));
     }
 
     function test_eject_from_namechain_basic() public {
@@ -188,15 +179,15 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         vm.prank(address(bridge));
         bridgeController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = ethRegistry.getNameData(testLabel);
-        assertEq(ethRegistry.ownerOf(tokenId), user);
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        assertEq(registry.ownerOf(tokenId), user);
         
-        assertEq(address(ethRegistry.getSubregistry(testLabel)), subregistry);
+        assertEq(address(registry.getSubregistry(testLabel)), subregistry);
 
-        assertEq(ethRegistry.getResolver(testLabel), MOCK_RESOLVER);
+        assertEq(registry.getResolver(testLabel), MOCK_RESOLVER);
         
-        uint256 resource = ethRegistry.testGetResourceFromTokenId(tokenId);
-        assertTrue(ethRegistry.hasRoles(resource, expectedRoles, user), "Role bitmap should match the expected roles");
+        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
+        assertTrue(registry.hasRoles(resource, expectedRoles, user), "Role bitmap should match the expected roles");
     }
 
     function test_eject_from_namechain_emits_events() public {
@@ -206,7 +197,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: address(this),
-            subregistry: address(ethRegistry),
+            subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
@@ -241,7 +232,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: address(this),
-            subregistry: address(ethRegistry),
+            subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
@@ -261,7 +252,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: address(this),
-            subregistry: address(ethRegistry),
+            subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
@@ -270,10 +261,10 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         vm.prank(address(bridge));
         bridgeController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = ethRegistry.getNameData(testLabel);
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
         
         // Verify initial expiry was set
-        (,uint64 initialExpiry,) = ethDatastore.getSubregistry(address(ethRegistry), tokenId);
+        (,uint64 initialExpiry,) = datastore.getSubregistry(address(registry), tokenId);
         assertEq(initialExpiry, expiryTime, "Initial expiry not set correctly");
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
@@ -282,7 +273,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         bridgeController.syncRenewal(tokenId, newExpiry);
 
         // Verify new expiry was set
-        (,uint64 updatedExpiry,) = ethDatastore.getSubregistry(address(ethRegistry), tokenId);
+        (,uint64 updatedExpiry,) = datastore.getSubregistry(address(registry), tokenId);
         assertEq(updatedExpiry, newExpiry, "Expiry was not updated correctly");
     }
 
@@ -291,7 +282,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: address(this),
-            subregistry: address(ethRegistry),
+            subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
@@ -300,7 +291,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         vm.prank(address(bridge));
         bridgeController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = ethRegistry.getNameData(testLabel);
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
 
@@ -331,7 +322,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: address(this),
-            subregistry: address(ethRegistry),
+            subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
@@ -340,7 +331,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         vm.prank(address(bridge));
         bridgeController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = ethRegistry.getNameData(testLabel);
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
         
         vm.warp(block.timestamp + 101);
 
@@ -354,7 +345,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: address(this),
-            subregistry: address(ethRegistry),
+            subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: initialExpiry,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
@@ -363,7 +354,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         vm.prank(address(bridge));
         bridgeController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = ethRegistry.getNameData(testLabel);
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
         
         uint64 newExpiry = uint64(block.timestamp) + 100;
 
@@ -380,36 +371,36 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         
-        // Register the name directly using the ethRegistry
-        ethRegistry.register(testLabel, address(this), ethRegistry, MOCK_RESOLVER, roleBitmap, expiryTime);
+        // Register the name directly using the registry
+        registry.register(testLabel, address(this), registry, MOCK_RESOLVER, roleBitmap, expiryTime);
 
-        (uint256 tokenId,,) = ethRegistry.getNameData(testLabel);
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
 
         // Setup ejection data
         address expectedOwner = address(1);
-        address expectedSubethRegistry = address(2);
+        address expectedSubregistry = address(2);
         address expectedResolver = address(3);
         uint64 expectedExpiry = uint64(block.timestamp + 86400);
         uint256 expectedRoleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         
         bytes memory data = _createEjectionData(
             expectedOwner, 
-            expectedSubethRegistry, 
+            expectedSubregistry, 
             expectedResolver, 
             expectedExpiry,
             expectedRoleBitmap
         );
 
         vm.recordLogs();
-        ethRegistry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, data);
+        registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, data);
 
         // Check that the token is now owned by address(0)
-        assertEq(ethRegistry.ownerOf(tokenId), address(0), "Token should have no owner after ejection");
+        assertEq(registry.ownerOf(tokenId), address(0), "Token should have no owner after ejection");
 
-        _verifyEjectionEvent(expectedOwner, expectedSubethRegistry, expectedResolver, expectedExpiry);
+        _verifyEjectionEvent(expectedOwner, expectedSubregistry, expectedResolver, expectedExpiry);
     }
     
-    function _verifyEjectionEvent(address /* expectedOwner */, address /* expectedSubethRegistry */, address /* expectedResolver */, uint64 /* expectedExpiry */) internal {
+    function _verifyEjectionEvent(address /* expectedOwner */, address /* expectedSubregistry */, address /* expectedResolver */, uint64 /* expectedExpiry */) internal {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool eventReceived = false;
         bytes32 expectedSig = keccak256("NameEjectedToL2(bytes,uint256)");
@@ -427,15 +418,15 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         
-        // Register the name directly using the ethRegistry
-        ethRegistry.register(testLabel, address(this), ethRegistry, MOCK_RESOLVER, roleBitmap, expiryTime);
+        // Register the name directly using the registry
+        registry.register(testLabel, address(this), registry, MOCK_RESOLVER, roleBitmap, expiryTime);
 
-        (uint256 tokenId,,) = ethRegistry.getNameData(testLabel);
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
 
         // Setup ejection data with invalid label
         string memory invalidLabel = "invalid";
         address expectedOwner = address(1);
-        address expectedSubethRegistry = address(2);
+        address expectedSubregistry = address(2);
         address expectedResolver = address(3);
         uint64 expectedExpiry = uint64(block.timestamp + 86400);
         uint256 expectedRoleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
@@ -443,7 +434,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         bytes memory data = _createEjectionDataWithLabel(
             invalidLabel,
             expectedOwner, 
-            expectedSubethRegistry, 
+            expectedSubregistry, 
             expectedResolver, 
             expectedExpiry,
             expectedRoleBitmap
@@ -451,28 +442,28 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
 
         // Transfer should revert due to invalid label
         vm.expectRevert(abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId, invalidLabel));
-        ethRegistry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, data);
+        registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, data);
     }
 
     function test_Revert_ejectToL2_null_owner() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         
-        // Register the name directly using the ethRegistry
-        ethRegistry.register(testLabel, address(this), ethRegistry, MOCK_RESOLVER, roleBitmap, expiryTime);
+        // Register the name directly using the registry
+        registry.register(testLabel, address(this), registry, MOCK_RESOLVER, roleBitmap, expiryTime);
 
-        (uint256 tokenId,,) = ethRegistry.getNameData(testLabel);
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
 
         // Setup ejection data with null owner
         address nullOwner = address(0);
-        address expectedSubethRegistry = address(2);
+        address expectedSubregistry = address(2);
         address expectedResolver = address(3);
         uint64 expectedExpiry = uint64(block.timestamp + 86400);
         uint256 expectedRoleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         
         bytes memory data = _createEjectionData(
             nullOwner, 
-            expectedSubethRegistry, 
+            expectedSubregistry, 
             expectedResolver, 
             expectedExpiry,
             expectedRoleBitmap
@@ -480,7 +471,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
 
         // Transfer should revert due to null owner
         vm.expectRevert(abi.encodeWithSelector(L1BridgeController.InvalidOwner.selector));
-        ethRegistry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, data);
+        registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, data);
     }
 
     
@@ -489,11 +480,11 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         
         // Execute batch transfer
         vm.recordLogs();
-        ethRegistry.safeBatchTransferFrom(address(this), address(bridgeController), ids, amounts, data);
+        registry.safeBatchTransferFrom(address(this), address(bridgeController), ids, amounts, data);
         
         // Verify all tokens were processed correctly
         for (uint256 i = 0; i < ids.length; i++) {
-            assertEq(ethRegistry.ownerOf(ids[i]), address(0), "Token should have been burned");
+            assertEq(registry.ownerOf(ids[i]), address(0), "Token should have been burned");
         }
         
         _verifyBatchEventEmission();
@@ -503,18 +494,18 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         
         // Register names
-        ethRegistry.register("test1", address(this), ethRegistry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
-        ethRegistry.register("test2", address(this), ethRegistry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
-        ethRegistry.register("test3", address(this), ethRegistry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
+        registry.register("test1", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
+        registry.register("test2", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
+        registry.register("test3", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
         
         // Get token IDs and verify ownership
-        (uint256 tokenId1,,) = ethRegistry.getNameData("test1");
-        (uint256 tokenId2,,) = ethRegistry.getNameData("test2");
-        (uint256 tokenId3,,) = ethRegistry.getNameData("test3");
+        (uint256 tokenId1,,) = registry.getNameData("test1");
+        (uint256 tokenId2,,) = registry.getNameData("test2");
+        (uint256 tokenId3,,) = registry.getNameData("test3");
         
-        assertEq(ethRegistry.ownerOf(tokenId1), address(this));
-        assertEq(ethRegistry.ownerOf(tokenId2), address(this));
-        assertEq(ethRegistry.ownerOf(tokenId3), address(this));
+        assertEq(registry.ownerOf(tokenId1), address(this));
+        assertEq(registry.ownerOf(tokenId2), address(this));
+        assertEq(registry.ownerOf(tokenId3), address(this));
         
         // Setup arrays
         ids = new uint256[](3);
@@ -566,12 +557,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         
         // Register names
-        ethRegistry.register("test1", address(this), ethRegistry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
-        ethRegistry.register("test2", address(this), ethRegistry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
+        registry.register("test1", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
+        registry.register("test2", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
         
         // Get token IDs
-        (uint256 tokenId1,,) = ethRegistry.getNameData("test1");
-        (uint256 tokenId2,,) = ethRegistry.getNameData("test2");
+        (uint256 tokenId1,,) = registry.getNameData("test1");
+        (uint256 tokenId2,,) = registry.getNameData("test2");
         
         // Setup arrays with one invalid label
         uint256[] memory ids = new uint256[](2);
@@ -605,7 +596,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         
         // Should revert due to invalid label for tokenId2
         vm.expectRevert(abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId2, "invalid"));
-        ethRegistry.safeBatchTransferFrom(address(this), address(bridgeController), ids, amounts, data);
+        registry.safeBatchTransferFrom(address(this), address(bridgeController), ids, amounts, data);
     }
     
     /**
@@ -647,7 +638,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: address(this),
-            subregistry: address(ethRegistry),
+            subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
@@ -668,7 +659,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: address(this),
-            subregistry: address(ethRegistry),
+            subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
@@ -678,7 +669,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         vm.prank(address(bridge));
         bridgeController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = ethRegistry.getNameData(testLabel);
+        (uint256 tokenId,,) = registry.getNameData(testLabel);
         
         // Try to call syncRenewal directly (without proper role)
         vm.expectRevert(abi.encodeWithSelector(
@@ -695,25 +686,23 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: address(this),
-            subregistry: address(ethRegistry),
+            subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         
-        // Create DNS-encoded name using NameUtils
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
         
         vm.recordLogs();
         
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        uint256 tokenId = bridgeController.handleLockedNameMigration(dnsEncodedName, transferData);
+        uint256 tokenId = bridgeController.handleLockedNameMigration(transferData);
         
         // Verify the name was registered
-        (uint256 registeredTokenId,,) = ethRegistry.getNameData(testLabel);
+        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
         assertEq(registeredTokenId, tokenId);
-        assertEq(ethRegistry.ownerOf(tokenId), address(this));
+        assertEq(registry.ownerOf(tokenId), address(this));
         
         // Verify the LockedNameMigratedToL1 event was emitted
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -735,16 +724,15 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: address(this),
-            subregistry: address(ethRegistry),
+            subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
         
         vm.prank(address(bridge));
-        uint256 tokenId = bridgeController.handleLockedNameMigration(dnsEncodedName, transferData);
+        uint256 tokenId = bridgeController.handleLockedNameMigration(transferData);
         
         // Now try to eject the locked name - it should fail
         bytes memory ejectionData = _createEjectionData(
@@ -756,7 +744,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         );
 
         vm.expectRevert(abi.encodeWithSelector(L1BridgeController.LockedNameCannotBeEjected.selector, tokenId));
-        ethRegistry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, ejectionData);
+        registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, ejectionData);
     }
 
     function test_Revert_batchEjectToL2_locked_name() public {
@@ -765,20 +753,19 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: address(this),
-            subregistry: address(ethRegistry),
+            subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
         
         vm.prank(address(bridge));
-        uint256 lockedTokenId = bridgeController.handleLockedNameMigration(dnsEncodedName, transferData);
+        uint256 lockedTokenId = bridgeController.handleLockedNameMigration(transferData);
         
         // Register a regular name for batch testing
-        ethRegistry.register("test2", address(this), ethRegistry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
-        (uint256 regularTokenId,,) = ethRegistry.getNameData("test2");
+        registry.register("test2", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
+        (uint256 regularTokenId,,) = registry.getNameData("test2");
         
         // Setup batch data with the locked name and a regular name
         uint256[] memory tokenIds = new uint256[](2);
@@ -811,101 +798,10 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         bytes memory batchData = abi.encode(transferDataArray);
 
         vm.expectRevert(abi.encodeWithSelector(L1BridgeController.LockedNameCannotBeEjected.selector, lockedTokenId));
-        ethRegistry.safeBatchTransferFrom(address(this), address(bridgeController), tokenIds, amounts, batchData);
+        registry.safeBatchTransferFrom(address(this), address(bridgeController), tokenIds, amounts, batchData);
     }
 
-    function test_Revert_handleLockedNameMigration_empty_name() public {
-        uint64 expiryTime = uint64(block.timestamp) + 86400;
-        TransferData memory transferData = TransferData({
-            label: testLabel,
-            owner: address(this),
-            subregistry: address(ethRegistry),
-            resolver: MOCK_RESOLVER,
-            expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
-        });
-        
-        // Create empty DNS-encoded name (just null terminator)
-        bytes memory emptyDnsEncodedName = hex"00";
-        
-        vm.expectRevert(abi.encodeWithSelector(L1BridgeController.InvalidNameForMigration.selector, emptyDnsEncodedName));
-        vm.prank(address(bridge));
-        bridgeController.handleLockedNameMigration(emptyDnsEncodedName, transferData);
-    }
 
-    function test_handleLockedNameMigration_com_domain() public {
-        // First set up a .com registry as a subregistry of root
-        MockPermissionedRegistry comRegistry = new MockPermissionedRegistry(
-            new RegistryDatastore(), 
-            new MockRegistryMetadata(), 
-            address(this), 
-            LibEACBaseRoles.ALL_ROLES
-        );
-        
-        rootRegistry.register("com", address(this), IRegistry(address(comRegistry)), address(0), LibRegistryRoles.ROLE_SET_SUBREGISTRY, uint64(block.timestamp + 365 days));
-        
-        // Grant necessary roles to the com registry
-        comRegistry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, address(bridgeController));
-        
-        uint64 expiryTime = uint64(block.timestamp) + 86400;
-        TransferData memory transferData = TransferData({
-            label: testLabel,
-            owner: address(this),
-            subregistry: address(comRegistry),
-            resolver: MOCK_RESOLVER,
-            expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
-        });
-        
-        // Create DNS-encoded name for "test.com"
-        bytes memory comDnsEncodedName = abi.encodePacked(
-            uint8(4), "test",
-            uint8(3), "com", 
-            uint8(0)
-        );
-        
-        vm.recordLogs();
-        
-        vm.prank(address(bridge));
-        uint256 tokenId = bridgeController.handleLockedNameMigration(comDnsEncodedName, transferData);
-        
-        // Verify the name was registered in the .com registry
-        (uint256 registeredTokenId,,) = comRegistry.getNameData(testLabel);
-        assertEq(registeredTokenId, tokenId);
-        assertEq(comRegistry.ownerOf(tokenId), address(this));
-        
-        // Verify the LockedNameMigratedToL1 event was emitted
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundLockedMigrationEvent = false;
-        bytes32 lockedMigrationSig = keccak256("LockedNameMigratedToL1(bytes,uint256)");
-        
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == lockedMigrationSig) {
-                foundLockedMigrationEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundLockedMigrationEvent, "LockedNameMigratedToL1 event not found");
-    }
-    
-    function test_Revert_handleLockedNameMigration_missing_tld_registry() public {
-        uint64 expiryTime = uint64(block.timestamp) + 86400;
-        TransferData memory transferData = TransferData({
-            label: testLabel,
-            owner: address(this),
-            subregistry: address(ethRegistry),
-            resolver: MOCK_RESOLVER,
-            expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
-        });
-        
-        // Create DNS-encoded name for "test.org" (TLD not registered in root)
-        bytes memory orgDnsEncodedName = hex"047465737403676f7200";
-        
-        vm.expectRevert(abi.encodeWithSelector(L1BridgeController.ParentNotMigrated.selector, orgDnsEncodedName, 5));
-        vm.prank(address(bridge));
-        bridgeController.handleLockedNameMigration(orgDnsEncodedName, transferData);
-    }
 }
 
 

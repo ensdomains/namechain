@@ -106,20 +106,6 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
                 revert InconsistentFusesState();
             }
             
-            // Burn all required fuses: CANNOT_BURN_FUSES, CANNOT_TRANSFER, 
-            // CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE
-            //
-            // NOTE: CANNOT_UNWRAP is already burnt
-            uint16 fusesToBurn = uint16(
-                CANNOT_BURN_FUSES | 
-                CANNOT_TRANSFER | 
-                CANNOT_SET_RESOLVER | 
-                CANNOT_SET_TTL | 
-                CANNOT_CREATE_SUBDOMAIN | 
-                CANNOT_APPROVE
-            );
-            nameWrapper.setFuses(bytes32(tokenIds[i]), fusesToBurn);
-            
             // Create MigratedWrappedNameRegistry using factory with salt
             uint256 salt = uint256(keccak256(migrationDataArray[i].salt));
             bytes memory initData = abi.encodeWithSignature(
@@ -142,9 +128,17 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             TransferData memory transferData = migrationDataArray[i].transferData;
             transferData.subregistry = subregistry;
             
-            // Since CANNOT_SET_RESOLVER is always burnt, remove resolver roles from roleBitmap
-            transferData.roleBitmap = transferData.roleBitmap & 
-                ~(LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN);
+            // setup roles
+            transferData.roleBitmap = 
+                LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_RENEW_ADMIN;
+            // setting resolver ability
+            if (fuses & CANNOT_SET_RESOLVER == 0) {
+                transferData.roleBitmap = transferData.roleBitmap | LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
+            }            
+            // registering subdomains
+            if (fuses & CANNOT_CREATE_SUBDOMAIN == 0) {
+                transferData.roleBitmap = transferData.roleBitmap | LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN;
+            }
             
             // Validate that tokenId matches the label hash
             uint256 expectedTokenId = uint256(keccak256(bytes(transferData.label)));
@@ -152,11 +146,22 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
                 revert TokenIdMismatch(tokenIds[i], expectedTokenId);
             }
             
-            // Get the DNS-encoded name from the migration data
-            bytes memory dnsEncodedName = migrationDataArray[i].dnsEncodedName;
-            
             // Migrate locked name using the DNS-encoded name for hierarchy traversal
-            l1BridgeController.handleLockedNameMigration(dnsEncodedName, transferData);
+            l1BridgeController.handleLockedNameMigration(transferData);
+
+            // Burn all required fuses: CANNOT_BURN_FUSES, CANNOT_TRANSFER, 
+            // CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE
+            //
+            // NOTE: CANNOT_UNWRAP is already burnt
+            uint16 fusesToBurn = uint16(
+                CANNOT_BURN_FUSES | 
+                CANNOT_TRANSFER | 
+                CANNOT_SET_RESOLVER | 
+                CANNOT_SET_TTL | 
+                CANNOT_CREATE_SUBDOMAIN | 
+                CANNOT_APPROVE
+            );
+            nameWrapper.setFuses(bytes32(tokenIds[i]), fusesToBurn);            
         }
     }
 }
