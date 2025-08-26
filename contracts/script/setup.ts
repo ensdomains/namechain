@@ -375,6 +375,7 @@ export async function setupCrossChainEnvironment({
         chain: this.client.chain,
         transport: this.transport,
         account,
+        pollingInterval
       });
     }
     async function deployDedicatedResolver(

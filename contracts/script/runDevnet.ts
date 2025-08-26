@@ -2,6 +2,8 @@ import { toHex } from "viem";
 import { createMockRelay } from "./mockRelay.js";
 import { setupCrossChainEnvironment } from "./setup.js";
 
+const t0 = Date.now();
+
 const env = await setupCrossChainEnvironment({
   l1Port: 8545,
   l2Port: 8456,
@@ -34,7 +36,7 @@ console.log({
   l2: dump(env.l2),
 });
 
-console.log("\nReady!");
+console.log(`\nReady! <${Date.now() - t0}ms>`);
 
 function dump(deployment: typeof env.l1 | typeof env.l2) {
   const { client, hostPort, deployments } = deployment;
