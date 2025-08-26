@@ -96,7 +96,7 @@ extendEnvironment((env) => {
     if (args.method === "eth_getTransactionReceipt") {
       const timeout = Date.now() + 2000;
       for (;;) {
-        await new Promise((f) => setTimeout(f, 25));
+        await new Promise((f) => setTimeout(f, 0));
         const receipt = await parent.provider.request(args).catch(() => {});
         if (receipt) return receipt;
         if (Date.now() > timeout)

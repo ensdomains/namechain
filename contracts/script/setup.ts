@@ -59,6 +59,7 @@ export async function setupCrossChainEnvironment({
   numAccounts = 5,
   mnemonic = "test test test test test test test test test test test junk",
   saveDeployments = false,
+  pollingInterval = 25,
 }: {
   l1ChainId?: number;
   l2ChainId?: number;
@@ -68,6 +69,7 @@ export async function setupCrossChainEnvironment({
   numAccounts?: number;
   mnemonic?: string;
   saveDeployments?: boolean;
+  pollingInterval?: number;
 } = {}) {
   console.log("Deploying ENSv2...");
 
@@ -130,7 +132,6 @@ export async function setupCrossChainEnvironment({
     const l1Transport = webSocket(`ws://${l1HostPort}`, transportOptions);
     const l2Transport = webSocket(`ws://${l2HostPort}`, transportOptions);
 
-    const pollingInterval = 25;
     const nativeCurrency = { name: "Ether", symbol: "ETH", decimals: 18 };
     const l1Client = createWalletClient({
       chain: {
@@ -269,6 +270,7 @@ export async function setupCrossChainEnvironment({
         ethTLDResolver: l1Contracts("ETHTLDResolver"),
         dnsTLDResolver: l1Contracts("DNSTLDResolver"),
         dnsTXTResolver: l1Contracts("DNSTXTResolver"),
+        dnsAliasResolver: l1Contracts("DNSAliasResolver"),
         mockBridge: l1Contracts("MockL1Bridge"),
         rootRegistry: l1Contracts("PermissionedRegistry", "RootRegistry"),
         universalResolver: l1Contracts("UniversalResolverV2"),
@@ -319,35 +321,8 @@ export async function setupCrossChainEnvironment({
       deployPermissionedRegistry,
     };
 
-    {
-      // create registry for "ens.eth"
-      const ens_ethRegistry = await l1.deployPermissionedRegistry(deployer);
-      // create resolver for "dnsname.ens.eth"
-      const ens_ethResolver = await l1.deployDedicatedResolver(deployer);
-      await ens_ethResolver.write.setAddr([
-        60n,
-        l1.contracts.dnsTXTResolver.address, // set to DNSTXTResolver
-      ]);
-      // create "ens.eth"
-      await l1.contracts.ethRegistry.write.register([
-        "ens",
-        deployer.address,
-        ens_ethRegistry.address,
-        zeroAddress,
-        0n,
-        MAX_EXPIRY,
-      ]);
-      // create "dnsname.ens.eth"
-      await ens_ethRegistry.write.register([
-        "dnsname",
-        deployer.address,
-        zeroAddress,
-        ens_ethResolver.address,
-        0n,
-        MAX_EXPIRY,
-      ]);
-      console.log("Setup ens.eth");
-    }
+    await setup_ens_eth(deployer);
+    console.log("Setup ens.eth");
 
     await sync();
 
@@ -375,7 +350,7 @@ export async function setupCrossChainEnvironment({
         chain: this.client.chain,
         transport: this.transport,
         account,
-        pollingInterval
+        pollingInterval,
       });
     }
     async function deployDedicatedResolver(
@@ -417,11 +392,53 @@ export async function setupCrossChainEnvironment({
         client,
       });
     }
+    async function setup_ens_eth(owner: Account) {
+      // create registry for "ens.eth"
+      const ens_ethRegistry = await l1.deployPermissionedRegistry(owner);
+      // create "ens.eth"
+      await l1.contracts.ethRegistry.write.register([
+        "ens",
+        owner.address,
+        ens_ethRegistry.address,
+        zeroAddress,
+        0n,
+        MAX_EXPIRY,
+      ]);
+      // create "dnsname.ens.eth"
+      const dnsnameResolver = await l1.deployDedicatedResolver(owner);
+      await dnsnameResolver.write.setAddr([
+        60n,
+        l1.contracts.dnsTXTResolver.address, // set to DNSTXTResolver
+      ]);
+      await ens_ethRegistry.write.register([
+        "dnsname",
+        owner.address,
+        zeroAddress,
+        dnsnameResolver.address,
+        0n,
+        MAX_EXPIRY,
+      ]);
+      // create "dnsalias.ens.eth"
+      const dnsaliasResolver = await l1.deployDedicatedResolver(owner);
+      await dnsaliasResolver.write.setAddr([
+        60n,
+        l1.contracts.dnsAliasResolver.address, // set to DNSAliasResolver
+      ]);
+      await ens_ethRegistry.write.register([
+        "dnsalias",
+        owner.address,
+        zeroAddress,
+        dnsaliasResolver.address,
+        0n,
+        MAX_EXPIRY,
+      ]);
+    }
   } catch (err) {
     await shutdown();
     throw err;
   }
 }
+
 
 export type CrossChainEnvironment = Awaited<
   ReturnType<typeof setupCrossChainEnvironment>

@@ -52,8 +52,8 @@ describe("Resolve", () => {
   });
 
   describe("DNS", () => {
-    function resolve(kp: KnownProfile) {
-      it(kp.name, async () => {
+    function resolve(title: string, kp: KnownProfile) {
+      it(title.replaceAll("%s", kp.name), async () => {
         const bundle = bundleCalls(makeResolutions(kp));
         const [answer] = await env.l1.contracts.universalResolver.read.resolve([
           dnsEncodeName(kp.name),
@@ -63,8 +63,8 @@ describe("Resolve", () => {
       });
     }
 
-    resolve({
-      name: "namechain.raffy.xyz",
+    resolve("onchain txt: %s", {
+      name: "dnstxt.raffy.xyz",
       addresses: [
         {
           coinType: COIN_TYPE_ETH,
@@ -72,6 +72,26 @@ describe("Resolve", () => {
         },
       ],
       texts: [{ key: "avatar", value: "https://raffy.xyz/ens.jpg" }],
+    });
+
+    resolve("alias replace: %s => eth", {
+      name: "dnsalias.raffy.xyz",
+      addresses: [
+        {
+          coinType: COIN_TYPE_ETH,
+          value: env.l1.contracts.ethTLDResolver.address,
+        },
+      ],
+    });
+
+    resolve("alias rewrite: dnsname[.raffy.xyz] => dnsname[.ens.eth]", {
+      name: "dnsname.raffy.xyz",
+      addresses: [
+        {
+          coinType: COIN_TYPE_ETH,
+          value: env.l1.contracts.dnsTXTResolver.address,
+        },
+      ],
     });
   });
 
