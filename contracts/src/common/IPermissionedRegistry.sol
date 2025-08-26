@@ -25,5 +25,5 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
      * @return expiry The expiry date of the name.
      * @return tokenIdVersion The token ID version of the name.
      */
-    function getNameData(string calldata label) external view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion);    
+    function getNameData(string memory label) external view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion);    
 }

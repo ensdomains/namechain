@@ -20,6 +20,7 @@ import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
+import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {IBridge, LibBridgeRoles} from "../src/common/IBridge.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
@@ -105,7 +106,14 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         
         // Deploy factory and implementation
         factory = new VerifiableFactory();
-        implementation = new MigratedWrappedNameRegistry();
+        implementation = new MigratedWrappedNameRegistry(
+            IUniversalResolver(address(universalResolver)),
+            address(0), // implementation address will be set later
+            INameWrapper(address(nameWrapper)),
+            ENS(address(0)), // mock ENS registry
+            factory,
+            address(registry) // ethRegistry
+        );
         
         // Setup eth registry
         registry = new MockPermissionedRegistry(datastore, metadata, owner, LibEACBaseRoles.ALL_ROLES);

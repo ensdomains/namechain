@@ -12,6 +12,9 @@ import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalRes
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {ENS} from "@ens/contracts/registry/ENS.sol";
+import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -84,7 +87,14 @@ contract TestMigratedWrappedNameRegistry is Test {
         universalResolver = new MockUniversalResolver();
         
         // Deploy implementation
-        implementation = new MigratedWrappedNameRegistry();
+        implementation = new MigratedWrappedNameRegistry(
+            universalResolver,
+            address(0), // implementation address will be set later  
+            INameWrapper(address(0)), // mock nameWrapper
+            ENS(address(0)), // mock ENS registry
+            VerifiableFactory(address(0)), // mock factory
+            address(0) // mock ethRegistry
+        );
         
         // Deploy proxy and initialize
         bytes memory initData = abi.encodeWithSelector(

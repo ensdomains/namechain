@@ -67,35 +67,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         onlyRootRoles(LibRegistryRoles.ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
-        uint64 oldExpiry;
-        uint32 tokenIdVersion;
-        (tokenId, oldExpiry, tokenIdVersion) = getNameData(label);
-
-        if (oldExpiry >= block.timestamp) {
-            revert NameAlreadyRegistered(label);
-        }
-
-        if (expires < block.timestamp) {
-            revert CannotSetPastExpiration(expires);
-        }
-
-        // if there is a previous owner, burn the token
-        address previousOwner = super.ownerOf(tokenId);
-        if (previousOwner != address(0)) {
-            _burn(previousOwner, tokenId, 1);
-            tokenIdVersion++; // so we have a fresh acl
-        }
-        tokenId = _generateTokenId(tokenId, address(registry), expires, tokenIdVersion); 
-
-        _mint(owner, tokenId, 1, "");
-        _grantRoles(getResourceFromTokenId(tokenId), roleBitmap, owner, false);
-
-        datastore.setResolver(tokenId, resolver, 0);
-        emit ResolverUpdate(tokenId, resolver, 0);
-
-        emit NewSubname(tokenId, label);
-
-        return tokenId;
+        return _register(label, owner, registry, resolver, roleBitmap, expires);
     }
 
     function setTokenObserver(uint256 tokenId, ITokenObserver observer) public override onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) {
@@ -176,7 +148,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         emit ResolverUpdate(tokenId, resolver, 0);
     }
 
-    function getNameData(string calldata label) public view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion) {
+    function getNameData(string memory label) public view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion) {
         uint256 canonicalId = NameUtils.labelToCanonicalId(label);
         (, expiry, tokenIdVersion) = datastore.getSubregistry(canonicalId);
         tokenId = _constructTokenId(canonicalId, tokenIdVersion);
@@ -222,6 +194,52 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
     }
 
     // Internal/private methods
+
+    /**
+     * @dev Internal register method that takes string memory and performs the actual registration logic.
+     * @param label The label to register.
+     * @param owner The owner of the registered name.
+     * @param registry The registry to use for the name.
+     * @param resolver The resolver to set for the name.
+     * @param roleBitmap The roles to grant to the owner.
+     * @param expires The expiration time of the name.
+     * @return tokenId The token ID of the registered name.
+     */
+    function _register(string memory label, address owner, IRegistry registry, address resolver, uint256 roleBitmap, uint64 expires)
+        internal
+        virtual
+        returns (uint256 tokenId)
+    {
+        uint64 oldExpiry;
+        uint32 tokenIdVersion;
+        (tokenId, oldExpiry, tokenIdVersion) = getNameData(label);
+
+        if (oldExpiry >= block.timestamp) {
+            revert NameAlreadyRegistered(label);
+        }
+
+        if (expires < block.timestamp) {
+            revert CannotSetPastExpiration(expires);
+        }
+
+        // if there is a previous owner, burn the token
+        address previousOwner = super.ownerOf(tokenId);
+        if (previousOwner != address(0)) {
+            _burn(previousOwner, tokenId, 1);
+            tokenIdVersion++; // so we have a fresh acl
+        }
+        tokenId = _generateTokenId(tokenId, address(registry), expires, tokenIdVersion); 
+
+        _mint(owner, tokenId, 1, "");
+        _grantRoles(getResourceFromTokenId(tokenId), roleBitmap, owner, false);
+
+        datastore.setResolver(tokenId, resolver, 0);
+        emit ResolverUpdate(tokenId, resolver, 0);
+
+        emit NewSubname(tokenId, label);
+
+        return tokenId;
+    }
 
     /**
      * @dev Fetches the access control resource ID for a given token ID.
