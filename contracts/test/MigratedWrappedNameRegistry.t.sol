@@ -89,7 +89,6 @@ contract TestMigratedWrappedNameRegistry is Test {
         // Deploy implementation
         implementation = new MigratedWrappedNameRegistry(
             universalResolver,
-            address(0), // implementation address will be set later  
             INameWrapper(address(0)), // mock nameWrapper
             ENS(address(0)), // mock ENS registry
             VerifiableFactory(address(0)), // mock factory

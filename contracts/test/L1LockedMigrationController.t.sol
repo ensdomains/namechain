@@ -108,7 +108,6 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         factory = new VerifiableFactory();
         implementation = new MigratedWrappedNameRegistry(
             IUniversalResolver(address(universalResolver)),
-            address(0), // implementation address will be set later
             INameWrapper(address(nameWrapper)),
             ENS(address(0)), // mock ENS registry
             factory,

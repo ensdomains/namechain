@@ -42,7 +42,6 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
     
     IUniversalResolver public universalResolver;
     IUniversalResolver public immutable universalResolverImmutable;
-    address public immutable migratedRegistryImplementation;
     INameWrapper public immutable nameWrapper;
     ENS public immutable ensRegistry;
     VerifiableFactory public immutable factory;
@@ -50,14 +49,12 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
 
     constructor(
         IUniversalResolver _universalResolver,
-        address _migratedRegistryImplementation,
         INameWrapper _nameWrapper,
         ENS _ensRegistry,
         VerifiableFactory _factory,
         address _ethRegistry
     ) PermissionedRegistry(IRegistryDatastore(address(0)), IRegistryMetadata(address(0)), _msgSender(), 0) {
         universalResolverImmutable = _universalResolver;
-        migratedRegistryImplementation = _migratedRegistryImplementation;
         nameWrapper = _nameWrapper;
         ensRegistry = _ensRegistry;
         factory = _factory;
@@ -216,7 +213,7 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
                 LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN,
                 universalResolverImmutable
             );
-            address subregistry = factory.deployProxy(migratedRegistryImplementation, salt, initData);
+            address subregistry = factory.deployProxy(address(this), salt, initData);
             
             // Setup roles based on fuses
             uint256 roleBitmap = LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_RENEW_ADMIN;
