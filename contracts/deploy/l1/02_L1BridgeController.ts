@@ -7,6 +7,9 @@ export default execute(
     const l1EthRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("L1ETHRegistry");
 
+    const rootRegistry =
+      get<(typeof artifacts.PermissionedRegistry)["abi"]>("RootRegistry");
+
     // TODO: real bridge
     const l1Bridge =
       get<(typeof artifacts.MockL1Bridge)["abi"]>("MockL1Bridge");
@@ -14,7 +17,7 @@ export default execute(
     const l1BridgeController = await deploy("L1BridgeController", {
       account: deployer,
       artifact: artifacts.L1BridgeController,
-      args: [l1EthRegistry.address, l1Bridge.address],
+      args: [l1EthRegistry.address, l1Bridge.address, rootRegistry.address],
     });
 
     // Set the bridge controller on the bridge

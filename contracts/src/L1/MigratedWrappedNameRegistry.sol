@@ -57,10 +57,7 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         }
         
         // Grant roles to the owner
-        _grantRoles(ROOT_RESOURCE, _ownerRoles, _ownerAddress, false);
-        
-        // Also grant upgrade role to the owner
-        _grantRoles(ROOT_RESOURCE, ROLE_UPGRADE | ROLE_UPGRADE_ADMIN, _ownerAddress, false);
+        _grantRoles(ROOT_RESOURCE, _ownerRoles | ROLE_UPGRADE | ROLE_UPGRADE_ADMIN, _ownerAddress, false);
         
         // Initialize universal resolver
         universalResolver = _universalResolver;
