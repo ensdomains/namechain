@@ -262,7 +262,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         mockBridge = new MockL1Bridge();
         
         // Deploy REAL L1BridgeController with real dependencies
-        realL1BridgeController = new L1BridgeController(registry, mockBridge);
+        realL1BridgeController = new L1BridgeController(registry, mockBridge, registry);
         
         // Grant necessary roles to the ejection controller
         registry.grantRootRoles(

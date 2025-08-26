@@ -30,8 +30,17 @@ contract L1BridgeController is EjectionController {
 
     // Mapping to track locked names by tokenId
     mapping(uint256 => bool) private isLocked;
+    
+    // Root registry for handling TLD registrations
+    IPermissionedRegistry public immutable rootRegistry;
 
-    constructor(IPermissionedRegistry _registry, IBridge _bridge) EjectionController(_registry, _bridge) {}
+    constructor(
+        IPermissionedRegistry _registry, 
+        IBridge _bridge,
+        IPermissionedRegistry _rootRegistry
+    ) EjectionController(_registry, _bridge) {
+        rootRegistry = _rootRegistry;
+    }
 
     /**
      * @dev Should be called when a name has been ejected from L2.  
@@ -144,19 +153,18 @@ contract L1BridgeController is EjectionController {
     }
 
     /**
-     * @dev Finds the parent registry for a DNS-encoded .eth domain name.
-     * Assumes the name is always in .eth 2LD format (e.g., "sub.parent.eth").
-     * For a 2LD like "name.eth", returns the root registry.
-     * For subdomains like "sub.name.eth", finds the parent name's registry.
+     * @dev Finds the parent registry for a DNS-encoded domain name using pure recursion.
+     * Handles any top-level domain (TLD) uniformly without special cases.
+     * Returns the registry where the leftmost label should be registered.
      *
-     * @param dnsEncodedName The DNS-encoded name (must be .eth format)
+     * @param dnsEncodedName The DNS-encoded name (can be any TLD)
      * @param offset The current offset in the name
      */
     function _findParentRegistryForMigration(
         bytes memory dnsEncodedName,
         uint256 offset
     ) private view returns (IRegistry) {
-        // Read the current label (e.g., "sub" in "sub.parent.eth")
+        // Read the current label and next label
         (bytes32 labelHash, uint256 nextOffset) = NameCoder.readLabel(dnsEncodedName, offset);
         
         // If we're at the end (null terminator), this is invalid for migration
@@ -164,39 +172,30 @@ contract L1BridgeController is EjectionController {
             revert InvalidNameForMigration(dnsEncodedName);
         }
         
-        // Read the next label
-        (bytes32 nextLabelHash, uint256 afterNextOffset) = NameCoder.readLabel(dnsEncodedName, nextOffset);
-        
-        // Check if the next label is "eth"
-        if (nextLabelHash == keccak256("eth")) {
-            if (dnsEncodedName[afterNextOffset] != 0) {
-                revert InvalidNameForMigration(dnsEncodedName);
-            }
-            
-            // This is a 2LD like "name.eth", so return the root registry
-            return IRegistry(address(registry));
+        // If next label is null, current label is a TLD - return rootRegistry as parent
+        if (dnsEncodedName[nextOffset] == 0) {
+            return IRegistry(address(rootRegistry));
         }
         
-        // If next label is not "eth", we should have a subdomain
-        // Recursively find the parent registry
+        // Recursively find where the next part should be registered  
         IRegistry parentRegistry = _findParentRegistryForMigration(dnsEncodedName, nextOffset);
         
-        // Extract the parent label string from the DNS-encoded name
-        (uint8 labelLength, ) = NameCoder.nextLabel(dnsEncodedName, nextOffset);
-        string memory parentLabel = new string(labelLength);
+        // Extract the next label string from the DNS-encoded name
+        (uint8 nextLabelLength, ) = NameCoder.nextLabel(dnsEncodedName, nextOffset);
+        string memory nextLabel = new string(nextLabelLength);
         assembly {
-            mcopy(add(parentLabel, 32), add(add(dnsEncodedName, 33), nextOffset), labelLength)
+            mcopy(add(nextLabel, 32), add(add(dnsEncodedName, 33), nextOffset), nextLabelLength)
         }
         
-        // Get the parent's subregistry
-        IRegistry parentSubregistry = parentRegistry.getSubregistry(parentLabel);
+        // Get the subregistry for the next label from its parent
+        IRegistry nextSubregistry = parentRegistry.getSubregistry(nextLabel);
         
-        // If the parent's subregistry doesn't exist, the parent hasn't been migrated yet
-        if (address(parentSubregistry) == address(0)) {
+        // If the subregistry doesn't exist, the parent hasn't been migrated yet
+        if (address(nextSubregistry) == address(0)) {
             revert ParentNotMigrated(dnsEncodedName, nextOffset);
         }
         
-        // Return the parent's registry where the current label should be registered
-        return parentSubregistry;
+        // Return the subregistry where the current label should be registered
+        return nextSubregistry;
     }
 }

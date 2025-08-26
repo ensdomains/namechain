@@ -52,7 +52,7 @@ contract TestBridgeMessages is Test {
         l2Bridge = new MockL2Bridge();
         
         // Deploy controllers
-        l1Controller = new L1BridgeController(registry, l1Bridge);
+        l1Controller = new L1BridgeController(registry, l1Bridge, registry);
         l2Controller = new L2BridgeController(l2Bridge, registry, datastore);
         
         // Set up bridge controllers

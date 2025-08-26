@@ -81,10 +81,12 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
     MockBaseRegistrar baseRegistrar;
     MockBridge bridge;
     L1BridgeController bridgeController;
-    RegistryDatastore datastore;
+    RegistryDatastore rootDatastore;
+    RegistryDatastore ethDatastore;
     MockRegistryMetadata metadata;
     MockUniversalResolver universalResolver;
-    MockPermissionedRegistry registry;
+    MockPermissionedRegistry rootRegistry;
+    MockPermissionedRegistry ethRegistry;
     VerifiableFactory factory;
     MigratedWrappedNameRegistry implementation;
     
@@ -99,7 +101,8 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         nameWrapper = new MockNameWrapper();
         baseRegistrar = new MockBaseRegistrar();
         bridge = new MockBridge();
-        datastore = new RegistryDatastore();
+        rootDatastore = new RegistryDatastore();
+        ethDatastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
         universalResolver = new MockUniversalResolver();
         
@@ -107,12 +110,18 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         factory = new VerifiableFactory();
         implementation = new MigratedWrappedNameRegistry();
         
-        // Setup registry and bridge controller
-        registry = new MockPermissionedRegistry(datastore, metadata, owner, LibEACBaseRoles.ALL_ROLES);
-        bridgeController = new L1BridgeController(registry, bridge);
+        // Setup root and eth registries
+        rootRegistry = new MockPermissionedRegistry(rootDatastore, metadata, owner, LibEACBaseRoles.ALL_ROLES);
+        ethRegistry = new MockPermissionedRegistry(ethDatastore, metadata, owner, LibEACBaseRoles.ALL_ROLES);
+        
+        // Register eth as a subregistry of root
+        rootRegistry.register("eth", owner, IRegistry(address(ethRegistry)), address(0), LibRegistryRoles.ROLE_SET_SUBREGISTRY, uint64(block.timestamp + 365 days));
+        
+        // Setup bridge controller with proper hierarchy
+        bridgeController = new L1BridgeController(ethRegistry, bridge, rootRegistry);
         
         // Grant necessary roles
-        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_BURN, address(bridgeController));
+        ethRegistry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_BURN, address(bridgeController));
         bridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(controller));
         
         controller = new L1LockedMigrationController(
@@ -122,7 +131,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             bridgeController,
             factory,
             address(implementation),
-            datastore,
+            ethDatastore,
             metadata,
             IUniversalResolver(address(universalResolver))
         );
@@ -202,9 +211,9 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
         
         // Get the registered name and check roles
-        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
-        uint256 userRoles = registry.roles(resource, user);
+        (uint256 registeredTokenId,,) = ethRegistry.getNameData(testLabel);
+        uint256 resource = ethRegistry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 userRoles = ethRegistry.roles(resource, user);
         
         // Verify resolver roles were removed (always removed now since CANNOT_SET_RESOLVER is always burnt)
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) == 0, "ROLE_SET_RESOLVER should always be removed");
@@ -411,7 +420,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
         
         // Verify a subregistry was created
-        address actualSubregistry = address(registry.getSubregistry(testLabel));
+        address actualSubregistry = address(ethRegistry.getSubregistry(testLabel));
         assertTrue(actualSubregistry != address(0), "Subregistry should be created");
         
         // Verify it's a proxy pointing to our implementation
@@ -451,7 +460,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, parentTokenId, 1, parentData);
         
         // Verify parent was registered
-        (uint256 registeredParentTokenId,,) = registry.getNameData(parentLabel);
+        (uint256 registeredParentTokenId,,) = ethRegistry.getNameData(parentLabel);
         assertTrue(registeredParentTokenId != 0, "Parent should be registered");
         
         // Now migrate the 3LD "sub.parent"
@@ -485,7 +494,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, subTokenId, 1, subData);
         
         // Get parent's subregistry to verify the sub was registered there
-        IRegistry parentSubregistry = registry.getSubregistry(parentLabel);
+        IRegistry parentSubregistry = ethRegistry.getSubregistry(parentLabel);
         assertTrue(address(parentSubregistry) != address(0), "Parent should have a subregistry");
         
         // Cast to IPermissionedRegistry to access getNameData
@@ -561,7 +570,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, grandparentTokenId, 1, abi.encode(grandparentMigrationData));
         
         // Get grandparent's subregistry
-        IRegistry grandparentSubregistry = registry.getSubregistry(grandparentLabel);
+        IRegistry grandparentSubregistry = ethRegistry.getSubregistry(grandparentLabel);
         
         // Second, migrate the parent "parent.grandparent"
         string memory parentLabel = "parent";
