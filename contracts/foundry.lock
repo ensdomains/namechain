@@ -1,0 +1,32 @@
+{
+  "lib/buffer": {
+    "rev": "82cc81935de1d1a82e021cf1030d902c5248982b"
+  },
+  "lib/ens-contracts": {
+    "branch": {
+      "name": "staging",
+      "rev": "c8615398f2ac9dcdfa831f519b5ee1b080abf499"
+    }
+  },
+  "lib/forge-std": {
+    "rev": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "e4f70216d759d8e6a64144a9e1f7bbeed78e7079"
+  },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "rev": "5fc3fee14043035097ae718387200f4f4daaa982"
+  },
+  "lib/openzeppelin-contracts-v4": {
+    "rev": "54b3f14346da01ba0d159114b399197fea8b7cda"
+  },
+  "lib/solsha1": {
+    "rev": "c4fbe97cf5e8c1b8d607001588fd23abb5bfb923"
+  },
+  "lib/unruggable-gateways": {
+    "rev": "4c246c98d322fcf12654138e63fcd4bea3f31f7b"
+  },
+  "lib/verifiable-factory": {
+    "rev": "c47c0e61ce03b3ab5891a3b743287b54aee9f021"
+  }
+}

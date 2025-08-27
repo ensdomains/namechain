@@ -27,9 +27,3 @@ generated/
 
 deployments/l1-local/
 deployments/l2-local/
-
-# 2025-08-19
-# this appears to randomly shuffle on `forge i`
-# disabled until fixed
-# https://github.com/foundry-rs/foundry/issues/11359
-foundry.lock
