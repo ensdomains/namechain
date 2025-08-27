@@ -29,8 +29,8 @@ console.log("🚀 Starting NameChain Development Environment...\n");
 
 const env = await setupCrossChainEnvironment({
   l1Port: 8545,
-  l2Port: 8456,
-  urgPort: 8457,
+  l2Port: 8546,
+  urgPort: 8547,
   saveDeployments: true,
 });
 
