@@ -8,7 +8,8 @@ import {MigratedWrappedNameRegistry} from "../src/L1/MigratedWrappedNameRegistry
 import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
-import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
+import {ENS} from "@ens/contracts/registry/ENS.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -58,47 +59,15 @@ contract MockNameWrapper {
     }
 }
 
-contract MockUniversalResolver is IUniversalResolver {
-    mapping(bytes => address) public resolvers;
-    bool public shouldRevert;
-
-    function setResolver(bytes memory name, address resolver) external {
-        resolvers[name] = resolver;
+contract MockENS {
+    mapping(bytes32 => address) private resolvers;
+    
+    function setResolver(bytes32 node, address resolverAddress) external {
+        resolvers[node] = resolverAddress;
     }
-
-    function setShouldRevert(bool _shouldRevert) external {
-        shouldRevert = _shouldRevert;
-    }
-
-    function findResolver(bytes calldata name) external view override returns (address, bytes32, uint256) {
-        if (shouldRevert) {
-            revert("Universal resolver error");
-        }
-        return (resolvers[name], bytes32(0), 0);
-    }
-
-    function resolve(bytes calldata, bytes calldata) external pure override returns (bytes memory, address) {
-        return ("", address(0));
-    }
-
-    function resolve(bytes calldata, bytes[] calldata) external pure returns (bytes[] memory, address) {
-        return (new bytes[](0), address(0));
-    }
-
-    function resolveWithProof(bytes calldata, bytes calldata) external pure returns (bytes memory, address, bytes memory, bytes memory) {
-        return ("", address(0), "", "");
-    }
-
-    function resolveCallback(bytes calldata, bytes[] calldata) external pure returns (bytes[] memory, address) {
-        return (new bytes[](0), address(0));
-    }
-
-    function reverse(bytes calldata, uint256) external pure returns (string memory, address, address) {
-        return ("", address(0), address(0));
-    }
-
-    function supportsInterface(bytes4) external pure returns (bool) {
-        return true;
+    
+    function resolver(bytes32 node) external view returns (address) {
+        return resolvers[node];
     }
 }
 
@@ -107,7 +76,7 @@ contract TestMigratedWrappedNameRegistry is Test {
     MigratedWrappedNameRegistry registry;
     RegistryDatastore datastore;
     MockRegistryMetadata metadata;
-    MockUniversalResolver universalResolver;
+    MockENS ensRegistry;
     MockNameWrapper nameWrapper;
     
     address owner = address(this);
@@ -121,14 +90,13 @@ contract TestMigratedWrappedNameRegistry is Test {
     function setUp() public {
         datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
-        universalResolver = new MockUniversalResolver();
+        ensRegistry = new MockENS();
         nameWrapper = new MockNameWrapper();
         
         // Deploy implementation
         implementation = new MigratedWrappedNameRegistry(
-            universalResolver,
             INameWrapper(address(nameWrapper)), // mock nameWrapper
-            ENS(address(0)), // mock ENS registry
+            ENS(address(ensRegistry)), // mock ENS registry
             VerifiableFactory(address(0)), // mock factory
             IPermissionedRegistry(address(0)), // mock ethRegistry
             datastore,
@@ -140,7 +108,7 @@ contract TestMigratedWrappedNameRegistry is Test {
             MigratedWrappedNameRegistry.initialize.selector,
             owner,
             LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN,
-            universalResolver
+            "\x03eth\x00" // parent DNS-encoded name for .eth
         );
         
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
@@ -148,15 +116,16 @@ contract TestMigratedWrappedNameRegistry is Test {
         
         testLabelId = NameUtils.labelToCanonicalId(testLabel);
         
-        // Setup v1 resolver in universal resolver
+        // Setup v1 resolver in ENS registry
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
-        universalResolver.setResolver(dnsEncodedName, v1Resolver);
+        bytes32 node = NameCoder.namehash(dnsEncodedName, 0);
+        ensRegistry.setResolver(node, v1Resolver);
     }
 
     function test_getResolver_unregistered_name() public view {
-        // Name not registered (expiry = 0), should call through to universal resolver
+        // Name not registered (expiry = 0), should fall back to ENS registry
         address resolver = registry.getResolver(testLabel);
-        assertEq(resolver, v1Resolver, "Should return v1 resolver from universal resolver");
+        assertEq(resolver, v1Resolver, "Should return v1 resolver from ENS registry");
     }
 
     function test_getResolver_registered_name_with_resolver() public {
@@ -192,22 +161,26 @@ contract TestMigratedWrappedNameRegistry is Test {
         assertEq(resolver, address(0), "Should return zero address for expired name");
     }
 
-    function test_getResolver_universal_resolver_reverts() public {
-        // Make universal resolver revert
-        universalResolver.setShouldRevert(true);
+    function test_getResolver_ens_registry_returns_zero() public {
+        // Clear the resolver in ENS registry
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
+        bytes32 node = NameCoder.namehash(dnsEncodedName, 0);
+        ensRegistry.setResolver(node, address(0));
         
-        // Should return address(0) when universal resolver reverts
+        // Should return address(0) when ENS registry returns zero
         address resolver = registry.getResolver(testLabel);
-        assertEq(resolver, address(0), "Should return zero address when universal resolver reverts");
+        assertEq(resolver, address(0), "Should return zero address when ENS registry returns zero");
     }
 
     function test_getResolver_different_labels() public {
         string memory label1 = "foo";
         string memory label2 = "bar";
         
-        // Setup different resolvers in universal resolver
-        universalResolver.setResolver(NameUtils.dnsEncodeEthLabel(label1), address(0x1111));
-        universalResolver.setResolver(NameUtils.dnsEncodeEthLabel(label2), address(0x2222));
+        // Setup different resolvers in ENS registry
+        bytes32 node1 = NameCoder.namehash(NameUtils.dnsEncodeEthLabel(label1), 0);
+        bytes32 node2 = NameCoder.namehash(NameUtils.dnsEncodeEthLabel(label2), 0);
+        ensRegistry.setResolver(node1, address(0x1111));
+        ensRegistry.setResolver(node2, address(0x2222));
         
         // Test unregistered names return correct v1 resolvers
         assertEq(registry.getResolver(label1), address(0x1111), "Should return correct v1 resolver for label1");
@@ -216,13 +189,13 @@ contract TestMigratedWrappedNameRegistry is Test {
         // Register label1
         registry.register(label1, user, registry, address(0x3333), LibRegistryRoles.ROLE_SET_RESOLVER, uint64(block.timestamp + 86400));
         
-        // label1 should now return registered resolver, label2 still from universal
+        // label1 should now return registered resolver, label2 still from ENS
         assertEq(registry.getResolver(label1), address(0x3333), "Should return registered resolver for label1");
         assertEq(registry.getResolver(label2), address(0x2222), "Should still return v1 resolver for label2");
     }
 
     function test_getResolver_registration_lifecycle() public {
-        // Initially unregistered - should use universal resolver
+        // Initially unregistered - should use ENS registry
         assertEq(registry.getResolver(testLabel), v1Resolver, "Should use v1 resolver initially");
         
         // Register the name
@@ -349,5 +322,103 @@ contract TestMigratedWrappedNameRegistry is Test {
                 salt: abi.encodePacked("test_salt")
             }))
         );
+    }
+
+    function test_getResolver_3LD_unregistered() public {
+        // Create a 3LD registry for "sub.test.eth"
+        MigratedWrappedNameRegistry subRegistry = _create3LDRegistry("sub.test.eth");
+        
+        // Test label "example" which would resolve to "example.sub.test.eth"
+        string memory label3LD = "example";
+        
+        // Setup resolver in ENS registry for the full name
+        bytes memory fullDnsName = abi.encodePacked(
+            bytes1(uint8(bytes(label3LD).length)),
+            label3LD,
+            "\x03sub\x04test\x03eth\x00" // sub.test.eth
+        );
+        bytes32 fullNode = NameCoder.namehash(fullDnsName, 0);
+        ensRegistry.setResolver(fullNode, address(0x3333));
+        
+        // Should return resolver from ENS registry for unregistered 4LD name
+        address resolver = subRegistry.getResolver(label3LD);
+        assertEq(resolver, address(0x3333), "Should return ENS resolver for unregistered 4LD name");
+    }
+    
+    function test_getResolver_3LD_registered() public {
+        // Create a 3LD registry for "sub.test.eth"
+        MigratedWrappedNameRegistry subRegistry = _create3LDRegistry("sub.test.eth");
+        
+        string memory label3LD = "example";
+        address expectedResolver = address(0x4444);
+        
+        // Register the 4LD name in the 3LD registry
+        uint64 expiry = uint64(block.timestamp + 86400);
+        subRegistry.register(
+            label3LD,
+            user,
+            subRegistry,
+            expectedResolver,
+            LibRegistryRoles.ROLE_SET_RESOLVER,
+            expiry
+        );
+        
+        // Should return the registered resolver
+        address resolver = subRegistry.getResolver(label3LD);
+        assertEq(resolver, expectedResolver, "Should return registered resolver for 4LD name");
+    }
+    
+    function test_getResolver_mixed_levels() public {
+        // Test scenario: 2LD registered, 3LD unregistered, 4LD query
+        // This tests that the resolver lookup works through multiple registry levels
+        
+        // 1. Setup 2LD registry (test.eth) - our main registry
+        // Already set up in setUp()
+        
+        // 2. Create 3LD registry (sub.test.eth) but don't register "sub" in 2LD registry
+        MigratedWrappedNameRegistry subRegistry = _create3LDRegistry("sub.test.eth");
+        
+        // 3. Query for "example" in 3LD registry (would be example.sub.test.eth)
+        string memory labelMixed = "example";
+        
+        // Setup resolver in ENS for the full name
+        bytes memory fullDnsName = abi.encodePacked(
+            bytes1(uint8(bytes(labelMixed).length)),
+            labelMixed,
+            "\x03sub\x04test\x03eth\x00"
+        );
+        bytes32 fullNode = NameCoder.namehash(fullDnsName, 0);
+        ensRegistry.setResolver(fullNode, address(0x7777));
+        
+        // Should fall back to ENS registry since "sub" is not registered in 2LD
+        address resolver = subRegistry.getResolver(labelMixed);
+        assertEq(resolver, address(0x7777), "Should return ENS resolver for mixed level scenario");
+    }
+    
+    // Helper function to create a 3LD registry
+    function _create3LDRegistry(string memory domain) internal returns (MigratedWrappedNameRegistry) {
+        // Deploy new implementation instance
+        MigratedWrappedNameRegistry impl = new MigratedWrappedNameRegistry(
+            INameWrapper(address(nameWrapper)),
+            ENS(address(ensRegistry)),
+            VerifiableFactory(address(0)),
+            IPermissionedRegistry(address(0)),
+            datastore,
+            metadata
+        );
+        
+        // Create DNS-encoded name for the domain (e.g., "\x03sub\x04test\x03eth\x00")
+        bytes memory parentDnsName = NameCoder.encode(domain);
+        
+        // Deploy proxy and initialize
+        bytes memory initData = abi.encodeWithSelector(
+            MigratedWrappedNameRegistry.initialize.selector,
+            owner,
+            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN,
+            parentDnsName
+        );
+        
+        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
+        return MigratedWrappedNameRegistry(address(proxy));
     }
 }

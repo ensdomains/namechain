@@ -20,7 +20,6 @@ import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
-import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {IBridge, LibBridgeRoles} from "../src/common/IBridge.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
@@ -65,12 +64,6 @@ contract MockBridge is IBridge {
     }
 }
 
-contract MockUniversalResolver {
-    function findResolver(bytes calldata) external pure returns (address, bytes32, uint256) {
-        return (address(0xDEAD), bytes32(0), 0);
-    }
-}
-
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
         return "";
@@ -85,7 +78,6 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
     L1BridgeController bridgeController;
     RegistryDatastore datastore;
     MockRegistryMetadata metadata;
-    MockUniversalResolver universalResolver;
     MockPermissionedRegistry registry;
     VerifiableFactory factory;
     MigratedWrappedNameRegistry implementation;
@@ -103,12 +95,10 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         bridge = new MockBridge();
         datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
-        universalResolver = new MockUniversalResolver();
         
         // Deploy factory and implementation
         factory = new VerifiableFactory();
         implementation = new MigratedWrappedNameRegistry(
-            IUniversalResolver(address(universalResolver)),
             INameWrapper(address(nameWrapper)),
             ENS(address(0)), // mock ENS registry
             factory,
@@ -135,8 +125,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             factory,
             address(implementation),
             datastore,
-            metadata,
-            IUniversalResolver(address(universalResolver))
+            metadata
         );
         
         // Grant bridge controller permission to be called by migration controller
@@ -438,7 +427,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         // Verify it's a proxy pointing to our implementation
         // The factory creates a proxy, so we can verify it's pointing to the right implementation
         MigratedWrappedNameRegistry migratedRegistry = MigratedWrappedNameRegistry(actualSubregistry);
-        assertEq(address(migratedRegistry.universalResolver()), address(universalResolver), "Should have correct universal resolver");
+        assertEq(migratedRegistry.parentDnsEncodedName(), "\x04test\x03eth\x00", "Should have correct parent DNS name");
     }
 
     // Comprehensive fuse→role mapping tests

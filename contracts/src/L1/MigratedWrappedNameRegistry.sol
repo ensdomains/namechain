@@ -20,6 +20,7 @@ import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 import {VerifiableFactory} from "../../lib/verifiable-factory/src/VerifiableFactory.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {RegistryUtils} from "@ens/contracts/universalResolver/RegistryUtils.sol";
 
 /**
  * @title MigratedWrappedNameRegistry
@@ -39,14 +40,13 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
     error ParentNotMigrated(bytes32 parentNode);
     error NoParentDomain();
     
-    IUniversalResolver public immutable universalResolver;
+    bytes public parentDnsEncodedName;
     INameWrapper public immutable nameWrapper;
     ENS public immutable ensRegistry;
     VerifiableFactory public immutable factory;
     IPermissionedRegistry public immutable ethRegistry;
 
     constructor(
-        IUniversalResolver _universalResolver,
         INameWrapper _nameWrapper,
         ENS _ensRegistry,
         VerifiableFactory _factory,
@@ -54,7 +54,6 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         IRegistryDatastore _datastore,
         IRegistryMetadata _metadataProvider
     ) PermissionedRegistry(_datastore, _metadataProvider, _msgSender(), 0) {
-        universalResolver = _universalResolver;
         nameWrapper = _nameWrapper;
         ensRegistry = _ensRegistry;
         factory = _factory;
@@ -67,12 +66,17 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
      * @dev Initializes the MigratedWrappedNameRegistry contract.
      * @param _ownerAddress The address that will own this registry.
      * @param _ownerRoles The roles to grant to the owner.
+     * @param _parentDnsEncodedName The DNS-encoded name of the parent domain.
      */
     function initialize(
         address _ownerAddress,
-        uint256 _ownerRoles
+        uint256 _ownerRoles,
+        bytes calldata _parentDnsEncodedName
     ) public initializer {
         require(_ownerAddress != address(0), "Owner cannot be zero address");
+        
+        // Store the parent DNS-encoded name
+        parentDnsEncodedName = _parentDnsEncodedName;
         
         // Grant roles to the owner
         _grantRoles(ROOT_RESOURCE, _ownerRoles | ROLE_UPGRADE | ROLE_UPGRADE_ADMIN, _ownerAddress, false);
@@ -85,19 +89,18 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         uint256 canonicalId = NameUtils.labelToCanonicalId(label);
         (, uint64 expires, ) = datastore.getSubregistry(canonicalId);
         
-        // If name hasn't been registered yet (expiry is 0), call through to universal resolver
+        // If name hasn't been registered yet (expiry is 0), fall back to ENS registry
         if (expires == 0) {
-            // Prepare the name for universal resolver query
-            // For 2LD names, we need to construct the full name with .eth suffix
-            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(label);
+            // Build full DNS-encoded name by prepending label to parent DNS name
+            bytes memory dnsEncodedName = abi.encodePacked(
+                bytes1(uint8(bytes(label).length)),
+                label,
+                parentDnsEncodedName
+            );
             
-            // Query the universal resolver for the resolver address
-            // Note: The universal resolver will return the resolver from the v1 NameWrapper
-            try universalResolver.findResolver(dnsEncodedName) returns (address v1Resolver, bytes32, uint256) {
-                return v1Resolver;
-            } catch {
-                return address(0);
-            }
+            // Query the ENS registry for the resolver address using RegistryUtils
+            (address resolverAddress, , ) = RegistryUtils.findResolver(ensRegistry, dnsEncodedName, 0);
+            return resolverAddress;
         }
         
         // If name has expired, return zero address
@@ -173,11 +176,14 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
             
             // Deploy MigratedWrappedNameRegistry with transferData.owner as owner
             uint256 salt = uint256(keccak256(migrationDataArray[i].salt));
+            
+            // For subdomain registries, the parent DNS name is the subdomain's own DNS-encoded name
             address subregistry = LibLockedNames.deployMigratedRegistry(
                 factory,
                 address(this),
                 migrationDataArray[i].transferData.owner,
-                salt
+                salt,
+                migrationDataArray[i].dnsEncodedName
             );
             
             // Generate role bitmap based on fuses

@@ -33,7 +33,6 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     address public immutable migratedRegistryImplementation;
     IRegistryDatastore public immutable datastore;
     IRegistryMetadata public immutable metadata;
-    IUniversalResolver public immutable universalResolver;
 
     constructor(
         IBaseRegistrar _ethRegistryV1, 
@@ -43,8 +42,7 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
         VerifiableFactory _factory,
         address _migratedRegistryImplementation,
         IRegistryDatastore _datastore,
-        IRegistryMetadata _metadata,
-        IUniversalResolver _universalResolver
+        IRegistryMetadata _metadata
     ) Ownable(msg.sender) {
         ethRegistryV1 = _ethRegistryV1;
         nameWrapper = _nameWrapper;
@@ -54,7 +52,6 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
         migratedRegistryImplementation = _migratedRegistryImplementation;
         datastore = _datastore;
         metadata = _metadata;
-        universalResolver = _universalResolver;
     }
 
     function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, IERC165) returns (bool) {
@@ -105,7 +102,8 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
                 factory,
                 migratedRegistryImplementation,
                 migrationDataArray[i].transferData.owner,
-                salt
+                salt,
+                migrationDataArray[i].dnsEncodedName
             );
             
             // Update transferData with the new subregistry and generated role bitmap

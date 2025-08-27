@@ -67,18 +67,21 @@ library LibLockedNames {
      * @param implementation The implementation address for the proxy
      * @param owner The address that will own the deployed registry
      * @param salt The salt for CREATE2 deployment
+     * @param parentDnsEncodedName The DNS-encoded name of the parent domain
      * @return subregistry The address of the deployed registry
      */
     function deployMigratedRegistry(
         VerifiableFactory factory,
         address implementation,
         address owner,
-        uint256 salt
+        uint256 salt,
+        bytes memory parentDnsEncodedName
     ) internal returns (address subregistry) {
         bytes memory initData = abi.encodeWithSignature(
-            "initialize(address,uint256)",
+            "initialize(address,uint256,bytes)",
             owner,
-            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN
+            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN,
+            parentDnsEncodedName
         );
         subregistry = factory.deployProxy(implementation, salt, initData);
     }
