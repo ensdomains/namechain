@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH, CAN_EXTEND_EXPIRY} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
@@ -176,7 +176,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
 
     function test_onERC1155Received_roles_based_on_fuses_not_input() public {
         // Setup locked name with no additional fuses burnt (CANNOT_SET_RESOLVER not burnt)
-        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
+        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
         // Prepare migration data - the roleBitmap should be ignored completely
@@ -434,7 +434,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
 
     function test_fuse_role_mapping_no_fuses_burnt() public {
         // Setup locked name with only CANNOT_UNWRAP (no other fuses burnt)
-        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
+        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
         // Prepare migration data - incoming roleBitmap should be ignored
@@ -477,9 +477,89 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_SUBREGISTRY) == 0, "Should NOT have ROLE_SET_SUBREGISTRY from incoming data");
     }
 
+    function test_fuse_role_mapping_no_extend_expiry_fuse() public {
+        // Setup locked name WITHOUT CAN_EXTEND_EXPIRY fuse
+        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
+        
+        // Prepare migration data
+        MigrationData memory migrationData = MigrationData({
+            transferData: TransferData({
+                label: testLabel,
+                owner: user,
+                subregistry: address(0), // Will be created by factory
+                resolver: address(0xABCD),
+                expires: uint64(block.timestamp + 86400),
+                roleBitmap: 0
+            }),
+            toL1: true,
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
+            salt: abi.encodePacked(testLabel, block.timestamp)
+        });
+        
+        bytes memory data = abi.encode(migrationData);
+        
+        // Call onERC1155Received
+        vm.prank(address(nameWrapper));
+        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        
+        // Get the registered name and check roles
+        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
+        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 userRoles = registry.roles(resource, user);
+        
+        // Should NOT have ROLE_RENEW since CAN_EXTEND_EXPIRY is not set
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW without CAN_EXTEND_EXPIRY");
+        // Should have ROLE_RENEW_ADMIN since CANNOT_APPROVE is not set
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN when CANNOT_APPROVE not set");
+        // Should have resolver roles since CANNOT_SET_RESOLVER is not set
+        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
+    }
+
+    function test_fuse_role_mapping_cannot_approve_fuse() public {
+        // Setup locked name with CANNOT_APPROVE fuse set
+        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_APPROVE;
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
+        
+        // Prepare migration data
+        MigrationData memory migrationData = MigrationData({
+            transferData: TransferData({
+                label: testLabel,
+                owner: user,
+                subregistry: address(0), // Will be created by factory
+                resolver: address(0xABCD),
+                expires: uint64(block.timestamp + 86400),
+                roleBitmap: 0
+            }),
+            toL1: true,
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
+            salt: abi.encodePacked(testLabel, block.timestamp)
+        });
+        
+        bytes memory data = abi.encode(migrationData);
+        
+        // Call onERC1155Received
+        vm.prank(address(nameWrapper));
+        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        
+        // Get the registered name and check roles
+        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
+        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 userRoles = registry.roles(resource, user);
+        
+        // Should have ROLE_RENEW since CAN_EXTEND_EXPIRY is set
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW with CAN_EXTEND_EXPIRY");
+        // Should NOT have ROLE_RENEW_ADMIN since CANNOT_APPROVE is set
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN when CANNOT_APPROVE is set");
+        // Should have resolver roles since CANNOT_SET_RESOLVER is not set
+        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
+    }
+
     function test_fuse_role_mapping_resolver_fuse_burnt() public {
         // Setup locked name with CANNOT_SET_RESOLVER already burnt
-        uint32 lockedFuses = CANNOT_UNWRAP | CANNOT_SET_RESOLVER | IS_DOT_ETH;
+        uint32 lockedFuses = CANNOT_UNWRAP | CANNOT_SET_RESOLVER | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
         // Prepare migration data
@@ -622,11 +702,15 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         // Get the registered name and check subregistry owner
         IRegistry subregistry = registry.getSubregistry(testLabel);
         
-        // Verify the user is the owner of the subregistry with REGISTRAR roles
+        // Verify the user is the owner of the subregistry with only UPGRADE roles
         IPermissionedRegistry subRegistry = IPermissionedRegistry(address(subregistry));
         
-        // The user should have REGISTRAR and REGISTRAR_ADMIN roles on the subregistry
-        assertTrue(subRegistry.hasRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN, user), "User should have REGISTRAR roles on subregistry");
+        // The user should only have UPGRADE and UPGRADE_ADMIN roles on the subregistry
+        // ROLE_UPGRADE = 1 << 20, ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128
+        uint256 ROLE_UPGRADE = 1 << 20;
+        uint256 ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
+        uint256 upgradeRoles = ROLE_UPGRADE | ROLE_UPGRADE_ADMIN;
+        assertTrue(subRegistry.hasRootRoles(upgradeRoles, user), "User should have UPGRADE roles on subregistry");
     }
 
 

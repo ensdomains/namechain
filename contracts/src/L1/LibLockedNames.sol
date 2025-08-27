@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH, CAN_EXTEND_EXPIRY} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
@@ -78,9 +78,8 @@ library LibLockedNames {
         bytes memory parentDnsEncodedName
     ) internal returns (address subregistry) {
         bytes memory initData = abi.encodeWithSignature(
-            "initialize(address,uint256,bytes)",
+            "initialize(address,bytes)",
             owner,
-            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN,
             parentDnsEncodedName
         );
         subregistry = factory.deployProxy(implementation, salt, initData);
@@ -88,26 +87,24 @@ library LibLockedNames {
 
     /**
      * @notice Generates the role bitmap based on fuses
-     * @dev Always includes RENEW roles, conditionally adds RESOLVER and REGISTRAR roles
+     * @dev Conditionally adds RENEW and RESOLVER roles based on fuses
      * @param fuses The current fuses on the name
-     * @param isSubdomain Whether this is for a subdomain (affects REGISTRAR role assignment)
      * @return roleBitmap The generated role bitmap
      */
-    function generateRoleBitmapFromFuses(uint32 fuses, bool isSubdomain) internal pure returns (uint256 roleBitmap) {
-        uint256 resolverRoles = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
-        uint256 registrarRoles = LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN;
+    function generateRoleBitmapFromFuses(uint32 fuses) internal pure returns (uint256 roleBitmap) {
+        // Add ROLE_RENEW only if CAN_EXTEND_EXPIRY fuse is set
+        if ((fuses & CAN_EXTEND_EXPIRY) != 0) {
+            roleBitmap |= LibRegistryRoles.ROLE_RENEW;
+        }
         
-        // Start with renew roles (always granted)
-        roleBitmap = LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_RENEW_ADMIN;
+        // Add ROLE_RENEW_ADMIN only if CANNOT_APPROVE fuse is not set
+        if ((fuses & CANNOT_APPROVE) == 0) {
+            roleBitmap |= LibRegistryRoles.ROLE_RENEW_ADMIN;
+        }
         
         // Conditionally add resolver roles
         if ((fuses & CANNOT_SET_RESOLVER) == 0) {
-            roleBitmap |= resolverRoles;
-        }
-        
-        // Conditionally add registrar roles for subdomains
-        if (isSubdomain && (fuses & CANNOT_CREATE_SUBDOMAIN) == 0) {
-            roleBitmap |= registrarRoles;
+            roleBitmap |= LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
         }
     }
 
@@ -117,7 +114,7 @@ library LibLockedNames {
      * @param nameWrapper The NameWrapper contract
      * @param tokenId The token ID to burn fuses on
      */
-    function burnAllMigrationFuses(INameWrapper nameWrapper, uint256 tokenId) internal {
+    function burnAllFuses(INameWrapper nameWrapper, uint256 tokenId) internal {
         nameWrapper.setFuses(bytes32(tokenId), uint16(MIGRATION_FUSES_TO_BURN));
     }
 }

@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import {MigratedWrappedNameRegistry} from "../src/L1/MigratedWrappedNameRegistry.sol";
+import {IRegistry} from "../src/common/IRegistry.sol";
 import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
@@ -107,7 +108,6 @@ contract TestMigratedWrappedNameRegistry is Test {
         bytes memory initData = abi.encodeWithSelector(
             MigratedWrappedNameRegistry.initialize.selector,
             owner,
-            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN,
             "\x03eth\x00" // parent DNS-encoded name for .eth
         );
         
@@ -122,6 +122,22 @@ contract TestMigratedWrappedNameRegistry is Test {
         ensRegistry.setResolver(node, v1Resolver);
     }
 
+    /**
+     * @dev Helper method to register a name using the nameWrapper address (which has REGISTRAR role)
+     */
+    function _registerName(
+        MigratedWrappedNameRegistry targetRegistry,
+        string memory label,
+        address nameOwner,
+        IRegistry subregistry,
+        address resolver,
+        uint256 roleBitmap,
+        uint64 expires
+    ) internal {
+        vm.prank(address(nameWrapper));
+        targetRegistry.register(label, nameOwner, subregistry, resolver, roleBitmap, expires);
+    }
+
     function test_getResolver_unregistered_name() public view {
         // Name not registered (expiry = 0), should fall back to ENS registry
         address resolver = registry.getResolver(testLabel);
@@ -131,7 +147,7 @@ contract TestMigratedWrappedNameRegistry is Test {
     function test_getResolver_registered_name_with_resolver() public {
         // Register name first
         uint64 expiry = uint64(block.timestamp + 86400);
-        registry.register(testLabel, user, registry, mockResolver, LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
+        _registerName(registry, testLabel, user, registry, mockResolver, LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
         
         // Should return the registered resolver
         address resolver = registry.getResolver(testLabel);
@@ -141,7 +157,7 @@ contract TestMigratedWrappedNameRegistry is Test {
     function test_getResolver_registered_name_null_resolver() public {
         // Register name with null resolver
         uint64 expiry = uint64(block.timestamp + 86400);
-        registry.register(testLabel, user, registry, address(0), LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
+        _registerName(registry, testLabel, user, registry, address(0), LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
         
         // Should return address(0) since name is registered
         address resolver = registry.getResolver(testLabel);
@@ -151,7 +167,7 @@ contract TestMigratedWrappedNameRegistry is Test {
     function test_getResolver_expired_name() public {
         // Register name that expires immediately
         uint64 expiry = uint64(block.timestamp);
-        registry.register(testLabel, user, registry, mockResolver, LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
+        _registerName(registry, testLabel, user, registry, mockResolver, LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
         
         // Move time forward
         vm.warp(block.timestamp + 1);
@@ -187,7 +203,7 @@ contract TestMigratedWrappedNameRegistry is Test {
         assertEq(registry.getResolver(label2), address(0x2222), "Should return correct v1 resolver for label2");
         
         // Register label1
-        registry.register(label1, user, registry, address(0x3333), LibRegistryRoles.ROLE_SET_RESOLVER, uint64(block.timestamp + 86400));
+        _registerName(registry, label1, user, registry, address(0x3333), LibRegistryRoles.ROLE_SET_RESOLVER, uint64(block.timestamp + 86400));
         
         // label1 should now return registered resolver, label2 still from ENS
         assertEq(registry.getResolver(label1), address(0x3333), "Should return registered resolver for label1");
@@ -200,12 +216,11 @@ contract TestMigratedWrappedNameRegistry is Test {
         
         // Register the name
         uint64 expiry = uint64(block.timestamp + 100);
-        registry.register(testLabel, user, registry, mockResolver, LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
+        _registerName(registry, testLabel, user, registry, mockResolver, LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
         assertEq(registry.getResolver(testLabel), mockResolver, "Should use registered resolver");
         
         // Update resolver
         (uint256 tokenId,,) = registry.getNameData(testLabel);
-        registry.grantRoles(tokenId, LibRegistryRoles.ROLE_SET_RESOLVER, user);
         vm.prank(user);
         registry.setResolver(tokenId, address(0x9999));
         assertEq(registry.getResolver(testLabel), address(0x9999), "Should use updated resolver");
@@ -218,7 +233,7 @@ contract TestMigratedWrappedNameRegistry is Test {
     function test_validateHierarchy_parent_migrated() public {
         // First register parent "test" in registry
         uint64 expiry = uint64(block.timestamp + 86400);
-        registry.register("test", user, registry, mockResolver, LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
+        _registerName(registry, "test", user, registry, mockResolver, LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
         
         // Create subdomain migration data for "sub.test.eth"
         bytes memory subDnsName = NameCoder.encode("sub.test.eth");
@@ -259,8 +274,6 @@ contract TestMigratedWrappedNameRegistry is Test {
     }
 
     function test_validateHierarchy_parent_not_migrated() public {
-        // Don't register parent - it's neither migrated nor controlled
-        
         // Create subdomain migration data
         bytes memory subDnsName = NameCoder.encode("sub.test.eth");
         
@@ -354,7 +367,8 @@ contract TestMigratedWrappedNameRegistry is Test {
         
         // Register the 4LD name in the 3LD registry
         uint64 expiry = uint64(block.timestamp + 86400);
-        subRegistry.register(
+        _registerName(
+            subRegistry,
             label3LD,
             user,
             subRegistry,
@@ -414,7 +428,6 @@ contract TestMigratedWrappedNameRegistry is Test {
         bytes memory initData = abi.encodeWithSelector(
             MigratedWrappedNameRegistry.initialize.selector,
             owner,
-            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN,
             parentDnsName
         );
         

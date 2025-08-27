@@ -108,7 +108,7 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             
             // Update transferData with the new subregistry and generated role bitmap
             migrationDataArray[i].transferData.subregistry = subregistry;
-            migrationDataArray[i].transferData.roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses, false);
+            migrationDataArray[i].transferData.roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses);
             
             // Validate that tokenId matches the label hash
             uint256 expectedTokenId = uint256(keccak256(bytes(migrationDataArray[i].transferData.label)));
@@ -120,7 +120,7 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             l1BridgeController.handleLockedNameMigration(migrationDataArray[i].transferData);
 
             // Burn all migration fuses
-            LibLockedNames.burnAllMigrationFuses(nameWrapper, tokenIds[i]);
+            LibLockedNames.burnAllFuses(nameWrapper, tokenIds[i]);
         }
     }
 }

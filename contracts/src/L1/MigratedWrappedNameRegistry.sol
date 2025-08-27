@@ -65,12 +65,10 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
     /**
      * @dev Initializes the MigratedWrappedNameRegistry contract.
      * @param _ownerAddress The address that will own this registry.
-     * @param _ownerRoles The roles to grant to the owner.
      * @param _parentDnsEncodedName The DNS-encoded name of the parent domain.
      */
     function initialize(
         address _ownerAddress,
-        uint256 _ownerRoles,
         bytes calldata _parentDnsEncodedName
     ) public initializer {
         require(_ownerAddress != address(0), "Owner cannot be zero address");
@@ -78,8 +76,8 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         // Store the parent DNS-encoded name
         parentDnsEncodedName = _parentDnsEncodedName;
         
-        // Grant roles to the owner
-        _grantRoles(ROOT_RESOURCE, _ownerRoles | ROLE_UPGRADE | ROLE_UPGRADE_ADMIN, _ownerAddress, false);
+        // Grant upgrade roles to the owner
+        _grantRoles(ROOT_RESOURCE, ROLE_UPGRADE | ROLE_UPGRADE_ADMIN, _ownerAddress, false);
         
         // Grant NameWrapper REGISTRAR role so it can migrate subdomains
         _grantRoles(ROOT_RESOURCE, LibRegistryRoles.ROLE_REGISTRAR, address(nameWrapper), false);
@@ -187,7 +185,7 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
             );
             
             // Generate role bitmap based on fuses
-            uint256 roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses, true);
+            uint256 roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses);
             
             _register(
                 migrationDataArray[i].transferData.label,
@@ -199,7 +197,7 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
             );
             
             // Burn all migration fuses
-            LibLockedNames.burnAllMigrationFuses(nameWrapper, tokenIds[i]);
+            LibLockedNames.burnAllFuses(nameWrapper, tokenIds[i]);
         }
     }
     
