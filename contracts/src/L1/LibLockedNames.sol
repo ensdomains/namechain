@@ -21,7 +21,7 @@ library LibLockedNames {
      * @notice The fuses to burn during migration to prevent further changes
      * @dev Includes all fuses except CANNOT_UNWRAP (already set) and IS_DOT_ETH (informational)
      */
-    uint32 public constant MIGRATION_FUSES_TO_BURN = 
+    uint32 public constant FUSES_TO_BURN = 
         CANNOT_BURN_FUSES |
         CANNOT_TRANSFER |
         CANNOT_SET_RESOLVER |
@@ -115,6 +115,6 @@ library LibLockedNames {
      * @param tokenId The token ID to burn fuses on
      */
     function burnAllFuses(INameWrapper nameWrapper, uint256 tokenId) internal {
-        nameWrapper.setFuses(bytes32(tokenId), uint16(MIGRATION_FUSES_TO_BURN));
+        nameWrapper.setFuses(bytes32(tokenId), uint16(FUSES_TO_BURN));
     }
 }
