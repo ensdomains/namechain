@@ -17,7 +17,7 @@ import {NameUtils} from "./NameUtils.sol";
 abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     error AccessDenied(uint256 tokenId, address owner, address caller);
 
-    IRegistryDatastore public datastore;
+    IRegistryDatastore public immutable datastore;
 
     constructor(IRegistryDatastore _datastore) {
         datastore = _datastore;

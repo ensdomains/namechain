@@ -36,10 +36,8 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
 
     constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata, address _ownerAddress, uint256 _ownerRoles) BaseRegistry(_datastore) MetadataMixin(_metadata) {
         _grantRoles(ROOT_RESOURCE, _ownerRoles, _ownerAddress, false);
-
-        if (address(_metadata) == address(0)) {
-            _updateMetadataProvider(new SimpleRegistryMetadata());
-        }
+        
+        // Metadata provider is set immutably in constructor via MetadataMixin
     }
 
     function uri(uint256 tokenId ) public view override returns (string memory) {

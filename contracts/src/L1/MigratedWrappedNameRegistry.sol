@@ -12,7 +12,8 @@ import {IRegistry} from "../common/IRegistry.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {LibLockedNames} from "./LibLockedNames.sol";
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {TransferData, MigrationData} from "../common/TransferData.sol";
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
@@ -34,27 +35,26 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
     
     error UnauthorizedCaller(address caller);
     error MigrationFailed();
-    error TokenIdMismatch(uint256 tokenId, uint256 expectedTokenId);
-    error InconsistentFusesState(uint256 tokenId);
-    error NameNotLocked(uint256 tokenId);
     error InvalidHierarchy(uint256 tokenId);
     error ParentNotMigrated(bytes32 parentNode);
+    error NoParentDomain();
     
-    IUniversalResolver public universalResolver;
-    IUniversalResolver public immutable universalResolverImmutable;
+    IUniversalResolver public immutable universalResolver;
     INameWrapper public immutable nameWrapper;
     ENS public immutable ensRegistry;
     VerifiableFactory public immutable factory;
-    address public immutable ethRegistry;
+    IPermissionedRegistry public immutable ethRegistry;
 
     constructor(
         IUniversalResolver _universalResolver,
         INameWrapper _nameWrapper,
         ENS _ensRegistry,
         VerifiableFactory _factory,
-        address _ethRegistry
-    ) PermissionedRegistry(IRegistryDatastore(address(0)), IRegistryMetadata(address(0)), _msgSender(), 0) {
-        universalResolverImmutable = _universalResolver;
+        IPermissionedRegistry _ethRegistry,
+        IRegistryDatastore _datastore,
+        IRegistryMetadata _metadataProvider
+    ) PermissionedRegistry(_datastore, _metadataProvider, _msgSender(), 0) {
+        universalResolver = _universalResolver;
         nameWrapper = _nameWrapper;
         ensRegistry = _ensRegistry;
         factory = _factory;
@@ -67,34 +67,15 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
      * @dev Initializes the MigratedWrappedNameRegistry contract.
      * @param _ownerAddress The address that will own this registry.
      * @param _ownerRoles The roles to grant to the owner.
-     * @param _universalResolver The universal resolver for fallback resolution.
      */
     function initialize(
-        IRegistryDatastore _datastore,
-        IRegistryMetadata _metadata,
         address _ownerAddress,
-        uint256 _ownerRoles,
-        IUniversalResolver _universalResolver
+        uint256 _ownerRoles
     ) public initializer {
         require(_ownerAddress != address(0), "Owner cannot be zero address");
-        require(address(_universalResolver) != address(0), "Universal resolver cannot be zero address");
-        
-        // Initialize datastore
-        datastore = _datastore;
-        
-        // Initialize metadata provider
-        if (address(_metadata) == address(0)) {
-            // Create a new SimpleRegistryMetadata if none is provided
-            _updateMetadataProvider(new SimpleRegistryMetadata());
-        } else {
-            metadataProvider = _metadata;
-        }
         
         // Grant roles to the owner
         _grantRoles(ROOT_RESOURCE, _ownerRoles | ROLE_UPGRADE | ROLE_UPGRADE_ADMIN, _ownerAddress, false);
-        
-        // Initialize universal resolver
-        universalResolver = _universalResolver;
         
         // Grant NameWrapper REGISTRAR role so it can migrate subdomains
         _grantRoles(ROOT_RESOURCE, LibRegistryRoles.ROLE_REGISTRAR, address(nameWrapper), false);
@@ -184,45 +165,23 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         for (uint256 i = 0; i < tokenIds.length; i++) {
             (, uint32 fuses, ) = nameWrapper.getData(tokenIds[i]);
             
-            // Check if name is locked
-            if (fuses & CANNOT_UNWRAP == 0) {
-                revert NameNotLocked(tokenIds[i]);
-            }
-            
-            // Cannot migrate if CANNOT_BURN_FUSES is already burnt
-            if ((fuses & CANNOT_BURN_FUSES) != 0) {
-                revert InconsistentFusesState(tokenIds[i]);
-            }
-            
-            // EARLY validation: Validate that tokenId matches the namehash
-            bytes32 expectedNode = _computeNamehash(migrationDataArray[i].dnsEncodedName);
-            if (bytes32(tokenIds[i]) != expectedNode) {
-                revert TokenIdMismatch(tokenIds[i], uint256(expectedNode));
-            }
+            // Validate fuses
+            LibLockedNames.validateLockedName(fuses, tokenIds[i]);
             
             // Validate hierarchy - check parent is migrated or controlled
             _validateHierarchy(migrationDataArray[i].dnsEncodedName);
             
-            // Create new MigratedWrappedNameRegistry for this subdomain using factory
+            // Deploy MigratedWrappedNameRegistry with transferData.owner as owner
             uint256 salt = uint256(keccak256(migrationDataArray[i].salt));
-            bytes memory initData = abi.encodeWithSignature(
-                "initialize(address,address,address,uint256,address)",
-                datastore,
-                metadataProvider,
+            address subregistry = LibLockedNames.deployMigratedRegistry(
+                factory,
                 address(this),
-                LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN,
-                universalResolverImmutable
+                migrationDataArray[i].transferData.owner,
+                salt
             );
-            address subregistry = factory.deployProxy(address(this), salt, initData);
             
-            // Setup roles based on fuses
-            uint256 roleBitmap = LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_RENEW_ADMIN;
-            if (fuses & CANNOT_SET_RESOLVER == 0) {
-                roleBitmap = roleBitmap | LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
-            }
-            if (fuses & CANNOT_CREATE_SUBDOMAIN == 0) {
-                roleBitmap = roleBitmap | LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN;
-            }
+            // Generate role bitmap based on fuses
+            uint256 roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses, true);
             
             _register(
                 migrationDataArray[i].transferData.label,
@@ -233,29 +192,25 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
                 migrationDataArray[i].transferData.expires
             );
             
-            // Burn all required fuses on the NameWrapper token
-            uint16 fusesToBurn = uint16(
-                CANNOT_BURN_FUSES |
-                CANNOT_TRANSFER |
-                CANNOT_SET_RESOLVER |
-                CANNOT_SET_TTL |
-                CANNOT_CREATE_SUBDOMAIN |
-                CANNOT_APPROVE
-            );
-            nameWrapper.setFuses(bytes32(tokenIds[i]), fusesToBurn);
+            // Burn all migration fuses
+            LibLockedNames.burnAllMigrationFuses(nameWrapper, tokenIds[i]);
         }
     }
     
     function _validateHierarchy(bytes memory dnsEncodedName) internal view {
-        // Decode the DNS name to get parent
-        (, bytes32 parentNode) = _getParentNode(dnsEncodedName);
+        // Get parent label and offset for potential namehash computation
+        (string memory parentLabel, uint256 parentOffset) = _getParentLabel(dnsEncodedName);
         
-        // Check if parent is in v2 registry (this registry)
-        (, uint64 parentExpires, ) = datastore.getSubregistry(uint256(parentNode));
+        // Check if parent is in v2 registry (this registry) using canonical ID
+        uint256 parentCanonicalId = NameUtils.labelToCanonicalId(parentLabel);
+        (, uint64 parentExpires, ) = datastore.getSubregistry(parentCanonicalId);
         if (parentExpires > 0 && parentExpires > block.timestamp) {
             // Parent is migrated and not expired - hierarchy is valid
             return;
         }
+        
+        // Only compute namehash when we need to check v1 NameWrapper
+        bytes32 parentNode = dnsEncodedName.namehash(parentOffset);
         
         // Check if parent is still in v1 NameWrapper
         if (nameWrapper.isWrapped(parentNode)) {
@@ -271,22 +226,20 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         revert ParentNotMigrated(parentNode);
     }
     
-    function _getParentNode(bytes memory dnsEncodedName) internal pure returns (bytes memory parentName, bytes32 parentNode) {
-        // Skip the first label to get parent
-        uint256 labelLength = uint256(uint8(dnsEncodedName[0]));
-        uint256 offset = labelLength + 1;
+    function _getParentLabel(bytes memory dnsEncodedName) internal pure returns (string memory parentLabel, uint256 parentOffset) {
+        // Skip the first label
+        (, parentOffset) = NameCoder.nextLabel(dnsEncodedName, 0);
         
-        // Extract parent DNS name
-        parentName = new bytes(dnsEncodedName.length - offset);
-        for (uint256 i = 0; i < parentName.length; i++) {
-            parentName[i] = dnsEncodedName[offset + i];
+        // If there's no parent this is an error
+        if (dnsEncodedName[parentOffset] == 0) {
+            revert NoParentDomain();
         }
         
-        // Compute parent namehash
-        parentNode = _computeNamehash(parentName);
-    }
-    
-    function _computeNamehash(bytes memory dnsEncodedName) internal pure returns (bytes32) {
-        return dnsEncodedName.namehash(0);
+        // Extract parent label size and content
+        (uint8 parentLabelSize, ) = NameCoder.nextLabel(dnsEncodedName, parentOffset);
+        parentLabel = new string(parentLabelSize);
+        assembly {
+            mcopy(add(parentLabel, 32), add(add(dnsEncodedName, 33), parentOffset), parentLabelSize)
+        }
     }
 }

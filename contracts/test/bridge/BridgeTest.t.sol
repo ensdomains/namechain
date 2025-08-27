@@ -10,6 +10,7 @@ import {IRegistryDatastore} from "../../src/common/IRegistryDatastore.sol";
 import {MockPermissionedRegistry} from "../mocks/MockPermissionedRegistry.sol";
 import {IPermissionedRegistry} from "../../src/common/IPermissionedRegistry.sol";
 import {IRegistryMetadata} from "../../src/common/IRegistryMetadata.sol";
+import {SimpleRegistryMetadata} from "../../src/common/SimpleRegistryMetadata.sol";
 import {NameUtils} from "../../src/common/NameUtils.sol";
 import {L1BridgeController} from "../../src/L1/L1BridgeController.sol";
 import {L2BridgeController} from "../../src/L2/L2BridgeController.sol";
@@ -40,8 +41,9 @@ contract BridgeTest is Test, EnhancedAccessControl {
     function setUp() public {
         // Deploy registries
         datastore = new RegistryDatastore();
-        l1Registry = new MockPermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
-        l2Registry = new MockPermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
+        SimpleRegistryMetadata metadata = new SimpleRegistryMetadata();
+        l1Registry = new MockPermissionedRegistry(datastore, metadata, address(this), LibEACBaseRoles.ALL_ROLES);
+        l2Registry = new MockPermissionedRegistry(datastore, metadata, address(this), LibEACBaseRoles.ALL_ROLES);
 
         // Deploy bridges
         l1Bridge = new MockL1Bridge();

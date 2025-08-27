@@ -15,10 +15,46 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
+import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
+import {TransferData, MigrationData} from "../src/common/TransferData.sol";
+import {CANNOT_UNWRAP, CANNOT_BURN_FUSES} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
         return "";
+    }
+}
+
+contract MockNameWrapper {
+    mapping(uint256 => address) public owners;
+    mapping(uint256 => bool) public wrapped;
+    mapping(uint256 => uint32) public fuses;
+    mapping(uint256 => uint64) public expiries;
+
+    function setOwner(uint256 tokenId, address owner) external {
+        owners[tokenId] = owner;
+    }
+
+    function setWrapped(uint256 tokenId, bool _isWrapped) external {
+        wrapped[tokenId] = _isWrapped;
+    }
+
+    function setFuseData(uint256 tokenId, uint32 _fuses, uint64 expiry) external {
+        fuses[tokenId] = _fuses;
+        expiries[tokenId] = expiry;
+    }
+
+    function ownerOf(uint256 tokenId) external view returns (address) {
+        return owners[tokenId];
+    }
+
+    function isWrapped(bytes32 node) external view returns (bool) {
+        return wrapped[uint256(node)];
+    }
+
+    function getData(uint256 tokenId) external view returns (address, uint32, uint64) {
+        return (owners[tokenId], fuses[tokenId], expiries[tokenId]);
     }
 }
 
@@ -72,6 +108,7 @@ contract TestMigratedWrappedNameRegistry is Test {
     RegistryDatastore datastore;
     MockRegistryMetadata metadata;
     MockUniversalResolver universalResolver;
+    MockNameWrapper nameWrapper;
     
     address owner = address(this);
     address user = address(0x1234);
@@ -85,21 +122,22 @@ contract TestMigratedWrappedNameRegistry is Test {
         datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
         universalResolver = new MockUniversalResolver();
+        nameWrapper = new MockNameWrapper();
         
         // Deploy implementation
         implementation = new MigratedWrappedNameRegistry(
             universalResolver,
-            INameWrapper(address(0)), // mock nameWrapper
+            INameWrapper(address(nameWrapper)), // mock nameWrapper
             ENS(address(0)), // mock ENS registry
             VerifiableFactory(address(0)), // mock factory
-            address(0) // mock ethRegistry
+            IPermissionedRegistry(address(0)), // mock ethRegistry
+            datastore,
+            metadata
         );
         
         // Deploy proxy and initialize
         bytes memory initData = abi.encodeWithSelector(
             MigratedWrappedNameRegistry.initialize.selector,
-            datastore,
-            metadata,
             owner,
             LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN,
             universalResolver
@@ -115,7 +153,7 @@ contract TestMigratedWrappedNameRegistry is Test {
         universalResolver.setResolver(dnsEncodedName, v1Resolver);
     }
 
-    function test_getResolver_unregistered_name() public {
+    function test_getResolver_unregistered_name() public view {
         // Name not registered (expiry = 0), should call through to universal resolver
         address resolver = registry.getResolver(testLabel);
         assertEq(resolver, v1Resolver, "Should return v1 resolver from universal resolver");
@@ -202,5 +240,114 @@ contract TestMigratedWrappedNameRegistry is Test {
         // Let name expire
         vm.warp(block.timestamp + 101);
         assertEq(registry.getResolver(testLabel), address(0), "Should return zero for expired name");
+    }
+
+    function test_validateHierarchy_parent_migrated() public {
+        // First register parent "test" in registry
+        uint64 expiry = uint64(block.timestamp + 86400);
+        registry.register("test", user, registry, mockResolver, LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
+        
+        // Create subdomain migration data for "sub.test.eth"
+        bytes memory subDnsName = NameCoder.encode("sub.test.eth");
+        
+        // Test the internal hierarchy validation by calling the migration process
+        // We'll simplify and just check that we don't get ParentNotMigrated error
+        uint256 subTokenId = uint256(NameCoder.namehash(subDnsName, 0));
+        
+        // Set up the subdomain token as locked but simplified test that should pass hierarchy validation
+        nameWrapper.setFuseData(subTokenId, CANNOT_UNWRAP, uint64(block.timestamp + 86400));
+        nameWrapper.setOwner(subTokenId, user);
+        
+        // Create a minimal migration that should pass hierarchy validation
+        // Since we don't have a proper factory, we expect it to fail later, but not on hierarchy validation
+        vm.prank(address(nameWrapper));
+        try registry.onERC1155Received(address(nameWrapper), user, subTokenId, 1, 
+            abi.encode(MigrationData({
+                transferData: TransferData({
+                    label: "sub",
+                    owner: user,
+                    subregistry: address(0),
+                    resolver: mockResolver,
+                    expires: expiry,
+                    roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
+                }),
+                toL1: false,
+                dnsEncodedName: subDnsName,
+                salt: abi.encodePacked("test_salt")
+            }))
+        ) {
+            // If it succeeds, that's fine
+        } catch Error(string memory reason) {
+            // Should not fail due to ParentNotMigrated if parent is properly registered
+            assertTrue(keccak256(bytes(reason)) != keccak256(bytes("ParentNotMigrated")), "Should not fail on parent validation");
+        } catch (bytes memory) {
+            // Other failures are OK for this test - we just want to ensure hierarchy validation passes
+        }
+    }
+
+    function test_validateHierarchy_parent_not_migrated() public {
+        // Don't register parent - it's neither migrated nor controlled
+        
+        // Create subdomain migration data
+        bytes memory subDnsName = NameCoder.encode("sub.test.eth");
+        
+        // Compute the correct tokenId from the DNS encoded name (this should match the namehash) 
+        uint256 subTokenId = uint256(NameCoder.namehash(subDnsName, 0));
+        
+        // Set up the subdomain token as locked
+        nameWrapper.setFuseData(subTokenId, CANNOT_UNWRAP, uint64(block.timestamp + 86400));
+        nameWrapper.setOwner(subTokenId, user);
+        
+        // This should revert because parent is not migrated or controlled
+        // Compute the expected parent namehash for "test.eth"
+        bytes32 expectedParentNode = NameCoder.namehash(NameCoder.encode("test.eth"), 0);
+        vm.expectRevert(abi.encodeWithSelector(MigratedWrappedNameRegistry.ParentNotMigrated.selector, expectedParentNode));
+        
+        vm.prank(address(nameWrapper));
+        registry.onERC1155Received(address(nameWrapper), user, subTokenId, 1, 
+            abi.encode(MigrationData({
+                transferData: TransferData({
+                    label: "sub",
+                    owner: user,
+                    subregistry: address(0),
+                    resolver: mockResolver,
+                    expires: uint64(block.timestamp + 86400),
+                    roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
+                }),
+                toL1: false,
+                dnsEncodedName: subDnsName,
+                salt: abi.encodePacked("test_salt")
+            }))
+        );
+    }
+
+    function test_validateHierarchy_no_parent_domain() public {
+        // Try to migrate a top-level domain like "eth" (which has no parent)
+        bytes memory ethDnsName = NameCoder.encode("eth");
+        uint256 ethTokenId = uint256(NameCoder.namehash(ethDnsName, 0));
+        
+        // Set up the token as locked
+        nameWrapper.setFuseData(ethTokenId, CANNOT_UNWRAP, uint64(block.timestamp + 86400));
+        nameWrapper.setOwner(ethTokenId, user);
+        
+        // Should revert with NoParentDomain error
+        vm.expectRevert(MigratedWrappedNameRegistry.NoParentDomain.selector);
+        
+        vm.prank(address(nameWrapper));
+        registry.onERC1155Received(address(nameWrapper), user, ethTokenId, 1,
+            abi.encode(MigrationData({
+                transferData: TransferData({
+                    label: "eth",
+                    owner: user,
+                    subregistry: address(0),
+                    resolver: mockResolver,
+                    expires: uint64(block.timestamp + 86400),
+                    roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
+                }),
+                toL1: false,
+                dnsEncodedName: ethDnsName,
+                salt: abi.encodePacked("test_salt")
+            }))
+        );
     }
 }

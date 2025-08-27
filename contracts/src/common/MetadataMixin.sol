@@ -8,17 +8,11 @@ import "./IRegistryMetadata.sol";
 /// @dev Inherit this contract to add metadata functionality to Registry contracts
 abstract contract MetadataMixin {
     /// @notice The metadata provider contract
-    IRegistryMetadata public metadataProvider;
+    IRegistryMetadata public immutable metadataProvider;
 
     /// @notice Initializes the mixin with a metadata provider
     /// @param _metadataProvider Address of the metadata provider contract
     constructor(IRegistryMetadata _metadataProvider) {
-        metadataProvider = _metadataProvider;
-    }
-
-    /// @notice Updates the metadata provider
-    /// @param _metadataProvider Address of the new metadata provider contract
-    function _updateMetadataProvider(IRegistryMetadata _metadataProvider) internal virtual {
         metadataProvider = _metadataProvider;
     }
 

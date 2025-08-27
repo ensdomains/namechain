@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {TransferData, MigrationData} from "../common/TransferData.sol";
@@ -13,6 +13,7 @@ import {L1BridgeController} from "./L1BridgeController.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {MigratedWrappedNameRegistry} from "./MigratedWrappedNameRegistry.sol";
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
+import {LibLockedNames} from "./LibLockedNames.sol";
 import {VerifiableFactory} from "../../lib/verifiable-factory/src/VerifiableFactory.sol";
 import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../common/IRegistryMetadata.sol";
@@ -23,9 +24,6 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     error UnauthorizedCaller(address caller);   
     error MigrationFailed();
     error TokenIdMismatch(uint256 tokenId, uint256 expectedTokenId);
-    error InconsistentFusesState(uint256 tokenId);
-    error NameNotLocked(uint256 tokenId);
-    error NotDotEthName(uint256 tokenId);
 
     IBaseRegistrar public immutable ethRegistryV1;
     INameWrapper public immutable nameWrapper;
@@ -97,72 +95,34 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
         for (uint256 i = 0; i < tokenIds.length; i++) {
             (, uint32 fuses, ) = nameWrapper.getData(tokenIds[i]);
             
-            // Check if name is locked
-            if (fuses & CANNOT_UNWRAP == 0) {
-                revert NameNotLocked(tokenIds[i]);
-            }
+            // Validate fuses and name type
+            LibLockedNames.validateLockedName(fuses, tokenIds[i]);
+            LibLockedNames.validateIsDotEth2LD(fuses, tokenIds[i]);
             
-            // Cannot migrate if CANNOT_BURN_FUSES is already burnt
-            if ((fuses & CANNOT_BURN_FUSES) != 0) {
-                revert InconsistentFusesState(tokenIds[i]);
-            }
-            
-            // Validate that this is a .eth name using the IS_DOT_ETH fuse
-            if ((fuses & IS_DOT_ETH) == 0) {
-                revert NotDotEthName(tokenIds[i]);
-            }
-            
-            // Create MigratedWrappedNameRegistry using factory with salt
+            // Deploy MigratedWrappedNameRegistry with transferData.owner as owner
             uint256 salt = uint256(keccak256(migrationDataArray[i].salt));
-            bytes memory initData = abi.encodeWithSignature(
-                "initialize(address,address,address,uint256,address)",
-                datastore,
-                metadata,
-                address(this),
-                LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN,
-                universalResolver
-            );
-            address subregistry = factory.deployProxy(migratedRegistryImplementation, salt, initData);
-            
-            // Grant L1BridgeController REGISTRAR role on the new subregistry for subdomain migrations
-            IPermissionedRegistry(subregistry).grantRootRoles(
-                LibRegistryRoles.ROLE_REGISTRAR, 
-                address(l1BridgeController)
+            address subregistry = LibLockedNames.deployMigratedRegistry(
+                factory,
+                migratedRegistryImplementation,
+                migrationDataArray[i].transferData.owner,
+                salt
             );
             
-            // Update transferData with the new subregistry
-            TransferData memory transferData = migrationDataArray[i].transferData;
-            transferData.subregistry = subregistry;
-            
-            // setup roles based on fuses
-            transferData.roleBitmap = LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_RENEW_ADMIN;
-            // setting resolver ability
-            if (fuses & CANNOT_SET_RESOLVER == 0) {
-                transferData.roleBitmap = transferData.roleBitmap | LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
-            }
+            // Update transferData with the new subregistry and generated role bitmap
+            migrationDataArray[i].transferData.subregistry = subregistry;
+            migrationDataArray[i].transferData.roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses, false);
             
             // Validate that tokenId matches the label hash
-            uint256 expectedTokenId = uint256(keccak256(bytes(transferData.label)));
+            uint256 expectedTokenId = uint256(keccak256(bytes(migrationDataArray[i].transferData.label)));
             if (tokenIds[i] != expectedTokenId) {
                 revert TokenIdMismatch(tokenIds[i], expectedTokenId);
             }
             
             // Migrate locked name using the DNS-encoded name for hierarchy traversal
-            l1BridgeController.handleLockedNameMigration(transferData);
+            l1BridgeController.handleLockedNameMigration(migrationDataArray[i].transferData);
 
-            // Burn all required fuses: CANNOT_BURN_FUSES, CANNOT_TRANSFER, 
-            // CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE
-            //
-            // NOTE: CANNOT_UNWRAP is already burnt
-            uint16 fusesToBurn = uint16(
-                CANNOT_BURN_FUSES | 
-                CANNOT_TRANSFER | 
-                CANNOT_SET_RESOLVER | 
-                CANNOT_SET_TTL | 
-                CANNOT_CREATE_SUBDOMAIN | 
-                CANNOT_APPROVE
-            );
-            nameWrapper.setFuses(bytes32(tokenIds[i]), fusesToBurn);            
+            // Burn all migration fuses
+            LibLockedNames.burnAllMigrationFuses(nameWrapper, tokenIds[i]);
         }
     }
 }

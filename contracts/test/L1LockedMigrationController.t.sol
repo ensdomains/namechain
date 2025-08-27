@@ -11,6 +11,7 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 import {L1LockedMigrationController} from "../src/L1/L1LockedMigrationController.sol";
 import {L1BridgeController} from "../src/L1/L1BridgeController.sol";
+import {LibLockedNames} from "../src/L1/LibLockedNames.sol";
 import {IRegistry} from "../src/common/IRegistry.sol";
 import {MigratedWrappedNameRegistry} from "../src/L1/MigratedWrappedNameRegistry.sol";
 import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
@@ -111,7 +112,9 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             INameWrapper(address(nameWrapper)),
             ENS(address(0)), // mock ENS registry
             factory,
-            address(registry) // ethRegistry
+            IPermissionedRegistry(address(registry)), // ethRegistry
+            datastore,
+            metadata
         );
         
         // Setup eth registry
@@ -252,7 +255,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         bytes memory data = abi.encode(migrationData);
         
         // Should revert because name is not locked
-        vm.expectRevert(abi.encodeWithSelector(L1LockedMigrationController.NameNotLocked.selector, testTokenId));
+        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NameNotLocked.selector, testTokenId));
         vm.prank(address(nameWrapper));
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
@@ -279,7 +282,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         bytes memory data = abi.encode(migrationData);
         
         // Should revert because CANNOT_BURN_FUSES is already set
-        vm.expectRevert(abi.encodeWithSelector(L1LockedMigrationController.InconsistentFusesState.selector, testTokenId));
+        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.InconsistentFusesState.selector, testTokenId));
         vm.prank(address(nameWrapper));
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
@@ -596,9 +599,45 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         bytes memory data = abi.encode(migrationData);
         
         // Should revert because IS_DOT_ETH fuse is not set
-        vm.expectRevert(abi.encodeWithSelector(L1LockedMigrationController.NotDotEthName.selector, testTokenId));
+        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NotDotEthName.selector, testTokenId));
         vm.prank(address(nameWrapper));
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+    }
+
+    function test_subregistry_owner_roles() public {
+        // Setup locked name
+        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
+        
+        // Prepare migration data with user as owner
+        MigrationData memory migrationData = MigrationData({
+            transferData: TransferData({
+                label: testLabel,
+                owner: user,
+                subregistry: address(0), // Will be created by factory
+                resolver: address(0xABCD),
+                expires: uint64(block.timestamp + 86400),
+                roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
+            }),
+            toL1: true,
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
+            salt: abi.encodePacked(testLabel, "owner_test")
+        });
+        
+        bytes memory data = abi.encode(migrationData);
+        
+        // Call onERC1155Received
+        vm.prank(address(nameWrapper));
+        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        
+        // Get the registered name and check subregistry owner
+        IRegistry subregistry = registry.getSubregistry(testLabel);
+        
+        // Verify the user is the owner of the subregistry with REGISTRAR roles
+        IPermissionedRegistry subRegistry = IPermissionedRegistry(address(subregistry));
+        
+        // The user should have REGISTRAR and REGISTRAR_ADMIN roles on the subregistry
+        assertTrue(subRegistry.hasRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN, user), "User should have REGISTRAR roles on subregistry");
     }
 
 
