@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IRegistry} from "../common/IRegistry.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
-/// @notice Interface for the ".eth" registrar which manages registration/renewal for ".eth" registry.
-/// @dev Interface selector: `0xa3839be4`
-interface IETHRegistrar {
-    /// @notice `label` has no rent price.
-    /// @dev Error selector: `0x90ecde1b`
-    error NoRentPrice(string label);
+import {IRegistry} from "../common/IRegistry.sol";
 
+/// @notice Interface for the ".eth" registrar which manages the ".eth" registry.
+/// @dev Interface selector: `0x9daffb72`
+interface IETHRegistrar {
     /// @notice `label` is not registered.
     /// @dev Error selector: `0xf2b502e2`
     error NameNotRegistered(string label);
@@ -18,10 +15,6 @@ interface IETHRegistrar {
     /// @notice `label is already registered.
     /// @dev Error selector: `0x6dbb87d0`
     error NameAlreadyRegistered(string label);
-
-    /// @notice `paymentToken` is not supported for payment.
-    /// @dev Error selector: `0x02e2ae9e`
-    error PaymentTokenNotSupported(IERC20Metadata paymentToken);
 
     /// @notice `duration + expiry` overflows.
     /// @dev Error selector: `0x674a4652`
@@ -54,9 +47,6 @@ interface IETHRegistrar {
         uint64 validTo,
         uint64 blockTimestamp
     );
-
-    /// @notice Support for `paymentToken` has changed.
-    event PaymentTokenChanged(IERC20Metadata paymentToken, bool supported);
 
     /// @notice `commitment` was recorded onchain at `block.timestamp`.
     /// @param commitment The commitment hash from `makeCommitment()`.
@@ -187,7 +177,7 @@ interface IETHRegistrar {
     ) external returns (uint256);
 
     /// @notice Renew an existing registration.
-    /// @dev Emits `NameRenewed` or
+    /// @dev Emits `NameRenewed` or reverts with a variety of errors.
     /// @param label The name to renew.
     /// @param duration The registration extension, in seconds.
     /// @param paymentToken The ERC-20 to use for payment.
