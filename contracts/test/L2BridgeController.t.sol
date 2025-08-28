@@ -22,6 +22,7 @@ import {ITokenObserver} from "../src/common/ITokenObserver.sol";
 import {IRegistry} from "../src/common/IRegistry.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
+import "../src/common/Errors.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
@@ -179,7 +180,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertEq(ethRegistry.ownerOf(tokenId), address(controller), "Token should be owned by the controller");
     }
 
-    function test_completeEjectionFromL1() public {
+    function test_completeEjectionToL2() public {
         // Use specific roles instead of ALL_ROLES, including admin roles that are now required
         uint256 originalRoles = 
             LibRegistryRoles.ROLE_SET_RESOLVER | 
@@ -214,7 +215,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        controller.completeEjectionFromL1(migrationData);
+        controller.completeEjectionToL2(migrationData);
         
         // Verify ejection results
         _verifyEjectionResults(tokenId2, label2, originalRoles, differentRoles);
@@ -257,7 +258,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertTrue(foundEvent, "NameEjectedToL2 event not found");
     }
 
-    function test_Revert_completeEjectionFromL1_notOwner() public {
+    function test_Revert_completeEjectionToL2_notOwner() public {
         // Expect revert with NotTokenOwner error from the L2BridgeController logic
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NotTokenOwner.selector, tokenId));
         // Call the external method which should revert
@@ -271,11 +272,11 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        controller.completeEjectionFromL1(migrationData);
+        controller.completeEjectionToL2(migrationData);
     }
 
-    function test_Revert_completeEjectionFromL1_not_bridge() public {
-        // Try to call completeEjectionFromL1 directly (without proper role)
+    function test_Revert_completeEjectionToL2_not_bridge() public {
+        // Try to call completeEjectionToL2 directly (without proper role)
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: l2Owner,
@@ -291,7 +292,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             LibBridgeRoles.ROLE_EJECTOR,
             address(this)
         ));
-        controller.completeEjectionFromL1(transferData);
+        controller.completeEjectionToL2(transferData);
     }
 
     function test_supportsInterface() public view {
@@ -363,7 +364,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Try to call onERC1155Received directly (not through registry)
-        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
         controller.onERC1155Received(address(this), user, tokenId, 1, ejectionData);
     }
 
@@ -517,7 +518,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         bytes memory ejectionData = _createEjectionData(nullOwnerTestLabel, nullOwner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
         
         // Transfer should revert due to null owner
-        vm.expectRevert(abi.encodeWithSelector(L2BridgeController.InvalidOwner.selector));
+        vm.expectRevert(abi.encodeWithSelector(InvalidOwner.selector));
         vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), testTokenId, 1, ejectionData);
     }

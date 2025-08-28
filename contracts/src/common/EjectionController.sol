@@ -9,13 +9,13 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "./NameUtils.sol";
 import {IBridge, LibBridgeRoles} from "./IBridge.sol";
 import {EnhancedAccessControl, LibEACBaseRoles} from "./EnhancedAccessControl.sol";
+import "./Errors.sol";
 
 /**
  * @title EjectionController
  * @dev Base contract for the ejection controllers.
  */
 abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccessControl {
-    error UnauthorizedCaller(address caller);
     error InvalidLabel(uint256 tokenId, string label);
 
     event NameEjectedToL1(bytes dnsEncodedName, uint256 tokenId);

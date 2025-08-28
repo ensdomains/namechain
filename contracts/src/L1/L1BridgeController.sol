@@ -11,6 +11,7 @@ import {IBridge, LibBridgeRoles} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import "../common/Errors.sol";
 
 /**
  * @title L1BridgeController
@@ -19,17 +20,10 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
  */
 contract L1BridgeController is EjectionController {
     error NotTokenOwner(uint256 tokenId);
-    error NameNotExpired(uint256 tokenId, uint64 expires);
-    error ParentNotMigrated(bytes name, uint256 offset);
-    error InvalidOwner();
     error LockedNameCannotBeEjected(uint256 tokenId);
-    error InvalidNameForMigration(bytes name);
 
     event RenewalSynchronized(uint256 tokenId, uint64 newExpiry);
-    event LockedNameMigratedToL1(bytes name, uint256 tokenId);
 
-    // Tracks which names are permanently locked
-    mapping(uint256 => bool) private isLocked;
 
     constructor(
         IPermissionedRegistry _registry, 
@@ -37,11 +31,11 @@ contract L1BridgeController is EjectionController {
     ) EjectionController(_registry, _bridge) {}
 
     /**
-     * @dev Should be called when a name has been ejected from L2.  
+     * @dev Should be called when a name is being ejected to L1.  
      *
      * @param transferData The transfer data for the name being ejected
      */
-    function completeEjectionFromL2(
+    function completeEjectionToL1(
         TransferData memory transferData
     ) 
     external 
@@ -49,33 +43,18 @@ contract L1BridgeController is EjectionController {
     onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
     returns (uint256 tokenId) 
     {
-        bytes memory dnsEncodedName;
-        (tokenId, dnsEncodedName) = _registerName(transferData, registry);
+        tokenId = registry.register(
+            transferData.label,
+            transferData.owner,
+            IRegistry(transferData.subregistry),
+            transferData.resolver,
+            transferData.roleBitmap,
+            transferData.expires
+        );
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
         emit NameEjectedToL1(dnsEncodedName, tokenId);
     }
 
-    /**
-     * @dev Handles migration of a locked .eth 2LD name.
-     * Registers the name directly in the eth registry.
-     *
-     * @param transferData The transfer data for the name being migrated
-     */
-    function handleLockedNameMigration(
-        TransferData memory transferData
-    )
-    external
-    virtual
-    onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
-    returns (uint256 tokenId)
-    {
-        bytes memory dnsEncodedName;
-        (tokenId, dnsEncodedName) = _registerName(transferData, registry);
-        
-        // Prevent future ejections for this migrated name
-        isLocked[tokenId] = true;
-        
-        emit LockedNameMigratedToL1(dnsEncodedName, tokenId);
-    }
 
     /**
      * @dev Sync the renewal of a name with the L2 registry.
@@ -98,8 +77,10 @@ contract L1BridgeController is EjectionController {
             uint256 tokenId = tokenIds[i];
             TransferData memory transferData = transferDataArray[i];
 
-            // check if this is a locked name that cannot be ejected
-            if (isLocked[tokenId]) {
+            // Check if name is locked (no assignees for ROLE_SET_SUBREGISTRY means locked)
+            uint256 resource = NameUtils.getCanonicalId(tokenId);
+            (uint256 count, ) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY);
+            if (count == 0) {
                 revert LockedNameCannotBeEjected(tokenId);
             }
 
@@ -121,25 +102,5 @@ contract L1BridgeController is EjectionController {
         }
     }
 
-    /**
-     * @dev Registers a name in the specified registry.
-     *
-     * @param transferData The transfer data for the name being registered
-     * @param targetRegistry The registry to register the name in
-     */
-    function _registerName(
-        TransferData memory transferData,
-        IPermissionedRegistry targetRegistry
-    ) private returns (uint256 tokenId, bytes memory dnsEncodedName) {
-        tokenId = targetRegistry.register(
-            transferData.label,
-            transferData.owner,
-            IRegistry(transferData.subregistry),
-            transferData.resolver,
-            transferData.roleBitmap,
-            transferData.expires
-        );
-        dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
-    }
 
 }

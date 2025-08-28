@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import {MigratedWrappedNameRegistry} from "../src/L1/MigratedWrappedNameRegistry.sol";
+import "../src/L1/MigrationErrors.sol";
 import {IRegistry} from "../src/common/IRegistry.sol";
 import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
@@ -285,9 +286,9 @@ contract TestMigratedWrappedNameRegistry is Test {
         nameWrapper.setOwner(subTokenId, user);
         
         // Should revert when parent is neither migrated nor controlled
-        // Compute the expected parent namehash for "test.eth"
-        bytes32 expectedParentNode = NameCoder.namehash(NameCoder.encode("test.eth"), 0);
-        vm.expectRevert(abi.encodeWithSelector(MigratedWrappedNameRegistry.ParentNotMigrated.selector, expectedParentNode));
+        // DNS encoded name is "sub.test.eth" and parent offset would be after "sub" (4 bytes)
+        (, uint256 parentOffset) = NameCoder.nextLabel(subDnsName, 0);
+        vm.expectRevert(abi.encodeWithSelector(ParentNotMigrated.selector, subDnsName, parentOffset));
         
         vm.prank(address(nameWrapper));
         registry.onERC1155Received(address(nameWrapper), user, subTokenId, 1, 

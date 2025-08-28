@@ -18,6 +18,7 @@ import {MockBaseRegistrar} from "../src/mocks/v1/MockBaseRegistrar.sol";
 import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {L1UnlockedMigrationController} from "../src/L1/L1UnlockedMigrationController.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
+import "../src/common/Errors.sol";
 import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
 import {IBridge, BridgeMessageType, LibBridgeRoles} from "../src/common/IBridge.sol";
 import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
@@ -375,7 +376,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes memory data = abi.encode(migrationData);
         
         // Try to transfer from wrong registry
-        vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
         migrationController.onERC721Received(address(this), user, testTokenId, data);
     }
 
@@ -391,7 +392,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         // Try to call onERC721Received directly when migration controller doesn't own the token
         // This should fail with UnauthorizedCaller because we're calling it directly
         // and msg.sender is not ethRegistryV1
-        vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
         migrationController.onERC721Received(address(this), user, testTokenId, data);
     }
 
@@ -643,7 +644,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes memory data = abi.encode(migrationData);
         
         // Try to call onERC1155Received from wrong contract (not nameWrapper)
-        vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
         migrationController.onERC1155Received(address(this), user, testTokenId, 1, data);
     }
 
@@ -661,7 +662,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes memory data = abi.encode(migrationDataArray);
         
         // Try to call onERC1155BatchReceived from wrong contract (not nameWrapper)
-        vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
         migrationController.onERC1155BatchReceived(address(this), user, tokenIds, amounts, data);
     }
 

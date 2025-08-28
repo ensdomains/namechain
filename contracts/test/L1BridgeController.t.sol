@@ -12,6 +12,7 @@ import "../src/common/IRegistry.sol";
 import {L1BridgeController} from "../src/L1/L1BridgeController.sol";
 import {EjectionController} from "../src/common/EjectionController.sol";
 import {TransferData} from "../src/common/TransferData.sol";
+import "../src/common/Errors.sol";
 import {EnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
 import "../src/common/IRegistryMetadata.sol";
@@ -52,6 +53,130 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     /**
      * Helper method to create properly encoded data for the ERC1155 transfers
      */
+    function test_eject_role_based_locking() public {
+        // Test that a name with ROLE_SET_SUBREGISTRY can be ejected
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        
+        // Register a name with ROLE_SET_SUBREGISTRY (ejectable)
+        uint256 tokenId = registry.register(
+            testLabel, 
+            address(this), 
+            registry, 
+            MOCK_RESOLVER, 
+            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, 
+            expiryTime
+        );
+        
+        // Should be able to eject this name
+        bytes memory ejectionData = _createEjectionData(
+            address(1),
+            address(2), 
+            address(3), 
+            uint64(block.timestamp + 86400),
+            LibRegistryRoles.ROLE_SET_RESOLVER
+        );
+        
+        // This should succeed (no revert expected)
+        registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, ejectionData);
+    }
+
+    function test_lock_by_revoking_subregistry_role() public {
+        // Test that revoking ROLE_SET_SUBREGISTRY from all users locks a name
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        string memory label = "lockable";
+        
+        // Register a name with ROLE_SET_SUBREGISTRY
+        uint256 initialTokenId = registry.register(
+            label, 
+            address(this), 
+            registry, 
+            MOCK_RESOLVER, 
+            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, 
+            expiryTime
+        );
+        
+        // Verify it's currently ejectable by checking assignee count
+        uint256 resource = NameUtils.getCanonicalId(initialTokenId);
+        (uint256 count,) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY);
+        assertTrue(count > 0, "Should have assignees for ROLE_SET_SUBREGISTRY");
+        
+        // Revoke ROLE_SET_SUBREGISTRY from the owner - this will regenerate the token ID
+        registry.revokeRoles(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY, address(this));
+        
+        // Get the new token ID after role change
+        (uint256 newTokenId,,) = registry.getNameData(label);
+        
+        // Now it should be locked (no assignees)
+        (count,) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY);
+        assertTrue(count == 0, "Should have no assignees for ROLE_SET_SUBREGISTRY after revoke");
+        
+        // Create ejection data for this specific label
+        TransferData memory transferData = TransferData({
+            label: label,
+            owner: address(1),
+            subregistry: address(2),
+            resolver: address(3),
+            expires: uint64(block.timestamp + 86400),
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
+        });
+        bytes memory ejectionData = abi.encode([transferData]);
+        
+        // Should now fail to eject with the new token ID
+        vm.expectRevert(abi.encodeWithSelector(L1BridgeController.LockedNameCannotBeEjected.selector, newTokenId));
+        registry.safeTransferFrom(address(this), address(bridgeController), newTokenId, 1, ejectionData);
+    }
+
+    function test_unlock_by_granting_subregistry_role() public {
+        // Test that granting ROLE_SET_SUBREGISTRY unlocks a locked name
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        string memory label = "locked";
+        
+        // Create a locked name (without ROLE_SET_SUBREGISTRY)
+        TransferData memory transferData = TransferData({
+            label: label,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER // No ROLE_SET_SUBREGISTRY
+        });
+        
+        vm.prank(address(bridge));
+        uint256 initialTokenId = bridgeController.completeEjectionToL1(transferData);
+        
+        // Verify it's locked
+        uint256 resource = NameUtils.getCanonicalId(initialTokenId);
+        (uint256 count,) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY);
+        assertTrue(count == 0, "Should have no assignees for ROLE_SET_SUBREGISTRY");
+        
+        // Create ejection data for this specific label
+        bytes memory ejectionData = _createEjectionDataWithLabel(
+            label,
+            address(1),
+            address(2),
+            address(3),
+            uint64(block.timestamp + 86400),
+            LibRegistryRoles.ROLE_SET_RESOLVER
+        );
+        
+        // Should fail to eject initially
+        vm.expectRevert(abi.encodeWithSelector(L1BridgeController.LockedNameCannotBeEjected.selector, initialTokenId));
+        registry.safeTransferFrom(address(this), address(bridgeController), initialTokenId, 1, ejectionData);
+        
+        // Grant ROLE_SET_SUBREGISTRY to unlock it - this will regenerate the token ID
+        registry.grantRoles(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY, address(this));
+        
+        // Get the new token ID after role change
+        (uint256 newTokenId,,) = registry.getNameData(label);
+        
+        // Verify it's now unlocked
+        (count,) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY);
+        assertTrue(count > 0, "Should have assignees for ROLE_SET_SUBREGISTRY after grant");
+        
+        // Should now succeed to eject with the new token ID
+        registry.safeTransferFrom(address(this), address(bridgeController), newTokenId, 1, ejectionData);
+    }
+
     function _createEjectionData(
         address l2Owner,
         address l2Subregistry,
@@ -59,20 +184,9 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         uint64 expiryTime,
         uint256 roleBitmap
     ) internal view returns (bytes memory) {
-        TransferData memory transferData = TransferData({
-            label: testLabel,
-            owner: l2Owner,
-            subregistry: l2Subregistry,
-            resolver: l2Resolver,
-            expires: expiryTime,
-            roleBitmap: roleBitmap
-        });
-        return abi.encode(transferData);
+        return _createEjectionDataWithLabel(testLabel, l2Owner, l2Subregistry, l2Resolver, expiryTime, roleBitmap);
     }
-    
-    /**
-     * Helper method to create properly encoded data for the ERC1155 transfers with custom label
-     */
+
     function _createEjectionDataWithLabel(
         string memory label,
         address l2Owner,
@@ -157,7 +271,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        bridgeController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionToL1(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), address(this));
@@ -177,7 +291,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        bridgeController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionToL1(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), user);
@@ -204,7 +318,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        bridgeController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionToL1(transferData);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundNewSubname = false;
@@ -239,12 +353,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        bridgeController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionToL1(transferData);
         
         // Try to eject again while not expired
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameAlreadyRegistered.selector, testLabel));
         vm.prank(address(bridge));
-        bridgeController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionToL1(transferData);
     }
 
     function test_updateExpiration() public {
@@ -259,7 +373,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        bridgeController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionToL1(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -289,7 +403,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        bridgeController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionToL1(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -329,7 +443,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        bridgeController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionToL1(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -352,7 +466,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        bridgeController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionToL1(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -470,7 +584,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         );
 
         // Transfer should revert due to null owner
-        vm.expectRevert(abi.encodeWithSelector(L1BridgeController.InvalidOwner.selector));
+        vm.expectRevert(abi.encodeWithSelector(InvalidOwner.selector));
         registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, data);
     }
 
@@ -633,7 +747,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         return abi.encode(transferDataArray);
     }
 
-    function test_Revert_completeEjectionFromL2_not_bridge() public {
+    function test_Revert_completeEjectionToL1_not_bridge() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
             label: testLabel,
@@ -644,14 +758,14 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
         });
         
-        // Try to call completeEjectionFromL2 directly (without proper role)
+        // Try to call completeEjectionToL1 directly (without proper role)
         vm.expectRevert(abi.encodeWithSelector(
             IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
             0, // ROOT_RESOURCE
             LibBridgeRoles.ROLE_EJECTOR,
             address(this)
         ));
-        bridgeController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionToL1(transferData);
     }
 
     function test_Revert_syncRenewal_not_bridge() public {
@@ -667,7 +781,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         
         // First create a name to renew
         vm.prank(address(bridge));
-        bridgeController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionToL1(transferData);
         
         (uint256 tokenId,,) = registry.getNameData(testLabel);
         
@@ -681,7 +795,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         bridgeController.syncRenewal(tokenId, uint64(block.timestamp + 86400 * 2));
     }
 
-    function test_handleLockedNameMigration() public {
+    function test_completeEjectionToL1() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
             label: testLabel,
@@ -697,29 +811,29 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
-        uint256 tokenId = bridgeController.handleLockedNameMigration(transferData);
+        uint256 tokenId = bridgeController.completeEjectionToL1(transferData);
         
         // Verify the name was registered
         (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
         assertEq(registeredTokenId, tokenId);
         assertEq(registry.ownerOf(tokenId), address(this));
         
-        // Verify the LockedNameMigratedToL1 event was emitted
+        // Verify the NameEjectedToL1 event was emitted
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundLockedMigrationEvent = false;
-        bytes32 lockedMigrationSig = keccak256("LockedNameMigratedToL1(bytes,uint256)");
+        bool foundEjectionEvent = false;
+        bytes32 ejectionSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == lockedMigrationSig) {
-                foundLockedMigrationEvent = true;
+            if (entries[i].topics[0] == ejectionSig) {
+                foundEjectionEvent = true;
                 break;
             }
         }
-        assertTrue(foundLockedMigrationEvent, "LockedNameMigratedToL1 event not found");
+        assertTrue(foundEjectionEvent, "NameEjectedToL1 event not found");
     }
     
     function test_Revert_ejectToL2_locked_name() public {
-        // First, migrate a locked name
+        // First, migrate a locked name (locked names don't have ROLE_SET_SUBREGISTRY)
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
             label: testLabel,
@@ -727,12 +841,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER // No ROLE_SET_SUBREGISTRY for locked names
         });
         
         
         vm.prank(address(bridge));
-        uint256 tokenId = bridgeController.handleLockedNameMigration(transferData);
+        uint256 tokenId = bridgeController.completeEjectionToL1(transferData);
         
         // Now try to eject the locked name - it should fail
         bytes memory ejectionData = _createEjectionData(
@@ -748,7 +862,7 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     }
 
     function test_Revert_batchEjectToL2_locked_name() public {
-        // First, migrate a locked name
+        // First, migrate a locked name (locked names don't have ROLE_SET_SUBREGISTRY)
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
             label: testLabel,
@@ -756,12 +870,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER // No ROLE_SET_SUBREGISTRY for locked names
         });
         
         
         vm.prank(address(bridge));
-        uint256 lockedTokenId = bridgeController.handleLockedNameMigration(transferData);
+        uint256 lockedTokenId = bridgeController.completeEjectionToL1(transferData);
         
         // Register a regular name for batch testing
         registry.register("test2", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);

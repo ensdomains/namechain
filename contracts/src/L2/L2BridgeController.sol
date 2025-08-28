@@ -15,6 +15,7 @@ import {EjectionController} from "../common/EjectionController.sol";
 import {IBridge, LibBridgeRoles} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
+import "../common/Errors.sol";
 
 /**
  * @title L2BridgeController
@@ -23,7 +24,6 @@ import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 contract L2BridgeController is EjectionController, ITokenObserver {
     error NotTokenOwner(uint256 tokenId);
     error TooManyRoleAssignees(uint256 tokenId, uint256 roleBitmap);
-    error InvalidOwner();
 
     IRegistryDatastore public immutable datastore;
 
@@ -36,11 +36,11 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     }   
 
     /**
-     * @dev Should be called when a name is being ejected back to L2.
+     * @dev Should be called when a name is being ejected to L2.
      *
      * @param transferData The transfer data for the name being migrated
      */
-    function completeEjectionFromL1(
+    function completeEjectionToL2(
         TransferData memory transferData
     ) 
     external 

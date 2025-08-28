@@ -87,7 +87,7 @@ library LibLockedNames {
 
     /**
      * @notice Generates the role bitmap based on fuses
-     * @dev Conditionally adds RENEW and RESOLVER roles based on fuses
+     * @dev Conditionally adds REGISTRAR, RENEW and RESOLVER roles based on fuses
      * @param fuses The current fuses on the name
      * @return roleBitmap The generated role bitmap
      */
@@ -105,6 +105,11 @@ library LibLockedNames {
         // Conditionally add resolver roles
         if ((fuses & CANNOT_SET_RESOLVER) == 0) {
             roleBitmap |= LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
+        }
+        
+        // Include registrar roles if subdomain creation is allowed
+        if ((fuses & CANNOT_CREATE_SUBDOMAIN) == 0) {
+            roleBitmap |= LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN;
         }
     }
 

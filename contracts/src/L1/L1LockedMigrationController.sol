@@ -19,10 +19,9 @@ import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../common/IRegistryMetadata.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
+import "../common/Errors.sol";
 
 contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
-    error UnauthorizedCaller(address caller);   
-    error MigrationFailed();
     error TokenIdMismatch(uint256 tokenId, uint256 expectedTokenId);
 
     IBaseRegistrar public immutable ethRegistryV1;
@@ -117,7 +116,7 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             }
             
             // Process the locked name migration through bridge
-            l1BridgeController.handleLockedNameMigration(migrationDataArray[i].transferData);
+            l1BridgeController.completeEjectionToL1(migrationDataArray[i].transferData);
 
             // Finalize migration by freezing the name
             LibLockedNames.burnAllFuses(nameWrapper, tokenIds[i]);

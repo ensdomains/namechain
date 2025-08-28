@@ -21,6 +21,8 @@ import {VerifiableFactory} from "../../lib/verifiable-factory/src/VerifiableFact
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {RegistryUtils} from "@ens/contracts/universalResolver/RegistryUtils.sol";
+import "./MigrationErrors.sol";
+import "../common/Errors.sol";
 
 /**
  * @title MigratedWrappedNameRegistry
@@ -34,10 +36,6 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
     uint256 internal constant ROLE_UPGRADE = 1 << 20;
     uint256 internal constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
     
-    error UnauthorizedCaller(address caller);
-    error MigrationFailed();
-    error InvalidHierarchy(uint256 tokenId);
-    error ParentNotMigrated(bytes32 parentNode);
     error NoParentDomain();
     
     bytes public parentDnsEncodedName;
@@ -226,7 +224,7 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         }
         
         // Parent is not available in any controlled system
-        revert ParentNotMigrated(parentNode);
+        revert ParentNotMigrated(dnsEncodedName, parentOffset);
     }
     
     function _getParentLabel(bytes memory dnsEncodedName) internal pure returns (string memory parentLabel, uint256 parentOffset) {

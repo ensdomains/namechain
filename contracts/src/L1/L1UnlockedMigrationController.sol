@@ -12,14 +12,13 @@ import {IBridge} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {L1BridgeController} from "./L1BridgeController.sol";
 import {NameUtils} from "../common/NameUtils.sol";
+import "../common/Errors.sol";
 
 /**
  * @title L1UnlockedMigrationController
  * @dev Base contract for the v1-to-v2 migration controller that only handles unlocked .eth 2LD names.
  */
 contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
-    error UnauthorizedCaller(address caller);   
-    error MigrationFailed();
     error TokenIdMismatch(uint256 tokenId, uint256 expectedTokenId);
     error MigrationNotSupported();
 
@@ -136,7 +135,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
         
         // if migrated to L1 then setup the name on the L1
         if (migrationData.toL1) {
-            l1BridgeController.completeEjectionFromL2(migrationData.transferData);
+            l1BridgeController.completeEjectionToL1(migrationData.transferData);
         } 
         // else send ejection message to L2
         else {

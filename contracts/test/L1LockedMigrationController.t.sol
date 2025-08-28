@@ -13,6 +13,7 @@ import {L1LockedMigrationController} from "../src/L1/L1LockedMigrationController
 import {L1BridgeController} from "../src/L1/L1BridgeController.sol";
 import {LibLockedNames} from "../src/L1/LibLockedNames.sol";
 import {IRegistry} from "../src/common/IRegistry.sol";
+import "../src/common/Errors.sol";
 import {MigratedWrappedNameRegistry} from "../src/L1/MigratedWrappedNameRegistry.sol";
 import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
@@ -210,13 +211,13 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER based on fuses");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN based on fuses");
         
-        // Should always have these base roles but never registrar roles
+        // Should always have these base roles and registrar roles since CANNOT_CREATE_SUBDOMAIN is not burnt
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
         
-        // Users never get registrar roles
-        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Should NOT have ROLE_REGISTRAR");
-        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Should NOT have ROLE_REGISTRAR_ADMIN");
+        // Should have registrar roles since CANNOT_CREATE_SUBDOMAIN is not burnt
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "Should have ROLE_REGISTRAR when subdomain creation allowed");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "Should have ROLE_REGISTRAR_ADMIN when subdomain creation allowed");
         
         // Should NOT have the role from input data
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_SUBREGISTRY) == 0, "Should NOT have ROLE_SET_SUBREGISTRY from input");
@@ -323,7 +324,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         bytes memory data = abi.encode(migrationData);
         
         // Call from wrong address (not nameWrapper)
-        vm.expectRevert(abi.encodeWithSelector(L1LockedMigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
 
@@ -463,15 +464,15 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
-        // Since no additional fuses are burnt, user should get renew and resolver roles (but never registrar)
+        // Since no additional fuses are burnt, user should get renew, resolver and registrar roles
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
         
-        // Users never get registrar roles regardless of fuses
-        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Should NOT have ROLE_REGISTRAR");
-        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Should NOT have ROLE_REGISTRAR_ADMIN");
+        // Should have registrar roles since CANNOT_CREATE_SUBDOMAIN is not burnt
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "Should have ROLE_REGISTRAR when subdomain creation allowed");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "Should have ROLE_REGISTRAR_ADMIN when subdomain creation allowed");
         
         // Verify incoming roleBitmap was ignored
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_SUBREGISTRY) == 0, "Should NOT have ROLE_SET_SUBREGISTRY from incoming data");
@@ -588,19 +589,64 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
-        // Should still have base roles but never registrar roles
+        // Should still have base roles and registrar roles since CANNOT_CREATE_SUBDOMAIN is not burnt
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
         
-        // Users never get registrar roles
-        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Should NOT have ROLE_REGISTRAR");
-        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Should NOT have ROLE_REGISTRAR_ADMIN");
+        // Should have registrar roles since CANNOT_CREATE_SUBDOMAIN is not burnt
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "Should have ROLE_REGISTRAR when subdomain creation allowed");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "Should have ROLE_REGISTRAR_ADMIN when subdomain creation allowed");
         
         // Should NOT have resolver roles since CANNOT_SET_RESOLVER is burnt
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) == 0, "Should NOT have ROLE_SET_RESOLVER");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) == 0, "Should NOT have ROLE_SET_RESOLVER_ADMIN");
     }
 
+
+    function test_fuse_role_mapping_cannot_create_subdomain_burnt() public {
+        // Setup locked name with CANNOT_CREATE_SUBDOMAIN burnt
+        uint32 lockedFuses = CANNOT_UNWRAP | CANNOT_CREATE_SUBDOMAIN | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
+        
+        // Prepare migration data
+        MigrationData memory migrationData = MigrationData({
+            transferData: TransferData({
+                label: testLabel,
+                owner: user,
+                subregistry: address(0), // Will be created by factory
+                resolver: address(0xABCD),
+                expires: uint64(block.timestamp + 86400),
+                roleBitmap: LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN // Should be ignored
+            }),
+            toL1: true,
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
+            salt: abi.encodePacked(testLabel, block.timestamp)
+        });
+        
+        bytes memory data = abi.encode(migrationData);
+        
+        // Call onERC1155Received
+        vm.prank(address(nameWrapper));
+        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        
+        // Get the registered name and check roles
+        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
+        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 userRoles = registry.roles(resource, user);
+        
+        // Should have renewal and resolver roles
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
+        
+        // Should NOT have registrar roles since CANNOT_CREATE_SUBDOMAIN is burnt
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Should NOT have ROLE_REGISTRAR when subdomain creation disabled");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Should NOT have ROLE_REGISTRAR_ADMIN when subdomain creation disabled");
+        
+        // Verify incoming roleBitmap was ignored
+        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_SUBREGISTRY) == 0, "Should NOT have ROLE_SET_SUBREGISTRY from incoming data");
+    }
 
     function test_fuses_burnt_after_migration_completes() public {
         // Setup locked name (CANNOT_BURN_FUSES not set so migration can proceed)
