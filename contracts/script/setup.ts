@@ -61,7 +61,7 @@ export async function setupCrossChainEnvironment({
   numAccounts = 5,
   mnemonic = "test test test test test test test test test test test junk",
   saveDeployments = false,
-  pollingInterval = 0,
+  pollingInterval = 1,
 }: {
   l1ChainId?: number;
   l2ChainId?: number;
@@ -100,8 +100,9 @@ export async function setupCrossChainEnvironment({
   // name accounts (exposed as `namedAccounts` in rocketh)
   const deployer = accounts[0];
   deployer.name = "deployer";
-  accounts[1].name = "owner";
-  accounts[2].name = "user";
+  accounts[1].name = "owner"; // ENS DAO 
+  accounts[2].name = "bridger"; // used by bridge
+  accounts[3].name = "user";
 
   // shutdown functions for partial initialization
   const finalizers: (() => Promise<void>)[] = [];

@@ -14,7 +14,7 @@ import {
   zeroAddress,
 } from "viem";
 
-import { setupCrossChainEnvironment } from "../script/setup.js";
+import { type CrossChainEnvironment, setupCrossChainEnvironment } from "../script/setup.js";
 import { dnsEncodeName } from "../test/utils/utils.js";
 import {
   COIN_TYPE_ETH,
@@ -28,7 +28,7 @@ import { MAX_EXPIRY } from "../deploy/constants.js";
 import { expectVar } from "../test/utils/expectVar.js";
 
 describe("Resolve", () => {
-  let env: Awaited<ReturnType<typeof setupCrossChainEnvironment>>;
+  let env: CrossChainEnvironment;
   beforeAll(async () => {
     env = await setupCrossChainEnvironment();
   });
