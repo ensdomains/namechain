@@ -40,7 +40,7 @@ describe("Resolve", () => {
     resetState = await env.saveState();
   });
   afterAll(() => env?.shutdown());
-  beforeEach(() => resetState());
+  beforeEach(() => resetState?.());
 
   async function expectResolve(kp: KnownProfile) {
     const bundle = bundleCalls(makeResolutions(kp));
@@ -216,16 +216,17 @@ describe("Resolve", () => {
           name,
           addresses: [{ coinType: COIN_TYPE_ETH, value: account.address }],
         });
-        // const [primary] = await env.l1.contracts.universalResolver.read.reverse(
-        //   [account.address, COIN_TYPE_ETH],
-        // );
-        // expectVar({ primary }).toStrictEqual(name);
+        const [primary] = await env.l1.contracts.universalResolver.read.reverse(
+          [account.address, COIN_TYPE_ETH],
+        );
+        expectVar({ primary }).toStrictEqual(name);
       });
     });
   });
 
   describe("DNS", () => {
     it("onchain txt: dnstxt.raffy.xyz", () =>
+      // `dnsname.ens.eth t[avatar]=https://raffy.xyz/ens.jpg a[e0]=0x51050ec063d393217B436747617aD1C2285Aeeee`
       expectResolve({
         name: "dnstxt.raffy.xyz",
         addresses: [
@@ -238,6 +239,7 @@ describe("Resolve", () => {
       }));
 
     it("alias replace: dnsalias.raffy.xyz => eth", () =>
+      // `dnsalias.ens.eth eth`
       expectResolve({
         name: "dnsalias.raffy.xyz",
         addresses: [
@@ -249,6 +251,7 @@ describe("Resolve", () => {
       }));
 
     it("alias rewrite: dnsname[.raffy.xyz] => dnsname[.ens.eth]", () =>
+      // `dnsalias.ens.eth raffy.xyz ens.eth`
       expectResolve({
         name: "dnsname.raffy.xyz",
         addresses: [
