@@ -62,7 +62,6 @@ export async function setupCrossChainEnvironment({
   mnemonic = "test test test test test test test test test test test junk",
   saveDeployments = false,
   pollingInterval = 0,
-  cacheTime = 0,
 }: {
   l1ChainId?: number;
   l2ChainId?: number;
@@ -73,9 +72,10 @@ export async function setupCrossChainEnvironment({
   mnemonic?: string;
   saveDeployments?: boolean;
   pollingInterval?: number;
-  cacheTime?: number;
 } = {}) {
   console.log("Deploying ENSv2...");
+
+  const cacheTime = 0; // must be 0 due to client caching
 
   const l1Anvil = anvil({
     chainId: l1ChainId,
@@ -341,6 +341,7 @@ export async function setupCrossChainEnvironment({
     console.log("Setup ens.eth");
 
     await sync();
+    let resetState = await saveState();
 
     console.log("Deployed ENSv2");
 
@@ -354,14 +355,12 @@ export async function setupCrossChainEnvironment({
         gatewayURL: ccip.endpoint,
         verifierAddress,
       },
+      resetState,
       saveState,
       sync,
       shutdown,
     };
     async function saveState(): Promise<CrosschainSnapshot> {
-      if (cacheTime !== 0) {
-        throw new Error("cacheTime must be 0 due to client caching");
-      }
       const [s1, s2] = await Promise.all([
         l1Client.dumpState(),
         l2Client.dumpState(),

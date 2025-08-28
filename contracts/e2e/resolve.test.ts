@@ -14,11 +14,8 @@ import {
   zeroAddress,
 } from "viem";
 
-import {
-  type CrosschainSnapshot,
-  setupCrossChainEnvironment,
-} from "../script/setup.ts";
-import { dnsEncodeName } from "../test/utils/utils.ts";
+import { setupCrossChainEnvironment } from "../script/setup.js";
+import { dnsEncodeName } from "../test/utils/utils.js";
 import {
   COIN_TYPE_ETH,
   COIN_TYPE_DEFAULT,
@@ -26,21 +23,17 @@ import {
   makeResolutions,
   bundleCalls,
   getReverseName,
-} from "../test/utils/resolutions.ts";
-import { MAX_EXPIRY } from "../deploy/constants.ts";
-import { expectVar } from "../test/utils/expectVar.ts";
-
-type UnnamedProfile = Omit<KnownProfile, "name">;
+} from "../test/utils/resolutions.js";
+import { MAX_EXPIRY } from "../deploy/constants.js";
+import { expectVar } from "../test/utils/expectVar.js";
 
 describe("Resolve", () => {
   let env: Awaited<ReturnType<typeof setupCrossChainEnvironment>>;
-  let resetState: CrosschainSnapshot;
   beforeAll(async () => {
     env = await setupCrossChainEnvironment();
-    resetState = await env.saveState();
   });
   afterAll(() => env?.shutdown());
-  beforeEach(() => resetState?.());
+  beforeEach(() => env?.resetState());
 
   async function expectResolve(kp: KnownProfile) {
     const bundle = bundleCalls(makeResolutions(kp));
@@ -56,7 +49,7 @@ describe("Resolve", () => {
     await env.sync();
     const b1 = await env.l1.client.getBlockNumber();
     expect(b1, "mine").toStrictEqual(b0 + 1n);
-    await resetState();
+    await env.resetState();
     const b2 = await env.l1.client.getBlockNumber();
     expect(b2, "reset").toStrictEqual(b0);
   });
@@ -264,7 +257,7 @@ describe("Resolve", () => {
   });
 
   describe("L2", () => {
-    function register(set: UnnamedProfile, get = set) {
+    function register(set: Omit<KnownProfile, "name">, get = set) {
       const label = "urg-test";
       const name = `${label}.eth`;
       const sets = makeResolutions({ ...set, name });
