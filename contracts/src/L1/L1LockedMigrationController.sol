@@ -96,7 +96,7 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             LibLockedNames.validateLockedName(fuses, tokenIds[i]);
             LibLockedNames.validateIsDotEth2LD(fuses, tokenIds[i]);
             
-            // Deploy MigratedWrappedNameRegistry with transferData.owner as owner
+            // Create new registry instance for the migrated name
             uint256 salt = uint256(keccak256(migrationDataArray[i].salt));
             address subregistry = LibLockedNames.deployMigratedRegistry(
                 factory,
@@ -106,20 +106,20 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
                 migrationDataArray[i].dnsEncodedName
             );
             
-            // Update transferData with the new subregistry and generated role bitmap
+            // Configure transfer data with registry and permission details
             migrationDataArray[i].transferData.subregistry = subregistry;
             migrationDataArray[i].transferData.roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses);
             
-            // Validate that tokenId matches the label hash
+            // Ensure name data consistency for migration
             uint256 expectedTokenId = uint256(keccak256(bytes(migrationDataArray[i].transferData.label)));
             if (tokenIds[i] != expectedTokenId) {
                 revert TokenIdMismatch(tokenIds[i], expectedTokenId);
             }
             
-            // Migrate locked name using the DNS-encoded name for hierarchy traversal
+            // Process the locked name migration through bridge
             l1BridgeController.handleLockedNameMigration(migrationDataArray[i].transferData);
 
-            // Burn all migration fuses
+            // Finalize migration by freezing the name
             LibLockedNames.burnAllFuses(nameWrapper, tokenIds[i]);
         }
     }

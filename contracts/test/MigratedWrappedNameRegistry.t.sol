@@ -123,7 +123,7 @@ contract TestMigratedWrappedNameRegistry is Test {
     }
 
     /**
-     * @dev Helper method to register a name using the nameWrapper address (which has REGISTRAR role)
+     * @dev Helper method to register a name using the wrapper contract
      */
     function _registerName(
         MigratedWrappedNameRegistry targetRegistry,
@@ -266,7 +266,7 @@ contract TestMigratedWrappedNameRegistry is Test {
         ) {
             // If it succeeds, that's fine
         } catch Error(string memory reason) {
-            // Should not fail due to ParentNotMigrated if parent is properly registered
+            // Should not fail on hierarchy validation when parent is registered
             assertTrue(keccak256(bytes(reason)) != keccak256(bytes("ParentNotMigrated")), "Should not fail on parent validation");
         } catch (bytes memory) {
             // Other failures are OK for this test - we just want to ensure hierarchy validation passes
@@ -277,14 +277,14 @@ contract TestMigratedWrappedNameRegistry is Test {
         // Create subdomain migration data
         bytes memory subDnsName = NameCoder.encode("sub.test.eth");
         
-        // Compute the correct tokenId from the DNS encoded name (this should match the namehash) 
+        // Generate token identifier for subdomain migration 
         uint256 subTokenId = uint256(NameCoder.namehash(subDnsName, 0));
         
         // Set up the subdomain token as locked
         nameWrapper.setFuseData(subTokenId, CANNOT_UNWRAP, uint64(block.timestamp + 86400));
         nameWrapper.setOwner(subTokenId, user);
         
-        // This should revert because parent is not migrated or controlled
+        // Should revert when parent is neither migrated nor controlled
         // Compute the expected parent namehash for "test.eth"
         bytes32 expectedParentNode = NameCoder.namehash(NameCoder.encode("test.eth"), 0);
         vm.expectRevert(abi.encodeWithSelector(MigratedWrappedNameRegistry.ParentNotMigrated.selector, expectedParentNode));

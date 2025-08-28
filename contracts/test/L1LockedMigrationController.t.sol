@@ -135,7 +135,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
     }
 
     function test_onERC1155Received_locked_name() public {
-        // Setup locked name (CANNOT_UNWRAP is set, CANNOT_BURN_FUSES is NOT set)
+        // Configure name for locked migration
         uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
@@ -163,7 +163,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         // Verify selector returned
         assertEq(selector, controller.onERC1155Received.selector, "Should return correct selector");
         
-        // Verify all required fuses were burnt
+        // Confirm migration finalized the name
         (, uint32 newFuses, ) = nameWrapper.getData(testTokenId);
         assertTrue((newFuses & CANNOT_BURN_FUSES) != 0, "CANNOT_BURN_FUSES should be burnt");
         assertTrue((newFuses & CANNOT_TRANSFER) != 0, "CANNOT_TRANSFER should be burnt");
@@ -175,7 +175,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
     }
 
     function test_onERC1155Received_roles_based_on_fuses_not_input() public {
-        // Setup locked name with no additional fuses burnt (CANNOT_SET_RESOLVER not burnt)
+        // Configure name with resolver permissions retained
         uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
@@ -205,7 +205,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
-        // Verify roles are granted based on fuses, not input
+        // Confirm roles derived from name configuration
         // Since CANNOT_SET_RESOLVER is not burnt, user should have resolver roles
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER based on fuses");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN based on fuses");
@@ -223,7 +223,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
     }
 
     function test_Revert_onERC1155Received_not_locked() public {
-        // Setup unlocked name (CANNOT_UNWRAP is NOT set, but IS_DOT_ETH is set)
+        // Configure name that doesn't qualify for locked migration
         uint32 unlockedFuses = IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, unlockedFuses, uint64(block.timestamp + 86400));
         
@@ -243,14 +243,14 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         
         bytes memory data = abi.encode(migrationData);
         
-        // Should revert because name is not locked
+        // Migration should fail for unlocked names
         vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NameNotLocked.selector, testTokenId));
         vm.prank(address(nameWrapper));
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
 
     function test_Revert_cannot_burn_fuses_already_set() public {
-        // Setup with CANNOT_BURN_FUSES already set - migration should fail
+        // Configure name that is already permanently frozen
         uint32 fuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, fuses, uint64(block.timestamp + 86400));
         
@@ -270,7 +270,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         
         bytes memory data = abi.encode(migrationData);
         
-        // Should revert because CANNOT_BURN_FUSES is already set
+        // Migration should fail for permanently frozen names
         vm.expectRevert(abi.encodeWithSelector(LibLockedNames.InconsistentFusesState.selector, testTokenId));
         vm.prank(address(nameWrapper));
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);

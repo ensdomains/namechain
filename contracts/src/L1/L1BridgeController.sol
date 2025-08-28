@@ -28,7 +28,7 @@ contract L1BridgeController is EjectionController {
     event RenewalSynchronized(uint256 tokenId, uint64 newExpiry);
     event LockedNameMigratedToL1(bytes name, uint256 tokenId);
 
-    // Mapping to track locked names by tokenId
+    // Tracks which names are permanently locked
     mapping(uint256 => bool) private isLocked;
 
     constructor(
@@ -71,7 +71,7 @@ contract L1BridgeController is EjectionController {
         bytes memory dnsEncodedName;
         (tokenId, dnsEncodedName) = _registerName(transferData, registry);
         
-        // Mark this name as locked to prevent future ejections
+        // Prevent future ejections for this migrated name
         isLocked[tokenId] = true;
         
         emit LockedNameMigratedToL1(dnsEncodedName, tokenId);

@@ -58,7 +58,7 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         ensRegistry = _ensRegistry;
         factory = _factory;
         ethRegistry = _ethRegistry;
-        // This disables initialization for the implementation contract
+        // Prevents initialization on the implementation contract
         _disableInitializers();
     }
 
@@ -73,13 +73,13 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
     ) public initializer {
         require(_ownerAddress != address(0), "Owner cannot be zero address");
         
-        // Store the parent DNS-encoded name
+        // Set the parent domain for name resolution fallback
         parentDnsEncodedName = _parentDnsEncodedName;
         
-        // Grant upgrade roles to the owner
+        // Configure owner with upgrade permissions
         _grantRoles(ROOT_RESOURCE, ROLE_UPGRADE | ROLE_UPGRADE_ADMIN, _ownerAddress, false);
         
-        // Grant NameWrapper REGISTRAR role so it can migrate subdomains
+        // Enable subdomain migration through wrapper contract
         _grantRoles(ROOT_RESOURCE, LibRegistryRoles.ROLE_REGISTRAR, address(nameWrapper), false);
     }
 
@@ -87,32 +87,32 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         uint256 canonicalId = NameUtils.labelToCanonicalId(label);
         (, uint64 expires, ) = datastore.getSubregistry(canonicalId);
         
-        // If name hasn't been registered yet (expiry is 0), fall back to ENS registry
+        // Use fallback resolver for unregistered names
         if (expires == 0) {
-            // Build full DNS-encoded name by prepending label to parent DNS name
+            // Construct complete domain name for registry lookup
             bytes memory dnsEncodedName = abi.encodePacked(
                 bytes1(uint8(bytes(label).length)),
                 label,
                 parentDnsEncodedName
             );
             
-            // Query the ENS registry for the resolver address using RegistryUtils
+            // Retrieve resolver from legacy registry system
             (address resolverAddress, , ) = RegistryUtils.findResolver(ensRegistry, dnsEncodedName, 0);
             return resolverAddress;
         }
         
-        // If name has expired, return zero address
+        // Return no resolver for expired names
         if (expires <= block.timestamp) {
             return address(0);
         }
         
-        // Name has been registered, return its resolver (could be address(0))
+        // Return the configured resolver for registered names
         (address resolver, ) = datastore.getResolver(canonicalId);
         return resolver;
     }
     
     /**
-     * @dev Required override for UUPSUpgradeable - only accounts with ROLE_UPGRADE can upgrade
+     * @dev Required override for UUPSUpgradeable - restricts upgrade permissions
      */
     function _authorizeUpgrade(address) internal override onlyRootRoles(ROLE_UPGRADE) {}
     
@@ -166,16 +166,14 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         for (uint256 i = 0; i < tokenIds.length; i++) {
             (, uint32 fuses, ) = nameWrapper.getData(tokenIds[i]);
             
-            // Validate fuses
+            // Ensure name meets migration requirements
             LibLockedNames.validateLockedName(fuses, tokenIds[i]);
             
-            // Validate hierarchy - check parent is migrated or controlled
+            // Ensure proper domain hierarchy for migration
             _validateHierarchy(migrationDataArray[i].dnsEncodedName);
             
-            // Deploy MigratedWrappedNameRegistry with transferData.owner as owner
+            // Create dedicated registry for the migrated name
             uint256 salt = uint256(keccak256(migrationDataArray[i].salt));
-            
-            // For subdomain registries, the parent DNS name is the subdomain's own DNS-encoded name
             address subregistry = LibLockedNames.deployMigratedRegistry(
                 factory,
                 address(this),
@@ -184,9 +182,10 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
                 migrationDataArray[i].dnsEncodedName
             );
             
-            // Generate role bitmap based on fuses
+            // Determine permissions from name configuration
             uint256 roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses);
             
+            // Complete name registration in new registry
             _register(
                 migrationDataArray[i].transferData.label,
                 migrationDataArray[i].transferData.owner,
@@ -196,50 +195,50 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
                 migrationDataArray[i].transferData.expires
             );
             
-            // Burn all migration fuses
+            // Finalize migration by freezing the name
             LibLockedNames.burnAllFuses(nameWrapper, tokenIds[i]);
         }
     }
     
     function _validateHierarchy(bytes memory dnsEncodedName) internal view {
-        // Get parent label and offset for potential namehash computation
+        // Extract parent domain information for validation
         (string memory parentLabel, uint256 parentOffset) = _getParentLabel(dnsEncodedName);
         
-        // Check if parent is in v2 registry (this registry) using canonical ID
+        // Check if parent exists in current registry system
         uint256 parentCanonicalId = NameUtils.labelToCanonicalId(parentLabel);
         (, uint64 parentExpires, ) = datastore.getSubregistry(parentCanonicalId);
         if (parentExpires > 0 && parentExpires > block.timestamp) {
-            // Parent is migrated and not expired - hierarchy is valid
+            // Parent is available in current system
             return;
         }
         
-        // Only compute namehash when we need to check v1 NameWrapper
+        // Compute domain hash for legacy system check
         bytes32 parentNode = dnsEncodedName.namehash(parentOffset);
         
-        // Check if parent is still in v1 NameWrapper
+        // Check if parent exists in legacy system
         if (nameWrapper.isWrapped(parentNode)) {
-            // Parent is still in v1 - check if we control it
+            // Parent found in legacy system - verify control
             address parentOwner = nameWrapper.ownerOf(uint256(parentNode));
             if (parentOwner == address(this)) {
-                // We control the parent in v1 - hierarchy is valid
+                // We control the parent - hierarchy is valid
                 return;
             }
         }
         
-        // Parent is neither migrated nor controlled
+        // Parent is not available in any controlled system
         revert ParentNotMigrated(parentNode);
     }
     
     function _getParentLabel(bytes memory dnsEncodedName) internal pure returns (string memory parentLabel, uint256 parentOffset) {
-        // Skip the first label
+        // Move past child label to access parent
         (, parentOffset) = NameCoder.nextLabel(dnsEncodedName, 0);
         
-        // If there's no parent this is an error
+        // Ensure parent domain exists
         if (dnsEncodedName[parentOffset] == 0) {
             revert NoParentDomain();
         }
         
-        // Extract parent label size and content
+        // Read parent domain name from encoded data
         (uint8 parentLabelSize, ) = NameCoder.nextLabel(dnsEncodedName, parentOffset);
         parentLabel = new string(parentLabelSize);
         assembly {

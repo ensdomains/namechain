@@ -19,7 +19,7 @@ library LibLockedNames {
 
     /**
      * @notice The fuses to burn during migration to prevent further changes
-     * @dev Includes all fuses except CANNOT_UNWRAP (already set) and IS_DOT_ETH (informational)
+     * @dev Includes all transferable and modifiable fuses except the lock and type identifier
      */
     uint32 public constant FUSES_TO_BURN = 
         CANNOT_BURN_FUSES |
@@ -36,14 +36,14 @@ library LibLockedNames {
      * @param tokenId The token ID for error reporting
      */
     function validateLockedName(uint32 fuses, uint256 tokenId) internal pure {
-        // Combined validation: CANNOT_UNWRAP must be set, CANNOT_BURN_FUSES must not be set
+        // Validate name is locked but not permanently frozen
         uint32 requiredState = fuses & (CANNOT_UNWRAP | CANNOT_BURN_FUSES);
         
         if (requiredState != CANNOT_UNWRAP) {
             if ((fuses & CANNOT_UNWRAP) == 0) {
                 revert NameNotLocked(tokenId);
             }
-            // If we reach here, CANNOT_BURN_FUSES must be set
+            // Name is locked but fuses are permanently frozen
             revert InconsistentFusesState(tokenId);
         }
     }
@@ -92,12 +92,12 @@ library LibLockedNames {
      * @return roleBitmap The generated role bitmap
      */
     function generateRoleBitmapFromFuses(uint32 fuses) internal pure returns (uint256 roleBitmap) {
-        // Add ROLE_RENEW only if CAN_EXTEND_EXPIRY fuse is set
+        // Include renewal permission if expiry can be extended
         if ((fuses & CAN_EXTEND_EXPIRY) != 0) {
             roleBitmap |= LibRegistryRoles.ROLE_RENEW;
         }
         
-        // Add ROLE_RENEW_ADMIN only if CANNOT_APPROVE fuse is not set
+        // Include renewal admin permission if approvals are allowed
         if ((fuses & CANNOT_APPROVE) == 0) {
             roleBitmap |= LibRegistryRoles.ROLE_RENEW_ADMIN;
         }
@@ -109,8 +109,8 @@ library LibLockedNames {
     }
 
     /**
-     * @notice Burns all migration fuses on a NameWrapper token
-     * @dev Burns all fuses except CANNOT_UNWRAP (already set) to prevent further changes
+     * @notice Burns all migration fuses on a name token
+     * @dev Permanently freezes the migrated name to prevent further modifications
      * @param nameWrapper The NameWrapper contract
      * @param tokenId The token ID to burn fuses on
      */

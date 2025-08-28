@@ -13,3 +13,17 @@ These are all to be run from within the contracts/ folder:
 * `forge test` - run forge solidity tests
 * `bun run test:hardhat` - run hardhat tests
 * `bun run test:e2e` - run end-to-end tests
+
+# Comment Guidelines
+
+When writing comments in code:
+- Comments should describe what the code does, not what changed
+- Avoid hardcoded values in comments - describe the behavior conceptually
+- Don't refer to specific variables or constants by name unless necessary
+- Write comments as descriptors of functionality, not as a changelog
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
