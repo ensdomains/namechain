@@ -1,7 +1,23 @@
-import { describe, it, beforeAll, afterAll } from "vitest";
-import { labelhash, namehash, zeroAddress } from "viem";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  beforeEach,
+  afterAll,
+} from "bun:test";
+import {
+  type Address,
+  getAddress,
+  labelhash,
+  namehash,
+  zeroAddress,
+} from "viem";
 
-import { setupCrossChainEnvironment } from "../script/setup.ts";
+import {
+  type CrosschainSnapshot,
+  setupCrossChainEnvironment,
+} from "../script/setup.ts";
 import { dnsEncodeName } from "../test/utils/utils.ts";
 import {
   COIN_TYPE_ETH,
@@ -9,7 +25,7 @@ import {
   type KnownProfile,
   makeResolutions,
   bundleCalls,
-  KnownReverse,
+  getReverseName,
 } from "../test/utils/resolutions.ts";
 import { MAX_EXPIRY } from "../deploy/constants.ts";
 import { expectVar } from "../test/utils/expectVar.ts";
@@ -18,10 +34,13 @@ type UnnamedProfile = Omit<KnownProfile, "name">;
 
 describe("Resolve", () => {
   let env: Awaited<ReturnType<typeof setupCrossChainEnvironment>>;
+  let resetState: CrosschainSnapshot;
   beforeAll(async () => {
     env = await setupCrossChainEnvironment();
+    resetState = await env.saveState();
   });
   afterAll(() => env?.shutdown());
+  beforeEach(() => resetState());
 
   async function expectResolve(kp: KnownProfile) {
     const bundle = bundleCalls(makeResolutions(kp));
@@ -32,13 +51,31 @@ describe("Resolve", () => {
     bundle.expect(answer);
   }
 
-  // async function expectReverse(kp: KnownReverse) {
-  //   const bundle = bundleCalls(makeResolutions(kp));
-  //   const [primary] = await env.l1.contracts.universalResolver.read.reverse([
-  //     kp.encodedAddress,
-  //     kp.coinType,
-  //   ]);
-  // }
+  it("state", async () => {
+    const b0 = await env.l1.client.getBlockNumber();
+    await env.sync();
+    const b1 = await env.l1.client.getBlockNumber();
+    expect(b1, "mine").toStrictEqual(b0 + 1n);
+    await resetState();
+    const b2 = await env.l1.client.getBlockNumber();
+    expect(b2, "reset").toStrictEqual(b0);
+  });
+
+  describe("Protocol", () => {
+    async function named(name: string, fn: () => Address) {
+      it(name, async () => {
+        const [resolver] =
+          await env.l1.contracts.universalResolver.read.findResolver([
+            dnsEncodeName(name),
+          ]);
+        expectVar({ resolver }).toStrictEqual(getAddress(fn())); // toEqualAddress
+      });
+    }
+
+    named("eth", () => env.l1.contracts.ethTLDResolver.address);
+    named("reverse", () => env.l1.contracts.defaultReverseResolver.address);
+    named("addr.reverse", () => env.l1.contracts.ethReverseResolver.address);
+  });
 
   describe("L1", () => {
     it("eth + addr() => ETHTLDResolver", () =>
@@ -48,17 +85,6 @@ describe("Resolve", () => {
           {
             coinType: COIN_TYPE_ETH,
             value: env.l1.contracts.ethTLDResolver.address,
-          },
-        ],
-      }));
-
-    it("addr.reverse + addr() => DNSTXTResolver", () =>
-      expectResolve({
-        name: "dnsname.ens.eth",
-        addresses: [
-          {
-            coinType: COIN_TYPE_ETH,
-            value: env.l1.contracts.dnsTXTResolver.address,
           },
         ],
       }));
@@ -76,80 +102,126 @@ describe("Resolve", () => {
   });
 
   describe("Reverse", () => {
-    it("*.addr.reverse fallback to v1", async () => {
-      const label = "deployer";
+    describe("addr.reverse", () => {
+      const label = "user";
       const name = `${label}.eth`;
-      const { owner, deployer } = env.namedAccounts;
 
-      // become eoa controller
-      await env.l1.contracts.ethRegistrarV1.write.addController(
-        [owner.address],
-        { account: owner },
-      );
-      // direct register
-      await env.l1.contracts.ethRegistrarV1.write.register(
-        [BigInt(labelhash(label)), deployer.address, MAX_EXPIRY],
-        { account: owner },
-      );
-      /*
-      // hack in "deployer.eth"
-      await env.l1.contracts.ensRegistryV1.write.setSubnodeRecord(
-        [
-          namehash("eth"),
-          labelhash(label),
-          deployer.address,
-          env.l1.contracts.publicResolverV1.address,
-          0n,
-        ],
-        { account: owner },
-      );
-      */
-      // create addr(60)
-      await env.l1.contracts.publicResolverV1.write.setAddr(
-        [namehash(name), COIN_TYPE_ETH, deployer.address],
-        { account: deployer },
-      );
+      it("addr.reverse w/fallback to v1", async () => {
+        const { owner, user: account } = env.namedAccounts;
 
-      console.log('default:', await env.l1.contracts.reverseRegistrarV1.read.defaultResolver());
+        // hack: eoa controller
+        await env.l1.contracts.ethRegistrarV1.write.addController(
+          [owner.address],
+          { account: owner },
+        );
+        // hack: direct register
+        await env.l1.contracts.ethRegistrarV1.write.register(
+          [BigInt(labelhash(label)), account.address, MAX_EXPIRY],
+          { account: owner },
+        );
+        // setup addr(60)
+        await env.l1.contracts.publicResolverV1.write.setAddr(
+          [namehash(name), COIN_TYPE_ETH, account.address],
+          { account },
+        );
+        // set resolver
+        await env.l1.contracts.ensRegistryV1.write.setResolver(
+          [namehash(name), env.l1.contracts.publicResolverV1.address],
+          { account },
+        );
+        // setup name()
+        await env.l1.contracts.reverseRegistrarV1.write.setName([name], {
+          account,
+        });
 
-      // create name() [TODO: defaultResolver() not set]
-      await env.l1.contracts.reverseRegistrarV1.write.setNameForAddr(
-        [
-          deployer.address,
-          deployer.address,
-          env.l1.contracts.publicResolverV1.address,
+        await expectResolve({
+          name: getReverseName(account.address),
+          primary: { value: name },
+        });
+        await expectResolve({
           name,
-        ],
-        { account: deployer },
-      );
+          addresses: [{ coinType: COIN_TYPE_ETH, value: account.address }],
+        });
+        const [primary] = await env.l1.contracts.universalResolver.read.reverse(
+          [account.address, COIN_TYPE_ETH],
+        );
+        expectVar({ primary }).toStrictEqual(name);
+      });
 
-      await expectResolve({
-        name,
-        addresses: [
-          {
-            coinType: COIN_TYPE_ETH,
-            value: deployer.address
-          }
-        ]
-      })
+      it("addr.reverse", async () => {
+        const { deployer, owner: account } = env.namedAccounts;
 
+        // setup addr(default)
+        const resolver = await env.l1.deployDedicatedResolver(account);
+        await resolver.write.setAddr([COIN_TYPE_ETH, account.address]);
+        // hack: create name
+        await env.l1.contracts.ethRegistry.write.register(
+          [
+            label,
+            account.address,
+            zeroAddress,
+            resolver.address,
+            0n,
+            MAX_EXPIRY,
+          ],
+          { account: deployer },
+        );
+        // setup name()
+        await env.l1.contracts.ethReverseRegistrar.write.setName([name], {
+          account,
+        });
 
-      // resolve it
-      const [primary, resolver, reverseResolver] =
-        await env.l1.contracts.universalResolver.read.reverse([
-          deployer.address,
-          COIN_TYPE_ETH,
-        ]);
-      expectVar({ primary }).toStrictEqual(name);
-      expectVar({ resolver }).toEqualAddress(
-        env.l1.contracts.publicResolverV1.address,
-      );
-      expectVar({ reverseResolver }).toEqualAddress(
-        env.l1.contracts.ethReverseResolver.address,
-      );
+        await expectResolve({
+          name: getReverseName(account.address),
+          primary: { value: name },
+        });
+        await expectResolve({
+          name,
+          addresses: [{ coinType: COIN_TYPE_ETH, value: account.address }],
+        });
+        const [primary] = await env.l1.contracts.universalResolver.read.reverse(
+          [account.address, COIN_TYPE_ETH],
+        );
+        expectVar({ primary }).toStrictEqual(name);
+      });
+
+      it("default.reverse", async () => {
+        const { deployer, owner: account } = env.namedAccounts;
+
+        // setup addr(default)
+        const resolver = await env.l1.deployDedicatedResolver(account);
+        await resolver.write.setAddr([COIN_TYPE_DEFAULT, account.address]);
+        // hack: create name
+        await env.l1.contracts.ethRegistry.write.register(
+          [
+            label,
+            account.address,
+            zeroAddress,
+            resolver.address,
+            0n,
+            MAX_EXPIRY,
+          ],
+          { account: deployer },
+        );
+        // setup name()
+        await env.l1.contracts.defaultReverseRegistrar.write.setName([name], {
+          account,
+        });
+
+        await expectResolve({
+          name: getReverseName(account.address, COIN_TYPE_DEFAULT),
+          primary: { value: name },
+        });
+        await expectResolve({
+          name,
+          addresses: [{ coinType: COIN_TYPE_ETH, value: account.address }],
+        });
+        // const [primary] = await env.l1.contracts.universalResolver.read.reverse(
+        //   [account.address, COIN_TYPE_ETH],
+        // );
+        // expectVar({ primary }).toStrictEqual(name);
+      });
     });
-
-    it("*.addr.reverse in v2", async () => {});
   });
 
   describe("DNS", () => {
@@ -189,9 +261,8 @@ describe("Resolve", () => {
   });
 
   describe("L2", () => {
-    let count = 0;
-    function testRegisterL2AndResolve(set: UnnamedProfile, get = set) {
-      const label = `urg-test-${count++}`;
+    function register(set: UnnamedProfile, get = set) {
+      const label = "urg-test";
       const name = `${label}.eth`;
       const sets = makeResolutions({ ...set, name });
       const gets = makeResolutions({ ...get, name });
@@ -211,7 +282,7 @@ describe("Resolve", () => {
           zeroAddress,
           resolver.address,
           0n,
-          BigInt(Math.floor(Date.now() / 1000) + 10000),
+          MAX_EXPIRY,
         ]);
 
         await env.sync();
@@ -219,11 +290,11 @@ describe("Resolve", () => {
       });
     }
 
-    testRegisterL2AndResolve({
+    register({
       texts: [{ key: "avatar", value: "chonker.jpg" }],
     });
 
-    testRegisterL2AndResolve({
+    register({
       addresses: [
         {
           coinType: COIN_TYPE_ETH,
@@ -232,7 +303,7 @@ describe("Resolve", () => {
       ],
     });
 
-    testRegisterL2AndResolve({
+    register({
       texts: [{ key: "url", value: "https://ens.domains" }],
       contenthash: { value: "0x1234" },
       addresses: [
@@ -243,7 +314,7 @@ describe("Resolve", () => {
       ],
     });
 
-    testRegisterL2AndResolve(
+    register(
       {
         addresses: [
           {

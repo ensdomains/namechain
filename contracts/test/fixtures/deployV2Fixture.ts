@@ -1,6 +1,6 @@
 import type { NetworkConnection } from "hardhat/types/network";
 import { type Address, labelhash, zeroAddress } from "viem";
-import { deployVerifiableProxy } from "./deployVerifiableProxy.ts";
+import { deployVerifiableProxy } from "./deployVerifiableProxy.js";
 import { splitName } from "../utils/utils.js";
 import { ROLES } from "../../deploy/constants.js";
 export { ROLES };

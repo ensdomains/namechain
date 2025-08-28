@@ -5,7 +5,8 @@ export default execute(
     // create a new registrar for "addr.reverse"
     await deploy("ETHReverseRegistrar", {
       account: deployer,
-      artifact: artifacts.StandaloneReverseRegistrar,
+      artifact: artifacts.L2ReverseRegistrar,
+      args: [60n],
     });
   },
   {

@@ -27,6 +27,8 @@ import { serve } from "@namestone/ezccip/serve";
 import { patchArtifactsV1 } from "./patchArtifactsV1.ts";
 import { MAX_EXPIRY, ROLES } from "../deploy/constants.ts";
 
+export type CrosschainSnapshot = () => Promise<void>;
+
 function createDeploymentGetter<C extends Client>(
   environment: Environment,
   client: C,
@@ -59,7 +61,8 @@ export async function setupCrossChainEnvironment({
   numAccounts = 5,
   mnemonic = "test test test test test test test test test test test junk",
   saveDeployments = false,
-  pollingInterval = 25,
+  pollingInterval = 0,
+  cacheTime = 0,
 }: {
   l1ChainId?: number;
   l2ChainId?: number;
@@ -70,6 +73,7 @@ export async function setupCrossChainEnvironment({
   mnemonic?: string;
   saveDeployments?: boolean;
   pollingInterval?: number;
+  cacheTime?: number;
 } = {}) {
   console.log("Deploying ENSv2...");
 
@@ -97,6 +101,7 @@ export async function setupCrossChainEnvironment({
   const deployer = accounts[0];
   deployer.name = "deployer";
   accounts[1].name = "owner";
+  accounts[2].name = "user";
 
   // shutdown functions for partial initialization
   const finalizers: (() => Promise<void>)[] = [];
@@ -113,7 +118,7 @@ export async function setupCrossChainEnvironment({
     await l2Anvil.start();
     finalizers.push(() => l2Anvil.stop());
 
-    l1Anvil.on("message", console.log);
+    //l1Anvil.on("message", console.log);
     //l2Anvil.on("message", console.log);
 
     // parse `host:port` from the anvil boot message
@@ -143,6 +148,7 @@ export async function setupCrossChainEnvironment({
       transport: l1Transport,
       account: deployer,
       pollingInterval,
+      cacheTime,
     })
       .extend(publicActions)
       .extend(testActions({ mode: "anvil" }));
@@ -156,6 +162,7 @@ export async function setupCrossChainEnvironment({
       transport: l2Transport,
       account: deployer,
       pollingInterval,
+      cacheTime,
     })
       .extend(publicActions)
       .extend(testActions({ mode: "anvil" }));
@@ -174,7 +181,8 @@ export async function setupCrossChainEnvironment({
         await patchArtifactsV1();
         process.env.BATCH_GATEWAY_URLS = '["x-batch-gateway:true"]';
         scripts.unshift("lib/ens-contracts/deploy");
-        tags.push("use_root");
+        tags.push("use_root"); // deploy root contracts
+        tags.push("allow_unsafe"); // tate hacks
       }
       return executeDeployScripts(
         resolveConfig({
@@ -272,7 +280,7 @@ export async function setupCrossChainEnvironment({
         ethSelfResolver: l1Contracts("DedicatedResolver", "ETHSelfResolver"),
         ethReverseResolver: l1Contracts("ETHReverseResolver"),
         ethReverseRegistrar: l1Contracts(
-          "StandaloneReverseRegistrar",
+          "L2ReverseRegistrar",
           "ETHReverseRegistrar",
         ),
         ethTLDResolver: l1Contracts("ETHTLDResolver"),
@@ -346,9 +354,34 @@ export async function setupCrossChainEnvironment({
         gatewayURL: ccip.endpoint,
         verifierAddress,
       },
+      saveState,
       sync,
       shutdown,
     };
+    async function saveState(): Promise<CrosschainSnapshot> {
+      if (cacheTime !== 0) {
+        throw new Error("cacheTime must be 0 due to client caching");
+      }
+      const [s1, s2] = await Promise.all([
+        l1Client.dumpState(),
+        l2Client.dumpState(),
+      ]);
+      // const [s1, s2] = await Promise.all([
+      //   l1Client.request({ method: "evm_snapshot", params: [] } as any),
+      //   l2Client.request({ method: "evm_snapshot", params: [] } as any),
+      // ]);
+      return async () => {
+        const reset = { method: "anvil_reset", params: [] } as any;
+        await Promise.all([
+          l1Client.request(reset).then(() => l1Client.loadState({ state: s1 })),
+          l2Client.request(reset).then(() => l2Client.loadState({ state: s2 })),
+        ]);
+        // await Promise.all([
+        //   l1Client.request({ method: "evm_revert", params: [s1] } as any),
+        //   l2Client.request({ method: "evm_revert", params: [s2] } as any),
+        // ]);
+      };
+    }
     async function sync() {
       const args = { blocks: 1 };
       await Promise.all([l1Client.mine(args), l2Client.mine(args)]);
@@ -359,6 +392,7 @@ export async function setupCrossChainEnvironment({
         transport: this.transport,
         account,
         pollingInterval,
+        cacheTime,
       });
     }
     async function deployDedicatedResolver(

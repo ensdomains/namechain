@@ -15,7 +15,7 @@
     "viem": "2.31.6"
   },
   "patchedDependencies": {
-    "rocketh@0.11.20": "patches/rocketh@0.11.20.patch"
+    "rocketh@0.12.1": "patches/rocketh@0.12.1.patch"
   },
   "engineStrict": true
 }

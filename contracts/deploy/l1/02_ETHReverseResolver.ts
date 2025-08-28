@@ -1,5 +1,5 @@
 import { artifacts, execute } from "@rocketh";
-import { MAX_EXPIRY, ROLES } from "../constants.ts";
+import { MAX_EXPIRY } from "../constants.js";
 import { zeroAddress } from "viem";
 
 // TODO: ownership

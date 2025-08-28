@@ -12,7 +12,7 @@ import { ROLES } from "../deploy/constants.js";
 import { createMockRelay } from "../script/mockRelay.js";
 import { setupCrossChainEnvironment } from "../script/setup.js";
 import { expectTransactionSuccess, waitForEvent } from "./utils.js";
-import { labelToCanonicalId, getCanonicalId } from "../test/utils/utils.ts";
+import { labelToCanonicalId, getCanonicalId } from "../test/utils/utils.js";
 
 describe("Bridge", () => {
   let env: Awaited<ReturnType<typeof setupCrossChainEnvironment>>;

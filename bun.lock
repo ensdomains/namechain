@@ -40,6 +40,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "rocketh@0.12.1": "patches/rocketh@0.12.1.patch",
+  },
   "overrides": {
     "viem": "2.31.6",
   },
