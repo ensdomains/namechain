@@ -1,0 +1,71 @@
+diff --git a/dist/environment/providers/TransactionHashTracker.js b/dist/environment/providers/TransactionHashTracker.js
+index f0036941cf98bbf2bacfdf82aae041df60cb8f80..4797fe7903627af98759d8adf8093ac6b17af876 100644
+--- a/dist/environment/providers/TransactionHashTracker.js
++++ b/dist/environment/providers/TransactionHashTracker.js
+@@ -5,18 +5,22 @@ export class TransactionHashTrackerProvider extends BaseProvider {
+         super(provider);
+     }
+     async _request(args) {
+-        let response;
+-        try {
+-            response = await this.provider.request(args);
++        if (args.method === 'eth_getTransactionReceipt') {
++            const timeout = Date.now() + 2000;
++            for (;;) {
++                await new Promise((f) => setTimeout(f, 1));
++                const receipt = await this.provider.request(args).catch(() => {});
++                if (receipt) return receipt;
++                if (Date.now() > timeout)
++                    throw new Error(`timeout for receipt: ${args.params[0]}`);
++            }
++        } else {
++            const res = await this.provider.request(args);
++            if (/^eth_send(Raw|)Transaction$/.test(args.method)) {
++                this.transactionHashes.push(res);
++            }
++            return res;
+         }
+-        catch (err) {
+-            console.error(`failed to execute ${args.method}`, args);
+-            throw err;
+-        }
+-        if (args.method === 'eth_sendRawTransaction' || args.method === 'eth_sendTransaction') {
+-            this.transactionHashes.push(response);
+-        }
+-        return response;
+     }
+ }
+ //# sourceMappingURL=TransactionHashTracker.js.map
+\ No newline at end of file
+diff --git a/dist/executor/index.js b/dist/executor/index.js
+index c11094b7c812081f3758c0d26f0df1943dde85b7..98bc6ba3ec82e023c141d55be78a4d0ffac17677 100644
+--- a/dist/executor/index.js
++++ b/dist/executor/index.js
+@@ -8,8 +8,25 @@ import { withEnvironment } from '../utils/curry.js';
+ import { logger, setLogLevel, spin } from '../internal/logging.js';
+ import { getRoughGasPriceEstimate } from '../utils/eth.js';
+ import { traverseMultipleDirectory } from '../utils/fs.js';
+-// @ts-ignore
+-const tsImport = (path, opts) => (typeof Bun !== 'undefined' ? import(path) : tsImport_(path, opts));
++
++const tsImport = (path, opts) => {
++	// @ts-ignore
++	if (typeof Bun !== 'undefined') {
++		return import(path);
++	}
++	// Use native import if running on Node.js v22+ (supports type stripping)
++	if (
++		typeof process !== 'undefined' &&
++		process.versions &&
++		process.versions.node
++	) {
++		const [major] = process.versions.node.split('.').map(Number);
++		if (major >= 22) {
++			return import(path);
++		}
++	}
++	return tsImport_(path, opts);
++};
+ /**
+  * Setup function that creates the execute function for deploy scripts. It allow to specify a set of functions that will be available in the environment.
+  *

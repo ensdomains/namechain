@@ -2,7 +2,8 @@
 // ------------------------------------------------------------------------------------------------
 // Typed Config
 // ------------------------------------------------------------------------------------------------
-import { type UserConfig, extendEnvironment } from "rocketh";
+import type { UserConfig } from "rocketh";
+
 export const config = {
   accounts: {
     deployer: {
@@ -45,23 +46,37 @@ export const config = {
 // ------------------------------------------------------------------------------------------------
 // We regroup all what is needed for the deploy scripts
 // so that they just need to import this file
-import "@rocketh/deploy"; // provides the deploy function
-import "@rocketh/read-execute"; // provides read, execute functions
+import * as deployFunctions from '@rocketh/deploy' // this one provide a deploy function
+import * as readExecuteFunctions from '@rocketh/read-execute' // this one provide read,execute functions
 // ------------------------------------------------------------------------------------------------
 // we re-export the artifacts, so they are easily available from the alias
 import artifacts from "./generated/artifacts.js";
 export { artifacts };
 // ------------------------------------------------------------------------------------------------
-// while not necessary, we also converted the execution function type to know about the named accounts
-// this way you get type safe accounts
+
 import {
-  execute as _execute,
   loadAndExecuteDeployments,
-  type DeployScriptFunction,
-  type DeployScriptModule,
-  type UnknownDeployments,
-  type UnresolvedNetworkSpecificData,
-} from "rocketh";
+  setup,
+  
+  type Environment as Environment_,
+} from 'rocketh'
+import { createPublicClient, custom, type PublicClient } from 'viem'
+
+const functions = {
+  ...deployFunctions,
+  ...readExecuteFunctions,
+  getPublicClient: (env: Environment_) => {
+    return createPublicClient({
+      chain: env.network.chain,
+      transport: custom(env.network.provider),
+    })
+  },
+}
+
+type Environment = Environment_<typeof config.accounts> & {
+  getPublicClient: () => PublicClient
+}
+
 import type { Address } from "viem";
 type L1Arguments = {
   l2Deploy: {
@@ -70,45 +85,50 @@ type L1Arguments = {
   verifierAddress: Address;
 };
 export type Arguments = L1Arguments | undefined;
-const execute = _execute as <
-  Deployments extends UnknownDeployments = UnknownDeployments,
->(
-  callback: DeployScriptFunction<
-    typeof config.accounts,
-    UnresolvedNetworkSpecificData,
-    Arguments,
-    Deployments
-  >,
-  options: { tags?: string[]; dependencies?: string[]; id?: string },
-) => DeployScriptModule<
-  typeof config.accounts,
-  UnresolvedNetworkSpecificData,
-  Arguments,
-  Deployments
->;
-export { execute, loadAndExecuteDeployments };
 
-extendEnvironment((env) => {
-  // replacement for TransactionHashTracker
-  // https://github.com/wighawag/rocketh/blob/main/packages/rocketh/src/environment/providers/TransactionHashTracker.ts
-  const parent = env.network.provider;
-  parent.request = async function (args: any) {
-    if (args.method === "eth_getTransactionReceipt") {
-      const timeout = Date.now() + 2000;
-      for (;;) {
-        await new Promise((f) => setTimeout(f, 0));
-        const receipt = await parent.provider.request(args).catch(() => {});
-        if (receipt) return receipt;
-        if (Date.now() > timeout)
-          throw new Error(`timeout for receipt: ${args.params[0]}`);
-      }
-    } else {
-      const res = await parent.provider.request(args);
-      if (/^eth_send(Raw|)Transaction$/.test(args.method)) {
-        parent.transactionHashes?.push(res);
-      }
-      return res;
-    }
-  };
-  return env;
-});
+const execute = setup<typeof functions, typeof config.accounts>(functions)<Arguments>;
+
+export { execute, loadAndExecuteDeployments, type Environment }
+
+// const execute = _execute as <
+//   Deployments extends UnknownDeployments = UnknownDeployments,
+// >(
+//   callback: DeployScriptFunction<
+//     typeof config.accounts,
+//     UnresolvedNetworkSpecificData,
+//     Arguments,
+//     Deployments
+//   >,
+//   options: { tags?: string[]; dependencies?: string[]; id?: string },
+// ) => DeployScriptModule<
+//   typeof config.accounts,
+//   UnresolvedNetworkSpecificData,
+//   Arguments,
+//   Deployments
+// >;
+// export { execute, loadAndExecuteDeployments };
+
+// extendEnvironment((env) => {
+//   // replacement for TransactionHashTracker
+//   // https://github.com/wighawag/rocketh/blob/main/packages/rocketh/src/environment/providers/TransactionHashTracker.ts
+//   const parent = env.network.provider;
+//   parent.request = async function (args: any) {
+//     if (args.method === "eth_getTransactionReceipt") {
+//       const timeout = Date.now() + 2000;
+//       for (;;) {
+//         await new Promise((f) => setTimeout(f, 0));
+//         const receipt = await parent.provider.request(args).catch(() => {});
+//         if (receipt) return receipt;
+//         if (Date.now() > timeout)
+//           throw new Error(`timeout for receipt: ${args.params[0]}`);
+//       }
+//     } else {
+//       const res = await parent.provider.request(args);
+//       if (/^eth_send(Raw|)Transaction$/.test(args.method)) {
+//         parent.transactionHashes?.push(res);
+//       }
+//       return res;
+//     }
+//   };
+//   return env;
+// });

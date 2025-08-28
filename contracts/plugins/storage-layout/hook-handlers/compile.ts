@@ -16,11 +16,12 @@ export default async (): Promise<Partial<SolidityHooks>> => {
       for (const fileName of artifactFiles) {
         const file = await readFile(fileName, "utf-8");
         const json = JSON.parse(file) as Artifact;
-        const buildInfoId = json.buildInfoId!;
+        const buildInfoId = json.buildInfoId;
+        if (!buildInfoId) continue;
         let buildInfoOutput: SolidityBuildInfoOutput;
-        if (buildInfoOutputCache.has(buildInfoId))
+        if (buildInfoOutputCache.has(buildInfoId)) {
           buildInfoOutput = buildInfoOutputCache.get(buildInfoId)!.output;
-        else {
+        } else {
           const buildInfoOutputPath =
             (await context.artifacts.getBuildInfoOutputPath(buildInfoId))!;
           buildInfoOutput = JSON.parse(

@@ -11,7 +11,7 @@ const plugin: HardhatPlugin = {
   id: "hardhat-ignore-warnings",
   tasks: [
     overrideTask("compile")
-      .setAction(import.meta.resolve("./task.ts"))
+      .setAction(() => import("./task.ts"))
       .build(),
   ],
 };

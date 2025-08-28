@@ -113,7 +113,7 @@ export async function setupCrossChainEnvironment({
     await l2Anvil.start();
     finalizers.push(() => l2Anvil.stop());
 
-    //l1Anvil.on("message", console.log);
+    l1Anvil.on("message", console.log);
     //l2Anvil.on("message", console.log);
 
     // parse `host:port` from the anvil boot message
@@ -262,11 +262,19 @@ export async function setupCrossChainEnvironment({
         reverseRegistrarV1: l1Contracts("ReverseRegistrar"),
         publicResolverV1: l1Contracts("PublicResolver"),
         nameWrapperV1: l1Contracts("NameWrapper"),
-        //universalResolverV1: l1Contracts("UniversalResolver"),
+        // v1 compat
+        defaultReverseRegistrar: l1Contracts("DefaultReverseRegistrar"),
+        defaultReverseResolver: l1Contracts("DefaultReverseResolver"),
+        //universalResolverV1: l1Contracts("UniversalResolver"), ==> no deploy script yet
         // v2
         ejectionController: l1Contracts("L1EjectionController"),
         ethRegistry: l1Contracts("PermissionedRegistry", "ETHRegistry"),
         ethSelfResolver: l1Contracts("DedicatedResolver", "ETHSelfResolver"),
+        ethReverseResolver: l1Contracts("ETHReverseResolver"),
+        ethReverseRegistrar: l1Contracts(
+          "StandaloneReverseRegistrar",
+          "ETHReverseRegistrar",
+        ),
         ethTLDResolver: l1Contracts("ETHTLDResolver"),
         dnsTLDResolver: l1Contracts("DNSTLDResolver"),
         dnsTXTResolver: l1Contracts("DNSTXTResolver"),
@@ -438,7 +446,6 @@ export async function setupCrossChainEnvironment({
     throw err;
   }
 }
-
 
 export type CrossChainEnvironment = Awaited<
   ReturnType<typeof setupCrossChainEnvironment>
