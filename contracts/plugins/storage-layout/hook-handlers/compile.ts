@@ -42,7 +42,7 @@ export default async (): Promise<Partial<SolidityHooks>> => {
 
         const fileToSaveTo = join(
           directoryToSaveTo,
-          json.contractName + ".storageLayout.json",
+          json.contractName + ".storageLayout-json",
         );
 
         if (storageLayout)

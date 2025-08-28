@@ -17,12 +17,7 @@ process.once("SIGINT", async () => {
   process.exit();
 });
 
-createMockRelay({
-  l1Bridge: env.l1.contracts.mockBridge,
-  l2Bridge: env.l2.contracts.mockBridge,
-  l1Client: env.l1.client,
-  l2Client: env.l2.client,
-});
+createMockRelay(env);
 
 console.log("\nAvailable Test Accounts:");
 console.log("========================");
