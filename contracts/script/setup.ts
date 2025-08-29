@@ -58,7 +58,7 @@ export async function setupCrossChainEnvironment({
   l1Port = 0,
   l2Port = 0,
   urgPort = 0,
-  numAccounts = 5,
+  extraAccounts = 5,
   mnemonic = "test test test test test test test test test test test junk",
   saveDeployments = false,
   pollingInterval = 1,
@@ -68,7 +68,7 @@ export async function setupCrossChainEnvironment({
   l1Port?: number;
   l2Port?: number;
   urgPort?: number;
-  numAccounts?: number;
+  extraAccounts?: number;
   mnemonic?: string;
   saveDeployments?: boolean;
   pollingInterval?: number;
@@ -77,32 +77,30 @@ export async function setupCrossChainEnvironment({
 
   const cacheTime = 0; // must be 0 due to client caching
 
+  const names = ["deployer", "owner", "bridger", "user"];
+  extraAccounts += names.length;
+
   const l1Anvil = anvil({
     chainId: l1ChainId,
     port: l1Port,
-    accounts: numAccounts,
+    accounts: extraAccounts,
     mnemonic,
   });
   const l2Anvil = anvil({
     chainId: l2ChainId,
     port: l2Port,
-    accounts: numAccounts,
+    accounts: extraAccounts,
     mnemonic,
   });
 
   // use same accounts on both chains
-  const accounts = Array.from({ length: numAccounts }, (_, i) =>
+  const accounts = Array.from({ length: extraAccounts }, (_, i) =>
     Object.assign(mnemonicToAccount(mnemonic, { addressIndex: i }), {
-      name: `unnamed${i}`, // default name
+      name: names[i] ?? `unnamed${i}`,
     }),
   );
-
-  // name accounts (exposed as `namedAccounts` in rocketh)
-  const deployer = accounts[0];
-  deployer.name = "deployer";
-  accounts[1].name = "owner"; // ENS DAO 
-  accounts[2].name = "bridger"; // used by bridge
-  accounts[3].name = "user";
+  const namedAccounts = Object.fromEntries(accounts.map((x) => [x.name, x]));
+  const { deployer } = namedAccounts;
 
   // shutdown functions for partial initialization
   const finalizers: (() => Promise<void>)[] = [];
@@ -348,7 +346,7 @@ export async function setupCrossChainEnvironment({
 
     return {
       accounts,
-      namedAccounts: Object.fromEntries(accounts.map((x) => [x.name, x])),
+      namedAccounts,
       l1,
       l2,
       urg: {

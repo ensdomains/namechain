@@ -32,10 +32,7 @@ import {
   bundleCalls,
   makeResolutions,
 } from "./utils/resolutions.js";
-import { injectRPCCounter } from "./utils/hardhat-counter.ts";
-import { injectCoverage } from "./utils/hardhat-coverage.ts";
-
-const saveCoverage = injectCoverage("ETHTLDResolver");
+import { injectRPCCounter } from "./utils/hardhat-counter.js";
 
 let urgCount = 0;
 const chain1 = injectRPCCounter(await hre.network.connect());
@@ -149,8 +146,7 @@ describe("ETHTLDResolver", () => {
     urgCount = 0;
   });
   afterAll(() => console.table(rpcs));
-  afterAll(() => saveCoverage?.());
-  
+
   shouldSupportInterfaces({
     contract: () => loadFixture().then((F) => F.ethTLDResolver),
     interfaces: [
