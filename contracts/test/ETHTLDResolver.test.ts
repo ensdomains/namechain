@@ -32,7 +32,7 @@ import {
   bundleCalls,
   makeResolutions,
 } from "./utils/resolutions.js";
-import { injectRPCCounter } from "./utils/hardhat.js";
+import { injectRPCCounter } from "./utils/hardhat-counter.js";
 
 const chain1 = injectRPCCounter(await hre.network.connect());
 const chain2 = injectRPCCounter(await hre.network.connect());

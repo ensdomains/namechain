@@ -1,10 +1,10 @@
 import hre from "hardhat";
-import { zeroAddress, type Address } from "viem";
+import { type Address, zeroAddress } from "viem";
 import { describe, expect, it } from "vitest";
 
-import { deployV2Fixture, ROLES } from "./fixtures/deployV2Fixture.ts";
-import { expectVar } from "./utils/expectVar.ts";
-import { labelToCanonicalId } from "./utils/utils.ts";
+import { deployV2Fixture, ROLES } from "./fixtures/deployV2Fixture.js";
+import { expectVar } from "./utils/expectVar.js";
+import { labelToCanonicalId } from "./utils/utils.js";
 
 const chain = await hre.network.connect();
 async function fixture() {
