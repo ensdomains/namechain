@@ -6,29 +6,32 @@ import { toHex } from "viem";
 // https://github.com/NomicFoundation/hardhat/blob/main/v-next/hardhat/src/internal/builtin-plugins/coverage/hook-handlers/hre.ts
 // https://github.com/NomicFoundation/hardhat/blob/main/v-next/hardhat/src/internal/builtin-plugins/coverage/hook-handlers/solidity.ts
 
-export function injectCoverage(testName: string) {
-  const coverageTags: string[] = [];
+// hooks need to be registered super early
+const activeTags: Set<string[]> = new Set();
+hre.hooks.registerHandlers("network", {
+  async onCoverageData(_, tags) {
+    for (const x of activeTags) {
+      x.push(...tags);
+    }
+  },
+});
 
-  hre.globalOptions.coverage = true;
-
-  // setup listener
-  hre.hooks.registerHandlers("network", {
-    async onCoverageData(_, tags) {
-      coverageTags.push(...tags);
-    },
-  });
-
-  // patch connect()
+export function injectCoverage() {
   const connect0 = hre.network.connect.bind(hre.network);
   hre.network.connect = async (params: unknown) => {
     if (params) throw new Error("expected just connect()");
     return connect0({ override: { allowUnlimitedContractSize: true } });
   };
+}
 
-  const rootDir = new URL("../../", import.meta.url);
-
-  // return save report function
+export function recordCoverage(testName: string) {
+  const tags: string[] = [];
+  activeTags.add(tags);
   return async () => {
+    activeTags.delete(tags);
+    if (!tags.length) return;
+
+    const rootDir = new URL("../../", import.meta.url);
     const artifactStr = await readFile(
       new URL("generated/artifacts.ts", rootDir),
       { encoding: "utf8" },
@@ -105,8 +108,8 @@ export function injectCoverage(testName: string) {
     }
 
     // count location hits
-    for (const tag of coverageTags) {
-      const loc = tagMap.get(tag)!;
+    for (const tag of tags) {
+      const loc = tagMap.get(tag);
       if (loc) loc.count++;
     }
 
@@ -148,6 +151,6 @@ export function injectCoverage(testName: string) {
     const outDir = new URL("coverage/", rootDir);
     await mkdir(outDir, { recursive: true });
     await writeFile(new URL(`${testName}.info`, outDir), lcov);
-    //console.log(`Wrote Coverage: ${testName}`);
+    console.log(`Wrote Coverage: ${testName}`);
   };
 }

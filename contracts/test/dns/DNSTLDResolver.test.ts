@@ -16,7 +16,6 @@ import {
 } from "../utils/resolutions.js";
 import { dnsEncodeName } from "../utils/utils.js";
 import { encodeRRs, makeTXT } from "./rr.js";
-import { injectCoverage } from "../utils/hardhat-coverage.js";
 
 const network = await hre.network.connect();
 
