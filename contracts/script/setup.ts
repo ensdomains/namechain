@@ -245,9 +245,9 @@ export async function setupCrossChainEnvironment({
           "UniversalResolverV1",
         ),
         // v2
-        ejectionController: l1Contracts("L1EjectionController"),
+        bridgeController: l1Contracts("L1BridgeController"),
         ethRegistry: l1Contracts("PermissionedRegistry", "L1ETHRegistry"),
-        ethSelfResolver: l1Contracts("DedicatedResolver", "ETHSelfResolver"),
+        ethSelfResolver: l1Contracts("DedicatedResolver", "ETHSelfResolver"),        
         ethTLDResolver: l1Contracts("ETHTLDResolver"),
         //dnsTLDResolver: l1Contracts("DNSTLDResolver"),
         mockBridge: l1Contracts("MockL1Bridge"),
