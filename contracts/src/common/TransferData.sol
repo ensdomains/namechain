@@ -23,7 +23,7 @@ struct MigrationData {
      */
     bool toL1;
     /**
-     * @dev (Optional) DNS-encoded name of name being migrated.
+     * @dev DNS-encoded name of name being migrated.
      */
     bytes dnsEncodedName;
     /**
