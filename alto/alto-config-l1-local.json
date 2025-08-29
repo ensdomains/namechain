@@ -13,5 +13,6 @@
     "log-level": "info",
     "public-client-log-level": "error",
     "wallet-client-log-level": "error",
-    "polling-interval": 100
+    "polling-interval": 100,
+    "deploy-simulations-contract": false
 }
