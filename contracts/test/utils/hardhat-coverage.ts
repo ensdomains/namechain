@@ -2,39 +2,34 @@ import hre from "hardhat";
 import { addStatementCoverageInstrumentation } from "@nomicfoundation/edr";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { toHex } from "viem";
-import type { NetworkHooks } from "hardhat/types/hooks";
 
 // https://github.com/NomicFoundation/hardhat/blob/main/v-next/hardhat/src/internal/builtin-plugins/coverage/hook-handlers/hre.ts
 // https://github.com/NomicFoundation/hardhat/blob/main/v-next/hardhat/src/internal/builtin-plugins/coverage/hook-handlers/solidity.ts
 
-let init = false;
+// hooks need to be registered super early
+const activeTags: Set<string[]> = new Set();
+hre.hooks.registerHandlers("network", {
+  async onCoverageData(_, tags) {
+    for (const x of activeTags) {
+      x.push(...tags);
+    }
+  },
+});
 
-export function injectCoverage(testName: string) {
-  if (!init) {
-    init = true;
-    hre.globalOptions.coverage = true; // is this needed?
-
-    // patch connect()
-    const connect0 = hre.network.connect.bind(hre.network);
-    hre.network.connect = async (params: unknown) => {
-      if (params) throw new Error("expected just connect()");
-      return connect0({ override: { allowUnlimitedContractSize: true } });
-    };
-  }
-
-  // setup listener
-  const coverageTags: string[] = [];
-  const hooks: Partial<NetworkHooks> = {
-    async onCoverageData(_, tags) {
-      coverageTags.push(...tags);
-    },
+export function injectCoverage() {
+  const connect0 = hre.network.connect.bind(hre.network);
+  hre.network.connect = async (params: unknown) => {
+    if (params) throw new Error("expected just connect()");
+    return connect0({ override: { allowUnlimitedContractSize: true } });
   };
-  hre.hooks.registerHandlers("network", hooks);
+}
 
-  // return save report function
+export function recordCoverage(testName: string) {
+  const tags: string[] = [];
+  activeTags.add(tags);
   return async () => {
-    // remove listener (freeze)
-    hre.hooks.unregisterHandlers("network", hooks);
+    activeTags.delete(tags);
+    if (!tags.length) return;
 
     const rootDir = new URL("../../", import.meta.url);
     const artifactStr = await readFile(
@@ -113,8 +108,8 @@ export function injectCoverage(testName: string) {
     }
 
     // count location hits
-    for (const tag of coverageTags) {
-      const loc = tagMap.get(tag)!;
+    for (const tag of tags) {
+      const loc = tagMap.get(tag);
       if (loc) loc.count++;
     }
 
@@ -156,6 +151,6 @@ export function injectCoverage(testName: string) {
     const outDir = new URL("coverage/", rootDir);
     await mkdir(outDir, { recursive: true });
     await writeFile(new URL(`${testName}.info`, outDir), lcov);
-    //console.log(`Wrote Coverage: ${testName}`);
+    console.log(`Wrote Coverage: ${testName}`);
   };
 }

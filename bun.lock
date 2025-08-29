@@ -9,11 +9,13 @@
     },
     "contracts": {
       "name": "contracts",
+      "dependencies": {
+        "@nomicfoundation/edr": "0.12.0-next.4",
+      },
       "devDependencies": {
         "@ensdomains/address-encoder": "^1.1.3",
         "@ensdomains/hardhat-chai-matchers-viem": "^0.1.14",
         "@namestone/ezccip": "^0.1.0",
-        "@nomicfoundation/edr": "0.12.0-next.4",
         "@nomicfoundation/hardhat-foundry": "^1.2.0",
         "@nomicfoundation/hardhat-keystore": "3.0.0",
         "@nomicfoundation/hardhat-network-helpers": "3.0.0",

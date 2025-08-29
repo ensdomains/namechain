@@ -1,14 +1,11 @@
-import { injectCoverage } from "./utils/hardhat-coverage.ts";
+import { afterAll, beforeAll } from "vitest";
+import { injectCoverage, recordCoverage } from "./utils/hardhat-coverage.ts";
 
-// when imported for setupFiles:
-// does injection before connect() is called
-let saveCoverage: () => Promise<void>;
 if (process.env.COVERAGE) {
-  saveCoverage = injectCoverage("hardhat");
-}
-
-// when imported for globalSetup:
-// installs shutdown handler
-export async function teardown() {
-  await saveCoverage?.();
+  injectCoverage();
+  let save: () => Promise<void> | undefined;
+  beforeAll((suite) => {
+    save = recordCoverage(suite.tasks[0].name);
+  });
+  afterAll(() => save?.());
 }
