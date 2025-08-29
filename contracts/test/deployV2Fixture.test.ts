@@ -1,13 +1,10 @@
 import hre from "hardhat";
 import { type Address, zeroAddress } from "viem";
-import { describe, expect, it, afterAll } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { deployV2Fixture, ROLES } from "./fixtures/deployV2Fixture.js";
 import { expectVar } from "./utils/expectVar.js";
 import { labelToCanonicalId } from "./utils/utils.js";
-import { injectCoverage } from "./utils/hardhat-coverage.js";
-
-const saveCoverage = injectCoverage("deployV2Fixture");
 
 const chain = await hre.network.connect();
 async function fixture() {
@@ -30,8 +27,6 @@ function expectRegistries(
 }
 
 describe("deployV2Fixture", () => {
-  afterAll(() => saveCoverage?.());
-
   it("setupName()", async () => {
     const F = await loadFixture();
     const {

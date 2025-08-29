@@ -6,12 +6,7 @@ import { toHex } from "viem";
 // https://github.com/NomicFoundation/hardhat/blob/main/v-next/hardhat/src/internal/builtin-plugins/coverage/hook-handlers/hre.ts
 // https://github.com/NomicFoundation/hardhat/blob/main/v-next/hardhat/src/internal/builtin-plugins/coverage/hook-handlers/solidity.ts
 
-export function injectCoverage(
-  testName: string,
-  coverage = !!process.env.COVERAGE,
-) {
-  if (!coverage) return;
-
+export function injectCoverage(testName: string) {
   const coverageTags: string[] = [];
 
   hre.globalOptions.coverage = true;
@@ -153,6 +148,6 @@ export function injectCoverage(
     const outDir = new URL("coverage/", rootDir);
     await mkdir(outDir, { recursive: true });
     await writeFile(new URL(`${testName}.info`, outDir), lcov);
-    console.log(`Wrote Coverage: ${testName}`);
+    //console.log(`Wrote Coverage: ${testName}`);
   };
 }

@@ -1,5 +1,5 @@
 import hre from "hardhat";
-import { describe, expect, it, afterAll } from "vitest";
+import { describe, expect, it } from "vitest";
 import { type Address, concat, encodeErrorResult, stringToHex } from "viem";
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
 
@@ -17,8 +17,6 @@ import {
 import { dnsEncodeName } from "../utils/utils.js";
 import { encodeRRs, makeTXT } from "./rr.js";
 import { injectCoverage } from "../utils/hardhat-coverage.js";
-
-const saveCoverage = injectCoverage("DNSTLDResolver");
 
 const network = await hre.network.connect();
 
@@ -109,8 +107,6 @@ async function fixture() {
 }
 
 describe("DNSTLDResolver", () => {
-  afterAll(() => saveCoverage?.());
-
   shouldSupportInterfaces({
     contract: () =>
       network.networkHelpers.loadFixture(fixture).then((F) => F.dnsTLDResolver),
