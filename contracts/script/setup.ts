@@ -31,17 +31,15 @@ function createDeploymentGetter<C extends Client>(
   client: C,
 ) {
   return <ContractName extends keyof typeof artifacts>(
-    name: ContractName | string,
+    contractName: ContractName,
+    deployedName: string = contractName,
   ) => {
-    const deployment = environment.get(name);
+    const deployment = environment.get(deployedName);
     return getContract({
-      abi: deployment.abi,
+      abi: deployment.abi as (typeof artifacts)[ContractName]["abi"],
       address: deployment.address,
       client,
-    }) as unknown as GetContractReturnType<
-      (typeof artifacts)[ContractName]["abi"],
-      C
-    >;
+    });
   };
 }
 
@@ -227,36 +225,46 @@ export async function setupCrossChainEnvironment({
       anvil: l1Anvil,
       contracts: {
         // v1+v2
-        batchGatewayProvider: l1Contracts<"GatewayProvider">(
+        batchGatewayProvider: l1Contracts(
+          "GatewayProvider",
           "BatchGatewayProvider",
         ),
         // v1
-        ensRegistryV1: l1Contracts<"ENSRegistry">("ENSRegistryV1"),
-        ethRegistrarV1:
-          l1Contracts<"BaseRegistrarImplementation">("ETHRegistrarV1"),
-        reverseRegistrarV1:
-          l1Contracts<"ReverseRegistrar">("ReverseRegistrarV1"),
-        publicResolverV1: l1Contracts<"PublicResolver">("PublicResolverV1"),
-        universalResolverV1: l1Contracts<"UniversalResolver">(
+        ensRegistryV1: l1Contracts("ENSRegistry", "ENSRegistryV1"),
+        ethRegistrarV1: l1Contracts(
+          "BaseRegistrarImplementation",
+          "ETHRegistrarV1",
+        ),
+        reverseRegistrarV1: l1Contracts(
+          "ReverseRegistrar",
+          "ReverseRegistrarV1",
+        ),
+        publicResolverV1: l1Contracts("PublicResolver", "PublicResolverV1"),
+        universalResolverV1: l1Contracts(
+          "UniversalResolver",
           "UniversalResolverV1",
         ),
         // v2
-        bridgeController: l1Contracts("L1BridgeController"),
-        ethRegistry: l1Contracts("L1ETHRegistry"),
-        ethSelfResolver: l1Contracts<"DedicatedResolver">("ETHSelfResolver"),
+        ejectionController: l1Contracts("L1EjectionController"),
+        ethRegistry: l1Contracts("PermissionedRegistry", "L1ETHRegistry"),
+        ethSelfResolver: l1Contracts("DedicatedResolver", "ETHSelfResolver"),
         ethTLDResolver: l1Contracts("ETHTLDResolver"),
         //dnsTLDResolver: l1Contracts("DNSTLDResolver"),
         mockBridge: l1Contracts("MockL1Bridge"),
-        rootRegistry: l1Contracts<"PermissionedRegistry">("RootRegistry"),
-        universalResolver:
-          l1Contracts<"UniversalResolverV2">("UniversalResolver"),
+        rootRegistry: l1Contracts("PermissionedRegistry", "RootRegistry"),
+        universalResolver: l1Contracts(
+          "UniversalResolverV2",
+          "UniversalResolver",
+        ),
         // shared
         registryDatastore: l1Contracts("RegistryDatastore"),
         simpleRegistryMetadata: l1Contracts("SimpleRegistryMetadata"),
-        dedicatedResolverFactory: l1Contracts<"VerifiableFactory">(
+        dedicatedResolverFactory: l1Contracts(
+          "VerifiableFactory",
           "DedicatedResolverFactory",
         ),
-        dedicatedResolverImpl: l1Contracts<"DedicatedResolver">(
+        dedicatedResolverImpl: l1Contracts(
+          "DedicatedResolver",
           "DedicatedResolverImpl",
         ),
       },
@@ -272,17 +280,19 @@ export async function setupCrossChainEnvironment({
       contracts: {
         // v2
         ethRegistrar: l2Contracts("ETHRegistrar"),
-        ethRegistry: l2Contracts<"PermissionedRegistry">("ETHRegistry"),
+        ethRegistry: l2Contracts("PermissionedRegistry", "ETHRegistry"),
         bridgeController: l2Contracts("L2BridgeController"),
         mockBridge: l2Contracts("MockL2Bridge"),
-        priceOracle: l2Contracts<"IPriceOracle">("PriceOracle"),
+        priceOracle: l2Contracts("IPriceOracle", "PriceOracle"),
         // shared
         registryDatastore: l2Contracts("RegistryDatastore"),
         simpleRegistryMetadata: l2Contracts("SimpleRegistryMetadata"),
-        dedicatedResolverFactory: l2Contracts<"VerifiableFactory">(
+        dedicatedResolverFactory: l2Contracts(
+          "VerifiableFactory",
           "DedicatedResolverFactory",
         ),
-        dedicatedResolverImpl: l2Contracts<"DedicatedResolver">(
+        dedicatedResolverImpl: l2Contracts(
+          "DedicatedResolver",
           "DedicatedResolverImpl",
         ),
       },
@@ -302,7 +312,8 @@ export async function setupCrossChainEnvironment({
       shutdown,
     };
     async function sync() {
-      await Promise.all([l1, l2].map((x) => x.client.mine({ blocks: 1 })));
+      const args = { blocks: 1 };
+      await Promise.all([l1Client.mine(args), l2Client.mine(args)]);
     }
     async function deployDedicatedResolver(
       this: typeof l1 | typeof l2,
