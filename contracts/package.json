@@ -8,15 +8,13 @@
     "test:forge": "forge test",
     "test:e2e": "bun test ./e2e/*.test.ts",
     "test": "bun run test:forge && bun run test:hardhat",
-    "coverage:mkdir": "node -e 'require(`fs`).mkdirSync(`coverage`, {recursive: true })'",
-    "coverage:clean": "node -e 'require(`fs`).rmSync(`coverage`, {recursive: true, force: true})'",
-    "coverage:forge": "bun run coverage:mkdir && forge coverage --report lcov --report-file coverage/forge.info",
+    "coverage:forge": "mkdir -p coverage/ && forge coverage --report lcov --report-file coverage/forge.info",
     "coverage:hardhat": "hardhat compile --coverage && COVERAGE=1 vitest run",
     "coverage": "bun run coverage:forge && bun run coverage:hardhat && bun run sanitize-lcov.sh",
-    "clean": "forge clean && hardhat clean && bun run coverage:clean",
+    "clean": "forge clean && hardhat clean && rm -rf coverage/",
     "devnet": "bun ./script/runDevnet.ts",
-    "aakit": "bun ./script/deployAAkit.ts",
     "devnet:clean": "bun run test && bun ./script/runDevnet.ts",
+    "aakit": "bun ./script/deployAAkit.ts",
     "check:types": "tsc --noEmit"
   },
   "devDependencies": {
