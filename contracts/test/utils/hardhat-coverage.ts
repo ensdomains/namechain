@@ -2,33 +2,41 @@ import hre from "hardhat";
 import { addStatementCoverageInstrumentation } from "@nomicfoundation/edr";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { toHex } from "viem";
+import type { NetworkHooks } from "hardhat/types/hooks";
 
 // https://github.com/NomicFoundation/hardhat/blob/main/v-next/hardhat/src/internal/builtin-plugins/coverage/hook-handlers/hre.ts
 // https://github.com/NomicFoundation/hardhat/blob/main/v-next/hardhat/src/internal/builtin-plugins/coverage/hook-handlers/solidity.ts
 
-export function injectCoverage(testName: string) {
-  const coverageTags: string[] = [];
+let init = false;
 
-  hre.globalOptions.coverage = true;
+export function injectCoverage(testName: string) {
+  if (!init) {
+    init = true;
+    hre.globalOptions.coverage = true; // is this needed?
+
+    // patch connect()
+    const connect0 = hre.network.connect.bind(hre.network);
+    hre.network.connect = async (params: unknown) => {
+      if (params) throw new Error("expected just connect()");
+      return connect0({ override: { allowUnlimitedContractSize: true } });
+    };
+  }
 
   // setup listener
-  hre.hooks.registerHandlers("network", {
+  const coverageTags: string[] = [];
+  const hooks: Partial<NetworkHooks> = {
     async onCoverageData(_, tags) {
       coverageTags.push(...tags);
     },
-  });
-
-  // patch connect()
-  const connect0 = hre.network.connect.bind(hre.network);
-  hre.network.connect = async (params: unknown) => {
-    if (params) throw new Error("expected just connect()");
-    return connect0({ override: { allowUnlimitedContractSize: true } });
   };
-
-  const rootDir = new URL("../../", import.meta.url);
+  hre.hooks.registerHandlers("network", hooks);
 
   // return save report function
   return async () => {
+    // remove listener (freeze)
+    hre.hooks.unregisterHandlers("network", hooks);
+
+    const rootDir = new URL("../../", import.meta.url);
     const artifactStr = await readFile(
       new URL("generated/artifacts.ts", rootDir),
       { encoding: "utf8" },
