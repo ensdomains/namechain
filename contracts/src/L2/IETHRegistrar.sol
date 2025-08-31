@@ -4,10 +4,11 @@ pragma solidity >=0.8.13;
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import {IRegistry} from "../common/IRegistry.sol";
+import {IRentPriceOracle} from "./IRentPriceOracle.sol";
 
 /// @notice Interface for the ".eth" registrar which manages the ".eth" registry.
-/// @dev Interface selector: `0x9daffb72`
-interface IETHRegistrar {
+/// @dev Interface selector: `0xce1ac79c`
+interface IETHRegistrar is IRentPriceOracle {
     /// @notice `label` is not registered.
     /// @dev Error selector: `0xf2b502e2`
     error NameNotRegistered(string label);
@@ -94,38 +95,10 @@ interface IETHRegistrar {
         uint256 base
     );
 
-    /// @notice Check if a `label` is registerable.
-    /// @dev Does not check if normalized.
-    /// @param label The name to check.
-    /// @return `true` if the `label` is valid.
-    function isValid(string memory label) external view returns (bool);
-
     /// @notice Check if `label` is available for registration.
-    /// @dev Does not check if normalized or valid.
     /// @param label The name to check.
     /// @return `true` if the `label` is available.
     function isAvailable(string memory label) external view returns (bool);
-
-    /// @notice Check if `paymentToken` is accepted for payment.
-    /// @param paymentToken The ERC20 to check.
-    /// @return `true` if `paymentToken` is accepted.
-    function isPaymentToken(
-        IERC20Metadata paymentToken
-    ) external view returns (bool);
-
-    /// @notice Get rent price for `name` with `duration`.
-    /// @param label The name to price.
-    /// @param owner The owner address.
-    /// @param duration The duration to price, in seconds.
-    /// @param paymentToken The ERC-20 to use.
-    /// @return base The base price, relative to `paymentToken`.
-    /// @return premium The premium price, relative to `paymentToken`.
-    function rentPrice(
-        string memory label,
-        address owner,
-        uint64 duration,
-        IERC20Metadata paymentToken
-    ) external view returns (uint256 base, uint256 premium);
 
     /// @notice Compute hash of registration parameters.
     /// @param label The name to register.

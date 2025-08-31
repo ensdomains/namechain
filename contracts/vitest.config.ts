@@ -4,5 +4,6 @@ export default defineConfig({
   test: {
     reporters: ["verbose"],
     include: ["test/**/*.test.ts"],
+    setupFiles: ["test/vitest-setup.ts"],
   },
 });

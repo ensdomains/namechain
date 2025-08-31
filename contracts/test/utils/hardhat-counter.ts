@@ -18,17 +18,3 @@ export function injectRPCCounter<C extends NetworkConnection>(
   };
   return impl;
 }
-
-export async function getRawArtifact<N extends keyof typeof A>(name: N) {
-  const { default: A } = await import("../../generated/artifacts.js");
-  return A[name];
-}
-
-// export function createFixture<T>(
-//   networkConnection: NetworkConnection<DefaultChainType>,
-//   fixture: (n: NetworkConnection<DefaultChainType>) => Fixture<T>,
-// ) {
-//   const initialisedFixture = fixture(networkConnection);
-//   return async () =>
-//     networkConnection.networkHelpers.loadFixture(initialisedFixture);
-// }

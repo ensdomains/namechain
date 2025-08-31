@@ -5,12 +5,14 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {StringUtils} from "@ens/contracts/utils/StringUtils.sol";
+import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IRentPriceOracle} from "./IRentPriceOracle.sol";
 import {ITokenPriceOracle} from "./ITokenPriceOracle.sol";
 import {HalvingUtils} from "../common/HalvingUtils.sol";
+import {StringUtils} from "@ens/contracts/utils/StringUtils.sol";
 
 contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
+    IPermissionedRegistry public immutable registry;
     uint8 public immutable priceDecimals;
     uint256[5] baseRatePerCp; // rate = price/sec
     uint64 public immutable premiumPeriod;
@@ -21,6 +23,7 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
     mapping(IERC20Metadata => bool) _isPaymentToken;
 
     constructor(
+        IPermissionedRegistry _registry,
         uint8 _priceDecimals,
         uint256[5] memory _baseRatePerCp,
         uint64 _premiumPeriod,
@@ -29,6 +32,7 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
         ITokenPriceOracle _tokenPriceOracle,
         IERC20Metadata[] memory _paymentTokens
     ) {
+        registry = _registry;
         priceDecimals = _priceDecimals;
         baseRatePerCp = _baseRatePerCp;
         premiumPeriod = _premiumPeriod;
@@ -70,7 +74,7 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
     /// @inheritdoc IRentPriceOracle
     function rentPrice(
         string memory label,
-        uint64 expiry,
+        address owner,
         uint64 duration,
         IERC20Metadata paymentToken
     ) public view returns (uint256 base, uint256 premium) {
@@ -81,7 +85,13 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
         if (base == 0) {
             revert NotRentable(label);
         }
-        premium = premiumPrice(expiry);
+        if (owner != address(0)) {
+            // prior owner pays no premium
+            (uint256 tokenId, uint64 expiry, ) = registry.getNameData(label);
+            if (owner != registry.latestOwnerOf(tokenId)) {
+                premium = premiumPrice(expiry);
+            }
+        }
         uint256 total = base * duration + premium; // revert on overflow
         uint256 amount = tokenPriceOracle.getTokenAmount(
             total,

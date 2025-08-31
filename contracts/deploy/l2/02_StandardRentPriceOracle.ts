@@ -6,7 +6,10 @@ import {
 } from "../../test/utils/price.ts";
 
 export default execute(
-  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
+  async ({ deploy, get, namedAccounts: { deployer } }) => {
+    const ethRegistry =
+      get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
+
     const tokenPriceOracle = get<
       (typeof artifacts.StableTokenPriceOracle)["abi"]
     >("StableTokenPriceOracle");
@@ -36,6 +39,7 @@ export default execute(
       account: deployer,
       artifact: artifacts.StandardRentPriceOracle,
       args: [
+        ethRegistry.address,
         PRICE_DECIMALS,
         baseRatePerCp,
         21n * SEC_PER_DAY, // premiumPeriod
@@ -48,6 +52,6 @@ export default execute(
   },
   {
     tags: ["StandardRentPriceOracle", "l2"],
-    dependencies: ["MockTokens", "StableTokenPriceOracle"],
+    dependencies: ["MockTokens", "ETHRegistry", "StableTokenPriceOracle"],
   },
 );

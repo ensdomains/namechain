@@ -9,8 +9,8 @@ import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165C
 
 import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
-import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
+import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {StableTokenPriceOracle} from "../src/L2/StableTokenPriceOracle.sol";
 import {StandardRentPriceOracle, IRentPriceOracle} from "../src/L2/StandardRentPriceOracle.sol";
 import {ETHRegistrar, IETHRegistrar, IRegistry, REGISTRATION_ROLE_BITMAP, ROLE_SET_ORACLE} from "../src/L2/ETHRegistrar.sol";
@@ -19,7 +19,6 @@ import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 
 contract TestETHRegistrar is Test {
-    RegistryDatastore datastore;
     PermissionedRegistry ethRegistry;
 
     StableTokenPriceOracle tokenPriceOracle;
@@ -36,15 +35,15 @@ contract TestETHRegistrar is Test {
     uint64 constant SEC_PER_YEAR = 31_557_600; // 365.25
     uint8 constant PRICE_DECIMALS = 12;
     uint256 constant PRICE_SCALE = 10 ** PRICE_DECIMALS;
-    uint256 constant RATE_5_CHAR = (5 * PRICE_SCALE) / SEC_PER_YEAR;
-    uint256 constant RATE_4_CHAR = (160 * PRICE_SCALE) / SEC_PER_YEAR;
-    uint256 constant RATE_3_CHAR = (640 * PRICE_SCALE) / SEC_PER_YEAR;
+    uint256 constant RATE_1CP = 0;
+    uint256 constant RATE_2CP = 0;
+    uint256 constant RATE_3CP = (640 * PRICE_SCALE) / SEC_PER_YEAR;
+    uint256 constant RATE_4CP = (160 * PRICE_SCALE) / SEC_PER_YEAR;
+    uint256 constant RATE_5CP = (5 * PRICE_SCALE) / SEC_PER_YEAR;
 
     function setUp() external {
-        datastore = new RegistryDatastore();
-
         ethRegistry = new PermissionedRegistry(
-            datastore,
+            new RegistryDatastore(),
             new SimpleRegistryMetadata(),
             address(this),
             LibEACBaseRoles.ALL_ROLES
@@ -58,8 +57,9 @@ contract TestETHRegistrar is Test {
         paymentTokens[2] = tokenBlack = new MockERC20Blacklist();
 
         rentPriceOracle = new StandardRentPriceOracle(
+            ethRegistry,
             PRICE_DECIMALS,
-            [0, 0, RATE_3_CHAR, RATE_4_CHAR, RATE_5_CHAR],
+            [RATE_1CP, RATE_2CP, RATE_3CP, RATE_4CP, RATE_5CP],
             21 days,
             1 days,
             100_000_000 * PRICE_SCALE,
@@ -127,6 +127,7 @@ contract TestETHRegistrar is Test {
         IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](1);
         paymentTokens[0] = tokenUSDC;
         StandardRentPriceOracle oracle = new StandardRentPriceOracle(
+            ethRegistry,
             tokenUSDC.decimals(),
             [uint256(1), 2, 3, 4, 0],
             0, // \
@@ -152,6 +153,7 @@ contract TestETHRegistrar is Test {
         IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](1);
         paymentTokens[0] = tokenUSDC;
         StandardRentPriceOracle oracle = new StandardRentPriceOracle(
+            ethRegistry,
             0,
             [uint256(0), 0, 0, 0, 0],
             0,
@@ -173,15 +175,25 @@ contract TestETHRegistrar is Test {
         vm.stopPrank();
     }
 
-    function test_isValid() external view {
-        assertFalse(ethRegistrar.isValid(""));
-        assertFalse(ethRegistrar.isValid("a"));
-        assertFalse(ethRegistrar.isValid("ab"));
+    function test_isPaymentToken() external view {
+        assertTrue(rentPriceOracle.isPaymentToken(tokenUSDC), "USDC");
+        assertTrue(rentPriceOracle.isPaymentToken(tokenDAI), "DAI");
+        assertTrue(rentPriceOracle.isPaymentToken(tokenBlack), "Black");
+        assertFalse(rentPriceOracle.isPaymentToken(IERC20Metadata(address(0))));
+    }
 
-        assertTrue(ethRegistrar.isValid("abc"));
-        assertTrue(ethRegistrar.isValid("abce"));
-        assertTrue(ethRegistrar.isValid("abcde"));
-        assertTrue(ethRegistrar.isValid("abcdefghijklmnopqrstuvwxyz"));
+    // same as StandardRentPriceOracle.t.sol
+    function test_isValid() external view {
+        assertFalse(rentPriceOracle.isValid(""));
+        assertEq(rentPriceOracle.isValid("a"), RATE_1CP > 0);
+        assertEq(rentPriceOracle.isValid("ab"), RATE_2CP > 0);
+        assertEq(rentPriceOracle.isValid("abc"), RATE_3CP > 0);
+        assertEq(rentPriceOracle.isValid("abce"), RATE_4CP > 0);
+        assertEq(rentPriceOracle.isValid("abcde"), RATE_5CP > 0);
+        assertEq(
+            rentPriceOracle.isValid("abcdefghijklmnopqrstuvwxyz"),
+            RATE_5CP > 0
+        );
     }
 
     struct RegisterArgs {
@@ -278,6 +290,17 @@ contract TestETHRegistrar is Test {
             ethRegistrar.commitmentAt(commitment),
             block.timestamp,
             "time"
+        );
+    }
+
+    function test_commitmentAt() external {
+        bytes32 commitment = bytes32(uint256(1));
+        assertEq(ethRegistrar.commitmentAt(commitment), 0, "before");
+        ethRegistrar.commit(commitment);
+        assertEq(
+            ethRegistrar.commitmentAt(commitment),
+            block.timestamp,
+            "after"
         );
     }
 
@@ -516,8 +539,18 @@ contract TestETHRegistrar is Test {
             ERC165Checker.supportsInterface(
                 address(ethRegistrar),
                 type(IETHRegistrar).interfaceId
-            )
+            ),
+            "IETHRegistrar"
         );
+        assertTrue(
+            ERC165Checker.supportsInterface(
+                address(ethRegistrar),
+                type(IRentPriceOracle).interfaceId
+            ),
+            "IRentPriceOracle"
+        );
+        //console.logBytes4(type(IETHRegistrar).interfaceId);
+        //console.logBytes4(type(IRentPriceOracle).interfaceId);
     }
 
     function test_beneficiary_set() external view {

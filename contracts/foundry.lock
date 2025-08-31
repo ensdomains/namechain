@@ -5,7 +5,7 @@
   "lib/ens-contracts": {
     "branch": {
       "name": "staging",
-      "rev": "c8615398f2ac9dcdfa831f519b5ee1b080abf499"
+      "rev": "20e34971fd55f9e3b3cf4a5825d52e1504d36493"
     }
   },
   "lib/forge-std": {

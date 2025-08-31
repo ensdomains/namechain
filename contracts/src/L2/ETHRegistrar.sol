@@ -61,6 +61,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     ) public view override(EnhancedAccessControl) returns (bool) {
         return
             interfaceId == type(IETHRegistrar).interfaceId ||
+            interfaceId == type(IRentPriceOracle).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -72,38 +73,30 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         emit RentPriceOracleChanged();
     }
 
-    /// @inheritdoc IETHRegistrar
+    /// @inheritdoc IRentPriceOracle
     function isPaymentToken(
         IERC20Metadata paymentToken
     ) external view returns (bool) {
         return rentPriceOracle.isPaymentToken(paymentToken);
     }
 
-    /// @inheritdoc IETHRegistrar
+    /// @inheritdoc IRentPriceOracle
     function isValid(string memory label) external view returns (bool) {
         return rentPriceOracle.isValid(label);
     }
 
-    /// @inheritdoc IETHRegistrar
+    /// @inheritdoc IRentPriceOracle
     function rentPrice(
         string memory label,
         address owner,
         uint64 duration,
         IERC20Metadata paymentToken
     ) public view returns (uint256 base, uint256 premium) {
-        (uint256 tokenId, uint64 expiry, ) = registry.getNameData(label);
-        return
-            rentPriceOracle.rentPrice(
-                label,
-                owner != address(0) && owner == registry.latestOwnerOf(tokenId)
-                    ? 0
-                    : expiry,
-                duration,
-                paymentToken
-            );
+        return rentPriceOracle.rentPrice(label, owner, duration, paymentToken);
     }
 
     /// @inheritdoc IETHRegistrar
+    /// @dev Does not check if normalized or valid.
     function isAvailable(string memory label) external view returns (bool) {
         (, uint64 expiry, ) = registry.getNameData(label);
         return _isAvailable(expiry);
@@ -232,7 +225,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         uint64 expires = _addDuration(oldExpiry, duration);
         (uint256 base, ) = rentPrice(
             label,
-            registry.ownerOf(tokenId),
+            registry.latestOwnerOf(tokenId),
             duration,
             paymentToken
         ); // reverts if !isValid or !isPaymentToken
