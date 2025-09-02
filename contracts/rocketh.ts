@@ -74,7 +74,7 @@ const functions = {
   __patchProvider(env: Environment_) {
     // replacement for TransactionHashTracker
     // https://github.com/wighawag/rocketh/blob/main/packages/rocketh/src/environment/providers/TransactionHashTracker.ts
-    // still not fixed:
+    // still not fixed: https://github.com/wighawag/rocketh/issues/24
     const parent = env.network.provider;
     parent.request = async function (args: any) {
       if (args.method === "eth_getTransactionReceipt") {
