@@ -46,8 +46,8 @@ export const config = {
 // ------------------------------------------------------------------------------------------------
 // We regroup all what is needed for the deploy scripts
 // so that they just need to import this file
-import * as deployFunctions from '@rocketh/deploy' // this one provide a deploy function
-import * as readExecuteFunctions from '@rocketh/read-execute' // this one provide read,execute functions
+import * as deployFunctions from "@rocketh/deploy"; // this one provide a deploy function
+import * as readExecuteFunctions from "@rocketh/read-execute"; // this one provide read,execute functions
 // ------------------------------------------------------------------------------------------------
 // we re-export the artifacts, so they are easily available from the alias
 import artifacts from "./generated/artifacts.js";
@@ -57,25 +57,45 @@ export { artifacts };
 import {
   loadAndExecuteDeployments,
   setup,
-  
+  type CurriedFunctions,
   type Environment as Environment_,
-} from 'rocketh'
-import { createPublicClient, custom, type PublicClient } from 'viem'
+} from "rocketh";
+import { createPublicClient, custom } from "viem";
 
 const functions = {
   ...deployFunctions,
   ...readExecuteFunctions,
-  getPublicClient: (env: Environment_) => {
+  getPublicClient: (env: Environment_) => () => {
     return createPublicClient({
       chain: env.network.chain,
       transport: custom(env.network.provider),
-    })
+    });
   },
-}
-
-type Environment = Environment_<typeof config.accounts> & {
-  getPublicClient: () => PublicClient
-}
+  __patchProvider(env: Environment_) {
+    // replacement for TransactionHashTracker
+    // https://github.com/wighawag/rocketh/blob/main/packages/rocketh/src/environment/providers/TransactionHashTracker.ts
+    // still not fixed:
+    const parent = env.network.provider;
+    parent.request = async function (args: any) {
+      if (args.method === "eth_getTransactionReceipt") {
+        const timeout = Date.now() + 2000;
+        for (;;) {
+          await new Promise((f) => setTimeout(f, 0));
+          const receipt = await parent.provider.request(args).catch(() => {});
+          if (receipt) return receipt;
+          if (Date.now() > timeout)
+            throw new Error(`timeout for receipt: ${args.params[0]}`);
+        }
+      } else {
+        const res = await parent.provider.request(args);
+        if (/^eth_send(Raw|)Transaction$/.test(args.method)) {
+          parent.transactionHashes?.push(res);
+        }
+        return res;
+      }
+    };
+  },
+};
 
 import type { Address } from "viem";
 type L1Arguments = {
@@ -86,49 +106,11 @@ type L1Arguments = {
 };
 export type Arguments = L1Arguments | undefined;
 
-const execute = setup<typeof functions, typeof config.accounts>(functions)<Arguments>;
+type Environment = Environment_<typeof config.accounts> &
+  CurriedFunctions<typeof functions>;
 
-export { execute, loadAndExecuteDeployments, type Environment }
+const execute = setup<typeof functions, typeof config.accounts>(
+  functions,
+)<Arguments>;
 
-// const execute = _execute as <
-//   Deployments extends UnknownDeployments = UnknownDeployments,
-// >(
-//   callback: DeployScriptFunction<
-//     typeof config.accounts,
-//     UnresolvedNetworkSpecificData,
-//     Arguments,
-//     Deployments
-//   >,
-//   options: { tags?: string[]; dependencies?: string[]; id?: string },
-// ) => DeployScriptModule<
-//   typeof config.accounts,
-//   UnresolvedNetworkSpecificData,
-//   Arguments,
-//   Deployments
-// >;
-// export { execute, loadAndExecuteDeployments };
-
-// extendEnvironment((env) => {
-//   // replacement for TransactionHashTracker
-//   // https://github.com/wighawag/rocketh/blob/main/packages/rocketh/src/environment/providers/TransactionHashTracker.ts
-//   const parent = env.network.provider;
-//   parent.request = async function (args: any) {
-//     if (args.method === "eth_getTransactionReceipt") {
-//       const timeout = Date.now() + 2000;
-//       for (;;) {
-//         await new Promise((f) => setTimeout(f, 0));
-//         const receipt = await parent.provider.request(args).catch(() => {});
-//         if (receipt) return receipt;
-//         if (Date.now() > timeout)
-//           throw new Error(`timeout for receipt: ${args.params[0]}`);
-//       }
-//     } else {
-//       const res = await parent.provider.request(args);
-//       if (/^eth_send(Raw|)Transaction$/.test(args.method)) {
-//         parent.transactionHashes?.push(res);
-//       }
-//       return res;
-//     }
-//   };
-//   return env;
-// });
+export { execute, loadAndExecuteDeployments, type Environment };
