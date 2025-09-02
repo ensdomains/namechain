@@ -84,7 +84,7 @@ async function fixture() {
   });
   const ethResolver = await mainnetV2.deployDedicatedResolver();
   const burnAddressV1 = "0x000000000000000000000000000000000000FadE";
-  const ethTLDResolver = await deployWithMaxRequests(32);
+  const ethTLDResolver = await deployWithMax(32);
   return {
     ethTLDResolver,
     ethResolver,
@@ -92,9 +92,9 @@ async function fixture() {
     burnAddressV1,
     mainnetV2,
     namechain,
-    deployWithMaxRequests,
+    deployWithMax,
   } as const;
-  async function deployWithMaxRequests(maxReadsPerRequest: number) {
+  async function deployWithMax(max: number) {
     const resolver = await chain1.viem.deployContract(
       "ETHTLDResolver",
       [
@@ -105,7 +105,7 @@ async function fixture() {
         verifierAddress,
         namechain.datastore.address,
         namechain.ethRegistry.address,
-        maxReadsPerRequest,
+        max,
       ],
       { client: { public: mainnetV2.publicClient } }, // CCIP on EFR
     );
@@ -544,19 +544,21 @@ describe("ETHTLDResolver", () => {
       bundle.expect(answer);
     });
     describe("resolve(multicall)", () => {
-      for (const max of [1, 2, 32, 254]) {
-        it(`maxReadsPerRequest = ${max}`, async () => {
+      const [call] = makeResolutions(kp);
+      for (const max of [1, 2, 3]) {
+        it(`maxCallsPerMulticall = ${max}`, async () => {
           const F = await loadFixture();
-          const ethTLDResolver = await F.deployWithMaxRequests(max);
+          const ethTLDResolver = await F.deployWithMax(max);
           await expect(
-            ethTLDResolver.read.maxReadsPerRequest(),
+            ethTLDResolver.read.maxCallsPerMulticall(),
             "max",
           ).resolves.toStrictEqual(max);
-          const bundle = bundleCalls(makeResolutions(kp));
+          const calls = Array.from({ length: max }, () => call);
+          const bundle = bundleCalls(calls);
           const { dedicatedResolver } = await F.namechain.setupName(kp);
           await F.namechain.walletClient.sendTransaction({
             to: dedicatedResolver.address,
-            data: bundle.writeDedicated,
+            data: call.writeDedicated,
           });
           await sync();
           const answer = await ethTLDResolver.read.resolve([
@@ -564,6 +566,14 @@ describe("ETHTLDResolver", () => {
             bundle.call,
           ]);
           bundle.expect(answer);
+          await expect(
+            ethTLDResolver.read.resolve([
+              dnsEncodeName(kp.name),
+              bundleCalls([...calls, call]).call,
+            ]),
+          )
+            .toBeRevertedWithCustomError("MulticallTooLarge")
+            .withArgs([BigInt(max)]);
         });
       }
     });
