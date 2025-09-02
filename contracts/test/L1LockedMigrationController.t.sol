@@ -32,10 +32,15 @@ contract MockNameWrapper {
     mapping(uint256 => uint32) public fuses;
     mapping(uint256 => uint64) public expiries;
     mapping(uint256 => address) public owners;
+    mapping(uint256 => address) public resolvers;
     
     function setFuseData(uint256 tokenId, uint32 _fuses, uint64 _expiry) external {
         fuses[tokenId] = _fuses;
         expiries[tokenId] = _expiry;
+    }
+    
+    function setInitialResolver(uint256 tokenId, address resolver) external {
+        resolvers[tokenId] = resolver;
     }
     
     function getData(uint256 id) external view returns (address, uint32, uint64) {
@@ -46,6 +51,15 @@ contract MockNameWrapper {
         uint256 tokenId = uint256(node);
         fuses[tokenId] = fuses[tokenId] | fusesToBurn;
         return fuses[tokenId];
+    }
+    
+    function setResolver(bytes32 node, address resolver) external {
+        uint256 tokenId = uint256(node);
+        resolvers[tokenId] = resolver;
+    }
+    
+    function getResolver(uint256 tokenId) external view returns (address) {
+        return resolvers[tokenId];
     }
 }
 
@@ -124,9 +138,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             bridge,
             bridgeController,
             factory,
-            address(implementation),
-            datastore,
-            metadata
+            address(implementation)
         );
         
         // Grant bridge controller permission to be called by migration controller
@@ -152,7 +164,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"), // DNS encode "test.eth"
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -192,7 +204,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"), // DNS encode "test.eth"
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -239,7 +251,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"), // DNS encode "test.eth"
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -266,7 +278,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"), // DNS encode "test.eth"
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -294,7 +306,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("wronglabel"), // DNS encode "wronglabel.eth"
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -318,7 +330,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"), // DNS encode "test.eth"
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -366,7 +378,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 }),
                 toL1: true,
                 dnsEncodedName: dnsEncodedName,
-                salt: abi.encodePacked(labels[i], block.timestamp, i)
+                salt: uint256(keccak256(abi.encodePacked(labels[i], block.timestamp, i)))
             });
         }
         
@@ -400,7 +412,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
         
         // Prepare migration data with unique salt
-        bytes memory saltData = abi.encodePacked(testLabel, uint256(999));
+        uint256 saltData = uint256(keccak256(abi.encodePacked(testLabel, uint256(999))));
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
                 label: testLabel,
@@ -450,7 +462,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -495,7 +507,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -535,7 +547,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -575,7 +587,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -620,7 +632,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -665,7 +677,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -708,7 +720,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
-            salt: abi.encodePacked(testLabel, block.timestamp)
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -736,7 +748,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             }),
             toL1: true,
             dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
-            salt: abi.encodePacked(testLabel, "owner_test")
+            salt: uint256(keccak256(abi.encodePacked(testLabel, "owner_test")))
         });
         
         bytes memory data = abi.encode(migrationData);
@@ -757,6 +769,88 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         uint256 ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
         uint256 upgradeRoles = ROLE_UPGRADE | ROLE_UPGRADE_ADMIN;
         assertTrue(subRegistry.hasRootRoles(upgradeRoles, user), "User should have UPGRADE roles on subregistry");
+    }
+
+    function test_freezeName_clears_resolver_when_fuse_not_set() public {
+        // Setup locked name with CANNOT_SET_RESOLVER fuse NOT set
+        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
+        
+        // Set an initial resolver on the name
+        address initialResolver = address(0x9999);
+        nameWrapper.setInitialResolver(testTokenId, initialResolver);
+        
+        // Verify resolver is initially set
+        assertEq(nameWrapper.getResolver(testTokenId), initialResolver, "Initial resolver should be set");
+        
+        // Prepare migration data
+        MigrationData memory migrationData = MigrationData({
+            transferData: TransferData({
+                label: testLabel,
+                owner: user,
+                subregistry: address(0), // Will be created by factory
+                resolver: address(0xABCD),
+                expires: uint64(block.timestamp + 86400),
+                roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
+            }),
+            toL1: true,
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
+        });
+        
+        bytes memory data = abi.encode(migrationData);
+        
+        // Call onERC1155Received
+        vm.prank(address(nameWrapper));
+        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        
+        // Verify resolver was cleared to address(0)
+        assertEq(nameWrapper.getResolver(testTokenId), address(0), "Resolver should be cleared to address(0)");
+        
+        // Verify CANNOT_SET_RESOLVER fuse was burned
+        (, uint32 newFuses, ) = nameWrapper.getData(testTokenId);
+        assertTrue((newFuses & CANNOT_SET_RESOLVER) != 0, "CANNOT_SET_RESOLVER should be burnt after migration");
+    }
+
+    function test_freezeName_preserves_resolver_when_fuse_already_set() public {
+        // Setup locked name with CANNOT_SET_RESOLVER fuse already set
+        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH | CANNOT_SET_RESOLVER;
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
+        
+        // Set an initial resolver on the name
+        address initialResolver = address(0x8888);
+        nameWrapper.setInitialResolver(testTokenId, initialResolver);
+        
+        // Verify resolver is initially set
+        assertEq(nameWrapper.getResolver(testTokenId), initialResolver, "Initial resolver should be set");
+        
+        // Prepare migration data
+        MigrationData memory migrationData = MigrationData({
+            transferData: TransferData({
+                label: testLabel,
+                owner: user,
+                subregistry: address(0), // Will be created by factory
+                resolver: address(0xABCD),
+                expires: uint64(block.timestamp + 86400),
+                roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
+            }),
+            toL1: true,
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
+            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
+        });
+        
+        bytes memory data = abi.encode(migrationData);
+        
+        // Call onERC1155Received
+        vm.prank(address(nameWrapper));
+        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        
+        // Verify resolver was NOT changed (since fuse was already set)
+        assertEq(nameWrapper.getResolver(testTokenId), initialResolver, "Resolver should be preserved when fuse already set");
+        
+        // Verify CANNOT_SET_RESOLVER fuse remains set
+        (, uint32 newFuses, ) = nameWrapper.getData(testTokenId);
+        assertTrue((newFuses & CANNOT_SET_RESOLVER) != 0, "CANNOT_SET_RESOLVER should remain burnt");
     }
 
 

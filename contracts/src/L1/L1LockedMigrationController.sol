@@ -15,8 +15,6 @@ import {MigratedWrappedNameRegistry} from "./MigratedWrappedNameRegistry.sol";
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 import {LibLockedNames} from "./LibLockedNames.sol";
 import {VerifiableFactory} from "../../lib/verifiable-factory/src/VerifiableFactory.sol";
-import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
-import {IRegistryMetadata} from "../common/IRegistryMetadata.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import "../common/Errors.sol";
@@ -30,8 +28,6 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     L1BridgeController public immutable l1BridgeController;
     VerifiableFactory public immutable factory;
     address public immutable migratedRegistryImplementation;
-    IRegistryDatastore public immutable datastore;
-    IRegistryMetadata public immutable metadata;
 
     constructor(
         IBaseRegistrar _ethRegistryV1, 
@@ -39,9 +35,7 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
         IBridge _bridge, 
         L1BridgeController _l1BridgeController,
         VerifiableFactory _factory,
-        address _migratedRegistryImplementation,
-        IRegistryDatastore _datastore,
-        IRegistryMetadata _metadata
+        address _migratedRegistryImplementation
     ) Ownable(msg.sender) {
         ethRegistryV1 = _ethRegistryV1;
         nameWrapper = _nameWrapper;
@@ -49,8 +43,6 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
         l1BridgeController = _l1BridgeController;
         factory = _factory;
         migratedRegistryImplementation = _migratedRegistryImplementation;
-        datastore = _datastore;
-        metadata = _metadata;
     }
 
     function supportsInterface(bytes4 interfaceId) public virtual view override(ERC165, IERC165) returns (bool) {
@@ -96,12 +88,11 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             LibLockedNames.validateIsDotEth2LD(fuses, tokenIds[i]);
             
             // Create new registry instance for the migrated name
-            uint256 salt = uint256(keccak256(migrationDataArray[i].salt));
             address subregistry = LibLockedNames.deployMigratedRegistry(
                 factory,
                 migratedRegistryImplementation,
                 migrationDataArray[i].transferData.owner,
-                salt,
+                migrationDataArray[i].salt,
                 migrationDataArray[i].dnsEncodedName
             );
             
@@ -119,7 +110,7 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             l1BridgeController.completeEjectionToL1(migrationDataArray[i].transferData);
 
             // Finalize migration by freezing the name
-            LibLockedNames.burnAllFuses(nameWrapper, tokenIds[i]);
+            LibLockedNames.freezeName(nameWrapper, tokenIds[i], fuses);
         }
     }
 }

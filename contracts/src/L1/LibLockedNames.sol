@@ -78,9 +78,10 @@ library LibLockedNames {
         bytes memory parentDnsEncodedName
     ) internal returns (address subregistry) {
         bytes memory initData = abi.encodeWithSignature(
-            "initialize(address,bytes)",
+            "initialize(bytes,address,address)",
+            parentDnsEncodedName,
             owner,
-            parentDnsEncodedName
+            address(0)
         );
         subregistry = factory.deployProxy(implementation, salt, initData);
     }
@@ -114,12 +115,18 @@ library LibLockedNames {
     }
 
     /**
-     * @notice Burns all migration fuses on a name token
-     * @dev Permanently freezes the migrated name to prevent further modifications
+     * @notice Freezes a name by clearing its resolver if possible and burning all migration fuses
+     * @dev Sets resolver to address(0) if CANNOT_SET_RESOLVER is not burned, then permanently freezes the name
      * @param nameWrapper The NameWrapper contract
-     * @param tokenId The token ID to burn fuses on
+     * @param tokenId The token ID to freeze
+     * @param fuses The current fuses on the name
      */
-    function burnAllFuses(INameWrapper nameWrapper, uint256 tokenId) internal {
+    function freezeName(INameWrapper nameWrapper, uint256 tokenId, uint32 fuses) internal {
+        // Clear resolver if CANNOT_SET_RESOLVER fuse is not set
+        if ((fuses & CANNOT_SET_RESOLVER) == 0) {
+            nameWrapper.setResolver(bytes32(tokenId), address(0));
+        }
+        
         nameWrapper.setFuses(bytes32(tokenId), uint16(FUSES_TO_BURN));
     }
 }

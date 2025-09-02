@@ -129,7 +129,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
             }),
             toL1: false,
             dnsEncodedName: "",
-            salt: ""
+            salt: 0
         });
     }
 
@@ -148,7 +148,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
             }),
             toL1: toL1,
             dnsEncodedName: "",
-            salt: ""
+            salt: 0
         });
     }
 

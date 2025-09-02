@@ -29,5 +29,5 @@ struct MigrationData {
     /**
      * @dev (Optional) Salt for CREATE2 deployments.
      */
-    bytes salt;
+    uint256 salt;
 }
