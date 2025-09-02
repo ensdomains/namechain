@@ -81,11 +81,11 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     }
 
     function test_lock_by_revoking_subregistry_role() public {
-        // Test that revoking ROLE_SET_SUBREGISTRY from all users locks a name
+        // Test that revoking ROLE_SET_SUBREGISTRY from all users locks a name (when no admin role is present)
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         string memory label = "lockable";
         
-        // Register a name with ROLE_SET_SUBREGISTRY
+        // Register a name with ROLE_SET_SUBREGISTRY (but no admin role)
         uint256 initialTokenId = registry.register(
             label, 
             address(this), 
@@ -95,10 +95,11 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
             expiryTime
         );
         
-        // Verify it's currently ejectable by checking assignee count
+        // Verify it's currently ejectable by checking combined assignee count
         uint256 resource = NameUtils.getCanonicalId(initialTokenId);
-        (uint256 count,) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY);
-        assertTrue(count > 0, "Should have assignees for ROLE_SET_SUBREGISTRY");
+        uint256 combinedRoles = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+        (uint256 count,) = registry.getAssigneeCount(resource, combinedRoles);
+        assertTrue(count > 0, "Should have assignees for combined subregistry roles");
         
         // Revoke ROLE_SET_SUBREGISTRY from the owner - this will regenerate the token ID
         registry.revokeRoles(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY, address(this));
@@ -106,9 +107,9 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         // Get the new token ID after role change
         (uint256 newTokenId,,) = registry.getNameData(label);
         
-        // Now it should be locked (no assignees)
-        (count,) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY);
-        assertTrue(count == 0, "Should have no assignees for ROLE_SET_SUBREGISTRY after revoke");
+        // Now it should be locked (no assignees for either role)
+        (count,) = registry.getAssigneeCount(resource, combinedRoles);
+        assertTrue(count == 0, "Should have no assignees for combined subregistry roles after revoke");
         
         // Create ejection data for this specific label
         TransferData memory transferData = TransferData({
@@ -131,23 +132,24 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         string memory label = "locked";
         
-        // Create a locked name (without ROLE_SET_SUBREGISTRY)
+        // Create a locked name (without any subregistry roles)
         TransferData memory transferData = TransferData({
             label: label,
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER // No ROLE_SET_SUBREGISTRY
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER // No subregistry roles
         });
         
         vm.prank(address(bridge));
         uint256 initialTokenId = bridgeController.completeEjectionToL1(transferData);
         
-        // Verify it's locked
+        // Verify it's locked by checking combined roles
         uint256 resource = NameUtils.getCanonicalId(initialTokenId);
-        (uint256 count,) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY);
-        assertTrue(count == 0, "Should have no assignees for ROLE_SET_SUBREGISTRY");
+        uint256 combinedRoles = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+        (uint256 count,) = registry.getAssigneeCount(resource, combinedRoles);
+        assertTrue(count == 0, "Should have no assignees for combined subregistry roles");
         
         // Create ejection data for this specific label
         bytes memory ejectionData = _createEjectionDataWithLabel(
@@ -169,13 +171,58 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         // Get the new token ID after role change
         (uint256 newTokenId,,) = registry.getNameData(label);
         
-        // Verify it's now unlocked
-        (count,) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY);
-        assertTrue(count > 0, "Should have assignees for ROLE_SET_SUBREGISTRY after grant");
+        // Verify it's now unlocked by checking combined roles
+        (count,) = registry.getAssigneeCount(resource, combinedRoles);
+        assertTrue(count > 0, "Should have assignees for combined subregistry roles after grant");
         
         // Should now succeed to eject with the new token ID
         registry.safeTransferFrom(address(this), address(bridgeController), newTokenId, 1, ejectionData);
     }
+
+    function test_unlock_with_admin_role_only() public {
+        // Test that a name with only ROLE_SET_SUBREGISTRY_ADMIN (no base role) is still unlocked
+        uint64 expiryTime = uint64(block.timestamp) + 86400;
+        string memory label = "adminonly";
+        
+        // Create a name with only admin role via bridge migration  
+        TransferData memory transferData = TransferData({
+            label: label,
+            owner: address(this),
+            subregistry: address(registry),
+            resolver: MOCK_RESOLVER,
+            expires: expiryTime,
+            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN // Only admin role
+        });
+        
+        vm.prank(address(bridge));
+        uint256 tokenId = bridgeController.completeEjectionToL1(transferData);
+        
+        // Verify the combined role check shows it's unlocked
+        uint256 resource = NameUtils.getCanonicalId(tokenId);
+        uint256 combinedRoles = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+        (uint256 count,) = registry.getAssigneeCount(resource, combinedRoles);
+        assertTrue(count > 0, "Should have assignees for combined subregistry roles (admin role present)");
+        
+        // Verify individual role counts
+        (uint256 baseCount,) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY);
+        (uint256 adminCount,) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN);
+        assertTrue(baseCount == 0, "Should have no base role assignees");
+        assertTrue(adminCount > 0, "Should have admin role assignees");
+        
+        // Should be able to eject this name (has admin role so unlocked)
+        bytes memory ejectionData = _createEjectionDataWithLabel(
+            label,
+            address(1),
+            address(2),
+            address(3),
+            uint64(block.timestamp + 86400),
+            LibRegistryRoles.ROLE_SET_RESOLVER
+        );
+        
+        // This should succeed (no revert expected) because admin role makes it unlocked
+        registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, ejectionData);
+    }
+
 
     function _createEjectionData(
         address l2Owner,

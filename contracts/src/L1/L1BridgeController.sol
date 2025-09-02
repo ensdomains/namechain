@@ -77,9 +77,9 @@ contract L1BridgeController is EjectionController {
             uint256 tokenId = tokenIds[i];
             TransferData memory transferData = transferDataArray[i];
 
-            // Check if name is locked (no assignees for ROLE_SET_SUBREGISTRY means locked)
+            // Check if name is locked (no assignees for ROLE_SET_SUBREGISTRY or ROLE_SET_SUBREGISTRY_ADMIN means locked)
             uint256 resource = NameUtils.getCanonicalId(tokenId);
-            (uint256 count, ) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY);
+            (uint256 count, ) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN);
             if (count == 0) {
                 revert LockedNameCannotBeEjected(tokenId);
             }
