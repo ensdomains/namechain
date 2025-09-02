@@ -13,7 +13,7 @@
         "@ensdomains/address-encoder": "^1.1.3",
         "@ensdomains/hardhat-chai-matchers-viem": "^0.1.14",
         "@namestone/ezccip": "^0.1.0",
-        "@nomicfoundation/edr": "^0.11.3",
+        "@nomicfoundation/edr": "0.12.0-next.4",
         "@nomicfoundation/hardhat-foundry": "^1.2.0",
         "@nomicfoundation/hardhat-keystore": "3.0.0",
         "@nomicfoundation/hardhat-network-helpers": "3.0.0",
@@ -125,21 +125,21 @@
 
     "@noble/hashes": ["@noble/hashes@1.8.0", "", {}, "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="],
 
-    "@nomicfoundation/edr": ["@nomicfoundation/edr@0.11.3", "", { "dependencies": { "@nomicfoundation/edr-darwin-arm64": "0.11.3", "@nomicfoundation/edr-darwin-x64": "0.11.3", "@nomicfoundation/edr-linux-arm64-gnu": "0.11.3", "@nomicfoundation/edr-linux-arm64-musl": "0.11.3", "@nomicfoundation/edr-linux-x64-gnu": "0.11.3", "@nomicfoundation/edr-linux-x64-musl": "0.11.3", "@nomicfoundation/edr-win32-x64-msvc": "0.11.3" } }, "sha512-kqILRkAd455Sd6v8mfP3C1/0tCOynJWY+Ir+k/9Boocu2kObCrsFgG+ZWB7fSBVdd9cPVSNrnhWS+V+PEo637g=="],
+    "@nomicfoundation/edr": ["@nomicfoundation/edr@0.12.0-next.4", "", { "optionalDependencies": { "@nomicfoundation/edr-darwin-arm64": "0.12.0-next.4", "@nomicfoundation/edr-darwin-x64": "0.12.0-next.4", "@nomicfoundation/edr-linux-arm64-gnu": "0.12.0-next.4", "@nomicfoundation/edr-linux-arm64-musl": "0.12.0-next.4", "@nomicfoundation/edr-linux-x64-gnu": "0.12.0-next.4", "@nomicfoundation/edr-linux-x64-musl": "0.12.0-next.4", "@nomicfoundation/edr-win32-x64-msvc": "0.12.0-next.4" } }, "sha512-yXMIpISsZcrlCziY5fwd9s8iJ7Rs9AD+UyHKKzSazKevMvJRlLbdCVqoEld9QZRwWo9Pc8AyAUmS9Xix+ZQiRQ=="],
 
-    "@nomicfoundation/edr-darwin-arm64": ["@nomicfoundation/edr-darwin-arm64@0.11.3", "", {}, "sha512-w0tksbdtSxz9nuzHKsfx4c2mwaD0+l5qKL2R290QdnN9gi9AV62p9DHkOgfBdyg6/a6ZlnQqnISi7C9avk/6VA=="],
+    "@nomicfoundation/edr-darwin-arm64": ["@nomicfoundation/edr-darwin-arm64@0.12.0-next.4", "", {}, "sha512-BJKRXjqqerACk92inxu7haweb3KFk4VJ2qemIjMT7xf4k0RyOO6lzmv+pToD5MMDGEpqhLcI61ALY9oyNKirtQ=="],
 
-    "@nomicfoundation/edr-darwin-x64": ["@nomicfoundation/edr-darwin-x64@0.11.3", "", {}, "sha512-QR4jAFrPbOcrO7O2z2ESg+eUeIZPe2bPIlQYgiJ04ltbSGW27FblOzdd5+S3RoOD/dsZGKAvvy6dadBEl0NgoA=="],
+    "@nomicfoundation/edr-darwin-x64": ["@nomicfoundation/edr-darwin-x64@0.12.0-next.4", "", {}, "sha512-MMN3VaoPhbepI4Z0anZB0jPorpRik7XwWbTqGyuZZcmNld9ZGKXE5ZQux31eKqSzPfcukHkNilFFZhCN/ck3TA=="],
 
-    "@nomicfoundation/edr-linux-arm64-gnu": ["@nomicfoundation/edr-linux-arm64-gnu@0.11.3", "", {}, "sha512-Ktjv89RZZiUmOFPspuSBVJ61mBZQ2+HuLmV67InNlh9TSUec/iDjGIwAn59dx0bF/LOSrM7qg5od3KKac4LJDQ=="],
+    "@nomicfoundation/edr-linux-arm64-gnu": ["@nomicfoundation/edr-linux-arm64-gnu@0.12.0-next.4", "", {}, "sha512-SYwe1duRkr5i8KnBe3Hw1X25cy/XNVpy5dj/1KbCh8fh1bvv5/gCw+MZW2N2+XzXOwTkP3aMwI2jDGCw4yB0xQ=="],
 
-    "@nomicfoundation/edr-linux-arm64-musl": ["@nomicfoundation/edr-linux-arm64-musl@0.11.3", "", {}, "sha512-B3sLJx1rL2E9pfdD4mApiwOZSrX0a/KQSBWdlq1uAhFKqkl00yZaY4LejgZndsJAa4iKGQJlGnw4HCGeVt0+jA=="],
+    "@nomicfoundation/edr-linux-arm64-musl": ["@nomicfoundation/edr-linux-arm64-musl@0.12.0-next.4", "", {}, "sha512-FT37tuqYnjLhvlZQey5b7HMhvVVuk5vdVH58cmG6LP3y1R+G/eJJYp8ZEasm67eWgUANp/LwZ2Os0mdkkv2k3g=="],
 
-    "@nomicfoundation/edr-linux-x64-gnu": ["@nomicfoundation/edr-linux-x64-gnu@0.11.3", "", {}, "sha512-D/4cFKDXH6UYyKPu6J3Y8TzW11UzeQI0+wS9QcJzjlrrfKj0ENW7g9VihD1O2FvXkdkTjcCZYb6ai8MMTCsaVw=="],
+    "@nomicfoundation/edr-linux-x64-gnu": ["@nomicfoundation/edr-linux-x64-gnu@0.12.0-next.4", "", {}, "sha512-omW2AyLa2WqD7MD5tI8d4Lu4hC0fFei708pM1CWCM0C45DJJxg32e3iNoQzyPgpoVq24ck7GO1fEOWhtt0r5eQ=="],
 
-    "@nomicfoundation/edr-linux-x64-musl": ["@nomicfoundation/edr-linux-x64-musl@0.11.3", "", {}, "sha512-ergXuIb4nIvmf+TqyiDX5tsE49311DrBky6+jNLgsGDTBaN1GS3OFwFS8I6Ri/GGn6xOaT8sKu3q7/m+WdlFzg=="],
+    "@nomicfoundation/edr-linux-x64-musl": ["@nomicfoundation/edr-linux-x64-musl@0.12.0-next.4", "", {}, "sha512-lOy2UZWwLnsbLz5NnewhmkM9PtVjzIBzajXX5zcQUdjJmN3daj5wsrR/b0hC8BPqwfGlrLCBr8CJtepKNrEI6A=="],
 
-    "@nomicfoundation/edr-win32-x64-msvc": ["@nomicfoundation/edr-win32-x64-msvc@0.11.3", "", {}, "sha512-snvEf+WB3OV0wj2A7kQ+ZQqBquMcrozSLXcdnMdEl7Tmn+KDCbmFKBt3Tk0X3qOU4RKQpLPnTxdM07TJNVtung=="],
+    "@nomicfoundation/edr-win32-x64-msvc": ["@nomicfoundation/edr-win32-x64-msvc@0.12.0-next.4", "", {}, "sha512-OPpVYE7F4FuTKPdt8z0nrx/KZd7vHeNAjd4KAlzi+/X6imVHFX3sArVd0cdbw/oijINrvxgL/S6SrgbvSgASTA=="],
 
     "@nomicfoundation/hardhat-errors": ["@nomicfoundation/hardhat-errors@3.0.0", "", { "dependencies": { "@nomicfoundation/hardhat-utils": "^3.0.0" } }, "sha512-nYV5Z4Z5+xzL08GonNokPA3WbLngUB4H3XBmR9dnoLqM5ls90LmIuJdZy2dzxI0LbeG2pDT2r8wAJIBAStq1iA=="],
 
@@ -585,8 +585,6 @@
 
     "ethers/ws": ["ws@8.17.1", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-6XQFvXTkbfUOZOKKILFG1PDK2NDQs4azKQl26T0YS5CxqWLgXajbPZ+h4gZekJyRqFU8pvnbAbbs/3TgRPy+GQ=="],
 
-    "hardhat/@nomicfoundation/edr": ["@nomicfoundation/edr@0.12.0-next.4", "", { "optionalDependencies": { "@nomicfoundation/edr-darwin-arm64": "0.12.0-next.4", "@nomicfoundation/edr-darwin-x64": "0.12.0-next.4", "@nomicfoundation/edr-linux-arm64-gnu": "0.12.0-next.4", "@nomicfoundation/edr-linux-arm64-musl": "0.12.0-next.4", "@nomicfoundation/edr-linux-x64-gnu": "0.12.0-next.4", "@nomicfoundation/edr-linux-x64-musl": "0.12.0-next.4", "@nomicfoundation/edr-win32-x64-msvc": "0.12.0-next.4" } }, "sha512-yXMIpISsZcrlCziY5fwd9s8iJ7Rs9AD+UyHKKzSazKevMvJRlLbdCVqoEld9QZRwWo9Pc8AyAUmS9Xix+ZQiRQ=="],
-
     "hardhat-deploy/rocketh": ["rocketh@0.12.1", "", { "dependencies": { "@types/figlet": "^1.7.0", "@types/prompts": "^2.4.9", "commander": "^13.1.0", "eip-1193-jsonrpc-provider": "^0.4.3", "ethers": "^6.13.5", "figlet": "^1.8.0", "ldenv": "^0.3.12", "named-logs": "^0.3.2", "named-logs-console": "^0.3.1", "prompts": "^2.4.2", "tsx": "^4.19.3", "viem": "^2.23.12" }, "bin": { "rocketh": "dist/cli.js" } }, "sha512-i51i/IOD2jNwTZBT7DRH+MmwVa/rN0OvfyX0pxTtHalvzyERtvIH8xYQW7x7bdeHdRubkutVN+CA477eXo/3nA=="],
 
     "hardhat-deploy/zod": ["zod@4.1.5", "", {}, "sha512-rcUUZqlLJgBC33IT3PNMgsCq6TzLQEG/Ei/KTCU0PedSWRMAXoOUN+4t/0H+Q8bdnLPdqUYnvboJT0bn/229qg=="],
@@ -610,20 +608,6 @@
     "ethereum-cryptography/@scure/bip32/@scure/base": ["@scure/base@1.1.9", "", {}, "sha512-8YKhl8GHiNI/pU2VMaofa2Tor7PJRAjwQLBBuilkJ9L5+13yVbC7JO/wS7piioAvPSwR3JKM1IJ/u4xQzbcXKg=="],
 
     "ethereum-cryptography/@scure/bip39/@scure/base": ["@scure/base@1.1.9", "", {}, "sha512-8YKhl8GHiNI/pU2VMaofa2Tor7PJRAjwQLBBuilkJ9L5+13yVbC7JO/wS7piioAvPSwR3JKM1IJ/u4xQzbcXKg=="],
-
-    "hardhat/@nomicfoundation/edr/@nomicfoundation/edr-darwin-arm64": ["@nomicfoundation/edr-darwin-arm64@0.12.0-next.4", "", {}, "sha512-BJKRXjqqerACk92inxu7haweb3KFk4VJ2qemIjMT7xf4k0RyOO6lzmv+pToD5MMDGEpqhLcI61ALY9oyNKirtQ=="],
-
-    "hardhat/@nomicfoundation/edr/@nomicfoundation/edr-darwin-x64": ["@nomicfoundation/edr-darwin-x64@0.12.0-next.4", "", {}, "sha512-MMN3VaoPhbepI4Z0anZB0jPorpRik7XwWbTqGyuZZcmNld9ZGKXE5ZQux31eKqSzPfcukHkNilFFZhCN/ck3TA=="],
-
-    "hardhat/@nomicfoundation/edr/@nomicfoundation/edr-linux-arm64-gnu": ["@nomicfoundation/edr-linux-arm64-gnu@0.12.0-next.4", "", {}, "sha512-SYwe1duRkr5i8KnBe3Hw1X25cy/XNVpy5dj/1KbCh8fh1bvv5/gCw+MZW2N2+XzXOwTkP3aMwI2jDGCw4yB0xQ=="],
-
-    "hardhat/@nomicfoundation/edr/@nomicfoundation/edr-linux-arm64-musl": ["@nomicfoundation/edr-linux-arm64-musl@0.12.0-next.4", "", {}, "sha512-FT37tuqYnjLhvlZQey5b7HMhvVVuk5vdVH58cmG6LP3y1R+G/eJJYp8ZEasm67eWgUANp/LwZ2Os0mdkkv2k3g=="],
-
-    "hardhat/@nomicfoundation/edr/@nomicfoundation/edr-linux-x64-gnu": ["@nomicfoundation/edr-linux-x64-gnu@0.12.0-next.4", "", {}, "sha512-omW2AyLa2WqD7MD5tI8d4Lu4hC0fFei708pM1CWCM0C45DJJxg32e3iNoQzyPgpoVq24ck7GO1fEOWhtt0r5eQ=="],
-
-    "hardhat/@nomicfoundation/edr/@nomicfoundation/edr-linux-x64-musl": ["@nomicfoundation/edr-linux-x64-musl@0.12.0-next.4", "", {}, "sha512-lOy2UZWwLnsbLz5NnewhmkM9PtVjzIBzajXX5zcQUdjJmN3daj5wsrR/b0hC8BPqwfGlrLCBr8CJtepKNrEI6A=="],
-
-    "hardhat/@nomicfoundation/edr/@nomicfoundation/edr-win32-x64-msvc": ["@nomicfoundation/edr-win32-x64-msvc@0.12.0-next.4", "", {}, "sha512-OPpVYE7F4FuTKPdt8z0nrx/KZd7vHeNAjd4KAlzi+/X6imVHFX3sArVd0cdbw/oijINrvxgL/S6SrgbvSgASTA=="],
 
     "micro-eth-signer/@noble/curves/@noble/hashes": ["@noble/hashes@1.7.2", "", {}, "sha512-biZ0NUSxyjLLqo6KxEJ1b+C2NAx0wtDoFvCaXHGgUkeHzf3Xc1xKumFKREuT7f7DARNZ/slvYUwFG6B0f2b6hQ=="],
   }
