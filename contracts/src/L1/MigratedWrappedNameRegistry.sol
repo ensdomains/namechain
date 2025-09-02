@@ -22,6 +22,7 @@ import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IStandardRegistry} from "../common/IStandardRegistry.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {RegistryUtils} from "@ens/contracts/universalResolver/RegistryUtils.sol";
+import {IMigratedWrappedNameRegistry} from "./IMigratedWrappedNameRegistry.sol";
 import "./MigrationErrors.sol";
 import "../common/Errors.sol";
 
@@ -31,7 +32,7 @@ import "../common/Errors.sol";
  * This contract provides resolver fallback to the universal resolver for names that haven't been migrated yet.
  * It also handles subdomain migration by receiving NFT transfers from the NameWrapper.
  */
-contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable, IERC1155Receiver {
+contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable, IERC1155Receiver, IMigratedWrappedNameRegistry {
     using NameCoder for bytes;
     
     uint256 internal constant ROLE_UPGRADE = 1 << 20;
@@ -65,11 +66,13 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
      * @dev Initializes the MigratedWrappedNameRegistry contract.
      * @param _parentDnsEncodedName The DNS-encoded name of the parent domain.
      * @param _ownerAddress The address that will own this registry.
+     * @param _ownerRoles The roles to grant to the owner.
      * @param _registrarAddress Optional address to grant ROLE_REGISTRAR permissions (typically for testing).
      */
     function initialize(
         bytes calldata _parentDnsEncodedName,
         address _ownerAddress,
+        uint256 _ownerRoles,
         address _registrarAddress
     ) public initializer {
         require(_ownerAddress != address(0), "Owner cannot be zero address");
@@ -77,8 +80,8 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         // Set the parent domain for name resolution fallback
         parentDnsEncodedName = _parentDnsEncodedName;
         
-        // Configure owner with upgrade permissions
-        _grantRoles(ROOT_RESOURCE, ROLE_UPGRADE | ROLE_UPGRADE_ADMIN, _ownerAddress, false);
+        // Configure owner with upgrade permissions and specified roles
+        _grantRoles(ROOT_RESOURCE, ROLE_UPGRADE | ROLE_UPGRADE_ADMIN | _ownerRoles, _ownerAddress, false);
         
         // Grant registrar role if specified (typically for testing)
         if (_registrarAddress != address(0)) {
@@ -175,17 +178,18 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
             // Ensure proper domain hierarchy for migration
             _validateHierarchy(migrationDataArray[i].dnsEncodedName, migrationDataArray[i].transferData.label);
             
+            // Determine permissions from name configuration
+            (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
+            
             // Create dedicated registry for the migrated name
             address subregistry = LibLockedNames.deployMigratedRegistry(
                 factory,
                 address(this),
                 migrationDataArray[i].transferData.owner,
+                subRegistryRoles,
                 migrationDataArray[i].salt,
                 migrationDataArray[i].dnsEncodedName
             );
-            
-            // Determine permissions from name configuration
-            uint256 roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses);
             
             // Complete name registration in new registry
             _register(
@@ -193,7 +197,7 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
                 migrationDataArray[i].transferData.owner,
                 IRegistry(subregistry),
                 migrationDataArray[i].transferData.resolver,
-                roleBitmap,
+                tokenRoles,
                 migrationDataArray[i].transferData.expires
             );
             

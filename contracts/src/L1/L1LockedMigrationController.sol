@@ -87,18 +87,22 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             LibLockedNames.validateLockedName(fuses, tokenIds[i]);
             LibLockedNames.validateIsDotEth2LD(fuses, tokenIds[i]);
             
+            // Determine permissions from name configuration
+            (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
+            
             // Create new registry instance for the migrated name
             address subregistry = LibLockedNames.deployMigratedRegistry(
                 factory,
                 migratedRegistryImplementation,
                 migrationDataArray[i].transferData.owner,
+                subRegistryRoles,
                 migrationDataArray[i].salt,
                 migrationDataArray[i].dnsEncodedName
             );
             
             // Configure transfer data with registry and permission details
             migrationDataArray[i].transferData.subregistry = subregistry;
-            migrationDataArray[i].transferData.roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses);
+            migrationDataArray[i].transferData.roleBitmap = tokenRoles;
             
             // Ensure name data consistency for migration
             uint256 expectedTokenId = uint256(keccak256(bytes(migrationDataArray[i].transferData.label)));

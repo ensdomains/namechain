@@ -200,12 +200,12 @@ contract TestLibLockedNames is Test {
         wrapper.validateLockedName(invalidFuses, tokenId);
     }
     
-    function test_Revert_validateLockedName_inconsistent_fuses() public {
-        uint32 inconsistentFuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | IS_DOT_ETH;
+    function test_Revert_validateLockedName_cannot_be_migrated() public {
+        uint32 nonMigratableFuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | IS_DOT_ETH;
         uint256 tokenId = 0x123;
         
-        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.InconsistentFusesState.selector, tokenId));
-        wrapper.validateLockedName(inconsistentFuses, tokenId);
+        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NameCannotBeMigrated.selector, tokenId));
+        wrapper.validateLockedName(nonMigratableFuses, tokenId);
     }
     
     function test_validateIsDotEth2LD_valid() public pure {
@@ -224,78 +224,92 @@ contract TestLibLockedNames is Test {
         wrapper.validateIsDotEth2LD(invalidFuses, tokenId);
     }
     
-    function test_generateRoleBitmapFromFuses_all_permissions() public pure {
+    function test_generateRoleBitmapsFromFuses_all_permissions() public pure {
         // Fuses that allow all permissions
         uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
         
-        uint256 roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses);
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
         
-        // Should include all roles since no restrictive fuses are set
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_REGISTRAR) != 0, "Should have ROLE_REGISTRAR");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "Should have ROLE_REGISTRAR_ADMIN");
+        // Should include renewal and resolver roles since no restrictive fuses are set
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Token should have ROLE_RENEW");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Token should have ROLE_RENEW_ADMIN");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Token should have ROLE_SET_RESOLVER_ADMIN");
+        // Token should NEVER have registrar roles
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NEVER have ROLE_REGISTRAR");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Token should NEVER have ROLE_REGISTRAR_ADMIN");
+        
+        // SubRegistry should have registrar roles since subdomain creation is allowed
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "SubRegistry should have ROLE_REGISTRAR_ADMIN");
     }
     
-    function test_generateRoleBitmapFromFuses_no_extend_expiry() public pure {
+    function test_generateRoleBitmapsFromFuses_no_extend_expiry() public pure {
         // Fuses without CAN_EXTEND_EXPIRY
         uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH;
         
-        uint256 roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses);
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
         
-        // Should NOT have ROLE_RENEW
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW");
-        // Should have other roles
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_REGISTRAR) != 0, "Should have ROLE_REGISTRAR");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "Should have ROLE_REGISTRAR_ADMIN");
+        // Should NOT have renewal roles since CAN_EXTEND_EXPIRY is not set
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Token should NOT have ROLE_RENEW");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Token should NOT have ROLE_RENEW_ADMIN");
+        // Should have resolver roles
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Token should have ROLE_SET_RESOLVER_ADMIN");
+        // Token should NEVER have registrar roles
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NEVER have ROLE_REGISTRAR");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Token should NEVER have ROLE_REGISTRAR_ADMIN");
+        
+        // SubRegistry should have registrar roles since subdomain creation is allowed
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "SubRegistry should have ROLE_REGISTRAR_ADMIN");
     }
     
-    function test_generateRoleBitmapFromFuses_cannot_approve() public pure {
-        // Fuses with CANNOT_APPROVE
-        uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_APPROVE;
-        
-        uint256 roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses);
-        
-        // Should have ROLE_RENEW but NOT ROLE_RENEW_ADMIN
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN");
-    }
     
-    function test_generateRoleBitmapFromFuses_cannot_set_resolver() public pure {
+    function test_generateRoleBitmapsFromFuses_cannot_set_resolver() public pure {
         // Fuses with CANNOT_SET_RESOLVER
         uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_SET_RESOLVER;
         
-        uint256 roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses);
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
         
         // Should NOT have resolver roles
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_SET_RESOLVER) == 0, "Should NOT have ROLE_SET_RESOLVER");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) == 0, "Should NOT have ROLE_SET_RESOLVER_ADMIN");
-        // Should have other roles
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_REGISTRAR) != 0, "Should have ROLE_REGISTRAR");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "Should have ROLE_REGISTRAR_ADMIN");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) == 0, "Token should NOT have ROLE_SET_RESOLVER");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) == 0, "Token should NOT have ROLE_SET_RESOLVER_ADMIN");
+        // Should have renewal roles
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Token should have ROLE_RENEW");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Token should have ROLE_RENEW_ADMIN");
+        // Token should NEVER have registrar roles
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NEVER have ROLE_REGISTRAR");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Token should NEVER have ROLE_REGISTRAR_ADMIN");
+        
+        // SubRegistry should have registrar roles since subdomain creation is allowed
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "SubRegistry should have ROLE_REGISTRAR_ADMIN");
     }
     
-    function test_generateRoleBitmapFromFuses_cannot_create_subdomain() public pure {
+    function test_generateRoleBitmapsFromFuses_cannot_create_subdomain() public pure {
         // Fuses with CANNOT_CREATE_SUBDOMAIN
         uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_CREATE_SUBDOMAIN;
         
-        uint256 roleBitmap = LibLockedNames.generateRoleBitmapFromFuses(fuses);
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
         
-        // Should NOT have registrar roles
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Should NOT have ROLE_REGISTRAR");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Should NOT have ROLE_REGISTRAR_ADMIN");
-        // Should have other roles
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
-        assertTrue((roleBitmap & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
+        // Token should NOT have registrar roles
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NOT have ROLE_REGISTRAR");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Token should NOT have ROLE_REGISTRAR_ADMIN");
+        // Should have renewal and resolver roles
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Token should have ROLE_RENEW");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Token should have ROLE_RENEW_ADMIN");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Token should have ROLE_SET_RESOLVER_ADMIN");
+        // Token should NEVER have registrar roles
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NEVER have ROLE_REGISTRAR");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Token should NEVER have ROLE_REGISTRAR_ADMIN");
+        
+        // SubRegistry should NOT have registrar roles since subdomain creation is not allowed
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "SubRegistry should NOT have ROLE_REGISTRAR");
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "SubRegistry should NOT have ROLE_REGISTRAR_ADMIN");
+        // SubRegistry should be 0 (no roles)
+        assertEq(subRegistryRoles, 0, "SubRegistry roles should be 0 when CANNOT_CREATE_SUBDOMAIN is set");
     }
     
     function test_FUSES_TO_BURN_constant() public pure {

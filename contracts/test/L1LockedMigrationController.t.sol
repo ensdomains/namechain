@@ -227,9 +227,9 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
         
-        // Should have registrar roles since CANNOT_CREATE_SUBDOMAIN is not burnt
-        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "Should have ROLE_REGISTRAR when subdomain creation allowed");
-        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "Should have ROLE_REGISTRAR_ADMIN when subdomain creation allowed");
+        // Token should NEVER have registrar roles
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NEVER have ROLE_REGISTRAR");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Token should NEVER have ROLE_REGISTRAR_ADMIN");
         
         // Should NOT have the role from input data
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_SUBREGISTRY) == 0, "Should NOT have ROLE_SET_SUBREGISTRY from input");
@@ -262,8 +262,8 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
 
-    function test_Revert_cannot_burn_fuses_already_set() public {
-        // Configure name that is already permanently frozen
+    function test_Revert_name_cannot_be_migrated() public {
+        // Configure name that cannot be migrated (fuses are permanently frozen)
         uint32 fuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | IS_DOT_ETH;
         nameWrapper.setFuseData(testTokenId, fuses, uint64(block.timestamp + 86400));
         
@@ -283,8 +283,8 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         
         bytes memory data = abi.encode(migrationData);
         
-        // Migration should fail for permanently frozen names
-        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.InconsistentFusesState.selector, testTokenId));
+        // Migration should fail for names that cannot be migrated
+        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NameCannotBeMigrated.selector, testTokenId));
         vm.prank(address(nameWrapper));
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
@@ -482,9 +482,9 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
         
-        // Should have registrar roles since CANNOT_CREATE_SUBDOMAIN is not burnt
-        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "Should have ROLE_REGISTRAR when subdomain creation allowed");
-        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "Should have ROLE_REGISTRAR_ADMIN when subdomain creation allowed");
+        // Token should NEVER have registrar roles
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NEVER have ROLE_REGISTRAR");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Token should NEVER have ROLE_REGISTRAR_ADMIN");
         
         // Verify incoming roleBitmap was ignored
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_SUBREGISTRY) == 0, "Should NOT have ROLE_SET_SUBREGISTRY from incoming data");
@@ -521,54 +521,14 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
-        // Should NOT have ROLE_RENEW since CAN_EXTEND_EXPIRY is not set
+        // Should NOT have renewal roles since CAN_EXTEND_EXPIRY is not set
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW without CAN_EXTEND_EXPIRY");
-        // Should have ROLE_RENEW_ADMIN since CANNOT_APPROVE is not set
-        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN when CANNOT_APPROVE not set");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN without CAN_EXTEND_EXPIRY");
         // Should have resolver roles since CANNOT_SET_RESOLVER is not set
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
     }
 
-    function test_fuse_role_mapping_cannot_approve_fuse() public {
-        // Setup locked name with CANNOT_APPROVE fuse set
-        uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_APPROVE;
-        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
-        
-        // Prepare migration data
-        MigrationData memory migrationData = MigrationData({
-            transferData: TransferData({
-                label: testLabel,
-                owner: user,
-                subregistry: address(0), // Will be created by factory
-                resolver: address(0xABCD),
-                expires: uint64(block.timestamp + 86400),
-                roleBitmap: 0
-            }),
-            toL1: true,
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test"),
-            salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
-        });
-        
-        bytes memory data = abi.encode(migrationData);
-        
-        // Call onERC1155Received
-        vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
-        
-        // Get the registered name and check roles
-        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
-        uint256 userRoles = registry.roles(resource, user);
-        
-        // Should have ROLE_RENEW since CAN_EXTEND_EXPIRY is set
-        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW with CAN_EXTEND_EXPIRY");
-        // Should NOT have ROLE_RENEW_ADMIN since CANNOT_APPROVE is set
-        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN when CANNOT_APPROVE is set");
-        // Should have resolver roles since CANNOT_SET_RESOLVER is not set
-        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
-        assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
-    }
 
     function test_fuse_role_mapping_resolver_fuse_burnt() public {
         // Setup locked name with CANNOT_SET_RESOLVER already burnt
@@ -605,9 +565,9 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
         
-        // Should have registrar roles since CANNOT_CREATE_SUBDOMAIN is not burnt
-        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "Should have ROLE_REGISTRAR when subdomain creation allowed");
-        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "Should have ROLE_REGISTRAR_ADMIN when subdomain creation allowed");
+        // Token should NEVER have registrar roles
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NEVER have ROLE_REGISTRAR");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Token should NEVER have ROLE_REGISTRAR_ADMIN");
         
         // Should NOT have resolver roles since CANNOT_SET_RESOLVER is burnt
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) == 0, "Should NOT have ROLE_SET_RESOLVER");

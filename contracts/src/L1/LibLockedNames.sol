@@ -6,6 +6,7 @@ import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
 import {VerifiableFactory} from "../../lib/verifiable-factory/src/VerifiableFactory.sol";
+import {IMigratedWrappedNameRegistry} from "./IMigratedWrappedNameRegistry.sol";
 
 /**
  * @title LibLockedNames
@@ -14,7 +15,7 @@ import {VerifiableFactory} from "../../lib/verifiable-factory/src/VerifiableFact
  */
 library LibLockedNames {
     error NameNotLocked(uint256 tokenId);
-    error InconsistentFusesState(uint256 tokenId);
+    error NameCannotBeMigrated(uint256 tokenId);
     error NotDotEthName(uint256 tokenId);
 
     /**
@@ -43,8 +44,8 @@ library LibLockedNames {
             if ((fuses & CANNOT_UNWRAP) == 0) {
                 revert NameNotLocked(tokenId);
             }
-            // Name is locked but fuses are permanently frozen
-            revert InconsistentFusesState(tokenId);
+            // Name is locked but fuses are permanently frozen and cannot be migrated
+            revert NameCannotBeMigrated(tokenId);
         }
     }
 
@@ -62,10 +63,11 @@ library LibLockedNames {
 
     /**
      * @notice Deploys a new MigratedWrappedNameRegistry via VerifiableFactory
-     * @dev The owner will have REGISTRAR and REGISTRAR_ADMIN roles on the deployed registry
+     * @dev The owner will have the specified roles on the deployed registry
      * @param factory The VerifiableFactory to use for deployment
      * @param implementation The implementation address for the proxy
      * @param owner The address that will own the deployed registry
+     * @param ownerRoles The roles to grant to the owner
      * @param salt The salt for CREATE2 deployment
      * @param parentDnsEncodedName The DNS-encoded name of the parent domain
      * @return subregistry The address of the deployed registry
@@ -74,43 +76,38 @@ library LibLockedNames {
         VerifiableFactory factory,
         address implementation,
         address owner,
+        uint256 ownerRoles,
         uint256 salt,
         bytes memory parentDnsEncodedName
     ) internal returns (address subregistry) {
-        bytes memory initData = abi.encodeWithSignature(
-            "initialize(bytes,address,address)",
-            parentDnsEncodedName,
-            owner,
-            address(0)
+        bytes memory initData = abi.encodeCall(
+            IMigratedWrappedNameRegistry.initialize,
+            (parentDnsEncodedName, owner, ownerRoles, address(0))
         );
         subregistry = factory.deployProxy(implementation, salt, initData);
     }
 
     /**
-     * @notice Generates the role bitmap based on fuses
-     * @dev Conditionally adds REGISTRAR, RENEW and RESOLVER roles based on fuses
+     * @notice Generates role bitmaps based on fuses
+     * @dev Returns two bitmaps: tokenRoles for the name registration and subRegistryRoles for the registry owner
      * @param fuses The current fuses on the name
-     * @return roleBitmap The generated role bitmap
+     * @return tokenRoles The role bitmap for the registered name
+     * @return subRegistryRoles The role bitmap for the subregistry owner
      */
-    function generateRoleBitmapFromFuses(uint32 fuses) internal pure returns (uint256 roleBitmap) {
-        // Include renewal permission if expiry can be extended
+    function generateRoleBitmapsFromFuses(uint32 fuses) internal pure returns (uint256 tokenRoles, uint256 subRegistryRoles) {
+        // Include renewal permissions if expiry can be extended
         if ((fuses & CAN_EXTEND_EXPIRY) != 0) {
-            roleBitmap |= LibRegistryRoles.ROLE_RENEW;
-        }
-        
-        // Include renewal admin permission if approvals are allowed
-        if ((fuses & CANNOT_APPROVE) == 0) {
-            roleBitmap |= LibRegistryRoles.ROLE_RENEW_ADMIN;
+            tokenRoles |= LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_RENEW_ADMIN;
         }
         
         // Conditionally add resolver roles
         if ((fuses & CANNOT_SET_RESOLVER) == 0) {
-            roleBitmap |= LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
+            tokenRoles |= LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
         }
         
-        // Include registrar roles if subdomain creation is allowed
+        // Owner gets registrar permissions on subregistry only if subdomain creation is allowed
         if ((fuses & CANNOT_CREATE_SUBDOMAIN) == 0) {
-            roleBitmap |= LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN;
+            subRegistryRoles |= LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN;
         }
     }
 

@@ -132,6 +132,7 @@ contract TestMigratedWrappedNameRegistry is Test {
             MigratedWrappedNameRegistry.initialize.selector,
             "\x03eth\x00", // parent DNS-encoded name for .eth
             owner,
+            0, // ownerRoles
             address(nameWrapper) // registrar for testing
         );
         
@@ -457,6 +458,7 @@ contract TestMigratedWrappedNameRegistry is Test {
             MigratedWrappedNameRegistry.initialize.selector,
             parentDnsName,
             owner,
+            0, // ownerRoles
             address(nameWrapper) // registrar for testing
         );
         
