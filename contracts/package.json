@@ -10,7 +10,7 @@
     "@nomicfoundation/hardhat-network-helpers": "3.0.0",
     "@nomicfoundation/hardhat-viem": "3.0.0",
     "@rocketh/deploy": "^0.14.0",
-    "@rocketh/proxy": "^0.13.0",
+    "@rocketh/proxy": "^0.14.0",
     "@rocketh/read-execute": "^0.14.0",
     "@rocketh/verifier": "^0.14.0",
     "@rocketh/viem": "^0.14.0",

@@ -19,7 +19,7 @@
         "@nomicfoundation/hardhat-network-helpers": "3.0.0",
         "@nomicfoundation/hardhat-viem": "3.0.0",
         "@rocketh/deploy": "^0.14.0",
-        "@rocketh/proxy": "^0.13.0",
+        "@rocketh/proxy": "^0.14.0",
         "@rocketh/read-execute": "^0.14.0",
         "@rocketh/verifier": "^0.14.0",
         "@rocketh/viem": "^0.14.0",
@@ -176,7 +176,7 @@
 
     "@rocketh/deploy": ["@rocketh/deploy@0.14.0", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-4uBIpKchoTZ9QSxyTYYT137+nI0beOlqkh10NWwNgBrQXPpFc51pDB2cDZkgzJpJ5Bzn5hL6klaEsVfPxmAvSA=="],
 
-    "@rocketh/proxy": ["@rocketh/proxy@0.13.0", "", { "dependencies": { "@rocketh/deploy": "0.13.0", "@rocketh/read-execute": "0.13.0", "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-PTEmyeYfDdp1Nj1qffG4H9QQzRuigyqzB6kC++1TgvXV9dTjBrXai6FFjmXpIn9znScUunkmtemuP5Komeo6Wg=="],
+    "@rocketh/proxy": ["@rocketh/proxy@0.14.0", "", { "dependencies": { "@rocketh/deploy": "0.14.0", "@rocketh/read-execute": "0.14.0", "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-Dhj9/U/45NuCGCWoOOYPwQiMxA0bfHPnD8GOCwXOMJpXDJDpWDK6wPN/EyuOaG2rpmvy9JkpFf34y0rXBL9isQ=="],
 
     "@rocketh/read-execute": ["@rocketh/read-execute@0.14.0", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-+QhG2I34kg36FklCVotZdKp5UuNlq+AfnKka75wVJigdAn3+RSheYf9yhofT8tIGa4dv6p4LE5eett2HOmfENQ=="],
 
@@ -565,10 +565,6 @@
     "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@nomicfoundation/hardhat-keystore/@noble/hashes": ["@noble/hashes@1.7.1", "", {}, "sha512-B8XBPsn4vT/KJAGqDzbwztd+6Yte3P4V7iafm24bxgDe/mlRuK6xmWPuCNrKt2vDafZ8MfJLlchDG/vYafQEjQ=="],
-
-    "@rocketh/proxy/@rocketh/deploy": ["@rocketh/deploy@0.13.0", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-ES1aJ6I+ta7vvk75KFZZerskfpOUhf1/fNkSEqZyew50tdfbeuK6ArBdhBker6MtDIiekga7FAStpd4Bxa91nQ=="],
-
-    "@rocketh/proxy/@rocketh/read-execute": ["@rocketh/read-execute@0.13.0", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-yEMR0hqdbo5w76EG/PJxk7bw5ScQhLvDMH+zpdvdncog7ewSk/fClZjBRCdMISu6x/bUMDzXcQoiJ90S6D1lCw=="],
 
     "@rocketh/verifier/chalk": ["chalk@5.4.1", "", {}, "sha512-zgVZuo2WcZgfUEmsn6eO3kINexW8RAE4maiQ8QNs8CtpPCSyMiYsULR3HQYkm3w8FIA3SberyMJMSldGsW+U3w=="],
 
