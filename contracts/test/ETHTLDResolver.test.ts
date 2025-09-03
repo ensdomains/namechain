@@ -572,7 +572,7 @@ describe("ETHTLDResolver", () => {
               bundleCalls([...calls, call]).call,
             ]),
           )
-            .toBeRevertedWithCustomError("MulticallTooLarge")
+            .toBeRevertedWithCustomError("TooManyCalls")
             .withArgs([BigInt(max)]);
         });
       }

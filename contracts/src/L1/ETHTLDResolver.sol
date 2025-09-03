@@ -80,8 +80,8 @@ contract ETHTLDResolver is
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
 
     /// @notice The multicall contained too many calls.
-    /// @dev Error selector: `0xf752eecf`
-    error MulticallTooLarge(uint256 max);
+    /// @dev Error selector: `0x6b44405b`
+    error TooManyCalls(uint256 max);
 
     /// @notice The resolver profile cannot be answered.
     /// @dev Error selector: `0x7b1c461b`
@@ -98,7 +98,7 @@ contract ETHTLDResolver is
         uint8 _maxCallsPerMulticall
     ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
         // if (_maxCallsPerMulticall > 254) {
-        //     revert MulticallTooLarge(254);
+        //     revert TooManyCalls(254);
         // }
         registryV1 = _registryV1;
         ethRegistrarV1 = IBaseRegistrar(_registryV1.owner(ETH_NODE));
@@ -265,7 +265,7 @@ contract ETHTLDResolver is
         State memory state
     ) public view returns (bytes memory) {
         if (state.data.length > maxCallsPerMulticall) {
-            revert MulticallTooLarge(maxCallsPerMulticall);
+            revert TooManyCalls(maxCallsPerMulticall);
         }
         // output[ 0] = registry
         // output[ 1] = last non-zero resolver
