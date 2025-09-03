@@ -46,8 +46,10 @@ export const config = {
 // ------------------------------------------------------------------------------------------------
 // We regroup all what is needed for the deploy scripts
 // so that they just need to import this file
-import * as deployFunctions from "@rocketh/deploy"; // this one provide a deploy function
-import * as readExecuteFunctions from "@rocketh/read-execute"; // this one provide read,execute functions
+import * as deployFunctions from "@rocketh/deploy";
+import * as readExecuteFunctions from "@rocketh/read-execute";
+import * as viemFunctions from "@rocketh/viem";
+
 // ------------------------------------------------------------------------------------------------
 // we re-export the artifacts, so they are easily available from the alias
 import artifacts from "./generated/artifacts.js";
@@ -55,22 +57,15 @@ export { artifacts };
 // ------------------------------------------------------------------------------------------------
 
 import {
-  loadAndExecuteDeployments,
   setup,
   type CurriedFunctions,
   type Environment as Environment_,
 } from "rocketh";
-import { createPublicClient, custom } from "viem";
 
 const functions = {
   ...deployFunctions,
   ...readExecuteFunctions,
-  getPublicClient: (env: Environment_) => () => {
-    return createPublicClient({
-      chain: env.network.chain,
-      transport: custom(env.network.provider),
-    });
-  },
+  ...viemFunctions,
   __patchProvider(env: Environment_) {
     // replacement for TransactionHashTracker
     // https://github.com/wighawag/rocketh/blob/main/packages/rocketh/src/environment/providers/TransactionHashTracker.ts
@@ -97,20 +92,16 @@ const functions = {
   },
 };
 
-import type { Address } from "viem";
-type L1Arguments = {
-  l2Deploy: {
-    deployments: Record<string, { address: Address }>;
-  };
-  verifierAddress: Address;
-};
-export type Arguments = L1Arguments | undefined;
-
-type Environment = Environment_<typeof config.accounts> &
+export type Environment = Environment_<typeof config.accounts> &
   CurriedFunctions<typeof functions>;
 
-const execute = setup<typeof functions, typeof config.accounts>(
-  functions,
-)<Arguments>;
+const { deployScript, loadAndExecuteDeployments } = setup<
+  typeof functions,
+  typeof config.accounts
+>(functions);
 
-export { execute, loadAndExecuteDeployments, type Environment };
+import type { RockethArguments } from "./script/types.ts";
+
+const execute = deployScript<RockethArguments>;
+
+export { execute, loadAndExecuteDeployments };

@@ -14,9 +14,10 @@ import {
   type Client,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
-import { type Arguments, artifacts } from "@rocketh";
+import { artifacts } from "@rocketh";
 import { rm } from "node:fs/promises";
 
+import type { RockethL1Arguments, RockethArguments } from "./types.ts";
 import { deployArtifact } from "../test/fixtures/deployArtifact.js";
 import { deployVerifiableProxy } from "../test/fixtures/deployVerifiableProxy.js";
 import { urgArtifact } from "../test/fixtures/externalArtifacts.js";
@@ -166,7 +167,7 @@ export async function setupCrossChainEnvironment({
       .extend(publicActions)
       .extend(testActions({ mode: "anvil" }));
 
-    async function deploy(tag: string, chain: Chain, args?: Arguments) {
+    async function deploy(tag: string, chain: Chain, args?: RockethArguments) {
       const name = `${tag}-local`;
       if (saveDeployments) {
         await rm(new URL(`../deployments/${name}`, import.meta.url), {
@@ -244,7 +245,7 @@ export async function setupCrossChainEnvironment({
     const l1Deploy = await deploy("l1", l1Client.chain, {
       l2Deploy,
       verifierAddress,
-    });
+    } satisfies RockethL1Arguments);
 
     const l1Contracts = createDeploymentGetter(l1Deploy, l1Client);
     const l1 = {

@@ -18,10 +18,11 @@
         "@nomicfoundation/hardhat-keystore": "3.0.0",
         "@nomicfoundation/hardhat-network-helpers": "3.0.0",
         "@nomicfoundation/hardhat-viem": "3.0.0",
-        "@rocketh/deploy": "^0.13.0",
+        "@rocketh/deploy": "^0.14.0",
         "@rocketh/proxy": "^0.13.0",
-        "@rocketh/read-execute": "^0.13.0",
-        "@rocketh/verifier": "^0.13.0",
+        "@rocketh/read-execute": "^0.14.0",
+        "@rocketh/verifier": "^0.14.0",
+        "@rocketh/viem": "^0.14.0",
         "@types/bun": "latest",
         "chai": "^5.1.1",
         "dns-packet": "^5.6.1",
@@ -30,7 +31,7 @@
         "prettier": "^3.5.3",
         "prettier-plugin-solidity": "^2.0.0",
         "prool": "^0.0.24",
-        "rocketh": "0.13.3",
+        "rocketh": "0.14.4",
         "ts-node": "^10.9.2",
         "viem": "^2.31.6",
         "vite-tsconfig-paths": "^5.1.4",
@@ -173,13 +174,15 @@
 
     "@nomicfoundation/solidity-analyzer-win32-x64-msvc": ["@nomicfoundation/solidity-analyzer-win32-x64-msvc@0.1.2", "", {}, "sha512-Fdjli4DCcFHb4Zgsz0uEJXZ2K7VEO+w5KVv7HmT7WO10iODdU9csC2az4jrhEsRtiR9Gfd74FlG0NYlw1BMdyA=="],
 
-    "@rocketh/deploy": ["@rocketh/deploy@0.13.0", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-ES1aJ6I+ta7vvk75KFZZerskfpOUhf1/fNkSEqZyew50tdfbeuK6ArBdhBker6MtDIiekga7FAStpd4Bxa91nQ=="],
+    "@rocketh/deploy": ["@rocketh/deploy@0.14.0", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-4uBIpKchoTZ9QSxyTYYT137+nI0beOlqkh10NWwNgBrQXPpFc51pDB2cDZkgzJpJ5Bzn5hL6klaEsVfPxmAvSA=="],
 
     "@rocketh/proxy": ["@rocketh/proxy@0.13.0", "", { "dependencies": { "@rocketh/deploy": "0.13.0", "@rocketh/read-execute": "0.13.0", "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-PTEmyeYfDdp1Nj1qffG4H9QQzRuigyqzB6kC++1TgvXV9dTjBrXai6FFjmXpIn9znScUunkmtemuP5Komeo6Wg=="],
 
-    "@rocketh/read-execute": ["@rocketh/read-execute@0.13.0", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-yEMR0hqdbo5w76EG/PJxk7bw5ScQhLvDMH+zpdvdncog7ewSk/fClZjBRCdMISu6x/bUMDzXcQoiJ90S6D1lCw=="],
+    "@rocketh/read-execute": ["@rocketh/read-execute@0.14.0", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-+QhG2I34kg36FklCVotZdKp5UuNlq+AfnKka75wVJigdAn3+RSheYf9yhofT8tIGa4dv6p4LE5eett2HOmfENQ=="],
 
-    "@rocketh/verifier": ["@rocketh/verifier@0.13.4", "", { "dependencies": { "@types/fs-extra": "^11.0.4", "@types/qs": "^6.9.18", "chalk": "5.4.1", "commander": "^13.1.0", "fs-extra": "^11.3.0", "ldenv": "^0.3.12", "neoqs": "^6.13.0" }, "peerDependencies": { "rocketh": "0.13.4" }, "bin": { "rocketh-verify": "dist/cli.js" } }, "sha512-h7Gw3XUqFadGuqg1V4KUFabl/Xcfu7FQnL5TD+KpTtiBKwsVAywbTxttQZN24/7IVla/QbgXa2V6L0o7hRgslw=="],
+    "@rocketh/verifier": ["@rocketh/verifier@0.14.4", "", { "dependencies": { "@types/fs-extra": "^11.0.4", "@types/qs": "^6.9.18", "chalk": "5.4.1", "commander": "^13.1.0", "fs-extra": "^11.3.0", "ldenv": "^0.3.12", "neoqs": "^6.13.0" }, "peerDependencies": { "rocketh": "0.14.4" }, "bin": { "rocketh-verify": "dist/cli.js" } }, "sha512-nfxigIPC3zXZ6ajJhxEYJ7zkm0nn3kNHRryY1HPOlhnAjwTwzELLzDP2YFutvhwRcaEGcQz5vIeQJEVAaFG4zw=="],
+
+    "@rocketh/viem": ["@rocketh/viem@0.14.0", "", { "dependencies": { "named-logs": "^0.3.2" }, "peerDependencies": { "viem": "^2.23.12" } }, "sha512-1RRVpCgPJrPQEIs9OUyVBzCzXNbhIME+HFJBLdYI4y4ol94otqcaTnoXC91bRLmTPb60fvfssKV4p8gK9pyUQw=="],
 
     "@rollup/rollup-android-arm-eabi": ["@rollup/rollup-android-arm-eabi@4.49.0", "", { "os": "android", "cpu": "arm" }, "sha512-rlKIeL854Ed0e09QGYFlmDNbka6I3EQFw7iZuugQjMb11KMpJCLPFL4ZPbMfaEhLADEL1yx0oujGkBQ7+qW3eA=="],
 
@@ -475,7 +478,7 @@
 
     "rfdc": ["rfdc@1.4.1", "", {}, "sha512-q1b3N5QkRUWUl7iyylaaj3kOpIT0N2i9MqIEQXP73GVsN9cw3fdx8X63cEmWhJGi2PPCF23Ijp7ktmd39rawIA=="],
 
-    "rocketh": ["rocketh@0.13.3", "", { "dependencies": { "@types/figlet": "^1.7.0", "@types/prompts": "^2.4.9", "commander": "^13.1.0", "eip-1193-jsonrpc-provider": "^0.4.3", "ethers": "^6.13.5", "figlet": "^1.8.0", "ldenv": "^0.3.12", "named-logs": "^0.3.2", "named-logs-console": "^0.3.1", "prompts": "^2.4.2", "tsx": "^4.19.3", "viem": "^2.23.12" }, "bin": { "rocketh": "dist/cli.js" } }, "sha512-mfCcfFFn7cjXYRYFUU+TazAe6nld8a2F+j7hnG53bhq8mP4bZkHZRpvDu3Qoz5PTdsDUwP0kGnQ5OlHu8oJPXw=="],
+    "rocketh": ["rocketh@0.14.4", "", { "dependencies": { "@types/figlet": "^1.7.0", "@types/prompts": "^2.4.9", "commander": "^13.1.0", "eip-1193-jsonrpc-provider": "^0.4.3", "ethers": "^6.13.5", "figlet": "^1.8.0", "ldenv": "^0.3.12", "named-logs": "^0.3.2", "named-logs-console": "^0.3.1", "prompts": "^2.4.2", "tsx": "^4.19.3", "viem": "^2.23.12" }, "bin": { "rocketh": "dist/cli.js" } }, "sha512-nnLt74glSuEVqdiNL8DR0dPeHluWqK5GqmlKQ89TBsUyo3r8Iq04y+eEsZ6QAtsY4KZKdRoFLWQ8q4xFwj16oQ=="],
 
     "rollup": ["rollup@4.49.0", "", { "dependencies": { "@types/estree": "1.0.8" }, "optionalDependencies": { "@rollup/rollup-android-arm-eabi": "4.49.0", "@rollup/rollup-android-arm64": "4.49.0", "@rollup/rollup-darwin-arm64": "4.49.0", "@rollup/rollup-darwin-x64": "4.49.0", "@rollup/rollup-freebsd-arm64": "4.49.0", "@rollup/rollup-freebsd-x64": "4.49.0", "@rollup/rollup-linux-arm-gnueabihf": "4.49.0", "@rollup/rollup-linux-arm-musleabihf": "4.49.0", "@rollup/rollup-linux-arm64-gnu": "4.49.0", "@rollup/rollup-linux-arm64-musl": "4.49.0", "@rollup/rollup-linux-loongarch64-gnu": "4.49.0", "@rollup/rollup-linux-ppc64-gnu": "4.49.0", "@rollup/rollup-linux-riscv64-gnu": "4.49.0", "@rollup/rollup-linux-riscv64-musl": "4.49.0", "@rollup/rollup-linux-s390x-gnu": "4.49.0", "@rollup/rollup-linux-x64-gnu": "4.49.0", "@rollup/rollup-linux-x64-musl": "4.49.0", "@rollup/rollup-win32-arm64-msvc": "4.49.0", "@rollup/rollup-win32-ia32-msvc": "4.49.0", "@rollup/rollup-win32-x64-msvc": "4.49.0", "fsevents": "~2.3.2" }, "bin": { "rollup": "dist/bin/rollup" } }, "sha512-3IVq0cGJ6H7fKXXEdVt+RcYvRCt8beYY9K1760wGQwSAHZcS9eot1zDG5axUbcp/kWRi5zKIIDX8MoKv/TzvZA=="],
 
@@ -563,9 +566,11 @@
 
     "@nomicfoundation/hardhat-keystore/@noble/hashes": ["@noble/hashes@1.7.1", "", {}, "sha512-B8XBPsn4vT/KJAGqDzbwztd+6Yte3P4V7iafm24bxgDe/mlRuK6xmWPuCNrKt2vDafZ8MfJLlchDG/vYafQEjQ=="],
 
-    "@rocketh/verifier/chalk": ["chalk@5.4.1", "", {}, "sha512-zgVZuo2WcZgfUEmsn6eO3kINexW8RAE4maiQ8QNs8CtpPCSyMiYsULR3HQYkm3w8FIA3SberyMJMSldGsW+U3w=="],
+    "@rocketh/proxy/@rocketh/deploy": ["@rocketh/deploy@0.13.0", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-ES1aJ6I+ta7vvk75KFZZerskfpOUhf1/fNkSEqZyew50tdfbeuK6ArBdhBker6MtDIiekga7FAStpd4Bxa91nQ=="],
 
-    "@rocketh/verifier/rocketh": ["rocketh@0.13.0", "", { "dependencies": { "@types/figlet": "^1.7.0", "@types/prompts": "^2.4.9", "commander": "^13.1.0", "eip-1193-jsonrpc-provider": "^0.4.3", "ethers": "^6.13.5", "figlet": "^1.8.0", "ldenv": "^0.3.12", "named-logs": "^0.3.2", "named-logs-console": "^0.3.1", "prompts": "^2.4.2", "tsx": "^4.19.3", "viem": "^2.23.12" }, "bin": { "rocketh": "dist/cli.js" } }, "sha512-+hrshGTEyNqcHB4fMIkwW33V8T763rXUTgZqu8olqjB8acKyV3/cHDy1bkipHKkfBMB6fGQeVXBgB2rRcEn0qQ=="],
+    "@rocketh/proxy/@rocketh/read-execute": ["@rocketh/read-execute@0.13.0", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-yEMR0hqdbo5w76EG/PJxk7bw5ScQhLvDMH+zpdvdncog7ewSk/fClZjBRCdMISu6x/bUMDzXcQoiJ90S6D1lCw=="],
+
+    "@rocketh/verifier/chalk": ["chalk@5.4.1", "", {}, "sha512-zgVZuo2WcZgfUEmsn6eO3kINexW8RAE4maiQ8QNs8CtpPCSyMiYsULR3HQYkm3w8FIA3SberyMJMSldGsW+U3w=="],
 
     "@vitest/snapshot/@vitest/pretty-format": ["@vitest/pretty-format@3.1.3", "", { "dependencies": { "tinyrainbow": "^2.0.0" } }, "sha512-i6FDiBeJUGLDKADw2Gb01UtUNb12yyXAqC/mmRWuYl+m/U9GS7s8us5ONmGkGpUUo7/iAYzI2ePVfOZTYvUifA=="],
 
