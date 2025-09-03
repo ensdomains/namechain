@@ -20,7 +20,7 @@ import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
-import {CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_SET_RESOLVER} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_SET_RESOLVER, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {LibLockedNames} from "../src/L1/LibLockedNames.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IStandardRegistry} from "../src/common/IStandardRegistry.sol";
@@ -681,6 +681,152 @@ contract TestMigratedWrappedNameRegistry is Test {
                 dnsEncodedName: subDnsName,
                 salt: uint256(keccak256(abi.encodePacked("test_not_in_registry")))
             }))
+        );
+    }
+
+    function test_register_emancipated_not_locked_fails() public {
+        string memory label = "emancipated";
+        uint256 tokenId = uint256(keccak256(bytes(label)));
+        
+        // Set up emancipated but not locked name
+        nameWrapper.setFuseData(
+            tokenId, 
+            PARENT_CANNOT_CONTROL, // Emancipated but not locked
+            uint64(block.timestamp + 86400)
+        );
+        nameWrapper.setOwner(tokenId, address(0x9999));
+        
+        // Attempt to register should fail
+        vm.prank(address(nameWrapper));
+        vm.expectRevert(abi.encodeWithSelector(LabelNotMigrated.selector, label));
+        registry.register(
+            label, 
+            user, 
+            registry, 
+            mockResolver, 
+            0, 
+            uint64(block.timestamp + 86400)
+        );
+    }
+
+    function test_register_locked_name_not_owned_by_registry() public {
+        string memory label = "lockednotowned";
+        uint256 tokenId = uint256(keccak256(bytes(label)));
+        
+        // Set up locked name not owned by registry
+        nameWrapper.setFuseData(
+            tokenId, 
+            PARENT_CANNOT_CONTROL | CANNOT_UNWRAP, // Locked and emancipated
+            uint64(block.timestamp + 86400)
+        );
+        nameWrapper.setOwner(tokenId, address(0x9999));
+        
+        // Attempt to register should fail
+        vm.prank(address(nameWrapper));
+        vm.expectRevert(abi.encodeWithSelector(LabelNotMigrated.selector, label));
+        registry.register(
+            label, 
+            user, 
+            registry, 
+            mockResolver, 
+            0, 
+            uint64(block.timestamp + 86400)
+        );
+    }
+
+    function test_register_expired_locked_name_owned_by_registry() public {
+        string memory label = "migrated";
+        uint256 tokenId = uint256(keccak256(bytes(label)));
+        
+        // Set up locked name owned by registry (properly migrated)
+        nameWrapper.setFuseData(
+            tokenId, 
+            PARENT_CANNOT_CONTROL | CANNOT_UNWRAP, // Locked and emancipated
+            uint64(block.timestamp + 86400)
+        );
+        nameWrapper.setOwner(tokenId, address(registry));
+        
+        // First register the name
+        vm.prank(address(nameWrapper));
+        registry.register(
+            label, 
+            user, 
+            registry, 
+            mockResolver, 
+            0, 
+            uint64(block.timestamp + 100) // Expires soon
+        );
+        
+        // Move time forward past expiry
+        vm.warp(block.timestamp + 101);
+        
+        // Now re-register should succeed
+        vm.prank(address(nameWrapper));
+        registry.register(
+            label, 
+            address(0x5678), // New owner
+            registry, 
+            address(0xBEEF), // New resolver
+            0, 
+            uint64(block.timestamp + 86400)
+        );
+        
+        // Verify re-registration succeeded with new owner
+        (uint256 newTokenId, uint64 expires, ) = registry.getNameData(label);
+        assertGt(expires, block.timestamp);
+        assertEq(registry.ownerOf(newTokenId), address(0x5678));
+    }
+
+    function test_register_non_emancipated_name() public {
+        string memory label = "regular";
+        uint256 tokenId = uint256(keccak256(bytes(label)));
+        
+        // Set up non-emancipated name
+        nameWrapper.setFuseData(
+            tokenId, 
+            0, // No fuses burned
+            uint64(block.timestamp + 86400)
+        );
+        nameWrapper.setOwner(tokenId, address(0x9999));
+        
+        // Should succeed - no check needed
+        vm.prank(address(nameWrapper));
+        registry.register(
+            label, 
+            user, 
+            registry, 
+            mockResolver, 
+            0, 
+            uint64(block.timestamp + 86400)
+        );
+        
+        // Verify registration succeeded
+        (, uint64 expires, ) = registry.getNameData(label);
+        assertGt(expires, block.timestamp);
+    }
+
+    function test_register_emancipated_with_other_fuses_not_locked() public {
+        string memory label = "emancipatedplus";
+        uint256 tokenId = uint256(keccak256(bytes(label)));
+        
+        // Set up emancipated name with other fuses but not locked
+        nameWrapper.setFuseData(
+            tokenId, 
+            PARENT_CANNOT_CONTROL | CANNOT_SET_RESOLVER, // Emancipated + other fuses but not locked
+            uint64(block.timestamp + 86400)
+        );
+        nameWrapper.setOwner(tokenId, address(0x9999));
+        
+        // Attempt to register should fail
+        vm.prank(address(nameWrapper));
+        vm.expectRevert(abi.encodeWithSelector(LabelNotMigrated.selector, label));
+        registry.register(
+            label, 
+            user, 
+            registry, 
+            mockResolver, 
+            0, 
+            uint64(block.timestamp + 86400)
         );
     }
 }

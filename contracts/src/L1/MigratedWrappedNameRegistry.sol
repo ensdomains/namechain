@@ -37,6 +37,7 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
     
     uint256 internal constant ROLE_UPGRADE = 1 << 20;
     uint256 internal constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
+    uint32 internal constant PARENT_CANNOT_CONTROL = 1 << 16;
     
     error NoParentDomain();
     
@@ -253,5 +254,30 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         assembly {
             mcopy(add(parentLabel, 32), add(add(dnsEncodedName, 33), parentOffset), parentLabelSize)
         }
+    }
+    
+    function _register(
+        string memory label, 
+        address owner, 
+        IRegistry registry, 
+        address resolver, 
+        uint256 roleBitmap, 
+        uint64 expires
+    ) internal virtual override returns (uint256 tokenId) {
+        // Check if the label has an emancipated NFT in the old system
+        // For .eth 2LDs, NameWrapper uses keccak256(label) as the token ID
+        uint256 legacyTokenId = uint256(keccak256(bytes(label)));
+        (, uint32 fuses, ) = nameWrapper.getData(legacyTokenId);
+        
+        // If the name is emancipated (PARENT_CANNOT_CONTROL burned), 
+        // it must be migrated (owned by this registry)
+        if ((fuses & PARENT_CANNOT_CONTROL) != 0) {
+            if (nameWrapper.ownerOf(legacyTokenId) != address(this)) {
+                revert LabelNotMigrated(label);
+            }
+        }
+        
+        // Proceed with registration
+        return super._register(label, owner, registry, resolver, roleBitmap, expires);
     }
 }
