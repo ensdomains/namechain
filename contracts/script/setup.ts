@@ -62,7 +62,7 @@ export async function setupCrossChainEnvironment({
   extraAccounts = 5,
   mnemonic = "test test test test test test test test test test test junk",
   saveDeployments = false,
-  pollingInterval = 1,
+  pollingInterval = 0,
 }: {
   l1ChainId?: number;
   l2ChainId?: number;
@@ -141,7 +141,7 @@ export async function setupCrossChainEnvironment({
     const l1Client = createWalletClient({
       chain: {
         id: l1ChainId,
-        name: "L1 Local",
+        name: "Mainnet (L1)",
         nativeCurrency,
         rpcUrls: { default: { http: [`http://${l1HostPort}`] } },
       },
@@ -155,7 +155,7 @@ export async function setupCrossChainEnvironment({
     const l2Client = createWalletClient({
       chain: {
         id: l2ChainId,
-        name: "L2 Local",
+        name: "Namechain (L2)",
         nativeCurrency,
         rpcUrls: { default: { http: [`http://${l2HostPort}`] } },
       },
@@ -167,7 +167,8 @@ export async function setupCrossChainEnvironment({
       .extend(publicActions)
       .extend(testActions({ mode: "anvil" }));
 
-    async function deploy(tag: string, chain: Chain, args?: RockethArguments) {
+    async function deployChain(chain: Chain, args?: RockethArguments) {
+      const tag = chain.id === l1ChainId ? 'l1' : 'l2';
       const name = `${tag}-local`;
       if (saveDeployments) {
         await rm(new URL(`../deployments/${name}`, import.meta.url), {
@@ -197,6 +198,7 @@ export async function setupCrossChainEnvironment({
               nativeCurrency: chain.nativeCurrency,
               rpcUrls: { default: { http: [...chain.rpcUrls.default.http] } },
             },
+            pollingInterval: Math.max(1, pollingInterval) / 1000 // can't be 0
           },
           askBeforeProceeding: false,
           saveDeployments,
@@ -209,7 +211,7 @@ export async function setupCrossChainEnvironment({
     }
 
     console.log("Deploying L2");
-    const l2Deploy = await deploy("l2", l2Client.chain);
+    const l2Deploy = await deployChain(l2Client.chain);
 
     console.log("Launching Urg");
     const gateway = new Gateway(
@@ -242,7 +244,7 @@ export async function setupCrossChainEnvironment({
     });
 
     console.log("Deploying L1");
-    const l1Deploy = await deploy("l1", l1Client.chain, {
+    const l1Deploy = await deployChain(l1Client.chain, {
       l2Deploy,
       verifierAddress,
     } satisfies RockethL1Arguments);

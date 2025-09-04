@@ -66,42 +66,16 @@ const functions = {
   ...deployFunctions,
   ...readExecuteFunctions,
   ...viemFunctions,
-  __patchProvider(env: Environment_) {
-    // replacement for TransactionHashTracker
-    // https://github.com/wighawag/rocketh/blob/main/packages/rocketh/src/environment/providers/TransactionHashTracker.ts
-    // still not fixed: https://github.com/wighawag/rocketh/issues/24
-    const parent = env.network.provider;
-    parent.request = async function (args: any) {
-      if (args.method === "eth_getTransactionReceipt") {
-        const timeout = Date.now() + 2000;
-        for (;;) {
-          await new Promise((f) => setTimeout(f, 0));
-          const receipt = await parent.provider.request(args).catch(() => {});
-          if (receipt) return receipt;
-          if (Date.now() > timeout)
-            throw new Error(`timeout for receipt: ${args.params[0]}`);
-        }
-      } else {
-        const res = await parent.provider.request(args);
-        if (/^eth_send(Raw|)Transaction$/.test(args.method)) {
-          parent.transactionHashes?.push(res);
-        }
-        return res;
-      }
-    };
-  },
 };
 
 export type Environment = Environment_<typeof config.accounts> &
   CurriedFunctions<typeof functions>;
 
-const { deployScript, loadAndExecuteDeployments } = setup<
-  typeof functions,
-  typeof config.accounts
->(functions);
+const enhanced = setup<typeof functions, typeof config.accounts>(functions);
 
 import type { RockethArguments } from "./script/types.ts";
 
-const execute = deployScript<RockethArguments>;
+export const execute = enhanced.deployScript<RockethArguments>;
 
-export { execute, loadAndExecuteDeployments };
+export const loadAndExecuteDeployments =
+  enhanced.loadAndExecuteDeployments<RockethArguments>;
