@@ -47,9 +47,3 @@ for (const lx of [env.l1, env.l2]) {
 
 console.log();
 console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);
-
-function printSection(name: string) {
-  console.log();
-  console.log(name);
-  console.log("=".repeat(name.length));
-}

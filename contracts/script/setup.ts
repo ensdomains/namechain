@@ -168,7 +168,7 @@ export async function setupCrossChainEnvironment({
       .extend(testActions({ mode: "anvil" }));
 
     async function deployChain(chain: Chain, args?: RockethArguments) {
-      const tag = chain.id === l1ChainId ? 'l1' : 'l2';
+      const tag = chain.id === l1ChainId ? "l1" : "l2";
       const name = `${tag}-local`;
       if (saveDeployments) {
         await rm(new URL(`../deployments/${name}`, import.meta.url), {
@@ -198,7 +198,7 @@ export async function setupCrossChainEnvironment({
               nativeCurrency: chain.nativeCurrency,
               rpcUrls: { default: { http: [...chain.rpcUrls.default.http] } },
             },
-            pollingInterval: Math.max(1, pollingInterval) / 1000 // can't be 0
+            pollingInterval: Math.max(1, pollingInterval) / 1000, // can't be 0
           },
           askBeforeProceeding: false,
           saveDeployments,
