@@ -19,11 +19,11 @@ uint256 constant REGISTRATION_ROLE_BITMAP = LibRegistryRoles
 uint256 constant ROLE_SET_ORACLE = 1 << 0;
 
 contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
-    IPermissionedRegistry public immutable registry; // [register, expiry)
+    IPermissionedRegistry public immutable registry;
     address public immutable beneficiary;
-    uint64 public immutable minCommitmentAge; // [min, max)
+    uint64 public immutable minCommitmentAge;
     uint64 public immutable maxCommitmentAge;
-    uint64 public immutable minRegisterDuration; // [min, inf)
+    uint64 public immutable minRegisterDuration;
     IRentPriceOracle public rentPriceOracle;
 
     mapping(bytes32 => uint64) _commitTime;
@@ -192,7 +192,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             subregistry,
             resolver,
             REGISTRATION_ROLE_BITMAP,
-            _addDuration(uint64(block.timestamp), duration)
+            uint64(block.timestamp) + duration
         ); // reverts if owner is null
         emit NameRegistered(
             tokenId,
@@ -219,10 +219,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         if (_isAvailable(oldExpiry)) {
             revert NameNotRegistered(label);
         }
-        if (duration == 0) {
-            revert DurationTooShort(duration, 1); // minRenewDuration?
-        }
-        uint64 expires = _addDuration(oldExpiry, duration);
+        uint64 expires = oldExpiry + duration;
         (uint256 base, ) = rentPrice(
             label,
             registry.latestOwnerOf(tokenId),
@@ -240,18 +237,5 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             referer,
             base
         );
-    }
-
-    /// @dev Assert `expiry + duration` does not overflow.
-    function _addDuration(
-        uint64 expiry,
-        uint64 duration
-    ) internal pure returns (uint64 sum) {
-        unchecked {
-            sum = expiry + duration;
-        }
-        if (sum < expiry) {
-            revert DurationOverflow(expiry, duration);
-        }
     }
 }

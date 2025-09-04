@@ -17,10 +17,6 @@ interface IETHRegistrar is IRentPriceOracle {
     /// @dev Error selector: `0x6dbb87d0`
     error NameAlreadyRegistered(string label);
 
-    /// @notice `duration + expiry` overflows.
-    /// @dev Error selector: `0x674a4652`
-    error DurationOverflow(uint64 expiry, uint64 duration);
-
     /// @notice `duration` less than `minDuration`.
     /// @dev Error selector: `0xa096b844`
     error DurationTooShort(uint64 duration, uint64 minDuration);
