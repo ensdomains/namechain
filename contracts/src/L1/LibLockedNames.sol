@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH, CAN_EXTEND_EXPIRY} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH, CAN_EXTEND_EXPIRY, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
@@ -15,14 +15,16 @@ import {IMigratedWrappedNameRegistry} from "./IMigratedWrappedNameRegistry.sol";
  */
 library LibLockedNames {
     error NameNotLocked(uint256 tokenId);
+    error NameNotEmancipated(uint256 tokenId);
     error NameCannotBeMigrated(uint256 tokenId);
     error NotDotEthName(uint256 tokenId);
 
     /**
      * @notice The fuses to burn during migration to prevent further changes
-     * @dev Includes all transferable and modifiable fuses except the lock and type identifier
+     * @dev Includes all transferable and modifiable fuses including the lock fuse
      */
     uint32 public constant FUSES_TO_BURN = 
+        CANNOT_UNWRAP |
         CANNOT_BURN_FUSES |
         CANNOT_TRANSFER |
         CANNOT_SET_RESOLVER |
@@ -46,6 +48,25 @@ library LibLockedNames {
             }
             // Name is locked but fuses are permanently frozen and cannot be migrated
             revert NameCannotBeMigrated(tokenId);
+        }
+    }
+
+
+    /**
+     * @notice Validates that a name is properly emancipated for migration
+     * @dev Checks that PARENT_CANNOT_CONTROL is set (emancipated), and CANNOT_BURN_FUSES is not set. Name may or may not be locked.
+     * @param fuses The current fuses on the name
+     * @param tokenId The token ID for error reporting
+     */
+    function validateEmancipatedName(uint32 fuses, uint256 tokenId) internal pure {
+        // Check that fuses are not permanently frozen
+        if ((fuses & CANNOT_BURN_FUSES) != 0) {
+            revert NameCannotBeMigrated(tokenId);
+        }
+        
+        // Name must be emancipated (PARENT_CANNOT_CONTROL set)
+        if ((fuses & PARENT_CANNOT_CONTROL) == 0) {
+            revert NameNotEmancipated(tokenId);
         }
     }
 
@@ -124,6 +145,7 @@ library LibLockedNames {
             nameWrapper.setResolver(bytes32(tokenId), address(0));
         }
         
+        // Burn all migration fuses
         nameWrapper.setFuses(bytes32(tokenId), uint16(FUSES_TO_BURN));
     }
 }

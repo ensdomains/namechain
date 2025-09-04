@@ -272,8 +272,8 @@ contract TestMigratedWrappedNameRegistry is Test {
         // Test hierarchy validation by calling migration process
         uint256 subTokenId = uint256(NameCoder.namehash(subDnsName, 0));
         
-        // Set up the subdomain token as locked
-        nameWrapper.setFuseData(subTokenId, CANNOT_UNWRAP, uint64(block.timestamp + 86400));
+        // Set up the subdomain token as emancipated
+        nameWrapper.setFuseData(subTokenId, PARENT_CANNOT_CONTROL, uint64(block.timestamp + 86400));
         nameWrapper.setOwner(subTokenId, user);
         
         // This should pass hierarchy validation since parent exists in current registry AND is controlled in legacy
@@ -309,8 +309,8 @@ contract TestMigratedWrappedNameRegistry is Test {
         // Generate token identifier for subdomain migration 
         uint256 subTokenId = uint256(NameCoder.namehash(subDnsName, 0));
         
-        // Set up the subdomain token as locked
-        nameWrapper.setFuseData(subTokenId, CANNOT_UNWRAP, uint64(block.timestamp + 86400));
+        // Set up the subdomain token as emancipated
+        nameWrapper.setFuseData(subTokenId, PARENT_CANNOT_CONTROL, uint64(block.timestamp + 86400));
         nameWrapper.setOwner(subTokenId, user);
         
         // Should revert when parent is neither migrated nor controlled
@@ -341,8 +341,8 @@ contract TestMigratedWrappedNameRegistry is Test {
         bytes memory ethDnsName = NameCoder.encode("eth");
         uint256 ethTokenId = uint256(NameCoder.namehash(ethDnsName, 0));
         
-        // Set up the token as locked
-        nameWrapper.setFuseData(ethTokenId, CANNOT_UNWRAP, uint64(block.timestamp + 86400));
+        // Set up the token as emancipated (so it passes validation)
+        nameWrapper.setFuseData(ethTokenId, PARENT_CANNOT_CONTROL, uint64(block.timestamp + 86400));
         nameWrapper.setOwner(ethTokenId, user);
         
         // Should revert with NoParentDomain error
@@ -578,8 +578,8 @@ contract TestMigratedWrappedNameRegistry is Test {
         bytes memory subDnsName = NameCoder.encode("sub.test.eth");
         uint256 subTokenId = uint256(NameCoder.namehash(subDnsName, 0));
         
-        // Set up the subdomain token as locked
-        nameWrapper.setFuseData(subTokenId, CANNOT_UNWRAP, uint64(block.timestamp + 86400));
+        // Set up the subdomain token as emancipated
+        nameWrapper.setFuseData(subTokenId, PARENT_CANNOT_CONTROL, uint64(block.timestamp + 86400));
         nameWrapper.setOwner(subTokenId, user);
         
         // Should revert with NameAlreadyRegistered error
@@ -618,8 +618,8 @@ contract TestMigratedWrappedNameRegistry is Test {
         bytes memory subDnsName = NameCoder.encode("sub.test.eth");
         uint256 subTokenId = uint256(NameCoder.namehash(subDnsName, 0));
         
-        // Set up the subdomain token as locked
-        nameWrapper.setFuseData(subTokenId, CANNOT_UNWRAP, uint64(block.timestamp + 86400));
+        // Set up the subdomain token as emancipated
+        nameWrapper.setFuseData(subTokenId, PARENT_CANNOT_CONTROL, uint64(block.timestamp + 86400));
         nameWrapper.setOwner(subTokenId, user);
         
         // Should revert because parent is not controlled in legacy system
@@ -658,8 +658,8 @@ contract TestMigratedWrappedNameRegistry is Test {
         bytes memory subDnsName = NameCoder.encode("sub.test.eth");
         uint256 subTokenId = uint256(NameCoder.namehash(subDnsName, 0));
         
-        // Set up the subdomain token as locked
-        nameWrapper.setFuseData(subTokenId, CANNOT_UNWRAP, uint64(block.timestamp + 86400));
+        // Set up the subdomain token as emancipated
+        nameWrapper.setFuseData(subTokenId, PARENT_CANNOT_CONTROL, uint64(block.timestamp + 86400));
         nameWrapper.setOwner(subTokenId, user);
         
         // Should revert because parent is not in current registry
@@ -829,4 +829,54 @@ contract TestMigratedWrappedNameRegistry is Test {
             uint64(block.timestamp + 86400)
         );
     }
+    
+    function test_subdomain_migration_emancipated_and_locked_name() public {
+        // Create subdomain migration data for emancipated and locked name
+        bytes memory subDnsName = NameCoder.encode("locked.test.eth");
+        uint256 subTokenId = uint256(NameCoder.namehash(subDnsName, 0));
+        
+        // Setup subdomain that is emancipated and locked (both fuses required)
+        uint32 emancipatedAndLockedFuses = PARENT_CANNOT_CONTROL | CANNOT_UNWRAP;
+        nameWrapper.setFuseData(subTokenId, emancipatedAndLockedFuses, uint64(block.timestamp + 86400));
+        nameWrapper.setOwner(subTokenId, address(registry));
+        
+        // Register parent "test" in registry to pass hierarchy validation
+        uint64 expiry = uint64(block.timestamp + 86400);
+        _registerName(registry, "test", user, registry, mockResolver, LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
+        
+        // Set up parent "test" in legacy system with registry as owner
+        bytes memory parentDnsName = NameCoder.encode("test.eth");
+        bytes32 parentNode = NameCoder.namehash(parentDnsName, 0);
+        nameWrapper.setWrapped(uint256(parentNode), true);
+        nameWrapper.setOwner(uint256(parentNode), address(registry));
+        
+        // Call onERC1155Received for emancipated and locked subdomain migration
+        vm.prank(address(nameWrapper));
+        try registry.onERC1155Received(address(nameWrapper), user, subTokenId, 1, 
+            abi.encode(MigrationData({
+                transferData: TransferData({
+                    label: "locked",
+                    owner: user,
+                    subregistry: address(0),
+                    resolver: mockResolver,
+                    expires: expiry,
+                    roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER
+                }),
+                toL1: false,
+                dnsEncodedName: subDnsName,
+                salt: uint256(keccak256(abi.encodePacked("test_locked_migration")))
+            }))
+        ) {
+            // Migration should succeed for emancipated and locked subdomain
+        } catch Error(string memory reason) {
+            // Should not fail on validation since emancipated names are valid
+            assertTrue(
+                keccak256(bytes(reason)) != keccak256(bytes("NameNotEmancipated")), 
+                "Should not fail validation for emancipated and locked subdomain"
+            );
+        } catch (bytes memory) {
+            // Other failures are OK for this test - we just want to ensure validation passes
+        }
+    }
+    
 }

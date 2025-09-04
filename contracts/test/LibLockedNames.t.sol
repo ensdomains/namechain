@@ -4,7 +4,7 @@ pragma solidity >=0.8.13;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH, CAN_EXTEND_EXPIRY} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH, CAN_EXTEND_EXPIRY, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {LibLockedNames} from "../src/L1/LibLockedNames.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
@@ -52,6 +52,10 @@ contract MockNameWrapper {
 contract LibLockedNamesWrapper {
     function validateLockedName(uint32 fuses, uint256 tokenId) external pure {
         LibLockedNames.validateLockedName(fuses, tokenId);
+    }
+    
+    function validateEmancipatedName(uint32 fuses, uint256 tokenId) external pure {
+        LibLockedNames.validateEmancipatedName(fuses, tokenId);
     }
     
     function validateIsDotEth2LD(uint32 fuses, uint256 tokenId) external pure {
@@ -313,10 +317,89 @@ contract TestLibLockedNames is Test {
     }
     
     function test_FUSES_TO_BURN_constant() public pure {
-        // Verify the FUSES_TO_BURN constant includes all expected fuses
-        uint32 expectedFuses = CANNOT_BURN_FUSES | CANNOT_TRANSFER | CANNOT_SET_RESOLVER | 
+        // Verify the FUSES_TO_BURN constant includes all expected fuses including CANNOT_UNWRAP
+        uint32 expectedFuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | CANNOT_TRANSFER | CANNOT_SET_RESOLVER | 
                                CANNOT_SET_TTL | CANNOT_CREATE_SUBDOMAIN | CANNOT_APPROVE;
         
-        assertEq(LibLockedNames.FUSES_TO_BURN, expectedFuses, "FUSES_TO_BURN should include all expected fuses");
+        assertEq(LibLockedNames.FUSES_TO_BURN, expectedFuses, "FUSES_TO_BURN should include all expected fuses including CANNOT_UNWRAP");
+    }
+    
+    
+    function test_freezeName_burns_cannot_unwrap_when_not_set() public {
+        // Setup name with CANNOT_UNWRAP fuse NOT set (emancipated but not locked)
+        uint32 initialFuses = PARENT_CANNOT_CONTROL | IS_DOT_ETH;
+        nameWrapper.setFuseData(testTokenId, initialFuses, uint64(block.timestamp + 86400));
+        
+        // Set an initial resolver
+        address initialResolver = address(0x9999);
+        nameWrapper.setInitialResolver(testTokenId, initialResolver);
+        
+        // Verify CANNOT_UNWRAP is initially not set
+        (, uint32 currentFuses, ) = nameWrapper.getData(testTokenId);
+        assertTrue((currentFuses & CANNOT_UNWRAP) == 0, "CANNOT_UNWRAP should not be set initially");
+        
+        // Record logs to verify both setResolver and setFuses events are emitted
+        vm.recordLogs();
+        
+        // Call freezeName
+        LibLockedNames.freezeName(INameWrapper(address(nameWrapper)), testTokenId, initialFuses);
+        
+        // Get recorded logs and verify both events were emitted
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 2, "Should emit exactly 2 events");
+        
+        // Verify setResolver event
+        assertEq(logs[0].topics[0], keccak256("SetResolver(bytes32,address)"), "First event should be SetResolver");
+        assertEq(logs[0].topics[1], bytes32(testTokenId), "SetResolver event should have correct tokenId");
+        address resolverFromEvent = abi.decode(logs[0].data, (address));
+        assertEq(resolverFromEvent, address(0), "SetResolver event should set resolver to address(0)");
+        
+        // Verify setFuses event
+        assertEq(logs[1].topics[0], keccak256("SetFuses(bytes32,uint16)"), "Second event should be SetFuses");
+        assertEq(logs[1].topics[1], bytes32(testTokenId), "SetFuses event should have correct tokenId");
+        uint16 fusesFromEvent = abi.decode(logs[1].data, (uint16));
+        assertEq(fusesFromEvent, uint16(LibLockedNames.FUSES_TO_BURN), "SetFuses event should burn all fuses including CANNOT_UNWRAP");
+        
+        // Verify resolver was cleared
+        assertEq(nameWrapper.getResolver(testTokenId), address(0), "Resolver should be cleared to address(0)");
+        
+        // Verify all fuses were burned including CANNOT_UNWRAP
+        (, uint32 finalFuses, ) = nameWrapper.getData(testTokenId);
+        assertTrue((finalFuses & LibLockedNames.FUSES_TO_BURN) == LibLockedNames.FUSES_TO_BURN, "All fuses including CANNOT_UNWRAP should be burned");
+        assertTrue((finalFuses & CANNOT_UNWRAP) != 0, "CANNOT_UNWRAP should now be set");
+    }
+    
+    function test_validateEmancipatedName_emancipated_only() public pure {
+        uint32 emancipatedFuses = PARENT_CANNOT_CONTROL | IS_DOT_ETH;
+        uint256 tokenId = 0x123;
+        
+        // Should not revert for emancipated name
+        LibLockedNames.validateEmancipatedName(emancipatedFuses, tokenId);
+    }
+    
+    function test_validateEmancipatedName_emancipated_and_locked() public pure {
+        uint32 lockedFuses = PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | IS_DOT_ETH;
+        uint256 tokenId = 0x123;
+        
+        // Should not revert for emancipated and locked name
+        LibLockedNames.validateEmancipatedName(lockedFuses, tokenId);
+    }
+    
+    
+    function test_Revert_validateEmancipatedName_not_emancipated() public {
+        uint32 notEmancipatedFuses = IS_DOT_ETH; // Missing PARENT_CANNOT_CONTROL
+        uint256 tokenId = 0x123;
+        
+        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NameNotEmancipated.selector, tokenId));
+        wrapper.validateEmancipatedName(notEmancipatedFuses, tokenId);
+    }
+    
+    
+    function test_Revert_validateEmancipatedName_cannot_be_migrated() public {
+        uint32 nonMigratableFuses = PARENT_CANNOT_CONTROL | CANNOT_BURN_FUSES | IS_DOT_ETH;
+        uint256 tokenId = 0x123;
+        
+        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NameCannotBeMigrated.selector, tokenId));
+        wrapper.validateEmancipatedName(nonMigratableFuses, tokenId);
     }
 }

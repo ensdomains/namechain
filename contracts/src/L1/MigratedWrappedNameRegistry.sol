@@ -146,7 +146,7 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenId;
         
-        _migrateLockedSubdomains(tokenIds, migrationDataArray);
+        _migrateSubdomains(tokenIds, migrationDataArray);
         
         return this.onERC1155Received.selector;
     }
@@ -164,17 +164,17 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         
         (MigrationData[] memory migrationDataArray) = abi.decode(data, (MigrationData[]));
         
-        _migrateLockedSubdomains(tokenIds, migrationDataArray);
+        _migrateSubdomains(tokenIds, migrationDataArray);
         
         return this.onERC1155BatchReceived.selector;
     }
     
-    function _migrateLockedSubdomains(uint256[] memory tokenIds, MigrationData[] memory migrationDataArray) internal {
+    function _migrateSubdomains(uint256[] memory tokenIds, MigrationData[] memory migrationDataArray) internal {
         for (uint256 i = 0; i < tokenIds.length; i++) {
             (, uint32 fuses, ) = nameWrapper.getData(tokenIds[i]);
             
             // Ensure name meets migration requirements
-            LibLockedNames.validateLockedName(fuses, tokenIds[i]);
+            LibLockedNames.validateEmancipatedName(fuses, tokenIds[i]);
             
             // Ensure proper domain hierarchy for migration
             _validateHierarchy(migrationDataArray[i].dnsEncodedName, migrationDataArray[i].transferData.label);
