@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {IRegistry} from "../common/IRegistry.sol";
 import {IRentPriceOracle} from "./IRentPriceOracle.sol";
@@ -67,7 +67,7 @@ interface IETHRegistrar is IRentPriceOracle {
         IRegistry subregistry,
         address resolver,
         uint64 duration,
-        IERC20Metadata paymentToken,
+        IERC20 paymentToken,
         bytes32 referer,
         uint256 base,
         uint256 premium
@@ -86,7 +86,7 @@ interface IETHRegistrar is IRentPriceOracle {
         string label,
         uint64 duration,
         uint64 newExpiry,
-        IERC20Metadata paymentToken,
+        IERC20 paymentToken,
         bytes32 referer,
         uint256 base
     );
@@ -141,7 +141,7 @@ interface IETHRegistrar is IRentPriceOracle {
         IRegistry subregistry,
         address resolver,
         uint64 duration,
-        IERC20Metadata paymentToken,
+        IERC20 paymentToken,
         bytes32 referer
     ) external returns (uint256);
 
@@ -154,7 +154,7 @@ interface IETHRegistrar is IRentPriceOracle {
     function renew(
         string memory label,
         uint64 duration,
-        IERC20Metadata paymentToken,
+        IERC20 paymentToken,
         bytes32 referer
     ) external;
 }

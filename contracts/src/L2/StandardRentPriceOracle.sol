@@ -2,38 +2,43 @@
 pragma solidity >=0.8.13;
 
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IRentPriceOracle} from "./IRentPriceOracle.sol";
-import {ITokenPriceOracle} from "./ITokenPriceOracle.sol";
 import {HalvingUtils} from "../common/HalvingUtils.sol";
 import {StringUtils} from "@ens/contracts/utils/StringUtils.sol";
 
+struct PaymentRatio {
+    IERC20 token;
+    uint128 numer;
+    uint128 denom;
+}
+
 contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
+    struct Ratio {
+        uint128 numer;
+        uint128 denom;
+    }
+
     IPermissionedRegistry public immutable registry;
-    uint8 public immutable priceDecimals;
     uint256[5] baseRatePerCp; // rate = price/sec
     uint64 public immutable premiumPeriod;
     uint64 public immutable premiumHalvingPeriod;
     uint256 public immutable premiumPriceInitial;
     uint256 public immutable premiumPriceOffset;
-    ITokenPriceOracle public immutable tokenPriceOracle;
-    mapping(IERC20Metadata => bool) _isPaymentToken;
+    mapping(IERC20 => Ratio) _paymentRatios;
 
     constructor(
         IPermissionedRegistry _registry,
-        uint8 _priceDecimals,
         uint256[5] memory _baseRatePerCp,
         uint64 _premiumPeriod,
         uint64 _premiumHalvingPeriod,
         uint256 _premiumPriceInitial,
-        ITokenPriceOracle _tokenPriceOracle,
-        IERC20Metadata[] memory _paymentTokens
+        PaymentRatio[] memory paymentRatios
     ) {
         registry = _registry;
-        priceDecimals = _priceDecimals;
         baseRatePerCp = _baseRatePerCp;
         premiumPeriod = _premiumPeriod;
         premiumHalvingPeriod = _premiumHalvingPeriod;
@@ -43,9 +48,9 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
             _premiumHalvingPeriod,
             _premiumPeriod
         );
-        tokenPriceOracle = _tokenPriceOracle;
-        for (uint256 i; i < _paymentTokens.length; i++) {
-            _isPaymentToken[_paymentTokens[i]] = true;
+        for (uint256 i; i < paymentRatios.length; i++) {
+            PaymentRatio memory x = paymentRatios[i];
+            _paymentRatios[x.token] = Ratio(x.numer, x.denom);
         }
     }
 
@@ -59,10 +64,8 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
     }
 
     /// @inheritdoc IRentPriceOracle
-    function isPaymentToken(
-        IERC20Metadata paymentToken
-    ) external view returns (bool) {
-        return _isPaymentToken[paymentToken];
+    function isPaymentToken(IERC20 paymentToken) external view returns (bool) {
+        return _paymentRatios[paymentToken].denom > 0;
     }
 
     /// @inheritdoc IRentPriceOracle
@@ -76,9 +79,10 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
         string memory label,
         address owner,
         uint64 duration,
-        IERC20Metadata paymentToken
+        IERC20 paymentToken
     ) public view returns (uint256 base, uint256 premium) {
-        if (!_isPaymentToken[paymentToken]) {
+        Ratio memory ratio = _paymentRatios[paymentToken];
+        if (ratio.denom == 0) {
             revert PaymentTokenNotSupported(paymentToken);
         }
         base = baseRate(label);
@@ -93,18 +97,14 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
             }
         }
         uint256 total = base * duration + premium; // revert on overflow
-        uint256 amount = tokenPriceOracle.getTokenAmount(
-            total,
-            priceDecimals,
-            paymentToken
-        );
+        uint256 amount = Math.mulDiv(total, ratio.numer, ratio.denom);
         premium = Math.mulDiv(amount, premium, total);
         base = amount - premium; // ensure: f(a+b) - f(a) == f(b)
     }
 
     /// @notice Get base rate to register or renew `label` for 1 second.
     /// @param label The name to price.
-    /// @return The base rate or 0 if not rentable.
+    /// @return The base rate or 0 if not rentable, in base units.
     function baseRate(string memory label) public view returns (uint256) {
         uint256 ncp = StringUtils.strlen(label);
         if (ncp == 0) return 0;
@@ -123,7 +123,7 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
     /// @notice Get premium price for a duration after expiry.
     ///         Positive over `[0, premiumPeriod)`.
     /// @param duration The time after expiration, in seconds.
-    /// @return The premium price.
+    /// @return The premium price, in base units.
     function premiumPriceAfter(uint64 duration) public view returns (uint256) {
         if (duration >= premiumPeriod) return 0;
         return

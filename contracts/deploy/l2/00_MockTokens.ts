@@ -2,7 +2,7 @@
 import { artifacts, execute } from "@rocketh";
 
 export default execute(
-  async ({ deploy, read, namedAccounts: { deployer } }) => {
+  async ({ deploy,  namedAccounts: { deployer } }) => {
     // Use our local MockERC20 contract
     const MockERC20 = artifacts["src/mocks/MockERC20.sol/MockERC20"];
 
@@ -18,17 +18,17 @@ export default execute(
       args: ["DAI", 18],
     });
 
-    console.table(
-      await Promise.all(
-        [mockUSDC, mockDAI].map(async (x) => {
-          const [symbol, decimals] = await Promise.all([
-            read(x, { functionName: "symbol" }),
-            read(x, { functionName: "decimals" }),
-          ]);
-          return { symbol, decimals, address: x.address };
-        }),
-      ),
-    );
+    // console.table(
+    //   await Promise.all(
+    //     [mockUSDC, mockDAI].map(async (x) => {
+    //       const [symbol, decimals] = await Promise.all([
+    //         read(x, { functionName: "symbol" }),
+    //         read(x, { functionName: "decimals" }),
+    //       ]);
+    //       return { symbol, decimals, address: x.address };
+    //     }),
+    //   ),
+    // );
   },
   {
     tags: ["MockTokens", "mocks", "l2"],

@@ -280,11 +280,13 @@ export async function setupCrossChainEnvironment({
       transport: l2Transport,
       contracts: {
         // v2
+        rentPriceOracle: l2Contracts("StandardRentPriceOracle"),
         ethRegistrar: l2Contracts("ETHRegistrar"),
         ethRegistry: l2Contracts("PermissionedRegistry", "ETHRegistry"),
         bridgeController: l2Contracts("L2BridgeController"),
         mockBridge: l2Contracts("MockL2Bridge"),
-        tokenPriceOracle: l2Contracts("StableTokenPriceOracle"),
+        mockUSDC: l2Contracts("src/mocks/MockERC20.sol/MockERC20", "MockUSDC"),
+        mockDAI: l2Contracts("src/mocks/MockERC20.sol/MockERC20", "MockDAI"),
         // shared
         registryDatastore: l2Contracts("RegistryDatastore"),
         simpleRegistryMetadata: l2Contracts("SimpleRegistryMetadata"),

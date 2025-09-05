@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {IETHRegistrar} from "./IETHRegistrar.sol";
 import {IRentPriceOracle} from "./IRentPriceOracle.sol";
@@ -74,9 +74,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     }
 
     /// @inheritdoc IRentPriceOracle
-    function isPaymentToken(
-        IERC20Metadata paymentToken
-    ) external view returns (bool) {
+    function isPaymentToken(IERC20 paymentToken) external view returns (bool) {
         return rentPriceOracle.isPaymentToken(paymentToken);
     }
 
@@ -90,7 +88,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         string memory label,
         address owner,
         uint64 duration,
-        IERC20Metadata paymentToken
+        IERC20 paymentToken
     ) public view returns (uint256 base, uint256 premium) {
         return rentPriceOracle.rentPrice(label, owner, duration, paymentToken);
     }
@@ -159,7 +157,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IRegistry subregistry,
         address resolver,
         uint64 duration,
-        IERC20Metadata paymentToken,
+        IERC20 paymentToken,
         bytes32 referer
     ) external returns (uint256 tokenId) {
         (, uint64 oldExpiry, ) = registry.getNameData(label);
@@ -185,7 +183,9 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             duration,
             paymentToken
         ); // reverts if !isValid or !isPaymentToken
-        paymentToken.transferFrom(_msgSender(), beneficiary, base + premium); // reverts if payment failed
+        require(
+            paymentToken.transferFrom(_msgSender(), beneficiary, base + premium)
+        ); // reverts if payment failed
         tokenId = registry.register(
             label,
             owner,
@@ -212,7 +212,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     function renew(
         string memory label,
         uint64 duration,
-        IERC20Metadata paymentToken,
+        IERC20 paymentToken,
         bytes32 referer
     ) external {
         (uint256 tokenId, uint64 oldExpiry, ) = registry.getNameData(label);
@@ -226,7 +226,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             duration,
             paymentToken
         ); // reverts if !isValid or !isPaymentToken
-        paymentToken.transferFrom(_msgSender(), beneficiary, base); // reverts if payment failed
+        require(paymentToken.transferFrom(_msgSender(), beneficiary, base)); // reverts if payment failed
         registry.renew(tokenId, expires);
         emit NameRenewed(
             tokenId,

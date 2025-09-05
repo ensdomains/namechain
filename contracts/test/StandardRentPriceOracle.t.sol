@@ -3,22 +3,21 @@ pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
 
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
-import {StandardRentPriceOracle, IRentPriceOracle} from "../src/L2/StandardRentPriceOracle.sol";
-import {StableTokenPriceOracle} from "../src/L2/StableTokenPriceOracle.sol";
+import {StandardRentPriceOracle, PaymentRatio, IRentPriceOracle} from "../src/L2/StandardRentPriceOracle.sol";
 import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
 
 contract TestRentPriceOracle is Test {
     PermissionedRegistry ethRegistry;
 
     StandardRentPriceOracle rentPriceOracle;
-    StableTokenPriceOracle tokenPriceOracle;
 
     MockERC20 tokenUSDC;
     MockERC20 tokenDAI;
@@ -32,6 +31,17 @@ contract TestRentPriceOracle is Test {
     uint256 constant RATE_4CP = (160 * PRICE_SCALE) / SEC_PER_YEAR;
     uint256 constant RATE_5CP = (5 * PRICE_SCALE) / SEC_PER_YEAR;
 
+    function _fromStablecoin(
+        MockERC20 token
+    ) internal view returns (PaymentRatio memory) {
+        uint8 d = token.decimals();
+        if (d > PRICE_DECIMALS) {
+            return PaymentRatio(token, uint128(10) ** (d - PRICE_DECIMALS), 1);
+        } else {
+            return PaymentRatio(token, 1, uint128(10) ** (PRICE_DECIMALS - d));
+        }
+    }
+
     function setUp() external {
         ethRegistry = new PermissionedRegistry(
             new RegistryDatastore(),
@@ -40,21 +50,20 @@ contract TestRentPriceOracle is Test {
             LibEACBaseRoles.ALL_ROLES
         );
 
-        tokenPriceOracle = new StableTokenPriceOracle();
+        tokenUSDC = new MockERC20("USDC", 6);
+        tokenDAI = new MockERC20("DAI", 18);
 
-        IERC20Metadata[] memory paymentTokens = new IERC20Metadata[](2);
-        paymentTokens[0] = tokenUSDC = new MockERC20("USDC", 6);
-        paymentTokens[1] = tokenDAI = new MockERC20("DAI", 18);
+        PaymentRatio[] memory paymentRatios = new PaymentRatio[](2);
+        paymentRatios[0] = _fromStablecoin(tokenUSDC);
+        paymentRatios[1] = _fromStablecoin(tokenDAI);
 
         rentPriceOracle = new StandardRentPriceOracle(
             ethRegistry,
-            PRICE_DECIMALS,
             [RATE_1CP, RATE_2CP, RATE_3CP, RATE_4CP, RATE_5CP],
             21 days, // premiumPeriod
             1 days, // premiumHavingPeriod
             100_000_000 * PRICE_SCALE, // premiumPriceInitial
-            tokenPriceOracle,
-            paymentTokens
+            paymentRatios
         );
 
         vm.warp(rentPriceOracle.premiumPeriod()); // avoid timestamp issues
@@ -72,7 +81,7 @@ contract TestRentPriceOracle is Test {
     function test_isPaymentToken() external view {
         assertTrue(rentPriceOracle.isPaymentToken(tokenUSDC), "USDC");
         assertTrue(rentPriceOracle.isPaymentToken(tokenDAI), "DAI");
-        assertFalse(rentPriceOracle.isPaymentToken(IERC20Metadata(address(0))));
+        assertFalse(rentPriceOracle.isPaymentToken(IERC20(address(0))));
     }
 
     function test_isValid() external view {
@@ -99,7 +108,7 @@ contract TestRentPriceOracle is Test {
         string memory label,
         uint256 rate,
         uint64 dur,
-        IERC20Metadata token
+        MockERC20 token
     ) internal {
         if (rate == 0) {
             vm.expectRevert(
@@ -115,11 +124,8 @@ contract TestRentPriceOracle is Test {
             dur,
             token
         );
-        assertEq(
-            base,
-            tokenPriceOracle.getTokenAmount(rate * dur, PRICE_DECIMALS, token),
-            token.name()
-        );
+        PaymentRatio memory t = _fromStablecoin(token);
+        assertEq(base, Math.mulDiv(rate * dur, t.numer, t.denom), token.name());
     }
 
     function test_rentPrice_0() external {
