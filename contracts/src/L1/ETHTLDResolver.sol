@@ -68,20 +68,11 @@ contract ETHTLDResolver is
     /// @dev Shared batch gateway provider.
     IGatewayProvider public immutable batchGatewayProvider;
 
-    /// @notice The maximum number of calls per multicall.
-    /// @dev Valid range [1, 254].
-    ///      Actual limit: gateway proof size and/or gas limit.
-    uint8 public immutable maxCallsPerMulticall;
-
     /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;
 
     /// @dev `GatewayRequest` exit code which indicates no resolver was found.
     uint8 constant EXIT_CODE_NO_RESOLVER = 2;
-
-    /// @notice The multicall contained too many calls.
-    /// @dev Error selector: `0x6b44405b`
-    error TooManyCalls(uint256 max);
 
     /// @notice The resolver profile cannot be answered.
     /// @dev Error selector: `0x7b1c461b`
@@ -94,12 +85,8 @@ contract ETHTLDResolver is
         address _ethResolver,
         IGatewayVerifier _namechainVerifier,
         address _namechainDatastore,
-        address _namechainEthRegistry,
-        uint8 _maxCallsPerMulticall
+        address _namechainEthRegistry
     ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
-        // if (_maxCallsPerMulticall > 254) {
-        //     revert TooManyCalls(254);
-        // }
         registryV1 = _registryV1;
         ethRegistrarV1 = IBaseRegistrar(_registryV1.owner(ETH_NODE));
         batchGatewayProvider = _batchGatewayProvider;
@@ -108,7 +95,6 @@ contract ETHTLDResolver is
         namechainVerifier = _namechainVerifier;
         namechainDatastore = _namechainDatastore;
         namechainEthRegistry = _namechainEthRegistry;
-        maxCallsPerMulticall = _maxCallsPerMulticall;
     }
 
     /// @inheritdoc ERC165
@@ -264,9 +250,6 @@ contract ETHTLDResolver is
     function _resolveNamechain(
         State memory state
     ) public view returns (bytes memory) {
-        if (state.data.length > maxCallsPerMulticall) {
-            revert TooManyCalls(maxCallsPerMulticall);
-        }
         // output[ 0] = registry
         // output[ 1] = last non-zero resolver
         // output[-1] = default address

@@ -84,7 +84,23 @@ async function fixture() {
   });
   const ethResolver = await mainnetV2.deployDedicatedResolver();
   const burnAddressV1 = "0x000000000000000000000000000000000000FadE";
-  const ethTLDResolver = await deployWithMax(32);
+  const ethTLDResolver = await chain1.viem.deployContract(
+    "ETHTLDResolver",
+    [
+      mainnetV1.ensRegistry.address,
+      mainnetV1.batchGatewayProvider.address,
+      burnAddressV1,
+      ethResolver.address,
+      verifierAddress,
+      namechain.datastore.address,
+      namechain.ethRegistry.address,
+    ],
+    { client: { public: mainnetV2.publicClient } }, // CCIP on EFR
+  );
+  await mainnetV2.rootRegistry.write.setResolver([
+    BigInt(labelhash("eth")),
+    ethTLDResolver.address,
+  ]);
   return {
     ethTLDResolver,
     ethResolver,
@@ -92,29 +108,8 @@ async function fixture() {
     burnAddressV1,
     mainnetV2,
     namechain,
-    deployWithMax,
+    gateway,
   } as const;
-  async function deployWithMax(max: number) {
-    const resolver = await chain1.viem.deployContract(
-      "ETHTLDResolver",
-      [
-        mainnetV1.ensRegistry.address,
-        mainnetV1.batchGatewayProvider.address,
-        burnAddressV1,
-        ethResolver.address,
-        verifierAddress,
-        namechain.datastore.address,
-        namechain.ethRegistry.address,
-        max,
-      ],
-      { client: { public: mainnetV2.publicClient } }, // CCIP on EFR
-    );
-    await mainnetV2.rootRegistry.write.setResolver([
-      BigInt(labelhash("eth")),
-      resolver.address,
-    ]);
-    return resolver;
-  }
 }
 
 const loadFixture = async () => {
@@ -526,67 +521,62 @@ describe("ETHTLDResolver", () => {
         });
       }
     });
-    it("multicall()", async () => {
-      const F = await loadFixture();
-      const bundle = bundleCalls(makeResolutions(kp));
-      const { dedicatedResolver } = await F.namechain.setupName(kp);
-      await F.namechain.walletClient.sendTransaction({
-        to: dedicatedResolver.address,
-        data: bundle.writeDedicated,
-      });
-      await sync();
-      const [answer, resolver] =
-        await F.mainnetV2.universalResolver.read.resolve([
-          dnsEncodeName(kp.name),
-          bundle.call,
-        ]);
-      expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
-      bundle.expect(answer);
-    });
-    describe("resolve(multicall)", () => {
-      const [call] = makeResolutions(kp);
-      for (const max of [1, 2, 3]) {
-        it(`maxCallsPerMulticall = ${max}`, async () => {
+    describe("multicall", () => {
+      const resolutions = makeResolutions(kp);
+      for (let n = 0; n <= resolutions.length; n++) {
+        it(`calls = ${n}`, async () => {
           const F = await loadFixture();
-          const ethTLDResolver = await F.deployWithMax(max);
-          await expect(
-            ethTLDResolver.read.maxCallsPerMulticall(),
-            "max",
-          ).resolves.toStrictEqual(max);
-          const calls = Array.from({ length: max }, () => call);
-          const bundle = bundleCalls(calls);
           const { dedicatedResolver } = await F.namechain.setupName(kp);
+          const bundle = bundleCalls(resolutions.slice(0, n));
           await F.namechain.walletClient.sendTransaction({
             to: dedicatedResolver.address,
-            data: call.writeDedicated,
+            data: bundle.writeDedicated,
           });
           await sync();
-          const answer = await ethTLDResolver.read.resolve([
-            dnsEncodeName(kp.name),
-            bundle.call,
-          ]);
-          bundle.expect(answer);
-          await expect(
-            ethTLDResolver.read.resolve([
+          const [answer, resolver] =
+            await F.mainnetV2.universalResolver.read.resolve([
               dnsEncodeName(kp.name),
-              bundleCalls([...calls, call]).call,
-            ]),
-          )
-            .toBeRevertedWithCustomError("TooManyCalls")
-            .withArgs([BigInt(max)]);
+              bundle.call,
+            ]);
+          expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
+          bundle.expect(answer);
         });
       }
     });
-    it("zero multicalls", async () => {
-      const kp: KnownProfile = { name: testNames[0] };
+    it("too many calls", async () => {
       const F = await loadFixture();
-      const bundle = bundleCalls(makeResolutions(kp));
-      await sync();
-      const [answer] = await F.mainnetV2.universalResolver.read.resolve([
-        dnsEncodeName(kp.name),
-        bundle.call,
-      ]);
-      bundle.expect(answer);
+      const max = 10;
+      const kp: KnownProfile = {
+        name: testNames[0],
+        addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }], // 1 proof
+      };
+      try {
+        F.gateway.rollup.configure = (c) => {
+          c.prover.maxUniqueProofs = 1 + max;
+        };
+        const [call] = makeResolutions(kp);
+        const { dedicatedResolver } = await F.namechain.setupName(kp);
+        await F.namechain.walletClient.sendTransaction({
+          to: dedicatedResolver.address,
+          data: call.writeDedicated,
+        });
+        await sync();
+        const calls = Array.from({ length: max }, () => call);
+        const bundle = bundleCalls(calls);
+        const answer = await F.ethTLDResolver.read.resolve([
+          dnsEncodeName(kp.name),
+          bundle.call,
+        ]);
+        bundle.expect(answer);
+        // TODO: UncheckedRollup doesn't respect maxUniqueProofs
+        // TODO: fix after Urg adds callback error propagation
+        // await expect(F.ethTLDResolver.read.resolve([
+        //   dnsEncodeName(kp.name),
+        //   bundleCalls([...calls, call]).call,
+        // ])).toBeReverted();
+      } finally {
+        F.gateway.rollup.configure = undefined;
+      }
     });
     it("every multicall failed", async () => {
       const kp: KnownProfile = {

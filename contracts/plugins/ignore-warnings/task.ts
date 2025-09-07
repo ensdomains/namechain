@@ -23,9 +23,11 @@ const action: TaskOverrideActionFunction = async (task, hre, runSuper) => {
     return await runSuper(task);
   } finally {
     stderr.write = write0;
-    console.error(
-      `>>> ${ansi(33, "Ignored Warnings:")} ${ansi(31, ignored)} <<<`,
-    );
+    if (!task.quiet) {
+      console.error(
+        `>>> ${ansi(33, "Ignored Warnings:")} ${ansi(31, ignored)} <<<`,
+      );
+    }
   }
 };
 
