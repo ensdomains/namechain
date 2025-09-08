@@ -72,7 +72,7 @@ contract TestBridgeMessages is Test {
     function test_encodeDecodeEjection() public view {
         bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
         TransferData memory transferData = TransferData({
-            label: testLabel,
+            dnsEncodedName: dnsEncodedName,
             owner: testOwner,
             subregistry: address(registry),
             resolver: testResolver,
@@ -81,18 +81,18 @@ contract TestBridgeMessages is Test {
         });
 
         // Encode message
-        bytes memory encodedMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);
+        bytes memory encodedMessage = BridgeEncoder.encodeEjection(transferData);
         
         // Verify message type
         BridgeMessageType messageType = BridgeEncoder.getMessageType(encodedMessage);
         assertEq(uint(messageType), uint(BridgeMessageType.EJECTION));
         
         // Decode message
-        (bytes memory decodedDnsName, TransferData memory decodedData) = BridgeEncoder.decodeEjection(encodedMessage);
+        (TransferData memory decodedData) = BridgeEncoder.decodeEjection(encodedMessage);
         
         // Verify decoded data
-        assertEq(keccak256(decodedDnsName), keccak256(dnsEncodedName));
-        assertEq(decodedData.label, transferData.label);
+        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(dnsEncodedName));
+        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(transferData.dnsEncodedName));
         assertEq(decodedData.owner, transferData.owner);
         assertEq(decodedData.subregistry, transferData.subregistry);
         assertEq(decodedData.resolver, transferData.resolver);
@@ -186,8 +186,9 @@ contract TestBridgeMessages is Test {
     }
 
     function test_l2Bridge_sendMessage_ejection() public {
-        bytes memory ejectionMessage = BridgeEncoder.encodeEjection("test", TransferData({
-            label: testLabel,
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
+        bytes memory ejectionMessage = BridgeEncoder.encodeEjection(TransferData({
+            dnsEncodedName: dnsEncodedName,
             owner: testOwner,
             subregistry: address(registry),
             resolver: testResolver,

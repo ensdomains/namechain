@@ -84,12 +84,13 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     }
 
     /**
-     * @dev Asserts that the label matches the token ID.
+     * @dev Asserts that the DNS-encoded name matches the token ID.
      *
      * @param tokenId The token ID to check
-     * @param label The label to check
+     * @param dnsEncodedName The DNS-encoded name to check
      */
-    function _assertTokenIdMatchesLabel(uint256 tokenId, string memory label) internal pure {
+    function _assertTokenIdMatchesLabel(uint256 tokenId, bytes memory dnsEncodedName) internal pure {
+        string memory label = NameUtils.extractLabel(dnsEncodedName);
         if (NameUtils.labelToCanonicalId(label) != NameUtils.getCanonicalId(tokenId)) {
             revert InvalidLabel(tokenId, label);
         }

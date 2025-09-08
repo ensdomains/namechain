@@ -159,7 +159,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         return interfaceId == type(IPermissionedRegistry).interfaceId || super.supportsInterface(interfaceId);
     }
 
-    // Override EnhancedAccessControl methods to use tokenId instead of resource
+    // Enhanced access control methods adapted for token-based resources
 
     function roles(uint256 tokenId, address account) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (uint256) {
         return super.roles(getResourceFromTokenId(tokenId), account);

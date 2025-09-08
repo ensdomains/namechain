@@ -71,12 +71,12 @@ contract BridgeTest is Test, EnhancedAccessControl {
         uint256 tokenId = l2Registry.register("premiumname", user2, IRegistry(address(0x456)), address(0x789), LibEACBaseRoles.ALL_ROLES, uint64(block.timestamp + 365 days));
 
         TransferData memory transferData = TransferData({
-            label: "premiumname",
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("premiumname"),
             owner: user2,
             subregistry: address(0x123),
             resolver: address(0x456),
-            expires: uint64(block.timestamp + 123 days),
-            roleBitmap: LibRegistryRoles.ROLE_RENEW
+            roleBitmap: LibRegistryRoles.ROLE_RENEW,
+            expires: uint64(block.timestamp + 123 days)
         });
 
         // Step 1: Initiate ejection on L2
@@ -85,8 +85,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
         vm.stopPrank();
         
         // Step 2: Simulate receiving the message on L1
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("premiumname");
-        bytes memory bridgeMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);
+        bytes memory bridgeMessage = BridgeEncoder.encodeEjection(transferData);
         l1Bridge.receiveMessage(bridgeMessage);
 
         // Step 3: Verify the name is registered on L1

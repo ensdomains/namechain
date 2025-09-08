@@ -121,12 +121,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 roleBitmap
     ) internal pure returns (bytes memory) {
         TransferData memory transferData = TransferData({
-            label: nameLabel,
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel(nameLabel),
             owner: _owner,
             subregistry: subregistry,
             resolver: _resolver,
-            expires: expiryTime,
-            roleBitmap: roleBitmap
+            roleBitmap: roleBitmap,
+            expires: expiryTime
         });
         return abi.encode(transferData);
     }
@@ -176,12 +176,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         // Verify token observer is set
         assertEq(address(ethRegistry.tokenObservers(tokenId)), address(controller), "Token observer not set");
         
-        // Verify token is now owned by the controller
+        // Verify token is owned by the controller
         assertEq(ethRegistry.ownerOf(tokenId), address(controller), "Token should be owned by the controller");
     }
 
     function test_completeEjectionToL2() public {
-        // Use specific roles instead of ALL_ROLES, including admin roles that are now required
+        // Use specific roles rather than ALL_ROLES, including required admin roles
         uint256 originalRoles = 
             LibRegistryRoles.ROLE_SET_RESOLVER | 
             LibRegistryRoles.ROLE_SET_SUBREGISTRY | 
@@ -205,12 +205,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 differentRoles = LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_REGISTRAR;
         vm.recordLogs();
         TransferData memory migrationData = TransferData({
-            label: label2,
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel(label2),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
-            expires: 0,
-            roleBitmap: differentRoles
+            roleBitmap: differentRoles,
+            expires: 0
         });
         
         // Call through the bridge (using vm.prank to simulate bridge calling)
@@ -263,12 +263,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NotTokenOwner.selector, tokenId));
         // Call the external method which should revert
         TransferData memory migrationData = TransferData({
-            label: testLabel,
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
-            expires: 0,
-            roleBitmap: LibEACBaseRoles.ALL_ROLES
+            roleBitmap: LibEACBaseRoles.ALL_ROLES,
+            expires: 0
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -278,12 +278,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_Revert_completeEjectionToL2_not_bridge() public {
         // Try to call completeEjectionToL2 directly (without proper role)
         TransferData memory transferData = TransferData({
-            label: testLabel,
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
-            expires: 0,
-            roleBitmap: LibEACBaseRoles.ALL_ROLES
+            roleBitmap: LibEACBaseRoles.ALL_ROLES,
+            expires: 0
         });
         
         vm.expectRevert(abi.encodeWithSelector(

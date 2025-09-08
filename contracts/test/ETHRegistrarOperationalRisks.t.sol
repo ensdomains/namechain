@@ -73,7 +73,7 @@ contract MockUSDTNoReturn is ERC20 {
     }
 }
 
-// Token that returns false on failure instead of reverting
+// Token that returns false on failure rather than reverting
 contract MockTokenFalseReturn is ERC20 {
     bool public shouldFail;
     
@@ -87,7 +87,7 @@ contract MockTokenFalseReturn is ERC20 {
     
     function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
         if (shouldFail) {
-            return false; // Return false instead of reverting
+            return false; // Return false rather than reverting
         }
         return super.transferFrom(from, to, amount);
     }
@@ -188,7 +188,7 @@ contract ETHRegistrarOperationalRisksTest is Test, ERC1155Holder {
         usdc.blacklist(user);
         console.log("   [SUCCESS] User blacklisted");
         
-        // Now user cannot renew their valuable name with USDC
+        // user cannot renew their valuable name with USDC
         vm.startPrank(user);
         console.log("3. User attempts to renew name with USDC...");
         vm.expectRevert("Account blacklisted");
@@ -227,7 +227,7 @@ contract ETHRegistrarOperationalRisksTest is Test, ERC1155Holder {
         usdc.blacklist(beneficiary);
         console.log("   [SUCCESS] Beneficiary blacklisted");
         
-        // Now ALL registrations with USDC fail
+        // ALL registrations with USDC fail
         vm.startPrank(user);
         commitment = registrar.makeCommitment("blocked", user, SECRET, address(registry), address(0), DURATION);
         registrar.commit(commitment);
@@ -289,7 +289,7 @@ contract ETHRegistrarOperationalRisksTest is Test, ERC1155Holder {
     
     function test_safeerc20_prevents_false_return_exploit() public {
         console.log("\n=== SafeERC20 Prevents False Return Exploit ===");
-        console.log("Validates that SafeERC20 catches tokens that return false instead of reverting");
+        console.log("Validates that SafeERC20 catches tokens that return false rather than reverting");
         
         vm.startPrank(user);
         

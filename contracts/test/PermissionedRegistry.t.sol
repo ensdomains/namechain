@@ -520,7 +520,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         // Verify token ownership transferred
         assertEq(registry.ownerOf(newTokenId), owner2);
         
-        // Verify the resource ID has not changed
+        // Verify the resource ID remains unchanged
         uint256 newResourceId = registry.testGetResourceFromTokenId(newTokenId);
         assertEq(newResourceId, originalResourceId, "Resource ID should be the same");
         
@@ -737,7 +737,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         // Get the new token ID after first regeneration
         uint256 intermediateTokenId = registry.testGetTokenIdFromResource(resourceId);
         
-        // Now revoke the role and check regeneration again
+        // revoke the role and check regeneration again
         vm.recordLogs();
         registry.revokeRoles(resourceId, LibRegistryRoles.ROLE_RENEW, user2);
         
@@ -789,7 +789,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         // Get the new token ID after regeneration
         uint256 intermediateTokenId = registry.testGetTokenIdFromResource(resourceId);
         
-        // Now grant a role to another user, triggering another regeneration
+        // grant a role to another user, triggering another regeneration
         address user2 = makeAddr("user2");
         registry.grantRoles(resourceId, LibRegistryRoles.ROLE_RENEW, user2);
         
@@ -988,7 +988,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 expectedCount = 15 << 12; // ROLE_SET_RESOLVER is at bit 12, so count goes to position 12
         assertEq(counts, expectedCount, "Should have 15 assignees for ROLE_SET_RESOLVER");
         
-        // Now attempt to transfer the token to a new address
+        // attempt to transfer the token to a new address
         address newOwner = makeAddr("newTokenOwner");
         
         // This transfer should NOT fail even though we're at max assignees

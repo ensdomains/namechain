@@ -97,7 +97,7 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
                 migrationDataArray[i].transferData.owner,
                 subRegistryRoles,
                 migrationDataArray[i].salt,
-                migrationDataArray[i].dnsEncodedName
+                migrationDataArray[i].transferData.dnsEncodedName
             );
             
             // Configure transfer data with registry and permission details
@@ -105,7 +105,8 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             migrationDataArray[i].transferData.roleBitmap = tokenRoles;
             
             // Ensure name data consistency for migration
-            uint256 expectedTokenId = uint256(keccak256(bytes(migrationDataArray[i].transferData.label)));
+            string memory label = NameUtils.extractLabel(migrationDataArray[i].transferData.dnsEncodedName);
+            uint256 expectedTokenId = uint256(keccak256(bytes(label)));
             if (tokenIds[i] != expectedTokenId) {
                 revert TokenIdMismatch(tokenIds[i], expectedTokenId);
             }

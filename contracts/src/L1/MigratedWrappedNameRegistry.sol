@@ -12,7 +12,7 @@ import {IRegistry} from "../common/IRegistry.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {LibLockedNames} from "./LibLockedNames.sol";
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {TransferData, MigrationData} from "../common/TransferData.sol";
@@ -33,11 +33,8 @@ import "../common/Errors.sol";
  * It also handles subdomain migration by receiving NFT transfers from the NameWrapper.
  */
 contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable, IERC1155Receiver, IMigratedWrappedNameRegistry {
-    using NameCoder for bytes;
-    
     uint256 internal constant ROLE_UPGRADE = 1 << 20;
     uint256 internal constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
-    uint32 internal constant PARENT_CANNOT_CONTROL = 1 << 16;
     
     error NoParentDomain();
     
@@ -177,7 +174,7 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
             LibLockedNames.validateEmancipatedName(fuses, tokenIds[i]);
             
             // Ensure proper domain hierarchy for migration
-            _validateHierarchy(migrationDataArray[i].dnsEncodedName, migrationDataArray[i].transferData.label);
+            string memory label = _validateHierarchy(migrationDataArray[i].transferData.dnsEncodedName, 0);
             
             // Determine permissions from name configuration
             (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
@@ -189,12 +186,12 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
                 migrationDataArray[i].transferData.owner,
                 subRegistryRoles,
                 migrationDataArray[i].salt,
-                migrationDataArray[i].dnsEncodedName
+                migrationDataArray[i].transferData.dnsEncodedName
             );
             
             // Complete name registration in new registry
             _register(
-                migrationDataArray[i].transferData.label,
+                label,
                 migrationDataArray[i].transferData.owner,
                 IRegistry(subregistry),
                 migrationDataArray[i].transferData.resolver,
@@ -207,53 +204,45 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         }
     }
     
-    function _validateHierarchy(bytes memory dnsEncodedName, string memory label) internal view {
-        // Check if label is already registered in this registry
-        uint256 canonicalId = NameUtils.labelToCanonicalId(label);
-        (, uint64 expires, ) = datastore.getSubregistry(canonicalId);
-        if (expires > 0 && expires > block.timestamp) {
-            revert IStandardRegistry.NameAlreadyRegistered(label);
-        }
+    function _validateHierarchy(bytes memory dnsEncodedName, uint256 offset) internal view returns (string memory label) {
+        // Extract the current label (leftmost, at offset 0)
+        uint256 parentOffset;
+        (label, parentOffset) = NameUtils.extractLabel(dnsEncodedName, offset);
         
-        // Extract parent domain information for validation
-        (string memory parentLabel, uint256 parentOffset) = _getParentLabel(dnsEncodedName);
-        
-        // Check if parent exists in current registry system
-        uint256 parentCanonicalId = NameUtils.labelToCanonicalId(parentLabel);
-        (, uint64 parentExpires, ) = datastore.getSubregistry(parentCanonicalId);
-        bool existsInCurrent = (parentExpires > 0 && parentExpires > block.timestamp);
-        
-        // Compute domain hash for legacy system check
-        bytes32 parentNode = dnsEncodedName.namehash(parentOffset);
-        
-        // Check if parent exists in legacy system and we control it
-        bool controlledInLegacy = nameWrapper.isWrapped(parentNode) && 
-                                  nameWrapper.ownerOf(uint256(parentNode)) == address(this);
-        
-        // Both conditions must be true for valid hierarchy
-        if (existsInCurrent && controlledInLegacy) {
-            return;
-        }
-        
-        // Parent is not properly migrated - either not in current registry or not controlled in legacy
-        revert ParentNotMigrated(dnsEncodedName, parentOffset);
-    }
-    
-    function _getParentLabel(bytes memory dnsEncodedName) internal pure returns (string memory parentLabel, uint256 parentOffset) {
-        // Move past child label to access parent
-        (, parentOffset) = NameCoder.nextLabel(dnsEncodedName, 0);
-        
-        // Ensure parent domain exists
+        // Check if there's no parent (trying to migrate TLD)
         if (dnsEncodedName[parentOffset] == 0) {
             revert NoParentDomain();
         }
         
-        // Read parent domain name from encoded data
-        (uint8 parentLabelSize, ) = NameCoder.nextLabel(dnsEncodedName, parentOffset);
-        parentLabel = new string(parentLabelSize);
-        assembly {
-            mcopy(add(parentLabel, 32), add(add(dnsEncodedName, 33), parentOffset), parentLabelSize)
+        // Extract the parent label
+        (string memory parentLabel, uint256 grandparentOffset) = NameUtils.extractLabel(dnsEncodedName, parentOffset);
+        
+        // Check if this is a 2LD (parent is "eth" and no grandparent)
+        if (keccak256(bytes(parentLabel)) == keccak256(bytes("eth")) && 
+            dnsEncodedName[grandparentOffset] == 0) {
+            
+            // For 2LD: Check that label is NOT registered in ethRegistry
+            IRegistry subregistry = ethRegistry.getSubregistry(label);
+            if (address(subregistry) != address(0)) {
+                revert IStandardRegistry.NameAlreadyRegistered(label);
+            }
+            
+        } else {
+            // For 3LD+: Check that parent is wrapped and owned by this contract
+            bytes32 parentNode = NameCoder.namehash(dnsEncodedName, parentOffset);
+            if (!nameWrapper.isWrapped(parentNode) || 
+                nameWrapper.ownerOf(uint256(parentNode)) != address(this)) {
+                revert ParentNotMigrated(dnsEncodedName, parentOffset);
+            }
+            
+            // Also check that the current label is NOT already registered in this registry
+            IRegistry subregistry = this.getSubregistry(label);
+            if (address(subregistry) != address(0)) {
+                revert IStandardRegistry.NameAlreadyRegistered(label);
+            }
         }
+        
+        return label;
     }
     
     function _register(

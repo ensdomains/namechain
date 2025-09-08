@@ -111,10 +111,10 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
             if (fuses & CANNOT_UNWRAP != 0) { // Name is locked
                 revert MigrationNotSupported();
             } else {
-                // Name is unlocked, unwrap it first then migrate
+                // Unwrap the unlocked name before migration
                 bytes32 labelHash = bytes32(tokenIds[i]);
                 nameWrapper.unwrapETH2LD(labelHash, address(this), address(this));
-                // now migrate
+                // Process migration via bridge
                 _migrateNameViaBridge(tokenIds[i], migrationDataArray[i]);
             }
         }
@@ -128,19 +128,19 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
      */
     function _migrateNameViaBridge(uint256 tokenId, MigrationData memory migrationData) internal {
         // Validate that tokenId matches the label hash
-        uint256 expectedTokenId = uint256(keccak256(bytes(migrationData.transferData.label)));
+        string memory label = NameUtils.extractLabel(migrationData.transferData.dnsEncodedName);
+        uint256 expectedTokenId = uint256(keccak256(bytes(label)));
         if (tokenId != expectedTokenId) {
             revert TokenIdMismatch(tokenId, expectedTokenId);
         }
         
-        // if migrated to L1 then setup the name on the L1
+        // Handle L1 migration by setting up the name locally
         if (migrationData.toL1) {
             l1BridgeController.completeEjectionToL1(migrationData.transferData);
         } 
-        // else send ejection message to L2
+        // Handle L2 migration by sending ejection message across bridge
         else {
-            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(migrationData.transferData.label);
-            bytes memory message = BridgeEncoder.encodeEjection(dnsEncodedName, migrationData.transferData);
+            bytes memory message = BridgeEncoder.encodeEjection(migrationData.transferData);
             bridge.sendMessage(message);
         }
     }

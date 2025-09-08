@@ -47,7 +47,8 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     virtual 
     onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
     {
-        (uint256 tokenId,,) = registry.getNameData(transferData.label);
+        string memory label = NameUtils.extractLabel(transferData.dnsEncodedName);
+        (uint256 tokenId,,) = registry.getNameData(label);
 
         // owner should be the bridge controller
         if (registry.ownerOf(tokenId) != address(this)) {
@@ -57,12 +58,11 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         registry.setSubregistry(tokenId, IRegistry(transferData.subregistry));
         registry.setResolver(tokenId, transferData.resolver);
 
-        // now unset the token observer and transfer the name to the owner
+        // Clear token observer and transfer ownership to recipient
         registry.setTokenObserver(tokenId, ITokenObserver(address(0)));
         registry.safeTransferFrom(address(this), transferData.owner, tokenId, 1, "");
 
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
-        emit NameEjectedToL2(dnsEncodedName, tokenId);
+        emit NameEjectedToL2(transferData.dnsEncodedName, tokenId);
     }
 
     /**
@@ -107,7 +107,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             }
 
             // check that the label matches the token id
-            _assertTokenIdMatchesLabel(tokenId, transferData.label);
+            _assertTokenIdMatchesLabel(tokenId, transferData.dnsEncodedName);
 
             /*
             Check that there is no more than one holder of the token observer and subregistry setting roles.
@@ -136,9 +136,8 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             registry.setTokenObserver(tokenId, this);
             
             // Send bridge message for ejection
-            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
-            bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferData));
-            emit NameEjectedToL1(dnsEncodedName, tokenId);
+            bridge.sendMessage(BridgeEncoder.encodeEjection(transferData));
+            emit NameEjectedToL1(transferData.dnsEncodedName, tokenId);
         }
     }
 

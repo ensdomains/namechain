@@ -181,7 +181,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(usdc)
         );
         
-        // Now the name should not be available
+        // Verify name is no longer available
         assertFalse(registrar.available(name));
     }
 
@@ -533,7 +533,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         // Wait for min commitment age to ensure the commitment is valid
         vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
         
-        // This should now fail with NameNotAvailable
+        // Expect registration to fail due to name being unavailable
         vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.NameNotAvailable.selector, name));
         registrar.register(
             name, 
@@ -757,7 +757,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             address(usdc)
         );
         
-        // Verify no ETH charge (tokens used instead)
+        // Verify no ETH charge when using token payment
         assertEq(address(this).balance, initialBalance);
     }
 
@@ -849,7 +849,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         
         registrar.renew(name, renewalDuration, address(usdc));
         
-        // Verify no ETH charge (tokens used instead)
+        // Verify no ETH charge when using token payment
         assertEq(address(this).balance, initialBalance);
     }
 

@@ -5,7 +5,7 @@ pragma solidity >=0.8.13;
  * @dev The data for inter-chain transfers of a name.
  */
 struct TransferData {
-    string label;
+    bytes dnsEncodedName;
     address owner;
     address subregistry;
     address resolver;
@@ -22,10 +22,6 @@ struct MigrationData {
      * @dev If true, the name is being migrated to L1. If false, the name is being migrated to L2.
      */
     bool toL1;
-    /**
-     * @dev DNS-encoded name of name being migrated.
-     */
-    bytes dnsEncodedName;
     /**
      * @dev (Optional) Salt for CREATE2 deployments.
      */

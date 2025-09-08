@@ -120,7 +120,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
     function _createMigrationData(string memory label) internal pure returns (MigrationData memory) {
         return MigrationData({
             transferData: TransferData({
-                label: label,
+                dnsEncodedName: NameUtils.dnsEncodeEthLabel(label),
                 owner: address(0),
                 subregistry: address(0),
                 resolver: address(0),
@@ -128,7 +128,6 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 expires: 0
             }),
             toL1: false,
-            dnsEncodedName: "",
             salt: 0
         });
     }
@@ -139,7 +138,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
     function _createMigrationDataWithL1Flag(string memory label, bool toL1) internal view returns (MigrationData memory) {
         return MigrationData({
             transferData: TransferData({
-                label: label,
+                dnsEncodedName: NameUtils.dnsEncodeEthLabel(label),
                 owner: address(0x1111),
                 subregistry: address(0x2222),
                 resolver: address(0x3333),
@@ -147,7 +146,6 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 expires: uint64(block.timestamp + 86400) // Valid future expiration
             }),
             toL1: toL1,
-            dnsEncodedName: "",
             salt: 0
         });
     }
@@ -173,8 +171,9 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 // so the message is in the data field
                 (bytes memory message) = abi.decode(entries[i].data, (bytes));
                 // Decode the ejection message to get the transfer data
-                (, TransferData memory decodedTransferData) = BridgeEncoder.decodeEjection(message);
-                if (keccak256(bytes(decodedTransferData.label)) == keccak256(bytes(expectedLabel))) {
+                (TransferData memory decodedTransferData) = BridgeEncoder.decodeEjection(message);
+                string memory decodedLabel = NameUtils.extractLabel(decodedTransferData.dnsEncodedName);
+                if (keccak256(bytes(decodedLabel)) == keccak256(bytes(expectedLabel))) {
                     foundMigrationEvent = true;
                     break;  
                 }
@@ -204,8 +203,9 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 // so the message is in the data field
                 (bytes memory message) = abi.decode(entries[i].data, (bytes));
                 // Decode the ejection message to get the transfer data
-                (, TransferData memory decodedTransferData) = BridgeEncoder.decodeEjection(message);
-                uint256 emittedTokenId = uint256(keccak256(bytes(decodedTransferData.label)));
+                (TransferData memory decodedTransferData) = BridgeEncoder.decodeEjection(message);
+                string memory decodedLabel = NameUtils.extractLabel(decodedTransferData.dnsEncodedName);
+                uint256 emittedTokenId = uint256(keccak256(bytes(decodedLabel)));
                 
                 // Check if this tokenId is in our expected list
                 for (uint256 j = 0; j < expectedTokenIds.length; j++) {
@@ -311,7 +311,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         vm.prank(user);
         ethRegistryV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
         
-        // Verify the migration controller now owns the token
+        // Verify the migration controller owns the token
         assertEq(ethRegistryV1.ownerOf(testTokenId), address(migrationController));
         
         // Get logs for assertions
@@ -350,7 +350,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         vm.prank(user);
         ethRegistryV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
         
-        // Verify the migration controller now owns the token
+        // Verify the migration controller owns the token
         assertEq(ethRegistryV1.ownerOf(testTokenId), address(migrationController));
         
         // Get logs once and use for assertions

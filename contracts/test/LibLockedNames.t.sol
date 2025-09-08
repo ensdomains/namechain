@@ -146,7 +146,7 @@ contract TestLibLockedNames is Test {
         uint16 fusesFromEvent = abi.decode(logs[0].data, (uint16));
         assertEq(fusesFromEvent, uint16(LibLockedNames.FUSES_TO_BURN), "SetFuses event should burn correct fuses");
         
-        // Verify resolver was NOT changed
+        // Verify resolver remains unchanged
         assertEq(nameWrapper.getResolver(testTokenId), initialResolver, "Resolver should be preserved when fuse already set");
         
         // Verify all fuses were burned

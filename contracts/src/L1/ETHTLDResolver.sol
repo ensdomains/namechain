@@ -240,9 +240,9 @@ contract ETHTLDResolver is
     /// * `req.setSlot(SLOT_RD_ENTRIES).follow().follow()` &harr; `entries[registry][labelHash]`.
     ///     * `follow()` does a pop and uses the value as a mapping key.
     /// * The program terminates if the next registry is expired.
-    /// * `output[1]` is updated if a resolver is set.
+    /// * `output[1]` contains the resolver if one is set.
     /// * The program terminates if the next registry is unset.
-    /// * `output[0]` is updated to the next registry.
+    /// * `output[0]` contains the next registry in the chain.
     ///
     /// Pseudocode:
     /// ```
