@@ -12,6 +12,7 @@
     "clean": "forge clean && hardhat clean",
     "devnet": "bun ./script/runDevnet.ts",
     "aakit": "bun ./script/deployAAkit.ts",
+    "cors-proxy": "bun ./script/corsProxy.ts",
     "check:types": "tsc --noEmit"
   },
   "devDependencies": {
@@ -25,6 +26,8 @@
     "@rocketh/read-execute": "^0.11.19",
     "@rocketh/verifier": "^0.11.18",
     "@types/bun": "latest",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "chai": "^5.1.1",
     "hardhat": "3.0.0-next.20",
     "hardhat-deploy": "^2.0.0-next.31",
@@ -43,5 +46,10 @@
   "engines": {
     "node": ">=24"
   },
-  "engineStrict": true
+  "engineStrict": true,
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "http-proxy-middleware": "^3.0.5"
+  }
 }
