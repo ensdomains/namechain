@@ -174,7 +174,11 @@ contract TestRentPriceOracle is Test {
             token
         );
         PaymentRatio memory t = _fromStablecoin(token);
-        assertEq(base, Math.mulDiv(rate * dur, t.numer, t.denom), token.name());
+        assertEq(
+            base,
+            Math.mulDiv(rate * dur, t.numer, t.denom, Math.Rounding.Ceil),
+            token.name()
+        );
     }
 
     function test_rentPrice_0() external {

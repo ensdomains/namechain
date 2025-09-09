@@ -165,7 +165,14 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
             }
         }
         // reverts on overflow
-        base = Math.mulDiv(baseUnits, ratio.numer, ratio.denom);
         premium = Math.mulDiv(premiumUnits, ratio.numer, ratio.denom);
+        base =
+            Math.mulDiv(
+                baseUnits + premiumUnits,
+                ratio.numer,
+                ratio.denom,
+                Math.Rounding.Ceil
+            ) -
+            premium; // ensure: f(a+b) - f(a) == f(b)
     }
 }
