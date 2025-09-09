@@ -85,21 +85,21 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
         if (ratio.denom == 0) {
             revert PaymentTokenNotSupported(paymentToken);
         }
-        base = baseRate(label);
-        if (base == 0) {
-            revert NotRentable(label);
+        uint256 baseUnits = baseRate(label) * duration;
+        if (baseUnits == 0) {
+            revert NotValid(label);
         }
+        uint256 premiumUnits;
         if (owner != address(0)) {
             // prior owner pays no premium
             (uint256 tokenId, uint64 expiry, ) = registry.getNameData(label);
             if (owner != registry.latestOwnerOf(tokenId)) {
-                premium = premiumPrice(expiry);
+                premiumUnits = premiumPrice(expiry);
             }
         }
-        uint256 total = base * duration + premium; // revert on overflow
-        uint256 amount = Math.mulDiv(total, ratio.numer, ratio.denom);
-        premium = Math.mulDiv(amount, premium, total);
-        base = amount - premium; // ensure: f(a+b) - f(a) == f(b)
+        // reverts on overflow
+        base = Math.mulDiv(baseUnits, ratio.numer, ratio.denom);
+        premium = Math.mulDiv(premiumUnits, ratio.numer, ratio.denom);
     }
 
     /// @notice Get base rate to register or renew `label` for 1 second.

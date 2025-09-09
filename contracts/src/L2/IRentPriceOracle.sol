@@ -6,9 +6,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @notice Interface for pricing registration and renewals.
 /// @dev Interface selector: `0x53b53cee`.
 interface IRentPriceOracle {
-    /// @notice `label` has no rent price.
-    /// @dev Error selector: `0x58832032`
-    error NotRentable(string label);
+    /// @notice `label` is not valid.
+    /// @dev Error selector: `0xdbfa2886`
+    error NotValid(string label);
 
     /// @notice `paymentToken` is not supported for payment.
     /// @dev Error selector: `0x02e2ae9e`
@@ -25,7 +25,7 @@ interface IRentPriceOracle {
     function isValid(string memory label) external view returns (bool);
 
     /// @notice Get rent price for `label`.
-    /// @dev Reverts `PaymentTokenNotSupported` or `NotRentable`.
+    /// @dev Reverts `PaymentTokenNotSupported` or `NotValid`.
     /// @param label The name.
     /// @param owner The new owner address.
     /// @param duration The duration to price, in seconds.

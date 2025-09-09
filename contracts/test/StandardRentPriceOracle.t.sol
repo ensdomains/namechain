@@ -113,7 +113,7 @@ contract TestRentPriceOracle is Test {
         if (rate == 0) {
             vm.expectRevert(
                 abi.encodeWithSelector(
-                    IRentPriceOracle.NotRentable.selector,
+                    IRentPriceOracle.NotValid.selector,
                     label
                 )
             );

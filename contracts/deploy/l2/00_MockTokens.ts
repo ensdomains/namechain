@@ -17,18 +17,6 @@ export default execute(
       artifact: MockERC20,
       args: ["DAI", 18],
     });
-
-    // console.table(
-    //   await Promise.all(
-    //     [mockUSDC, mockDAI].map(async (x) => {
-    //       const [symbol, decimals] = await Promise.all([
-    //         read(x, { functionName: "symbol" }),
-    //         read(x, { functionName: "decimals" }),
-    //       ]);
-    //       return { symbol, decimals, address: x.address };
-    //     }),
-    //   ),
-    // );
   },
   {
     tags: ["MockTokens", "mocks", "l2"],
