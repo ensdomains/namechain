@@ -14,9 +14,14 @@ interface IRentPriceOracle {
     /// @dev Error selector: `0x02e2ae9e`
     error PaymentTokenNotSupported(IERC20 paymentToken);
 
-    /// @notice Check if `paymentToken` is accepted for payment.
+    /// @notice `paymentToken` support changed.
+    /// @param paymentToken The ERC-20 that changed.
+    /// @param supported `true` if `paymentToken` is now supported.
+    event PaymentTokenChanged(IERC20 indexed paymentToken, bool supported);
+
+    /// @notice Check if `paymentToken` is supported for payment.
     /// @param paymentToken The ERC-20 to check.
-    /// @return `true` if `paymentToken` is accepted.
+    /// @return `true` if `paymentToken` is supported.
     function isPaymentToken(IERC20 paymentToken) external view returns (bool);
 
     /// @notice Check if a `label` is valid.

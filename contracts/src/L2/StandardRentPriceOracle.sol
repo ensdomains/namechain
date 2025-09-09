@@ -51,6 +51,7 @@ contract StandardRentPriceOracle is ERC165, IRentPriceOracle {
         for (uint256 i; i < paymentRatios.length; i++) {
             PaymentRatio memory x = paymentRatios[i];
             _paymentRatios[x.token] = Ratio(x.numer, x.denom);
+            emit PaymentTokenChanged(x.token, true);
         }
     }
 
