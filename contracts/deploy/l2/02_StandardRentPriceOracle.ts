@@ -6,7 +6,7 @@ import {
 } from "../../test/utils/price.js";
 
 export default execute(
-  async ({ deploy, read, get, namedAccounts: { deployer } }) => {
+  async ({ deploy, read, get, namedAccounts: { deployer, owner } }) => {
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
@@ -55,6 +55,7 @@ export default execute(
       account: deployer,
       artifact: artifacts.StandardRentPriceOracle,
       args: [
+        owner,
         ethRegistry.address,
         baseRatePerCp,
         SEC_PER_DAY * 21n, // premiumPeriod

@@ -68,6 +68,7 @@ contract TestETHRegistrar is Test {
         paymentRatios[2] = _fromStablecoin(tokenBlack);
 
         rentPriceOracle = new StandardRentPriceOracle(
+            address(this),
             ethRegistry,
             [RATE_1CP, RATE_2CP, RATE_3CP, RATE_4CP, RATE_5CP],
             21 days,
@@ -136,6 +137,7 @@ contract TestETHRegistrar is Test {
         PaymentRatio[] memory paymentRatios = new PaymentRatio[](1);
         paymentRatios[0] = PaymentRatio(tokenUSDC, 1, 1);
         StandardRentPriceOracle oracle = new StandardRentPriceOracle(
+            address(this),
             ethRegistry,
             [uint256(1), 2, 3, 4, 0],
             0, // \
@@ -160,6 +162,7 @@ contract TestETHRegistrar is Test {
         PaymentRatio[] memory paymentRatios = new PaymentRatio[](1);
         paymentRatios[0] = PaymentRatio(tokenUSDC, 1, 1);
         StandardRentPriceOracle oracle = new StandardRentPriceOracle(
+            address(this),
             ethRegistry,
             [uint256(0), 0, 0, 0, 0],
             0,

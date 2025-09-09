@@ -11,7 +11,7 @@ import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
-import {StandardRentPriceOracle, PaymentRatio, IRentPriceOracle} from "../src/L2/StandardRentPriceOracle.sol";
+import {StandardRentPriceOracle, PaymentRatio, IRentPriceOracle, Ownable} from "../src/L2/StandardRentPriceOracle.sol";
 import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
 
 contract TestRentPriceOracle is Test {
@@ -21,6 +21,8 @@ contract TestRentPriceOracle is Test {
 
     MockERC20 tokenUSDC;
     MockERC20 tokenDAI;
+
+    address user = makeAddr("user");
 
     uint64 constant SEC_PER_YEAR = 31_557_600; // 365.25
     uint8 constant PRICE_DECIMALS = 12;
@@ -58,6 +60,7 @@ contract TestRentPriceOracle is Test {
         paymentRatios[1] = _fromStablecoin(tokenDAI);
 
         rentPriceOracle = new StandardRentPriceOracle(
+            address(this),
             ethRegistry,
             [RATE_1CP, RATE_2CP, RATE_3CP, RATE_4CP, RATE_5CP],
             21 days, // premiumPeriod
@@ -82,6 +85,52 @@ contract TestRentPriceOracle is Test {
         assertTrue(rentPriceOracle.isPaymentToken(tokenUSDC), "USDC");
         assertTrue(rentPriceOracle.isPaymentToken(tokenDAI), "DAI");
         assertFalse(rentPriceOracle.isPaymentToken(IERC20(address(0))));
+    }
+
+    function test_updatePaymentToken_remove() external {
+        IERC20 paymentToken = tokenUSDC;
+        assertTrue(rentPriceOracle.isPaymentToken(paymentToken), "before");
+        vm.expectEmit(true, false, false, false);
+        emit IRentPriceOracle.PaymentTokenRemoved(paymentToken);
+        rentPriceOracle.updatePaymentToken(paymentToken, 0, 0);
+        assertFalse(rentPriceOracle.isPaymentToken(paymentToken), "after");
+    }
+
+    function test_updatePaymentToken_add() external {
+        IERC20 paymentToken = IERC20(address(1));
+        assertFalse(rentPriceOracle.isPaymentToken(paymentToken), "before");
+        vm.expectEmit(true, false, false, false);
+        emit IRentPriceOracle.PaymentTokenAdded(paymentToken);
+        rentPriceOracle.updatePaymentToken(paymentToken, 1, 1);
+        assertTrue(rentPriceOracle.isPaymentToken(paymentToken), "after");
+    }
+
+    function test_updatePaymentToken_invalidRatio() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                StandardRentPriceOracle.InvalidRatio.selector
+            )
+        );
+        rentPriceOracle.updatePaymentToken(tokenUSDC, 0, 1);
+    }
+
+    function test_updatePaymentToken_notOwner() external {
+        vm.startPrank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                user
+            )
+        );
+        rentPriceOracle.updatePaymentToken(tokenUSDC, 0, 0); // remove
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                user
+            )
+        );
+        rentPriceOracle.updatePaymentToken(tokenUSDC, 1, 1); // add
+        vm.stopPrank();
     }
 
     function test_isValid() external view {
