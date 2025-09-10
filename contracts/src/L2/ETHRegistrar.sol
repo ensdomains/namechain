@@ -112,11 +112,12 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         bytes32 secret,
         IRegistry subregistry,
         address resolver,
-        uint64 duration
+        uint64 duration,
+        bytes32 referer
     ) public pure override returns (bytes32) {
         return
             keccak256(
-                abi.encode(name, owner, secret, subregistry, resolver, duration)
+                abi.encode(name, owner, secret, subregistry, resolver, duration, referer)
             );
     }
 
@@ -174,7 +175,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
                 secret,
                 subregistry,
                 resolver,
-                duration
+                duration,
+                referer
             )
         );
         (uint256 base, uint256 premium) = rentPrice(

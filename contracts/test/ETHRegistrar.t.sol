@@ -240,7 +240,8 @@ contract TestETHRegistrar is Test {
                 args.secret,
                 args.subregistry,
                 args.resolver,
-                args.duration
+                args.duration,
+                args.referer
             );
     }
 
@@ -286,7 +287,8 @@ contract TestETHRegistrar is Test {
                     args.secret,
                     args.subregistry,
                     args.resolver,
-                    args.duration
+                    args.duration,
+                    args.referer
                 )
             ),
             "hash"

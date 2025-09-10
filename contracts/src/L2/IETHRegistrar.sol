@@ -103,6 +103,7 @@ interface IETHRegistrar is IRentPriceOracle {
     /// @param subregistry The initial registry address.
     /// @param resolver The initial resolver address.
     /// @param duration The registration duration, in seconds.
+    /// @param referer The referer hash.
     /// @return The commitment hash.
     function makeCommitment(
         string memory label,
@@ -110,7 +111,8 @@ interface IETHRegistrar is IRentPriceOracle {
         bytes32 secret,
         IRegistry subregistry,
         address resolver,
-        uint64 duration
+        uint64 duration,
+        bytes32 referer
     ) external pure returns (bytes32);
 
     /// @notice Get timestamp of `commitment`.
