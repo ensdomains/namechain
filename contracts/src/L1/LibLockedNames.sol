@@ -108,7 +108,7 @@ library LibLockedNames {
         // Include renewal permissions if expiry can be extended
         if ((fuses & CAN_EXTEND_EXPIRY) != 0) {
             tokenRoles |= LibRegistryRoles.ROLE_RENEW;
-            if (!fusesFrozen && (fuses & CANNOT_APPROVE) == 0) {
+            if (!fusesFrozen) {
                 tokenRoles |= LibRegistryRoles.ROLE_RENEW_ADMIN;
             }
         }

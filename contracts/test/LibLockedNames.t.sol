@@ -358,40 +358,22 @@ contract TestLibLockedNames is Test {
         assertEq(subRegistryRoles, 0, "SubRegistry roles should be 0 when all permissions are restricted");
     }
 
-    function test_generateRoleBitmapsFromFuses_cannot_approve_no_renew_admin() public pure {
-        // Fuses with CANNOT_APPROVE - should grant ROLE_RENEW but not ROLE_RENEW_ADMIN
+
+    function test_generateRoleBitmapsFromFuses_cannot_approve_with_all_permissions() public pure {
+        // Fuses with CANNOT_APPROVE but all permissions allowed - should grant all roles including admin roles
         uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_APPROVE;
         
         (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
         
-        // Should have regular renewal role but NOT admin role due to CANNOT_APPROVE
+        // Should have all roles including admin roles (CANNOT_APPROVE no longer affects role generation)
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Token should have ROLE_RENEW");
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Token should NOT have ROLE_RENEW_ADMIN when CANNOT_APPROVE is set");
-        
-        // Should have resolver roles (both regular and admin since no restrictions)
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Token should have ROLE_RENEW_ADMIN");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Token should have ROLE_SET_RESOLVER_ADMIN");
         
-        // SubRegistry should have registrar roles (both regular and admin since no restrictions)
+        // SubRegistry should have all roles including admin roles
         assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
         assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "SubRegistry should have ROLE_REGISTRAR_ADMIN");
-    }
-
-    function test_generateRoleBitmapsFromFuses_cannot_approve_and_cannot_burn_fuses() public pure {
-        // Fuses with both CANNOT_APPROVE and CANNOT_BURN_FUSES - should grant regular roles but no admin roles
-        uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_APPROVE | CANNOT_BURN_FUSES;
-        
-        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
-        
-        // Should have regular roles but NO admin roles
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Token should have ROLE_RENEW");
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Token should NOT have ROLE_RENEW_ADMIN");
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) == 0, "Token should NOT have ROLE_SET_RESOLVER_ADMIN");
-        
-        // SubRegistry should have regular roles but NO admin roles
-        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
-        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "SubRegistry should NOT have ROLE_REGISTRAR_ADMIN");
     }
     
     function test_FUSES_TO_BURN_constant() public pure {
