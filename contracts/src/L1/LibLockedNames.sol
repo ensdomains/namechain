@@ -98,8 +98,8 @@ library LibLockedNames {
      * @notice Generates role bitmaps based on fuses
      * @dev Returns two bitmaps: tokenRoles for the name registration and subRegistryRoles for the registry owner
      * @param fuses The current fuses on the name
-     * @return tokenRoles The role bitmap for the registered name
-     * @return subRegistryRoles The role bitmap for the subregistry owner
+     * @return tokenRoles The role bitmap for the owner on their name in their parent registry.
+     * @return subRegistryRoles The role bitmap for the owner on their name's subregistry.
      */
     function generateRoleBitmapsFromFuses(uint32 fuses) internal pure returns (uint256 tokenRoles, uint256 subRegistryRoles) {
         // Check if fuses are permanently frozen
@@ -127,6 +127,12 @@ library LibLockedNames {
             if (!fusesFrozen) {
                 subRegistryRoles |= LibRegistryRoles.ROLE_REGISTRAR_ADMIN;
             }
+        }
+        
+        // Add renewal roles to subregistry (not affected by CANNOT_BURN_FUSES)
+        subRegistryRoles |= LibRegistryRoles.ROLE_RENEW;
+        if ((fuses & CANNOT_APPROVE) == 0) {
+            subRegistryRoles |= LibRegistryRoles.ROLE_RENEW_ADMIN;
         }
     }
 
