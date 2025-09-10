@@ -195,6 +195,14 @@ contract TestLibLockedNames is Test {
         // Should not revert for valid locked name
         LibLockedNames.validateLockedName(validFuses, tokenId);
     }
+
+    function test_validateLockedName_with_cannot_burn_fuses() public pure {
+        uint32 validFuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | IS_DOT_ETH;
+        uint256 tokenId = 0x123;
+        
+        // Should not revert for locked name with CANNOT_BURN_FUSES (previously this would have failed)
+        LibLockedNames.validateLockedName(validFuses, tokenId);
+    }
     
     function test_Revert_validateLockedName_not_locked() public {
         uint32 invalidFuses = IS_DOT_ETH; // Missing CANNOT_UNWRAP
@@ -204,13 +212,6 @@ contract TestLibLockedNames is Test {
         wrapper.validateLockedName(invalidFuses, tokenId);
     }
     
-    function test_Revert_validateLockedName_cannot_be_migrated() public {
-        uint32 nonMigratableFuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | IS_DOT_ETH;
-        uint256 tokenId = 0x123;
-        
-        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NameCannotBeMigrated.selector, tokenId));
-        wrapper.validateLockedName(nonMigratableFuses, tokenId);
-    }
     
     function test_validateIsDotEth2LD_valid() public pure {
         uint32 validFuses = IS_DOT_ETH | CANNOT_UNWRAP;
@@ -315,6 +316,83 @@ contract TestLibLockedNames is Test {
         // SubRegistry should be 0 (no roles)
         assertEq(subRegistryRoles, 0, "SubRegistry roles should be 0 when CANNOT_CREATE_SUBDOMAIN is set");
     }
+
+    function test_generateRoleBitmapsFromFuses_cannot_burn_fuses_no_admin_roles() public pure {
+        // Fuses with CANNOT_BURN_FUSES - should grant regular roles but NO admin roles
+        uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_BURN_FUSES;
+        
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
+        
+        // Should have regular roles but NO admin roles
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Token should have ROLE_RENEW");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Token should NOT have ROLE_RENEW_ADMIN when CANNOT_BURN_FUSES is set");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) == 0, "Token should NOT have ROLE_SET_RESOLVER_ADMIN when CANNOT_BURN_FUSES is set");
+        
+        // SubRegistry should have regular roles but NO admin roles
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "SubRegistry should NOT have ROLE_REGISTRAR_ADMIN when CANNOT_BURN_FUSES is set");
+    }
+
+    function test_generateRoleBitmapsFromFuses_cannot_burn_fuses_with_restrictions() public pure {
+        // Fuses with CANNOT_BURN_FUSES + restrictive fuses
+        uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CANNOT_BURN_FUSES | CANNOT_SET_RESOLVER | CANNOT_CREATE_SUBDOMAIN;
+        // Note: no CAN_EXTEND_EXPIRY
+        
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
+        
+        // Should NOT have renewal roles (no CAN_EXTEND_EXPIRY)
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Token should NOT have ROLE_RENEW");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Token should NOT have ROLE_RENEW_ADMIN");
+        
+        // Should NOT have resolver roles (CANNOT_SET_RESOLVER is set)
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) == 0, "Token should NOT have ROLE_SET_RESOLVER");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) == 0, "Token should NOT have ROLE_SET_RESOLVER_ADMIN");
+        
+        // SubRegistry should NOT have registrar roles (CANNOT_CREATE_SUBDOMAIN is set)
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "SubRegistry should NOT have ROLE_REGISTRAR");
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "SubRegistry should NOT have ROLE_REGISTRAR_ADMIN");
+        
+        // Both should be 0
+        assertEq(tokenRoles, 0, "Token roles should be 0 when all permissions are restricted");
+        assertEq(subRegistryRoles, 0, "SubRegistry roles should be 0 when all permissions are restricted");
+    }
+
+    function test_generateRoleBitmapsFromFuses_cannot_approve_no_renew_admin() public pure {
+        // Fuses with CANNOT_APPROVE - should grant ROLE_RENEW but not ROLE_RENEW_ADMIN
+        uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_APPROVE;
+        
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
+        
+        // Should have regular renewal role but NOT admin role due to CANNOT_APPROVE
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Token should have ROLE_RENEW");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Token should NOT have ROLE_RENEW_ADMIN when CANNOT_APPROVE is set");
+        
+        // Should have resolver roles (both regular and admin since no restrictions)
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Token should have ROLE_SET_RESOLVER_ADMIN");
+        
+        // SubRegistry should have registrar roles (both regular and admin since no restrictions)
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "SubRegistry should have ROLE_REGISTRAR_ADMIN");
+    }
+
+    function test_generateRoleBitmapsFromFuses_cannot_approve_and_cannot_burn_fuses() public pure {
+        // Fuses with both CANNOT_APPROVE and CANNOT_BURN_FUSES - should grant regular roles but no admin roles
+        uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_APPROVE | CANNOT_BURN_FUSES;
+        
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
+        
+        // Should have regular roles but NO admin roles
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Token should have ROLE_RENEW");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Token should NOT have ROLE_RENEW_ADMIN");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) == 0, "Token should NOT have ROLE_SET_RESOLVER_ADMIN");
+        
+        // SubRegistry should have regular roles but NO admin roles
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "SubRegistry should NOT have ROLE_REGISTRAR_ADMIN");
+    }
     
     function test_FUSES_TO_BURN_constant() public pure {
         // Verify the FUSES_TO_BURN constant includes all expected fuses including CANNOT_UNWRAP
@@ -384,7 +462,22 @@ contract TestLibLockedNames is Test {
         // Should not revert for emancipated and locked name
         LibLockedNames.validateEmancipatedName(lockedFuses, tokenId);
     }
-    
+
+    function test_validateEmancipatedName_with_cannot_burn_fuses() public pure {
+        uint32 frozenFuses = PARENT_CANNOT_CONTROL | CANNOT_BURN_FUSES | IS_DOT_ETH;
+        uint256 tokenId = 0x123;
+        
+        // Should not revert for emancipated name with CANNOT_BURN_FUSES (previously this would have failed)
+        LibLockedNames.validateEmancipatedName(frozenFuses, tokenId);
+    }
+
+    function test_validateEmancipatedName_locked_with_cannot_burn_fuses() public pure {
+        uint32 frozenLockedFuses = PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CANNOT_BURN_FUSES | IS_DOT_ETH;
+        uint256 tokenId = 0x123;
+        
+        // Should not revert for emancipated and locked name with CANNOT_BURN_FUSES (previously this would have failed)
+        LibLockedNames.validateEmancipatedName(frozenLockedFuses, tokenId);
+    }
     
     function test_Revert_validateEmancipatedName_not_emancipated() public {
         uint32 notEmancipatedFuses = IS_DOT_ETH; // Missing PARENT_CANNOT_CONTROL
@@ -395,11 +488,4 @@ contract TestLibLockedNames is Test {
     }
     
     
-    function test_Revert_validateEmancipatedName_cannot_be_migrated() public {
-        uint32 nonMigratableFuses = PARENT_CANNOT_CONTROL | CANNOT_BURN_FUSES | IS_DOT_ETH;
-        uint256 tokenId = 0x123;
-        
-        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NameCannotBeMigrated.selector, tokenId));
-        wrapper.validateEmancipatedName(nonMigratableFuses, tokenId);
-    }
 }

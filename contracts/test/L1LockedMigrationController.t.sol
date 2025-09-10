@@ -259,9 +259,9 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
 
-    function test_Revert_name_cannot_be_migrated() public {
-        // Configure name that cannot be migrated (fuses are permanently frozen)
-        uint32 fuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | IS_DOT_ETH;
+    function test_name_with_cannot_burn_fuses_can_migrate() public {
+        // Configure name with fuses that are permanently frozen - this should now be allowed to migrate
+        uint32 fuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
         nameWrapper.setFuseData(testTokenId, fuses, uint64(block.timestamp + 86400));
         
         MigrationData memory migrationData = MigrationData({
@@ -270,7 +270,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
-                roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
+                roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER, // Note: only regular roles, no admin roles expected
                 expires: uint64(block.timestamp + 86400)
             }),
             toL1: true,
@@ -279,8 +279,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         
         bytes memory data = abi.encode(migrationData);
         
-        // Migration should fail for names that cannot be migrated
-        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NameCannotBeMigrated.selector, testTokenId));
+        // Migration should now succeed for names with CANNOT_BURN_FUSES (should not revert)
         vm.prank(address(nameWrapper));
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
     }

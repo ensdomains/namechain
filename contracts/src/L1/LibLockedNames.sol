@@ -16,7 +16,6 @@ import {IMigratedWrappedNameRegistry} from "./IMigratedWrappedNameRegistry.sol";
 library LibLockedNames {
     error NameNotLocked(uint256 tokenId);
     error NameNotEmancipated(uint256 tokenId);
-    error NameCannotBeMigrated(uint256 tokenId);
     error NotDotEthName(uint256 tokenId);
 
     /**
@@ -34,37 +33,24 @@ library LibLockedNames {
 
     /**
      * @notice Validates that a name is properly locked for migration
-     * @dev Checks that CANNOT_UNWRAP is set and CANNOT_BURN_FUSES is not set
+     * @dev Checks that CANNOT_UNWRAP is set
      * @param fuses The current fuses on the name
      * @param tokenId The token ID for error reporting
      */
     function validateLockedName(uint32 fuses, uint256 tokenId) internal pure {
-        // Validate name is locked but not permanently frozen
-        uint32 requiredState = fuses & (CANNOT_UNWRAP | CANNOT_BURN_FUSES);
-        
-        if (requiredState != CANNOT_UNWRAP) {
-            if ((fuses & CANNOT_UNWRAP) == 0) {
-                revert NameNotLocked(tokenId);
-            }
-            // Name is locked but fuses are permanently frozen and cannot be migrated
-            revert NameCannotBeMigrated(tokenId);
+        if ((fuses & CANNOT_UNWRAP) == 0) {
+            revert NameNotLocked(tokenId);
         }
     }
 
 
     /**
      * @notice Validates that a name is properly emancipated for migration
-     * @dev Checks that PARENT_CANNOT_CONTROL is set (emancipated), and CANNOT_BURN_FUSES is not set. Name may or may not be locked.
+     * @dev Checks that PARENT_CANNOT_CONTROL is set (emancipated). Name may or may not be locked.
      * @param fuses The current fuses on the name
      * @param tokenId The token ID for error reporting
      */
     function validateEmancipatedName(uint32 fuses, uint256 tokenId) internal pure {
-        // Check that fuses are not permanently frozen
-        if ((fuses & CANNOT_BURN_FUSES) != 0) {
-            revert NameCannotBeMigrated(tokenId);
-        }
-        
-        // Name must be emancipated (PARENT_CANNOT_CONTROL set)
         if ((fuses & PARENT_CANNOT_CONTROL) == 0) {
             revert NameNotEmancipated(tokenId);
         }
@@ -116,19 +102,31 @@ library LibLockedNames {
      * @return subRegistryRoles The role bitmap for the subregistry owner
      */
     function generateRoleBitmapsFromFuses(uint32 fuses) internal pure returns (uint256 tokenRoles, uint256 subRegistryRoles) {
+        // Check if fuses are permanently frozen
+        bool fusesFrozen = (fuses & CANNOT_BURN_FUSES) != 0;
+        
         // Include renewal permissions if expiry can be extended
         if ((fuses & CAN_EXTEND_EXPIRY) != 0) {
-            tokenRoles |= LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_RENEW_ADMIN;
+            tokenRoles |= LibRegistryRoles.ROLE_RENEW;
+            if (!fusesFrozen && (fuses & CANNOT_APPROVE) == 0) {
+                tokenRoles |= LibRegistryRoles.ROLE_RENEW_ADMIN;
+            }
         }
         
         // Conditionally add resolver roles
         if ((fuses & CANNOT_SET_RESOLVER) == 0) {
-            tokenRoles |= LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
+            tokenRoles |= LibRegistryRoles.ROLE_SET_RESOLVER;
+            if (!fusesFrozen) {
+                tokenRoles |= LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
+            }
         }
         
         // Owner gets registrar permissions on subregistry only if subdomain creation is allowed
         if ((fuses & CANNOT_CREATE_SUBDOMAIN) == 0) {
-            subRegistryRoles |= LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_REGISTRAR_ADMIN;
+            subRegistryRoles |= LibRegistryRoles.ROLE_REGISTRAR;
+            if (!fusesFrozen) {
+                subRegistryRoles |= LibRegistryRoles.ROLE_REGISTRAR_ADMIN;
+            }
         }
     }
 

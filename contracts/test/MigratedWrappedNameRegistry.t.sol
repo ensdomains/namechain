@@ -118,6 +118,7 @@ contract TestMigratedWrappedNameRegistry is Test {
     MockRegistryMetadata metadata;
     MockENS ensRegistry;
     MockNameWrapper nameWrapper;
+    VerifiableFactory factory;
     
     address owner = address(this);
     address user = address(0x1234);
@@ -132,12 +133,13 @@ contract TestMigratedWrappedNameRegistry is Test {
         metadata = new MockRegistryMetadata();
         ensRegistry = new MockENS();
         nameWrapper = new MockNameWrapper();
+        factory = new VerifiableFactory();
         
         // Deploy implementation
         implementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)), // mock nameWrapper
             ENS(address(ensRegistry)), // mock ENS registry
-            VerifiableFactory(address(0)), // mock factory
+            factory,
             IPermissionedRegistry(address(0)), // mock ethRegistry
             datastore,
             metadata
@@ -1636,7 +1638,7 @@ contract TestMigratedWrappedNameRegistry is Test {
     }
 
     function test_fuse_combinations_cannot_burn_fuses() public {
-        // Test name with CANNOT_BURN_FUSES - should fail migration
+        // Test name with CANNOT_BURN_FUSES - should now succeed with migration but not get admin roles
         bytes memory subDnsName = NameCoder.encode("frozen.test.eth");
         uint256 subTokenId = uint256(NameCoder.namehash(subDnsName, 0));
         
@@ -1648,38 +1650,27 @@ contract TestMigratedWrappedNameRegistry is Test {
         nameWrapper.setWrapped(uint256(parentNode), true);
         nameWrapper.setOwner(uint256(parentNode), address(registry));
         
-        // Emancipated but with CANNOT_BURN_FUSES - should fail
+        // Emancipated but with CANNOT_BURN_FUSES - should now succeed
         nameWrapper.setFuseData(subTokenId, PARENT_CANNOT_CONTROL | CANNOT_BURN_FUSES, expiry);
         nameWrapper.setOwner(subTokenId, address(registry));
 
         vm.prank(address(nameWrapper));
-        try registry.onERC1155Received(address(nameWrapper), user, subTokenId, 1,
+        registry.onERC1155Received(address(nameWrapper), user, subTokenId, 1,
             abi.encode(MigrationData({
                 transferData: TransferData({
                     dnsEncodedName: subDnsName,
                     owner: user,
                     subregistry: address(0),
                     resolver: mockResolver,
-                    roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
+                    roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER, // Only regular role, no admin role
                     expires: expiry
                 }),
                 toL1: false,
                 salt: uint256(keccak256(abi.encodePacked("frozen_test")))
             }))
-        ) {
-            revert("Should have failed validation");
-        } catch Error(string memory reason) {
-            assertTrue(
-                keccak256(bytes(reason)) == keccak256(bytes("NameCannotBeMigrated")), 
-                "Should fail with NameCannotBeMigrated"
-            );
-        } catch (bytes memory lowLevelData) {
-            bytes4 errorSelector = bytes4(lowLevelData);
-            assertTrue(
-                errorSelector == LibLockedNames.NameCannotBeMigrated.selector,
-                "Should revert with NameCannotBeMigrated"
-            );
-        }
+        );
+
+        // Migration succeeded if no revert (names with CANNOT_BURN_FUSES can now migrate)
     }
 
     function test_fuse_combinations_all_restrictive_fuses() public {
@@ -1719,9 +1710,8 @@ contract TestMigratedWrappedNameRegistry is Test {
             // Should succeed - all fuses except CANNOT_BURN_FUSES is OK
         } catch Error(string memory reason) {
             assertTrue(
-                keccak256(bytes(reason)) != keccak256(bytes("NameNotEmancipated")) && 
-                keccak256(bytes(reason)) != keccak256(bytes("NameCannotBeMigrated")), 
-                "Should not fail emancipation/migration validation with proper fuses"
+                keccak256(bytes(reason)) != keccak256(bytes("NameNotEmancipated")), 
+                "Should not fail emancipation validation with proper fuses"
             );
         } catch (bytes memory) {
             // Other failures acceptable
