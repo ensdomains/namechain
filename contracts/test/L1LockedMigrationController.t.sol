@@ -221,9 +221,9 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER based on fuses");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN based on fuses");
         
-        // Should always have these base roles and registrar roles since CANNOT_CREATE_SUBDOMAIN is not burnt
-        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
-        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
+        // 2LDs should NOT have renewal roles (is2LD=true prevents automatic renewal for 2LDs)
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW for 2LDs");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN for 2LDs");
         
         // Token should NEVER have registrar roles
         assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NEVER have ROLE_REGISTRAR");
@@ -466,9 +466,9 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
-        // Since no additional fuses are burnt, user should get renew, resolver and registrar roles
-        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
-        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
+        // 2LDs should NOT have renewal roles even when no additional fuses are burnt (is2LD=true prevents automatic renewal)
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW for 2LDs");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN for 2LDs");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
         
@@ -549,9 +549,9 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
-        // Should still have base roles and registrar roles since CANNOT_CREATE_SUBDOMAIN is not burnt
-        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
-        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
+        // 2LDs should NOT have renewal roles even when CANNOT_CREATE_SUBDOMAIN is not burnt (is2LD=true prevents automatic renewal)
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW for 2LDs");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN for 2LDs");
         
         // Token should NEVER have registrar roles
         assertTrue((userRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NEVER have ROLE_REGISTRAR");
@@ -593,9 +593,9 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
-        // Should have renewal and resolver roles
-        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW");
-        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN");
+        // 2LDs should NOT have renewal roles (is2LD=true prevents automatic renewal) but should have resolver roles
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW for 2LDs");
+        assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN for 2LDs");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
         
