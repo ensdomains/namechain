@@ -36,7 +36,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
         bridge = _bridge;
         
         // Grant admin roles to the deployer so they can manage bridge roles
-        _grantRoles(ROOT_RESOURCE, LibBridgeRoles.ROLE_EJECTOR_ADMIN, msg.sender, true);
+        _grantRoles(ROOT_RESOURCE, LibBridgeRoles.ROLE_EJECTOR_ADMIN, _msgSender(), true);
     }
 
     /**

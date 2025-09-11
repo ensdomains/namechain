@@ -3,6 +3,8 @@ pragma solidity >=0.8.13;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
+import {IHCAFactoryBasic} from "../hca/IHCAFactoryBasic.sol";
 import {ERC1155Singleton} from "./ERC1155Singleton.sol";
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 import {IRegistry} from "./IRegistry.sol";
@@ -34,7 +36,7 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
         _;
     }
 
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadata, address _ownerAddress, uint256 _ownerRoles) BaseRegistry(_datastore) MetadataMixin(_metadata) {
+    constructor(IHCAFactoryBasic hcaFactory_, IRegistryDatastore _datastore, IRegistryMetadata _metadata, address _ownerAddress, uint256 _ownerRoles) EnhancedAccessControl(hcaFactory_) BaseRegistry(_datastore) MetadataMixin(_metadata) {
         _grantRoles(ROOT_RESOURCE, _ownerRoles, _ownerAddress, false);
 
         if (address(_metadata) == address(0)) {
@@ -114,10 +116,11 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
 
         ITokenObserver observer = tokenObservers[tokenId];
         if (address(observer) != address(0)) {
-            observer.onRenew(tokenId, expires, msg.sender);
+            // TODO(tate): clarify if the observer will be HCA aware or not
+            observer.onRenew(tokenId, expires, _msgSender());
         }
 
-        emit NameRenewed(tokenId, expires, msg.sender);
+        emit NameRenewed(tokenId, expires, _msgSender());
     }
 
     /**

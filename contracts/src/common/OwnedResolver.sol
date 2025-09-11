@@ -38,6 +38,7 @@ contract OwnedResolver is
     }
 
     function isAuthorised(bytes32) internal view override returns (bool) {
+        // TODO(tate): replace with _msgSender() for HCA context? or maybe we don't need this contract at all
         return msg.sender == owner();
     }
 

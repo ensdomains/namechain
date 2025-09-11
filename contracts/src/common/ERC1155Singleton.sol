@@ -12,10 +12,10 @@ import {IERC1155MetadataURI} from "@openzeppelin/contracts/token/ERC1155/extensi
 import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {ERC1155Utils} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Utils.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
+import {HCAContext} from "../hca/HCAContext.sol";
 import {Arrays} from "@openzeppelin/contracts/utils/Arrays.sol";
 
-abstract contract ERC1155Singleton is Context, ERC165, IERC1155Singleton, IERC1155Errors, IERC1155MetadataURI {
+abstract contract ERC1155Singleton is HCAContext, ERC165, IERC1155Singleton, IERC1155Errors, IERC1155MetadataURI {
     using Arrays for uint256[];
     using Arrays for address[];
 
