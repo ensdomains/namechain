@@ -17,11 +17,21 @@ struct PaymentRatio {
     uint128 denom;
 }
 
+uint256 constant DISCOUNT_SCALE = 1e18;
+
+struct DiscountPoint {
+    uint64 t;
+    uint192 value; // relative to DISCOUNT_SCALE
+}
+
 contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     struct Ratio {
         uint128 numer;
         uint128 denom;
     }
+
+    /// @notice Discount function was changed.
+    event DiscountFunctionChanged();
 
     /// @notice Invalid payment token exchange rate.
     /// @dev Error selector: `0x648564d3`
@@ -29,6 +39,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
 
     IPermissionedRegistry public immutable registry;
     uint256[5] baseRatePerCp; // rate = price/sec
+    DiscountPoint[] discountPoints;
     uint64 public immutable premiumPeriod;
     uint64 public immutable premiumHalvingPeriod;
     uint256 public immutable premiumPriceInitial;
@@ -39,6 +50,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
         address owner,
         IPermissionedRegistry _registry,
         uint256[5] memory _baseRatePerCp,
+        DiscountPoint[] memory _discountPoints,
         uint64 _premiumPeriod,
         uint64 _premiumHalvingPeriod,
         uint256 _premiumPriceInitial,
@@ -46,6 +58,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     ) Ownable(owner) {
         registry = _registry;
         baseRatePerCp = _baseRatePerCp;
+        _setDiscountPoints(_discountPoints);
         premiumPeriod = _premiumPeriod;
         premiumHalvingPeriod = _premiumHalvingPeriod;
         premiumPriceInitial = _premiumPriceInitial;
@@ -54,7 +67,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
             _premiumHalvingPeriod,
             _premiumPeriod
         );
-        for (uint256 i; i < paymentRatios.length; i++) {
+        for (uint256 i; i < paymentRatios.length; ++i) {
             PaymentRatio memory x = paymentRatios[i];
             if (x.numer == 0 || x.denom == 0) {
                 revert InvalidRatio();
@@ -71,6 +84,23 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
         return
             interfaceId == type(IRentPriceOracle).interfaceId ||
             super.supportsInterface(interfaceId);
+    }
+
+    /// @dev Update the discount function points.
+    function _setDiscountPoints(DiscountPoint[] memory points) internal {
+        delete discountPoints;
+        for (uint256 i; i < points.length; ++i) {
+            discountPoints.push(points[i]);
+        }
+    }
+
+    /// @notice Update the discount function.
+    /// @dev Use empty array to disable.
+    function updateDiscountFunction(
+        DiscountPoint[] memory points
+    ) external onlyOwner {
+        _setDiscountPoints(points);
+        emit DiscountFunctionChanged();
     }
 
     /// @notice Update `paymentToken` support and/or exchange rate.
@@ -121,6 +151,28 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
             ];
     }
 
+    /// @notice Get integral of discount function for duration.
+    /// @dev Use `integratedDiscount(t) / t` to compute average discount.
+    /// @param duration The time since now, in seconds.
+    /// @return Integral of discount function over `[0, t)`.
+    function integratedDiscount(uint64 duration) public view returns (uint256) {
+        uint256 n = discountPoints.length;
+        if (n == 0) return 0;
+        uint256 t;
+        uint256 acc;
+        uint256 value;
+        DiscountPoint memory p;
+        for (uint256 i; i < n; ++i) {
+            p = discountPoints[i];
+            uint256 dt = p.t - t;
+            value = (p.t * p.value - acc + (dt - 1)) / dt; // round up
+            if (duration < p.t) break;
+            t = p.t;
+            acc += dt * value;
+        }
+        return acc + (duration - t) * (duration > p.t ? p.value : value);
+    }
+
     /// @notice Get premium price for an expiry relative to now.
     function premiumPrice(uint64 expiry) public view returns (uint256) {
         uint64 t = uint64(block.timestamp);
@@ -156,12 +208,20 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
         if (baseUnits == 0) {
             revert NotValid(label);
         }
+        (uint256 tokenId, uint64 oldExpiry, ) = registry.getNameData(label);
+        uint64 t = oldExpiry > block.timestamp
+            ? oldExpiry - uint64(block.timestamp)
+            : 0;
+        baseUnits -= Math.mulDiv(
+            baseUnits,
+            integratedDiscount(t + duration) - integratedDiscount(t),
+            DISCOUNT_SCALE * duration
+        );
         uint256 premiumUnits;
         if (owner != address(0)) {
             // prior owner pays no premium
-            (uint256 tokenId, uint64 expiry, ) = registry.getNameData(label);
             if (owner != registry.latestOwnerOf(tokenId)) {
-                premiumUnits = premiumPrice(expiry);
+                premiumUnits = premiumPrice(oldExpiry);
             }
         }
         // reverts on overflow

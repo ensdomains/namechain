@@ -3,6 +3,7 @@ import {
   rateFromAnnualPrice,
   formatAnnualPriceFromRate,
   PRICE_DECIMALS,
+  SEC_PER_YEAR,
 } from "../../test/utils/price.js";
 
 export default execute(
@@ -24,6 +25,16 @@ export default execute(
       rateFromAnnualPrice("5"),
     ] as const;
 
+    const DISCOUNT_SCALE = 1e18; // see: StandardRentPriceOracle.sol
+    const discountPoints: [bigint, bigint][] = [
+      [SEC_PER_YEAR, 0n],
+      [SEC_PER_YEAR * 2n, BigInt(DISCOUNT_SCALE * 0.05)],
+      [SEC_PER_YEAR * 3n, BigInt(DISCOUNT_SCALE * 0.1)],
+      [SEC_PER_YEAR * 5n, BigInt(DISCOUNT_SCALE * 0.175)],
+      [SEC_PER_YEAR * 10n, BigInt(DISCOUNT_SCALE * 0.25)],
+      [SEC_PER_YEAR * 25n, BigInt(DISCOUNT_SCALE * 0.3)],
+    ];
+
     const paymentFactors = await Promise.all(
       paymentTokens.map(async (x) => {
         const [symbol, decimals] = await Promise.all([
@@ -43,6 +54,13 @@ export default execute(
     console.table(paymentFactors);
 
     console.table(
+      discountPoints.map(([t, value]) => ({
+        years: (Number(t) / Number(SEC_PER_YEAR)).toFixed(2),
+        discount: ((Number(value) / DISCOUNT_SCALE) * 100).toFixed(2) + "%",
+      })),
+    );
+
+    console.table(
       baseRatePerCp.flatMap((rate, i) =>
         rate
           ? { cp: 1 + i, rate, yearly: formatAnnualPriceFromRate(rate, 2) }
@@ -58,6 +76,7 @@ export default execute(
         owner,
         ethRegistry.address,
         baseRatePerCp,
+        discountPoints.map(([t, value]) => ({ t, value })),
         SEC_PER_DAY * 21n, // premiumPeriod
         SEC_PER_DAY, // premiumHalvingPeriod
         100_000_000n * 10n ** BigInt(PRICE_DECIMALS), // premiumPriceInitial

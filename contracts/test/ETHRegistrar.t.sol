@@ -11,7 +11,7 @@ import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
-import {StandardRentPriceOracle, IRentPriceOracle, PaymentRatio} from "../src/L2/StandardRentPriceOracle.sol";
+import {StandardRentPriceOracle, IRentPriceOracle, PaymentRatio, DiscountPoint} from "../src/L2/StandardRentPriceOracle.sol";
 import {ETHRegistrar, IETHRegistrar, IRegistry, REGISTRATION_ROLE_BITMAP, ROLE_SET_ORACLE} from "../src/L2/ETHRegistrar.sol";
 import {EnhancedAccessControl, IEnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
@@ -71,9 +71,10 @@ contract TestETHRegistrar is Test {
             address(this),
             ethRegistry,
             [RATE_1CP, RATE_2CP, RATE_3CP, RATE_4CP, RATE_5CP],
-            21 days,
-            1 days,
-            100_000_000 * PRICE_SCALE,
+            new DiscountPoint[](0), // disabled discount
+            21 days, // premiumPeriod
+            1 days, // premiumHalvingPeriod
+            100_000_000 * PRICE_SCALE, // premiumPriceInitial
             paymentRatios
         );
 
@@ -140,6 +141,7 @@ contract TestETHRegistrar is Test {
             address(this),
             ethRegistry,
             [uint256(1), 2, 3, 4, 0],
+            new DiscountPoint[](0), // disabled discount
             0, // \
             0, //  disabled premium
             0, // /
@@ -165,9 +167,10 @@ contract TestETHRegistrar is Test {
             address(this),
             ethRegistry,
             [uint256(0), 0, 0, 0, 0],
-            0,
-            0,
-            0,
+            new DiscountPoint[](0), // disabled discount
+            0, // \
+            0, //  disabled premium
+            0, // /
             paymentRatios
         );
         vm.startPrank(user);

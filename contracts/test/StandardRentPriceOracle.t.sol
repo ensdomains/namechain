@@ -3,6 +3,7 @@ pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -11,7 +12,7 @@ import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
-import {StandardRentPriceOracle, PaymentRatio, IRentPriceOracle, Ownable} from "../src/L2/StandardRentPriceOracle.sol";
+import {StandardRentPriceOracle, PaymentRatio, IRentPriceOracle, DiscountPoint} from "../src/L2/StandardRentPriceOracle.sol";
 import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
 
 contract TestRentPriceOracle is Test {
@@ -59,10 +60,19 @@ contract TestRentPriceOracle is Test {
         paymentRatios[0] = _fromStablecoin(tokenUSDC);
         paymentRatios[1] = _fromStablecoin(tokenDAI);
 
+        DiscountPoint[] memory discountPoints = new DiscountPoint[](6);
+        discountPoints[0] = DiscountPoint(SEC_PER_YEAR, 0);
+        discountPoints[1] = DiscountPoint(SEC_PER_YEAR * 2, 50e15); // 0.05 * DISCOUNT_SCALE
+        discountPoints[2] = DiscountPoint(SEC_PER_YEAR * 3, 100e15);
+        discountPoints[3] = DiscountPoint(SEC_PER_YEAR * 5, 175e15);
+        discountPoints[4] = DiscountPoint(SEC_PER_YEAR * 10, 250e15);
+        discountPoints[5] = DiscountPoint(SEC_PER_YEAR * 25, 300e15);
+
         rentPriceOracle = new StandardRentPriceOracle(
             address(this),
             ethRegistry,
             [RATE_1CP, RATE_2CP, RATE_3CP, RATE_4CP, RATE_5CP],
+            discountPoints,
             21 days, // premiumPeriod
             1 days, // premiumHavingPeriod
             100_000_000 * PRICE_SCALE, // premiumPriceInitial
@@ -149,8 +159,8 @@ contract TestRentPriceOracle is Test {
     function _testRentPrice(string memory label, uint256 rate) internal {
         uint256 base = rentPriceOracle.baseRate(label);
         assertEq(base, rate, "rate");
-        _testRentPrice(label, rate, SEC_PER_YEAR, tokenUSDC);
-        _testRentPrice(label, rate, SEC_PER_YEAR * 2, tokenDAI);
+        _testRentPrice(label, rate, SEC_PER_YEAR, tokenUSDC); // duration must be before initial
+        _testRentPrice(label, rate, SEC_PER_YEAR, tokenDAI); // discount or price will be reduced
     }
 
     function _testRentPrice(
@@ -201,6 +211,35 @@ contract TestRentPriceOracle is Test {
     }
     function test_rentPrice_long() external {
         _testRentPrice("abcdefghijklmnopqrstuvwxyz", RATE_5CP);
+    }
+
+    function _testDiscount(uint64 t, uint256 value) internal view {
+        assertEq(rentPriceOracle.integratedDiscount(t) / t, value);
+    }
+
+    function test_discountAfter_start() external view {
+        assertEq(rentPriceOracle.integratedDiscount(0), 0);
+    }
+    function test_discountAfter_1year() external view {
+        _testDiscount(SEC_PER_YEAR, 0);
+    }
+    function test_discountAfter_2years() external view {
+        _testDiscount(SEC_PER_YEAR * 2, 50e15);
+    }
+    function test_discountAfter_3years() external view {
+        _testDiscount(SEC_PER_YEAR * 3, 100e15);
+    }
+    function test_discountAfter_5years() external view {
+        _testDiscount(SEC_PER_YEAR * 5, 175e15);
+    }
+    function test_discountAfter_10years() external view {
+        _testDiscount(SEC_PER_YEAR * 10, 250e15);
+    }
+    function test_discountAfter_30years() external view {
+        _testDiscount(SEC_PER_YEAR * 30, 300e15);
+    }
+    function test_discountAfter_end() external view {
+        _testDiscount(type(uint64).max, 300e15);
     }
 
     function test_premiumPriceAfter_start() external view {
