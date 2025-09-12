@@ -6,22 +6,23 @@ import "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
-import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
+import {PermissionedRegistry, IRegistry} from "../src/common/PermissionedRegistry.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
-import {StandardRentPriceOracle, PaymentRatio, IRentPriceOracle, DiscountPoint} from "../src/L2/StandardRentPriceOracle.sol";
+import {StandardRentPriceOracle, PaymentRatio, IRentPriceOracle, DiscountPoint, DISCOUNT_SCALE} from "../src/L2/StandardRentPriceOracle.sol";
 import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
 
-contract TestRentPriceOracle is Test {
+contract TestRentPriceOracle is Test, ERC1155Holder {
     PermissionedRegistry ethRegistry;
 
     StandardRentPriceOracle rentPriceOracle;
 
     MockERC20 tokenUSDC;
-    MockERC20 tokenDAI;
+    MockERC20 tokenIdentity;
 
     address user = makeAddr("user");
 
@@ -54,11 +55,11 @@ contract TestRentPriceOracle is Test {
         );
 
         tokenUSDC = new MockERC20("USDC", 6);
-        tokenDAI = new MockERC20("DAI", 18);
+        tokenIdentity = new MockERC20("ID", PRICE_DECIMALS);
 
         PaymentRatio[] memory paymentRatios = new PaymentRatio[](2);
         paymentRatios[0] = _fromStablecoin(tokenUSDC);
-        paymentRatios[1] = _fromStablecoin(tokenDAI);
+        paymentRatios[1] = _fromStablecoin(tokenIdentity);
 
         DiscountPoint[] memory discountPoints = new DiscountPoint[](6);
         discountPoints[0] = DiscountPoint(SEC_PER_YEAR, 0);
@@ -93,7 +94,7 @@ contract TestRentPriceOracle is Test {
 
     function test_isPaymentToken() external view {
         assertTrue(rentPriceOracle.isPaymentToken(tokenUSDC), "USDC");
-        assertTrue(rentPriceOracle.isPaymentToken(tokenDAI), "DAI");
+        assertTrue(rentPriceOracle.isPaymentToken(tokenIdentity), "ID");
         assertFalse(rentPriceOracle.isPaymentToken(IERC20(address(0))));
     }
 
@@ -156,11 +157,12 @@ contract TestRentPriceOracle is Test {
         );
     }
 
-    function _testRentPrice(string memory label, uint256 rate) internal {
+    function _testRentPrice(uint256 n, uint256 rate) internal {
+        string memory label = new string(n);
         uint256 base = rentPriceOracle.baseRate(label);
         assertEq(base, rate, "rate");
         _testRentPrice(label, rate, SEC_PER_YEAR, tokenUSDC); // duration must be before initial
-        _testRentPrice(label, rate, SEC_PER_YEAR, tokenDAI); // discount or price will be reduced
+        _testRentPrice(label, rate, SEC_PER_YEAR, tokenIdentity); // discount or price will be reduced
     }
 
     function _testRentPrice(
@@ -192,25 +194,25 @@ contract TestRentPriceOracle is Test {
     }
 
     function test_rentPrice_0() external {
-        _testRentPrice("", 0);
+        _testRentPrice(0, 0);
     }
     function test_rentPrice_1() external {
-        _testRentPrice("a", 0);
+        _testRentPrice(1, 0);
     }
     function test_rentPrice_2() external {
-        _testRentPrice("ab", 0);
+        _testRentPrice(2, 0);
     }
     function test_rentPrice_3() external {
-        _testRentPrice("abc", RATE_3CP);
+        _testRentPrice(3, RATE_3CP);
     }
     function test_rentPrice_4() external {
-        _testRentPrice("abcd", RATE_4CP);
+        _testRentPrice(4, RATE_4CP);
     }
     function test_rentPrice_5() external {
-        _testRentPrice("abcde", RATE_5CP);
+        _testRentPrice(5, RATE_5CP);
     }
     function test_rentPrice_long() external {
-        _testRentPrice("abcdefghijklmnopqrstuvwxyz", RATE_5CP);
+        _testRentPrice(255, RATE_5CP);
     }
 
     function _testDiscount(uint64 t, uint256 value) internal view {
@@ -240,6 +242,65 @@ contract TestRentPriceOracle is Test {
     }
     function test_discountAfter_end() external view {
         _testDiscount(type(uint64).max, 300e15);
+    }
+
+    function _testDiscountedRentPrice(
+        string memory label,
+        uint64 dur0,
+        uint64 dur1
+    ) internal {
+        ethRegistry.register(
+            label,
+            address(this),
+            IRegistry(address(0)),
+            address(0),
+            0,
+            uint64(block.timestamp) + dur0
+        );
+        uint256 base0 = rentPriceOracle.baseRate(label) * dur1;
+        (uint256 base1, ) = rentPriceOracle.rentPrice(
+            label,
+            address(this),
+            dur1,
+            tokenIdentity
+        );
+        assertLt(base1, base0, "discounted");
+        assertEq(
+            base1,
+            base0 -
+                Math.mulDiv(
+                    base0,
+                    rentPriceOracle.integratedDiscount(dur0 + dur1) -
+                        rentPriceOracle.integratedDiscount(dur0),
+                    DISCOUNT_SCALE * dur1
+                ),
+            "discount"
+        );
+    }
+
+    function _testDiscountedPermutations(uint256 n) internal {
+        bytes memory buf = new bytes(n);
+        for (uint64 i = 1; i < 3; i++) {
+            buf[0] = bytes1(uint8(i));
+            for (uint64 j = 1; j < 10; j++) {
+                buf[1] = bytes1(uint8(j));
+                _testDiscountedRentPrice(
+                    string(buf),
+                    SEC_PER_YEAR * i,
+                    SEC_PER_YEAR * j
+                );
+            }
+        }
+    }
+
+    function test_discountedRentPrice_3() external {
+        _testDiscountedPermutations(3);
+    }
+    function test_discountedRentPrice_4() external {
+        _testDiscountedPermutations(4);
+    }
+    function test_discountedRentPrice_5() external {
+        _testDiscountedPermutations(5);
     }
 
     function test_premiumPriceAfter_start() external view {

@@ -151,10 +151,10 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
             ];
     }
 
-    /// @notice Get integral of discount function for duration.
+    /// @notice Compute integral of discount function for `duration`.
     /// @dev Use `integratedDiscount(t) / t` to compute average discount.
     /// @param duration The time since now, in seconds.
-    /// @return Integral of discount function over `[0, t)`.
+    /// @return Integral of discount function over `[0, duration)`.
     function integratedDiscount(uint64 duration) public view returns (uint256) {
         uint256 n = discountPoints.length;
         if (n == 0) return 0;
