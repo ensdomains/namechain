@@ -157,20 +157,19 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     /// @return Integral of discount function over `[0, duration)`.
     function integratedDiscount(uint64 duration) public view returns (uint256) {
         uint256 n = discountPoints.length;
-        if (n == 0) return 0;
-        uint256 t;
-        uint256 acc;
-        uint256 value;
-        DiscountPoint memory p;
+        DiscountPoint memory p0 = DiscountPoint(0, 0);
         for (uint256 i; i < n; ++i) {
-            p = discountPoints[i];
-            uint256 dt = p.t - t;
-            value = (p.t * p.value - acc + (dt - 1)) / dt; // round up
-            if (duration < p.t) break;
-            t = p.t;
-            acc += dt * value;
+            DiscountPoint memory p = discountPoints[i];
+            if (duration < p.t) {
+                uint256 numer = duration - p0.t;
+                uint256 denom = p.t - p0.t;
+                uint256 acc = p0.t * uint256(p0.value);
+                uint256 part = p.t * uint256(p.value) - acc;
+                return acc + (numer * (part + (denom - 1))) / denom;
+            }
+            p0 = p;
         }
-        return acc + (duration - t) * (duration > p.t ? p.value : value);
+        return uint256(p0.value) * duration;
     }
 
     /// @notice Get premium price for an expiry relative to now.
