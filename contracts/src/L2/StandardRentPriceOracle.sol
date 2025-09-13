@@ -165,7 +165,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
                 uint256 denom = p.t - p0.t;
                 uint256 acc = p0.t * uint256(p0.value);
                 uint256 part = p.t * uint256(p.value) - acc;
-                return acc + (numer * (part + (denom - 1))) / denom;
+                return acc + (numer * part + (denom - 1)) / denom; // round up
             }
             p0 = p;
         }
