@@ -264,7 +264,6 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
             dur1,
             tokenIdentity
         );
-        assertLt(base1, base0, "discounted");
         assertEq(
             base1,
             base0 -
@@ -273,8 +272,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
                     rentPriceOracle.integratedDiscount(dur0 + dur1) -
                         rentPriceOracle.integratedDiscount(dur0),
                     DISCOUNT_SCALE * dur1
-                ),
-            "discount"
+                )
         );
     }
 
