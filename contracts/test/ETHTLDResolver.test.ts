@@ -3,6 +3,7 @@ import { BrowserProvider } from "ethers/providers";
 import hre from "hardhat";
 import { readFileSync } from "node:fs";
 import {
+  bytesToHex,
   concat,
   encodeErrorResult,
   encodeFunctionData,
@@ -22,8 +23,8 @@ import { deployArtifact } from "./fixtures/deployArtifact.js";
 import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
 import { urgArtifact } from "./fixtures/externalArtifacts.js";
-import { expectVar } from "./utils/expectVar.ts";
-import { dnsEncodeName, getLabelAt } from "./utils/utils.js";
+import { expectVar } from "./utils/expectVar.js";
+import { dnsEncodeName, getLabelAt, splitName } from "./utils/utils.js";
 import {
   COIN_TYPE_DEFAULT,
   COIN_TYPE_ETH,
@@ -601,5 +602,84 @@ describe("ETHTLDResolver", () => {
       ]);
       bundle.expect(answer);
     });
+  });
+
+  describe("limits", () => {
+    const maxProofs = 64; // likely gateway constraint
+
+    // fixed size: addr(), pubkey(), hasAddr(), interfaceImplementer()
+    // bytes-like: text(*), addr(*), contenthash()
+    // complex: ABI()
+
+    for (const name of testNames) {
+      // see: RegistryDatastore.test.ts
+      // to target exact resolver of "x.y.eth"
+      // 1. AccountProof(registry)
+      // 2. for each label:
+      //    a. StorageProof(label's registry)
+      //    b. StorageProof(label's resolver)
+      // 3. AccountProof(resolver)
+      // => 1 + 2*(n-1) + 1 = 2*n
+      const lookupProofs = 2 * splitName(name).length;
+      const proofBudget = maxProofs - lookupProofs; // remaining
+
+      describe(`${name} = ${proofBudget}/${maxProofs}`, () => {
+        it("bytes", async () => {
+          const F = await loadFixture();
+          const { dedicatedResolver } = await F.namechain.setupName({ name });
+          F.gateway.rollup.configure = (c) => {
+            c.prover.maxUniqueProofs = maxProofs;
+            c.prover.maxProvableBytes = maxProofs << 5;
+          };
+          await run(0);
+          await expect(run(1)).rejects.toThrow();
+          async function run(extra: number) {
+            const kp: KnownProfile = {
+              name,
+              contenthash: {
+                value: bytesToHex(
+                  new Uint8Array(((proofBudget - 1) << 5) + extra), // -1 for bytes.length
+                ),
+              },
+            };
+            const [res] = makeResolutions(kp);
+            await F.namechain.walletClient.sendTransaction({
+              to: dedicatedResolver.address,
+              data: res.writeDedicated,
+            });
+            await sync();
+            return F.mainnetV2.universalResolver.read
+              .resolve([dnsEncodeName(kp.name), res.call])
+              .then(([answer]) => res.expect(answer));
+          }
+        });
+
+        it("ABI()", async () => {
+          const F = await loadFixture();
+          await F.namechain.setupName({ name });
+          F.gateway.rollup.configure = (c) => {
+            c.prover.maxUniqueProofs = maxProofs;
+            c.prover.maxProvableBytes = maxProofs << 5;
+            c.prover.maxStackSize = Infinity;
+          };
+          await run(0);
+          await expect(run(1)).rejects.toThrow();
+          async function run(extra: number) {
+            await sync();
+            return F.mainnetV2.universalResolver.read.resolve([
+              dnsEncodeName(name),
+              encodeFunctionData({
+                abi: PROFILE_ABI,
+                functionName: "ABI",
+                args: [
+                  namehash(name),
+                  (1n << BigInt(proofBudget + extra)) - 1n,
+                ],
+              }),
+            ]);
+          }
+        });
+      });
+    }
   });
 });
