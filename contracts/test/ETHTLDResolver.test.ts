@@ -147,8 +147,8 @@ describe("ETHTLDResolver", () => {
     contract: () => loadFixture().then((F) => F.ethTLDResolver),
     interfaces: [
       "IERC165",
+      "IERC7996",
       "IExtendedResolver",
-      "IFeatureSupporter",
       "IRegistryResolver",
     ],
   });
