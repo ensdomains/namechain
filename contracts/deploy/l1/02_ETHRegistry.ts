@@ -1,6 +1,7 @@
 import { artifacts, execute } from "@rocketh";
 import { MAX_EXPIRY, ROLES } from "../constants.js";
 
+ // TODO: ownership
 export default execute(
   async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
     const rootRegistry =
@@ -28,16 +29,16 @@ export default execute(
     });
 
     await write(rootRegistry, {
+      account: deployer,
       functionName: "register",
       args: [
         "eth",
-        deployer,
+        deployer, 
         ethRegistry.address,
         ethTLDResolver.address,
-        0n, // TODO: figure out required roles?
+        0n,
         MAX_EXPIRY,
       ],
-      account: deployer,
     });
   },
   {

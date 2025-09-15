@@ -45,40 +45,36 @@ export const config = {
 // ------------------------------------------------------------------------------------------------
 // We regroup all what is needed for the deploy scripts
 // so that they just need to import this file
-import * as deployFunctions from "@rocketh/deploy"; // this one provide a deploy function
-import * as readExecuteFunctions from "@rocketh/read-execute"; // this one provide read,execute functions
+import * as deployFunctions from "@rocketh/deploy";
+import * as readExecuteFunctions from "@rocketh/read-execute";
+import * as viemFunctions from "@rocketh/viem";
 
 // ------------------------------------------------------------------------------------------------
 // we re-export the artifacts, so they are easily available from the alias
 import artifacts from "./generated/artifacts.js";
 export { artifacts };
 // ------------------------------------------------------------------------------------------------
-// while not necessary, we also converted the execution function type to know about the named accounts
-// this way you get type safe accounts
-import {
-  type Environment as Environment_,
-  setup,
-  loadAndExecuteDeployments,
-} from "rocketh";
 
-import type { Address } from "viem";
-type L1Arguments = {
-  l2Deploy: {
-    deployments: Record<string, { address: Address }>;
-  };
-  verifierAddress: Address;
-};
-export type Arguments = L1Arguments | undefined;
+import {
+  setup,
+  type CurriedFunctions,
+  type Environment as Environment_,
+} from "rocketh";
 
 const functions = {
   ...deployFunctions,
   ...readExecuteFunctions,
+  ...viemFunctions,
 };
 
-const execute = setup<typeof functions, typeof config.accounts>(
-  functions,
-)<Arguments>;
+export type Environment = Environment_<typeof config.accounts> &
+  CurriedFunctions<typeof functions>;
 
-type Environment = Environment_<typeof config.accounts>;
+const enhanced = setup<typeof functions, typeof config.accounts>(functions);
 
-export { execute, loadAndExecuteDeployments, type Environment };
+import type { RockethArguments } from "./script/types.ts";
+
+export const execute = enhanced.deployScript<RockethArguments>;
+
+export const loadAndExecuteDeployments =
+  enhanced.loadAndExecuteDeployments<RockethArguments>;

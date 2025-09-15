@@ -9,14 +9,14 @@ export default execute(
       "BatchGatewayProvider",
     );
 
-    await deploy("UniversalResolverV2", {
+    const dnsAliasResolver = await deploy("DNSAliasResolver", {
       account: deployer,
-      artifact: artifacts.UniversalResolverV2,
+      artifact: artifacts.DNSAliasResolver,
       args: [rootRegistry.address, batchGatewayProvider.address],
     });
   },
   {
-    tags: ["UniversalResolverV2", "l1"],
+    tags: ["DNSAliasResolver", "l1"],
     dependencies: ["RootRegistry", "BatchGatewayProvider"],
   },
 );

@@ -9,25 +9,22 @@ import {
 } from "viem";
 
 import { ROLES } from "../deploy/constants.js";
-import { createMockRelay } from "../script/mockRelay.js";
-import { setupCrossChainEnvironment } from "../script/setup.js";
-import { expectTransactionSuccess, waitForEvent } from "./utils.js";
-import { labelToCanonicalId, getCanonicalId } from "../test/utils/utils.ts";
+import { type MockRelayer, createMockRelay } from "../script/mockRelay.js";
+import {
+  type CrossChainEnvironment,
+  setupCrossChainEnvironment,
+} from "../script/setup.js";
+import { labelToCanonicalId, getCanonicalId } from "../test/utils/utils.js";
 
 describe("Bridge", () => {
-  let env: Awaited<ReturnType<typeof setupCrossChainEnvironment>>;
-  let relayer: ReturnType<typeof createMockRelay>;
+  let env: CrossChainEnvironment;
+  let relay: MockRelayer;
   beforeAll(async () => {
     env = await setupCrossChainEnvironment();
-    afterAll(env.shutdown);
-    relayer = createMockRelay({
-      l1Bridge: env.l1.contracts.mockBridge,
-      l2Bridge: env.l2.contracts.mockBridge,
-      l1Client: env.l1.client,
-      l2Client: env.l2.client,
-    });
-    afterAll(relayer.removeListeners);
+    relay = createMockRelay(env);
   });
+  afterAll(() => env?.shutdown);
+  // beforeEach(() => env?.resetState());
 
   it("name ejection", async () => {
     const label = "premium";
@@ -40,7 +37,7 @@ describe("Bridge", () => {
     const roleBitmap = ROLES.ALL;
 
     console.log("Registering the name on L2...");
-    const registerTx = env.l2.contracts.ethRegistry.write.register([
+    const registerTx = await env.l2.contracts.ethRegistry.write.register([
       label,
       user.address,
       env.l2.contracts.ethRegistry.address,
@@ -48,8 +45,8 @@ describe("Bridge", () => {
       roleBitmap,
       expiryTime,
     ]);
-    await expectTransactionSuccess(env.l2.client, registerTx);
-    console.log(`Name registered on L2, tx hash: ${await registerTx}`);
+    await env.l2.client.waitForTransactionReceipt({ hash: registerTx });
+    console.log(`Name registered on L2, tx hash: ${registerTx}`);
 
     const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData([
       label,
@@ -69,59 +66,36 @@ describe("Bridge", () => {
 
     expect(canonicalId, "canonical").toStrictEqual(labelToCanonicalId(label));
 
-    const transferDataParameters = [
-      label,
-      l1Owner.address,
-      l1Subregistry,
-      l1Resolver,
-      roleBitmap,
-      expiryTime,
-    ] as const;
     const encodedTransferData = encodeAbiParameters(
       parseAbiParameters("(string,address,address,address,uint256,uint64)"),
-      [transferDataParameters],
+      [
+        [
+          label,
+          l1Owner.address,
+          l1Subregistry,
+          l1Resolver,
+          roleBitmap,
+          expiryTime,
+        ],
+      ],
     );
 
     console.log("L2 registry", env.l2.contracts.ethRegistry.address);
     console.log("L2 controller", env.l2.contracts.bridgeController.address);
 
     console.log("Transferring token to L2BridgeController...");
-    const transferTx = env.l2.contracts.ethRegistry.write.safeTransferFrom(
-      [
-        owner,
-        env.l2.contracts.bridgeController.address,
-        tokenId,
-        1n,
-        encodedTransferData,
-      ],
-      { account: owner },
+    await relay.waitFor(
+      env.l2.contracts.ethRegistry.write.safeTransferFrom(
+        [
+          owner,
+          env.l2.contracts.bridgeController.address,
+          tokenId,
+          1n,
+          encodedTransferData,
+        ],
+        { account: owner },
+      ),
     );
-
-    // Wait for the NameBridgedToL1 event from L2 bridge (indicating ejection message sent)
-    const bridgeEvents = await waitForEvent(({ onLogs }) =>
-      env.l2.contracts.mockBridge.watchEvent.NameBridgedToL1({ onLogs }),
-    );
-    await expectTransactionSuccess(env.l2.client, transferTx);
-    console.log(
-      `Token transferred to L2BridgeController, tx hash: ${await transferTx}`,
-    );
-
-    if ((bridgeEvents as any[]).length === 0) {
-      console.log(
-        "No NameBridgedToL1 event found on L2, manual relay might be needed",
-      );
-      throw new Error(
-        "No NameBridgedToL1 event found on L2, manual relay might be needed",
-      );
-    } else {
-      console.log(
-        "NameBridgedToL1 event found on L2, automatic relay should work",
-      );
-    }
-
-    // Add a delay to allow the relay transaction to complete
-    console.log("Waiting for relay to complete...");
-    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     console.log("Verifying registration on L1...");
     const actualL1Owner = await env.l1.contracts.ethRegistry.read.ownerOf([
@@ -146,7 +120,7 @@ describe("Bridge", () => {
     const roleBitmap = ROLES.ALL;
 
     console.log("Registering the name on L2...");
-    const registerTx = env.l2.contracts.ethRegistry.write.register([
+    const registerTx = await env.l2.contracts.ethRegistry.write.register([
       label,
       l2User,
       l2Subregistry,
@@ -154,113 +128,54 @@ describe("Bridge", () => {
       roleBitmap,
       expiryTime,
     ]);
-    await expectTransactionSuccess(env.l2.client, registerTx);
-    console.log(`Name registered on L2, tx hash: ${await registerTx}`);
+    await env.l2.client.waitForTransactionReceipt({ hash: registerTx });
+    console.log(`Name registered on L2, tx hash: ${registerTx}`);
 
     const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData([
       label,
     ]);
     console.log(`TokenID from registry: ${tokenId}`);
 
-    const transferDataParametersToL1 = [
-      label,
-      l1User,
-      l1Subregistry,
-      resolver,
-      roleBitmap,
-      expiryTime,
-    ] as const;
     const encodedTransferDataToL1 = encodeAbiParameters(
       parseAbiParameters("(string,address,address,address,uint256,uint64)"),
-      [transferDataParametersToL1],
+      [[label, l1User, l1Subregistry, resolver, roleBitmap, expiryTime]],
     );
 
-    const transferTxToL1 = env.l2.contracts.ethRegistry.write.safeTransferFrom(
-      [
-        l2User,
-        env.l2.contracts.bridgeController.address,
-        tokenId,
-        1n,
-        encodedTransferDataToL1,
-      ],
-      { account: l1User },
+    await relay.waitFor(
+      env.l2.contracts.ethRegistry.write.safeTransferFrom(
+        [
+          l2User,
+          env.l2.contracts.bridgeController.address,
+          tokenId,
+          1n,
+          encodedTransferDataToL1,
+        ],
+        { account: l1User },
+      ),
     );
-
-    // Wait for the NameBridgedToL1 event from L2 bridge (indicating ejection message sent)
-    const ejectionEvents = await waitForEvent(({ onLogs }) =>
-      env.l2.contracts.mockBridge.watchEvent.NameBridgedToL1({ onLogs }),
-    );
-    await expectTransactionSuccess(env.l2.client, transferTxToL1);
-    console.log(
-      `Token transferred to L2BridgeController, tx hash: ${await transferTxToL1}`,
-    );
-
-    if ((ejectionEvents as any[]).length === 0) {
-      throw new Error(
-        "No NameBridgedToL1 event found on L2, manual relay might be needed",
-      );
-    } else {
-      console.log(
-        "NameBridgedToL1 event found on L2, automatic relay should work",
-      );
-    }
-
-    // Add a delay to allow the relay transaction to complete
-    console.log("Waiting for L2->L1 relay to complete...");
-    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const owner = await env.l1.contracts.ethRegistry.read.ownerOf([tokenId]);
     console.log(`Owner on L1: ${owner}`);
     console.log("✓ Name successfully registered on L1");
     expect(owner).toBe(l1User);
 
-    const transferDataParametersToL2 = [
-      label,
-      l2User,
-      l2Subregistry,
-      resolver,
-      roleBitmap,
-      expiryTime,
-    ] as const;
-
     const encodedTransferDataToL2 = encodeAbiParameters(
       parseAbiParameters("(string,address,address,address,uint256,uint64)"),
-      [transferDataParametersToL2],
+      [[label, l2User, l2Subregistry, resolver, roleBitmap, expiryTime]],
     );
 
-    const transferTxToL2 = env.l1.contracts.ethRegistry.write.safeTransferFrom(
-      [
-        l1User,
-        env.l1.contracts.ejectionController.address,
-        tokenId,
-        1n,
-        encodedTransferDataToL2,
-      ],
-      { account: l1User },
+    await relay.waitFor(
+      env.l1.contracts.ethRegistry.write.safeTransferFrom(
+        [
+          l1User,
+          env.l1.contracts.ejectionController.address,
+          tokenId,
+          1n,
+          encodedTransferDataToL2,
+        ],
+        { account: l1User },
+      ),
     );
-
-    // Wait for the NameBridgedToL2 event from L1 bridge (indicating ejection message sent)
-    const migrationEvents = await waitForEvent(({ onLogs }) =>
-      env.l1.contracts.mockBridge.watchEvent.NameBridgedToL2({ onLogs }),
-    );
-    await expectTransactionSuccess(env.l1.client, transferTxToL2);
-    console.log(
-      `Token transferred to L1EjectionController, tx hash: ${await transferTxToL2}`,
-    );
-
-    if ((migrationEvents as any[]).length === 0) {
-      throw new Error(
-        "No NameBridgedToL2 event found on L1, manual relay might be needed",
-      );
-    } else {
-      console.log(
-        "NameBridgedToL2 event found on L1, automatic relay should work",
-      );
-    }
-
-    // Add a delay to allow the relay transaction to complete
-    console.log("Waiting for L1->L2 relay to complete...");
-    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     console.log("Verifying round trip results...");
 
