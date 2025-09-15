@@ -14,7 +14,7 @@ export default execute(
     if (!args?.l2Deploy) throw new Error("expected L2 deployment");
 
     const ensRegistryV1 =
-      get<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistryV1");
+      get<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
 
     const batchGatewayProvider = get<(typeof artifacts.GatewayProvider)["abi"]>(
       "BatchGatewayProvider",
@@ -82,6 +82,10 @@ export default execute(
   },
   {
     tags: ["ETHTLDResolver", "l1"],
-    dependencies: ["DedicatedResolver", "MockL1"],
+    dependencies: [
+      "DedicatedResolver",
+      "BaseRegistrarImplementation", // "ENSRegistry"
+      "BatchGatewayProvider",
+    ],
   },
 );

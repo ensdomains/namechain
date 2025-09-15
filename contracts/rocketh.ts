@@ -2,7 +2,8 @@
 // ------------------------------------------------------------------------------------------------
 // Typed Config
 // ------------------------------------------------------------------------------------------------
-import { UserConfig } from "rocketh";
+import type { UserConfig } from "rocketh";
+
 export const config = {
   accounts: {
     deployer: {
@@ -45,45 +46,36 @@ export const config = {
 // ------------------------------------------------------------------------------------------------
 // We regroup all what is needed for the deploy scripts
 // so that they just need to import this file
-import "@rocketh/deploy"; // provides the deploy function
-import "@rocketh/read-execute"; // provides read, execute functions
+import * as deployFunctions from "@rocketh/deploy";
+import * as readExecuteFunctions from "@rocketh/read-execute";
+import * as viemFunctions from "@rocketh/viem";
+
 // ------------------------------------------------------------------------------------------------
 // we re-export the artifacts, so they are easily available from the alias
 import artifacts from "./generated/artifacts.js";
 export { artifacts };
 // ------------------------------------------------------------------------------------------------
-// while not necessary, we also converted the execution function type to know about the named accounts
-// this way you get type safe accounts
+
 import {
-  execute as _execute,
-  loadAndExecuteDeployments,
-  type DeployScriptFunction,
-  type DeployScriptModule,
-  type UnknownDeployments,
-  type UnresolvedNetworkSpecificData,
+  setup,
+  type CurriedFunctions,
+  type Environment as Environment_,
 } from "rocketh";
-import type { Address } from "viem";
-type L1Arguments = {
-  l2Deploy: {
-    deployments: Record<string, { address: Address }>;
-  };
-  verifierAddress: Address;
+
+const functions = {
+  ...deployFunctions,
+  ...readExecuteFunctions,
+  ...viemFunctions,
 };
-type Arguments = L1Arguments | undefined;
-const execute = _execute as <
-  Deployments extends UnknownDeployments = UnknownDeployments,
->(
-  callback: DeployScriptFunction<
-    typeof config.accounts,
-    UnresolvedNetworkSpecificData,
-    Arguments,
-    Deployments
-  >,
-  options: { tags?: string[]; dependencies?: string[]; id?: string },
-) => DeployScriptModule<
-  typeof config.accounts,
-  UnresolvedNetworkSpecificData,
-  Arguments,
-  Deployments
->;
-export { execute, loadAndExecuteDeployments };
+
+export type Environment = Environment_<typeof config.accounts> &
+  CurriedFunctions<typeof functions>;
+
+const enhanced = setup<typeof functions, typeof config.accounts>(functions);
+
+import type { RockethArguments } from "./script/types.ts";
+
+export const execute = enhanced.deployScript<RockethArguments>;
+
+export const loadAndExecuteDeployments =
+  enhanced.loadAndExecuteDeployments<RockethArguments>;

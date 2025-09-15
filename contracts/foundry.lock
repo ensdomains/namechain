@@ -3,10 +3,7 @@
     "rev": "82cc81935de1d1a82e021cf1030d902c5248982b"
   },
   "lib/ens-contracts": {
-    "branch": {
-      "name": "staging",
-      "rev": "20e34971fd55f9e3b3cf4a5825d52e1504d36493"
-    }
+    "rev": "dd8f4c3071637e345dc8ca4ec8e8f7a759ac3ae6"
   },
   "lib/forge-std": {
     "rev": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"

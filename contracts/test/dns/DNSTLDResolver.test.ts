@@ -6,7 +6,7 @@ import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/
 import { shouldSupportFeatures } from "../utils/supportsFeatures.js";
 import { deployV1Fixture } from "../fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
-import { expectVar } from "../utils/expectVar.ts";
+import { expectVar } from "../utils/expectVar.js";
 import {
   type KnownProfile,
   bundleCalls,
