@@ -4,7 +4,7 @@ import { ROLES } from "../constants.js";
 export default execute(
   async ({ deploy, execute: write, get, namedAccounts: { deployer} }) => {
 
-    const ethRegistry =
+    const l1EthRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
     // TODO: real bridge
@@ -14,7 +14,7 @@ export default execute(
     const l1EjectionController = await deploy("L1EjectionController", {
       account: deployer,
       artifact: artifacts.L1EjectionController,
-      args: [ethRegistry.address, l1Bridge.address],
+      args: [l1EthRegistry.address, l1Bridge.address],
     });
 
     // Set the ejection controller on the bridge
@@ -25,7 +25,7 @@ export default execute(
     });
 
     // Grant registrar and renew roles to the ejection controller on the eth registry
-    await write(ethRegistry, {
+    await write(l1EthRegistry, {
       functionName: "grantRootRoles",
       args: [
         ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW | ROLES.OWNER.EAC.BURN,

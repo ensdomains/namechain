@@ -84,7 +84,8 @@ export function createMockRelay(env: CrossChainEnvironment) {
         env.l1.client.waitForTransactionReceipt({ hash }),
         env.l2.client.waitForTransactionReceipt({ hash }),
       ]);
-      return promise.then(() => receipt);
+      await promise;
+      return receipt;
     } finally {
       pending.delete(hash);
     }
