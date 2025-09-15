@@ -12,3 +12,5 @@ optimizer_runs = 200
 
 [fuzz]
 runs = 4096
+
+# forge i ensdomains/ens-contracts@branch=feature-fet-1938/fixed-deploy-scripts

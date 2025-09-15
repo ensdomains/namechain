@@ -2,13 +2,13 @@ import { artifacts, execute } from "@rocketh";
 
 export default execute(
   async ({ deploy, namedAccounts: { deployer } }) => {
-    await deploy("BatchGatewayProvider", {
+    await deploy("DNSSECGatewayProvider", {
       account: deployer,
       artifact: artifacts.GatewayProvider,
-      args: [deployer, ["x-batch-gateway:true"]],
+      args: [deployer, ["https://dnssec-oracle.ens.domains/"]],
     });
   },
   {
-    tags: ["BatchGatewayProvider", "l1"],
+    tags: ["DNSSECGatewayProvider", "l1"],
   },
 );

@@ -1,6 +1,8 @@
-import { toHex } from "viem";
+import { getAddress, toHex } from "viem";
 import { createMockRelay } from "./mockRelay.js";
 import { setupCrossChainEnvironment } from "./setup.js";
+
+const t0 = Date.now();
 
 const env = await setupCrossChainEnvironment({
   l1Port: 8545,
@@ -15,32 +17,33 @@ process.once("SIGINT", async () => {
   process.exit();
 });
 
-createMockRelay({
-  l1Bridge: env.l1.contracts.mockBridge,
-  l2Bridge: env.l2.contracts.mockBridge,
-  l1Client: env.l1.client,
-  l2Client: env.l2.client,
-});
+createMockRelay(env);
 
-console.log("\nAvailable Test Accounts:");
-console.log("========================");
-console.table(env.accounts.map(({ name, address }, i) => ({ name, address })));
+console.log();
+console.log("Available Named Accounts:");
+console.table(env.accounts.map((x) => ({ Name: x.name, Address: x.address })));
 
-console.log("\nDeployments:");
-console.log("============");
-console.log({
-  urg: (({ gateway, ...a }) => a)(env.urg),
-  l1: dump(env.l1),
-  l2: dump(env.l2),
-});
+console.table(
+  Object.fromEntries(
+    [env.l1, env.l2].map((x) => [
+      x.client.chain.name,
+      {
+        Chain: `${x.client.chain.id} (${toHex(x.client.chain.id)})`,
+        Endpoint: `{http,ws}://${x.hostPort}`,
+      },
+    ]),
+  ),
+);
+console.log("Unruggable Gateway:", (({ gateway, ...a }) => a)(env.urg));
 
-function dump(deployment: typeof env.l1 | typeof env.l2) {
-  const { client, hostPort, contracts } = deployment;
-  return {
-    chain: toHex(client.chain.id),
-    endpoint: `{http,ws}://${hostPort}`,
-    contracts: Object.fromEntries(
-      Object.entries(contracts).map(([k, v]) => [k, v.address]),
-    ),
-  };
+for (const lx of [env.l1, env.l2]) {
+  console.table(
+    Object.entries(lx.deployments).map(([name, address]) => ({
+      [lx.client.chain.name]: name,
+      "Contract Address": getAddress(address),
+    })),
+  );
 }
+
+console.log();
+console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);

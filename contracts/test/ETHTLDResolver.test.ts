@@ -35,6 +35,7 @@ import {
 } from "./utils/resolutions.js";
 import { injectRPCCounter } from "./utils/hardhat-counter.js";
 
+let urgCount = 0;
 const chain1 = injectRPCCounter(await hre.network.connect());
 const chain2 = injectRPCCounter(await hre.network.connect());
 const chains = [chain1, chain2];
@@ -70,7 +71,12 @@ async function fixture() {
     new UncheckedRollup(new BrowserProvider(chain2.provider)),
   );
   gateway.disableCache();
-  const ccip = await serve(gateway, { protocol: "raw", log: false }); // enable to see gateway calls
+  const ccip = await serve(gateway, {
+    protocol: "raw",
+    log() {
+      urgCount++;
+    },
+  });
   afterAll(ccip.shutdown);
   const GatewayVM = await deployArtifact(mainnetV2.walletClient, {
     file: urgArtifact("GatewayVM"),
@@ -125,16 +131,17 @@ const testNames = ["test.eth", "a.b.c.test.eth"];
 describe("ETHTLDResolver", () => {
   const rpcs: Record<string, any> = {};
   afterEach(({ expect: { getState } }) => {
-    rpcs[getState().currentTestName!] = [
-      chain1.counts.eth_call,
-      chain2.counts.eth_call,
-      chain2.counts.eth_getStorageAt,
-    ].map((x) => x || 0);
+    rpcs[getState().currentTestName!.split(" > ").slice(1).join("/")] = {
+      L1: chain1.counts.eth_call || 0,
+      L2: chain2.counts.eth_call || 0,
+      Urg: urgCount,
+      Slots: chain2.counts.eth_getStorageAt || 0,
+    };
     chain1.counts = {};
     chain2.counts = {};
+    urgCount = 0;
   });
-  // enable to print rpc call counts:
-  //afterAll(() => console.log(rpcs));
+  afterAll(() => console.table(rpcs));
 
   shouldSupportInterfaces({
     contract: () => loadFixture().then((F) => F.ethTLDResolver),
