@@ -16,6 +16,7 @@ import {ETHRegistrar, IETHRegistrar, IRegistry, REGISTRATION_ROLE_BITMAP, ROLE_S
 import {EnhancedAccessControl, IEnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
+import {StandardPricing} from "./StandardPricing.sol";
 
 contract TestETHRegistrar is Test {
     PermissionedRegistry ethRegistry;
@@ -30,26 +31,6 @@ contract TestETHRegistrar is Test {
     address user = makeAddr("user");
     address beneficiary = makeAddr("beneficiary");
 
-    uint64 constant SEC_PER_YEAR = 31_557_600; // 365.25
-    uint8 constant PRICE_DECIMALS = 12;
-    uint256 constant PRICE_SCALE = 10 ** PRICE_DECIMALS;
-    uint256 constant RATE_1CP = 0;
-    uint256 constant RATE_2CP = 0;
-    uint256 constant RATE_3CP = (640 * PRICE_SCALE) / SEC_PER_YEAR;
-    uint256 constant RATE_4CP = (160 * PRICE_SCALE) / SEC_PER_YEAR;
-    uint256 constant RATE_5CP = (5 * PRICE_SCALE) / SEC_PER_YEAR;
-
-    function _fromStablecoin(
-        MockERC20 token
-    ) internal view returns (PaymentRatio memory) {
-        uint8 d = token.decimals();
-        if (d > PRICE_DECIMALS) {
-            return PaymentRatio(token, uint128(10) ** (d - PRICE_DECIMALS), 1);
-        } else {
-            return PaymentRatio(token, 1, uint128(10) ** (PRICE_DECIMALS - d));
-        }
-    }
-
     function setUp() external {
         ethRegistry = new PermissionedRegistry(
             new RegistryDatastore(),
@@ -63,17 +44,17 @@ contract TestETHRegistrar is Test {
         tokenBlack = new MockERC20Blacklist();
 
         PaymentRatio[] memory paymentRatios = new PaymentRatio[](3);
-        paymentRatios[0] = _fromStablecoin(tokenUSDC);
-        paymentRatios[1] = _fromStablecoin(tokenDAI);
-        paymentRatios[2] = _fromStablecoin(tokenBlack);
+        paymentRatios[0] = StandardPricing.ratioFromStable(tokenUSDC);
+        paymentRatios[1] = StandardPricing.ratioFromStable(tokenDAI);
+        paymentRatios[2] = StandardPricing.ratioFromStable(tokenBlack);
 
         rentPriceOracle = new StandardRentPriceOracle(
             address(this),
             ethRegistry,
-            [RATE_1CP, RATE_2CP, RATE_3CP, RATE_4CP, RATE_5CP],
-            21 days,
-            1 days,
-            100_000_000 * PRICE_SCALE,
+            StandardPricing.getBaseRates(),
+            StandardPricing.PREMIUM_PRICE_INITIAL,
+            StandardPricing.PREMIUM_HALVING_PERIOD,
+            StandardPricing.PREMIUM_PERIOD,
             paymentRatios
         );
 
@@ -136,17 +117,21 @@ contract TestETHRegistrar is Test {
     function test_setRentPriceOracle() external {
         PaymentRatio[] memory paymentRatios = new PaymentRatio[](1);
         paymentRatios[0] = PaymentRatio(tokenUSDC, 1, 1);
+        uint256[] memory baseRates = new uint256[](2);
+        baseRates[0] = 1;
+        baseRates[1] = 0;
         StandardRentPriceOracle oracle = new StandardRentPriceOracle(
             address(this),
             ethRegistry,
-            [uint256(1), 2, 3, 4, 0],
+            baseRates,
             0, // \
             0, //  disabled premium
             0, // /
             paymentRatios
         );
         ethRegistrar.setRentPriceOracle(oracle);
-        assertTrue(ethRegistrar.isValid("ab"), "ab");
+        assertTrue(ethRegistrar.isValid("a"), "a");
+        assertFalse(ethRegistrar.isValid("ab"), "ab");
         assertFalse(ethRegistrar.isValid("abcdef"), "abcdef");
         assertFalse(ethRegistrar.isPaymentToken(tokenDAI), "DAI");
         (uint256 base, ) = ethRegistrar.rentPrice(
@@ -164,7 +149,7 @@ contract TestETHRegistrar is Test {
         StandardRentPriceOracle oracle = new StandardRentPriceOracle(
             address(this),
             ethRegistry,
-            [uint256(0), 0, 0, 0, 0],
+            new uint256[](0),
             0,
             0,
             0,
@@ -193,14 +178,17 @@ contract TestETHRegistrar is Test {
     // same as StandardRentPriceOracle.t.sol
     function test_isValid() external view {
         assertFalse(rentPriceOracle.isValid(""));
-        assertEq(rentPriceOracle.isValid("a"), RATE_1CP > 0);
-        assertEq(rentPriceOracle.isValid("ab"), RATE_2CP > 0);
-        assertEq(rentPriceOracle.isValid("abc"), RATE_3CP > 0);
-        assertEq(rentPriceOracle.isValid("abce"), RATE_4CP > 0);
-        assertEq(rentPriceOracle.isValid("abcde"), RATE_5CP > 0);
+        assertEq(rentPriceOracle.isValid("a"), StandardPricing.RATE_1CP > 0);
+        assertEq(rentPriceOracle.isValid("ab"), StandardPricing.RATE_2CP > 0);
+        assertEq(rentPriceOracle.isValid("abc"), StandardPricing.RATE_3CP > 0);
+        assertEq(rentPriceOracle.isValid("abce"), StandardPricing.RATE_4CP > 0);
+        assertEq(
+            rentPriceOracle.isValid("abcde"),
+            StandardPricing.RATE_5CP > 0
+        );
         assertEq(
             rentPriceOracle.isValid("abcdefghijklmnopqrstuvwxyz"),
-            RATE_5CP > 0
+            StandardPricing.RATE_5CP > 0
         );
     }
 

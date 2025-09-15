@@ -1,9 +1,4 @@
 import { artifacts, execute } from "@rocketh";
-import {
-  rateFromAnnualPrice,
-  formatAnnualPriceFromRate,
-  PRICE_DECIMALS,
-} from "../../test/utils/price.js";
 
 export default execute(
   async ({ deploy, read, get, namedAccounts: { deployer, owner } }) => {
@@ -16,13 +11,22 @@ export default execute(
     const mockDAI = get<MockERC20>("MockDAI");
     const paymentTokens = [mockUSDC, mockDAI];
 
+    // see: StandardPricing.sol
+    const SEC_PER_YEAR = 31_557_600n;
+    const SEC_PER_DAY = 86400n;
+    const PRICE_DECIMALS = 12;
+    const PRICE_SCALE = 10n ** BigInt(PRICE_DECIMALS);
+    const PREMIUM_PRICE_INITIAL = PRICE_SCALE * 100_000_000n;
+    const PREMIUM_HALVING_PERIOD = SEC_PER_DAY;
+    const PREMIUM_PERIOD = SEC_PER_DAY * 21n;
+
     const baseRatePerCp = [
       0n,
       0n,
-      rateFromAnnualPrice("640"),
-      rateFromAnnualPrice("160"),
-      rateFromAnnualPrice("5"),
-    ] as const;
+      PRICE_SCALE * 640n,
+      PRICE_SCALE * 160n,
+      PRICE_SCALE * 5n,
+    ].map((x) => (x + SEC_PER_YEAR - 1n) / SEC_PER_YEAR);
 
     const paymentFactors = await Promise.all(
       paymentTokens.map(async (x) => {
@@ -31,7 +35,7 @@ export default execute(
           read(x, { functionName: "decimals" }),
         ]);
         return {
-          symbol,
+          MockERC20: symbol,
           decimals,
           token: x.address,
           numer: 10n ** BigInt(Math.max(decimals - PRICE_DECIMALS, 0)),
@@ -43,14 +47,14 @@ export default execute(
     console.table(paymentFactors);
 
     console.table(
-      baseRatePerCp.flatMap((rate, i) =>
-        rate
-          ? { cp: 1 + i, rate, yearly: formatAnnualPriceFromRate(rate, 2) }
-          : [],
-      ),
+      baseRatePerCp.flatMap((rate, i) => {
+        const yearly = (
+          Number(rate * SEC_PER_YEAR) / Number(PRICE_SCALE)
+        ).toFixed(2);
+        return rate ? { cp: 1 + i, rate, yearly } : [];
+      }),
     );
 
-    const SEC_PER_DAY = 86400n;
     await deploy("StandardRentPriceOracle", {
       account: deployer,
       artifact: artifacts.StandardRentPriceOracle,
@@ -58,9 +62,9 @@ export default execute(
         owner,
         ethRegistry.address,
         baseRatePerCp,
-        SEC_PER_DAY * 21n, // premiumPeriod
-        SEC_PER_DAY, // premiumHalvingPeriod
-        100_000_000n * 10n ** BigInt(PRICE_DECIMALS), // premiumPriceInitial
+        PREMIUM_PRICE_INITIAL,
+        PREMIUM_HALVING_PERIOD,
+        PREMIUM_PERIOD,
         paymentFactors,
       ],
     });
