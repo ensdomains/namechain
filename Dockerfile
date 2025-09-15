@@ -1,4 +1,4 @@
-FROM oven/bun:1.2.13
+FROM oven/bun:1.2.22
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
