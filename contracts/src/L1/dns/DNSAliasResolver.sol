@@ -5,12 +5,12 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {IGatewayProvider} from "@ens/contracts/ccipRead/IGatewayProvider.sol";
-import {ResolverCaller} from "../../universalResolver/ResolverCaller.sol";
+import {ResolverCaller} from "@ens/contracts/universalResolver/ResolverCaller.sol";
 import {RegistryUtils, IRegistry} from "../../universalResolver/RegistryUtils.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ResolverProfileRewriter} from "../../common/ResolverProfileRewriter.sol";
-import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
+import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
 
@@ -26,7 +26,7 @@ import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedD
 contract DNSAliasResolver is
     ERC165,
     ResolverCaller,
-    IFeatureSupporter,
+    IERC7996,
     IExtendedDNSResolver
 {
     IRegistry public immutable rootRegistry;
@@ -53,11 +53,11 @@ contract DNSAliasResolver is
     ) public view virtual override(ERC165) returns (bool) {
         return
             type(IExtendedDNSResolver).interfaceId == interfaceId ||
-            type(IFeatureSupporter).interfaceId == interfaceId ||
+            type(IERC7996).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
-    /// @inheritdoc IFeatureSupporter
+    /// @inheritdoc IERC7996
     function supportsFeature(bytes4 feature) external pure returns (bool) {
         return ResolverFeatures.RESOLVE_MULTICALL == feature;
     }

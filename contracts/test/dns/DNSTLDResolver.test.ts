@@ -109,7 +109,7 @@ describe("DNSTLDResolver", () => {
   shouldSupportInterfaces({
     contract: () =>
       network.networkHelpers.loadFixture(fixture).then((F) => F.dnsTLDResolver),
-    interfaces: ["IERC165", "IExtendedResolver", "IFeatureSupporter"],
+    interfaces: ["IERC165", "IExtendedResolver", "IERC7996"],
   });
 
   shouldSupportFeatures({
@@ -457,7 +457,7 @@ describe("DNSTLDResolver", () => {
         network.networkHelpers
           .loadFixture(fixture)
           .then((F) => F.dnsAliasResolver),
-      interfaces: ["IERC165", "IExtendedDNSResolver", "IFeatureSupporter"],
+      interfaces: ["IERC165", "IERC7996", "IExtendedDNSResolver"],
     });
 
     shouldSupportFeatures({

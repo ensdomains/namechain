@@ -9,7 +9,7 @@ import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRe
 import {GatewayFetchTarget, IGatewayVerifier} from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
 
 import {IGatewayProvider} from "@ens/contracts/ccipRead/IGatewayProvider.sol";
-import {ResolverCaller} from "../universalResolver/ResolverCaller.sol";
+import {ResolverCaller} from "@ens/contracts/universalResolver/ResolverCaller.sol";
 import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {RegistryUtils as RegistryUtilsV1, ENS} from "@ens/contracts/universalResolver/RegistryUtils.sol";
 import {IRegistryResolver} from "../common/IRegistryResolver.sol";
@@ -19,7 +19,7 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {DedicatedResolverLayout} from "../common/DedicatedResolverLayout.sol";
-import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
+import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 
 // resolver profiles
@@ -48,7 +48,7 @@ bytes32 constant ETH_NODE = keccak256(abi.encode(bytes32(0), keccak256("eth")));
 ///
 contract ETHTLDResolver is
     IExtendedResolver,
-    IFeatureSupporter,
+    IERC7996,
     IRegistryResolver,
     GatewayFetchTarget,
     ResolverCaller,
@@ -103,12 +103,12 @@ contract ETHTLDResolver is
     ) public view virtual override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
-            type(IFeatureSupporter).interfaceId == interfaceId ||
+            type(IERC7996).interfaceId == interfaceId ||
             type(IRegistryResolver).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
-    /// @inheritdoc IFeatureSupporter
+    /// @inheritdoc IERC7996
     function supportsFeature(bytes4 feature) external pure returns (bool) {
         return ResolverFeatures.RESOLVE_MULTICALL == feature;
     }
