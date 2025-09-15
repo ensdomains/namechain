@@ -38,7 +38,7 @@ const action: TaskOverrideActionFunction = async (task, hre, runSuper) => {
     return await runSuper(task);
   } finally {
     stderr.write = write0;
-    if (compiled) {
+    if (!task.quiet && compiled) {
       console.error(
         `>>> ${ansi(33, "Ignored Warnings:")} ${ansi(31, ignored)} <<<`,
       );

@@ -68,11 +68,6 @@ contract ETHTLDResolver is
     /// @dev Shared batch gateway provider.
     IGatewayProvider public immutable batchGatewayProvider;
 
-    /// @notice The maximum number of reads per gateway request.
-    /// @dev Valid range [1, 254].
-    ///      Actual limit: gateway proof size and/or gas limit.
-    uint8 public immutable maxReadsPerRequest;
-
     /// @dev Storage layout of RegistryDatastore.
     uint256 constant SLOT_RD_ENTRIES = 0;
 
@@ -90,8 +85,7 @@ contract ETHTLDResolver is
         address _ethResolver,
         IGatewayVerifier _namechainVerifier,
         address _namechainDatastore,
-        address _namechainEthRegistry,
-        uint8 _maxReadsPerRequest
+        address _namechainEthRegistry
     ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
         registryV1 = _registryV1;
         ethRegistrarV1 = IBaseRegistrar(_registryV1.owner(ETH_NODE));
@@ -101,7 +95,6 @@ contract ETHTLDResolver is
         namechainVerifier = _namechainVerifier;
         namechainDatastore = _namechainDatastore;
         namechainEthRegistry = _namechainEthRegistry;
-        maxReadsPerRequest = _maxReadsPerRequest;
     }
 
     /// @inheritdoc ERC165
@@ -202,7 +195,7 @@ contract ETHTLDResolver is
         }
         return
             _resolveNamechain(
-                State(parentRegistry, name, offset, multi, calls, 0)
+                State(parentRegistry, name, offset, multi, calls)
             );
     }
 
@@ -212,8 +205,7 @@ contract ETHTLDResolver is
         bytes name;
         uint256 nameLength; // name[:nameLength] are the labels to resolve
         bool multi; // true if multicall
-        bytes[] data; // data[:index] = answers
-        uint256 index; // data[index:] = calls
+        bytes[] data;
     }
 
     /// @notice Resolve `state.name[:state.nameLength]` on Namechain starting at `state.registry`.
@@ -258,14 +250,12 @@ contract ETHTLDResolver is
     function _resolveNamechain(
         State memory state
     ) public view returns (bytes memory) {
-        uint256 max = state.data.length - state.index;
-        if (max > maxReadsPerRequest) max = maxReadsPerRequest;
-        uint256[] memory callMap = new uint256[](max);
         // output[ 0] = registry
         // output[ 1] = last non-zero resolver
         // output[-1] = default address
+        uint8 max = uint8(state.data.length);
         GatewayRequest memory req = GatewayFetcher.newRequest(
-            uint8(max < 2 ? 2 : max + 1)
+            max < 2 ? 2 : max + 1
         );
         {
             uint256 offset;
@@ -298,11 +288,9 @@ contract ETHTLDResolver is
         req.evalLoop(EvalFlag.STOP_ON_FAILURE | EvalFlag.KEEP_ARGS); // outputs = [registry, resolver]
         req.pushOutput(1).requireNonzero(EXIT_CODE_NO_RESOLVER).target(); // target resolver
         req.push(bytes("")).dup().setOutput(0).setOutput(1); // clear outputs
-        uint8 count; // number of valid records
-        uint256 index = state.index; // cursor into requests
-        for (; index < state.data.length && count < max; ++index) {
-            callMap[count] = index; // remember local => index of requests
-            bytes memory v = state.data[index];
+        uint8 errorCount; // number of errors
+        for (uint8 i; i < state.data.length; ++i) {
+            bytes memory v = state.data[i];
             bytes4 selector = bytes4(v);
             // NOTE: "node check" is NOT performed:
             // if (v.length < 36 || BytesUtils.readBytes32(v, 4) != node) {
@@ -382,21 +370,22 @@ contract ETHTLDResolver is
                 GatewayRequest memory cmd = GatewayFetcher.newCommand();
                 cmd.dup().follow().readBytes(); // read abi, but keep contentType on stack
                 cmd.dup().length().assertNonzero(1); // require length > 0
-                cmd.concat().setOutput(count++); // save contentType + bytes
+                cmd.concat().setOutput(i); // save contentType + bytes
                 req.push(cmd);
                 req.setSlot(DedicatedResolverLayout.SLOT_ABIS);
                 req.evalLoop(EvalFlag.STOP_ON_SUCCESS);
                 continue;
             } else {
-                state.data[index] = abi.encodeWithSelector(
+                ++errorCount;
+                state.data[i] = abi.encodeWithSelector(
                     UnsupportedResolverProfile.selector,
                     selector
                 );
                 continue;
             }
-            req.setOutput(count++);
+            req.setOutput(i);
         }
-        if (count == 0) {
+        if (errorCount == max) {
             if (state.multi) {
                 return abi.encode(state.data); // all calls failed
             } else {
@@ -406,7 +395,6 @@ contract ETHTLDResolver is
                 }
             }
         }
-        state.index = index; // advance
         req.pushOutput(max).requireNonzero(0); // stop if no missing
         req
             .setSlot(DedicatedResolverLayout.SLOT_ADDRESSES)
@@ -418,7 +406,7 @@ contract ETHTLDResolver is
             namechainVerifier,
             req,
             this.resolveNamechainCallback.selector, // ==> step 2
-            abi.encode(state, callMap, count),
+            abi.encode(state),
             new string[](0)
         );
     }
@@ -432,24 +420,19 @@ contract ETHTLDResolver is
         bytes[] calldata values,
         uint8 exitCode,
         bytes calldata extraData
-    ) external view returns (bytes memory) {
-        (State memory state, uint256[] memory callMap, uint256 count) = abi
-            .decode(extraData, (State, uint256[], uint256));
+    ) external pure returns (bytes memory) {
+        State memory state = abi.decode(extraData, (State));
         if (exitCode == EXIT_CODE_NO_RESOLVER) {
             revert UnreachableName(state.name);
         }
-        bytes memory defaultAddress = values[callMap.length]; // stored at end
+        bytes memory defaultAddress = values[state.data.length]; // stored at end
         if (state.multi) {
-            for (uint256 i; i < count; ++i) {
-                uint256 index = callMap[i]; // local => index
-                state.data[index] = _prepareResponse(
-                    state.data[index],
+            for (uint256 i; i < state.data.length; ++i) {
+                state.data[i] = _prepareResponse(
+                    state.data[i],
                     values[i],
                     defaultAddress
                 );
-            }
-            if (state.index < state.data.length) {
-                _resolveNamechain(state); // ==> goto step 1 again
             }
             return abi.encode(state.data);
         } else {

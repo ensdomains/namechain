@@ -42,6 +42,7 @@
     "test:hardhat": "hardhat compile && vitest run",
     "test:e2e": "hardhat compile && bun test ./e2e/*.test.ts",
     "test": "bun run test:forge && bun run test:hardhat",
+    "interfaces": "hardhat compile --quiet && bun ./script/interfaces.ts",
     "coverage:forge": "mkdir -p coverage/ && forge coverage --report lcov --report-file coverage/forge.info",
     "coverage:hardhat": "hardhat compile --coverage && COVERAGE=1 vitest run",
     "coverage": "bun run coverage:forge && bun run coverage:hardhat && bun run sanitize-lcov.sh",
