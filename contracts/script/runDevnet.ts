@@ -17,6 +17,10 @@ process.once("SIGINT", async () => {
   await env.shutdown();
   process.exit();
 });
+process.once("uncaughtException", async (err) => {
+  await env.shutdown();
+  throw err;
+});
 
 createMockRelay(env);
 
@@ -46,7 +50,7 @@ for (const lx of [env.l1, env.l2]) {
   );
 }
 
-await registerTestNames(env);
+await registerTestNames(env, ["test", "example", "demo"]);
 
 console.log();
 console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);
