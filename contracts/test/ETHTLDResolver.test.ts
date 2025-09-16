@@ -3,6 +3,7 @@ import { BrowserProvider } from "ethers/providers";
 import hre from "hardhat";
 import { readFileSync } from "node:fs";
 import {
+  bytesToHex,
   concat,
   encodeErrorResult,
   encodeFunctionData,
@@ -22,8 +23,8 @@ import { deployArtifact } from "./fixtures/deployArtifact.js";
 import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
 import { urgArtifact } from "./fixtures/externalArtifacts.js";
-import { expectVar } from "./utils/expectVar.ts";
-import { dnsEncodeName, getLabelAt } from "./utils/utils.js";
+import { expectVar } from "./utils/expectVar.js";
+import { dnsEncodeName, getLabelAt, splitName } from "./utils/utils.js";
 import {
   COIN_TYPE_DEFAULT,
   COIN_TYPE_ETH,
@@ -34,6 +35,7 @@ import {
 } from "./utils/resolutions.js";
 import { injectRPCCounter } from "./utils/hardhat-counter.js";
 
+let urgCount = 0;
 const chain1 = injectRPCCounter(await hre.network.connect());
 const chain2 = injectRPCCounter(await hre.network.connect());
 const chains = [chain1, chain2];
@@ -69,7 +71,12 @@ async function fixture() {
     new UncheckedRollup(new BrowserProvider(chain2.provider)),
   );
   gateway.disableCache();
-  const ccip = await serve(gateway, { protocol: "raw", log: false }); // enable to see gateway calls
+  const ccip = await serve(gateway, {
+    protocol: "raw",
+    log() {
+      urgCount++;
+    },
+  });
   afterAll(ccip.shutdown);
   const GatewayVM = await deployArtifact(mainnetV2.walletClient, {
     file: urgArtifact("GatewayVM"),
@@ -84,7 +91,23 @@ async function fixture() {
   });
   const ethResolver = await mainnetV2.deployDedicatedResolver();
   const burnAddressV1 = "0x000000000000000000000000000000000000FadE";
-  const ethTLDResolver = await deployWithMaxRequests(32);
+  const ethTLDResolver = await chain1.viem.deployContract(
+    "ETHTLDResolver",
+    [
+      mainnetV1.ensRegistry.address,
+      mainnetV1.batchGatewayProvider.address,
+      burnAddressV1,
+      ethResolver.address,
+      verifierAddress,
+      namechain.datastore.address,
+      namechain.ethRegistry.address,
+    ],
+    { client: { public: mainnetV2.publicClient } }, // CCIP on EFR
+  );
+  await mainnetV2.rootRegistry.write.setResolver([
+    BigInt(labelhash("eth")),
+    ethTLDResolver.address,
+  ]);
   return {
     ethTLDResolver,
     ethResolver,
@@ -92,29 +115,8 @@ async function fixture() {
     burnAddressV1,
     mainnetV2,
     namechain,
-    deployWithMaxRequests,
+    gateway,
   } as const;
-  async function deployWithMaxRequests(maxReadsPerRequest: number) {
-    const resolver = await chain1.viem.deployContract(
-      "ETHTLDResolver",
-      [
-        mainnetV1.ensRegistry.address,
-        mainnetV1.batchGatewayProvider.address,
-        burnAddressV1,
-        ethResolver.address,
-        verifierAddress,
-        namechain.datastore.address,
-        namechain.ethRegistry.address,
-        maxReadsPerRequest,
-      ],
-      { client: { public: mainnetV2.publicClient } }, // CCIP on EFR
-    );
-    await mainnetV2.rootRegistry.write.setResolver([
-      BigInt(labelhash("eth")),
-      resolver.address,
-    ]);
-    return resolver;
-  }
 }
 
 const loadFixture = async () => {
@@ -129,23 +131,24 @@ const testNames = ["test.eth", "a.b.c.test.eth"];
 describe("ETHTLDResolver", () => {
   const rpcs: Record<string, any> = {};
   afterEach(({ expect: { getState } }) => {
-    rpcs[getState().currentTestName!] = [
-      chain1.counts.eth_call,
-      chain2.counts.eth_call,
-      chain2.counts.eth_getStorageAt,
-    ].map((x) => x || 0);
+    rpcs[getState().currentTestName!.split(" > ").slice(1).join("/")] = {
+      L1: chain1.counts.eth_call || 0,
+      L2: chain2.counts.eth_call || 0,
+      Urg: urgCount,
+      Slots: chain2.counts.eth_getStorageAt || 0,
+    };
     chain1.counts = {};
     chain2.counts = {};
+    urgCount = 0;
   });
-  // enable to print rpc call counts:
-  //afterAll(() => console.log(rpcs));
+  afterAll(() => console.table(rpcs));
 
   shouldSupportInterfaces({
     contract: () => loadFixture().then((F) => F.ethTLDResolver),
     interfaces: [
       "IERC165",
+      "IERC7996",
       "IExtendedResolver",
-      "IFeatureSupporter",
       "IRegistryResolver",
     ],
   });
@@ -526,57 +529,62 @@ describe("ETHTLDResolver", () => {
         });
       }
     });
-    it("multicall()", async () => {
-      const F = await loadFixture();
-      const bundle = bundleCalls(makeResolutions(kp));
-      const { dedicatedResolver } = await F.namechain.setupName(kp);
-      await F.namechain.walletClient.sendTransaction({
-        to: dedicatedResolver.address,
-        data: bundle.writeDedicated,
-      });
-      await sync();
-      const [answer, resolver] =
-        await F.mainnetV2.universalResolver.read.resolve([
-          dnsEncodeName(kp.name),
-          bundle.call,
-        ]);
-      expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
-      bundle.expect(answer);
-    });
-    describe("resolve(multicall)", () => {
-      for (const max of [1, 2, 32, 254]) {
-        it(`maxReadsPerRequest = ${max}`, async () => {
+    describe("multicall", () => {
+      const resolutions = makeResolutions(kp);
+      for (let n = 0; n <= resolutions.length; n++) {
+        it(`calls = ${n}`, async () => {
           const F = await loadFixture();
-          const ethTLDResolver = await F.deployWithMaxRequests(max);
-          await expect(
-            ethTLDResolver.read.maxReadsPerRequest(),
-            "max",
-          ).resolves.toStrictEqual(max);
-          const bundle = bundleCalls(makeResolutions(kp));
           const { dedicatedResolver } = await F.namechain.setupName(kp);
+          const bundle = bundleCalls(resolutions.slice(0, n));
           await F.namechain.walletClient.sendTransaction({
             to: dedicatedResolver.address,
             data: bundle.writeDedicated,
           });
           await sync();
-          const answer = await ethTLDResolver.read.resolve([
-            dnsEncodeName(kp.name),
-            bundle.call,
-          ]);
+          const [answer, resolver] =
+            await F.mainnetV2.universalResolver.read.resolve([
+              dnsEncodeName(kp.name),
+              bundle.call,
+            ]);
+          expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
           bundle.expect(answer);
         });
       }
     });
-    it("zero multicalls", async () => {
-      const kp: KnownProfile = { name: testNames[0] };
+    it("too many calls", async () => {
       const F = await loadFixture();
-      const bundle = bundleCalls(makeResolutions(kp));
-      await sync();
-      const [answer] = await F.mainnetV2.universalResolver.read.resolve([
-        dnsEncodeName(kp.name),
-        bundle.call,
-      ]);
-      bundle.expect(answer);
+      const max = 10;
+      const kp: KnownProfile = {
+        name: testNames[0],
+        addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }], // 1 proof
+      };
+      try {
+        F.gateway.rollup.configure = (c) => {
+          c.prover.maxUniqueProofs = 1 + max;
+        };
+        const [call] = makeResolutions(kp);
+        const { dedicatedResolver } = await F.namechain.setupName(kp);
+        await F.namechain.walletClient.sendTransaction({
+          to: dedicatedResolver.address,
+          data: call.writeDedicated,
+        });
+        await sync();
+        const calls = Array.from({ length: max }, () => call);
+        const bundle = bundleCalls(calls);
+        const answer = await F.ethTLDResolver.read.resolve([
+          dnsEncodeName(kp.name),
+          bundle.call,
+        ]);
+        bundle.expect(answer);
+        // TODO: UncheckedRollup doesn't respect maxUniqueProofs
+        // TODO: fix after Urg adds callback error propagation
+        // await expect(F.ethTLDResolver.read.resolve([
+        //   dnsEncodeName(kp.name),
+        //   bundleCalls([...calls, call]).call,
+        // ])).toBeReverted();
+      } finally {
+        F.gateway.rollup.configure = undefined;
+      }
     });
     it("every multicall failed", async () => {
       const kp: KnownProfile = {
@@ -601,5 +609,84 @@ describe("ETHTLDResolver", () => {
       ]);
       bundle.expect(answer);
     });
+  });
+
+  describe("limits", () => {
+    const maxProofs = 64; // likely gateway constraint
+
+    // fixed size: addr(), pubkey(), hasAddr(), interfaceImplementer()
+    // bytes-like: text(*), addr(*), contenthash()
+    // complex: ABI()
+
+    for (const name of testNames) {
+      // see: RegistryDatastore.test.ts
+      // to target exact resolver of "x.y.eth"
+      // 1. AccountProof(registry)
+      // 2. for each label:
+      //    a. StorageProof(label's registry)
+      //    b. StorageProof(label's resolver)
+      // 3. AccountProof(resolver)
+      // => 1 + 2*(n-1) + 1 = 2*n
+      const lookupProofs = 2 * splitName(name).length;
+      const proofBudget = maxProofs - lookupProofs; // remaining
+
+      describe(`${name} = ${proofBudget}/${maxProofs}`, () => {
+        it("bytes", async () => {
+          const F = await loadFixture();
+          const { dedicatedResolver } = await F.namechain.setupName({ name });
+          F.gateway.rollup.configure = (c) => {
+            c.prover.maxUniqueProofs = maxProofs;
+            c.prover.maxProvableBytes = maxProofs << 5;
+          };
+          await run(0);
+          await expect(run(1)).rejects.toThrow();
+          async function run(extra: number) {
+            const kp: KnownProfile = {
+              name,
+              contenthash: {
+                value: bytesToHex(
+                  new Uint8Array(((proofBudget - 1) << 5) + extra), // -1 for bytes.length
+                ),
+              },
+            };
+            const [res] = makeResolutions(kp);
+            await F.namechain.walletClient.sendTransaction({
+              to: dedicatedResolver.address,
+              data: res.writeDedicated,
+            });
+            await sync();
+            return F.mainnetV2.universalResolver.read
+              .resolve([dnsEncodeName(kp.name), res.call])
+              .then(([answer]) => res.expect(answer));
+          }
+        });
+
+        it("ABI()", async () => {
+          const F = await loadFixture();
+          await F.namechain.setupName({ name });
+          F.gateway.rollup.configure = (c) => {
+            c.prover.maxUniqueProofs = maxProofs;
+            c.prover.maxProvableBytes = maxProofs << 5;
+            c.prover.maxStackSize = Infinity;
+          };
+          await run(0);
+          await expect(run(1)).rejects.toThrow();
+          async function run(extra: number) {
+            await sync();
+            return F.mainnetV2.universalResolver.read.resolve([
+              dnsEncodeName(name),
+              encodeFunctionData({
+                abi: PROFILE_ABI,
+                functionName: "ABI",
+                args: [
+                  namehash(name),
+                  (1n << BigInt(proofBudget + extra)) - 1n,
+                ],
+              }),
+            ]);
+          }
+        });
+      });
+    }
   });
 });

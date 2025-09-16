@@ -15,7 +15,7 @@ export default async (): Promise<Partial<HardhatRuntimeEnvironmentHooks>> => {
             await hre.artifacts.getArtifactPath(contractName);
           const storageLayoutPath = artifactPath.replace(
             /\.json$/,
-            ".storageLayout.json",
+            ".storageLayout-json", // prevent hardhat-deploy:generateTypes() from picking this up as an artifact
           );
 
           if (storageLayoutCache.has(storageLayoutPath))

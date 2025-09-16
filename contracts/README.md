@@ -17,9 +17,9 @@ At present the following contracts are implemented:
 
 ### Installation
 
-1. Install [Node.js](https://nodejs.org/) 24+
-2. Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation)
-3. Install [bun](https://bun.sh/) 1.2+
+1. Install [Node.js](https://nodejs.org/) v24+
+2. Install foundry: [guide](https://book.getfoundry.sh/getting-started/installation) v1.3.2+
+3. Install [bun](https://bun.sh/) v1.2+
 4. Install dependencies:
 5. (OPTIONAL) Install [lcov](https://github.com/linux-test-project/lcov) if you want to run coverage tests
    * Mac: `brew install lcov`

@@ -1,19 +1,14 @@
 import type { NetworkConnection } from "hardhat/types/network";
-import {
-  type Address,
-  encodeFunctionData,
-  labelhash,
-  parseEventLogs,
-  zeroAddress,
-} from "viem";
+import { type Address, labelhash, zeroAddress } from "viem";
+import { deployVerifiableProxy } from "./deployVerifiableProxy.js";
 import { splitName } from "../utils/utils.js";
 import { ROLES } from "../../deploy/constants.js";
 export { ROLES };
 
 export const MAX_EXPIRY = (1n << 64n) - 1n; // see: DatastoreUtils.sol
 
-export async function deployV2Fixture<C extends NetworkConnection>(
-  network: C,
+export async function deployV2Fixture(
+  network: NetworkConnection,
   enableCcipRead = false,
 ) {
   const publicClient = await network.viem.getPublicClient({
@@ -46,7 +41,7 @@ export async function deployV2Fixture<C extends NetworkConnection>(
     ROLES.ALL,
     MAX_EXPIRY,
   ]);
-  const verifiableFactory =
+  const dedicatedResolverFactory =
     await network.viem.deployContract("VerifiableFactory");
   const dedicatedResolverImpl =
     await network.viem.deployContract("DedicatedResolver");
@@ -59,7 +54,6 @@ export async function deployV2Fixture<C extends NetworkConnection>(
     ethRegistry,
     batchGatewayProvider,
     universalResolver,
-    verifiableFactory,
     deployDedicatedResolver,
     setupName,
   };
@@ -70,29 +64,13 @@ export async function deployV2Fixture<C extends NetworkConnection>(
     owner?: Address;
     salt?: bigint;
   } = {}) {
-    const wallet = await network.viem.getWalletClient(owner);
-    const hash = await verifiableFactory.write.deployProxy([
-      dedicatedResolverImpl.address,
+    return deployVerifiableProxy({
+      walletClient: await network.viem.getWalletClient(owner),
+      factoryAddress: dedicatedResolverFactory.address,
+      implAddress: dedicatedResolverImpl.address,
+      implAbi: dedicatedResolverImpl.abi,
       salt,
-      encodeFunctionData({
-        abi: dedicatedResolverImpl.abi,
-        functionName: "initialize",
-        args: [owner],
-      }),
-    ]);
-    const receipt = await publicClient.getTransactionReceipt({ hash });
-    const [log] = parseEventLogs({
-      abi: verifiableFactory.abi,
-      eventName: "ProxyDeployed",
-      logs: receipt.logs,
     });
-    return network.viem.getContractAt(
-      "DedicatedResolver",
-      log.args.proxyAddress,
-      {
-        client: { wallet },
-      },
-    );
   }
   // creates registries up to the parent name
   // if exact, exactRegistry is setup
