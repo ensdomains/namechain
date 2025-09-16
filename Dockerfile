@@ -1,5 +1,9 @@
 FROM oven/bun:1.2.22
 
+EXPOSE 8545
+EXPOSE 8546
+EXPOSE 8547
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
