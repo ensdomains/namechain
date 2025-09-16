@@ -18,44 +18,17 @@ RUN curl -L https://foundry.paradigm.xyz | bash
 ENV PATH="/root/.foundry/bin:${PATH}"
 RUN foundryup
 
-# Set working directory
+# install node_modules in a docker layer
 WORKDIR /app
-
-# Copy the root package.json and bun.lock
-COPY package.json bun.lock ./
-
-# Copy the package.json for each workspace.
+COPY package.json bun.lock .
 COPY contracts/package.json ./contracts/
-
-# Copy patches for post script execution
-#COPY /patches ./patches
-
-# Copy the rest of the application source (see: .dockerignore)
-COPY . .
-
-# Install all dependencies
 RUN bun i
 
-# Build Contracts
+COPY . .
 WORKDIR /app/contracts
-
-# Initialize git in contracts dir and install forge dependencies
-RUN git config --global init.defaultBranch main && \
-    cd /app && \
-    git init && \
-    git submodule update --init --recursive && \
-    cd contracts && \
-    forge i
-
-# Build Contracts
-RUN bun run compile:hardhat
-
-# Expose ports for L1 and L2
-EXPOSE 8545
-EXPOSE 8546
-EXPOSE 8547
+RUN forge i
+RUN bun run compile
 
 # Run devnet
-WORKDIR /app/contracts
 ENV FOUNDRY_DISABLE_NIGHTLY_WARNING=true
 CMD ["bun", "run", "devnet"]

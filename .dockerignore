@@ -1,8 +1,7 @@
-artifacts/
-cache/
-cache_hardhat/
-coverage/
-deployments/
-generated/
-node_modules/
-out/
+contracts/artifacts/
+contracts/cache/
+contracts/cache_hardhat/
+contracts/coverage/
+contracts/deployments/
+contracts/generated/
+contracts/out/
