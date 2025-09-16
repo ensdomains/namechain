@@ -1537,7 +1537,7 @@ contract TestMigratedWrappedNameRegistry is Test {
             }))
         ) {
             // May succeed depending on setup
-        } catch Error(string memory reason) {
+        } catch Error(string memory /*reason*/) {
             // Various failures expected for non-.eth domains
         } catch (bytes memory) {
             // Other failures expected
