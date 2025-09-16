@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
-import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CAN_EXTEND_EXPIRY} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {TransferData, MigrationData} from "../common/TransferData.sol";
@@ -87,8 +87,9 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             LibLockedNames.validateLockedName(fuses, tokenIds[i]);
             LibLockedNames.validateIsDotEth2LD(fuses, tokenIds[i]);
             
-            // Determine permissions from name configuration (is2LD=true to prevent automatic renewal for 2LDs)
-            (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, true);
+            // Determine permissions from name configuration (mask out CAN_EXTEND_EXPIRY to prevent automatic renewal for 2LDs)
+            uint32 adjustedFuses = fuses & ~CAN_EXTEND_EXPIRY;
+            (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(adjustedFuses);
             
             // Create new registry instance for the migrated name
             address subregistry = LibLockedNames.deployMigratedRegistry(

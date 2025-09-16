@@ -97,18 +97,17 @@ library LibLockedNames {
      * @notice Generates role bitmaps based on fuses
      * @dev Returns two bitmaps: tokenRoles for the name registration and subRegistryRoles for the registry owner
      * @param fuses The current fuses on the name
-     * @param is2LD Whether this is a second-level domain (bypasses CAN_EXTEND_EXPIRY check for renewal permissions)
      * @return tokenRoles The role bitmap for the owner on their name in their parent registry.
      * @return subRegistryRoles The role bitmap for the owner on their name's subregistry.
      */
-    function generateRoleBitmapsFromFuses(uint32 fuses, bool is2LD) internal pure returns (uint256 tokenRoles, uint256 subRegistryRoles) {
+    function generateRoleBitmapsFromFuses(uint32 fuses) internal pure returns (uint256 tokenRoles, uint256 subRegistryRoles) {
         // Check if fuses are permanently frozen
         bool fusesFrozen = (fuses & CANNOT_BURN_FUSES) != 0;
 
         tokenRoles |= LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER | LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN;
         
-        // Include renewal permissions if expiry can be extended, but not for 2LDs
-        if (!is2LD && (fuses & CAN_EXTEND_EXPIRY) != 0) {
+        // Include renewal permissions if expiry can be extended
+        if ((fuses & CAN_EXTEND_EXPIRY) != 0) {
             tokenRoles |= LibRegistryRoles.ROLE_RENEW;
             if (!fusesFrozen) {
                 tokenRoles |= LibRegistryRoles.ROLE_RENEW_ADMIN;

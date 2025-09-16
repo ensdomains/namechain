@@ -233,7 +233,7 @@ contract TestLibLockedNames is Test {
         // Fuses that allow all permissions
         uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
         
-        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, false);
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
         
         // Should include token observer roles (always set by default)
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Token should have ROLE_SET_TOKEN_OBSERVER");
@@ -262,7 +262,7 @@ contract TestLibLockedNames is Test {
         // Fuses without CAN_EXTEND_EXPIRY
         uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH;
         
-        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, false);
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
         
         // Should have token observer roles (always set by default)
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Token should have ROLE_SET_TOKEN_OBSERVER");
@@ -293,7 +293,7 @@ contract TestLibLockedNames is Test {
         // Fuses with CANNOT_SET_RESOLVER
         uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_SET_RESOLVER;
         
-        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, false);
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
         
         // Should have token observer roles (always set by default)
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Token should have ROLE_SET_TOKEN_OBSERVER");
@@ -323,7 +323,7 @@ contract TestLibLockedNames is Test {
         // Fuses with CANNOT_CREATE_SUBDOMAIN
         uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_CREATE_SUBDOMAIN;
         
-        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, false);
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
         
         // Should have token observer roles (always set by default)
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Token should have ROLE_SET_TOKEN_OBSERVER");
@@ -355,7 +355,7 @@ contract TestLibLockedNames is Test {
         // Fuses with CANNOT_BURN_FUSES - should grant regular roles but NO admin roles
         uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_BURN_FUSES;
         
-        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, false);
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
         
         // Should have token observer roles (always set by default, not affected by CANNOT_BURN_FUSES)
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Token should have ROLE_SET_TOKEN_OBSERVER");
@@ -379,7 +379,7 @@ contract TestLibLockedNames is Test {
         uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CANNOT_BURN_FUSES | CANNOT_SET_RESOLVER | CANNOT_CREATE_SUBDOMAIN;
         // Note: no CAN_EXTEND_EXPIRY
         
-        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, false);
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
         
         // Should have token observer roles (always set by default, not affected by CANNOT_BURN_FUSES)
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Token should have ROLE_SET_TOKEN_OBSERVER");
@@ -413,7 +413,7 @@ contract TestLibLockedNames is Test {
         // Fuses with CANNOT_BURN_FUSES - should prevent admin roles
         uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_BURN_FUSES;
         
-        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, false);
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
         
         // Should have token observer roles (always set by default, not affected by CANNOT_BURN_FUSES)
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Token should have ROLE_SET_TOKEN_OBSERVER");
@@ -437,102 +437,98 @@ contract TestLibLockedNames is Test {
         
         // Test with minimal fuses
         uint32 minimalFuses = CANNOT_UNWRAP | IS_DOT_ETH;
-        (uint256 tokenRoles1, ) = LibLockedNames.generateRoleBitmapsFromFuses(minimalFuses, false);
+        (uint256 tokenRoles1, ) = LibLockedNames.generateRoleBitmapsFromFuses(minimalFuses);
         assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Should have ROLE_SET_TOKEN_OBSERVER with minimal fuses");
         assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) != 0, "Should have ROLE_SET_TOKEN_OBSERVER_ADMIN with minimal fuses");
         
         // Test with all restrictive fuses except CANNOT_BURN_FUSES
         uint32 restrictiveFuses = CANNOT_UNWRAP | IS_DOT_ETH | CANNOT_SET_RESOLVER | CANNOT_CREATE_SUBDOMAIN;
-        (uint256 tokenRoles2, ) = LibLockedNames.generateRoleBitmapsFromFuses(restrictiveFuses, false);
+        (uint256 tokenRoles2, ) = LibLockedNames.generateRoleBitmapsFromFuses(restrictiveFuses);
         assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Should have ROLE_SET_TOKEN_OBSERVER with restrictive fuses");
         assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) != 0, "Should have ROLE_SET_TOKEN_OBSERVER_ADMIN with restrictive fuses");
         
         // Test with CANNOT_BURN_FUSES - should have both observer roles (not affected by CANNOT_BURN_FUSES)
         uint32 frozenFuses = CANNOT_UNWRAP | IS_DOT_ETH | CANNOT_BURN_FUSES;
-        (uint256 tokenRoles3, ) = LibLockedNames.generateRoleBitmapsFromFuses(frozenFuses, false);
+        (uint256 tokenRoles3, ) = LibLockedNames.generateRoleBitmapsFromFuses(frozenFuses);
         assertTrue((tokenRoles3 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Should have ROLE_SET_TOKEN_OBSERVER even with CANNOT_BURN_FUSES");
         assertTrue((tokenRoles3 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) != 0, "Should have ROLE_SET_TOKEN_OBSERVER_ADMIN (not affected by CANNOT_BURN_FUSES)");
         
         // Test with all permission fuses
         uint32 allPermissionFuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
-        (uint256 tokenRoles4, ) = LibLockedNames.generateRoleBitmapsFromFuses(allPermissionFuses, false);
+        (uint256 tokenRoles4, ) = LibLockedNames.generateRoleBitmapsFromFuses(allPermissionFuses);
         assertTrue((tokenRoles4 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Should have ROLE_SET_TOKEN_OBSERVER with all permissions");
         assertTrue((tokenRoles4 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) != 0, "Should have ROLE_SET_TOKEN_OBSERVER_ADMIN with all permissions");
         
         // Verify token observer roles are never set on subRegistryRoles
         uint32 anyFuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
-        (, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(anyFuses, false);
+        (, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(anyFuses);
         assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) == 0, "SubRegistry should NEVER have ROLE_SET_TOKEN_OBSERVER");
         assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) == 0, "SubRegistry should NEVER have ROLE_SET_TOKEN_OBSERVER_ADMIN");
     }
     
-    function test_generateRoleBitmapsFromFuses_is2LD_prevents_renewal_roles() public pure {
-        // Test that when is2LD=true, renewal roles are not granted even with CAN_EXTEND_EXPIRY
-        uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
-        
-        // Test with is2LD=false (normal behavior)
-        (uint256 tokenRoles1, ) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, false);
-        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW when is2LD=false and CAN_EXTEND_EXPIRY is set");
-        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN when is2LD=false and CAN_EXTEND_EXPIRY is set");
-        
-        // Test with is2LD=true (should prevent renewal roles)
-        (uint256 tokenRoles2, ) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, true);
-        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW when is2LD=true even with CAN_EXTEND_EXPIRY");
-        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN when is2LD=true even with CAN_EXTEND_EXPIRY");
-        
-        // Both should still have token observer roles
-        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Should have ROLE_SET_TOKEN_OBSERVER when is2LD=false");
-        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) != 0, "Should have ROLE_SET_TOKEN_OBSERVER_ADMIN when is2LD=false");
-        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Should have ROLE_SET_TOKEN_OBSERVER when is2LD=true");
-        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) != 0, "Should have ROLE_SET_TOKEN_OBSERVER_ADMIN when is2LD=true");
-    }
-    
-    function test_generateRoleBitmapsFromFuses_is2LD_doesnt_affect_other_roles() public pure {
-        // Test that is2LD parameter only affects renewal roles, not other roles
-        uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
-        
-        (uint256 tokenRoles1, uint256 subRegistryRoles1) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, false);
-        (uint256 tokenRoles2, uint256 subRegistryRoles2) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, true);
-        
-        // Token observer roles should be the same
-        assertEq(tokenRoles1 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, tokenRoles2 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, "ROLE_SET_TOKEN_OBSERVER should be same regardless of is2LD");
-        assertEq(tokenRoles1 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN, tokenRoles2 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN, "ROLE_SET_TOKEN_OBSERVER_ADMIN should be same regardless of is2LD");
-        
-        // Resolver roles should be the same
-        assertEq(tokenRoles1 & LibRegistryRoles.ROLE_SET_RESOLVER, tokenRoles2 & LibRegistryRoles.ROLE_SET_RESOLVER, "ROLE_SET_RESOLVER should be same regardless of is2LD");
-        assertEq(tokenRoles1 & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN, tokenRoles2 & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN, "ROLE_SET_RESOLVER_ADMIN should be same regardless of is2LD");
-        
-        // SubRegistry roles should be identical (is2LD only affects token roles)
-        assertEq(subRegistryRoles1, subRegistryRoles2, "SubRegistry roles should be identical regardless of is2LD");
-    }
-    
-    function test_generateRoleBitmapsFromFuses_is2LD_with_frozen_fuses() public pure {
-        // Test is2LD behavior with CANNOT_BURN_FUSES set
-        uint32 frozenFuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_BURN_FUSES;
-        
-        // Test with is2LD=false
-        (uint256 tokenRoles1, ) = LibLockedNames.generateRoleBitmapsFromFuses(frozenFuses, false);
-        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW when is2LD=false");
-        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN when CANNOT_BURN_FUSES is set");
-        
-        // Test with is2LD=true
-        (uint256 tokenRoles2, ) = LibLockedNames.generateRoleBitmapsFromFuses(frozenFuses, true);
-        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW when is2LD=true");
-        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN when is2LD=true");
-    }
-    
-    function test_generateRoleBitmapsFromFuses_is2LD_without_can_extend_expiry() public pure {
-        // Test that is2LD doesn't grant renewal roles when CAN_EXTEND_EXPIRY is not set
+    function test_generateRoleBitmapsFromFuses_fuses_control_renewal_roles() public pure {
+        // Test that fuses directly control renewal roles via CAN_EXTEND_EXPIRY
+        uint32 fusesWithExpiry = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
         uint32 fusesWithoutExpiry = CANNOT_UNWRAP | IS_DOT_ETH;
         
-        // Both is2LD=false and is2LD=true should have no renewal roles
-        (uint256 tokenRoles1, ) = LibLockedNames.generateRoleBitmapsFromFuses(fusesWithoutExpiry, false);
-        (uint256 tokenRoles2, ) = LibLockedNames.generateRoleBitmapsFromFuses(fusesWithoutExpiry, true);
+        // Test with CAN_EXTEND_EXPIRY set (should have renewal roles)
+        (uint256 tokenRoles1, ) = LibLockedNames.generateRoleBitmapsFromFuses(fusesWithExpiry);
+        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW when CAN_EXTEND_EXPIRY is set");
+        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN when CAN_EXTEND_EXPIRY is set");
         
-        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW when CAN_EXTEND_EXPIRY not set (is2LD=false)");
-        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN when CAN_EXTEND_EXPIRY not set (is2LD=false)");
-        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW when CAN_EXTEND_EXPIRY not set (is2LD=true)");
-        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN when CAN_EXTEND_EXPIRY not set (is2LD=true)");
+        // Test without CAN_EXTEND_EXPIRY (should NOT have renewal roles)
+        (uint256 tokenRoles2, ) = LibLockedNames.generateRoleBitmapsFromFuses(fusesWithoutExpiry);
+        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW without CAN_EXTEND_EXPIRY");
+        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN without CAN_EXTEND_EXPIRY");
+        
+        // Both should still have token observer roles
+        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Should have ROLE_SET_TOKEN_OBSERVER with CAN_EXTEND_EXPIRY");
+        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) != 0, "Should have ROLE_SET_TOKEN_OBSERVER_ADMIN with CAN_EXTEND_EXPIRY");
+        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Should have ROLE_SET_TOKEN_OBSERVER without CAN_EXTEND_EXPIRY");
+        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) != 0, "Should have ROLE_SET_TOKEN_OBSERVER_ADMIN without CAN_EXTEND_EXPIRY");
+    }
+    
+    function test_generateRoleBitmapsFromFuses_fuses_consistency() public pure {
+        // Test that the same fuses always produce the same roles
+        uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
+        
+        (uint256 tokenRoles1, uint256 subRegistryRoles1) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
+        (uint256 tokenRoles2, uint256 subRegistryRoles2) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
+        
+        // Same fuses should produce identical roles
+        assertEq(tokenRoles1, tokenRoles2, "Same fuses should produce identical token roles");
+        assertEq(subRegistryRoles1, subRegistryRoles2, "Same fuses should produce identical subregistry roles");
+        
+        // Should have all expected roles with this fuse configuration
+        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Should have ROLE_SET_TOKEN_OBSERVER");
+        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) != 0, "Should have ROLE_SET_TOKEN_OBSERVER_ADMIN");
+        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
+        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN");
+        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW with CAN_EXTEND_EXPIRY");
+        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Should have ROLE_RENEW_ADMIN with CAN_EXTEND_EXPIRY");
+    }
+    
+    function test_generateRoleBitmapsFromFuses_frozen_fuses_behavior() public pure {
+        // Test behavior with CANNOT_BURN_FUSES set (fuses are permanently frozen)
+        uint32 frozenFuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_BURN_FUSES;
+        
+        (uint256 tokenRoles, ) = LibLockedNames.generateRoleBitmapsFromFuses(frozenFuses);
+        
+        // Should have ROLE_RENEW since CAN_EXTEND_EXPIRY is set
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Should have ROLE_RENEW with CAN_EXTEND_EXPIRY");
+        // Should NOT have ROLE_RENEW_ADMIN because CANNOT_BURN_FUSES is set (fuses are frozen)
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN when CANNOT_BURN_FUSES is set");
+    }
+    
+    function test_generateRoleBitmapsFromFuses_without_can_extend_expiry() public pure {
+        // Test that no renewal roles are granted when CAN_EXTEND_EXPIRY is not set
+        uint32 fusesWithoutExpiry = CANNOT_UNWRAP | IS_DOT_ETH;
+        
+        (uint256 tokenRoles, ) = LibLockedNames.generateRoleBitmapsFromFuses(fusesWithoutExpiry);
+        
+        // Should NOT have renewal roles when CAN_EXTEND_EXPIRY is not set
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW when CAN_EXTEND_EXPIRY not set");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN when CAN_EXTEND_EXPIRY not set");
     }
     
     function test_FUSES_TO_BURN_constant() public pure {

@@ -220,7 +220,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER based on fuses");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Should have ROLE_SET_RESOLVER_ADMIN based on fuses");
         
-        // 2LDs should NOT have renewal roles (is2LD=true prevents automatic renewal for 2LDs)
+        // 2LDs should NOT have renewal roles (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs)
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW for 2LDs");
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN for 2LDs");
         
@@ -464,7 +464,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
-        // 2LDs should NOT have renewal roles even when no additional fuses are burnt (is2LD=true prevents automatic renewal)
+        // 2LDs should NOT have renewal roles even when no additional fuses are burnt (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs)
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW for 2LDs");
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN for 2LDs");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");
@@ -547,7 +547,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
-        // 2LDs should NOT have renewal roles even when CANNOT_CREATE_SUBDOMAIN is not burnt (is2LD=true prevents automatic renewal)
+        // 2LDs should NOT have renewal roles even when CANNOT_CREATE_SUBDOMAIN is not burnt (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs)
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW for 2LDs");
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN for 2LDs");
         
@@ -591,7 +591,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
-        // 2LDs should NOT have renewal roles (is2LD=true prevents automatic renewal) but should have resolver roles
+        // 2LDs should NOT have renewal roles (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs) but should have resolver roles
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW) == 0, "Should NOT have ROLE_RENEW for 2LDs");
         assertTrue((userRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Should NOT have ROLE_RENEW_ADMIN for 2LDs");
         assertTrue((userRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Should have ROLE_SET_RESOLVER");

@@ -177,8 +177,8 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
             // Ensure proper domain hierarchy for migration
             string memory label = _validateHierarchy(migrationDataArray[i].transferData.dnsEncodedName, 0);
             
-            // Determine permissions from name configuration (is2LD=false to allow subdomain renewal based on fuses)
-            (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, false);
+            // Determine permissions from name configuration (allow subdomain renewal based on fuses)
+            (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses);
             
             // Create dedicated registry for the migrated name
             address subregistry = LibLockedNames.deployMigratedRegistry(
