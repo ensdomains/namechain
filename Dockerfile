@@ -30,11 +30,11 @@ COPY contracts/package.json ./contracts/
 # Copy patches for post script execution
 #COPY /patches ./patches
 
+# Copy the rest of the application source (see: .dockerignore)
+COPY . .
+
 # Install all dependencies
 RUN bun i
-
-# Copy the rest of the application source
-COPY . .
 
 # Build Contracts
 WORKDIR /app/contracts
