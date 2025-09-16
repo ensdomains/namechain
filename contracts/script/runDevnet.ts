@@ -12,11 +12,18 @@ const env = await setupCrossChainEnvironment({
   saveDeployments: true,
 });
 
+// handler for shell
 process.once("SIGINT", async () => {
   console.log("\nShutting down...");
   await env.shutdown();
   process.exit();
 });
+// handler for docker
+process.once("SIGTERM", async (code) => {
+  await env.shutdown();
+  process.exit(code);
+});
+// handler for bugs
 process.once("uncaughtException", async (err) => {
   await env.shutdown();
   throw err;
