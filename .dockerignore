@@ -5,6 +5,5 @@ cache_hardhat/
 coverage/
 deployments/
 generated/
-lib/
 node_modules/
 out/
