@@ -113,11 +113,19 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IRegistry subregistry,
         address resolver,
         uint64 duration,
-        bytes32 referer
+        bytes32 referrer
     ) public pure override returns (bytes32) {
         return
             keccak256(
-                abi.encode(name, owner, secret, subregistry, resolver, duration, referer)
+                abi.encode(
+                    name,
+                    owner,
+                    secret,
+                    subregistry,
+                    resolver,
+                    duration,
+                    referrer
+                )
             );
     }
 
@@ -159,7 +167,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         address resolver,
         uint64 duration,
         IERC20 paymentToken,
-        bytes32 referer
+        bytes32 referrer
     ) external returns (uint256 tokenId) {
         (, uint64 oldExpiry, ) = registry.getNameData(label);
         if (!_isAvailable(oldExpiry)) {
@@ -176,7 +184,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
                 subregistry,
                 resolver,
                 duration,
-                referer
+                referrer
             )
         );
         (uint256 base, uint256 premium) = rentPrice(
@@ -204,7 +212,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             resolver,
             duration,
             paymentToken,
-            referer,
+            referrer,
             base,
             premium
         );
@@ -215,7 +223,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         string memory label,
         uint64 duration,
         IERC20 paymentToken,
-        bytes32 referer
+        bytes32 referrer
     ) external {
         (uint256 tokenId, uint64 oldExpiry, ) = registry.getNameData(label);
         if (_isAvailable(oldExpiry)) {
@@ -236,7 +244,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             duration,
             expires,
             paymentToken,
-            referer,
+            referrer,
             base
         );
     }

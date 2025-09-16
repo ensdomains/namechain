@@ -201,7 +201,7 @@ contract TestETHRegistrar is Test {
         address resolver;
         uint64 duration;
         IERC20 paymentToken;
-        bytes32 referer;
+        bytes32 referrer;
         uint256 wait;
     }
 
@@ -229,7 +229,7 @@ contract TestETHRegistrar is Test {
                 args.subregistry,
                 args.resolver,
                 args.duration,
-                args.referer
+                args.referrer
             );
     }
 
@@ -248,7 +248,7 @@ contract TestETHRegistrar is Test {
             args.resolver,
             args.duration,
             args.paymentToken,
-            args.referer
+            args.referrer
         );
         vm.stopPrank();
     }
@@ -259,7 +259,7 @@ contract TestETHRegistrar is Test {
             args.label,
             args.duration,
             args.paymentToken,
-            args.referer
+            args.referrer
         );
     }
 
@@ -276,7 +276,7 @@ contract TestETHRegistrar is Test {
                     args.subregistry,
                     args.resolver,
                     args.duration,
-                    args.referer
+                    args.referrer
                 )
             ),
             "hash"

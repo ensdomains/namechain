@@ -57,7 +57,7 @@ interface IETHRegistrar is IRentPriceOracle {
     /// @param resolver The initial resolver address.
     /// @param duration The registration duration, in seconds.
     /// @param paymentToken The ERC-20 used for payment.
-    /// @param referer The referer hash.
+    /// @param referrer The referrer hash.
     /// @param base The base price, relative to `paymentToken`.
     /// @param premium The premium price, relative to `paymentToken`.
     event NameRegistered(
@@ -68,7 +68,7 @@ interface IETHRegistrar is IRentPriceOracle {
         address resolver,
         uint64 duration,
         IERC20 paymentToken,
-        bytes32 referer,
+        bytes32 referrer,
         uint256 base,
         uint256 premium
     );
@@ -79,7 +79,7 @@ interface IETHRegistrar is IRentPriceOracle {
     /// @param duration The duration extension, in seconds.
     /// @param newExpiry The new expiry, in seconds.
     /// @param paymentToken The ERC-20 used for payment.
-    /// @param referer The referer hash.
+    /// @param referrer The referrer hash.
     /// @param base The base price, relative to `paymentToken`.
     event NameRenewed(
         uint256 indexed tokenId,
@@ -87,7 +87,7 @@ interface IETHRegistrar is IRentPriceOracle {
         uint64 duration,
         uint64 newExpiry,
         IERC20 paymentToken,
-        bytes32 referer,
+        bytes32 referrer,
         uint256 base
     );
 
@@ -103,7 +103,7 @@ interface IETHRegistrar is IRentPriceOracle {
     /// @param subregistry The initial registry address.
     /// @param resolver The initial resolver address.
     /// @param duration The registration duration, in seconds.
-    /// @param referer The referer hash.
+    /// @param referrer The referrer hash.
     /// @return The commitment hash.
     function makeCommitment(
         string memory label,
@@ -112,7 +112,7 @@ interface IETHRegistrar is IRentPriceOracle {
         IRegistry subregistry,
         address resolver,
         uint64 duration,
-        bytes32 referer
+        bytes32 referrer
     ) external pure returns (bytes32);
 
     /// @notice Get timestamp of `commitment`.
@@ -134,7 +134,7 @@ interface IETHRegistrar is IRentPriceOracle {
     /// @param resolver The resolver from commitment.
     /// @param duration The registration from commitment.
     /// @param paymentToken The ERC-20 to use for payment.
-    /// @param referer The referer hash.
+    /// @param referrer The referrer hash.
     /// @return `tokenId` for the registration.
     function register(
         string memory label,
@@ -144,7 +144,7 @@ interface IETHRegistrar is IRentPriceOracle {
         address resolver,
         uint64 duration,
         IERC20 paymentToken,
-        bytes32 referer
+        bytes32 referrer
     ) external returns (uint256);
 
     /// @notice Renew an existing registration.
@@ -152,11 +152,11 @@ interface IETHRegistrar is IRentPriceOracle {
     /// @param label The name to renew.
     /// @param duration The registration extension, in seconds.
     /// @param paymentToken The ERC-20 to use for payment.
-    /// @param referer The referer hash.
+    /// @param referrer The referrer hash.
     function renew(
         string memory label,
         uint64 duration,
         IERC20 paymentToken,
-        bytes32 referer
+        bytes32 referrer
     ) external;
 }
