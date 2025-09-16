@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH, CAN_EXTEND_EXPIRY} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, IS_DOT_ETH, CAN_EXTEND_EXPIRY} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
@@ -183,7 +183,6 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         assertTrue((newFuses & CANNOT_SET_RESOLVER) != 0, "CANNOT_SET_RESOLVER should be burnt");
         assertTrue((newFuses & CANNOT_SET_TTL) != 0, "CANNOT_SET_TTL should be burnt");
         assertTrue((newFuses & CANNOT_CREATE_SUBDOMAIN) != 0, "CANNOT_CREATE_SUBDOMAIN should be burnt");
-        assertTrue((newFuses & CANNOT_APPROVE) != 0, "CANNOT_APPROVE should be burnt");
     }
 
     function test_onERC1155Received_roles_based_on_fuses_not_input() public {
@@ -393,7 +392,6 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
             assertTrue((newFuses & CANNOT_SET_RESOLVER) != 0, "CANNOT_SET_RESOLVER should be burnt");
             assertTrue((newFuses & CANNOT_SET_TTL) != 0, "CANNOT_SET_TTL should be burnt");
             assertTrue((newFuses & CANNOT_CREATE_SUBDOMAIN) != 0, "CANNOT_CREATE_SUBDOMAIN should be burnt");
-            assertTrue((newFuses & CANNOT_APPROVE) != 0, "CANNOT_APPROVE should be burnt");
         }
     }
 
@@ -642,7 +640,6 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         assertTrue((finalFuses & CANNOT_SET_RESOLVER) != 0, "CANNOT_SET_RESOLVER should be burnt after migration");
         assertTrue((finalFuses & CANNOT_SET_TTL) != 0, "CANNOT_SET_TTL should be burnt after migration");
         assertTrue((finalFuses & CANNOT_CREATE_SUBDOMAIN) != 0, "CANNOT_CREATE_SUBDOMAIN should be burnt after migration");
-        assertTrue((finalFuses & CANNOT_APPROVE) != 0, "CANNOT_APPROVE should be burnt after migration");
         
         // Verify name was successfully migrated despite all fuses being burnt after
         (uint256 registeredTokenId,,) = registry.getNameData(testLabel);

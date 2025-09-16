@@ -20,7 +20,7 @@ import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
-import {CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_SET_RESOLVER, CANNOT_TRANSFER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, CAN_EXTEND_EXPIRY, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_SET_RESOLVER, CANNOT_TRANSFER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CAN_EXTEND_EXPIRY, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {LibLockedNames} from "../src/L1/LibLockedNames.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IStandardRegistry} from "../src/common/IStandardRegistry.sol";
@@ -1688,7 +1688,7 @@ contract TestMigratedWrappedNameRegistry is Test {
         
         // All restrictive fuses except CANNOT_BURN_FUSES
         uint32 restrictiveFuses = PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CANNOT_TRANSFER | 
-                                  CANNOT_SET_RESOLVER | CANNOT_SET_TTL | CANNOT_CREATE_SUBDOMAIN | CANNOT_APPROVE;
+                                  CANNOT_SET_RESOLVER | CANNOT_SET_TTL | CANNOT_CREATE_SUBDOMAIN;
         nameWrapper.setFuseData(subTokenId, restrictiveFuses, expiry);
         nameWrapper.setOwner(subTokenId, address(registry));
 

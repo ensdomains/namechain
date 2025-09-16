@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH, CAN_EXTEND_EXPIRY, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, IS_DOT_ETH, CAN_EXTEND_EXPIRY, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
@@ -28,8 +28,7 @@ library LibLockedNames {
         CANNOT_TRANSFER |
         CANNOT_SET_RESOLVER |
         CANNOT_SET_TTL |
-        CANNOT_CREATE_SUBDOMAIN |
-        CANNOT_APPROVE;
+        CANNOT_CREATE_SUBDOMAIN;
 
     /**
      * @notice Validates that a name is properly locked for migration
@@ -132,11 +131,9 @@ library LibLockedNames {
             }
         }
         
-        // Add renewal roles to subregistry (not affected by CANNOT_BURN_FUSES)
+        // Add renewal roles to subregistry
         subRegistryRoles |= LibRegistryRoles.ROLE_RENEW;
-        if ((fuses & CANNOT_APPROVE) == 0) {
-            subRegistryRoles |= LibRegistryRoles.ROLE_RENEW_ADMIN;
-        }
+        subRegistryRoles |= LibRegistryRoles.ROLE_RENEW_ADMIN;
     }
 
     /**

@@ -4,7 +4,7 @@ pragma solidity >=0.8.13;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, CANNOT_APPROVE, IS_DOT_ETH, CAN_EXTEND_EXPIRY, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, CANNOT_BURN_FUSES, CANNOT_TRANSFER, CANNOT_SET_RESOLVER, CANNOT_SET_TTL, CANNOT_CREATE_SUBDOMAIN, IS_DOT_ETH, CAN_EXTEND_EXPIRY, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {LibLockedNames} from "../src/L1/LibLockedNames.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
@@ -408,32 +408,10 @@ contract TestLibLockedNames is Test {
     }
 
 
-    function test_generateRoleBitmapsFromFuses_cannot_approve_with_all_permissions() public pure {
-        // Fuses with CANNOT_APPROVE but all permissions allowed - should grant all roles including admin roles for token, but no RENEW_ADMIN for subRegistry
-        uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_APPROVE;
-        
-        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, false);
-        
-        // Should have token observer roles (always set by default)
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Token should have ROLE_SET_TOKEN_OBSERVER");
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) != 0, "Token should have ROLE_SET_TOKEN_OBSERVER_ADMIN");
-        // Should have all roles including admin roles (CANNOT_APPROVE no longer affects token role generation)
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW) != 0, "Token should have ROLE_RENEW");
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "Token should have ROLE_RENEW_ADMIN");
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Token should have ROLE_SET_RESOLVER_ADMIN");
-        
-        // SubRegistry should have registrar roles (not affected by CANNOT_APPROVE)
-        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
-        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) != 0, "SubRegistry should have ROLE_REGISTRAR_ADMIN");
-        // SubRegistry should have renewal role but NOT admin role due to CANNOT_APPROVE
-        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_RENEW) != 0, "SubRegistry should have ROLE_RENEW");
-        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "SubRegistry should NOT have ROLE_RENEW_ADMIN when CANNOT_APPROVE is set");
-    }
 
-    function test_generateRoleBitmapsFromFuses_cannot_approve_and_cannot_burn_fuses() public pure {
-        // Fuses with both CANNOT_APPROVE and CANNOT_BURN_FUSES - CANNOT_APPROVE should still prevent ROLE_RENEW_ADMIN on subRegistry
-        uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_APPROVE | CANNOT_BURN_FUSES;
+    function test_generateRoleBitmapsFromFuses_cannot_burn_fuses() public pure {
+        // Fuses with CANNOT_BURN_FUSES - should prevent admin roles
+        uint32 fuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY | CANNOT_BURN_FUSES;
         
         (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames.generateRoleBitmapsFromFuses(fuses, false);
         
@@ -449,9 +427,9 @@ contract TestLibLockedNames is Test {
         // SubRegistry should have registrar role but NO admin role due to CANNOT_BURN_FUSES  
         assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
         assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "SubRegistry should NOT have ROLE_REGISTRAR_ADMIN when CANNOT_BURN_FUSES is set");
-        // SubRegistry should have renewal role but NOT admin role due to CANNOT_APPROVE
+        // SubRegistry should have renewal roles (always granted now)
         assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_RENEW) != 0, "SubRegistry should have ROLE_RENEW");
-        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "SubRegistry should NOT have ROLE_RENEW_ADMIN when CANNOT_APPROVE is set");
+        assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) != 0, "SubRegistry should have ROLE_RENEW_ADMIN");
     }
     
     function test_generateRoleBitmapsFromFuses_always_includes_token_observer_roles() public pure {
@@ -464,7 +442,7 @@ contract TestLibLockedNames is Test {
         assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) != 0, "Should have ROLE_SET_TOKEN_OBSERVER_ADMIN with minimal fuses");
         
         // Test with all restrictive fuses except CANNOT_BURN_FUSES
-        uint32 restrictiveFuses = CANNOT_UNWRAP | IS_DOT_ETH | CANNOT_SET_RESOLVER | CANNOT_CREATE_SUBDOMAIN | CANNOT_APPROVE;
+        uint32 restrictiveFuses = CANNOT_UNWRAP | IS_DOT_ETH | CANNOT_SET_RESOLVER | CANNOT_CREATE_SUBDOMAIN;
         (uint256 tokenRoles2, ) = LibLockedNames.generateRoleBitmapsFromFuses(restrictiveFuses, false);
         assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER) != 0, "Should have ROLE_SET_TOKEN_OBSERVER with restrictive fuses");
         assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN) != 0, "Should have ROLE_SET_TOKEN_OBSERVER_ADMIN with restrictive fuses");
@@ -560,7 +538,7 @@ contract TestLibLockedNames is Test {
     function test_FUSES_TO_BURN_constant() public pure {
         // Verify the FUSES_TO_BURN constant includes all expected fuses including CANNOT_UNWRAP
         uint32 expectedFuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | CANNOT_TRANSFER | CANNOT_SET_RESOLVER | 
-                               CANNOT_SET_TTL | CANNOT_CREATE_SUBDOMAIN | CANNOT_APPROVE;
+                               CANNOT_SET_TTL | CANNOT_CREATE_SUBDOMAIN;
         
         assertEq(LibLockedNames.FUSES_TO_BURN, expectedFuses, "FUSES_TO_BURN should include all expected fuses including CANNOT_UNWRAP");
     }
