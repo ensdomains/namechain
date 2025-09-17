@@ -161,7 +161,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         string memory label = new string(n);
         uint256 base = rentPriceOracle.baseRate(label);
         assertEq(base, rate, "rate");
-         // duration must be before initial discount or price will be reduced
+        // duration must be before initial discount or price will be reduced
         _testRentPrice(label, rate, StandardPricing.SEC_PER_YEAR, tokenUSDC);
         _testRentPrice(
             label,
@@ -295,6 +295,15 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         vm.stopPrank();
     }
 
+    function test_getBaseRates() external view {
+        uint256[] memory v0 = StandardPricing.getBaseRates();
+        uint256[] memory v1 = rentPriceOracle.getBaseRates();
+        assertEq(v1.length, v0.length, "length");
+        for (uint256 i; i < v0.length; i++) {
+            assertEq(v1[i], v0[i]);
+        }
+    }
+
     function test_updatePremiumPricing() external {
         vm.expectEmit(false, false, false, false);
         emit StandardRentPriceOracle.PremiumPricingChanged(256000, 1, 8);
@@ -412,5 +421,38 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
     }
     function test_discountedRentPrice_5() external {
         _testDiscountedPermutations(5);
+    }
+
+    function test_updateDiscountPoints() external {
+        DiscountPoint[] memory points = new DiscountPoint[](2);
+        points[0] = DiscountPoint(50, 2);
+        points[1] = DiscountPoint(100, 1);
+        rentPriceOracle.updateDiscountFunction(points);
+        assertEq(rentPriceOracle.integratedDiscount(50), 100);
+        assertEq(rentPriceOracle.integratedDiscount(500), 500);
+    }
+
+    function test_updateDiscountPoints_disable() external {
+        rentPriceOracle.updateDiscountFunction(new DiscountPoint[](0));
+        assertEq(rentPriceOracle.integratedDiscount(type(uint64).max), 0);
+    }
+
+    function test_updateDiscountPoints_notOwner() external {
+        vm.startPrank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                user
+            )
+        );
+        rentPriceOracle.updateDiscountFunction(new DiscountPoint[](1));
+        vm.stopPrank();
+    }
+
+    function test_getDiscountPoints() external view {
+        DiscountPoint[] memory points = rentPriceOracle.getDiscountPoints();
+        assertEq(points.length, 6, "length");
+        assertEq(points[0].t, StandardPricing.SEC_PER_YEAR, "1y");
+        assertEq(points[1].t, StandardPricing.SEC_PER_YEAR * 2, "2y");
     }
 }
