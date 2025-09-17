@@ -18,21 +18,19 @@ library BridgeEncoder {
      * @dev Encode an ejection message.
      */
     function encodeEjection(
-        bytes memory dnsEncodedName,
         TransferData memory data
     ) internal pure returns (bytes memory) {
-        return abi.encode(uint(BridgeMessageType.EJECTION), dnsEncodedName, data);
+        return abi.encode(uint(BridgeMessageType.EJECTION), data);
     }
 
     /**
      * @dev Decode an ejection message.
      */
     function decodeEjection(bytes memory message) internal pure returns (
-        bytes memory dnsEncodedName,
         TransferData memory data
     ) {
         uint _messageType;
-        (_messageType, dnsEncodedName, data) = abi.decode(message, (uint, bytes, TransferData));
+        (_messageType, data) = abi.decode(message, (uint, TransferData));
         if (_messageType != uint(BridgeMessageType.EJECTION)) {
             revert InvalidEjectionMessageType();
         }

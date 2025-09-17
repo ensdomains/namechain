@@ -18,36 +18,23 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
     uint256 internal constant ROLE_UPGRADE = 1 << 20;
     uint256 internal constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
 
-    constructor() PermissionedRegistry(IRegistryDatastore(address(0)), IRegistryMetadata(address(0)), _msgSender(), 0) {
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadataProvider) PermissionedRegistry(_datastore, _metadataProvider, _msgSender(), 0) {
         // This disables initialization for the implementation contract
         _disableInitializers();
     }
 
     /**
      * @dev Initializes the UserRegistry contract.
-     * @param _datastore The registry datastore contract.
-     * @param _metadata The registry metadata contract.
      * @param _deployerRoles The roles to grant to the deployer.
      * @param _admin The address that will be set as the admin with upgrade privileges.
      */
     function initialize(
-        IRegistryDatastore _datastore,
-        IRegistryMetadata _metadata,
         uint256 _deployerRoles,
         address _admin
     ) public initializer {
         require(_admin != address(0), "Admin cannot be zero address");
         
-        // Initialize datastore
-        datastore = _datastore;
-        
-        // Initialize metadata provider
-        if (address(_metadata) == address(0)) {
-            // Create a new SimpleRegistryMetadata if none is provided
-            _updateMetadataProvider(new SimpleRegistryMetadata());
-        } else {
-            metadataProvider = _metadata;
-        }
+        // Datastore and metadata provider are set immutably in constructor
         
         // Grant deployer roles to the admin
         _grantRoles(ROOT_RESOURCE, _deployerRoles, _admin, false);

@@ -10,26 +10,32 @@ import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
 import {IBridge, LibBridgeRoles} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
 import {NameUtils} from "../common/NameUtils.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import "../common/Errors.sol";
 
 /**
- * @title L1EjectionController
- * @dev L1 contract for ejection controller that facilitates migrations of names
+ * @title L1BridgeController
+ * @dev L1 contract for bridge controller that facilitates migrations of names
  * between L1 and L2, as well as handling renewals.
  */
-contract L1EjectionController is EjectionController {
+contract L1BridgeController is EjectionController {
     error NotTokenOwner(uint256 tokenId);
-    error NameNotExpired(uint256 tokenId, uint64 expires);
+    error LockedNameCannotBeEjected(uint256 tokenId);
 
     event RenewalSynchronized(uint256 tokenId, uint64 newExpiry);
 
-    constructor(IPermissionedRegistry _registry, IBridge _bridge) EjectionController(_registry, _bridge) {}
+
+    constructor(
+        IPermissionedRegistry _registry, 
+        IBridge _bridge
+    ) EjectionController(_registry, _bridge) {}
 
     /**
-     * @dev Should be called when a name has been ejected from L2.  
+     * @dev Should be called when a name is being ejected to L1.  
      *
      * @param transferData The transfer data for the name being ejected
      */
-    function completeEjectionFromL2(
+    function completeEjectionToL1(
         TransferData memory transferData
     ) 
     external 
@@ -37,10 +43,19 @@ contract L1EjectionController is EjectionController {
     onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
     returns (uint256 tokenId) 
     {
-        tokenId = registry.register(transferData.label, transferData.owner, IRegistry(transferData.subregistry), transferData.resolver, transferData.roleBitmap, transferData.expires);
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
-        emit NameEjectedToL1(dnsEncodedName, tokenId);
+        string memory label = NameUtils.extractLabel(transferData.dnsEncodedName);
+        
+        tokenId = registry.register(
+            label,
+            transferData.owner,
+            IRegistry(transferData.subregistry),
+            transferData.resolver,
+            transferData.roleBitmap,
+            transferData.expires
+        );
+        emit NameEjectedToL1(transferData.dnsEncodedName, tokenId);
     }
+
 
     /**
      * @dev Sync the renewal of a name with the L2 registry.
@@ -63,16 +78,29 @@ contract L1EjectionController is EjectionController {
             uint256 tokenId = tokenIds[i];
             TransferData memory transferData = transferDataArray[i];
 
+            // Check if name is locked (no assignees for ROLE_SET_SUBREGISTRY or ROLE_SET_SUBREGISTRY_ADMIN means locked)
+            uint256 resource = NameUtils.getCanonicalId(tokenId);
+            (uint256 count, ) = registry.getAssigneeCount(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN);
+            if (count == 0) {
+                revert LockedNameCannotBeEjected(tokenId);
+            }
+
+            // check that the owner is not null address
+            if (transferData.owner == address(0)) {
+                revert InvalidOwner();
+            }
+
             // check that the label matches the token id
-            _assertTokenIdMatchesLabel(tokenId, transferData.label);
+            _assertTokenIdMatchesLabel(tokenId, transferData.dnsEncodedName);
             
             // burn the token
             registry.burn(tokenId);
 
             // send the message to the bridge
-            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
-            bridge.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferData));
-            emit NameEjectedToL2(dnsEncodedName, tokenId);
+            bridge.sendMessage(BridgeEncoder.encodeEjection(transferData));
+            emit NameEjectedToL2(transferData.dnsEncodedName, tokenId);
         }
     }
+
+
 }

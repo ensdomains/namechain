@@ -18,10 +18,11 @@ import {MockBaseRegistrar} from "../src/mocks/v1/MockBaseRegistrar.sol";
 import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {L1UnlockedMigrationController} from "../src/L1/L1UnlockedMigrationController.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
+import "../src/common/Errors.sol";
 import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
 import {IBridge, BridgeMessageType, LibBridgeRoles} from "../src/common/IBridge.sol";
 import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
-import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
+import {L1BridgeController} from "../src/L1/L1BridgeController.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
@@ -102,7 +103,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
     MockL1Bridge mockBridge;
     
     // Real components for testing
-    L1EjectionController realL1EjectionController;
+    L1BridgeController realL1BridgeController;
     RegistryDatastore datastore;
     PermissionedRegistry registry;
     MockRegistryMetadata registryMetadata;
@@ -119,7 +120,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
     function _createMigrationData(string memory label) internal pure returns (MigrationData memory) {
         return MigrationData({
             transferData: TransferData({
-                label: label,
+                dnsEncodedName: NameUtils.dnsEncodeEthLabel(label),
                 owner: address(0),
                 subregistry: address(0),
                 resolver: address(0),
@@ -127,7 +128,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 expires: 0
             }),
             toL1: false,
-            data: ""
+            salt: 0
         });
     }
 
@@ -137,7 +138,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
     function _createMigrationDataWithL1Flag(string memory label, bool toL1) internal view returns (MigrationData memory) {
         return MigrationData({
             transferData: TransferData({
-                label: label,
+                dnsEncodedName: NameUtils.dnsEncodeEthLabel(label),
                 owner: address(0x1111),
                 subregistry: address(0x2222),
                 resolver: address(0x3333),
@@ -145,7 +146,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 expires: uint64(block.timestamp + 86400) // Valid future expiration
             }),
             toL1: toL1,
-            data: ""
+            salt: 0
         });
     }
 
@@ -170,8 +171,9 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 // so the message is in the data field
                 (bytes memory message) = abi.decode(entries[i].data, (bytes));
                 // Decode the ejection message to get the transfer data
-                (, TransferData memory decodedTransferData) = BridgeEncoder.decodeEjection(message);
-                if (keccak256(bytes(decodedTransferData.label)) == keccak256(bytes(expectedLabel))) {
+                (TransferData memory decodedTransferData) = BridgeEncoder.decodeEjection(message);
+                string memory decodedLabel = NameUtils.extractLabel(decodedTransferData.dnsEncodedName);
+                if (keccak256(bytes(decodedLabel)) == keccak256(bytes(expectedLabel))) {
                     foundMigrationEvent = true;
                     break;  
                 }
@@ -201,8 +203,9 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 // so the message is in the data field
                 (bytes memory message) = abi.decode(entries[i].data, (bytes));
                 // Decode the ejection message to get the transfer data
-                (, TransferData memory decodedTransferData) = BridgeEncoder.decodeEjection(message);
-                uint256 emittedTokenId = uint256(keccak256(bytes(decodedTransferData.label)));
+                (TransferData memory decodedTransferData) = BridgeEncoder.decodeEjection(message);
+                string memory decodedLabel = NameUtils.extractLabel(decodedTransferData.dnsEncodedName);
+                uint256 emittedTokenId = uint256(keccak256(bytes(decodedLabel)));
                 
                 // Check if this tokenId is in our expected list
                 for (uint256 j = 0; j < expectedTokenIds.length; j++) {
@@ -224,7 +227,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1BridgeController) && entries[i].topics[0] == expectedSig) {
                 // NameEjectedToL1(bytes dnsEncodedName, uint256 tokenId)
                 (bytes memory dnsEncodedName, ) = abi.decode(entries[i].data, (bytes, uint256));
                 // Extract label from DNS encoded name (first byte is length, then the label)
@@ -259,13 +262,13 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         // Deploy mock bridge
         mockBridge = new MockL1Bridge();
         
-        // Deploy REAL L1EjectionController with real dependencies
-        realL1EjectionController = new L1EjectionController(registry, mockBridge);
+        // Deploy REAL L1BridgeController with real dependencies
+        realL1BridgeController = new L1BridgeController(registry, mockBridge);
         
         // Grant necessary roles to the ejection controller
         registry.grantRootRoles(
             LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_BURN, 
-            address(realL1EjectionController)
+            address(realL1BridgeController)
         );
         
         // Deploy migration controller with the REAL ejection controller
@@ -273,11 +276,11 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
             ethRegistryV1, 
             INameWrapper(address(nameWrapper)), 
             mockBridge, 
-            realL1EjectionController
+            realL1BridgeController
         );
         
         // Grant ROLE_EJECTOR to the migration controller so it can call the ejection controller
-        realL1EjectionController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(migrationController));
+        realL1BridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(migrationController));
         
         testTokenId = uint256(keccak256(bytes(testLabel)));
     }
@@ -286,7 +289,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         assertEq(address(migrationController.ethRegistryV1()), address(ethRegistryV1));
         assertEq(address(migrationController.nameWrapper()), address(nameWrapper));
         assertEq(address(migrationController.bridge()), address(mockBridge));
-        assertEq(address(migrationController.l1EjectionController()), address(realL1EjectionController));
+        assertEq(address(migrationController.l1BridgeController()), address(realL1BridgeController));
         assertEq(migrationController.owner(), address(this));
     }
 
@@ -308,7 +311,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         vm.prank(user);
         ethRegistryV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
         
-        // Verify the migration controller now owns the token
+        // Verify the migration controller owns the token
         assertEq(ethRegistryV1.ownerOf(testTokenId), address(migrationController));
         
         // Get logs for assertions
@@ -322,7 +325,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1BridgeController) && entries[i].topics[0] == expectedSig) {
                 l1MigratorEventCount++;
             }
         }
@@ -347,7 +350,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         vm.prank(user);
         ethRegistryV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
         
-        // Verify the migration controller now owns the token
+        // Verify the migration controller owns the token
         assertEq(ethRegistryV1.ownerOf(testTokenId), address(migrationController));
         
         // Get logs once and use for assertions
@@ -373,7 +376,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes memory data = abi.encode(migrationData);
         
         // Try to transfer from wrong registry
-        vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
         migrationController.onERC721Received(address(this), user, testTokenId, data);
     }
 
@@ -389,7 +392,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         // Try to call onERC721Received directly when migration controller doesn't own the token
         // This should fail with UnauthorizedCaller because we're calling it directly
         // and msg.sender is not ethRegistryV1
-        vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
         migrationController.onERC721Received(address(this), user, testTokenId, data);
     }
 
@@ -423,7 +426,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1BridgeController) && entries[i].topics[0] == expectedSig) {
                 l1MigratorEventCount++;
             }
         }
@@ -508,7 +511,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1BridgeController) && entries[i].topics[0] == expectedSig) {
                 l1MigratorEventCount++;
             }
         }
@@ -566,7 +569,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes32 expectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
         
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].emitter == address(realL1EjectionController) && entries[i].topics[0] == expectedSig) {
+            if (entries[i].emitter == address(realL1BridgeController) && entries[i].topics[0] == expectedSig) {
                 l1MigratorEventCount++;
             }
         }
@@ -641,7 +644,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes memory data = abi.encode(migrationData);
         
         // Try to call onERC1155Received from wrong contract (not nameWrapper)
-        vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
         migrationController.onERC1155Received(address(this), user, testTokenId, 1, data);
     }
 
@@ -659,7 +662,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
         bytes memory data = abi.encode(migrationDataArray);
         
         // Try to call onERC1155BatchReceived from wrong contract (not nameWrapper)
-        vm.expectRevert(abi.encodeWithSelector(L1UnlockedMigrationController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
         migrationController.onERC1155BatchReceived(address(this), user, tokenIds, amounts, data);
     }
 
