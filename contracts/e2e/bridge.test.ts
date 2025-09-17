@@ -26,9 +26,9 @@ describe("Bridge", () => {
   afterAll(() => env?.shutdown);
   // beforeEach(() => env?.resetState());
 
-  it.only("name ejection", async () => {
+  it("name ejection", async () => {
     const label = "premium";
-    const name = "premium.eth";
+    const name = `${label}.eth`;
     const dnsEncodedName = dnsEncodeName(name);
     const user = env.accounts[1];
     const l1Owner = env.accounts[2];
@@ -68,7 +68,7 @@ describe("Bridge", () => {
     expect(canonicalId, "canonical").toStrictEqual(labelToCanonicalId(label));
 
     const encodedTransferData = encodeAbiParameters(
-      parseAbiParameters("(string,address,address,address,uint256,uint64)"),
+      parseAbiParameters("(bytes,address,address,address,uint256,uint64)"),
       [
         [
           dnsEncodedName,
@@ -111,7 +111,7 @@ describe("Bridge", () => {
 
   it("round trip", async () => {
     const label = "roundtrip";
-    const name = "roundtrip.eth";
+    const name = `${label}.eth`;
     const dnsEncodedName = dnsEncodeName(name);
     const l1User = env.accounts[1].address;
     const l2User = env.accounts[1].address;
@@ -139,7 +139,7 @@ describe("Bridge", () => {
     console.log(`TokenID from registry: ${tokenId}`);
 
     const encodedTransferDataToL1 = encodeAbiParameters(
-      parseAbiParameters("(string,address,address,address,uint256,uint64)"),
+      parseAbiParameters("(bytes,address,address,address,uint256,uint64)"),
       [[dnsEncodedName, l1User, l1Subregistry, resolver, roleBitmap, expiryTime]],
     );
 
@@ -162,7 +162,7 @@ describe("Bridge", () => {
     expect(owner).toBe(l1User);
 
     const encodedTransferDataToL2 = encodeAbiParameters(
-      parseAbiParameters("(string,address,address,address,uint256,uint64)"),
+      parseAbiParameters("(bytes,address,address,address,uint256,uint64)"),
       [[dnsEncodedName, l2User, l2Subregistry, resolver, roleBitmap, expiryTime]],
     );
 
