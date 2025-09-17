@@ -14,7 +14,7 @@ import {
   type CrossChainEnvironment,
   setupCrossChainEnvironment,
 } from "../script/setup.js";
-import { labelToCanonicalId, getCanonicalId } from "../test/utils/utils.js";
+import { labelToCanonicalId, getCanonicalId, dnsEncodeName } from "../test/utils/utils.js";
 
 describe("Bridge", () => {
   let env: CrossChainEnvironment;
@@ -26,9 +26,10 @@ describe("Bridge", () => {
   afterAll(() => env?.shutdown);
   // beforeEach(() => env?.resetState());
 
-  it("name ejection", async () => {
+  it.only("name ejection", async () => {
     const label = "premium";
-    //const name = "premium.eth";
+    const name = "premium.eth";
+    const dnsEncodedName = dnsEncodeName(name);
     const user = env.accounts[1];
     const l1Owner = env.accounts[2];
     const l1Subregistry = env.l1.contracts.ethRegistry.address;
@@ -59,10 +60,10 @@ describe("Bridge", () => {
     const canonicalId = getCanonicalId(tokenId);
     console.log(`Canonical ID: ${canonicalId}`);
 
-    console.log(`      Label: ${label}`);
-    console.log(`  labelHash: ${labelhash(label)}`);
-    console.log(`    tokenId: ${toHex(tokenId, { size: 32 })}`);
-    console.log(`canonicalId: ${canonicalId}`);
+    console.log(`             Label: ${label}`);
+    console.log(`    dnsEncodedname: ${dnsEncodedName}`);
+    console.log(`           tokenId: ${toHex(tokenId, { size: 32 })}`);
+    console.log(`       canonicalId: ${canonicalId}`);
 
     expect(canonicalId, "canonical").toStrictEqual(labelToCanonicalId(label));
 
@@ -70,7 +71,7 @@ describe("Bridge", () => {
       parseAbiParameters("(string,address,address,address,uint256,uint64)"),
       [
         [
-          label,
+          dnsEncodedName,
           l1Owner.address,
           l1Subregistry,
           l1Resolver,
@@ -94,8 +95,8 @@ describe("Bridge", () => {
           encodedTransferData,
         ],
         { account: owner },
-      ),
-    );
+      )      
+    )
 
     console.log("Verifying registration on L1...");
     const actualL1Owner = await env.l1.contracts.ethRegistry.read.ownerOf([
@@ -110,7 +111,8 @@ describe("Bridge", () => {
 
   it("round trip", async () => {
     const label = "roundtrip";
-    //const name = "roundtrip.eth";
+    const name = "roundtrip.eth";
+    const dnsEncodedName = dnsEncodeName(name);
     const l1User = env.accounts[1].address;
     const l2User = env.accounts[1].address;
     const l2Subregistry = env.l2.contracts.ethRegistry.address;
@@ -138,7 +140,7 @@ describe("Bridge", () => {
 
     const encodedTransferDataToL1 = encodeAbiParameters(
       parseAbiParameters("(string,address,address,address,uint256,uint64)"),
-      [[label, l1User, l1Subregistry, resolver, roleBitmap, expiryTime]],
+      [[dnsEncodedName, l1User, l1Subregistry, resolver, roleBitmap, expiryTime]],
     );
 
     await relay.waitFor(
@@ -161,7 +163,7 @@ describe("Bridge", () => {
 
     const encodedTransferDataToL2 = encodeAbiParameters(
       parseAbiParameters("(string,address,address,address,uint256,uint64)"),
-      [[label, l2User, l2Subregistry, resolver, roleBitmap, expiryTime]],
+      [[dnsEncodedName, l2User, l2Subregistry, resolver, roleBitmap, expiryTime]],
     );
 
     await relay.waitFor(
