@@ -122,6 +122,11 @@ library LibLockedNames {
             }
         }
         
+        // Add transfer role if transfers are allowed
+        if ((fuses & CANNOT_TRANSFER) == 0) {
+            tokenRoles |= LibRegistryRoles.ROLE_CAN_TRANSFER;
+        }
+        
         // Owner gets registrar permissions on subregistry only if subdomain creation is allowed
         if ((fuses & CANNOT_CREATE_SUBDOMAIN) == 0) {
             subRegistryRoles |= LibRegistryRoles.ROLE_REGISTRAR;

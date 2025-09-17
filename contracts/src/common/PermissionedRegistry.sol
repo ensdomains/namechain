@@ -261,6 +261,17 @@ contract PermissionedRegistry is BaseRegistry, EnhancedAccessControl, IPermissio
      * @dev Override the base registry _update function to transfer the roles to the new owner when the token is transferred.
      */
     function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal virtual override {
+        // Check ROLE_CAN_TRANSFER for actual transfers only
+        // Skip check for mints (from == address(0)) and burns (to == address(0))
+        if (from != address(0) && to != address(0)) {
+            for (uint256 i = 0; i < ids.length; ++i) {
+                uint256 resource = getResourceFromTokenId(ids[i]);
+                if (!hasRoles(resource, LibRegistryRoles.ROLE_CAN_TRANSFER, from)) {
+                    revert TransferDisallowed(ids[i], from);
+                }
+            }
+        }
+
         super._update(from, to, ids, values);
 
         for (uint256 i = 0; i < ids.length; ++i) {

@@ -17,6 +17,10 @@ library LibRegistryRoles {
     uint256 internal constant ROLE_SET_TOKEN_OBSERVER = 1 << 16;
     uint256 internal constant ROLE_SET_TOKEN_OBSERVER_ADMIN = ROLE_SET_TOKEN_OBSERVER << 128;
 
-    uint256 internal constant ROLE_BURN = 1 << 20;
+    uint256 internal constant ROLE_CAN_TRANSFER = 1 << 20;
+    // admin role is not needed for this role
+    //uint256 internal constant ROLE_CAN_TRANSFER_ADMIN = ROLE_CAN_TRANSFER << 128;
+
+    uint256 internal constant ROLE_BURN = 1 << 24;
     uint256 internal constant ROLE_BURN_ADMIN = ROLE_BURN << 128;
 }

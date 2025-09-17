@@ -187,7 +187,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             LibRegistryRoles.ROLE_SET_SUBREGISTRY | 
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN |
+            LibRegistryRoles.ROLE_CAN_TRANSFER;
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
 
         string memory label2 = "test2";
@@ -395,14 +396,15 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         string memory testLabel2 = "testbadassignees";
         uint64 expires = uint64(block.timestamp + expiryDuration);
         
-        // Scenario 1: Register with only one critical role (missing ROLE_SET_SUBREGISTRY)
-        uint256 tokenId2 = ethRegistry.register(testLabel2, user, ethRegistry, address(0), LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, expires);
+        // Scenario 1: Register with only some critical roles (missing ROLE_SET_SUBREGISTRY and admin roles)
+        uint256 tokenId2 = ethRegistry.register(testLabel2, user, ethRegistry, address(0), LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER | LibRegistryRoles.ROLE_CAN_TRANSFER, expires);
         
         uint256 criticalRoles = 
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
             LibRegistryRoles.ROLE_SET_SUBREGISTRY |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN |
+            LibRegistryRoles.ROLE_CAN_TRANSFER;
         bytes memory ejectionData = _createEjectionData(testLabel2, l1Owner, l1Subregistry, l1Resolver, expires, criticalRoles);
         
         // Should fail due to missing ROLE_SET_SUBREGISTRY and admin roles
@@ -436,7 +438,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
             LibRegistryRoles.ROLE_SET_SUBREGISTRY |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN |
+            LibRegistryRoles.ROLE_CAN_TRANSFER;
         uint256 tokenId3 = ethRegistry.register(testLabel3, user, ethRegistry, address(0), criticalRoles, expires);
         
         // Verify exactly one assignee per critical role
@@ -475,7 +478,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
             LibRegistryRoles.ROLE_SET_SUBREGISTRY |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN |
+            LibRegistryRoles.ROLE_CAN_TRANSFER;
         uint256 tokenId4 = ethRegistry.register(testLabel4, user, ethRegistry, address(0), criticalRoles, expires);
         
         // Get the resource ID (this stays stable across regenerations)
@@ -507,7 +511,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             LibRegistryRoles.ROLE_SET_SUBREGISTRY | 
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN |
+            LibRegistryRoles.ROLE_CAN_TRANSFER;
 
         // Register a token for testing with a unique label
         string memory nullOwnerTestLabel = "nullOwnerTest";

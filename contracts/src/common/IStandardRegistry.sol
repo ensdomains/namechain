@@ -29,6 +29,11 @@ interface IStandardRegistry is IRegistry {
     error CannotSetPastExpiration(uint64 expiry);
 
     /**
+     * @dev Error emitted when a transfer is not allowed due to missing ROLE_CAN_TRANSFER.
+     */
+    error TransferDisallowed(uint256 tokenId, address from);
+
+    /**
      * @dev Event emitted when a name is renewed.
      */
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);

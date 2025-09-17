@@ -48,9 +48,7 @@ contract TestETHRegistrar is Test, ERC1155Holder {
     uint64 constant REGISTRATION_DURATION = 365 days;
     bytes32 constant SECRET = bytes32(uint256(1234567890));
 
-    // Hardcoded role constants
-    uint256 constant ROLE_REGISTRAR = 1 << 0;
-    uint256 constant ROLE_RENEW = 1 << 4;
+    // Use LibRegistryRoles constants instead of hardcoded values
     bytes32 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
@@ -878,20 +876,53 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
         uint256 resource = registry.testGetResourceFromTokenId(tokenId);
 
-        // Check individual roles
-        uint256 ROLE_SET_SUBREGISTRY = 1 << 8;
-        uint256 ROLE_SET_SUBREGISTRY_ADMIN = ROLE_SET_SUBREGISTRY << 128;
-        uint256 ROLE_SET_RESOLVER = 1 << 12;
-        uint256 ROLE_SET_RESOLVER_ADMIN = ROLE_SET_RESOLVER << 128;
+        // Check individual roles using LibRegistryRoles constants
 
-        assertTrue(registry.hasRoles(resource, ROLE_SET_SUBREGISTRY, user1));
-        assertTrue(registry.hasRoles(resource, ROLE_SET_SUBREGISTRY_ADMIN, user1));
-        assertTrue(registry.hasRoles(resource, ROLE_SET_RESOLVER, user1));
-        assertTrue(registry.hasRoles(resource, ROLE_SET_RESOLVER_ADMIN, user1));
+        assertTrue(registry.hasRoles(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY, user1));
+        assertTrue(registry.hasRoles(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN, user1));
+        assertTrue(registry.hasRoles(resource, LibRegistryRoles.ROLE_SET_RESOLVER, user1));
+        assertTrue(registry.hasRoles(resource, LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN, user1));
+        assertTrue(registry.hasRoles(resource, LibRegistryRoles.ROLE_CAN_TRANSFER, user1));
 
         // Check combined bitmap
-        uint256 ROLE_BITMAP_REGISTRATION = ROLE_SET_SUBREGISTRY | ROLE_SET_SUBREGISTRY_ADMIN | ROLE_SET_RESOLVER | ROLE_SET_RESOLVER_ADMIN;
+        uint256 ROLE_BITMAP_REGISTRATION = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN | LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN | LibRegistryRoles.ROLE_CAN_TRANSFER;
         assertTrue(registry.hasRoles(resource, ROLE_BITMAP_REGISTRATION, user1));
+    }
+
+    function test_register_grants_role_can_transfer() public {
+        string memory name = "transferable";
+        address owner = user2;
+        
+        bytes32 commitment = registrar.makeCommitment(
+            name,
+            owner,
+            SECRET,
+            address(registry),
+            address(0),
+            REGISTRATION_DURATION
+        );
+        registrar.commit(commitment);
+        
+        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
+        
+        uint256 tokenId = registrar.register(
+            name,
+            owner,
+            SECRET,
+            registry,
+            address(0),
+            REGISTRATION_DURATION,
+            address(usdc)
+        );
+
+        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
+        
+        // Verify ROLE_CAN_TRANSFER is specifically granted
+        assertTrue(registry.hasRoles(resource, LibRegistryRoles.ROLE_CAN_TRANSFER, owner));
+        
+        // Verify no admin role exists for ROLE_CAN_TRANSFER (as expected per LibRegistryRoles.sol)
+        uint256 ROLE_CAN_TRANSFER_ADMIN = LibRegistryRoles.ROLE_CAN_TRANSFER << 128;
+        assertFalse(registry.hasRoles(resource, ROLE_CAN_TRANSFER_ADMIN, owner));
     }
 
     function test_length_based_pricing_integration() public view {

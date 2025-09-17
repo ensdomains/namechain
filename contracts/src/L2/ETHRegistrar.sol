@@ -19,7 +19,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         LibRegistryRoles.ROLE_SET_SUBREGISTRY | 
         LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN | 
         LibRegistryRoles.ROLE_SET_RESOLVER | 
-        LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
+        LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN |
+        LibRegistryRoles.ROLE_CAN_TRANSFER;
 
     uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
 
