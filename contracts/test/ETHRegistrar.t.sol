@@ -15,214 +15,87 @@ import {StandardRentPriceOracle, IRentPriceOracle, PaymentRatio} from "../src/L2
 import {ETHRegistrar, IETHRegistrar, IRegistry, REGISTRATION_ROLE_BITMAP, ROLE_SET_ORACLE} from "../src/L2/ETHRegistrar.sol";
 import {EnhancedAccessControl, IEnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
+import {NameUtils} from "../src/common/NameUtils.sol";
+import {StandardPricing} from "./StandardPricing.sol";
 
-contract TestETHRegistrar is Test, ERC1155Holder {
-    RegistryDatastore datastore;
-    MockPermissionedRegistry registry;
-    ETHRegistrar registrar;
-    StablePriceOracle priceOracle;
-    MockERC20 usdc;
-    MockERC20 dai;
+contract TestETHRegistrar is Test {
+    PermissionedRegistry ethRegistry;
 
-    address user1 = address(0x1);
-    address user2 = address(0x2);
-    address beneficiary = address(0x3);
-    uint256 constant MIN_COMMITMENT_AGE = 60; // 1 minute
-    uint256 constant MAX_COMMITMENT_AGE = 86400; // 1 day
-    // Realistic ENS pricing from https://docs.ens.domains/registry/eth 
-    // Using per-second rates calculated with high precision to avoid rounding to zero
-    // 5+ character names: $5/year ÷ 31,536,000 seconds = ~158.5 × 10^-9 USD/sec
-    // 4 character names: $160/year ÷ 31,536,000 seconds = ~5.072 × 10^-6 USD/sec  
-    // 3 character names: $640/year ÷ 31,536,000 seconds = ~20.289 × 10^-6 USD/sec
-    
-    // Scale up to avoid integer division rounding to zero
-    // Using nanodollars per second (1e9 scaling) then converting to 6-decimal USD
-    uint256 constant PRICE_5_CHAR = 158; // ~158.5 nanodollars/sec → multiply by duration to get total 
-    uint256 constant PRICE_4_CHAR = 5072; // ~5072 nanodollars/sec
-    uint256 constant PRICE_3_CHAR = 20289; // ~20289 nanodollars/sec
-    uint64 constant REGISTRATION_DURATION = 365 days;
-    bytes32 constant SECRET = bytes32(uint256(1234567890));
+    StandardRentPriceOracle rentPriceOracle;
+    ETHRegistrar ethRegistrar;
 
-    // Use LibRegistryRoles constants instead of hardcoded values
-    bytes32 constant ROOT_RESOURCE = 0;
+    MockERC20 tokenUSDC;
+    MockERC20 tokenDAI;
+    MockERC20Blacklist tokenBlack;
 
-    function setUp() public {
-        // Set the timestamp to a future date to avoid timestamp related issues
-        vm.warp(2_000_000_000);
+    address user = makeAddr("user");
+    address beneficiary = makeAddr("beneficiary");
 
-        // Create mock tokens
-        usdc = new MockERC20("USDC", "USDC", 6);
-        dai = new MockERC20("DAI", "DAI", 18);
-
-        // Setup StablePriceOracle with length-based pricing
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(usdc);
-        tokens[1] = address(dai);
-        
-        uint8[] memory decimals = new uint8[](2);
-        decimals[0] = 6; // USDC
-        decimals[1] = 18; // DAI
-        
-        // Price array: [5+char, 4char, 3char, 2char, 1char]  
-        uint256[] memory rentPrices = new uint256[](5);
-        rentPrices[0] = PRICE_5_CHAR; // 5+ chars
-        rentPrices[1] = PRICE_4_CHAR; // 4 chars
-        rentPrices[2] = PRICE_3_CHAR; // 3 chars  
-        rentPrices[3] = 0; // 2 chars (not supported)
-        rentPrices[4] = 0; // 1 char (not supported)
-        
-        priceOracle = new StablePriceOracle(tokens, decimals, rentPrices);
-
-        // Setup registry and registrar
-        datastore = new RegistryDatastore();
-        // Use a defined ALL_ROLES value for deployer roles
-        uint256 deployerRoles = LibEACBaseRoles.ALL_ROLES;
-        registry = new MockPermissionedRegistry(datastore, new SimpleRegistryMetadata(), address(this), deployerRoles);
-        registrar = new ETHRegistrar(address(registry), priceOracle, MIN_COMMITMENT_AGE, MAX_COMMITMENT_AGE, beneficiary);
-        registry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW, address(registrar));
-        
-        // Mint tokens to test accounts
-        uint256 tokenAmount = 1000000 * 1e6; // 1M USDC
-        usdc.mint(address(this), tokenAmount);
-        usdc.mint(user1, tokenAmount);
-        usdc.mint(user2, tokenAmount);
-        
-        uint256 daiAmount = 1000000 * 1e18; // 1M DAI
-        dai.mint(address(this), daiAmount);
-        dai.mint(user1, daiAmount);
-        dai.mint(user2, daiAmount);
-
-        // Approve registrar to spend tokens
-        usdc.approve(address(registrar), type(uint256).max);
-        dai.approve(address(registrar), type(uint256).max);
-        
-        vm.prank(user1);
-        usdc.approve(address(registrar), type(uint256).max);
-        vm.prank(user1);
-        dai.approve(address(registrar), type(uint256).max);
-        
-        vm.prank(user2);
-        usdc.approve(address(registrar), type(uint256).max);
-        vm.prank(user2);
-        dai.approve(address(registrar), type(uint256).max);
-    }
-
-
-    // Helper function to register a name with USDC (default test token)
-    function _registerName(
-        string memory name,
-        address owner,
-        bytes32 secret,
-        IRegistry subregistry,
-        address resolver,
-        uint64 duration
-    ) internal returns (uint256 tokenId) {
-        bytes32 commitment = registrar.makeCommitment(name, owner, secret, address(subregistry), resolver, duration);
-        registrar.commit(commitment);
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-        tokenId = registrar.register(name, owner, secret, subregistry, resolver, duration, address(usdc));
-    }
-
-    function test_valid() public view {
-        assertTrue(registrar.valid("abc"));
-        assertTrue(registrar.valid("test"));
-        assertTrue(registrar.valid("longername"));
-        
-        assertFalse(registrar.valid("ab"));
-        assertFalse(registrar.valid("a"));
-        assertFalse(registrar.valid(""));
-    }
-
-    function test_Revert_maxCommitmentAgeTooLow() public {
-        // Try to create a registrar with maxCommitmentAge <= minCommitmentAge
-        uint256 invalidMinAge = 100;
-        uint256 invalidMaxAge = 100; // Equal to minAge, should revert
-        
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.MaxCommitmentAgeTooLow.selector));
-        new ETHRegistrar(address(registry), priceOracle, invalidMinAge, invalidMaxAge, beneficiary);
-        // Try with max age less than min age
-        invalidMaxAge = 99; // Less than minAge, should revert
-        
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.MaxCommitmentAgeTooLow.selector));
-        new ETHRegistrar(address(registry), priceOracle, invalidMinAge, invalidMaxAge, beneficiary);
-    }
-
-    function test_available() public {
-        string memory name = "testname";
-        assertTrue(registrar.available(name));
-        
-        // Register the name with USDC
-        bytes32 commitment = registrar.makeCommitment(
-            name, 
-            address(this), 
-            SECRET, 
-            address(registry),
-            address(0), // resolver
-            REGISTRATION_DURATION
+    function setUp() external {
+        ethRegistry = new PermissionedRegistry(
+            new RegistryDatastore(),
+            new SimpleRegistryMetadata(),
+            address(this),
+            LibEACBaseRoles.ALL_ROLES
         );
-        registrar.commit(commitment);
-        
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-        
-        registrar.register(
-            name, 
-            address(this), 
-            SECRET,
-            registry,
-            address(0), // resolver
-            REGISTRATION_DURATION,
-            address(usdc)
+
+        tokenUSDC = new MockERC20("USDC", 6);
+        tokenDAI = new MockERC20("DAI", 18);
+        tokenBlack = new MockERC20Blacklist();
+
+        PaymentRatio[] memory paymentRatios = new PaymentRatio[](3);
+        paymentRatios[0] = StandardPricing.ratioFromStable(tokenUSDC);
+        paymentRatios[1] = StandardPricing.ratioFromStable(tokenDAI);
+        paymentRatios[2] = StandardPricing.ratioFromStable(tokenBlack);
+
+        rentPriceOracle = new StandardRentPriceOracle(
+            address(this),
+            ethRegistry,
+            StandardPricing.getBaseRates(),
+            StandardPricing.PREMIUM_PRICE_INITIAL,
+            StandardPricing.PREMIUM_HALVING_PERIOD,
+            StandardPricing.PREMIUM_PERIOD,
+            paymentRatios
         );
-        
-        // Verify name is no longer available
-        assertFalse(registrar.available(name));
+
+        ethRegistrar = new ETHRegistrar(
+            ethRegistry,
+            beneficiary,
+            1 minutes, // minCommitmentAge
+            1 days, // maxCommitmentAge
+            28 days, // minRegisterDuration
+            rentPriceOracle
+        );
+
+        ethRegistry.grantRootRoles(
+            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW,
+            address(ethRegistrar)
+        );
+
+        for (uint256 i; i < paymentRatios.length; i++) {
+            MockERC20 token = MockERC20(address(paymentRatios[i].token));
+            token.mint(user, 1e9 * 10 ** token.decimals());
+            vm.prank(user);
+            token.approve(address(ethRegistrar), type(uint256).max);
+        }
+
+        vm.warp(rentPriceOracle.premiumPeriod()); // avoid timestamp issues
     }
 
-    function test_rentPrice() public view {
-        string memory name = "testname";
-        IPriceOracle.Price memory price = registrar.rentPrice(name, REGISTRATION_DURATION);
-        
-        uint256 expectedPrice = PRICE_5_CHAR * REGISTRATION_DURATION;
-        assertEq(price.base, expectedPrice);
-        assertEq(price.premium, 0);
-    }
-
-    function test_checkPrice() public view {
-        string memory name = "testname";
-        
-        uint256 expectedBasePrice = PRICE_5_CHAR * REGISTRATION_DURATION;
-        
-        // Check USDC price (6 decimals) - should match base price since both use 6 decimals
-        uint256 usdcAmount = registrar.checkPrice(name, REGISTRATION_DURATION, address(usdc));
-        assertEq(usdcAmount, expectedBasePrice);
-        
-        // Check DAI price (18 decimals) - should be scaled up by 10^12
-        uint256 daiAmount = registrar.checkPrice(name, REGISTRATION_DURATION, address(dai));
-        assertEq(daiAmount, expectedBasePrice * 1e12);
-    }
-
-    function test_makeCommitment() public view {
-        string memory name = "testname";
-        address owner = address(this);
-        bytes32 secret = bytes32(uint256(1));
-        address subregistry = address(registry);
-        address resolver = address(0);
-        uint64 duration = REGISTRATION_DURATION;
-        
-        bytes32 commitment = registrar.makeCommitment(name, owner, secret, subregistry, resolver, duration);
-        
-        bytes32 expectedCommitment = keccak256(
-            abi.encode(
-                name,
-                owner,
-                secret,
-                subregistry,
-                resolver,
-                duration
+    function test_Revert_constructor_emptyRange() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IETHRegistrar.MaxCommitmentAgeTooLow.selector
             )
         );
-        
-        assertEq(commitment, expectedCommitment);
+        new ETHRegistrar(
+            ethRegistry,
+            beneficiary,
+            1, // minCommitmentAge
+            1, // maxCommitmentAge
+            0,
+            rentPriceOracle
+        );
     }
 
     function test_Revert_constructor_invalidRange() external {
@@ -427,64 +300,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             block.timestamp,
             "after"
         );
-    function test_Revert_nameNotAvailable() public {
-        string memory name = "testname";
-        address owner = address(this);
-        address resolver = address(0);
-        uint64 duration = REGISTRATION_DURATION;
-        bytes32 secret = SECRET;
-        
-        // Register the name first
-        bytes32 commitment = registrar.makeCommitment(
-            name, 
-            owner, 
-            secret, 
-            address(registry),
-            resolver,
-            duration
-        );
-        registrar.commit(commitment);
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-        registrar.register(
-            name, 
-            owner, 
-            secret,
-            registry,
-            resolver,
-            duration,
-            address(usdc)
-        );
-        
-        // Try to register again with user1
-        vm.startPrank(user1);
-        bytes32 secret2 = bytes32(uint256(2345678901));
-        
-        // Make a commitment
-        bytes32 commitment2 = registrar.makeCommitment(
-            name, 
-            user1, 
-            secret2, 
-            address(registry),
-            resolver,
-            duration
-        );
-        registrar.commit(commitment2);
-        
-        // Wait for min commitment age to ensure the commitment is valid
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-        
-        // Expect registration to fail due to name being unavailable
-        vm.expectRevert(abi.encodeWithSelector(ETHRegistrar.NameNotAvailable.selector, name));
-        registrar.register(
-            name, 
-            user1, 
-            secret2,
-            registry,
-            resolver,
-            duration,
-            address(usdc)
-        );
-        vm.stopPrank();
     }
 
     function test_Revert_commit_unexpiredCommitment() external {
@@ -644,9 +459,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             )
         );
         this._register(args);
-        
-        // Verify no ETH charge when using token payment
-        assertEq(address(this).balance, initialBalance);
     }
 
     function test_Revert_register_durationTooShort() external {
@@ -718,44 +530,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
             )
         );
         this._renew(args);
-    function test_token_payment_renew_no_refund() public {
-        string memory name = "testname";
-        address owner = address(this);
-        address resolver = address(0);
-        uint64 duration = REGISTRATION_DURATION;
-        bytes32 secret = SECRET;
-        
-        // Register the name first
-        bytes32 commitment = registrar.makeCommitment(
-            name, 
-            owner, 
-            secret, 
-            address(registry),
-            resolver,
-            duration
-        );
-        registrar.commit(commitment);
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-        registrar.register(
-            name, 
-            owner, 
-            secret,
-            registry,
-            resolver,
-            duration,
-            address(usdc)
-        );
-        
-        // Get initial balance
-        uint256 initialBalance = address(this).balance;
-        
-        // Renew with exact payment (tokens don't have excess payment)
-        uint64 renewalDuration = 180 days;
-        
-        registrar.renew(name, renewalDuration, address(usdc));
-        
-        // Verify no ETH charge when using token payment
-        assertEq(address(this).balance, initialBalance);
     }
 
     function test_supportsInterface() external view {
@@ -779,78 +553,6 @@ contract TestETHRegistrar is Test, ERC1155Holder {
 
     function test_beneficiary_set() external view {
         assertEq(ethRegistrar.beneficiary(), beneficiary);
-    function test_registration_default_role_bitmap() public {
-        bytes32 commitment = registrar.makeCommitment(
-            "testname", 
-            user1, 
-            SECRET, 
-            address(registry),
-            address(0),
-            REGISTRATION_DURATION
-        );
-        registrar.commit(commitment);
-        
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-        
-        uint256 tokenId = registrar.register(
-            "testname", 
-            user1, 
-            SECRET,
-            registry,
-            address(0),
-            REGISTRATION_DURATION,
-            address(usdc)
-        );
-
-        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
-
-        // Check individual roles using LibRegistryRoles constants
-
-        assertTrue(registry.hasRoles(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY, user1));
-        assertTrue(registry.hasRoles(resource, LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN, user1));
-        assertTrue(registry.hasRoles(resource, LibRegistryRoles.ROLE_SET_RESOLVER, user1));
-        assertTrue(registry.hasRoles(resource, LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN, user1));
-        assertTrue(registry.hasRoles(resource, LibRegistryRoles.ROLE_CAN_TRANSFER, user1));
-
-        // Check combined bitmap
-        uint256 ROLE_BITMAP_REGISTRATION = LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN | LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN | LibRegistryRoles.ROLE_CAN_TRANSFER;
-        assertTrue(registry.hasRoles(resource, ROLE_BITMAP_REGISTRATION, user1));
-    }
-
-    function test_register_grants_role_can_transfer() public {
-        string memory name = "transferable";
-        address owner = user2;
-        
-        bytes32 commitment = registrar.makeCommitment(
-            name,
-            owner,
-            SECRET,
-            address(registry),
-            address(0),
-            REGISTRATION_DURATION
-        );
-        registrar.commit(commitment);
-        
-        vm.warp(block.timestamp + MIN_COMMITMENT_AGE + 1);
-        
-        uint256 tokenId = registrar.register(
-            name,
-            owner,
-            SECRET,
-            registry,
-            address(0),
-            REGISTRATION_DURATION,
-            address(usdc)
-        );
-
-        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
-        
-        // Verify ROLE_CAN_TRANSFER is specifically granted
-        assertTrue(registry.hasRoles(resource, LibRegistryRoles.ROLE_CAN_TRANSFER, owner));
-        
-        // Verify no admin role exists for ROLE_CAN_TRANSFER (as expected per LibRegistryRoles.sol)
-        uint256 ROLE_CAN_TRANSFER_ADMIN = LibRegistryRoles.ROLE_CAN_TRANSFER << 128;
-        assertFalse(registry.hasRoles(resource, ROLE_CAN_TRANSFER_ADMIN, owner));
     }
 
     function test_beneficiary_register() external {
@@ -920,5 +622,30 @@ contract TestETHRegistrar is Test, ERC1155Holder {
         this._register(args);
         args.paymentToken = tokenUSDC;
         this._register(args);
+    }
+
+    function test_registered_name_has_transfer_role() external {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        uint256 tokenId = this._register(args);
+        
+        assertTrue(
+            ethRegistry.hasRoles(
+                NameUtils.getCanonicalId(tokenId),
+                LibRegistryRoles.ROLE_CAN_TRANSFER,
+                args.owner
+            ),
+            "Registered name owner should have ROLE_CAN_TRANSFER"
+        );
+    }
+
+    function test_registered_name_can_be_transferred() external {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        uint256 tokenId = this._register(args);
+        address newOwner = makeAddr("newOwner");
+        
+        vm.prank(args.owner);
+        ethRegistry.safeTransferFrom(args.owner, newOwner, tokenId, 1, "");
+        
+        assertEq(ethRegistry.ownerOf(tokenId), newOwner, "Token should be transferred to new owner");
     }
 }

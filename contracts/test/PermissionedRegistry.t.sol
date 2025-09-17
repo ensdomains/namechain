@@ -15,8 +15,6 @@ import "../src/common/IPermissionedRegistry.sol";
 import "../src/common/IStandardRegistry.sol";
 import "../src/L2/ETHRegistrar.sol";
 import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
-import {ITokenPriceOracle} from "../src/L2/ITokenPriceOracle.sol";
-import {TokenPriceOracle} from "../src/L2/TokenPriceOracle.sol";
 import "../src/common/ITokenObserver.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";

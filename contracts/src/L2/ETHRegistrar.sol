@@ -14,36 +14,12 @@ uint256 constant REGISTRATION_ROLE_BITMAP = LibRegistryRoles
     .ROLE_SET_SUBREGISTRY |
     LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN |
     LibRegistryRoles.ROLE_SET_RESOLVER |
-    LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
+    LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN |
+    LibRegistryRoles.ROLE_CAN_TRANSFER;
 
 uint256 constant ROLE_SET_ORACLE = 1 << 0;
 
 contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
-<<<<<<< HEAD
-    using SafeERC20 for IERC20;
-    uint256 private constant REGISTRATION_ROLE_BITMAP = 
-        LibRegistryRoles.ROLE_SET_SUBREGISTRY | 
-        LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN | 
-        LibRegistryRoles.ROLE_SET_RESOLVER | 
-        LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN |
-        LibRegistryRoles.ROLE_CAN_TRANSFER;
-
-    uint256 public constant MIN_REGISTRATION_DURATION = 28 days;
-
-    error InvalidOwner(address owner);
-    error MaxCommitmentAgeTooLow();
-    error UnexpiredCommitmentExists(bytes32 commitment);
-    error DurationTooShort(uint64 duration, uint256 minDuration);
-    error CommitmentTooNew(bytes32 commitment, uint256 validFrom, uint256 blockTimestamp);
-    error CommitmentTooOld(bytes32 commitment, uint256 validTo, uint256 blockTimestamp);
-    error NameNotAvailable(string name);
-    error InsufficientValue(uint256 required, uint256 provided);
-    error TokenNotSupported(address token);
-    /// @dev Thrown when duration would overflow when added to expiry time
-    error DurationOverflow(uint64 expiry, uint64 duration);
-
-=======
->>>>>>> main
     IPermissionedRegistry public immutable registry;
     address public immutable beneficiary;
     uint64 public immutable minCommitmentAge;

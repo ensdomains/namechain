@@ -208,8 +208,8 @@ contract TestMigratedWrappedNameRegistry is Test {
     }
 
     function test_getResolver_expired_name() public {
-        // Register name that expires immediately
-        uint64 expiry = uint64(block.timestamp);
+        // Register name with minimum valid expiry
+        uint64 expiry = uint64(block.timestamp + 1);
         _registerName(registry, testLabel, user, registry, mockResolver, LibRegistryRoles.ROLE_SET_RESOLVER, expiry);
         
         // Move time forward
