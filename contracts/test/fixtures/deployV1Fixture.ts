@@ -15,9 +15,10 @@ export async function deployV1Fixture(
     "BaseRegistrarImplementation",
     [ensRegistry.address, namehash("eth")],
   );
-  const reverseRegistrar = await network.viem.deployContract("ReverseRegistrar", [
-    ensRegistry.address,
-  ]);
+  const reverseRegistrar = await network.viem.deployContract(
+    "ReverseRegistrar",
+    [ensRegistry.address],
+  );
   await ensRegistry.write.setSubnodeOwner([
     namehash(""),
     labelhash("reverse"),
@@ -35,10 +36,10 @@ export async function deployV1Fixture(
     reverseRegistrar.address,
   ]);
   await reverseRegistrar.write.setDefaultResolver([publicResolver.address]);
-  const batchGatewayProvider = await network.viem.deployContract("GatewayProvider", [
-    walletClient.account.address,
-    ["x-batch-gateway:true"],
-  ]);
+  const batchGatewayProvider = await network.viem.deployContract(
+    "GatewayProvider",
+    [walletClient.account.address, ["x-batch-gateway:true"]],
+  );
   const universalResolver = await network.viem.deployContract(
     "UniversalResolver",
     [
@@ -63,7 +64,7 @@ export async function deployV1Fixture(
     ethRegistrar.address,
   ]);
   return {
-	network,
+    network,
     publicClient,
     walletClient,
     ensRegistry,

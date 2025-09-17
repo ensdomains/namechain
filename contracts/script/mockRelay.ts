@@ -105,10 +105,9 @@ export function createMockRelay(env: CrossChainEnvironment) {
         console.error(receipt)
         throw new Error(`Transaction failed!`);
       }
-      return promise.then(() => {
-        console.log(`   -> relay tx success!`);
-        return receipt;
-      });
+      await promise;
+      console.log(`   -> relay tx success!`);
+      return receipt;
     } catch (err) {
       console.log(`   -> tx failed :/`);
       throw err;

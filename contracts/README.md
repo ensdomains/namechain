@@ -64,7 +64,8 @@ There are two ways to run the devnet:
 Start a local devnet with L1 and L2 chains:
 
 ```sh
-bun run devnet
+bun run devnet        # runs w/last build
+bun run devnet:clean  # builds, tests, runs
 ```
 
 This will start:

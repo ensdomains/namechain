@@ -1,20 +1,32 @@
 import { getAddress, toHex } from "viem";
-import { createMockRelay } from "./mockRelay.js";
 import { setupCrossChainEnvironment } from "./setup.js";
+import { createMockRelay } from "./mockRelay.js";
+import { registerTestNames } from "./testNames.js";
 
 const t0 = Date.now();
 
 const env = await setupCrossChainEnvironment({
   l1Port: 8545,
-  l2Port: 8456,
-  urgPort: 8457,
+  l2Port: 8546,
+  urgPort: 8547,
   saveDeployments: true,
 });
 
+// handler for shell
 process.once("SIGINT", async () => {
   console.log("\nShutting down...");
   await env.shutdown();
   process.exit();
+});
+// handler for docker
+process.once("SIGTERM", async (code) => {
+  await env.shutdown();
+  process.exit(code);
+});
+// handler for bugs
+process.once("uncaughtException", async (err) => {
+  await env.shutdown();
+  throw err;
 });
 
 createMockRelay(env);
@@ -44,6 +56,8 @@ for (const lx of [env.l1, env.l2]) {
     })),
   );
 }
+
+await registerTestNames(env, ["test", "example", "demo"]);
 
 console.log();
 console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);

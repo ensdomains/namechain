@@ -3,7 +3,6 @@
 // Typed Config
 // ------------------------------------------------------------------------------------------------
 import type { UserConfig } from "rocketh";
-
 export const config = {
   accounts: {
     deployer: {
