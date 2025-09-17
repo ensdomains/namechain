@@ -1,5 +1,5 @@
 import { artifacts, execute } from "@rocketh";
-import { MAX_EXPIRY, ROLES } from "../constants.ts";
+import { MAX_EXPIRY, ROLES } from "../constants.js";
 
  // TODO: ownership
 export default execute(

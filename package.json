@@ -11,8 +11,5 @@
   "devDependencies": {
     "typescript": "^5.8.3"
   },
-  "resolutions": {
-    "viem": "2.31.6"
-  },
   "engineStrict": true
 }
