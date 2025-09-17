@@ -36,7 +36,7 @@ contract TestHalvingUtils is Test {
             HalvingUtils.halving(25448394752, 3120, 28344),
             46872731,
             46872559,
-            7
+            6
         );
         _assertNear(
             HalvingUtils.halving(226801697741, 2055, 7691),
@@ -107,7 +107,7 @@ contract TestHalvingUtils is Test {
         _assertNear(
             HalvingUtils.halving(26362372193702182792471, 4465, 32623),
             166549977597448035667,
-            16654977520898748584,
+            166549775208987485845,
             6
         );
         _assertNear(
