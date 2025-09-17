@@ -28,6 +28,16 @@ export default execute(
       PRICE_SCALE * 5n,
     ].map((x) => (x + SEC_PER_YEAR - 1n) / SEC_PER_YEAR);
 
+    const DISCOUNT_SCALE = 1e18; // see: StandardRentPriceOracle.sol
+    const discountPoints: [bigint, bigint][] = [
+      [SEC_PER_YEAR, 0n],
+      [SEC_PER_YEAR * 2n, BigInt(DISCOUNT_SCALE * 0.05)],
+      [SEC_PER_YEAR * 3n, BigInt(DISCOUNT_SCALE * 0.1)],
+      [SEC_PER_YEAR * 5n, BigInt(DISCOUNT_SCALE * 0.175)],
+      [SEC_PER_YEAR * 10n, BigInt(DISCOUNT_SCALE * 0.25)],
+      [SEC_PER_YEAR * 25n, BigInt(DISCOUNT_SCALE * 0.3)],
+    ];
+
     const paymentFactors = await Promise.all(
       paymentTokens.map(async (x) => {
         const [symbol, decimals] = await Promise.all([
@@ -55,6 +65,13 @@ export default execute(
       }),
     );
 
+    console.table(
+      discountPoints.map(([t, value]) => ({
+        years: (Number(t) / Number(SEC_PER_YEAR)).toFixed(2),
+        discount: ((Number(value) / DISCOUNT_SCALE) * 100).toFixed(2) + "%",
+      })),
+    );
+
     await deploy("StandardRentPriceOracle", {
       account: deployer,
       artifact: artifacts.StandardRentPriceOracle,
@@ -62,6 +79,7 @@ export default execute(
         owner,
         ethRegistry.address,
         baseRatePerCp,
+        discountPoints.map(([t, value]) => ({ t, value })),
         PREMIUM_PRICE_INITIAL,
         PREMIUM_HALVING_PERIOD,
         PREMIUM_PERIOD,

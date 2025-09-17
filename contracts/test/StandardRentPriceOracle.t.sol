@@ -3,26 +3,28 @@ pragma solidity >=0.8.13;
 
 import "forge-std/Test.sol";
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
-import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
+import {PermissionedRegistry, IRegistry} from "../src/common/PermissionedRegistry.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
-import {StandardRentPriceOracle, PaymentRatio, IRentPriceOracle, Ownable} from "../src/L2/StandardRentPriceOracle.sol";
+import {StandardRentPriceOracle, PaymentRatio, IRentPriceOracle, DiscountPoint, DISCOUNT_SCALE} from "../src/L2/StandardRentPriceOracle.sol";
 import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
 import {HalvingUtils} from "../src/common/HalvingUtils.sol";
 import {StandardPricing} from "./StandardPricing.sol";
 
-contract TestRentPriceOracle is Test {
+contract TestRentPriceOracle is Test, ERC1155Holder {
     PermissionedRegistry ethRegistry;
 
     StandardRentPriceOracle rentPriceOracle;
 
     MockERC20 tokenUSDC;
-    MockERC20 tokenDAI;
+    MockERC20 tokenIdentity;
 
     address user = makeAddr("user");
 
@@ -35,16 +37,40 @@ contract TestRentPriceOracle is Test {
         );
 
         tokenUSDC = new MockERC20("USDC", 6);
-        tokenDAI = new MockERC20("DAI", 18);
+        tokenIdentity = new MockERC20("ID", StandardPricing.PRICE_DECIMALS);
 
         PaymentRatio[] memory paymentRatios = new PaymentRatio[](2);
         paymentRatios[0] = StandardPricing.ratioFromStable(tokenUSDC);
-        paymentRatios[1] = StandardPricing.ratioFromStable(tokenDAI);
+        paymentRatios[1] = StandardPricing.ratioFromStable(tokenIdentity);
+
+        DiscountPoint[] memory discountPoints = new DiscountPoint[](6);
+        discountPoints[0] = DiscountPoint(StandardPricing.SEC_PER_YEAR, 0);
+        discountPoints[1] = DiscountPoint(
+            StandardPricing.SEC_PER_YEAR * 2,
+            50e15 // 0.05 * DISCOUNT_SCALE
+        );
+        discountPoints[2] = DiscountPoint(
+            StandardPricing.SEC_PER_YEAR * 3,
+            100e15
+        );
+        discountPoints[3] = DiscountPoint(
+            StandardPricing.SEC_PER_YEAR * 5,
+            175e15
+        );
+        discountPoints[4] = DiscountPoint(
+            StandardPricing.SEC_PER_YEAR * 10,
+            250e15
+        );
+        discountPoints[5] = DiscountPoint(
+            StandardPricing.SEC_PER_YEAR * 25,
+            300e15
+        );
 
         rentPriceOracle = new StandardRentPriceOracle(
             address(this),
             ethRegistry,
             StandardPricing.getBaseRates(),
+            discountPoints,
             StandardPricing.PREMIUM_PRICE_INITIAL,
             StandardPricing.PREMIUM_HALVING_PERIOD,
             StandardPricing.PREMIUM_PERIOD,
@@ -65,7 +91,7 @@ contract TestRentPriceOracle is Test {
 
     function test_isPaymentToken() external view {
         assertTrue(rentPriceOracle.isPaymentToken(tokenUSDC), "USDC");
-        assertTrue(rentPriceOracle.isPaymentToken(tokenDAI), "DAI");
+        assertTrue(rentPriceOracle.isPaymentToken(tokenIdentity), "ID");
         assertFalse(rentPriceOracle.isPaymentToken(IERC20(address(0))));
     }
 
@@ -131,11 +157,18 @@ contract TestRentPriceOracle is Test {
         );
     }
 
-    function _testRentPrice(string memory label, uint256 rate) internal {
+    function _testRentPrice(uint256 n, uint256 rate) internal {
+        string memory label = new string(n);
         uint256 base = rentPriceOracle.baseRate(label);
         assertEq(base, rate, "rate");
+         // duration must be before initial discount or price will be reduced
         _testRentPrice(label, rate, StandardPricing.SEC_PER_YEAR, tokenUSDC);
-        _testRentPrice(label, rate, StandardPricing.SEC_PER_YEAR, tokenDAI);
+        _testRentPrice(
+            label,
+            rate,
+            StandardPricing.SEC_PER_YEAR,
+            tokenIdentity
+        );
     }
 
     function _testRentPrice(
@@ -167,56 +200,25 @@ contract TestRentPriceOracle is Test {
     }
 
     function test_rentPrice_0() external {
-        _testRentPrice("", 0);
+        _testRentPrice(0, 0);
     }
     function test_rentPrice_1() external {
-        _testRentPrice("a", StandardPricing.RATE_1CP);
+        _testRentPrice(1, StandardPricing.RATE_1CP);
     }
     function test_rentPrice_2() external {
-        _testRentPrice("ab", StandardPricing.RATE_2CP);
+        _testRentPrice(2, StandardPricing.RATE_2CP);
     }
     function test_rentPrice_3() external {
-        _testRentPrice("abc", StandardPricing.RATE_3CP);
+        _testRentPrice(3, StandardPricing.RATE_3CP);
     }
     function test_rentPrice_4() external {
-        _testRentPrice("abcd", StandardPricing.RATE_4CP);
+        _testRentPrice(4, StandardPricing.RATE_4CP);
     }
     function test_rentPrice_5() external {
-        _testRentPrice("abcde", StandardPricing.RATE_5CP);
+        _testRentPrice(5, StandardPricing.RATE_5CP);
     }
     function test_rentPrice_long() external {
-        _testRentPrice("abcdefghijklmnopqrstuvwxyz", StandardPricing.RATE_5CP);
-    }
-
-    function test_updateBaseRates() external {
-        uint256[] memory rates = new uint256[](2);
-        rates[0] = 1;
-        rates[1] = 0;
-        vm.expectEmit(false, false, false, true);
-        emit StandardRentPriceOracle.BaseRatesChanged(rates);
-        rentPriceOracle.updateBaseRates(rates);
-        assertEq(rentPriceOracle.baseRate("a"), rates[0], "1");
-        assertEq(rentPriceOracle.baseRate("ab"), rates[1], "2");
-        assertEq(rentPriceOracle.baseRate("abcdef"), rates[1], "2+");
-    }
-
-    function test_updateBaseRates_disable() external {
-        rentPriceOracle.updateBaseRates(new uint256[](0));
-        for (uint256 i; i < 256; i++) {
-            assertEq(rentPriceOracle.baseRate(new string(i)), 0);
-        }
-    }
-
-    function test_updateBaseRates_notOwner() external {
-        vm.startPrank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector,
-                user
-            )
-        );
-        rentPriceOracle.updateBaseRates(new uint256[](1));
-        vm.stopPrank();
+        _testRentPrice(255, StandardPricing.RATE_5CP);
     }
 
     function test_premiumPriceInitial() external view {
@@ -262,6 +264,37 @@ contract TestRentPriceOracle is Test {
         );
     }
 
+    function test_updateBaseRates() external {
+        uint256[] memory rates = new uint256[](2);
+        rates[0] = 1;
+        rates[1] = 0;
+        vm.expectEmit(false, false, false, true);
+        emit StandardRentPriceOracle.BaseRatesChanged(rates);
+        rentPriceOracle.updateBaseRates(rates);
+        assertEq(rentPriceOracle.baseRate("a"), rates[0], "1");
+        assertEq(rentPriceOracle.baseRate("ab"), rates[1], "2");
+        assertEq(rentPriceOracle.baseRate("abcdef"), rates[1], "2+");
+    }
+
+    function test_updateBaseRates_disable() external {
+        rentPriceOracle.updateBaseRates(new uint256[](0));
+        for (uint256 i; i < 256; i++) {
+            assertEq(rentPriceOracle.baseRate(new string(i)), 0);
+        }
+    }
+
+    function test_updateBaseRates_notOwner() external {
+        vm.startPrank(user);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector,
+                user
+            )
+        );
+        rentPriceOracle.updateBaseRates(new uint256[](1));
+        vm.stopPrank();
+    }
+
     function test_updatePremiumPricing() external {
         vm.expectEmit(false, false, false, false);
         emit StandardRentPriceOracle.PremiumPricingChanged(256000, 1, 8);
@@ -293,5 +326,91 @@ contract TestRentPriceOracle is Test {
         );
         rentPriceOracle.updatePremiumPricing(0, 0, 0);
         vm.stopPrank();
+    }
+
+    function _testDiscount(uint64 t, uint256 value) internal view {
+        assertEq(rentPriceOracle.integratedDiscount(t) / t, value);
+    }
+
+    function test_discountAfter_start() external view {
+        assertEq(rentPriceOracle.integratedDiscount(0), 0);
+    }
+    function test_discountAfter_1year() external view {
+        _testDiscount(StandardPricing.SEC_PER_YEAR, 0);
+    }
+    function test_discountAfter_2years() external view {
+        _testDiscount(StandardPricing.SEC_PER_YEAR * 2, 50e15);
+    }
+    function test_discountAfter_3years() external view {
+        _testDiscount(StandardPricing.SEC_PER_YEAR * 3, 100e15);
+    }
+    function test_discountAfter_5years() external view {
+        _testDiscount(StandardPricing.SEC_PER_YEAR * 5, 175e15);
+    }
+    function test_discountAfter_10years() external view {
+        _testDiscount(StandardPricing.SEC_PER_YEAR * 10, 250e15);
+    }
+    function test_discountAfter_30years() external view {
+        _testDiscount(StandardPricing.SEC_PER_YEAR * 30, 300e15);
+    }
+    function test_discountAfter_end() external view {
+        _testDiscount(type(uint64).max, 300e15);
+    }
+
+    function _testDiscountedRentPrice(
+        string memory label,
+        uint64 dur0,
+        uint64 dur1
+    ) internal {
+        ethRegistry.register(
+            label,
+            address(this),
+            IRegistry(address(0)),
+            address(0),
+            0,
+            uint64(block.timestamp) + dur0
+        );
+        uint256 base0 = rentPriceOracle.baseRate(label) * dur1;
+        (uint256 base1, ) = rentPriceOracle.rentPrice(
+            label,
+            address(this),
+            dur1,
+            tokenIdentity
+        );
+        assertEq(
+            base1,
+            base0 -
+                Math.mulDiv(
+                    base0,
+                    rentPriceOracle.integratedDiscount(dur0 + dur1) -
+                        rentPriceOracle.integratedDiscount(dur0),
+                    DISCOUNT_SCALE * dur1
+                )
+        );
+    }
+
+    function _testDiscountedPermutations(uint256 n) internal {
+        bytes memory buf = new bytes(n);
+        for (uint64 i = 1; i < 3; i++) {
+            buf[0] = bytes1(uint8(i));
+            for (uint64 j = 1; j < 10; j++) {
+                buf[1] = bytes1(uint8(j));
+                _testDiscountedRentPrice(
+                    string(buf),
+                    StandardPricing.SEC_PER_YEAR * i,
+                    StandardPricing.SEC_PER_YEAR * j
+                );
+            }
+        }
+    }
+
+    function test_discountedRentPrice_3() external {
+        _testDiscountedPermutations(3);
+    }
+    function test_discountedRentPrice_4() external {
+        _testDiscountedPermutations(4);
+    }
+    function test_discountedRentPrice_5() external {
+        _testDiscountedPermutations(5);
     }
 }
