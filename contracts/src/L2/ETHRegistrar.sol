@@ -108,7 +108,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     /// @inheritdoc IETHRegistrar
     function makeCommitment(
-        string memory name,
+        string memory label,
         address owner,
         bytes32 secret,
         IRegistry subregistry,
@@ -119,7 +119,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         return
             keccak256(
                 abi.encode(
-                    name,
+                    label,
                     owner,
                     secret,
                     subregistry,

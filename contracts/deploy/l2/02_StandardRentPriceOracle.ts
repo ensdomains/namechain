@@ -69,7 +69,7 @@ export default execute(
 
     console.table(
       discountPoints.map((_, i, v) => {
-        const sum = v.slice(0, i + 1).reduce((a, x) => a + x[0], 0n) || 1n;
+        const sum = v.slice(0, i + 1).reduce((a, x) => a + x[0], 0n);
         const acc = v.slice(0, i + 1).reduce((a, x) => a + x[0] * x[1], 0n);
         return {
           years: (Number(sum) / Number(SEC_PER_YEAR)).toFixed(2),
