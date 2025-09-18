@@ -29,13 +29,15 @@ export default execute(
     ].map((x) => (x + SEC_PER_YEAR - 1n) / SEC_PER_YEAR);
 
     const DISCOUNT_SCALE = 1e18; // see: StandardRentPriceOracle.sol
+
+    // see: StandardPricing.sol
     const discountPoints: [bigint, bigint][] = [
       [SEC_PER_YEAR, 0n],
-      [SEC_PER_YEAR * 2n, BigInt(DISCOUNT_SCALE * 0.05)],
-      [SEC_PER_YEAR * 3n, BigInt(DISCOUNT_SCALE * 0.1)],
-      [SEC_PER_YEAR * 5n, BigInt(DISCOUNT_SCALE * 0.175)],
-      [SEC_PER_YEAR * 10n, BigInt(DISCOUNT_SCALE * 0.25)],
-      [SEC_PER_YEAR * 25n, BigInt(DISCOUNT_SCALE * 0.3)],
+      [SEC_PER_YEAR, /**********/ 100000000000000000n], // BigInt(0.1 * DISCOUNT_SCALE)
+      [SEC_PER_YEAR, /**********/ 200000000000000000n],
+      [SEC_PER_YEAR * 2n, /*****/ 287500000000000000n],
+      [SEC_PER_YEAR * 5n, /*****/ 325000000000000000n],
+      [SEC_PER_YEAR * 15n, /****/ 333333333333333334n],
     ];
 
     const paymentFactors = await Promise.all(
@@ -66,10 +68,14 @@ export default execute(
     );
 
     console.table(
-      discountPoints.map(([t, value]) => ({
-        years: (Number(t) / Number(SEC_PER_YEAR)).toFixed(2),
-        discount: ((Number(value) / DISCOUNT_SCALE) * 100).toFixed(2) + "%",
-      })),
+      discountPoints.map((_, i, v) => {
+        const sum = v.slice(0, i + 1).reduce((a, x) => a + x[0], 0n) || 1n;
+        const acc = v.slice(0, i + 1).reduce((a, x) => a + x[0] * x[1], 0n);
+        return {
+          years: (Number(sum) / Number(SEC_PER_YEAR)).toFixed(2),
+          discount: `${((100 * Number(acc / sum)) / DISCOUNT_SCALE).toFixed(2)}%`,
+        };
+      }),
     );
 
     await deploy("StandardRentPriceOracle", {

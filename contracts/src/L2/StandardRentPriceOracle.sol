@@ -11,20 +11,26 @@ import {IRentPriceOracle} from "./IRentPriceOracle.sol";
 import {HalvingUtils} from "../common/HalvingUtils.sol";
 import {StringUtils} from "@ens/contracts/utils/StringUtils.sol";
 
+/// @dev Denominator for converting discounts to percentages.
+uint256 constant DISCOUNT_SCALE = 1e18;
+
+/// @param t Incremental time interval for discount, in seconds.
+/// @param value Discount percentage, relative to `DISCOUNT_SCALE`.
+struct DiscountPoint {
+    uint64 t;
+    uint192 value;
+}
+
+/// @dev Structure to configure initial payment token and exchange rate.
 struct PaymentRatio {
     IERC20 token;
     uint128 numer;
     uint128 denom;
 }
 
-uint256 constant DISCOUNT_SCALE = 1e18;
-
-struct DiscountPoint {
-    uint64 t;
-    uint192 value; // relative to DISCOUNT_SCALE
-}
-
 contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
+
+    /// @dev Internal structure to store payment token exchange rate.
     struct Ratio {
         uint128 numer;
         uint128 denom;
@@ -34,8 +40,8 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     /// @dev Error selector: `0x648564d3`
     error InvalidRatio();
 
-    /// @notice Discount function was changed.
-    event DiscountFunctionChanged();
+    /// @notice Discount points were changed.
+    event DiscountPointsChanged(DiscountPoint[] points);
 
     /// @notice Base rates were changed.
     event BaseRatesChanged(uint256[] ratePerCp);
@@ -126,21 +132,30 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
         emit BaseRatesChanged(ratePerCp);
     }
 
-    /// @dev Update the discount function points.
+    /// @dev Replace the discount function points.
     function _setDiscountPoints(DiscountPoint[] memory points) internal {
         delete _discountPoints;
         for (uint256 i; i < points.length; ++i) {
             _discountPoints.push(points[i]);
         }
+        emit DiscountPointsChanged(points);
     }
 
     /// @notice Update the discount function.
-    /// @dev Use empty array to disable.
-    function updateDiscountFunction(
+    /// @dev - Each point is (∆t, intervalDiscount).
+    ///      - Discounts are relative to `DISCOUNT_SCALE`.
+    ///        *  2yr @  5.00% ==  1yr @  0.00% +  1yr @ x =>  +1yr @ x = 10.00%
+    ///        *  3yr @ 10.00% ==  2yr @  5.00% +  1yr @ x =>  +1yr @ x = 20.00%
+    ///        *  5yr @ 17.50% ==  3yr @ 10.00% +  2yr @ x =>  +2yr @ x = 28.75%
+    ///        * 10yr @ 25.00% ==  5yr @ 17.50% +  5yr @ x =>  +5yr @ x = 32.50%
+    ///        * 25yr @ 30.00% == 10yr @ 25.00% + 15yr @ x => +15yr @ x = 33.33%
+    ///      - Final discount is the derived from the weighted average over the intervals.
+    ///      - Use empty array to disable.
+    ///      - Emits `DiscountPointsChanged`.
+    function updateDiscountPoints(
         DiscountPoint[] memory points
     ) external onlyOwner {
         _setDiscountPoints(points);
-        emit DiscountFunctionChanged();
     }
 
     /// @notice Update premium pricing function.
@@ -216,19 +231,19 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     /// @return Integral of discount function over `[0, duration)`.
     function integratedDiscount(uint64 duration) public view returns (uint256) {
         uint256 n = _discountPoints.length;
-        DiscountPoint memory p0 = DiscountPoint(0, 0);
+        if (n == 0) return 0;
+        uint256 acc;
+        uint256 sum;
         for (uint256 i; i < n; ++i) {
             DiscountPoint memory p = _discountPoints[i];
-            if (duration < p.t) {
-                uint256 numer = duration - p0.t;
-                uint256 denom = p.t - p0.t;
-                uint256 acc = p0.t * uint256(p0.value);
-                uint256 part = p.t * uint256(p.value) - acc;
-                return acc + (numer * part + (denom - 1)) / denom; // round up
+            if (duration <= p.t) {
+                return acc + duration * uint256(p.value);
             }
-            p0 = p;
+            duration -= p.t;
+            acc += p.t * uint256(p.value);
+            sum += p.t;
         }
-        return uint256(p0.value) * duration;
+        return acc + (duration * acc + sum - 1) / sum;
     }
 
     /// @notice Get premium price for an expiry relative to now.

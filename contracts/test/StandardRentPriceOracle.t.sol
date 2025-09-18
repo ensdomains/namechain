@@ -43,34 +43,11 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         paymentRatios[0] = StandardPricing.ratioFromStable(tokenUSDC);
         paymentRatios[1] = StandardPricing.ratioFromStable(tokenIdentity);
 
-        DiscountPoint[] memory discountPoints = new DiscountPoint[](6);
-        discountPoints[0] = DiscountPoint(StandardPricing.SEC_PER_YEAR, 0);
-        discountPoints[1] = DiscountPoint(
-            StandardPricing.SEC_PER_YEAR * 2,
-            50e15 // 0.05 * DISCOUNT_SCALE
-        );
-        discountPoints[2] = DiscountPoint(
-            StandardPricing.SEC_PER_YEAR * 3,
-            100e15
-        );
-        discountPoints[3] = DiscountPoint(
-            StandardPricing.SEC_PER_YEAR * 5,
-            175e15
-        );
-        discountPoints[4] = DiscountPoint(
-            StandardPricing.SEC_PER_YEAR * 10,
-            250e15
-        );
-        discountPoints[5] = DiscountPoint(
-            StandardPricing.SEC_PER_YEAR * 25,
-            300e15
-        );
-
         rentPriceOracle = new StandardRentPriceOracle(
             address(this),
             ethRegistry,
             StandardPricing.getBaseRates(),
-            discountPoints,
+            StandardPricing.getDiscountPoints(),
             StandardPricing.PREMIUM_PRICE_INITIAL,
             StandardPricing.PREMIUM_HALVING_PERIOD,
             StandardPricing.PREMIUM_PERIOD,
@@ -271,9 +248,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         vm.expectEmit(false, false, false, true);
         emit StandardRentPriceOracle.BaseRatesChanged(rates);
         rentPriceOracle.updateBaseRates(rates);
-        assertEq(rentPriceOracle.baseRate("a"), rates[0], "1");
-        assertEq(rentPriceOracle.baseRate("ab"), rates[1], "2");
-        assertEq(rentPriceOracle.baseRate("abcdef"), rates[1], "2+");
+        assertEq(abi.encode(rentPriceOracle.getBaseRates()), abi.encode(rates));
     }
 
     function test_updateBaseRates_disable() external {
@@ -296,12 +271,10 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
     }
 
     function test_getBaseRates() external view {
-        uint256[] memory v0 = StandardPricing.getBaseRates();
-        uint256[] memory v1 = rentPriceOracle.getBaseRates();
-        assertEq(v1.length, v0.length, "length");
-        for (uint256 i; i < v0.length; i++) {
-            assertEq(v1[i], v0[i]);
-        }
+        assertEq(
+            abi.encode(rentPriceOracle.getBaseRates()),
+            abi.encode(StandardPricing.getBaseRates())
+        );
     }
 
     function test_updatePremiumPricing() external {
@@ -337,33 +310,46 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         vm.stopPrank();
     }
 
-    function _testDiscount(uint64 t, uint256 value) internal view {
-        assertEq(rentPriceOracle.integratedDiscount(t) / t, value);
+    function _testAverageDiscount(uint64 t, uint256 average) internal view {
+        assertEq(rentPriceOracle.integratedDiscount(t) / t, average);
     }
 
+    // these tests are fragile and specific to the chosen discount points
     function test_discountAfter_start() external view {
         assertEq(rentPriceOracle.integratedDiscount(0), 0);
     }
     function test_discountAfter_1year() external view {
-        _testDiscount(StandardPricing.SEC_PER_YEAR, 0);
+        _testAverageDiscount(StandardPricing.SEC_PER_YEAR, 0);
+    }
+    function test_discountAfter_1year_4mos_partial() external view {
+        _testAverageDiscount((StandardPricing.SEC_PER_YEAR * 4) / 3, 25000e12);
     }
     function test_discountAfter_2years() external view {
-        _testDiscount(StandardPricing.SEC_PER_YEAR * 2, 50e15);
+        _testAverageDiscount(StandardPricing.SEC_PER_YEAR * 2, 50000e12);
+    }
+    function test_discountAfter_2years_6mos_partial() external view {
+        _testAverageDiscount((StandardPricing.SEC_PER_YEAR * 5) / 2, 80000e12);
     }
     function test_discountAfter_3years() external view {
-        _testDiscount(StandardPricing.SEC_PER_YEAR * 3, 100e15);
+        _testAverageDiscount(StandardPricing.SEC_PER_YEAR * 3, 100000e12);
+    }
+    function test_discountAfter_4years_partial() external view {
+        _testAverageDiscount(StandardPricing.SEC_PER_YEAR * 4, 146875e12);
     }
     function test_discountAfter_5years() external view {
-        _testDiscount(StandardPricing.SEC_PER_YEAR * 5, 175e15);
+        _testAverageDiscount(StandardPricing.SEC_PER_YEAR * 5, 175000e12);
+    }
+    function test_discountAfter_8years_partial() external view {
+        _testAverageDiscount(StandardPricing.SEC_PER_YEAR * 8, 231250e12);
     }
     function test_discountAfter_10years() external view {
-        _testDiscount(StandardPricing.SEC_PER_YEAR * 10, 250e15);
+        _testAverageDiscount(StandardPricing.SEC_PER_YEAR * 10, 250000e12);
     }
     function test_discountAfter_30years() external view {
-        _testDiscount(StandardPricing.SEC_PER_YEAR * 30, 300e15);
+        _testAverageDiscount(StandardPricing.SEC_PER_YEAR * 30, 300000e12);
     }
     function test_discountAfter_end() external view {
-        _testDiscount(type(uint64).max, 300e15);
+        _testAverageDiscount(type(uint64).max, 300000e12);
     }
 
     function _testDiscountedRentPrice(
@@ -425,15 +411,21 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
 
     function test_updateDiscountPoints() external {
         DiscountPoint[] memory points = new DiscountPoint[](2);
-        points[0] = DiscountPoint(50, 2);
-        points[1] = DiscountPoint(100, 1);
-        rentPriceOracle.updateDiscountFunction(points);
-        assertEq(rentPriceOracle.integratedDiscount(50), 100);
-        assertEq(rentPriceOracle.integratedDiscount(500), 500);
+        points[0] = DiscountPoint(100, 4);
+        points[1] = DiscountPoint(200, 1);
+        vm.expectEmit(false, false, false, true);
+        emit StandardRentPriceOracle.DiscountPointsChanged(points);
+        rentPriceOracle.updateDiscountPoints(points);
+        assertEq(
+            abi.encode(rentPriceOracle.getDiscountPoints()),
+            abi.encode(points)
+        );
+        assertEq(rentPriceOracle.integratedDiscount(50), 200); // 50*4
+        assertEq(rentPriceOracle.integratedDiscount(500), 1000); // 100*4 + 200*1 + (500-300)*(100*4+200*1)/300
     }
 
     function test_updateDiscountPoints_disable() external {
-        rentPriceOracle.updateDiscountFunction(new DiscountPoint[](0));
+        rentPriceOracle.updateDiscountPoints(new DiscountPoint[](0));
         assertEq(rentPriceOracle.integratedDiscount(type(uint64).max), 0);
     }
 
@@ -445,14 +437,14 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
                 user
             )
         );
-        rentPriceOracle.updateDiscountFunction(new DiscountPoint[](1));
+        rentPriceOracle.updateDiscountPoints(new DiscountPoint[](1));
         vm.stopPrank();
     }
 
     function test_getDiscountPoints() external view {
-        DiscountPoint[] memory points = rentPriceOracle.getDiscountPoints();
-        assertEq(points.length, 6, "length");
-        assertEq(points[0].t, StandardPricing.SEC_PER_YEAR, "1y");
-        assertEq(points[1].t, StandardPricing.SEC_PER_YEAR * 2, "2y");
+        assertEq(
+            abi.encode(rentPriceOracle.getDiscountPoints()),
+            abi.encode(StandardPricing.getDiscountPoints())
+        );
     }
 }
