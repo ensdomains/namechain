@@ -314,13 +314,17 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertEq(address(ethRegistry.tokenObservers(tokenId)), address(controller), "Controller should be the observer");
         
         uint64 newExpiry = uint64(block.timestamp + expiryDuration * 2);
-        address renewer = address(this);
         
         // Reset bridge counters
         bridge.resetCounters();
         
-        // Call onRenew directly on the controller (simulating a call from the registry)
-        controller.onRenew(tokenId, newExpiry, renewer);
+        // Call onRenew via registry's renew function to properly simulate real usage
+        // Grant the controller permission to renew the token
+        ethRegistry.grantRoles(tokenId, LibRegistryRoles.ROLE_RENEW, address(controller));
+        
+        // Call renew on the registry, which will trigger onRenew on the token observer
+        vm.prank(address(controller));
+        ethRegistry.renew(tokenId, newExpiry);
         
         // Verify bridge message was sent
         assertEq(bridge.sendMessageCallCount(), 1, "Bridge should have been called once");
@@ -384,9 +388,78 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         
         // Test onRenew callback - should send bridge message
         uint64 newExpiry = uint64(block.timestamp + expiryDuration * 2);
-        address renewer = address(this);
-        controller.onRenew(tokenId, newExpiry, renewer);
+        // Grant the controller permission to renew the token
+        ethRegistry.grantRoles(tokenId, LibRegistryRoles.ROLE_RENEW, address(controller));
+        
+        // Call renew on the registry, which will trigger onRenew on the token observer
+        vm.prank(address(controller));
+        ethRegistry.renew(tokenId, newExpiry);
         assertEq(bridge.sendMessageCallCount(), 1, "onRenew should send bridge message");
+    }
+
+    function test_Revert_onRenew_UnauthorizedCaller() public {
+        // First eject the name so the controller owns it and becomes the observer
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
+        bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        vm.prank(user);
+        ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
+        
+        uint64 newExpiry = uint64(block.timestamp + expiryDuration * 2);
+        
+        // Try to call onRenew directly from an unauthorized address (not the registry)
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
+        controller.onRenew(tokenId, newExpiry, address(this));
+    }
+
+    function test_Revert_onRenew_UnauthorizedCaller_randomUser() public {
+        // First eject the name so the controller owns it and becomes the observer
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
+        bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        vm.prank(user);
+        ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
+        
+        uint64 newExpiry = uint64(block.timestamp + expiryDuration * 2);
+        address randomUser = address(0x9999);
+        
+        // Try to call onRenew from a random user (not the registry)
+        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, randomUser));
+        vm.prank(randomUser);
+        controller.onRenew(tokenId, newExpiry, randomUser);
+    }
+
+    function test_onRenew_onlyCallableByRegistry() public {
+        // First eject the name so the controller owns it and becomes the observer
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
+        bytes memory ejectionData = _createEjectionData(testLabel, l1Owner, l1Subregistry, l1Resolver, expiryTime, roleBitmap);
+        vm.prank(user);
+        ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
+        
+        uint64 newExpiry = uint64(block.timestamp + expiryDuration * 2);
+        
+        // Reset bridge counters
+        bridge.resetCounters();
+        
+        // Only the registry should be able to call onRenew
+        vm.prank(address(ethRegistry));
+        controller.onRenew(tokenId, newExpiry, address(this));
+        
+        // Verify bridge message was sent
+        assertEq(bridge.sendMessageCallCount(), 1, "Bridge should have been called once");
+        
+        // Verify the message content
+        bytes memory lastMessage = bridge.lastMessage();
+        assertTrue(lastMessage.length > 0, "Message should not be empty");
+        
+        // Decode and verify the renewal message
+        BridgeMessageType messageType = BridgeEncoder.getMessageType(lastMessage);
+        assertEq(uint(messageType), uint(BridgeMessageType.RENEWAL), "Message should be a renewal");
+        
+        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoder.decodeRenewal(lastMessage);
+        assertEq(decodedTokenId, tokenId, "Token ID should match");
+        assertEq(decodedExpiry, newExpiry, "Expiry should match");
     }
 
     function test_Revert_eject_tooManyRoleAssignees() public {
