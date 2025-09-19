@@ -24,6 +24,12 @@ library NameUtils {
     function dnsEncodeEthLabel(
         string memory label
     ) internal pure returns (bytes memory) {
+        // TODO: determine how strict this function should be
+        // currently allows:
+        // - empty label ("")
+        // - scam labels ("a.b")
+        // - long labels (256+)
+        // - hashed labels ("[...]")
         return
             abi.encodePacked(
                 bytes1(uint8(bytes(label).length)),
