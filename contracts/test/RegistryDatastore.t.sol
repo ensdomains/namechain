@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
 import "../src/common/RegistryDatastore.sol";
+import "../src/common/IRegistryDatastore.sol";
 
 contract TestRegistryDatastore is Test {
     uint256 id = uint256(keccak256("test"));
@@ -16,58 +17,65 @@ contract TestRegistryDatastore is Test {
         datastore = new RegistryDatastore();
     }
 
-    function test_GetSetSubregistry_MsgSender() public {
-        datastore.setSubregistry(id, address(this), expiryTime, data);
+    function test_GetSetEntry_MsgSender() public {
+        IRegistryDatastore.Entry memory entry = IRegistryDatastore.Entry({
+            subregistry: address(this),
+            expiry: expiryTime,
+            tokenVersionId: data,
+            resolver: address(0),
+            eacVersionId: 0
+        });
+        datastore.setEntry(address(this), id, entry);
 
-        (address subregistry, uint64 expiry, uint32 returnedData) = datastore.getSubregistry(id);
-        vm.assertEq(subregistry, address(this));
-        vm.assertEq(expiry, expiryTime);
-        vm.assertEq(returnedData, data);
-
-        (subregistry, expiry, returnedData) = datastore.getSubregistry(address(this), id);
-        vm.assertEq(subregistry, address(this));
-        vm.assertEq(expiry, expiryTime);
-        vm.assertEq(returnedData, data);
+        IRegistryDatastore.Entry memory returnedEntry = datastore.getEntry(address(this), id);
+        vm.assertEq(returnedEntry.subregistry, address(this));
+        vm.assertEq(returnedEntry.expiry, expiryTime);
+        vm.assertEq(returnedEntry.tokenVersionId, data);
     }
 
-    function test_GetSetSubregistry_OtherRegistry() public {
+    function test_GetSetEntry_OtherRegistry() public {
         DummyRegistry r = new DummyRegistry(datastore);
-        r.setSubregistry(id, address(this), expiryTime, data);
+        IRegistryDatastore.Entry memory entry = IRegistryDatastore.Entry({
+            subregistry: address(this),
+            expiry: expiryTime,
+            tokenVersionId: data,
+            resolver: address(0),
+            eacVersionId: 0
+        });
+        r.setEntry(id, entry);
 
-        (address subregistry, uint64 expiry, uint32 returnedData) = datastore.getSubregistry(id);
-        vm.assertEq(subregistry, address(0));
-        vm.assertEq(expiry, 0);
-        vm.assertEq(returnedData, 0);
+        IRegistryDatastore.Entry memory returnedEntry = datastore.getEntry(address(this), id);
+        vm.assertEq(returnedEntry.subregistry, address(0));
+        vm.assertEq(returnedEntry.expiry, 0);
+        vm.assertEq(returnedEntry.tokenVersionId, 0);
 
-        (subregistry, expiry, returnedData) = datastore.getSubregistry(address(r), id);
-        vm.assertEq(subregistry, address(this));
-        vm.assertEq(expiry, expiryTime);
-        vm.assertEq(returnedData, data);
+        returnedEntry = datastore.getEntry(address(r), id);
+        vm.assertEq(returnedEntry.subregistry, address(this));
+        vm.assertEq(returnedEntry.expiry, expiryTime);
+        vm.assertEq(returnedEntry.tokenVersionId, data);
     }
 
-    function test_GetSetResolver_MsgSender() public {
-        datastore.setResolver(id, address(this), data);
+    function test_SetSubregistry_Setters() public {
+        datastore.setSubregistry(id, address(this));
+        datastore.setResolver(id, address(this));
 
-        (address resolver, uint32 returnedData) = datastore.getResolver(id);
-        vm.assertEq(resolver, address(this));
-        vm.assertEq(returnedData, data);
-
-        (resolver, returnedData) = datastore.getResolver(address(this), id);
-        vm.assertEq(resolver, address(this));
-        vm.assertEq(returnedData, data);
+        IRegistryDatastore.Entry memory returnedEntry = datastore.getEntry(address(this), id);
+        vm.assertEq(returnedEntry.subregistry, address(this));
+        vm.assertEq(returnedEntry.resolver, address(this));
     }
 
-    function test_GetSetResolver_OtherRegistry() public {
+    function test_SetSubregistry_Resolver_OtherRegistry() public {
         DummyRegistry r = new DummyRegistry(datastore);
-        r.setResolver(id, address(this), data);
+        r.setSubregistry(id, address(this));
+        r.setResolver(id, address(this));
 
-        (address resolver, uint32 returnedData) = datastore.getResolver(id);
-        vm.assertEq(resolver, address(0));
-        vm.assertEq(returnedData, 0);
+        IRegistryDatastore.Entry memory returnedEntry = datastore.getEntry(address(this), id);
+        vm.assertEq(returnedEntry.subregistry, address(0));
+        vm.assertEq(returnedEntry.resolver, address(0));
 
-        (resolver, returnedData) = datastore.getResolver(address(r), id);
-        vm.assertEq(resolver, address(this));
-        vm.assertEq(returnedData, data);
+        returnedEntry = datastore.getEntry(address(r), id);
+        vm.assertEq(returnedEntry.subregistry, address(this));
+        vm.assertEq(returnedEntry.resolver, address(this));
     }
 }
 
@@ -78,11 +86,15 @@ contract DummyRegistry {
         datastore = _datastore;
     }
 
-    function setSubregistry(uint256 id, address subregistry, uint64 expiry, uint32 data) public {
-        datastore.setSubregistry(id, subregistry, expiry, data);
+    function setEntry(uint256 id, IRegistryDatastore.Entry memory entry) public {
+        datastore.setEntry(address(this), id, entry);
     }
 
-    function setResolver(uint256 id, address resolver, uint32 data) public {
-        datastore.setResolver(id, resolver, data);
+    function setSubregistry(uint256 id, address subregistry) public {
+        datastore.setSubregistry(id, subregistry);
+    }
+
+    function setResolver(uint256 id, address resolver) public {
+        datastore.setResolver(id, resolver);
     }
 }

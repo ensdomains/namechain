@@ -134,7 +134,7 @@ contract TestBridgeMessages is Test {
         l1Bridge.receiveMessage(renewalMessage);
         
         // Verify the renewal was processed
-        (,uint64 updatedExpiry,) = datastore.getSubregistry(address(registry), tokenId);
+        uint64 updatedExpiry = datastore.getEntry(address(registry), tokenId).expiry;
         assertEq(updatedExpiry, newExpiry, "Expiry should be updated");
         
         // Check for RenewalSynchronized event

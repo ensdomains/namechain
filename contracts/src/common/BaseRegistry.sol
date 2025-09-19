@@ -57,8 +57,8 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
      * @return The address of the registry for this subdomain, or `address(0)` if none exists.
      */
     function getSubregistry(string calldata label) external view virtual returns (IRegistry) {
-        (address subregistry, ,) = datastore.getSubregistry(NameUtils.labelToCanonicalId(label));
-        return IRegistry(subregistry);
+        IRegistryDatastore.Entry memory entry = datastore.getEntry(address(this), NameUtils.labelToCanonicalId(label));
+        return IRegistry(entry.subregistry);
     }
 
     /**
@@ -67,6 +67,7 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
      * @return resolver The address of a resolver responsible for this name, or `address(0)` if none exists.
      */
     function getResolver(string calldata label) external view virtual returns (address resolver) {
-        (resolver, ) = datastore.getResolver(NameUtils.labelToCanonicalId(label));
+        IRegistryDatastore.Entry memory entry = datastore.getEntry(address(this), NameUtils.labelToCanonicalId(label));
+        resolver = entry.resolver;
     }
 }
