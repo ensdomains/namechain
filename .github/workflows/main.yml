@@ -54,8 +54,9 @@ jobs:
           path: contracts/coverage/
 
       # 20250914: coveralls.io http 504
-      # - name: Upload coverage report to Coveralls
-      #   uses: coverallsapp/github-action@v2
-      #   with:
-      #     file: contracts/lcov.info
-      #     github-token: ${{ secrets.GITHUB_TOKEN }}
+      # 20240918: restored
+      - name: Upload coverage report to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          file: contracts/lcov.info
+          github-token: ${{ secrets.GITHUB_TOKEN }}
