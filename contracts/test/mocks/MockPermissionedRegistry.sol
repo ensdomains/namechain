@@ -73,6 +73,13 @@ contract MockPermissionedRegistry is PermissionedRegistry {
     function testGetEntry(uint256 tokenId) public view returns (IRegistryDatastore.Entry memory) {
         return datastore.getEntry(address(this), NameUtils.getCanonicalId(tokenId));
     }
+
+    /**
+     * @dev Public wrapper for the optimized _getEntry function - for testing only
+     */
+    function testGetEntryWithCanonicalId(uint256 tokenId) public view returns (IRegistryDatastore.Entry memory entry, uint256 canonicalId) {
+        return _getEntry(tokenId);
+    }
     
     /**
      * @dev Get eacVersionId from datastore entry for testing

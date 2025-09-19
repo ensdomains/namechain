@@ -2839,6 +2839,27 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertEq(entry.tokenVersionId, currentEntry.tokenVersionId, "Entry token version should match");
         assertEq(entry.eacVersionId, currentEntry.eacVersionId, "Entry EAC version should match");
     }
+    function testCanonicalIdOptimization() public {
+        uint256 tokenId = registry.register(
+            "optimization",
+            owner,
+            registry,
+            address(0),
+            defaultRoleBitmap,
+            uint64(block.timestamp) + 100
+        );
+
+        (IRegistryDatastore.Entry memory entry, uint256 canonicalId) = registry.testGetEntryWithCanonicalId(tokenId);
+        
+        uint256 resourceFromOptimized = registry.testGetResourceFromTokenId(tokenId);
+        uint256 tokenFromOptimized = registry.testGetTokenIdFromResource(resourceFromOptimized);
+        
+        assertEq(tokenFromOptimized, tokenId, "Token ID should match after round-trip");
+        assertEq(canonicalId, NameUtils.getCanonicalId(tokenId), "Canonical ID should match NameUtils calculation");
+        
+        uint256 expectedResource = canonicalId | uint256(entry.eacVersionId);
+        assertEq(resourceFromOptimized, expectedResource, "Resource ID should be correctly calculated");
+    }
 }
 
 contract MockTokenObserver is ITokenObserver {

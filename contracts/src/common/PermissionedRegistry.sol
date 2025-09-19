@@ -71,7 +71,8 @@ contract PermissionedRegistry is
     }
 
     function getExpiry(uint256 tokenId) public view override returns (uint64) {
-        return _getEntry(tokenId).expiry;
+        (IRegistryDatastore.Entry memory entry, ) = _getEntry(tokenId);
+        return entry.expiry;
     }
 
     /// @dev Internal logic for expired status.
@@ -181,7 +182,7 @@ contract PermissionedRegistry is
         override
         onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_RENEW)
     {
-        IRegistryDatastore.Entry memory entry = _getEntry(tokenId);
+        (IRegistryDatastore.Entry memory entry, ) = _getEntry(tokenId);
         if (expires < entry.expiry) {
             revert CannotReduceExpiration(entry.expiry, expires);
         }
@@ -219,7 +220,7 @@ contract PermissionedRegistry is
     {
         _burn(ownerOf(tokenId), tokenId, 1);
 
-        IRegistryDatastore.Entry memory entry = _getEntry(tokenId);
+        (IRegistryDatastore.Entry memory entry, ) = _getEntry(tokenId);
         _setEntry(tokenId, IRegistryDatastore.Entry({
             subregistry: address(0),
             expiry: 0,
@@ -269,7 +270,7 @@ contract PermissionedRegistry is
         override
         onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_SET_SUBREGISTRY)
     {
-        IRegistryDatastore.Entry memory entry = _getEntry(tokenId);
+        (IRegistryDatastore.Entry memory entry, ) = _getEntry(tokenId);
         _setEntry(tokenId, IRegistryDatastore.Entry({
             subregistry: address(registry),
             expiry: entry.expiry,
@@ -416,10 +417,12 @@ contract PermissionedRegistry is
     /**
      * @dev Fetches an entry from the datastore using a token ID.
      * @param tokenId The token ID to fetch the entry for.
-     * @return The datastore entry for the token ID.
+     * @return entry The datastore entry for the token ID.
+     * @return canonicalId The canonical ID for the token ID.
      */
-    function _getEntry(uint256 tokenId) internal view returns (IRegistryDatastore.Entry memory) {
-        return datastore.getEntry(address(this), NameUtils.getCanonicalId(tokenId));
+    function _getEntry(uint256 tokenId) internal view returns (IRegistryDatastore.Entry memory entry, uint256 canonicalId) {
+        canonicalId = NameUtils.getCanonicalId(tokenId);
+        entry = datastore.getEntry(address(this), canonicalId);
     }
 
     /**
@@ -439,8 +442,7 @@ contract PermissionedRegistry is
     function getResourceFromTokenId(
         uint256 tokenId
     ) internal view returns (uint256) {
-        uint256 canonicalId = NameUtils.getCanonicalId(tokenId);
-        IRegistryDatastore.Entry memory entry = _getEntry(tokenId);
+        (IRegistryDatastore.Entry memory entry, uint256 canonicalId) = _getEntry(tokenId);
         return canonicalId | uint256(entry.eacVersionId);
     }
 
@@ -452,9 +454,7 @@ contract PermissionedRegistry is
     function getTokenIdFromResource(
         uint256 resource
     ) internal view returns (uint256) {
-        // Extract canonical ID from resource (remove eacVersionId from lower 32 bits) 
-        uint256 canonicalId = NameUtils.getCanonicalId(resource);
-        IRegistryDatastore.Entry memory entry = datastore.getEntry(address(this), canonicalId);
+        (IRegistryDatastore.Entry memory entry, uint256 canonicalId) = _getEntry(resource);
         return _constructTokenId(canonicalId, entry.tokenVersionId);
     }
 
@@ -524,7 +524,7 @@ contract PermissionedRegistry is
      */
     function _regenerateToken(uint256 tokenId, address owner) internal {
         _burn(owner, tokenId, 1);
-        IRegistryDatastore.Entry memory entry = _getEntry(tokenId);
+        (IRegistryDatastore.Entry memory entry, ) = _getEntry(tokenId);
         entry.tokenVersionId = entry.tokenVersionId + 1;
         uint256 newTokenId = _generateTokenId(tokenId, entry);
         _mint(owner, newTokenId, 1, "");
