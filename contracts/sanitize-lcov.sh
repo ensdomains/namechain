@@ -11,4 +11,4 @@ lcov \
 lcov --remove lcov.info "lib/*" "*test*" "*mock*" --output-file lcov.info
 
 # fix source path
-sed -i 's|^SF:src/|SF:contracts/src/|' lcov.info
+sed 's|^SF:src/|SF:/contracts/src/|' lcov.info > lcov.fixed && mv lcov.fixed lcov.info
