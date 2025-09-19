@@ -27,11 +27,9 @@ contract PermissionedRegistry is
     event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
     event SubregistryUpdate(
         uint256 indexed id,
-        address subregistry,
-        uint64 expiry,
-        uint32 data
+        address subregistry
     );
-    event ResolverUpdate(uint256 indexed id, address resolver, uint32 data);
+    event ResolverUpdate(uint256 indexed id, address resolver);
 
     mapping(uint256 => ITokenObserver) public tokenObservers;
 
@@ -145,7 +143,7 @@ contract PermissionedRegistry is
                 subregistry: address(registry),
                 expiry: expires,
                 tokenVersionId: entry.tokenVersionId,
-                resolver: entry.resolver,
+                resolver: resolver,
                 eacVersionId: entry.eacVersionId
             })
         );
@@ -153,8 +151,7 @@ contract PermissionedRegistry is
         _mint(owner, tokenId, 1, "");
         _grantRoles(getResourceFromTokenId(tokenId), roleBitmap, owner, false);
 
-        datastore.setResolver(NameUtils.getCanonicalId(tokenId), resolver);
-        emit ResolverUpdate(tokenId, resolver, 0);
+        emit ResolverUpdate(tokenId, resolver);
 
         emit NewSubname(tokenId, label);
 
@@ -197,7 +194,7 @@ contract PermissionedRegistry is
             eacVersionId: entry.eacVersionId
         });
         _setEntry(tokenId, newEntry);
-        emit SubregistryUpdate(tokenId, entry.subregistry, expires, entry.tokenVersionId);
+        emit SubregistryUpdate(tokenId, entry.subregistry);
 
         ITokenObserver observer = tokenObservers[tokenId];
         if (address(observer) != address(0)) {
@@ -230,8 +227,8 @@ contract PermissionedRegistry is
             resolver: address(0),
             eacVersionId: entry.eacVersionId
         }));
-        emit SubregistryUpdate(tokenId, address(0), 0, 0);
-        emit ResolverUpdate(tokenId, address(0), 0);
+        emit SubregistryUpdate(tokenId, address(0));
+        emit ResolverUpdate(tokenId, address(0));
 
         emit NameBurned(tokenId, msg.sender);
     }
@@ -282,9 +279,7 @@ contract PermissionedRegistry is
         }));
         emit SubregistryUpdate(
             tokenId,
-            address(registry),
-            entry.expiry,
-            entry.tokenVersionId
+            address(registry)
         );
     }
 
@@ -297,7 +292,7 @@ contract PermissionedRegistry is
         onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_SET_RESOLVER)
     {
         datastore.setResolver(NameUtils.getCanonicalId(tokenId), resolver);
-        emit ResolverUpdate(tokenId, resolver, 0);
+        emit ResolverUpdate(tokenId, resolver);
     }
 
     function supportsInterface(
@@ -550,7 +545,7 @@ contract PermissionedRegistry is
         uint256 canonicalId = NameUtils.getCanonicalId(tokenId);
         newTokenId = _constructTokenId(canonicalId, entry.tokenVersionId);
         datastore.setEntry(address(this), canonicalId, entry);
-        emit SubregistryUpdate(newTokenId, entry.subregistry, entry.expiry, entry.tokenVersionId);
+        emit SubregistryUpdate(newTokenId, entry.subregistry);
     }
 
     /**
