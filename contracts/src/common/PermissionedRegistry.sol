@@ -138,8 +138,9 @@ contract PermissionedRegistry is
             entry.tokenVersionId++;
         }
         
+        uint256 canonicalId = NameUtils.getCanonicalId(tokenId);
         tokenId = _generateTokenId(
-            tokenId,
+            canonicalId,
             IRegistryDatastore.Entry({
                 subregistry: address(registry),
                 expiry: expires,
@@ -524,9 +525,9 @@ contract PermissionedRegistry is
      */
     function _regenerateToken(uint256 tokenId, address owner) internal {
         _burn(owner, tokenId, 1);
-        (IRegistryDatastore.Entry memory entry, ) = _getEntry(tokenId);
+        (IRegistryDatastore.Entry memory entry, uint256 canonicalId) = _getEntry(tokenId);
         entry.tokenVersionId = entry.tokenVersionId + 1;
-        uint256 newTokenId = _generateTokenId(tokenId, entry);
+        uint256 newTokenId = _generateTokenId(canonicalId, entry);
         _mint(owner, newTokenId, 1, "");
 
         emit TokenRegenerated(tokenId, newTokenId);
@@ -534,15 +535,14 @@ contract PermissionedRegistry is
 
     /**
      * @dev Regenerate a token id.
-     * @param tokenId The token id to regenerate.
-     * @param entry The entry data to set.
+     * @param canonicalId The canonical id to regenerate.
+     * @param entry The entry data to set (and also contains information used to generate the token id).
      * @return newTokenId The new token id.
      */
     function _generateTokenId(
-        uint256 tokenId,
+        uint256 canonicalId,
         IRegistryDatastore.Entry memory entry
     ) internal virtual returns (uint256 newTokenId) {
-        uint256 canonicalId = NameUtils.getCanonicalId(tokenId);
         newTokenId = _constructTokenId(canonicalId, entry.tokenVersionId);
         datastore.setEntry(address(this), canonicalId, entry);
         emit SubregistryUpdate(newTokenId, entry.subregistry);
@@ -550,14 +550,14 @@ contract PermissionedRegistry is
 
     /**
      * @dev Construct a token id from a canonical/token id and a token version.
-     * @param id The canonical/token id to construct the token id from.
+     * @param canonicalId The canonical id to construct the token id from.
      * @param tokenVersionId The token version ID to set.
      * @return newTokenId The new token id.
      */
     function _constructTokenId(
-        uint256 id,
+        uint256 canonicalId,
         uint32 tokenVersionId
     ) internal pure returns (uint256 newTokenId) {
-        newTokenId = NameUtils.getCanonicalId(id) | uint256(tokenVersionId);
+        newTokenId = canonicalId | uint256(tokenVersionId);
     }
 }
