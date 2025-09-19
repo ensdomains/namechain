@@ -9,3 +9,6 @@ lcov \
 
 # filter junk
 lcov --remove lcov.info "lib/*" "*test*" "*mock*" --output-file lcov.info
+
+# fix source path
+sed 's|^SF:src/|SF:/contracts/src/|' lcov.info > lcov.fixed && mv lcov.fixed lcov.info
