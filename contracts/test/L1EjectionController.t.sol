@@ -159,7 +159,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        (uint256 tokenId,) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), address(this));
     }
 
@@ -179,7 +179,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        (uint256 tokenId,) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), user);
         
         assertEq(address(registry.getSubregistry(testLabel)), subregistry);
@@ -261,10 +261,10 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        (uint256 tokenId,) = registry.getNameData(testLabel);
         
         // Verify initial expiry was set
-        (,uint64 initialExpiry,) = datastore.getSubregistry(address(registry), tokenId);
+        uint64 initialExpiry = datastore.getEntry(address(registry), tokenId).expiry;
         assertEq(initialExpiry, expiryTime, "Initial expiry not set correctly");
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
@@ -273,7 +273,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         ejectionController.syncRenewal(tokenId, newExpiry);
 
         // Verify new expiry was set
-        (,uint64 updatedExpiry,) = datastore.getSubregistry(address(registry), tokenId);
+        uint64 updatedExpiry = datastore.getEntry(address(registry), tokenId).expiry;
         assertEq(updatedExpiry, newExpiry, "Expiry was not updated correctly");
     }
 
@@ -291,7 +291,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        (uint256 tokenId,) = registry.getNameData(testLabel);
         
         uint64 newExpiry = uint64(block.timestamp) + 200;
 
@@ -331,7 +331,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        (uint256 tokenId,) = registry.getNameData(testLabel);
         
         vm.warp(block.timestamp + 101);
 
@@ -354,7 +354,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        (uint256 tokenId,) = registry.getNameData(testLabel);
         
         uint64 newExpiry = uint64(block.timestamp) + 100;
 
@@ -374,7 +374,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Register the name directly using the registry
         registry.register(testLabel, address(this), registry, MOCK_RESOLVER, roleBitmap, expiryTime);
 
-        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        (uint256 tokenId,) = registry.getNameData(testLabel);
 
         // Setup ejection data
         address expectedOwner = address(1);
@@ -421,7 +421,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         // Register the name directly using the registry
         registry.register(testLabel, address(this), registry, MOCK_RESOLVER, roleBitmap, expiryTime);
 
-        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        (uint256 tokenId,) = registry.getNameData(testLabel);
 
         // Setup ejection data with invalid label
         string memory invalidLabel = "invalid";
@@ -470,9 +470,9 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         registry.register("test3", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
         
         // Get token IDs and verify ownership
-        (uint256 tokenId1,,) = registry.getNameData("test1");
-        (uint256 tokenId2,,) = registry.getNameData("test2");
-        (uint256 tokenId3,,) = registry.getNameData("test3");
+        (uint256 tokenId1,) = registry.getNameData("test1");
+        (uint256 tokenId2,) = registry.getNameData("test2");
+        (uint256 tokenId3,) = registry.getNameData("test3");
         
         assertEq(registry.ownerOf(tokenId1), address(this));
         assertEq(registry.ownerOf(tokenId2), address(this));
@@ -532,8 +532,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         registry.register("test2", address(this), registry, MOCK_RESOLVER, LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY, expiryTime);
         
         // Get token IDs
-        (uint256 tokenId1,,) = registry.getNameData("test1");
-        (uint256 tokenId2,,) = registry.getNameData("test2");
+        (uint256 tokenId1,) = registry.getNameData("test1");
+        (uint256 tokenId2,) = registry.getNameData("test2");
         
         // Setup arrays with one invalid label
         uint256[] memory ids = new uint256[](2);
@@ -640,7 +640,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         vm.prank(address(bridge));
         ejectionController.completeEjectionFromL2(transferData);
         
-        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        (uint256 tokenId,) = registry.getNameData(testLabel);
         
         // Try to call syncRenewal directly (without proper role)
         vm.expectRevert(abi.encodeWithSelector(

@@ -7,6 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
+import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {IRentPriceOracle} from "./IRentPriceOracle.sol";
 import {HalvingUtils} from "../common/HalvingUtils.sol";
 import {StringUtils} from "@ens/contracts/utils/StringUtils.sol";
@@ -210,7 +211,8 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
         uint256 premiumUnits;
         if (owner != address(0)) {
             // prior owner pays no premium
-            (uint256 tokenId, uint64 expiry, ) = registry.getNameData(label);
+            (uint256 tokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+            uint64 expiry = entry.expiry;
             if (owner != registry.latestOwnerOf(tokenId)) {
                 premiumUnits = premiumPrice(expiry);
             }

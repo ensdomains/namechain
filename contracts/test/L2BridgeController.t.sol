@@ -169,7 +169,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertTrue(foundEvent, "NameEjectedToL1 event not found");
         
         // Verify subregistry is cleared after ejection
-        (address subregAddr, , ) = datastore.getSubregistry(tokenId);
+        address subregAddr = datastore.getEntry(address(ethRegistry), tokenId).subregistry;
         assertEq(subregAddr, address(0), "Subregistry not cleared after ejection");
         
         // Verify token observer is set
@@ -418,7 +418,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, secondUser);
         
         // Get the current token ID after regeneration
-        (uint256 currentTokenId,,) = ethRegistry.getNameData(testLabel2);
+        (uint256 currentTokenId,) = ethRegistry.getNameData(testLabel2);
         
         // Should fail due to multiple assignees for ROLE_SET_TOKEN_OBSERVER
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.TooManyRoleAssignees.selector, currentTokenId, criticalRoles));
@@ -488,7 +488,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         ethRegistry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, user3);
         
         // Get the current token ID after regeneration
-        (uint256 currentTokenId,,) = ethRegistry.getNameData(testLabel4);
+        (uint256 currentTokenId,) = ethRegistry.getNameData(testLabel4);
         
         bytes memory ejectionData = _createEjectionData(testLabel4, l1Owner, l1Subregistry, l1Resolver, expires, 0);
         
