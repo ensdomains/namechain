@@ -28,16 +28,17 @@ export default execute(
       PRICE_SCALE * 5n,
     ].map((x) => (x + SEC_PER_YEAR - 1n) / SEC_PER_YEAR);
 
-    const DISCOUNT_SCALE = 1e18; // see: StandardRentPriceOracle.sol
-
-    // see: StandardPricing.sol
+    const DISCOUNT_SCALE = (1n << 64n) - 1n;
+    function discountRatio(numer: bigint, denom: bigint) {
+      return (DISCOUNT_SCALE * numer + denom - 1n) / denom;
+    }
     const discountPoints: [bigint, bigint][] = [
       [SEC_PER_YEAR, 0n],
-      [SEC_PER_YEAR, /**********/ 100000000000000000n], // BigInt(0.1 * DISCOUNT_SCALE)
-      [SEC_PER_YEAR, /**********/ 200000000000000000n],
-      [SEC_PER_YEAR * 2n, /*****/ 287500000000000000n],
-      [SEC_PER_YEAR * 5n, /*****/ 325000000000000000n],
-      [SEC_PER_YEAR * 15n, /****/ 333333333333333334n],
+      [SEC_PER_YEAR, discountRatio(1n, 10n)], // 10%
+      [SEC_PER_YEAR, discountRatio(2n, 10n)],
+      [SEC_PER_YEAR * 2n, discountRatio(2875n, 10000n)],
+      [SEC_PER_YEAR * 5n, discountRatio(325n, 1000n)],
+      [SEC_PER_YEAR * 15n, discountRatio(1n, 3n)],
     ];
 
     const paymentFactors = await Promise.all(
@@ -73,7 +74,7 @@ export default execute(
         const acc = v.slice(0, i + 1).reduce((a, x) => a + x[0] * x[1], 0n);
         return {
           years: (Number(sum) / Number(SEC_PER_YEAR)).toFixed(2),
-          discount: `${((100 * Number(acc / sum)) / DISCOUNT_SCALE).toFixed(2)}%`,
+          discount: `${((100 * Number(acc / sum)) / Number(DISCOUNT_SCALE)).toFixed(2)}%`,
         };
       }),
     );

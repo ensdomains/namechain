@@ -11,14 +11,11 @@ import {IRentPriceOracle} from "./IRentPriceOracle.sol";
 import {HalvingUtils} from "../common/HalvingUtils.sol";
 import {StringUtils} from "@ens/contracts/utils/StringUtils.sol";
 
-/// @dev Denominator for converting discounts to percentages.
-uint256 constant DISCOUNT_SCALE = 1e18;
-
 /// @param t Incremental time interval for discount, in seconds.
-/// @param value Discount percentage, relative to `DISCOUNT_SCALE`.
+/// @param value Discount percentage, relative to `type(uint128).max`.
 struct DiscountPoint {
     uint64 t;
-    uint192 value;
+    uint128 value;
 }
 
 /// @dev Structure to configure initial payment token and exchange rate.
@@ -106,7 +103,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
             super.supportsInterface(interfaceId);
     }
 
-    /// @notice Get all base rates, in base units.
+    /// @notice Get all base rates, in base units per second.
     function getBaseRates() external view returns (uint256[] memory) {
         return _baseRatePerCp;
     }
@@ -120,13 +117,13 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
         return _discountPoints;
     }
 
-    /// @notice Update base rates (price/sec) per codepoint.
+    /// @notice Update base rates per codepoint.
     /// @dev - `ratePerCp[i]` corresponds to `i+1` codepoints.
     ///      - Larger lengths are priced by `ratePerCp[-1]`.
     ///      - Use rate of `0` to disable a specific length.
     ///      - Use empty array to disable all registrations.
     ///      - Emits `BaseRatesChanged`.
-    /// @param ratePerCp The base rates, in base units.
+    /// @param ratePerCp The base rates, in base units per second.
     function updateBaseRates(uint256[] memory ratePerCp) external onlyOwner {
         _baseRatePerCp = ratePerCp;
         emit BaseRatesChanged(ratePerCp);
@@ -143,7 +140,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
 
     /// @notice Update the discount function.
     /// @dev - Each point is (∆t, intervalDiscount).
-    ///      - Discounts are relative to `DISCOUNT_SCALE`.
+    ///      - Discounts are relative to `type(uint128).max`.
     ///        *  2yr @  5.00% ==  1yr @  0.00% +  1yr @ x =>  +1yr @ x = 10.00%
     ///        *  3yr @ 10.00% ==  2yr @  5.00% +  1yr @ x =>  +1yr @ x = 20.00%
     ///        *  5yr @ 17.50% ==  3yr @ 10.00% +  2yr @ x =>  +2yr @ x = 28.75%
@@ -293,7 +290,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
         baseUnits -= Math.mulDiv(
             baseUnits,
             integratedDiscount(t + duration) - integratedDiscount(t),
-            DISCOUNT_SCALE * duration
+            uint256(type(uint128).max) * duration
         );
         uint256 premiumUnits;
         if (owner != address(0)) {

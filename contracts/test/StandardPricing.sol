@@ -35,6 +35,15 @@ library StandardPricing {
         rates[4] = RATE_5CP;
     }
 
+    function discountRatio(
+        uint256 numer,
+        uint256 denom
+    ) internal pure returns (uint128) {
+        require(numer < denom, "discountRatio");
+        uint256 scale = uint256(type(uint128).max);
+        return uint128((scale * numer + denom - 1) / denom);
+    }
+
     function getDiscountPoints()
         internal
         pure
@@ -43,11 +52,11 @@ library StandardPricing {
         // see: StandardRentPriceOracle.updateDiscountFunction()
         points = new DiscountPoint[](6);
         points[0] = DiscountPoint(SEC_PER_YEAR, 0);
-        points[1] = DiscountPoint(SEC_PER_YEAR, /*********/ 100000000000000000); // 0.1 * StandardRentPriceOracle.DISCOUNT_SCALE
-        points[2] = DiscountPoint(SEC_PER_YEAR, /*********/ 200000000000000000);
-        points[3] = DiscountPoint(SEC_PER_YEAR * 2, /*****/ 287500000000000000);
-        points[4] = DiscountPoint(SEC_PER_YEAR * 5, /*****/ 325000000000000000);
-        points[5] = DiscountPoint(SEC_PER_YEAR * 15, /****/ 333333333333333334);
+        points[1] = DiscountPoint(SEC_PER_YEAR, discountRatio(1, 10)); // 10%
+        points[2] = DiscountPoint(SEC_PER_YEAR, discountRatio(2, 10));
+        points[3] = DiscountPoint(SEC_PER_YEAR * 2, discountRatio(2875, 10000));
+        points[4] = DiscountPoint(SEC_PER_YEAR * 5, discountRatio(325, 1000));
+        points[5] = DiscountPoint(SEC_PER_YEAR * 15, discountRatio(1, 3)); // 33.3%
     }
 
     function ratioFromStable(
