@@ -28,7 +28,7 @@ export default execute(
       PRICE_SCALE * 5n,
     ].map((x) => (x + SEC_PER_YEAR - 1n) / SEC_PER_YEAR);
 
-    const DISCOUNT_SCALE = (1n << 64n) - 1n;
+    const DISCOUNT_SCALE = (1n << 128n) - 1n; // type(uint128).max
     function discountRatio(numer: bigint, denom: bigint) {
       return (DISCOUNT_SCALE * numer + denom - 1n) / denom;
     }
