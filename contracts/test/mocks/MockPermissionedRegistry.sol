@@ -56,7 +56,7 @@ contract MockPermissionedRegistry is PermissionedRegistry {
      */
     function testGetTokenVersionId(uint256 tokenId) public pure returns (uint32) {
         // tokenVersionId is in the lower 32 bits
-        return uint32(tokenId & 0xFFFFFFFF);
+        return uint32(tokenId);
     }
     
     /**

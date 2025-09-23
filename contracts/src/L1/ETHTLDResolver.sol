@@ -274,7 +274,7 @@ contract ETHTLDResolver is
             cmd.pushOutput(0); // parent registry
             cmd.follow().follow(); // entry[registry][labelHash]
             cmd.read(); // read registryData (see: RegistryDatastore.sol)
-            cmd.dup().push(0xFFFFFFFFFFFFFFFF).and(); // extract expiry (first 64 bits)
+            cmd.dup().shl(192).shr(192); // extract expiry (first 64 bits)
             cmd.push(block.timestamp).gt().assertNonzero(1); // require expiry > timestamp
             cmd.shr(96); // extract subregistry (shift past expiry+tokenVersionId)
             cmd.offset(1).read().shr(32); // read slot 1, shift past eacVersionId to get resolver

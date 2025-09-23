@@ -6,6 +6,7 @@ import "forge-std/console.sol";
 
 import "../src/common/RegistryDatastore.sol";
 import "../src/common/IRegistryDatastore.sol";
+import "../src/common/NameUtils.sol";
 
 contract TestRegistryDatastore is Test {
     uint256 id = uint256(keccak256("test"));
@@ -76,6 +77,50 @@ contract TestRegistryDatastore is Test {
         returnedEntry = datastore.getEntry(address(r), id);
         vm.assertEq(returnedEntry.subregistry, address(this));
         vm.assertEq(returnedEntry.resolver, address(this));
+    }
+
+    /// @notice Test struct packing verification
+    function test_EntryStructPacking() public {
+        address registry = address(this);
+        uint256 tokenId = 0x123456789ABCDEF0123456789ABCDEF0;
+        uint256 canonicalId = NameUtils.getCanonicalId(tokenId);
+        
+        // Create entry with specific test values
+        IRegistryDatastore.Entry memory entry = IRegistryDatastore.Entry({
+            expiry: 0x1234567890ABCDEF,           // 64-bit value
+            tokenVersionId: 0x12345678,          // 32-bit value
+            subregistry: 0x1234567890123456789012345678901234567890, // 160-bit address
+            eacVersionId: 0x87654321,            // 32-bit value
+            resolver: 0xaBcDef1234567890123456789012345678901234 // 160-bit address
+        });
+        
+        datastore.setEntry(registry, tokenId, entry);
+        
+        // Calculate storage slot for entries[registry][canonicalId]
+        bytes32 slot0 = keccak256(abi.encode(canonicalId, keccak256(abi.encode(registry, uint256(0)))));
+        bytes32 slot1 = bytes32(uint256(slot0) + 1);
+        
+        // Read raw storage from the datastore contract
+        bytes32 slot0Data = vm.load(address(datastore), slot0);
+        bytes32 slot1Data = vm.load(address(datastore), slot1);
+        
+        // Verify slot 0 packing: expiry (64) + tokenVersionId (32) + subregistry (160)
+        uint256 slot0Value = uint256(slot0Data);
+        uint64 extractedExpiry = uint64(slot0Value & 0xFFFFFFFFFFFFFFFF);
+        uint32 extractedTokenVersionId = uint32((slot0Value >> 64) & 0xFFFFFFFF);
+        address extractedSubregistry = address(uint160(slot0Value >> 96));
+        
+        assertEq(extractedExpiry, entry.expiry, "Expiry mismatch in slot 0");
+        assertEq(extractedTokenVersionId, entry.tokenVersionId, "TokenVersionId mismatch in slot 0");
+        assertEq(extractedSubregistry, entry.subregistry, "Subregistry mismatch in slot 0");
+        
+        // Verify slot 1 packing: eacVersionId (32) + resolver (160)
+        uint256 slot1Value = uint256(slot1Data);
+        uint32 extractedEacVersionId = uint32(slot1Value & 0xFFFFFFFF);
+        address extractedResolver = address(uint160(slot1Value >> 32));
+        
+        assertEq(extractedEacVersionId, entry.eacVersionId, "EacVersionId mismatch in slot 1");
+        assertEq(extractedResolver, entry.resolver, "Resolver mismatch in slot 1");
     }
 }
 
