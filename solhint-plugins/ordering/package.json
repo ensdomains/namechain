@@ -1,0 +1,5 @@
+{
+  "name": "solhint-plugin-ordering",
+  "type": "commonjs",
+  "main": "index.js"
+}

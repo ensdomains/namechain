@@ -33,6 +33,7 @@
         "rocketh": "0.14.5",
         "solhint": "6.0.0",
         "solhint-plugin-import-order-separation": "0.0.1",
+        "solhint-plugin-ordering": "workspace:*",
         "solhint-plugin-prettier": "^0.1.0",
         "ts-node": "^10.9.2",
         "viem": "^2.31.6",
@@ -42,6 +43,9 @@
       "peerDependencies": {
         "typescript": "^5.8.3",
       },
+    },
+    "solhint-plugins/ordering": {
+      "name": "solhint-plugin-ordering",
     },
   },
   "packages": {
@@ -672,6 +676,8 @@
     "solhint": ["solhint@6.0.0", "", { "dependencies": { "@solidity-parser/parser": "^0.20.0", "ajv": "^6.12.6", "ajv-errors": "^1.0.1", "antlr4": "^4.13.1-patch-1", "ast-parents": "^0.0.1", "better-ajv-errors": "^2.0.2", "chalk": "^4.1.2", "commander": "^10.0.0", "cosmiconfig": "^8.0.0", "fast-diff": "^1.2.0", "fs-extra": "^11.1.0", "glob": "^8.0.3", "ignore": "^5.2.4", "js-yaml": "^4.1.0", "latest-version": "^7.0.0", "lodash": "^4.17.21", "pluralize": "^8.0.0", "semver": "^7.5.2", "strip-ansi": "^6.0.1", "table": "^6.8.1", "text-table": "^0.2.0" }, "optionalDependencies": { "prettier": "^2.8.3" }, "bin": { "solhint": "solhint.js" } }, "sha512-PQGfwFqfeYdebi2tEG1fhVfMjqSzbW3Noz+LYf8UusKe5nkikCghdgEjYQPcGfFZj4snlVyJQt//AaxkubOtVQ=="],
 
     "solhint-plugin-import-order-separation": ["solhint-plugin-import-order-separation@0.0.1", "", {}, "sha512-tfhB7dBkVpttOkUpNRyO7qJHkx7QC+qBWgSL5KqwbQ/tZpyB778tfXb2NADaH3BCDgpbVEknJehm6Ekk1pecPw=="],
+
+    "solhint-plugin-ordering": ["solhint-plugin-ordering@workspace:solhint-plugins/ordering"],
 
     "solhint-plugin-prettier": ["solhint-plugin-prettier@0.1.0", "", { "dependencies": { "@prettier/sync": "^0.3.0", "prettier-linter-helpers": "^1.0.0" }, "peerDependencies": { "prettier": "^3.0.0", "prettier-plugin-solidity": "^1.0.0" } }, "sha512-SDOTSM6tZxZ6hamrzl3GUgzF77FM6jZplgL2plFBclj/OjKP8Z3eIPojKU73gRr0MvOS8ACZILn8a5g0VTz/Gw=="],
 

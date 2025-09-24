@@ -1,6 +1,6 @@
 {
   "extends": "solhint:recommended",
-  "plugins": ["prettier", "import-order-separation"],
+  "plugins": ["prettier", "import-order-separation", "ordering"],
   "rules": {
     "prettier/prettier": "error",
     "compiler-version": ["error", ">=0.8.13"],
@@ -34,7 +34,7 @@
     "duplicated-imports": "error",
     "const-name-snakecase": "error",
     "contract-name-capwords": "error",
-    "func-name-mixedcase": "error",
+    "func-name-mixedcase": "warn",
     "func-visibility": [
       "warn",
       {
@@ -52,13 +52,13 @@
     "private-vars-leading-underscore": [
       "error",
       {
-        "strict": false
+        "strict": true
       }
     ],
     "imports-on-top": "error",
     "imports-order": "off",
     "import-path-check": "off",
-    "ordering": "error",
+    "ordering/ordering": "error",
     "visibility-modifier-order": "error",
     "import-order-separation/import-order-separation": [
       "error",
