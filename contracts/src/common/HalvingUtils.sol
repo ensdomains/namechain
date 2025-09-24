@@ -2,23 +2,23 @@
 pragma solidity >=0.8.13;
 
 library HalvingUtils {
-    uint256 constant PRECISION = 1e18;
-    uint256 constant bit1 = 999989423469314432; // 0.5 ^ 1/65536 * (10 ** 18)
-    uint256 constant bit2 = 999978847050491904; // 0.5 ^ 2/65536 * (10 ** 18)
-    uint256 constant bit3 = 999957694548431104;
-    uint256 constant bit4 = 999915390886613504;
-    uint256 constant bit5 = 999830788931929088;
-    uint256 constant bit6 = 999661606496243712;
-    uint256 constant bit7 = 999323327502650752;
-    uint256 constant bit8 = 998647112890970240;
-    uint256 constant bit9 = 997296056085470080;
-    uint256 constant bit10 = 994599423483633152;
-    uint256 constant bit11 = 989228013193975424;
-    uint256 constant bit12 = 978572062087700096;
-    uint256 constant bit13 = 957603280698573696;
-    uint256 constant bit14 = 917004043204671232;
-    uint256 constant bit15 = 840896415253714560;
-    uint256 constant bit16 = 707106781186547584;
+    uint256 private constant PRECISION = 1e18;
+    uint256 private constant BIT1 = 999989423469314432; // 0.5 ^ 1/65536 * (10 ** 18)
+    uint256 private constant BIT2 = 999978847050491904; // 0.5 ^ 2/65536 * (10 ** 18)
+    uint256 private constant BIT3 = 999957694548431104;
+    uint256 private constant BIT4 = 999915390886613504;
+    uint256 private constant BIT5 = 999830788931929088;
+    uint256 private constant BIT6 = 999661606496243712;
+    uint256 private constant BIT7 = 999323327502650752;
+    uint256 private constant BIT8 = 998647112890970240;
+    uint256 private constant BIT9 = 997296056085470080;
+    uint256 private constant BIT10 = 994599423483633152;
+    uint256 private constant BIT11 = 989228013193975424;
+    uint256 private constant BIT12 = 978572062087700096;
+    uint256 private constant BIT13 = 957603280698573696;
+    uint256 private constant BIT14 = 917004043204671232;
+    uint256 private constant BIT15 = 840896415253714560;
+    uint256 private constant BIT16 = 707106781186547584;
 
     /// @dev Compute `initial / 2 ** (elapsed / half)`.
     /// @param initial The initial value.
@@ -42,52 +42,52 @@ library HalvingUtils {
         uint256 fraction
     ) private pure returns (uint256) {
         if (fraction & (1 << 0) != 0) {
-            x = (x * bit1) / PRECISION;
+            x = (x * BIT1) / PRECISION;
         }
         if (fraction & (1 << 1) != 0) {
-            x = (x * bit2) / PRECISION;
+            x = (x * BIT2) / PRECISION;
         }
         if (fraction & (1 << 2) != 0) {
-            x = (x * bit3) / PRECISION;
+            x = (x * BIT3) / PRECISION;
         }
         if (fraction & (1 << 3) != 0) {
-            x = (x * bit4) / PRECISION;
+            x = (x * BIT4) / PRECISION;
         }
         if (fraction & (1 << 4) != 0) {
-            x = (x * bit5) / PRECISION;
+            x = (x * BIT5) / PRECISION;
         }
         if (fraction & (1 << 5) != 0) {
-            x = (x * bit6) / PRECISION;
+            x = (x * BIT6) / PRECISION;
         }
         if (fraction & (1 << 6) != 0) {
-            x = (x * bit7) / PRECISION;
+            x = (x * BIT7) / PRECISION;
         }
         if (fraction & (1 << 7) != 0) {
-            x = (x * bit8) / PRECISION;
+            x = (x * BIT8) / PRECISION;
         }
         if (fraction & (1 << 8) != 0) {
-            x = (x * bit9) / PRECISION;
+            x = (x * BIT9) / PRECISION;
         }
         if (fraction & (1 << 9) != 0) {
-            x = (x * bit10) / PRECISION;
+            x = (x * BIT10) / PRECISION;
         }
         if (fraction & (1 << 10) != 0) {
-            x = (x * bit11) / PRECISION;
+            x = (x * BIT11) / PRECISION;
         }
         if (fraction & (1 << 11) != 0) {
-            x = (x * bit12) / PRECISION;
+            x = (x * BIT12) / PRECISION;
         }
         if (fraction & (1 << 12) != 0) {
-            x = (x * bit13) / PRECISION;
+            x = (x * BIT13) / PRECISION;
         }
         if (fraction & (1 << 13) != 0) {
-            x = (x * bit14) / PRECISION;
+            x = (x * BIT14) / PRECISION;
         }
         if (fraction & (1 << 14) != 0) {
-            x = (x * bit15) / PRECISION;
+            x = (x * BIT15) / PRECISION;
         }
         if (fraction & (1 << 15) != 0) {
-            x = (x * bit16) / PRECISION;
+            x = (x * BIT16) / PRECISION;
         }
         return x;
     }

@@ -12,71 +12,101 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
  * - Up to 15 assignees per role
  */
 interface IEnhancedAccessControl is IERC165 {
+    ////////////////////////////////////////////////////////////////////////
+    // Events
+    ////////////////////////////////////////////////////////////////////////
+
+    event EACRolesGranted(
+        uint256 resource,
+        uint256 roleBitmap,
+        address account
+    );
+    event EACRolesRevoked(
+        uint256 resource,
+        uint256 roleBitmap,
+        address account
+    );
+    event EACAllRolesRevoked(uint256 resource, address account);
+
+    ////////////////////////////////////////////////////////////////////////
     // Errors
-    error EACUnauthorizedAccountRoles(uint256 resource, uint256 roleBitmap, address account);
-    error EACCannotGrantRoles(uint256 resource, uint256 roleBitmap, address account);
+    ////////////////////////////////////////////////////////////////////////
+
+    error EACUnauthorizedAccountRoles(
+        uint256 resource,
+        uint256 roleBitmap,
+        address account
+    );
+    error EACCannotGrantRoles(
+        uint256 resource,
+        uint256 roleBitmap,
+        address account
+    );
     error EACRootResourceNotAllowed();
     error EACMaxAssignees(uint256 resource, uint256 role);
     error EACMinAssignees(uint256 resource, uint256 role);
     error EACInvalidRoleBitmap(uint256 roleBitmap);
 
-    // Events
-    event EACRolesGranted(uint256 resource, uint256 roleBitmap, address account);
-    event EACRolesRevoked(uint256 resource, uint256 roleBitmap, address account);
-    event EACAllRolesRevoked(uint256 resource, address account);
+    /// @notice Grants all roles in the given role bitmap to `account`.
+    function grantRoles(
+        uint256 resource,
+        uint256 roleBitmap,
+        address account
+    ) external returns (bool);
 
-    /**
-     * @dev Returns the `ROOT_RESOURCE` constant.
-     */
+    /// @notice Grants all roles in the given role bitmap to `account` in the ROOT_RESOURCE.
+    function grantRootRoles(
+        uint256 roleBitmap,
+        address account
+    ) external returns (bool);
+
+    /// @notice Revokes all roles in the given role bitmap from `account`.
+    function revokeRoles(
+        uint256 resource,
+        uint256 roleBitmap,
+        address account
+    ) external returns (bool);
+
+    /// @notice Revokes all roles in the given role bitmap from `account` in the ROOT_RESOURCE.
+    function revokeRootRoles(
+        uint256 roleBitmap,
+        address account
+    ) external returns (bool);
+
+    /// @notice Returns the `ROOT_RESOURCE` constant.
     function ROOT_RESOURCE() external view returns (uint256);
 
-    /**
-     * @dev Returns the roles bitmap for an account in a resource.
-     */
-    function roles(uint256 resource, address account) external view returns (uint256);
+    /// @notice Returns the roles bitmap for an account in a resource.
+    function roles(
+        uint256 resource,
+        address account
+    ) external view returns (uint256);
 
-    /**
-     * @dev Returns the role count bitmap for a resource.
-     */
+    /// @notice Returns the role count bitmap for a resource.
     function roleCount(uint256 resource) external view returns (uint256);
 
-    /**
-     * @dev Returns `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`.
-     */
-    function hasRootRoles(uint256 rolesBitmap, address account) external view returns (bool);
+    /// @notice Returns `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`.
+    function hasRootRoles(
+        uint256 rolesBitmap,
+        address account
+    ) external view returns (bool);
 
-    /**
-     * @dev Returns `true` if `account` has been granted all the given roles in `resource`.
-     */
-    function hasRoles(uint256 resource, uint256 rolesBitmap, address account) external view returns (bool);
+    /// @notice Returns `true` if `account` has been granted all the given roles in `resource`.
+    function hasRoles(
+        uint256 resource,
+        uint256 rolesBitmap,
+        address account
+    ) external view returns (bool);
 
-    /**
-     * @dev Get if any of the roles in the given role bitmap has assignees.
-     */
-    function hasAssignees(uint256 resource, uint256 roleBitmap) external view returns (bool);
+    /// @notice Get if any of the roles in the given role bitmap has assignees.
+    function hasAssignees(
+        uint256 resource,
+        uint256 roleBitmap
+    ) external view returns (bool);
 
-    /**
-     * @dev Get the no. of assignees for the roles in the given role bitmap.
-     */
-    function getAssigneeCount(uint256 resource, uint256 roleBitmap) external view returns (uint256 counts, uint256 mask);
-
-    /**
-     * @dev Grants all roles in the given role bitmap to `account`.
-     */
-    function grantRoles(uint256 resource, uint256 roleBitmap, address account) external returns (bool);
-
-    /**
-     * @dev Grants all roles in the given role bitmap to `account` in the ROOT_RESOURCE.
-     */
-    function grantRootRoles(uint256 roleBitmap, address account) external returns (bool);
-
-    /**
-     * @dev Revokes all roles in the given role bitmap from `account`.
-     */
-    function revokeRoles(uint256 resource, uint256 roleBitmap, address account) external returns (bool);
-
-    /**
-     * @dev Revokes all roles in the given role bitmap from `account` in the ROOT_RESOURCE.
-     */
-    function revokeRootRoles(uint256 roleBitmap, address account) external returns (bool);
-} 
+    /// @notice Get the no. of assignees for the roles in the given role bitmap.
+    function getAssigneeCount(
+        uint256 resource,
+        uint256 roleBitmap
+    ) external view returns (uint256 counts, uint256 mask);
+}

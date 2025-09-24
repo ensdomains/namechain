@@ -402,7 +402,7 @@ abstract contract EnhancedAccessControl is
         uint256 oldRoles,
         uint256 newRoles,
         uint256 roleBitmap
-    ) internal virtual;
+    ) internal virtual {}
 
     /// @dev Callback for when roles are revoked.
     ///
@@ -417,7 +417,7 @@ abstract contract EnhancedAccessControl is
         uint256 oldRoles,
         uint256 newRoles,
         uint256 roleBitmap
-    ) internal virtual;
+    ) internal virtual {}
 
     /// @dev Reverts if `account` does not have all the given roles.
     function _checkRoles(

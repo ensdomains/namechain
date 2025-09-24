@@ -4,22 +4,22 @@ pragma solidity >=0.8.13;
 import {IERC1155Singleton} from "./IERC1155Singleton.sol";
 
 interface IRegistry is IERC1155Singleton {
-    /**
-     * @dev SHOULD be emitted when a new label is registered
-     */
+    /// @notice SHOULD be emitted when a new label is registered
     event NewSubname(uint256 indexed labelHash, string label);
 
-    /**
-     * @dev Fetches the registry for a subdomain.
-     * @param label The label to resolve.
-     * @return The address of the registry for this subdomain, or `address(0)` if none exists.
-     */
-    function getSubregistry(string calldata label) external view returns (IRegistry);
+    /// @notice Fetches the registry for a subdomain.
+    ///
+    /// @param label The label to resolve.
+    ///
+    /// @return The address of the registry for this subdomain, or `address(0)` if none exists.
+    function getSubregistry(
+        string calldata label
+    ) external view returns (IRegistry);
 
-    /**
-     * @dev Fetches the resolver responsible for the specified label.
-     * @param label The label to fetch a resolver for.
-     * @return resolver The address of a resolver responsible for this name, or `address(0)` if none exists.
-     */
+    /// @notice Fetches the resolver responsible for the specified label.
+    ///
+    /// @param label The label to fetch a resolver for.
+    ///
+    /// @return resolver The address of a resolver responsible for this name, or `address(0)` if none exists.
     function getResolver(string calldata label) external view returns (address);
 }
