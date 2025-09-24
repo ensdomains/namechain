@@ -11,7 +11,7 @@ import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
 import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
-import {StandardRentPriceOracle, IRentPriceOracle, PaymentRatio} from "../src/L2/StandardRentPriceOracle.sol";
+import {StandardRentPriceOracle, IRentPriceOracle, PaymentRatio, DiscountPoint} from "../src/L2/StandardRentPriceOracle.sol";
 import {ETHRegistrar, IETHRegistrar, IRegistry, REGISTRATION_ROLE_BITMAP, ROLE_SET_ORACLE} from "../src/L2/ETHRegistrar.sol";
 import {EnhancedAccessControl, IEnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
@@ -52,6 +52,7 @@ contract TestETHRegistrar is Test {
             address(this),
             ethRegistry,
             StandardPricing.getBaseRates(),
+            new DiscountPoint[](0), // disabled discount
             StandardPricing.PREMIUM_PRICE_INITIAL,
             StandardPricing.PREMIUM_HALVING_PERIOD,
             StandardPricing.PREMIUM_PERIOD,
@@ -124,6 +125,7 @@ contract TestETHRegistrar is Test {
             address(this),
             ethRegistry,
             baseRates,
+            new DiscountPoint[](0), // disabled discount
             0, // \
             0, //  disabled premium
             0, // /
@@ -149,7 +151,8 @@ contract TestETHRegistrar is Test {
         StandardRentPriceOracle oracle = new StandardRentPriceOracle(
             address(this),
             ethRegistry,
-            new uint256[](0),
+            new uint256[](0), // disabled rentals
+            new DiscountPoint[](0), // disabled discount
             0,
             0,
             0,
@@ -547,8 +550,6 @@ contract TestETHRegistrar is Test {
             ),
             "IRentPriceOracle"
         );
-        console.logBytes4(type(IETHRegistrar).interfaceId);
-        console.logBytes4(type(IRentPriceOracle).interfaceId);
     }
 
     function test_beneficiary_set() external view {

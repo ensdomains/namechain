@@ -89,7 +89,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
      * @dev Default implementation of onRenew that does nothing.
      * Can be overridden in derived contracts for custom behavior.
      */
-    function onRenew(uint256 tokenId, uint64 expires, address /*renewedBy*/) external virtual {
+    function onRenew(uint256 tokenId, uint64 expires, address /*renewedBy*/) external virtual onlyRegistry {
         bridge.sendMessage(BridgeEncoder.encodeRenewal(tokenId, expires));
     }
 
