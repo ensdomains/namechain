@@ -78,6 +78,19 @@ abstract contract EnhancedAccessControl is
     }
 
     ////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////
+
+    /// @inheritdoc IERC165
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC165, IERC165) returns (bool) {
+        return
+            interfaceId == type(IEnhancedAccessControl).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+
+    ////////////////////////////////////////////////////////////////////////
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
@@ -228,19 +241,6 @@ abstract contract EnhancedAccessControl is
     ) public view virtual returns (uint256 counts, uint256 mask) {
         mask = _roleBitmapToMask(roleBitmap);
         counts = _roleCount[resource] & mask;
-    }
-
-    ////////////////////////////////////////////////////////////////////////
-    // Contract support functions
-    ////////////////////////////////////////////////////////////////////////
-
-    /// @inheritdoc IERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(ERC165, IERC165) returns (bool) {
-        return
-            interfaceId == type(IEnhancedAccessControl).interfaceId ||
-            super.supportsInterface(interfaceId);
     }
 
     ////////////////////////////////////////////////////////////////////////

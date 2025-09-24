@@ -24,7 +24,7 @@ contract BaseUriRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
     string internal _tokenBaseUri;
 
     ////////////////////////////////////////////////////////////////////////
-    // Constructor
+    // Initialization
     ////////////////////////////////////////////////////////////////////////
 
     constructor() {
@@ -34,6 +34,14 @@ contract BaseUriRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
             _msgSender(),
             true
         );
+    }
+
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override returns (bool) {
+        return
+            interfaceId == type(IRegistryMetadata).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -50,17 +58,5 @@ contract BaseUriRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
         uint256 /*tokenId*/
     ) external view returns (string memory) {
         return _tokenBaseUri;
-    }
-
-    ////////////////////////////////////////////////////////////////////////
-    // Contract support functions
-    ////////////////////////////////////////////////////////////////////////
-
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view override returns (bool) {
-        return
-            interfaceId == type(IRegistryMetadata).interfaceId ||
-            super.supportsInterface(interfaceId);
     }
 }

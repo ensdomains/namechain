@@ -52,6 +52,21 @@ abstract contract ERC1155Singleton is
     );
 
     ////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////
+
+    /// @inheritdoc IERC165
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC165, IERC165) returns (bool) {
+        return
+            interfaceId == type(IERC1155).interfaceId ||
+            interfaceId == type(IERC1155Singleton).interfaceId ||
+            interfaceId == type(IERC1155MetadataURI).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+
+    ////////////////////////////////////////////////////////////////////////
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
@@ -133,21 +148,6 @@ abstract contract ERC1155Singleton is
         address operator
     ) public view virtual returns (bool) {
         return _operatorApprovals[account][operator];
-    }
-
-    ////////////////////////////////////////////////////////////////////////
-    // Contract support functions
-    ////////////////////////////////////////////////////////////////////////
-
-    /// @inheritdoc IERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(ERC165, IERC165) returns (bool) {
-        return
-            interfaceId == type(IERC1155).interfaceId ||
-            interfaceId == type(IERC1155Singleton).interfaceId ||
-            interfaceId == type(IERC1155MetadataURI).interfaceId ||
-            super.supportsInterface(interfaceId);
     }
 
     ////////////////////////////////////////////////////////////////////////

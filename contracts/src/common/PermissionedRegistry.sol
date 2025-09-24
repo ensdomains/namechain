@@ -59,7 +59,7 @@ contract PermissionedRegistry is
     }
 
     ////////////////////////////////////////////////////////////////////////
-    // Constructor
+    // Initialization
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
@@ -73,6 +73,20 @@ contract PermissionedRegistry is
         if (address(metadata_) == address(0)) {
             _updateMetadataProvider(new SimpleRegistryMetadata());
         }
+    }
+
+    function supportsInterface(
+        bytes4 interfaceId
+    )
+        public
+        view
+        virtual
+        override(BaseRegistry, EnhancedAccessControl, IERC165)
+        returns (bool)
+    {
+        return
+            interfaceId == type(IPermissionedRegistry).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -337,20 +351,6 @@ contract PermissionedRegistry is
             _isExpired(getExpiry(tokenId))
                 ? address(0)
                 : super.ownerOf(tokenId);
-    }
-
-    function supportsInterface(
-        bytes4 interfaceId
-    )
-        public
-        view
-        virtual
-        override(BaseRegistry, EnhancedAccessControl, IERC165)
-        returns (bool)
-    {
-        return
-            interfaceId == type(IPermissionedRegistry).interfaceId ||
-            super.supportsInterface(interfaceId);
     }
 
     // Override EnhancedAccessControl methods to use tokenId instead of resource

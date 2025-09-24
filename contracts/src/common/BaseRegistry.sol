@@ -39,11 +39,22 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     }
 
     ////////////////////////////////////////////////////////////////////////
-    // Constructor
+    // Initialization
     ////////////////////////////////////////////////////////////////////////
 
     constructor(IRegistryDatastore datastore_) {
         datastore = datastore_;
+    }
+
+    /// @inheritdoc IERC165
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC1155Singleton, IERC165) returns (bool) {
+        return
+            interfaceId == type(IERC1155).interfaceId ||
+            interfaceId == type(IERC1155MetadataURI).interfaceId ||
+            interfaceId == type(IRegistry).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -75,20 +86,5 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
         (resolver, ) = datastore.getResolver(
             NameUtils.labelToCanonicalId(label)
         );
-    }
-
-    ////////////////////////////////////////////////////////////////////////
-    // Contract support functions
-    ////////////////////////////////////////////////////////////////////////
-
-    /// @inheritdoc IERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(ERC1155Singleton, IERC165) returns (bool) {
-        return
-            interfaceId == type(IERC1155).interfaceId ||
-            interfaceId == type(IERC1155MetadataURI).interfaceId ||
-            interfaceId == type(IRegistry).interfaceId ||
-            super.supportsInterface(interfaceId);
     }
 }

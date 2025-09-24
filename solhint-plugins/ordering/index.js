@@ -73,6 +73,22 @@ function isInitializeFunction(node) {
   );
 }
 
+function isContractSupportFunction(node) {
+  if (node.name !== "supportsInterface" && node.name !== "supportsFeature")
+    return false;
+  if (node.visibility !== "public" && node.visibility !== "external")
+    return false;
+  if (node.stateMutability !== "view" && node.stateMutability !== "pure")
+    return false;
+  if (node.parameters.length !== 1) return false;
+  if (node.parameters[0].type !== "VariableDeclaration") return false;
+  if (node.parameters[0].typeName.name !== "bytes4") return false;
+  if (node.returnParameters.length !== 1) return false;
+  if (node.returnParameters[0].type !== "VariableDeclaration") return false;
+  if (node.returnParameters[0].typeName.name !== "bool") return false;
+  return true;
+}
+
 function sourceUnitPartOrder(node) {
   if (node.type === "PragmaDirective") {
     return [0, "pragma directive"];
@@ -181,11 +197,11 @@ function contractPartOrder(node) {
   if (node.type === "FunctionDefinition") {
     const { stateMutability, visibility } = node;
 
-    if (
-      visibility === "external" ||
-      // special case for initialize function
-      isInitializeFunction(node)
-    ) {
+    if (isInitializeFunction(node) || isContractSupportFunction(node)) {
+      return [50, "initialization function"];
+    }
+
+    if (visibility === "external") {
       const weight = getMutabilityWeight({ baseWeight: 80, stateMutability });
       const label = [visibility, stateMutability, "function"].join(" ");
 

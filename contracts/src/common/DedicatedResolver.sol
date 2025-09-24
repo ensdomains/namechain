@@ -102,7 +102,7 @@ contract DedicatedResolver is
     error InvalidContentType(uint256 contentType);
 
     ////////////////////////////////////////////////////////////////////////
-    // Initializer
+    // Initialization
     ////////////////////////////////////////////////////////////////////////
 
     /// @dev Initialize the contract.
@@ -110,6 +110,34 @@ contract DedicatedResolver is
     /// @param owner The owner of the resolver.
     function initialize(address owner) public initializer {
         __Ownable_init(owner);
+    }
+
+    /// @inheritdoc ERC165
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(ERC165) returns (bool) {
+        return
+            type(IExtendedResolver).interfaceId == interfaceId ||
+            type(IDedicatedResolverSetters).interfaceId == interfaceId ||
+            type(IMulticallable).interfaceId == interfaceId ||
+            type(IAddrResolver).interfaceId == interfaceId ||
+            type(IAddressResolver).interfaceId == interfaceId ||
+            type(IHasAddressResolver).interfaceId == interfaceId ||
+            type(ITextResolver).interfaceId == interfaceId ||
+            type(IContentHashResolver).interfaceId == interfaceId ||
+            type(IPubkeyResolver).interfaceId == interfaceId ||
+            type(INameResolver).interfaceId == interfaceId ||
+            type(IABIResolver).interfaceId == interfaceId ||
+            type(IInterfaceResolver).interfaceId == interfaceId ||
+            type(IERC7996).interfaceId == interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+
+    /// @inheritdoc IERC7996
+    function supportsFeature(bytes4 feature) public pure returns (bool) {
+        return
+            ResolverFeatures.RESOLVE_MULTICALL == feature ||
+            ResolverFeatures.SINGULAR == feature;
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -341,38 +369,6 @@ contract DedicatedResolver is
     /// @return The address for coin type 60.
     function addr(bytes32) public view returns (address payable) {
         return payable(address(bytes20(addr(NODE_ANY, COIN_TYPE_ETH))));
-    }
-
-    ////////////////////////////////////////////////////////////////////////
-    // Contract support functions
-    ////////////////////////////////////////////////////////////////////////
-
-    /// @inheritdoc ERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view override(ERC165) returns (bool) {
-        return
-            type(IExtendedResolver).interfaceId == interfaceId ||
-            type(IDedicatedResolverSetters).interfaceId == interfaceId ||
-            type(IMulticallable).interfaceId == interfaceId ||
-            type(IAddrResolver).interfaceId == interfaceId ||
-            type(IAddressResolver).interfaceId == interfaceId ||
-            type(IHasAddressResolver).interfaceId == interfaceId ||
-            type(ITextResolver).interfaceId == interfaceId ||
-            type(IContentHashResolver).interfaceId == interfaceId ||
-            type(IPubkeyResolver).interfaceId == interfaceId ||
-            type(INameResolver).interfaceId == interfaceId ||
-            type(IABIResolver).interfaceId == interfaceId ||
-            type(IInterfaceResolver).interfaceId == interfaceId ||
-            type(IERC7996).interfaceId == interfaceId ||
-            super.supportsInterface(interfaceId);
-    }
-
-    /// @inheritdoc IERC7996
-    function supportsFeature(bytes4 feature) public pure returns (bool) {
-        return
-            ResolverFeatures.RESOLVE_MULTICALL == feature ||
-            ResolverFeatures.SINGULAR == feature;
     }
 
     ////////////////////////////////////////////////////////////////////////

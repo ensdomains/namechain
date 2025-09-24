@@ -60,7 +60,7 @@ abstract contract EjectionController is
     }
 
     ////////////////////////////////////////////////////////////////////////
-    // Constructor
+    // Initialization
     ////////////////////////////////////////////////////////////////////////
 
     constructor(IPermissionedRegistry registry_, IBridge bridge_) {
@@ -74,6 +74,22 @@ abstract contract EjectionController is
             msg.sender,
             true
         );
+    }
+
+    /// @inheritdoc IERC165
+    function supportsInterface(
+        bytes4 interfaceId
+    )
+        public
+        view
+        virtual
+        override(ERC165, EnhancedAccessControl, IERC165)
+        returns (bool)
+    {
+        return
+            interfaceId == type(EjectionController).interfaceId ||
+            interfaceId == type(IERC1155Receiver).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -108,26 +124,6 @@ abstract contract EjectionController is
         _onEject(tokenIds, transferDataArray);
 
         return this.onERC1155BatchReceived.selector;
-    }
-
-    ////////////////////////////////////////////////////////////////////////
-    // Contract support functions
-    ////////////////////////////////////////////////////////////////////////
-
-    /// @inheritdoc IERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    )
-        public
-        view
-        virtual
-        override(ERC165, EnhancedAccessControl, IERC165)
-        returns (bool)
-    {
-        return
-            interfaceId == type(EjectionController).interfaceId ||
-            interfaceId == type(IERC1155Receiver).interfaceId ||
-            super.supportsInterface(interfaceId);
     }
 
     ////////////////////////////////////////////////////////////////////////

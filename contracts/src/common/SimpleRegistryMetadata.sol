@@ -26,7 +26,7 @@ contract SimpleRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
     mapping(uint256 tokenId => string uri) private _tokenUris;
 
     ////////////////////////////////////////////////////////////////////////
-    // Constructor
+    // Initialization
     ////////////////////////////////////////////////////////////////////////
 
     constructor() {
@@ -36,6 +36,15 @@ contract SimpleRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
             _msgSender(),
             true
         );
+    }
+
+    /// @inheritdoc IERC165
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override returns (bool) {
+        return
+            interfaceId == type(IRegistryMetadata).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -53,18 +62,5 @@ contract SimpleRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
         uint256 tokenId
     ) external view override returns (string memory) {
         return _tokenUris[tokenId];
-    }
-
-    ////////////////////////////////////////////////////////////////////////
-    // Contract support functions
-    ////////////////////////////////////////////////////////////////////////
-
-    /// @inheritdoc IERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view override returns (bool) {
-        return
-            interfaceId == type(IRegistryMetadata).interfaceId ||
-            super.supportsInterface(interfaceId);
     }
 }
