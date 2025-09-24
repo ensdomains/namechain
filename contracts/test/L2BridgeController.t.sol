@@ -410,7 +410,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint64 newExpiry = uint64(block.timestamp + expiryDuration * 2);
         
         // Try to call onRenew directly from an unauthorized address (not the registry)
-        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
         controller.onRenew(tokenId, newExpiry, address(this));
     }
 
@@ -426,7 +426,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         address randomUser = address(0x9999);
         
         // Try to call onRenew from a random user (not the registry)
-        vm.expectRevert(abi.encodeWithSelector(EjectionController.UnauthorizedCaller.selector, randomUser));
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, randomUser));
         vm.prank(randomUser);
         controller.onRenew(tokenId, newExpiry, randomUser);
     }
