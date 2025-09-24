@@ -34,8 +34,13 @@
     "duplicated-imports": "error",
     "const-name-snakecase": "error",
     "contract-name-capwords": "error",
-    "foundry-test-functions": ["warn", ["setUp"]],
     "func-name-mixedcase": "error",
+    "func-visibility": [
+      "warn",
+      {
+        "ignoreConstructors": true
+      }
+    ],
     "immutable-vars-naming": [
       "error",
       {
