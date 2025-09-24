@@ -28,6 +28,19 @@ export default execute(
       PRICE_SCALE * 5n,
     ].map((x) => (x + SEC_PER_YEAR - 1n) / SEC_PER_YEAR);
 
+    const DISCOUNT_SCALE = (1n << 128n) - 1n; // type(uint128).max
+    function discountRatio(numer: bigint, denom: bigint) {
+      return (DISCOUNT_SCALE * numer + denom - 1n) / denom;
+    }
+    const discountPoints: [bigint, bigint][] = [
+      [SEC_PER_YEAR, 0n],
+      [SEC_PER_YEAR, discountRatio(1n, 10n)], // 10%
+      [SEC_PER_YEAR, discountRatio(2n, 10n)],
+      [SEC_PER_YEAR * 2n, discountRatio(2875n, 10000n)],
+      [SEC_PER_YEAR * 5n, discountRatio(325n, 1000n)],
+      [SEC_PER_YEAR * 15n, discountRatio(1n, 3n)],
+    ];
+
     const paymentFactors = await Promise.all(
       paymentTokens.map(async (x) => {
         const [symbol, decimals] = await Promise.all([
@@ -55,6 +68,17 @@ export default execute(
       }),
     );
 
+    console.table(
+      discountPoints.map((_, i, v) => {
+        const sum = v.slice(0, i + 1).reduce((a, x) => a + x[0], 0n);
+        const acc = v.slice(0, i + 1).reduce((a, x) => a + x[0] * x[1], 0n);
+        return {
+          years: (Number(sum) / Number(SEC_PER_YEAR)).toFixed(2),
+          discount: `${((100 * Number(acc / sum)) / Number(DISCOUNT_SCALE)).toFixed(2)}%`,
+        };
+      }),
+    );
+
     await deploy("StandardRentPriceOracle", {
       account: deployer,
       artifact: artifacts.StandardRentPriceOracle,
@@ -62,6 +86,7 @@ export default execute(
         owner,
         ethRegistry.address,
         baseRatePerCp,
+        discountPoints.map(([t, value]) => ({ t, value })),
         PREMIUM_PRICE_INITIAL,
         PREMIUM_HALVING_PERIOD,
         PREMIUM_PERIOD,

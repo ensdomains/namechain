@@ -29,7 +29,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     mapping(bytes32 => uint64) _commitTime;
 
-    event RentPriceOracleChanged();
+    event RentPriceOracleChanged(IRentPriceOracle oracle);
 
     constructor(
         IPermissionedRegistry _registry,
@@ -54,6 +54,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         maxCommitmentAge = _maxCommitmentAge;
         minRegisterDuration = _minRegisterDuration;
         rentPriceOracle = _rentPriceOracle;
+        emit RentPriceOracleChanged(_rentPriceOracle);
     }
 
     /// @inheritdoc EnhancedAccessControl
@@ -71,7 +72,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IRentPriceOracle oracle
     ) external onlyRootRoles(ROLE_SET_ORACLE) {
         rentPriceOracle = oracle;
-        emit RentPriceOracleChanged();
+        emit RentPriceOracleChanged(oracle);
     }
 
     /// @inheritdoc IRentPriceOracle
@@ -109,7 +110,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     /// @inheritdoc IETHRegistrar
     function makeCommitment(
-        string memory name,
+        string memory label,
         address owner,
         bytes32 secret,
         IRegistry subregistry,
@@ -120,7 +121,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         return
             keccak256(
                 abi.encode(
-                    name,
+                    label,
                     owner,
                     secret,
                     subregistry,
