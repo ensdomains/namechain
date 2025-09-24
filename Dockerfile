@@ -27,6 +27,8 @@ COPY package.json bun.lock ./
 # Copy the package.json for each workspace.
 COPY contracts/package.json ./contracts/
 
+COPY solhint-plugins/ordering/package.json ./solhint-plugins/ordering/
+
 # Copy patches for post script execution
 #COPY /patches ./patches
 
