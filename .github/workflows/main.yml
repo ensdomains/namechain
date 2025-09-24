@@ -58,3 +58,31 @@ jobs:
         with:
           file: contracts/lcov.info
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache git folder
+        uses: actions/cache@v4
+        with:
+          path: .git
+          key: git-folder
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: ".bun-version"
+
+      - run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun --filter contracts run lint

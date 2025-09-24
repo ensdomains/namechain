@@ -2,6 +2,7 @@
   "name": "contracts",
   "type": "module",
   "scripts": {
+    "lint": "solhint --noPoster 'src/**/*.sol'",
     "deploy": "hardhat deploy",
     "compile:hardhat": "hardhat compile",
     "test:hardhat": "hardhat compile && vitest run",
@@ -36,6 +37,9 @@
     "prettier-plugin-solidity": "^2.0.0",
     "prool": "^0.0.24",
     "rocketh": "^0.11.18",
+    "solhint": "^6.0.1",
+    "solhint-plugin-prettier": "^0.1.0",
+    "solhint-plugin-import-order-separation": "0.0.1",
     "ts-node": "^10.9.2",
     "viem": "^2.31.6",
     "vite-tsconfig-paths": "^5.1.4",
