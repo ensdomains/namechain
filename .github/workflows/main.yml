@@ -87,4 +87,4 @@ jobs:
       - run: bun install --frozen-lockfile
 
       - name: Lint
-        run: bun --filter contracts run lint
+        run: bun --filter contracts lint
