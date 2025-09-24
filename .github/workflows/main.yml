@@ -53,6 +53,8 @@ jobs:
           name: coverage-report
           path: contracts/coverage/
 
+      # 20250914: coveralls.io http 504
+      # 20240918: restored
       - name: Upload coverage report to Coveralls
         uses: coverallsapp/github-action@v2
         with:

@@ -6,7 +6,7 @@ import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/
 import { shouldSupportFeatures } from "../utils/supportsFeatures.js";
 import { deployV1Fixture } from "../fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
-import { expectVar } from "../utils/expectVar.ts";
+import { expectVar } from "../utils/expectVar.js";
 import {
   type KnownProfile,
   bundleCalls,
@@ -109,7 +109,7 @@ describe("DNSTLDResolver", () => {
   shouldSupportInterfaces({
     contract: () =>
       network.networkHelpers.loadFixture(fixture).then((F) => F.dnsTLDResolver),
-    interfaces: ["IERC165", "IExtendedResolver", "IFeatureSupporter"],
+    interfaces: ["IERC165", "IExtendedResolver", "IERC7996"],
   });
 
   shouldSupportFeatures({
@@ -457,7 +457,7 @@ describe("DNSTLDResolver", () => {
         network.networkHelpers
           .loadFixture(fixture)
           .then((F) => F.dnsAliasResolver),
-      interfaces: ["IERC165", "IExtendedDNSResolver", "IFeatureSupporter"],
+      interfaces: ["IERC165", "IERC7996", "IExtendedDNSResolver"],
     });
 
     shouldSupportFeatures({

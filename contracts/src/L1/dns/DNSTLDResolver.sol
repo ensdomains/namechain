@@ -14,7 +14,7 @@ import {RegistryUtils, IRegistry} from "../../universalResolver/RegistryUtils.so
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
-import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
+import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 
 // resolver profiles
@@ -39,12 +39,7 @@ bytes constant TXT_PREFIX = "ENS1 ";
 /// 3. Verify TXT records, find ENS1 record, parse resolver and context.
 /// 4. Call the resolver and return the requested records.
 ///
-contract DNSTLDResolver is
-    IFeatureSupporter,
-    IExtendedResolver,
-    CCIPBatcher,
-    ERC165
-{
+contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
     ENS public immutable ensRegistryV1;
     address public immutable dnsTLDResolverV1;
     IRegistry public immutable rootRegistry;
@@ -87,11 +82,11 @@ contract DNSTLDResolver is
     ) public view virtual override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
-            type(IFeatureSupporter).interfaceId == interfaceId ||
+            type(IERC7996).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
-    /// @inheritdoc IFeatureSupporter
+    /// @inheritdoc IERC7996
     function supportsFeature(bytes4 feature) public pure returns (bool) {
         return ResolverFeatures.RESOLVE_MULTICALL == feature;
     }
@@ -191,10 +186,10 @@ contract DNSTLDResolver is
         bool multi = bytes4(call) == IMulticallable.multicall.selector;
         bool direct = ERC165Checker.supportsERC165InterfaceUnchecked(
             resolver,
-            type(IFeatureSupporter).interfaceId
+            type(IERC7996).interfaceId
         ) &&
             (!multi ||
-                IFeatureSupporter(resolver).supportsFeature(
+                IERC7996(resolver).supportsFeature(
                     ResolverFeatures.RESOLVE_MULTICALL
                 ));
         bytes[] memory calls;

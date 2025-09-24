@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {DedicatedResolver} from "../../src/common/DedicatedResolver.sol";
 import {IDedicatedResolverSetters, NODE_ANY} from "../../src/common/IDedicatedResolverSetters.sol";
-import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
+import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
@@ -51,7 +51,7 @@ contract DedicatedResolverTest is Test {
         v[i++] = I(type(INameResolver).interfaceId, "INameResolver");
         v[i++] = I(type(IABIResolver).interfaceId, "IABIResolver");
         v[i++] = I(type(IInterfaceResolver).interfaceId, "IInterfaceResolver");
-        v[i++] = I(type(IFeatureSupporter).interfaceId, "IFeatureSupporter");
+        v[i++] = I(type(IERC7996).interfaceId, "IERC7996");
         assertEq(v.length, i);
     }
 

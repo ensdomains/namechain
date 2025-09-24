@@ -18,7 +18,7 @@ export function shouldSupportFeatures({
   }>;
   features: FeatureKeys<typeof FEATURES>;
 }) {
-  describe("IFeatureSupporter", () => {
+  describe("IERC7996", () => {
     it("supports IERC165", async () => {
       const C = await contract();
       await expect(

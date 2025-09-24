@@ -1,9 +1,5 @@
-/// we import what we need from the @rocketh alias, see ../rocketh.ts
 import { artifacts, execute } from "@rocketh";
-import { ROLES } from "../constants.js";
-
-const MIN_COMMITMENT_AGE = 60n; // 1 minute
-const MAX_COMMITMENT_AGE = 86400n; // 1 day
+import { ROLES } from "../constants.ts";
 
 export default execute(
   async ({
@@ -15,23 +11,24 @@ export default execute(
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
-    const priceOracle =
-      get<
-        (typeof artifacts)["src/L2/StablePriceOracle.sol/StablePriceOracle"]["abi"]
-      >("PriceOracle");
+    const rentPriceOracle = get<(typeof artifacts.IRentPriceOracle)["abi"]>(
+      "StandardRentPriceOracle",
+    );
 
     // Use owner as beneficiary, or deployer if owner is not set
     const beneficiary = owner || deployer;
 
+    const SEC_PER_DAY = 86400n;
     const ethRegistrar = await deploy("ETHRegistrar", {
       account: deployer,
       artifact: artifacts.ETHRegistrar,
       args: [
         ethRegistry.address,
-        priceOracle.address,
-        MIN_COMMITMENT_AGE,
-        MAX_COMMITMENT_AGE,
         beneficiary,
+        60n, // minCommitmentAge
+        SEC_PER_DAY, // maxCommitmentAge
+        28n * SEC_PER_DAY, // minRegistrationDuration
+        rentPriceOracle.address,
       ],
     });
 
@@ -45,7 +42,7 @@ export default execute(
     });
   },
   {
-    tags: ["ETHRegistrar", "registry", "l2"],
-    dependencies: ["ETHRegistry", "PriceOracle"],
+    tags: ["ETHRegistrar", "l2"],
+    dependencies: ["ETHRegistry", "StandardRentPriceOracle"],
   },
 );

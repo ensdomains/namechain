@@ -9,11 +9,12 @@ declare module "hardhat/types/config" {
 
 const plugin: HardhatPlugin = {
   id: "hardhat-ignore-warnings",
-  tasks: [
-    overrideTask("compile")
-      .setAction(import.meta.resolve("./task.ts"))
+  // 20250828: hardhat treats these separately even though they alias
+  tasks: ["build", "compile"].map((action) =>
+    overrideTask(action)
+      .setAction(() => import("./task.ts"))
       .build(),
-  ],
+  ),
 };
 
 export default plugin;

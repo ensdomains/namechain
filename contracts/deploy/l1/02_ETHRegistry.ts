@@ -1,6 +1,7 @@
 import { artifacts, execute } from "@rocketh";
-import { MAX_EXPIRY, ROLES } from "../constants.ts";
+import { MAX_EXPIRY, ROLES } from "../constants.js";
 
+ // TODO: ownership
 export default execute(
   async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
     const rootRegistry =
@@ -16,7 +17,7 @@ export default execute(
     const ethTLDResolver =
       get<(typeof artifacts.ETHTLDResolver)["abi"]>("ETHTLDResolver");
 
-    const ethRegistry = await deploy("L1ETHRegistry", {
+    const ethRegistry = await deploy("ETHRegistry", {
       account: deployer,
       artifact: artifacts.PermissionedRegistry,
       args: [
@@ -28,20 +29,20 @@ export default execute(
     });
 
     await write(rootRegistry, {
+      account: deployer,
       functionName: "register",
       args: [
         "eth",
-        deployer,
+        deployer, 
         ethRegistry.address,
         ethTLDResolver.address,
-        0n, // TODO: figure out required roles?
+        0n,
         MAX_EXPIRY,
       ],
-      account: deployer,
     });
   },
   {
-    tags: ["L1ETHRegistry", "l1"],
+    tags: ["ETHRegistry", "l1"],
     dependencies: [
       "RootRegistry",
       "RegistryDatastore",
