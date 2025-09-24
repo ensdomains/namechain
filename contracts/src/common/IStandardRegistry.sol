@@ -29,7 +29,7 @@ interface IStandardRegistry is IRegistry {
     error CannotSetPastExpiration(uint64 expiry);
 
     /**
-     * @dev Error emitted when a transfer is not allowed due to missing ROLE_CAN_TRANSFER.
+     * @dev Error emitted when a transfer is not allowed due to missing transfer admin role.
      */
     error TransferDisallowed(uint256 tokenId, address from);
 

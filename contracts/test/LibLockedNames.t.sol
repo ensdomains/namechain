@@ -244,7 +244,7 @@ contract TestLibLockedNames is Test {
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Token should have ROLE_SET_RESOLVER_ADMIN");
         // Should include transfer role since CANNOT_TRANSFER is not set
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_CAN_TRANSFER) != 0, "Token should have ROLE_CAN_TRANSFER");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN) != 0, "Token should have ROLE_CAN_TRANSFER");
         // Token should NEVER have registrar roles
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NEVER have ROLE_REGISTRAR");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Token should NEVER have ROLE_REGISTRAR_ADMIN");
@@ -276,7 +276,7 @@ contract TestLibLockedNames is Test {
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Token should have ROLE_SET_RESOLVER_ADMIN");
         // Should have transfer role since CANNOT_TRANSFER is not set
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_CAN_TRANSFER) != 0, "Token should have ROLE_CAN_TRANSFER");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN) != 0, "Token should have ROLE_CAN_TRANSFER");
         // Token should NEVER have registrar roles
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NEVER have ROLE_REGISTRAR");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Token should NEVER have ROLE_REGISTRAR_ADMIN");
@@ -643,7 +643,7 @@ contract TestLibLockedNames is Test {
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Token should have ROLE_SET_RESOLVER_ADMIN");
         // Should NOT have transfer role since CANNOT_TRANSFER is set
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_CAN_TRANSFER) == 0, "Token should NOT have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is set");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN) == 0, "Token should NOT have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is set");
         
         // SubRegistry should have registrar roles
         assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
@@ -668,7 +668,7 @@ contract TestLibLockedNames is Test {
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) != 0, "Token should have ROLE_SET_RESOLVER_ADMIN");
         // Should have transfer role since CANNOT_TRANSFER is not set
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_CAN_TRANSFER) != 0, "Token should have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is not set");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN) != 0, "Token should have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is not set");
         
         // SubRegistry should have registrar roles
         assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
@@ -694,7 +694,7 @@ contract TestLibLockedNames is Test {
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) != 0, "Token should have ROLE_SET_RESOLVER");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) == 0, "Token should NOT have ROLE_SET_RESOLVER_ADMIN when CANNOT_BURN_FUSES is set");
         // Should NOT have transfer role since CANNOT_TRANSFER is set
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_CAN_TRANSFER) == 0, "Token should NOT have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is set");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN) == 0, "Token should NOT have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is set");
         
         // SubRegistry should have registrar role but NOT admin role due to CANNOT_BURN_FUSES
         assertTrue((subRegistryRoles & LibRegistryRoles.ROLE_REGISTRAR) != 0, "SubRegistry should have ROLE_REGISTRAR");
@@ -719,7 +719,7 @@ contract TestLibLockedNames is Test {
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_RENEW_ADMIN) == 0, "Token should NOT have ROLE_RENEW_ADMIN");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER) == 0, "Token should NOT have ROLE_SET_RESOLVER");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN) == 0, "Token should NOT have ROLE_SET_RESOLVER_ADMIN");
-        assertTrue((tokenRoles & LibRegistryRoles.ROLE_CAN_TRANSFER) == 0, "Token should NOT have ROLE_CAN_TRANSFER");
+        assertTrue((tokenRoles & LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN) == 0, "Token should NOT have ROLE_CAN_TRANSFER");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR) == 0, "Token should NOT have ROLE_REGISTRAR");
         assertTrue((tokenRoles & LibRegistryRoles.ROLE_REGISTRAR_ADMIN) == 0, "Token should NOT have ROLE_REGISTRAR_ADMIN");
         
@@ -743,22 +743,22 @@ contract TestLibLockedNames is Test {
         // Test 1: With CANNOT_TRANSFER - should NOT have transfer role
         uint32 fusesWithCannotTransfer = CANNOT_UNWRAP | IS_DOT_ETH | CANNOT_TRANSFER;
         (uint256 tokenRoles1, ) = LibLockedNames.generateRoleBitmapsFromFuses(fusesWithCannotTransfer);
-        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_CAN_TRANSFER) == 0, "Should NOT have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is set");
+        assertTrue((tokenRoles1 & LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN) == 0, "Should NOT have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is set");
         
         // Test 2: Without CANNOT_TRANSFER - should have transfer role
         uint32 fusesWithoutCannotTransfer = CANNOT_UNWRAP | IS_DOT_ETH;
         (uint256 tokenRoles2, ) = LibLockedNames.generateRoleBitmapsFromFuses(fusesWithoutCannotTransfer);
-        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_CAN_TRANSFER) != 0, "Should have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is not set");
+        assertTrue((tokenRoles2 & LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN) != 0, "Should have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is not set");
         
         // Test 3: With other restrictive fuses but not CANNOT_TRANSFER - should have transfer role
         uint32 fusesWithOtherRestrictions = CANNOT_UNWRAP | IS_DOT_ETH | CANNOT_SET_RESOLVER | CANNOT_CREATE_SUBDOMAIN;
         (uint256 tokenRoles3, ) = LibLockedNames.generateRoleBitmapsFromFuses(fusesWithOtherRestrictions);
-        assertTrue((tokenRoles3 & LibRegistryRoles.ROLE_CAN_TRANSFER) != 0, "Should have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is not set even with other restrictions");
+        assertTrue((tokenRoles3 & LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN) != 0, "Should have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is not set even with other restrictions");
         
         // Test 4: With CANNOT_TRANSFER and other restrictive fuses - should NOT have transfer role
         uint32 fusesWithCannotTransferAndOthers = CANNOT_UNWRAP | IS_DOT_ETH | CANNOT_TRANSFER | CANNOT_SET_RESOLVER;
         (uint256 tokenRoles4, ) = LibLockedNames.generateRoleBitmapsFromFuses(fusesWithCannotTransferAndOthers);
-        assertTrue((tokenRoles4 & LibRegistryRoles.ROLE_CAN_TRANSFER) == 0, "Should NOT have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is set regardless of other restrictions");
+        assertTrue((tokenRoles4 & LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN) == 0, "Should NOT have ROLE_CAN_TRANSFER when CANNOT_TRANSFER is set regardless of other restrictions");
     }
     
     

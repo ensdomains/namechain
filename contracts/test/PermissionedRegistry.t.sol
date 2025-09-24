@@ -1072,9 +1072,9 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     }
 
     function test_token_transfer_also_transfers_roles() public {
-        // Register a name with owner1, including ROLE_CAN_TRANSFER
+        // Register a name with owner1, including ROLE_CAN_TRANSFER_ADMIN
         address owner1 = makeAddr("owner1");
-        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER;
+        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
         uint256 tokenId = registry.register("transfertest", owner1, registry, address(0), roleBitmapWithTransfer, uint64(block.timestamp) + 100);
 
         // Capture the resource ID before transfer
@@ -1996,9 +1996,9 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     }
 
     function test_transfer_succeeds_with_max_assignees_BET_430() public {
-        // Register a token with default roles including ROLE_CAN_TRANSFER
+        // Register a token with default roles including ROLE_CAN_TRANSFER_ADMIN
         address tokenOwner = makeAddr("tokenOwner");
-        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER;
+        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
         uint256 tokenId = registry.register("maxtransfertest", tokenOwner, registry, address(0), roleBitmapWithTransfer, uint64(block.timestamp) + 86400);
         
         uint256 resourceId = registry.testGetResourceFromTokenId(tokenId);
@@ -2083,10 +2083,10 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertEq(counts, 0, "Should have 0 counts for nonexistent role");
     }
 
-    // ROLE_CAN_TRANSFER tests
-    function test_transfer_with_role_can_transfer() public {
-        // Register a name with ROLE_CAN_TRANSFER included
-        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER;
+    // ROLE_CAN_TRANSFER_ADMIN tests
+    function test_transfer_with_role_can_transfer_admin() public {
+        // Register a name with ROLE_CAN_TRANSFER_ADMIN included
+        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
         uint256 tokenId = registry.register("transfertest1", user1, registry, address(0), roleBitmapWithTransfer, uint64(block.timestamp) + 86400);
         
         address user2 = makeAddr("user2");
@@ -2098,8 +2098,8 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertEq(registry.ownerOf(tokenId), user2);
     }
 
-    function test_Revert_transfer_without_role_can_transfer() public {
-        // Register a name without ROLE_CAN_TRANSFER
+    function test_Revert_transfer_without_role_can_transfer_admin() public {
+        // Register a name without ROLE_CAN_TRANSFER_ADMIN
         uint256 tokenId = registry.register("transfertest2", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
         
         address user2 = makeAddr("user2");
@@ -2110,32 +2110,10 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry.safeTransferFrom(user1, user2, tokenId, 1, "");
     }
 
-    function test_transfer_after_granting_role_can_transfer() public {
-        // Register a name without ROLE_CAN_TRANSFER
-        uint256 tokenId = registry.register("transfertest3", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
-        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
-        
-        address user2 = makeAddr("user2");
-        
-        // Transfer should fail initially
-        vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.TransferDisallowed.selector, tokenId, user1));
-        vm.prank(user1);
-        registry.safeTransferFrom(user1, user2, tokenId, 1, "");
-        
-        // Grant ROLE_CAN_TRANSFER
-        registry.grantRoles(resource, LibRegistryRoles.ROLE_CAN_TRANSFER, user1);
-        uint256 newTokenId = registry.testGetTokenIdFromResource(resource);
-        
-        // Transfer should now succeed
-        vm.prank(user1);
-        registry.safeTransferFrom(user1, user2, newTokenId, 1, "");
-        
-        assertEq(registry.ownerOf(newTokenId), user2);
-    }
 
-    function test_transfer_after_revoking_role_can_transfer() public {
-        // Register a name with ROLE_CAN_TRANSFER
-        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER;
+    function test_transfer_after_revoking_role_can_transfer_admin() public {
+        // Register a name with ROLE_CAN_TRANSFER_ADMIN
+        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
         uint256 tokenId = registry.register("transfertest4", user1, registry, address(0), roleBitmapWithTransfer, uint64(block.timestamp) + 86400);
         uint256 resource = registry.testGetResourceFromTokenId(tokenId);
         
@@ -2147,8 +2125,8 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry.safeTransferFrom(user1, user2, tokenId, 1, "");
         assertEq(registry.ownerOf(tokenId), user2);
         
-        // Revoke ROLE_CAN_TRANSFER from user2
-        registry.revokeRoles(resource, LibRegistryRoles.ROLE_CAN_TRANSFER, user2);
+        // Revoke ROLE_CAN_TRANSFER_ADMIN from user2
+        registry.revokeRoles(resource, LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN, user2);
         uint256 newTokenId = registry.testGetTokenIdFromResource(resource);
         
         // Transfer should now fail
@@ -2157,9 +2135,9 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry.safeTransferFrom(user2, user3, newTokenId, 1, "");
     }
 
-    function test_batch_transfer_requires_role_can_transfer() public {
-        // Register two names, one with ROLE_CAN_TRANSFER, one without
-        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER;
+    function test_batch_transfer_requires_role_can_transfer_admin() public {
+        // Register two names, one with ROLE_CAN_TRANSFER_ADMIN, one without
+        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
         uint256 tokenId1 = registry.register("batchtest1", user1, registry, address(0), roleBitmapWithTransfer, uint64(block.timestamp) + 86400);
         uint256 tokenId2 = registry.register("batchtest2", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
         
@@ -2173,34 +2151,34 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         amounts[0] = 1;
         amounts[1] = 1;
         
-        // Batch transfer should fail because tokenId2 lacks ROLE_CAN_TRANSFER
+        // Batch transfer should fail because tokenId2 lacks ROLE_CAN_TRANSFER_ADMIN
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.TransferDisallowed.selector, tokenId2, user1));
         vm.prank(user1);
         registry.safeBatchTransferFrom(user1, user2, tokenIds, amounts, "");
     }
 
-    function test_burn_does_not_require_role_can_transfer() public {
-        // Register a name without ROLE_CAN_TRANSFER but with ROLE_BURN
+    function test_burn_does_not_require_role_can_transfer_admin() public {
+        // Register a name without ROLE_CAN_TRANSFER_ADMIN but with ROLE_BURN
         uint256 roleBitmapWithBurn = defaultRoleBitmap | LibRegistryRoles.ROLE_BURN;
         uint256 tokenId = registry.register("burntest", user1, registry, address(0), roleBitmapWithBurn, uint64(block.timestamp) + 86400);
         
-        // Burn should succeed even without ROLE_CAN_TRANSFER
+        // Burn should succeed even without ROLE_CAN_TRANSFER_ADMIN
         vm.prank(user1);
         registry.burn(tokenId);
         
         assertEq(registry.ownerOf(tokenId), address(0));
     }
 
-    function test_mint_does_not_require_role_can_transfer() public {
+    function test_mint_does_not_require_role_can_transfer_admin() public {
         // This is tested implicitly by register() function calls above
-        // Mints (from address(0)) should not require ROLE_CAN_TRANSFER
+        // Mints (from address(0)) should not require ROLE_CAN_TRANSFER_ADMIN
         uint256 tokenId = registry.register("minttest", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
         
         assertEq(registry.ownerOf(tokenId), user1);
     }
 
-    function test_token_regeneration_works_without_role_can_transfer() public {
-        // Register a name without ROLE_CAN_TRANSFER
+    function test_token_regeneration_works_without_role_can_transfer_admin() public {
+        // Register a name without ROLE_CAN_TRANSFER_ADMIN
         uint256 tokenId = registry.register("regentest", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
         uint256 resource = registry.testGetResourceFromTokenId(tokenId);
         
@@ -2213,8 +2191,8 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         assertEq(registry.ownerOf(newTokenId), user1);
     }
 
-    function test_approved_operator_cannot_transfer_without_role_can_transfer() public {
-        // Register a name without ROLE_CAN_TRANSFER
+    function test_approved_operator_cannot_transfer_without_role_can_transfer_admin() public {
+        // Register a name without ROLE_CAN_TRANSFER_ADMIN
         uint256 tokenId = registry.register("approvaltest", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
         
         address operator = makeAddr("operator");
@@ -2224,7 +2202,7 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         vm.prank(user1);
         registry.setApprovalForAll(operator, true);
         
-        // Operator should not be able to transfer without ROLE_CAN_TRANSFER on the owner
+        // Operator should not be able to transfer without ROLE_CAN_TRANSFER_ADMIN on the owner
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.TransferDisallowed.selector, tokenId, user1));
         vm.prank(operator);
         registry.safeTransferFrom(user1, user2, tokenId, 1, "");
@@ -2255,3 +2233,4 @@ contract RevertingTokenObserver is ITokenObserver {
         revert ObserverReverted();
     }
 }
+

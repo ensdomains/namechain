@@ -441,7 +441,7 @@ contract PermissionedRegistry is
         if (from != address(0) && to != address(0)) {
             for (uint256 i = 0; i < ids.length; ++i) {
                 uint256 resource = getResourceFromTokenId(ids[i]);
-                if (!hasRoles(resource, LibRegistryRoles.ROLE_CAN_TRANSFER, from)) {
+                if (!hasRoles(resource, LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN, from)) {
                     revert TransferDisallowed(ids[i], from);
                 }
             }

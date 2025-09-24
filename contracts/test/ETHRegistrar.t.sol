@@ -631,7 +631,7 @@ contract TestETHRegistrar is Test {
         assertTrue(
             ethRegistry.hasRoles(
                 NameUtils.getCanonicalId(tokenId),
-                LibRegistryRoles.ROLE_CAN_TRANSFER,
+                LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN,
                 args.owner
             ),
             "Registered name owner should have ROLE_CAN_TRANSFER"
