@@ -94,7 +94,7 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
         return _grantRoles(resource, roleBitmap, account, false);
     }
     
-    function revokeRolesWithoutCallback(uint256 resource, uint256 roleBitmap, address account) external canGrantRoles(resource, roleBitmap) returns (bool) {
+    function revokeRolesWithoutCallback(uint256 resource, uint256 roleBitmap, address account) external canRevokeRoles(resource, roleBitmap) returns (bool) {
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
@@ -414,7 +414,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         
         // user1 attempts to revoke ROLE_A from user2, but doesn't have ADMIN_ROLE_A admin
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, RESOURCE_1, ROLE_A, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotRevokeRoles.selector, RESOURCE_1, ROLE_A, user1));
         EnhancedAccessControl(address(access)).revokeRoles(RESOURCE_1, ROLE_A, user2);
         vm.stopPrank();
         
@@ -506,7 +506,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         
         // user1 attempts to revoke ROLE_A from user2, but doesn't have ADMIN_ROLE_A admin
         vm.startPrank(user1);
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, access.ROOT_RESOURCE(), ROLE_A, user1));
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotRevokeRoles.selector, access.ROOT_RESOURCE(), ROLE_A, user1));
         EnhancedAccessControl(address(access)).revokeRootRoles(ROLE_A, user2);
         vm.stopPrank();
         
@@ -1641,35 +1641,49 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
     }
 
-    function test_revokeRoles_rejects_admin_roles() public {
+    function test_canRevokeRoles_allows_admin_roles() public {
         // First grant some roles (including admin roles via direct method)
         access.grantRoles(RESOURCE_1, ROLE_A, user1);
-        access.grantRolesDirect(access.ROOT_RESOURCE(), ADMIN_ROLE_A, user1);
+        access.grantRolesDirect(RESOURCE_1, ADMIN_ROLE_A, user1);
         
         // Verify roles were granted
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
-        assertTrue(access.hasRootRoles(ADMIN_ROLE_A, user1));
+        assertTrue(access.hasRoles(RESOURCE_1, ADMIN_ROLE_A, user1));
         
-        // Test that revokeRoles reverts when trying to revoke admin roles
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, RESOURCE_1, ADMIN_ROLE_A, admin));
+        vm.recordLogs();
+        
+        // Test that revokeRoles can now revoke admin roles
         access.revokeRoles(RESOURCE_1, ADMIN_ROLE_A, user1);
+        assertFalse(access.hasRoles(RESOURCE_1, ADMIN_ROLE_A, user1));
         
-        // Test with a mix of regular and admin roles
-        uint256 mixedRoles = ROLE_A | ADMIN_ROLE_A;
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, RESOURCE_1, mixedRoles, admin));
-        access.revokeRoles(RESOURCE_1, mixedRoles, user1);
+        // Verify event was emitted correctly
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(uint256,uint256,address)"));
+        (uint256 resource, uint256 roles, address account) = abi.decode(entries[0].data, (uint256, uint256, address));
+        assertEq(resource, RESOURCE_1);
+        assertEq(roles, ADMIN_ROLE_A);
+        assertEq(account, user1);
         
-        // Test with multiple admin roles
+        // Grant both admin roles and test revoking multiple admin roles
+        access.grantRolesDirect(RESOURCE_1, ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
         uint256 multipleAdminRoles = ADMIN_ROLE_A | ADMIN_ROLE_B;
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, RESOURCE_1, multipleAdminRoles, admin));
+        
+        vm.recordLogs();
         access.revokeRoles(RESOURCE_1, multipleAdminRoles, user1);
+        assertFalse(access.hasRoles(RESOURCE_1, ADMIN_ROLE_A | ADMIN_ROLE_B, user1));
+        
+        // Verify event was emitted correctly for multiple admin roles
+        entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        (resource, roles, account) = abi.decode(entries[0].data, (uint256, uint256, address));
+        assertEq(resource, RESOURCE_1);
+        assertEq(roles, multipleAdminRoles);
+        assertEq(account, user1);
         
         // Test that regular roles can still be revoked
         access.revokeRoles(RESOURCE_1, ROLE_A, user1);
         assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user1));
-        
-        // Verify admin role is still present (wasn't revoked)
-        assertTrue(access.hasRootRoles(ADMIN_ROLE_A, user1));
     }
 
     function test_grantRootRoles_rejects_admin_roles() public {
@@ -1686,22 +1700,131 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasRootRoles(ROLE_A | ROLE_B, user1));
     }
 
-    function test_revokeRootRoles_rejects_admin_roles() public {
-        // First grant regular roles via grantRootRoles
+    function test_canRevokeRoles_allows_root_admin_roles() public {
+        // First grant regular roles via grantRootRoles and admin roles via direct method
         access.grantRootRoles(ROLE_A | ROLE_B, user1);
+        access.grantRolesDirect(access.ROOT_RESOURCE(), ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
+        
         assertTrue(access.hasRootRoles(ROLE_A | ROLE_B, user1));
+        assertTrue(access.hasRootRoles(ADMIN_ROLE_A | ADMIN_ROLE_B, user1));
         
-        // Test that revokeRootRoles rejects admin roles
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, access.ROOT_RESOURCE(), ADMIN_ROLE_A, admin));
+        vm.recordLogs();
+        
+        // Test that revokeRootRoles can now revoke admin roles
         access.revokeRootRoles(ADMIN_ROLE_A, user1);
+        assertFalse(access.hasRootRoles(ADMIN_ROLE_A, user1));
+        assertTrue(access.hasRootRoles(ADMIN_ROLE_B, user1)); // Other admin role should remain
         
-        // Test with multiple admin roles
-        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotGrantRoles.selector, access.ROOT_RESOURCE(), ADMIN_ROLE_A | ADMIN_ROLE_B, admin));
-        access.revokeRootRoles(ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
+        // Verify event was emitted correctly
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(uint256,uint256,address)"));
+        (uint256 resource, uint256 roles, address account) = abi.decode(entries[0].data, (uint256, uint256, address));
+        assertEq(resource, access.ROOT_RESOURCE());
+        assertEq(roles, ADMIN_ROLE_A);
+        assertEq(account, user1);
+        
+        // Test revoking multiple admin roles
+        vm.recordLogs();
+        access.revokeRootRoles(ADMIN_ROLE_B, user1);
+        assertFalse(access.hasRootRoles(ADMIN_ROLE_B, user1));
+        
+        entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        (resource, roles, account) = abi.decode(entries[0].data, (uint256, uint256, address));
+        assertEq(resource, access.ROOT_RESOURCE());
+        assertEq(roles, ADMIN_ROLE_B);
+        assertEq(account, user1);
         
         // Test that regular roles can still be revoked
         access.revokeRootRoles(ROLE_A, user1);
         assertFalse(access.hasRootRoles(ROLE_A, user1));
         assertTrue(access.hasRootRoles(ROLE_B, user1));
+    }
+
+    function test_canRevokeRoles_unauthorized() public {
+        // Grant roles to user2
+        access.grantRoles(RESOURCE_1, ROLE_A, user2);
+        access.grantRolesDirect(RESOURCE_1, ADMIN_ROLE_A, user2);
+        
+        // Verify user2 has the roles
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user2));
+        assertTrue(access.hasRoles(RESOURCE_1, ADMIN_ROLE_A, user2));
+        
+        // user1 attempts to revoke roles from user2 but doesn't have admin privileges
+        vm.startPrank(user1);
+        
+        // Should revert with EACCannotRevokeRoles for regular roles
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotRevokeRoles.selector, RESOURCE_1, ROLE_A, user1));
+        access.revokeRoles(RESOURCE_1, ROLE_A, user2);
+        
+        // Should revert with EACCannotRevokeRoles for admin roles
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACCannotRevokeRoles.selector, RESOURCE_1, ADMIN_ROLE_A, user1));
+        access.revokeRoles(RESOURCE_1, ADMIN_ROLE_A, user2);
+        
+        vm.stopPrank();
+        
+        // Verify user2 still has the roles (they weren't revoked)
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user2));
+        assertTrue(access.hasRoles(RESOURCE_1, ADMIN_ROLE_A, user2));
+    }
+
+    function test_canRevokeRoles_mixed_roles() public {
+        // Grant regular and admin roles to user1
+        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        access.grantRolesDirect(RESOURCE_1, ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
+        
+        // Verify roles were granted
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
+        assertTrue(access.hasRoles(RESOURCE_1, ADMIN_ROLE_A | ADMIN_ROLE_B, user1));
+        
+        vm.recordLogs();
+        
+        // Test revoking a mix of regular and admin roles
+        uint256 mixedRoles = ROLE_A | ADMIN_ROLE_A;
+        access.revokeRoles(RESOURCE_1, mixedRoles, user1);
+        
+        // Verify both regular and admin roles were revoked
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ADMIN_ROLE_A, user1));
+        
+        // Verify other roles remain
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_B, user1));
+        assertTrue(access.hasRoles(RESOURCE_1, ADMIN_ROLE_B, user1));
+        
+        // Verify event was emitted correctly
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(uint256,uint256,address)"));
+        (uint256 resource, uint256 roles, address account) = abi.decode(entries[0].data, (uint256, uint256, address));
+        assertEq(resource, RESOURCE_1);
+        assertEq(roles, mixedRoles);
+        assertEq(account, user1);
+    }
+
+    function test_canRevokeRoles_with_root_admin_privileges() public {
+        // Grant admin role in ROOT_RESOURCE to user1
+        access.grantRolesDirect(access.ROOT_RESOURCE(), ADMIN_ROLE_A, user1);
+        
+        // Grant roles to user2
+        access.grantRoles(RESOURCE_1, ROLE_A, user2);
+        access.grantRolesDirect(RESOURCE_1, ADMIN_ROLE_A, user2);
+        
+        // Verify initial state
+        assertTrue(access.hasRootRoles(ADMIN_ROLE_A, user1));
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ADMIN_ROLE_A, user2));
+        
+        // user1 should be able to revoke roles from user2 using root admin privileges
+        vm.startPrank(user1);
+        
+        // Revoke regular role
+        access.revokeRoles(RESOURCE_1, ROLE_A, user2);
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user2));
+        
+        // Revoke admin role
+        access.revokeRoles(RESOURCE_1, ADMIN_ROLE_A, user2);
+        assertFalse(access.hasRoles(RESOURCE_1, ADMIN_ROLE_A, user2));
+        
+        vm.stopPrank();
     }
 }
