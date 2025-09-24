@@ -1,22 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import "forge-std/Test.sol";
-import "forge-std/console.sol";
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, ordering/ordering, one-contract-per-file
 
-import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
-import {MockL2Bridge} from "../src/mocks/MockL2Bridge.sol";
-import {MockBridgeBase} from "../src/mocks/MockBridgeBase.sol";
-import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
-import {L2BridgeController} from "../src/L2/L2BridgeController.sol";
-import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
-import {IBridge, BridgeMessageType, LibBridgeRoles} from "../src/common/IBridge.sol";
-import {TransferData} from "../src/common/TransferData.sol";
-import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
-import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
-import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
-import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
-import {NameUtils} from "../src/common/NameUtils.sol";
+import {Test, Vm} from "forge-std/Test.sol";
+
+import {BridgeEncoder} from "./../src/common/BridgeEncoder.sol";
+import {LibEACBaseRoles} from "./../src/common/EnhancedAccessControl.sol";
+import {BridgeMessageType, LibBridgeRoles} from "./../src/common/IBridge.sol";
+import {IRegistryMetadata} from "./../src/common/IRegistryMetadata.sol";
+import {NameUtils} from "./../src/common/NameUtils.sol";
+import {PermissionedRegistry} from "./../src/common/PermissionedRegistry.sol";
+import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
+import {TransferData} from "./../src/common/TransferData.sol";
+import {L1EjectionController} from "./../src/L1/L1EjectionController.sol";
+import {L2BridgeController} from "./../src/L2/L2BridgeController.sol";
+import {MockBridgeBase} from "./../src/mocks/MockBridgeBase.sol";
+import {MockL1Bridge} from "./../src/mocks/MockL1Bridge.sol";
+import {MockL2Bridge} from "./../src/mocks/MockL2Bridge.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -43,27 +44,32 @@ contract TestBridgeMessages is Test {
         // Deploy dependencies
         datastore = new RegistryDatastore();
         registryMetadata = new MockRegistryMetadata();
-        
+
         // Deploy registry
-        registry = new PermissionedRegistry(datastore, registryMetadata, address(this), LibEACBaseRoles.ALL_ROLES);
-        
+        registry = new PermissionedRegistry(
+            datastore,
+            registryMetadata,
+            address(this),
+            LibEACBaseRoles.ALL_ROLES
+        );
+
         // Deploy bridges
         l1Bridge = new MockL1Bridge();
         l2Bridge = new MockL2Bridge();
-        
+
         // Deploy controllers
         l1Controller = new L1EjectionController(registry, l1Bridge);
         l2Controller = new L2BridgeController(l2Bridge, registry, datastore);
-        
+
         // Set up bridge controllers
         l1Bridge.setEjectionController(l1Controller);
         l2Bridge.setBridgeController(l2Controller);
-        
+
         // Grant necessary roles (filter out admin roles since they're restricted)
         uint256 regularRoles = LibEACBaseRoles.ALL_ROLES & ~LibEACBaseRoles.ADMIN_ROLES;
         registry.grantRootRoles(regularRoles, address(l1Controller));
         registry.grantRootRoles(regularRoles, address(l2Controller));
-        
+
         // Grant bridge roles so the bridges can call the controllers
         l1Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l1Bridge));
         l2Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l2Bridge));
@@ -82,14 +88,15 @@ contract TestBridgeMessages is Test {
 
         // Encode message
         bytes memory encodedMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);
-        
+
         // Verify message type
         BridgeMessageType messageType = BridgeEncoder.getMessageType(encodedMessage);
-        assertEq(uint(messageType), uint(BridgeMessageType.EJECTION));
-        
+        assertEq(uint256(messageType), uint256(BridgeMessageType.EJECTION));
+
         // Decode message
-        (bytes memory decodedDnsName, TransferData memory decodedData) = BridgeEncoder.decodeEjection(encodedMessage);
-        
+        (bytes memory decodedDnsName, TransferData memory decodedData) = BridgeEncoder
+            .decodeEjection(encodedMessage);
+
         // Verify decoded data
         assertEq(keccak256(decodedDnsName), keccak256(dnsEncodedName));
         assertEq(decodedData.label, transferData.label);
@@ -106,14 +113,16 @@ contract TestBridgeMessages is Test {
 
         // Encode message
         bytes memory encodedMessage = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
-        
+
         // Verify message type
         BridgeMessageType messageType = BridgeEncoder.getMessageType(encodedMessage);
-        assertEq(uint(messageType), uint(BridgeMessageType.RENEWAL));
-        
+        assertEq(uint256(messageType), uint256(BridgeMessageType.RENEWAL));
+
         // Decode message
-        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoder.decodeRenewal(encodedMessage);
-        
+        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoder.decodeRenewal(
+            encodedMessage
+        );
+
         // Verify decoded data
         assertEq(decodedTokenId, tokenId);
         assertEq(decodedExpiry, newExpiry);
@@ -121,28 +130,35 @@ contract TestBridgeMessages is Test {
 
     function test_l1Bridge_handleRenewal() public {
         // First register a name to renew
-        uint256 tokenId = registry.register(testLabel, testOwner, registry, testResolver, testRoleBitmap, testExpiry);
-        
+        uint256 tokenId = registry.register(
+            testLabel,
+            testOwner,
+            registry,
+            testResolver,
+            testRoleBitmap,
+            testExpiry
+        );
+
         uint64 newExpiry = uint64(block.timestamp + 86400 * 2);
-        
+
         // Encode renewal message
         bytes memory renewalMessage = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
-        
+
         vm.recordLogs();
-        
+
         // Simulate receiving the message through the bridge
         l1Bridge.receiveMessage(renewalMessage);
-        
+
         // Verify the renewal was processed
-        (,uint64 updatedExpiry,) = datastore.getSubregistry(address(registry), tokenId);
+        (, uint64 updatedExpiry, ) = datastore.getSubregistry(address(registry), tokenId);
         assertEq(updatedExpiry, newExpiry, "Expiry should be updated");
-        
+
         // Check for RenewalSynchronized event
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
         bytes32 eventSig = keccak256("RenewalSynchronized(uint256,uint64)");
-        
-        for (uint i = 0; i < logs.length; i++) {
+
+        for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == eventSig) {
                 foundEvent = true;
                 break;
@@ -154,29 +170,27 @@ contract TestBridgeMessages is Test {
     function test_l2Bridge_revertRenewal() public {
         uint256 tokenId = 12345;
         uint64 newExpiry = uint64(block.timestamp + 86400);
-        
+
         // Encode renewal message
         bytes memory renewalMessage = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
-        
+
         // L2 bridge should revert on renewal messages
         vm.expectRevert(MockBridgeBase.RenewalNotSupported.selector);
         l2Bridge.receiveMessage(renewalMessage);
     }
 
-
-
     function test_l1Bridge_sendMessage() public {
         bytes memory testMessage = "test message";
-        
+
         vm.recordLogs();
         l1Bridge.sendMessage(testMessage);
-        
+
         // Check for NameBridgedToL2 event
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
         bytes32 eventSig = keccak256("NameBridgedToL2(bytes)");
-        
-        for (uint i = 0; i < logs.length; i++) {
+
+        for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == eventSig) {
                 foundEvent = true;
                 break;
@@ -186,24 +200,27 @@ contract TestBridgeMessages is Test {
     }
 
     function test_l2Bridge_sendMessage_ejection() public {
-        bytes memory ejectionMessage = BridgeEncoder.encodeEjection("test", TransferData({
-            label: testLabel,
-            owner: testOwner,
-            subregistry: address(registry),
-            resolver: testResolver,
-            expires: testExpiry,
-            roleBitmap: testRoleBitmap
-        }));
-        
+        bytes memory ejectionMessage = BridgeEncoder.encodeEjection(
+            "test",
+            TransferData({
+                label: testLabel,
+                owner: testOwner,
+                subregistry: address(registry),
+                resolver: testResolver,
+                expires: testExpiry,
+                roleBitmap: testRoleBitmap
+            })
+        );
+
         vm.recordLogs();
         l2Bridge.sendMessage(ejectionMessage);
-        
+
         // Check for NameBridgedToL1 event
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
         bytes32 eventSig = keccak256("NameBridgedToL1(bytes)");
-        
-        for (uint i = 0; i < logs.length; i++) {
+
+        for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == eventSig) {
                 foundEvent = true;
                 break;
@@ -211,4 +228,4 @@ contract TestBridgeMessages is Test {
         }
         assertTrue(foundEvent, "NameBridgedToL1 event should be emitted");
     }
-} 
+}

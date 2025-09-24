@@ -1,21 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import "forge-std/Test.sol";
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, ordering/ordering, one-contract-per-file
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Errors, IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {Test} from "forge-std/Test.sol";
 
-import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
-import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
-import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
-import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
-import {StandardRentPriceOracle, IRentPriceOracle, PaymentRatio, DiscountPoint} from "../src/L2/StandardRentPriceOracle.sol";
-import {ETHRegistrar, IETHRegistrar, IRegistry, REGISTRATION_ROLE_BITMAP, ROLE_SET_ORACLE} from "../src/L2/ETHRegistrar.sol";
-import {EnhancedAccessControl, IEnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
-import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
-import {NameUtils} from "../src/common/NameUtils.sol";
+import {IEnhancedAccessControl, LibEACBaseRoles} from "./../src/common/EnhancedAccessControl.sol";
+import {LibRegistryRoles} from "./../src/common/LibRegistryRoles.sol";
+import {NameUtils} from "./../src/common/NameUtils.sol";
+import {PermissionedRegistry} from "./../src/common/PermissionedRegistry.sol";
+import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
+import {SimpleRegistryMetadata} from "./../src/common/SimpleRegistryMetadata.sol";
+import {
+    ETHRegistrar,
+    IETHRegistrar,
+    IRegistry,
+    REGISTRATION_ROLE_BITMAP,
+    ROLE_SET_ORACLE
+} from "./../src/L2/ETHRegistrar.sol";
+import {
+    StandardRentPriceOracle,
+    IRentPriceOracle,
+    PaymentRatio,
+    DiscountPoint
+} from "./../src/L2/StandardRentPriceOracle.sol";
+import {MockERC20, MockERC20Blacklist} from "./../src/mocks/MockERC20.sol";
 import {StandardPricing} from "./StandardPricing.sol";
 
 contract TestETHRegistrar is Test {
@@ -84,11 +96,7 @@ contract TestETHRegistrar is Test {
     }
 
     function test_Revert_constructor_emptyRange() external {
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IETHRegistrar.MaxCommitmentAgeTooLow.selector
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(IETHRegistrar.MaxCommitmentAgeTooLow.selector));
         new ETHRegistrar(
             ethRegistry,
             beneficiary,
@@ -100,11 +108,7 @@ contract TestETHRegistrar is Test {
     }
 
     function test_Revert_constructor_invalidRange() external {
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IETHRegistrar.MaxCommitmentAgeTooLow.selector
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(IETHRegistrar.MaxCommitmentAgeTooLow.selector));
         new ETHRegistrar(
             ethRegistry,
             beneficiary,
@@ -136,12 +140,7 @@ contract TestETHRegistrar is Test {
         assertFalse(ethRegistrar.isValid("ab"), "ab");
         assertFalse(ethRegistrar.isValid("abcdef"), "abcdef");
         assertFalse(ethRegistrar.isPaymentToken(tokenDAI), "DAI");
-        (uint256 base, ) = ethRegistrar.rentPrice(
-            "a",
-            address(0),
-            1,
-            tokenUSDC
-        );
+        (uint256 base, ) = ethRegistrar.rentPrice("a", address(0), 1, tokenUSDC);
         assertEq(base, 1, "rent"); // 1 * 10^x / 10^x = 1
     }
 
@@ -185,10 +184,7 @@ contract TestETHRegistrar is Test {
         assertEq(rentPriceOracle.isValid("ab"), StandardPricing.RATE_2CP > 0);
         assertEq(rentPriceOracle.isValid("abc"), StandardPricing.RATE_3CP > 0);
         assertEq(rentPriceOracle.isValid("abce"), StandardPricing.RATE_4CP > 0);
-        assertEq(
-            rentPriceOracle.isValid("abcde"),
-            StandardPricing.RATE_5CP > 0
-        );
+        assertEq(rentPriceOracle.isValid("abcde"), StandardPricing.RATE_5CP > 0);
         assertEq(
             rentPriceOracle.isValid("abcdefghijklmnopqrstuvwxyz"),
             StandardPricing.RATE_5CP > 0
@@ -208,22 +204,16 @@ contract TestETHRegistrar is Test {
         uint256 wait;
     }
 
-    function _defaultRegisterArgs()
-        internal
-        view
-        returns (RegisterArgs memory args)
-    {
+    function _defaultRegisterArgs() internal view returns (RegisterArgs memory args) {
         args.label = "testname";
         args.sender = user;
         args.owner = user;
         args.paymentToken = tokenUSDC;
-        args.duration = ethRegistrar.minRegisterDuration();
-        args.wait = ethRegistrar.minCommitmentAge() + 1;
+        args.duration = ethRegistrar.MIN_REGISTER_DURATION();
+        args.wait = ethRegistrar.MIN_COMMITMENT_AGE() + 1;
     }
 
-    function _makeCommitment(
-        RegisterArgs memory args
-    ) internal view returns (bytes32) {
+    function _makeCommitment(RegisterArgs memory args) internal view returns (bytes32) {
         return
             ethRegistrar.makeCommitment(
                 args.label,
@@ -236,9 +226,7 @@ contract TestETHRegistrar is Test {
             );
     }
 
-    function _register(
-        RegisterArgs memory args
-    ) external returns (uint256 tokenId) {
+    function _register(RegisterArgs memory args) external returns (uint256 tokenId) {
         bytes32 commitment = _makeCommitment(args);
         vm.startPrank(args.sender);
         ethRegistrar.commit(commitment);
@@ -258,12 +246,7 @@ contract TestETHRegistrar is Test {
 
     function _renew(RegisterArgs memory args) external {
         vm.prank(args.sender);
-        ethRegistrar.renew(
-            args.label,
-            args.duration,
-            args.paymentToken,
-            args.referrer
-        );
+        ethRegistrar.renew(args.label, args.duration, args.paymentToken, args.referrer);
     }
 
     function test_commit() external {
@@ -287,32 +270,21 @@ contract TestETHRegistrar is Test {
         vm.expectEmit(false, false, false, false);
         emit IETHRegistrar.CommitmentMade(commitment);
         ethRegistrar.commit(commitment);
-        assertEq(
-            ethRegistrar.commitmentAt(commitment),
-            block.timestamp,
-            "time"
-        );
+        assertEq(ethRegistrar.commitmentAt(commitment), block.timestamp, "time");
     }
 
     function test_commitmentAt() external {
         bytes32 commitment = bytes32(uint256(1));
         assertEq(ethRegistrar.commitmentAt(commitment), 0, "before");
         ethRegistrar.commit(commitment);
-        assertEq(
-            ethRegistrar.commitmentAt(commitment),
-            block.timestamp,
-            "after"
-        );
+        assertEq(ethRegistrar.commitmentAt(commitment), block.timestamp, "after");
     }
 
     function test_Revert_commit_unexpiredCommitment() external {
         bytes32 commitment = bytes32(uint256(1));
         ethRegistrar.commit(commitment);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                IETHRegistrar.UnexpiredCommitmentExists.selector,
-                commitment
-            )
+            abi.encodeWithSelector(IETHRegistrar.UnexpiredCommitmentExists.selector, commitment)
         );
         ethRegistrar.commit(commitment);
     }
@@ -333,11 +305,7 @@ contract TestETHRegistrar is Test {
         }
         uint256 tokenId = this._register(args);
         assertEq(ethRegistry.ownerOf(tokenId), args.owner, "owner");
-        assertEq(
-            ethRegistry.getExpiry(tokenId),
-            uint64(block.timestamp) + args.duration,
-            "expiry"
-        );
+        assertEq(ethRegistry.getExpiry(tokenId), uint64(block.timestamp) + args.duration, "expiry");
     }
 
     function test_register_premium_start() external {
@@ -345,10 +313,7 @@ contract TestETHRegistrar is Test {
         uint256 tokenId = this._register(args);
         uint64 expiry = ethRegistry.getExpiry(tokenId);
         vm.warp(expiry);
-        assertEq(
-            rentPriceOracle.premiumPrice(expiry),
-            rentPriceOracle.premiumPriceAfter(0)
-        );
+        assertEq(rentPriceOracle.premiumPrice(expiry), rentPriceOracle.premiumPriceAfter(0));
     }
 
     function test_register_premium_end() external {
@@ -372,11 +337,7 @@ contract TestETHRegistrar is Test {
         assertEq(premium, 0, "premium");
         uint256 balance0 = args.paymentToken.balanceOf(args.owner);
         this._register(args);
-        assertEq(
-            balance0 - base,
-            args.paymentToken.balanceOf(args.owner),
-            "balance"
-        );
+        assertEq(balance0 - base, args.paymentToken.balanceOf(args.owner), "balance");
     }
 
     function test_Revert_register_insufficientAllowance() external {
@@ -423,7 +384,7 @@ contract TestETHRegistrar is Test {
     function test_Revert_register_commitmentTooNew() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         uint256 dt = 1;
-        args.wait = ethRegistrar.minCommitmentAge() - dt;
+        args.wait = ethRegistrar.MIN_COMMITMENT_AGE() - dt;
         uint256 t = block.timestamp + args.wait;
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -439,7 +400,7 @@ contract TestETHRegistrar is Test {
     function test_Revert_register_commitmentTooOld() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         uint256 dt = 1;
-        args.wait = ethRegistrar.maxCommitmentAge() + dt;
+        args.wait = ethRegistrar.MAX_COMMITMENT_AGE() + dt;
         uint256 t = block.timestamp + args.wait;
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -456,22 +417,19 @@ contract TestETHRegistrar is Test {
         RegisterArgs memory args = _defaultRegisterArgs();
         this._register(args);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                IETHRegistrar.NameAlreadyRegistered.selector,
-                args.label
-            )
+            abi.encodeWithSelector(IETHRegistrar.NameAlreadyRegistered.selector, args.label)
         );
         this._register(args);
     }
 
     function test_Revert_register_durationTooShort() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        args.duration = ethRegistrar.minRegisterDuration() - 1;
+        args.duration = ethRegistrar.MIN_REGISTER_DURATION() - 1;
         vm.expectRevert(
             abi.encodeWithSelector(
                 IETHRegistrar.DurationTooShort.selector,
                 args.duration,
-                ethRegistrar.minRegisterDuration()
+                ethRegistrar.MIN_REGISTER_DURATION()
             )
         );
         this._register(args);
@@ -481,10 +439,7 @@ contract TestETHRegistrar is Test {
         RegisterArgs memory args = _defaultRegisterArgs();
         args.owner = address(0);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                IERC1155Errors.ERC1155InvalidReceiver.selector,
-                args.owner
-            )
+            abi.encodeWithSelector(IERC1155Errors.ERC1155InvalidReceiver.selector, args.owner)
         );
         this._register(args);
     }
@@ -505,10 +460,7 @@ contract TestETHRegistrar is Test {
     function test_Revert_renew_nameNotRegistered() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         vm.expectRevert(
-            abi.encodeWithSelector(
-                IETHRegistrar.NameNotRegistered.selector,
-                args.label
-            )
+            abi.encodeWithSelector(IETHRegistrar.NameNotRegistered.selector, args.label)
         );
         this._renew(args);
     }
@@ -537,10 +489,7 @@ contract TestETHRegistrar is Test {
 
     function test_supportsInterface() external view {
         assertTrue(
-            ERC165Checker.supportsInterface(
-                address(ethRegistrar),
-                type(IETHRegistrar).interfaceId
-            ),
+            ERC165Checker.supportsInterface(address(ethRegistrar), type(IETHRegistrar).interfaceId),
             "IETHRegistrar"
         );
         assertTrue(
@@ -553,7 +502,7 @@ contract TestETHRegistrar is Test {
     }
 
     function test_beneficiary_set() external view {
-        assertEq(ethRegistrar.beneficiary(), beneficiary);
+        assertEq(ethRegistrar.BENEFICIARY(), beneficiary);
     }
 
     function test_beneficiary_register() external {
@@ -598,12 +547,7 @@ contract TestETHRegistrar is Test {
     function test_blacklist_user() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         tokenBlack.setBlacklisted(user, true);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                MockERC20Blacklist.Blacklisted.selector,
-                user
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(MockERC20Blacklist.Blacklisted.selector, user));
         args.paymentToken = tokenBlack;
         this._register(args);
         args.paymentToken = tokenUSDC;
@@ -612,11 +556,11 @@ contract TestETHRegistrar is Test {
 
     function test_blacklist_beneficiary() external {
         RegisterArgs memory args = _defaultRegisterArgs();
-        tokenBlack.setBlacklisted(ethRegistrar.beneficiary(), true);
+        tokenBlack.setBlacklisted(ethRegistrar.BENEFICIARY(), true);
         vm.expectRevert(
             abi.encodeWithSelector(
                 MockERC20Blacklist.Blacklisted.selector,
-                ethRegistrar.beneficiary()
+                ethRegistrar.BENEFICIARY()
             )
         );
         args.paymentToken = tokenBlack;

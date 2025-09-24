@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, ordering/ordering, one-contract-per-file
+
 import {Test} from "forge-std/Test.sol";
+
 import {DNSTXTParser} from "../../src/L1/dns/DNSTXTParser.sol";
 
 contract TestDNSTXTParser is Test {

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity >=0.8.13;
 
-import {MockERC20} from "../src/mocks/MockERC20.sol";
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, ordering/ordering, one-contract-per-file
 
-import {PaymentRatio, DiscountPoint} from "../src/L2/StandardRentPriceOracle.sol";
+import {PaymentRatio, DiscountPoint} from "./../src/L2/StandardRentPriceOracle.sol";
+import {MockERC20} from "./../src/mocks/MockERC20.sol";
 
 library StandardPricing {
     uint64 constant SEC_PER_YEAR = 31_557_600; // 365.25
@@ -15,12 +16,9 @@ library StandardPricing {
 
     uint256 constant RATE_1CP = 0;
     uint256 constant RATE_2CP = 0;
-    uint256 constant RATE_3CP =
-        (640 * PRICE_SCALE + SEC_PER_YEAR - 1) / SEC_PER_YEAR;
-    uint256 constant RATE_4CP =
-        (160 * PRICE_SCALE + SEC_PER_YEAR - 1) / SEC_PER_YEAR;
-    uint256 constant RATE_5CP =
-        (5 * PRICE_SCALE + SEC_PER_YEAR - 1) / SEC_PER_YEAR;
+    uint256 constant RATE_3CP = (640 * PRICE_SCALE + SEC_PER_YEAR - 1) / SEC_PER_YEAR;
+    uint256 constant RATE_4CP = (160 * PRICE_SCALE + SEC_PER_YEAR - 1) / SEC_PER_YEAR;
+    uint256 constant RATE_5CP = (5 * PRICE_SCALE + SEC_PER_YEAR - 1) / SEC_PER_YEAR;
 
     uint256 constant PREMIUM_PRICE_INITIAL = 100_000_000 * PRICE_SCALE;
     uint64 constant PREMIUM_HALVING_PERIOD = SEC_PER_DAY;
@@ -35,20 +33,13 @@ library StandardPricing {
         rates[4] = RATE_5CP;
     }
 
-    function discountRatio(
-        uint256 numer,
-        uint256 denom
-    ) internal pure returns (uint128) {
+    function discountRatio(uint256 numer, uint256 denom) internal pure returns (uint128) {
         require(numer < denom, "discountRatio");
         uint256 scale = uint256(type(uint128).max);
         return uint128((scale * numer + denom - 1) / denom);
     }
 
-    function getDiscountPoints()
-        internal
-        pure
-        returns (DiscountPoint[] memory points)
-    {
+    function getDiscountPoints() internal pure returns (DiscountPoint[] memory points) {
         // see: StandardRentPriceOracle.updateDiscountFunction()
         points = new DiscountPoint[](6);
         points[0] = DiscountPoint(SEC_PER_YEAR, 0);
@@ -59,9 +50,7 @@ library StandardPricing {
         points[5] = DiscountPoint(SEC_PER_YEAR * 15, discountRatio(1, 3)); // 33.3%
     }
 
-    function ratioFromStable(
-        MockERC20 token
-    ) internal view returns (PaymentRatio memory) {
+    function ratioFromStable(MockERC20 token) internal view returns (PaymentRatio memory) {
         uint8 d = token.decimals();
         if (d > PRICE_DECIMALS) {
             return PaymentRatio(token, uint128(10) ** (d - PRICE_DECIMALS), 1);

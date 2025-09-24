@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import "forge-std/Test.sol";
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, ordering/ordering, one-contract-per-file
+
+import {Test} from "forge-std/Test.sol";
 
 import {HalvingUtils} from "../src/common/HalvingUtils.sol";
 
@@ -12,12 +14,7 @@ contract TestHalvingUtils is Test {
         }
     }
 
-    function _assertNear(
-        uint256 value,
-        uint256 expect,
-        uint256 exact,
-        uint256 tol
-    ) internal pure {
+    function _assertNear(uint256 value, uint256 expect, uint256 exact, uint256 tol) internal pure {
         assertEq(value, expect, "same");
         uint256 diff = expect > exact ? expect - exact : exact - expect;
         if (diff > 0) {
@@ -26,36 +23,16 @@ contract TestHalvingUtils is Test {
     }
 
     function test_halving_computed() external pure {
-        _assertNear(
-            HalvingUtils.halving(1424499730, 8906, 139967),
-            26462,
-            26465,
-            4
-        );
-        _assertNear(
-            HalvingUtils.halving(25448394752, 3120, 28344),
-            46872731,
-            46872559,
-            6
-        );
-        _assertNear(
-            HalvingUtils.halving(226801697741, 2055, 7691),
-            16944188740,
-            16944070054,
-            6
-        );
+        _assertNear(HalvingUtils.halving(1424499730, 8906, 139967), 26462, 26465, 4);
+        _assertNear(HalvingUtils.halving(25448394752, 3120, 28344), 46872731, 46872559, 6);
+        _assertNear(HalvingUtils.halving(226801697741, 2055, 7691), 16944188740, 16944070054, 6);
         _assertNear(
             HalvingUtils.halving(8346969424321, 2447, 14567),
             134739948345,
             134739878463,
             7
         );
-        _assertNear(
-            HalvingUtils.halving(45287518154421, 3882, 57451),
-            1588328639,
-            1588313410,
-            6
-        );
+        _assertNear(HalvingUtils.halving(45287518154421, 3882, 57451), 1588328639, 1588313410, 6);
         _assertNear(
             HalvingUtils.halving(570920124541253, 9882, 107044),
             313151078238,

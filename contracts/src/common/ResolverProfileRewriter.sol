@@ -4,8 +4,10 @@ pragma solidity >=0.8.13;
 library ResolverProfileRewriter {
     /// @dev Replace the node in the calldata with a new node.
     ///      Supports `multicall()` to arbirary depth.
+    ///
     /// @param call The calldata for a resolver.
     /// @param newNode The replacement node.
+    ///
     /// @return copy A copy of the calldata with node replaced.
     function replaceNode(
         bytes calldata call,

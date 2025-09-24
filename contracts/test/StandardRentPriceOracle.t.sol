@@ -1,21 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import "forge-std/Test.sol";
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, ordering/ordering, one-contract-per-file
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Test} from "forge-std/Test.sol";
 
-import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
-import {SimpleRegistryMetadata} from "../src/common/SimpleRegistryMetadata.sol";
-import {PermissionedRegistry, IRegistry} from "../src/common/PermissionedRegistry.sol";
-import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
-import {StandardRentPriceOracle, PaymentRatio, IRentPriceOracle, DiscountPoint} from "../src/L2/StandardRentPriceOracle.sol";
-import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
-import {HalvingUtils} from "../src/common/HalvingUtils.sol";
+import {LibEACBaseRoles} from "./../src/common/EnhancedAccessControl.sol";
+import {HalvingUtils} from "./../src/common/HalvingUtils.sol";
+import {PermissionedRegistry, IRegistry} from "./../src/common/PermissionedRegistry.sol";
+import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
+import {SimpleRegistryMetadata} from "./../src/common/SimpleRegistryMetadata.sol";
+import {
+    StandardRentPriceOracle,
+    PaymentRatio,
+    IRentPriceOracle,
+    DiscountPoint
+} from "./../src/L2/StandardRentPriceOracle.sol";
+import {MockERC20} from "./../src/mocks/MockERC20.sol";
 import {StandardPricing} from "./StandardPricing.sol";
 
 contract TestRentPriceOracle is Test, ERC1155Holder {
@@ -91,29 +97,15 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
     }
 
     function test_updatePaymentToken_invalidRatio() external {
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                StandardRentPriceOracle.InvalidRatio.selector
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(StandardRentPriceOracle.InvalidRatio.selector));
         rentPriceOracle.updatePaymentToken(tokenUSDC, 0, 1);
     }
 
     function test_updatePaymentToken_notOwner() external {
         vm.startPrank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector,
-                user
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         rentPriceOracle.updatePaymentToken(tokenUSDC, 0, 0); // remove
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector,
-                user
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         rentPriceOracle.updatePaymentToken(tokenUSDC, 1, 1); // add
         vm.stopPrank();
     }
@@ -124,10 +116,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         assertEq(rentPriceOracle.isValid("ab"), StandardPricing.RATE_2CP > 0);
         assertEq(rentPriceOracle.isValid("abc"), StandardPricing.RATE_3CP > 0);
         assertEq(rentPriceOracle.isValid("abce"), StandardPricing.RATE_4CP > 0);
-        assertEq(
-            rentPriceOracle.isValid("abcde"),
-            StandardPricing.RATE_5CP > 0
-        );
+        assertEq(rentPriceOracle.isValid("abcde"), StandardPricing.RATE_5CP > 0);
         assertEq(
             rentPriceOracle.isValid("abcdefghijklmnopqrstuvwxyz"),
             StandardPricing.RATE_5CP > 0
@@ -140,12 +129,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         assertEq(base, rate, "rate");
         // duration must be before initial discount or price will be reduced
         _testRentPrice(label, rate, StandardPricing.SEC_PER_YEAR, tokenUSDC);
-        _testRentPrice(
-            label,
-            rate,
-            StandardPricing.SEC_PER_YEAR,
-            tokenIdentity
-        );
+        _testRentPrice(label, rate, StandardPricing.SEC_PER_YEAR, tokenIdentity);
     }
 
     function _testRentPrice(
@@ -155,25 +139,11 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         MockERC20 token
     ) internal {
         if (rate == 0) {
-            vm.expectRevert(
-                abi.encodeWithSelector(
-                    IRentPriceOracle.NotValid.selector,
-                    label
-                )
-            );
+            vm.expectRevert(abi.encodeWithSelector(IRentPriceOracle.NotValid.selector, label));
         }
-        (uint256 base, ) = rentPriceOracle.rentPrice(
-            label,
-            address(0),
-            dur,
-            token
-        );
+        (uint256 base, ) = rentPriceOracle.rentPrice(label, address(0), dur, token);
         PaymentRatio memory t = StandardPricing.ratioFromStable(token);
-        assertEq(
-            base,
-            Math.mulDiv(rate * dur, t.numer, t.denom, Math.Rounding.Ceil),
-            token.name()
-        );
+        assertEq(base, Math.mulDiv(rate * dur, t.numer, t.denom, Math.Rounding.Ceil), token.name());
     }
 
     function test_rentPrice_0() external {
@@ -199,10 +169,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
     }
 
     function test_premiumPriceInitial() external view {
-        assertEq(
-            rentPriceOracle.premiumPriceInitial(),
-            StandardPricing.PREMIUM_PRICE_INITIAL
-        );
+        assertEq(rentPriceOracle.premiumPriceInitial(), StandardPricing.PREMIUM_PRICE_INITIAL);
     }
 
     function test_premiumPriceAfter_start() external view {
@@ -233,9 +200,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
             "start"
         );
         assertEq(
-            rentPriceOracle.premiumPrice(
-                uint64(block.timestamp + rentPriceOracle.premiumPeriod())
-            ),
+            rentPriceOracle.premiumPrice(uint64(block.timestamp + rentPriceOracle.premiumPeriod())),
             0,
             "end"
         );
@@ -260,12 +225,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
 
     function test_updateBaseRates_notOwner() external {
         vm.startPrank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector,
-                user
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         rentPriceOracle.updateBaseRates(new uint256[](1));
         vm.stopPrank();
     }
@@ -300,12 +260,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
 
     function test_updatePremiumPricing_notOwner() external {
         vm.startPrank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector,
-                user
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         rentPriceOracle.updatePremiumPricing(0, 0, 0);
         vm.stopPrank();
     }
@@ -378,17 +333,10 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         );
     }
     function test_discountAfter_end() external view {
-        _testAverageDiscount(
-            type(uint64).max,
-            StandardPricing.discountRatio(30, 100)
-        );
+        _testAverageDiscount(type(uint64).max, StandardPricing.discountRatio(30, 100));
     }
 
-    function _testDiscountedRentPrice(
-        string memory label,
-        uint64 dur0,
-        uint64 dur1
-    ) internal {
+    function _testDiscountedRentPrice(string memory label, uint64 dur0, uint64 dur1) internal {
         ethRegistry.register(
             label,
             address(this),
@@ -398,12 +346,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
             uint64(block.timestamp) + dur0
         );
         uint256 base0 = rentPriceOracle.baseRate(label) * dur1;
-        (uint256 base1, ) = rentPriceOracle.rentPrice(
-            label,
-            address(this),
-            dur1,
-            tokenIdentity
-        );
+        (uint256 base1, ) = rentPriceOracle.rentPrice(label, address(this), dur1, tokenIdentity);
         assertEq(
             base1,
             base0 -
@@ -448,10 +391,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         vm.expectEmit(false, false, false, true);
         emit StandardRentPriceOracle.DiscountPointsChanged(points);
         rentPriceOracle.updateDiscountPoints(points);
-        assertEq(
-            abi.encode(rentPriceOracle.getDiscountPoints()),
-            abi.encode(points)
-        );
+        assertEq(abi.encode(rentPriceOracle.getDiscountPoints()), abi.encode(points));
         assertEq(rentPriceOracle.integratedDiscount(50), 200); // 50*4
         assertEq(rentPriceOracle.integratedDiscount(500), 1000); // 100*4 + 200*1 + (500-300)*(100*4+200*1)/300
     }
@@ -463,12 +403,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
 
     function test_updateDiscountPoints_notOwner() external {
         vm.startPrank(user);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector,
-                user
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, user));
         rentPriceOracle.updateDiscountPoints(new DiscountPoint[](1));
         vm.stopPrank();
     }

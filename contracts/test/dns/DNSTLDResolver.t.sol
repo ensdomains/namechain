@@ -1,14 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, ordering/ordering, one-contract-per-file
+
 import {GatewayProvider} from "@ens/contracts/ccipRead/GatewayProvider.sol";
-import {DNSTLDResolver, ENS, IRegistry, DNSSEC, HexUtils} from "../../src/L1/dns/DNSTLDResolver.sol";
-import {PermissionedRegistry, IRegistryMetadata} from "../../src/common/PermissionedRegistry.sol";
-import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
-import {LibEACBaseRoles} from "../../src/common/EnhancedAccessControl.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {Test} from "forge-std/Test.sol";
+
+import {LibEACBaseRoles} from "./../../src/common/EnhancedAccessControl.sol";
+import {PermissionedRegistry, IRegistryMetadata} from "./../../src/common/PermissionedRegistry.sol";
+import {RegistryDatastore} from "./../../src/common/RegistryDatastore.sol";
+import {
+    DNSTLDResolver,
+    ENS,
+    IRegistry,
+    DNSSEC,
+    HexUtils
+} from "./../../src/L1/dns/DNSTLDResolver.sol";
 
 // coverage:ignore-next-line
 contract MockDNS is DNSTLDResolver {
@@ -109,10 +118,10 @@ contract DNSTLDResolverTest is Test, ERC1155Holder, IAddrResolver {
         );
     }
 
-	// mock IAddrResolver
-	function addr(bytes32) public pure returns (address payable) {
-		return payable(address(1));
-	}
+    // mock IAddrResolver
+    function addr(bytes32) public pure returns (address payable) {
+        return payable(address(1));
+    }
 
     function test_parseResolver_name() external {
         rootRegistry.register(
@@ -127,9 +136,6 @@ contract DNSTLDResolverTest is Test, ERC1155Holder, IAddrResolver {
     }
 
     function testFuzz_parseResolver_address(address a) external view {
-        assertEq(
-            dns.parseResolver(abi.encodePacked("0x", HexUtils.addressToHex(a))),
-            a
-        );
+        assertEq(dns.parseResolver(abi.encodePacked("0x", HexUtils.addressToHex(a))), a);
     }
 }
