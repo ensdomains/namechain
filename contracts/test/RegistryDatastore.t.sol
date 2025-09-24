@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import "forge-std/Test.sol";
-import "forge-std/console.sol";
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, ordering/ordering, one-contract-per-file
 
-import "../src/common/RegistryDatastore.sol";
+import {Test} from "forge-std/Test.sol";
+
+import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 
 contract TestRegistryDatastore is Test {
     uint256 id = uint256(keccak256("test"));
