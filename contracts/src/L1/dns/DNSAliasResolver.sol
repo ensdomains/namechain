@@ -3,25 +3,16 @@ pragma solidity >=0.8.13;
 
 import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {IGatewayProvider} from "@ens/contracts/ccipRead/IGatewayProvider.sol";
-import {
-    IExtendedDNSResolver
-} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
+import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
-import {
-    ResolverCaller
-} from "@ens/contracts/universalResolver/ResolverCaller.sol";
+import {ResolverCaller} from "@ens/contracts/universalResolver/ResolverCaller.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-import {
-    ResolverProfileRewriter
-} from "./../../common/ResolverProfileRewriter.sol";
-import {
-    RegistryUtils,
-    IRegistry
-} from "./../../universalResolver/RegistryUtils.sol";
+import {ResolverProfileRewriter} from "./../../common/ResolverProfileRewriter.sol";
+import {RegistryUtils, IRegistry} from "./../../universalResolver/RegistryUtils.sol";
 
 /// @notice Gasless DNSSEC resolver that forwards to another name.
 ///
@@ -32,12 +23,7 @@ import {
 ///         2. Replace: `context = <newName>`
 ///            eg. `notdot.net` + `ENS1 <this> nick.eth` &rarr; `nick.eth`
 ///
-contract DNSAliasResolver is
-    ERC165,
-    ResolverCaller,
-    IERC7996,
-    IExtendedDNSResolver
-{
+contract DNSAliasResolver is ERC165, ResolverCaller, IERC7996, IExtendedDNSResolver {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
@@ -132,9 +118,7 @@ contract DNSAliasResolver is
             if (!matched) {
                 revert NoSuffixMatch(name, oldSuffix);
             }
-            bytes memory newSuffix = NameCoder.encode(
-                string(context[sep + 1:])
-            );
+            bytes memory newSuffix = NameCoder.encode(string(context[sep + 1:]));
             return abi.encodePacked(name[:offset], newSuffix); // rewrite
         } else {
             return NameCoder.encode(string(context)); // replace

@@ -20,18 +20,9 @@ contract RegistryDatastore is IRegistryDatastore {
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
-    function setSubregistry(
-        uint256 id,
-        address subregistry,
-        uint64 expiry,
-        uint32 data
-    ) external {
+    function setSubregistry(uint256 id, address subregistry, uint64 expiry, uint32 data) external {
         id = NameUtils.getCanonicalId(id);
-        _entries[msg.sender][id].registryData = _pack(
-            subregistry,
-            data,
-            expiry
-        );
+        _entries[msg.sender][id].registryData = _pack(subregistry, data, expiry);
     }
 
     function setResolver(uint256 id, address resolver, uint32 data) external {
@@ -45,9 +36,7 @@ contract RegistryDatastore is IRegistryDatastore {
         return getSubregistry(msg.sender, id);
     }
 
-    function getResolver(
-        uint256 id
-    ) external view returns (address resolver, uint32 data) {
+    function getResolver(uint256 id) external view returns (address resolver, uint32 data) {
         return getResolver(msg.sender, id);
     }
 
@@ -89,10 +78,7 @@ contract RegistryDatastore is IRegistryDatastore {
         uint32 data,
         uint64 expiry
     ) internal pure returns (uint256 packed) {
-        packed =
-            (uint256(expiry) << 192) |
-            (uint256(data) << 160) |
-            uint256(uint160(addr));
+        packed = (uint256(expiry) << 192) | (uint256(data) << 160) | uint256(uint160(addr));
     }
 
     /// @dev Unpack a word into `(address, data, expiry)`.

@@ -28,11 +28,7 @@ library LibEACBaseRoles {
 ///      - A role bitmap is a uint256, where the lower 128 bits represent the regular roles (0-31), and the upper 128 bits represent the admin roles (32-63) for those roles.
 ///      - Each role is represented by a nybble (4 bits), in little-endian order.
 ///      - If a given role left-most nybble bit is located at index N then the corresponding admin role nybble starts at bit position N << 128.
-abstract contract EnhancedAccessControl is
-    Context,
-    ERC165,
-    IEnhancedAccessControl
-{
+abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessControl {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
@@ -46,8 +42,7 @@ abstract contract EnhancedAccessControl is
 
     /// @dev User roles within a resource stored as a bitmap.
     ///      Resource -> User -> RoleBitmap
-    mapping(uint256 resource => mapping(address account => uint256 roleBitmap))
-        private _roles;
+    mapping(uint256 resource => mapping(address account => uint256 roleBitmap)) private _roles;
 
     /// @notice The number of assignees for a given role in a given resource.
     ///
@@ -171,10 +166,7 @@ abstract contract EnhancedAccessControl is
     }
 
     /// @notice Returns the roles bitmap for an account in a resource.
-    function roles(
-        uint256 resource,
-        address account
-    ) public view virtual returns (uint256) {
+    function roles(uint256 resource, address account) public view virtual returns (uint256) {
         return _roles[resource][account];
     }
 
@@ -189,10 +181,7 @@ abstract contract EnhancedAccessControl is
     /// @param account The account to check.
     ///
     /// @return `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`, `false` otherwise.
-    function hasRootRoles(
-        uint256 rolesBitmap,
-        address account
-    ) public view virtual returns (bool) {
+    function hasRootRoles(uint256 rolesBitmap, address account) public view virtual returns (bool) {
         return _roles[ROOT_RESOURCE][account] & rolesBitmap == rolesBitmap;
     }
 
@@ -209,8 +198,7 @@ abstract contract EnhancedAccessControl is
         address account
     ) public view virtual returns (bool) {
         return
-            (_roles[ROOT_RESOURCE][account] | _roles[resource][account]) &
-                rolesBitmap ==
+            (_roles[ROOT_RESOURCE][account] | _roles[resource][account]) & rolesBitmap ==
             rolesBitmap;
     }
 
@@ -220,10 +208,7 @@ abstract contract EnhancedAccessControl is
     /// @param roleBitmap The roles bitmap to check.
     ///
     /// @return `true` if any of the roles in the given role bitmap has assignees, `false` otherwise.
-    function hasAssignees(
-        uint256 resource,
-        uint256 roleBitmap
-    ) public view virtual returns (bool) {
+    function hasAssignees(uint256 resource, uint256 roleBitmap) public view virtual returns (bool) {
         (uint256 counts, ) = getAssigneeCount(resource, roleBitmap);
         return counts != 0;
     }
@@ -294,13 +279,7 @@ abstract contract EnhancedAccessControl is
             uint256 newlyAddedRoles = roleBitmap & ~currentRoles;
             _updateRoleCounts(resource, newlyAddedRoles, true);
             if (executeCallbacks) {
-                _onRolesGranted(
-                    resource,
-                    account,
-                    currentRoles,
-                    updatedRoles,
-                    roleBitmap
-                );
+                _onRolesGranted(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
             emit EACRolesGranted(resource, roleBitmap, account);
             return true;
@@ -332,13 +311,7 @@ abstract contract EnhancedAccessControl is
             uint256 newlyRemovedRoles = roleBitmap & currentRoles;
             _updateRoleCounts(resource, newlyRemovedRoles, false);
             if (executeCallbacks) {
-                _onRolesRevoked(
-                    resource,
-                    account,
-                    currentRoles,
-                    updatedRoles,
-                    roleBitmap
-                );
+                _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
             emit EACRolesRevoked(resource, roleBitmap, account);
             return true;
@@ -353,13 +326,7 @@ abstract contract EnhancedAccessControl is
         address account,
         bool executeCallbacks
     ) internal virtual returns (bool) {
-        return
-            _revokeRoles(
-                resource,
-                LibEACBaseRoles.ALL_ROLES,
-                account,
-                executeCallbacks
-            );
+        return _revokeRoles(resource, LibEACBaseRoles.ALL_ROLES, account, executeCallbacks);
     }
 
     /// @dev Updates role counts when roles are granted/revoked
@@ -367,11 +334,7 @@ abstract contract EnhancedAccessControl is
     /// @param resource The resource to update counts for
     /// @param roleBitmap The roles being modified
     /// @param isGrant true for grant, false for revoke
-    function _updateRoleCounts(
-        uint256 resource,
-        uint256 roleBitmap,
-        bool isGrant
-    ) internal {
+    function _updateRoleCounts(uint256 resource, uint256 roleBitmap, bool isGrant) internal {
         uint256 roleMask = _roleBitmapToMask(roleBitmap);
 
         if (isGrant) {
@@ -454,8 +417,8 @@ abstract contract EnhancedAccessControl is
         uint256 resource,
         address account
     ) internal view virtual returns (uint256) {
-        uint256 adminRoleBitmap = (_roles[resource][account] |
-            _roles[ROOT_RESOURCE][account]) & LibEACBaseRoles.ADMIN_ROLES;
+        uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) &
+            LibEACBaseRoles.ADMIN_ROLES;
         return adminRoleBitmap >> 128;
     }
 
@@ -479,9 +442,7 @@ abstract contract EnhancedAccessControl is
     /// @param roleBitmap The role bitmap to convert.
     ///
     /// @return roleMask The mask for the role bitmap.
-    function _roleBitmapToMask(
-        uint256 roleBitmap
-    ) private pure returns (uint256 roleMask) {
+    function _roleBitmapToMask(uint256 roleBitmap) private pure returns (uint256 roleMask) {
         _checkRoleBitmap(roleBitmap);
         roleMask = roleBitmap | (roleBitmap << 1);
         roleMask |= roleMask << 2;
@@ -497,8 +458,7 @@ abstract contract EnhancedAccessControl is
         uint256 hasZeroNybbles;
         unchecked {
             hasZeroNybbles =
-                (value -
-                    0x1111111111111111111111111111111111111111111111111111111111111111) &
+                (value - 0x1111111111111111111111111111111111111111111111111111111111111111) &
                 ~value &
                 0x8888888888888888888888888888888888888888888888888888888888888888;
         }

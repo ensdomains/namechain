@@ -1,25 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.24;
 
-import {
-    CCIPBatcher,
-    CCIPReader,
-    OffchainLookup
-} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
+import {CCIPBatcher, CCIPReader, OffchainLookup} from "@ens/contracts/ccipRead/CCIPBatcher.sol";
 import {IGatewayProvider} from "@ens/contracts/ccipRead/IGatewayProvider.sol";
 import {DNSSEC} from "@ens/contracts/dnssec-oracle/DNSSEC.sol";
 import {IDNSGateway} from "@ens/contracts/dnssec-oracle/IDNSGateway.sol";
 import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
-import {
-    IAddrResolver
-} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
-import {
-    IExtendedDNSResolver
-} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
-import {
-    IExtendedResolver
-} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
+import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {
     RegistryUtils as RegistryUtilsV1,
@@ -30,14 +20,9 @@ import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {
-    ERC165Checker
-} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
-import {
-    RegistryUtils,
-    IRegistry
-} from "./../../universalResolver/RegistryUtils.sol";
+import {RegistryUtils, IRegistry} from "./../../universalResolver/RegistryUtils.sol";
 
 /// @dev DNS class for the "Internet" according to RFC-1035.
 uint16 constant CLASS_INET = 1;
@@ -134,11 +119,7 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
         bytes calldata name,
         bytes calldata data
     ) external view returns (bytes memory) {
-        (address resolver, , ) = RegistryUtilsV1.findResolver(
-            ENS_REGISTRY_V1,
-            name,
-            0
-        );
+        (address resolver, , ) = RegistryUtilsV1.findResolver(ENS_REGISTRY_V1, name, 0);
         if (resolver != address(0) && resolver != DNS_TLD_RESOLVER_V1) {
             _callResolver(resolver, name, data, false, "");
         }
@@ -162,10 +143,7 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
         bytes calldata response,
         bytes calldata extraData
     ) external view returns (bytes memory) {
-        (bytes memory name, bytes memory call) = abi.decode(
-            extraData,
-            (bytes, bytes)
-        );
+        (bytes memory name, bytes memory call) = abi.decode(extraData, (bytes, bytes));
         DNSSEC.RRSetWithSignature[] memory rrsets = abi.decode(
             response,
             (DNSSEC.RRSetWithSignature[])
@@ -268,17 +246,10 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
         bool direct = ERC165Checker.supportsERC165InterfaceUnchecked(
             resolver,
             type(IERC7996).interfaceId
-        ) &&
-            (!multi ||
-                IERC7996(resolver).supportsFeature(
-                    ResolverFeatures.RESOLVE_MULTICALL
-                ));
+        ) && (!multi || IERC7996(resolver).supportsFeature(ResolverFeatures.RESOLVE_MULTICALL));
         bytes[] memory calls;
         if (multi) {
-            calls = abi.decode(
-                BytesUtils.substring(call, 4, call.length - 4),
-                (bytes[])
-            );
+            calls = abi.decode(BytesUtils.substring(call, 4, call.length - 4), (bytes[]));
         } else {
             calls = new bytes[](1);
             calls[0] = call;
@@ -294,10 +265,7 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
             if (direct) {
                 ccipRead(
                     resolver,
-                    abi.encodeCall(
-                        IExtendedDNSResolver.resolve,
-                        (name, call, context)
-                    )
+                    abi.encodeCall(IExtendedDNSResolver.resolve, (name, call, context))
                 );
             } else {
                 extended = true;
@@ -315,17 +283,11 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
             )
         ) {
             if (direct) {
-                ccipRead(
-                    resolver,
-                    abi.encodeCall(IExtendedResolver.resolve, (name, call))
-                );
+                ccipRead(resolver, abi.encodeCall(IExtendedResolver.resolve, (name, call)));
             } else {
                 extended = true;
                 for (uint256 i; i < calls.length; ++i) {
-                    calls[i] = abi.encodeCall(
-                        IExtendedResolver.resolve,
-                        (name, calls[i])
-                    );
+                    calls[i] = abi.encodeCall(IExtendedResolver.resolve, (name, calls[i]));
                 }
             }
         }
@@ -333,13 +295,7 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
             address(this),
             abi.encodeCall(
                 this.ccipBatch,
-                (
-                    createBatch(
-                        resolver,
-                        calls,
-                        BATCH_GATEWAY_PROVIDER.gateways()
-                    )
-                )
+                (createBatch(resolver, calls, BATCH_GATEWAY_PROVIDER.gateways()))
             ),
             this.resolveBatchCallback.selector,
             IDENTITY_FUNCTION,
@@ -361,11 +317,7 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
         if (txt.length >= n && BytesUtils.equals(txt, 0, TXT_PREFIX, 0, n)) {
             uint256 sep = BytesUtils.find(txt, n, txt.length - n, " ");
             if (sep < txt.length) {
-                context = BytesUtils.substring(
-                    txt,
-                    sep + 1,
-                    txt.length - sep - 1
-                );
+                context = BytesUtils.substring(txt, sep + 1, txt.length - sep - 1);
             } else {
                 sep = txt.length;
             }
@@ -381,9 +333,7 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
     /// @param v The address or name.
     ///
     /// @return resolver The corresponding resolver address.
-    function _parseResolver(
-        bytes memory v
-    ) internal view returns (address resolver) {
+    function _parseResolver(bytes memory v) internal view returns (address resolver) {
         if (v.length == 42 && v[0] == "0" && v[1] == "x") {
             (address addr, bool valid) = HexUtils.hexToAddress(v, 2, 42);
             if (valid) {
@@ -394,9 +344,7 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
         (, address r, , ) = RegistryUtils.findResolver(ROOT_REGISTRY, name, 0);
         if (r != address(0)) {
             // according to V1, this must be immediate onchain
-            try IAddrResolver(r).addr(NameCoder.namehash(name, 0)) returns (
-                address payable a
-            ) {
+            try IAddrResolver(r).addr(NameCoder.namehash(name, 0)) returns (address payable a) {
                 resolver = a;
             } catch {}
         }

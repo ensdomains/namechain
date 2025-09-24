@@ -3,10 +3,7 @@ pragma solidity >=0.8.13;
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-import {
-    EnhancedAccessControl,
-    LibEACBaseRoles
-} from "./EnhancedAccessControl.sol";
+import {EnhancedAccessControl, LibEACBaseRoles} from "./EnhancedAccessControl.sol";
 import {IRegistryMetadata} from "./IRegistryMetadata.sol";
 
 contract SimpleRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
@@ -16,8 +13,7 @@ contract SimpleRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
 
     uint256 private constant _ROLE_UPDATE_METADATA = 1 << 0;
 
-    uint256 private constant _ROLE_UPDATE_METADATA_ADMIN =
-        _ROLE_UPDATE_METADATA << 128;
+    uint256 private constant _ROLE_UPDATE_METADATA_ADMIN = _ROLE_UPDATE_METADATA << 128;
 
     ////////////////////////////////////////////////////////////////////////
     // Storage
@@ -30,18 +26,11 @@ contract SimpleRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
     ////////////////////////////////////////////////////////////////////////
 
     constructor() {
-        _grantRoles(
-            ROOT_RESOURCE,
-            LibEACBaseRoles.ALL_ROLES,
-            _msgSender(),
-            true
-        );
+        _grantRoles(ROOT_RESOURCE, LibEACBaseRoles.ALL_ROLES, _msgSender(), true);
     }
 
     /// @inheritdoc IERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view override returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
         return
             interfaceId == type(IRegistryMetadata).interfaceId ||
             super.supportsInterface(interfaceId);
@@ -58,9 +47,7 @@ contract SimpleRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
         _tokenUris[tokenId] = uri;
     }
 
-    function tokenUri(
-        uint256 tokenId
-    ) external view override returns (string memory) {
+    function tokenUri(uint256 tokenId) external view override returns (string memory) {
         return _tokenUris[tokenId];
     }
 }

@@ -19,33 +19,22 @@ library BridgeEncoder {
         bytes memory dnsEncodedName,
         TransferData memory data
     ) internal pure returns (bytes memory) {
-        return
-            abi.encode(uint(BridgeMessageType.EJECTION), dnsEncodedName, data);
+        return abi.encode(uint(BridgeMessageType.EJECTION), dnsEncodedName, data);
     }
 
     /// @dev Decode an ejection message.
     function decodeEjection(
         bytes memory message
-    )
-        internal
-        pure
-        returns (bytes memory dnsEncodedName, TransferData memory data)
-    {
+    ) internal pure returns (bytes memory dnsEncodedName, TransferData memory data) {
         uint256 _messageType;
-        (_messageType, dnsEncodedName, data) = abi.decode(
-            message,
-            (uint256, bytes, TransferData)
-        );
+        (_messageType, dnsEncodedName, data) = abi.decode(message, (uint256, bytes, TransferData));
         if (_messageType != uint(BridgeMessageType.EJECTION)) {
             revert InvalidEjectionMessageType();
         }
     }
 
     /// @dev Encode a renewal message.
-    function encodeRenewal(
-        uint256 tokenId,
-        uint64 newExpiry
-    ) internal pure returns (bytes memory) {
+    function encodeRenewal(uint256 tokenId, uint64 newExpiry) internal pure returns (bytes memory) {
         return abi.encode(uint(BridgeMessageType.RENEWAL), tokenId, newExpiry);
     }
 
@@ -54,19 +43,14 @@ library BridgeEncoder {
         bytes memory message
     ) internal pure returns (uint256 tokenId, uint64 newExpiry) {
         uint256 _messageType;
-        (_messageType, tokenId, newExpiry) = abi.decode(
-            message,
-            (uint256, uint256, uint64)
-        );
+        (_messageType, tokenId, newExpiry) = abi.decode(message, (uint256, uint256, uint64));
         if (_messageType != uint(BridgeMessageType.RENEWAL)) {
             revert InvalidRenewalMessageType();
         }
     }
 
     /// @dev Helper function to get the message type from an encoded message.
-    function getMessageType(
-        bytes memory message
-    ) internal pure returns (BridgeMessageType) {
+    function getMessageType(bytes memory message) internal pure returns (BridgeMessageType) {
         uint256 _messageType = abi.decode(message, (uint256));
         return BridgeMessageType(_messageType);
     }

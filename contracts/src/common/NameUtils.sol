@@ -7,9 +7,7 @@ library NameUtils {
     /// @param label The label to convert.
     ///
     /// @return The canonical id corresponding to this label.
-    function labelToCanonicalId(
-        string memory label
-    ) internal pure returns (uint256) {
+    function labelToCanonicalId(string memory label) internal pure returns (uint256) {
         return getCanonicalId(uint256(keccak256(bytes(label))));
     }
 
@@ -27,14 +25,7 @@ library NameUtils {
     /// @param label The label to encode (e.g., "test" becomes "\x04test\x03eth\x00").
     ///
     /// @return The DNS-encoded name.
-    function dnsEncodeEthLabel(
-        string memory label
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                bytes1(uint8(bytes(label).length)),
-                label,
-                "\x03eth\x00"
-            );
+    function dnsEncodeEthLabel(string memory label) internal pure returns (bytes memory) {
+        return abi.encodePacked(bytes1(uint8(bytes(label).length)), label, "\x03eth\x00");
     }
 }

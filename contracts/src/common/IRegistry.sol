@@ -12,9 +12,7 @@ interface IRegistry is IERC1155Singleton {
     /// @param label The label to resolve.
     ///
     /// @return The address of the registry for this subdomain, or `address(0)` if none exists.
-    function getSubregistry(
-        string calldata label
-    ) external view returns (IRegistry);
+    function getSubregistry(string calldata label) external view returns (IRegistry);
 
     /// @notice Fetches the resolver responsible for the specified label.
     ///

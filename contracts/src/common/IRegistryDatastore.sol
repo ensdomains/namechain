@@ -8,12 +8,7 @@ pragma solidity >=0.8.13;
 ///      by registry implementations for different versions of tokens that reference the same underlying name. This
 ///      means that two label hashes that differ only in the least-significant 32 bits will resolve to the same name.
 interface IRegistryDatastore {
-    function setSubregistry(
-        uint256 id,
-        address subregistry,
-        uint64 expiry,
-        uint32 data
-    ) external;
+    function setSubregistry(uint256 id, address subregistry, uint64 expiry, uint32 data) external;
 
     function setResolver(uint256 id, address resolver, uint32 data) external;
 
@@ -31,7 +26,5 @@ interface IRegistryDatastore {
         uint256 id
     ) external view returns (address resolver, uint32 data);
 
-    function getResolver(
-        uint256 id
-    ) external view returns (address resolver, uint32 data);
+    function getResolver(uint256 id) external view returns (address resolver, uint32 data);
 }

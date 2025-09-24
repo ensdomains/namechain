@@ -8,11 +8,7 @@ import {IRegistry} from "./IRegistry.sol";
 /// @notice Interface for the a standard registry.
 interface IStandardRegistry is IRegistry {
     /// @notice Emitted when a name is renewed.
-    event NameRenewed(
-        uint256 indexed tokenId,
-        uint64 newExpiration,
-        address renewedBy
-    );
+    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
 
     /// @notice Emitted when a name is burned.
     event NameBurned(uint256 indexed tokenId, address burnedBy);

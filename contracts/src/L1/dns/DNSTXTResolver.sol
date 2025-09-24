@@ -2,27 +2,13 @@
 pragma solidity >=0.8.13;
 
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
-import {
-    IAddressResolver
-} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
-import {
-    IAddrResolver
-} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
-import {
-    IContentHashResolver
-} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
-import {
-    IExtendedDNSResolver
-} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
-import {
-    IHasAddressResolver
-} from "@ens/contracts/resolvers/profiles/IHasAddressResolver.sol";
-import {
-    IPubkeyResolver
-} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
-import {
-    ITextResolver
-} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
+import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
+import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
+import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
+import {IHasAddressResolver} from "@ens/contracts/resolvers/profiles/IHasAddressResolver.sol";
+import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
+import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH} from "@ens/contracts/utils/ENSIP19.sol";
@@ -136,10 +122,7 @@ contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
             if (BytesUtils.equals(bytes(key), bytes(_TEXT_DNSSEC_CONTEXT))) {
                 return abi.encode(context);
             }
-            bytes memory v = DNSTXTParser.find(
-                context,
-                abi.encodePacked("t[", key, "]=")
-            );
+            bytes memory v = DNSTXTParser.find(context, abi.encodePacked("t[", key, "]="));
             return abi.encode(v);
         } else if (selector == IContentHashResolver.contenthash.selector) {
             return abi.encode(_parse0xString(DNSTXTParser.find(context, "c=")));
@@ -194,10 +177,7 @@ contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
             }
         } else {
             v = _parse0xString(
-                DNSTXTParser.find(
-                    context,
-                    abi.encodePacked("a[", Strings.toString(coinType), "]=")
-                )
+                DNSTXTParser.find(context, abi.encodePacked("a[", Strings.toString(coinType), "]="))
             );
         }
     }
@@ -208,9 +188,7 @@ contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
     /// @param s The string to parse.
     ///
     /// @return v The parsed bytes.
-    function _parse0xString(
-        bytes memory s
-    ) internal pure returns (bytes memory v) {
+    function _parse0xString(bytes memory s) internal pure returns (bytes memory v) {
         if (s.length > 0) {
             bool valid;
             if (s.length >= 2 && s[0] == "0" && s[1] == "x") {

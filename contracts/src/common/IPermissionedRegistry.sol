@@ -13,10 +13,7 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     ///
     /// @param tokenId The token ID of the token to set the observer for.
     /// @param observer The observer to set.
-    function setTokenObserver(
-        uint256 tokenId,
-        ITokenObserver observer
-    ) external;
+    function setTokenObserver(uint256 tokenId, ITokenObserver observer) external;
 
     /// @notice Get the latest owner of a token.
     ///         If the token was burned, returns null.
@@ -35,8 +32,5 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     /// @return tokenIdVersion The token ID version of the name.
     function getNameData(
         string calldata label
-    )
-        external
-        view
-        returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion);
+    ) external view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion);
 }

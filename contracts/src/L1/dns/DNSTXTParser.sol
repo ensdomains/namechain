@@ -50,10 +50,7 @@ library DNSTXTParser {
     /// @param key The exact key to search for with trailing equals, eg. "key=".
     ///
     /// @return value The value if found, or an empty string if `key` does not exist.
-    function find(
-        bytes memory data,
-        bytes memory key
-    ) internal pure returns (bytes memory value) {
+    function find(bytes memory data, bytes memory key) internal pure returns (bytes memory value) {
         // Here we use a simple state machine to parse the text record. We
         // process characters one at a time; each character can trigger a
         // transition to a new state, or terminate the DFA and return a value.

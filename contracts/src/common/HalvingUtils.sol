@@ -37,10 +37,7 @@ library HalvingUtils {
         return _addFraction(initial >> i, (f << 16) / PRECISION);
     }
 
-    function _addFraction(
-        uint256 x,
-        uint256 fraction
-    ) private pure returns (uint256) {
+    function _addFraction(uint256 x, uint256 fraction) private pure returns (uint256) {
         if (fraction & (1 << 0) != 0) {
             x = (x * BIT1) / PRECISION;
         }

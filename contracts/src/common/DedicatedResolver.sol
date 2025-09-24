@@ -3,52 +3,25 @@ pragma solidity >=0.8.13;
 
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
-import {
-    IAddressResolver
-} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
-import {
-    IAddrResolver
-} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
-import {
-    IContentHashResolver
-} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
-import {
-    IExtendedResolver
-} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
-import {
-    IHasAddressResolver
-} from "@ens/contracts/resolvers/profiles/IHasAddressResolver.sol";
-import {
-    IInterfaceResolver
-} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
-import {
-    INameResolver
-} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
-import {
-    IPubkeyResolver
-} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
-import {
-    ITextResolver
-} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
+import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
+import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
+import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IHasAddressResolver} from "@ens/contracts/resolvers/profiles/IHasAddressResolver.sol";
+import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
+import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
+import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
+import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
-import {
-    ENSIP19,
-    COIN_TYPE_ETH,
-    COIN_TYPE_DEFAULT
-} from "@ens/contracts/utils/ENSIP19.sol";
+import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {
-    ERC165Checker
-} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
-import {
-    IDedicatedResolverSetters,
-    NODE_ANY
-} from "./IDedicatedResolverSetters.sol";
+import {IDedicatedResolverSetters, NODE_ANY} from "./IDedicatedResolverSetters.sol";
 
 /// @title DedicatedResolver
 /// @notice An owned resolver that provides the same results for any name.
@@ -113,9 +86,7 @@ contract DedicatedResolver is
     }
 
     /// @inheritdoc ERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view override(ERC165) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
             type(IDedicatedResolverSetters).interfaceId == interfaceId ||
@@ -136,8 +107,7 @@ contract DedicatedResolver is
     /// @inheritdoc IERC7996
     function supportsFeature(bytes4 feature) public pure returns (bool) {
         return
-            ResolverFeatures.RESOLVE_MULTICALL == feature ||
-            ResolverFeatures.SINGULAR == feature;
+            ResolverFeatures.RESOLVE_MULTICALL == feature || ResolverFeatures.SINGULAR == feature;
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -145,14 +115,9 @@ contract DedicatedResolver is
     ////////////////////////////////////////////////////////////////////////
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setAddr(
-        uint256 coinType,
-        bytes calldata addressBytes
-    ) external onlyOwner {
+    function setAddr(uint256 coinType, bytes calldata addressBytes) external onlyOwner {
         if (
-            addressBytes.length != 0 &&
-            addressBytes.length != 20 &&
-            ENSIP19.isEVMCoinType(coinType)
+            addressBytes.length != 0 && addressBytes.length != 20 && ENSIP19.isEVMCoinType(coinType)
         ) {
             revert InvalidEVMAddress(addressBytes);
         }
@@ -164,10 +129,7 @@ contract DedicatedResolver is
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setText(
-        string calldata key,
-        string calldata value
-    ) external onlyOwner {
+    function setText(string calldata key, string calldata value) external onlyOwner {
         _texts[key] = value;
         emit TextChanged(NODE_ANY, key, key, value);
     }
@@ -186,10 +148,7 @@ contract DedicatedResolver is
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setABI(
-        uint256 contentType,
-        bytes calldata data
-    ) external onlyOwner {
+    function setABI(uint256 contentType, bytes calldata data) external onlyOwner {
         if (!_isPowerOf2(contentType)) {
             revert InvalidContentType(contentType);
         }
@@ -198,10 +157,7 @@ contract DedicatedResolver is
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setInterface(
-        bytes4 interfaceId,
-        address implementer
-    ) external onlyOwner {
+    function setInterface(bytes4 interfaceId, address implementer) external onlyOwner {
         _interfaces[interfaceId] = implementer;
         emit InterfaceChanged(NODE_ANY, interfaceId, implementer);
     }
@@ -236,10 +192,7 @@ contract DedicatedResolver is
     /// @param key The key.
     ///
     /// @return The text value.
-    function text(
-        bytes32,
-        string calldata key
-    ) external view returns (string memory) {
+    function text(bytes32, string calldata key) external view returns (string memory) {
         return _texts[key];
     }
 
@@ -269,11 +222,7 @@ contract DedicatedResolver is
         bytes32,
         uint256 contentTypes
     ) external view returns (uint256 contentType, bytes memory data) {
-        for (
-            contentType = 1;
-            contentType > 0 && contentType <= contentTypes;
-            contentType <<= 1
-        ) {
+        for (contentType = 1; contentType > 0 && contentType <= contentTypes; contentType <<= 1) {
             if ((contentType & contentTypes) != 0) {
                 data = _abis[contentType];
                 if (data.length > 0) {
@@ -316,10 +265,7 @@ contract DedicatedResolver is
     /// @param data The resolution data, as specified in ENSIP-10..
     ///
     /// @return The result of the resolution.
-    function resolve(
-        bytes calldata,
-        bytes calldata data
-    ) external view returns (bytes memory) {
+    function resolve(bytes calldata, bytes calldata data) external view returns (bytes memory) {
         (bool ok, bytes memory v) = address(this).staticcall(data);
         if (!ok) {
             assembly {
@@ -334,9 +280,7 @@ contract DedicatedResolver is
     /// @notice Perform multiple read or write operations.
     ///
     /// @dev Reverts if any call fails.
-    function multicall(
-        bytes[] calldata calls
-    ) public returns (bytes[] memory results) {
+    function multicall(bytes[] calldata calls) public returns (bytes[] memory results) {
         results = new bytes[](calls.length);
         for (uint256 i; i < calls.length; i++) {
             (bool ok, bytes memory v) = address(this).delegatecall(calls[i]);
@@ -352,14 +296,9 @@ contract DedicatedResolver is
     /// @param coinType The coin type.
     ///
     /// @return addressBytes The address for the coin type.
-    function addr(
-        bytes32,
-        uint256 coinType
-    ) public view returns (bytes memory addressBytes) {
+    function addr(bytes32, uint256 coinType) public view returns (bytes memory addressBytes) {
         addressBytes = _addresses[coinType];
-        if (
-            addressBytes.length == 0 && ENSIP19.chainFromCoinType(coinType) > 0
-        ) {
+        if (addressBytes.length == 0 && ENSIP19.chainFromCoinType(coinType) > 0) {
             addressBytes = _addresses[COIN_TYPE_DEFAULT];
         }
     }

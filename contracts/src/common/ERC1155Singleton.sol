@@ -5,16 +5,12 @@
 // Portions from OpenZeppelin Contracts (last updated v5.0.0) (token/ERC1155/ERC1155.sol)
 pragma solidity >=0.8.13;
 
-import {
-    IERC1155Errors
-} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {
     IERC1155MetadataURI
 } from "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import {
-    ERC1155Utils
-} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Utils.sol";
+import {ERC1155Utils} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Utils.sol";
 import {Arrays} from "@openzeppelin/contracts/utils/Arrays.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
@@ -45,11 +41,7 @@ abstract contract ERC1155Singleton is
     // Events
     ////////////////////////////////////////////////////////////////////////
 
-    event Approval(
-        address indexed owner,
-        address indexed approved,
-        uint256 indexed tokenId
-    );
+    event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
 
     ////////////////////////////////////////////////////////////////////////
     // Initialization
@@ -114,10 +106,7 @@ abstract contract ERC1155Singleton is
     function uri(uint256 /* id */) public view virtual returns (string memory);
 
     /// @inheritdoc IERC1155
-    function balanceOf(
-        address account,
-        uint256 id
-    ) public view virtual returns (uint256) {
+    function balanceOf(address account, uint256 id) public view virtual returns (uint256) {
         return ownerOf(id) == account ? 1 : 0;
     }
 
@@ -133,10 +122,7 @@ abstract contract ERC1155Singleton is
         uint256[] memory batchBalances = new uint256[](accounts.length);
 
         for (uint256 i = 0; i < accounts.length; ++i) {
-            batchBalances[i] = balanceOf(
-                accounts.unsafeMemoryAccess(i),
-                ids.unsafeMemoryAccess(i)
-            );
+            batchBalances[i] = balanceOf(accounts.unsafeMemoryAccess(i), ids.unsafeMemoryAccess(i));
         }
 
         return batchBalances;
@@ -222,23 +208,9 @@ abstract contract ERC1155Singleton is
             if (ids.length == 1) {
                 uint256 id = ids.unsafeMemoryAccess(0);
                 uint256 value = values.unsafeMemoryAccess(0);
-                ERC1155Utils.checkOnERC1155Received(
-                    operator,
-                    from,
-                    to,
-                    id,
-                    value,
-                    data
-                );
+                ERC1155Utils.checkOnERC1155Received(operator, from, to, id, value, data);
             } else {
-                ERC1155Utils.checkOnERC1155BatchReceived(
-                    operator,
-                    from,
-                    to,
-                    ids,
-                    values,
-                    data
-                );
+                ERC1155Utils.checkOnERC1155BatchReceived(operator, from, to, ids, values, data);
             }
         }
     }
@@ -266,10 +238,7 @@ abstract contract ERC1155Singleton is
         if (from == address(0)) {
             revert ERC1155InvalidSender(address(0));
         }
-        (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(
-            id,
-            value
-        );
+        (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(id, value);
         _updateWithAcceptanceCheck(from, to, ids, values, data);
     }
 
@@ -307,19 +276,11 @@ abstract contract ERC1155Singleton is
     ///      - `to` cannot be the zero address.
     ///      - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155Received} and return the
     ///        acceptance magic value.
-    function _mint(
-        address to,
-        uint256 id,
-        uint256 value,
-        bytes memory data
-    ) internal {
+    function _mint(address to, uint256 id, uint256 value, bytes memory data) internal {
         if (to == address(0)) {
             revert ERC1155InvalidReceiver(address(0));
         }
-        (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(
-            id,
-            value
-        );
+        (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(id, value);
         _updateWithAcceptanceCheck(address(0), to, ids, values, data);
     }
 
@@ -357,10 +318,7 @@ abstract contract ERC1155Singleton is
         if (from == address(0)) {
             revert ERC1155InvalidSender(address(0));
         }
-        (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(
-            id,
-            value
-        );
+        (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(id, value);
         _updateWithAcceptanceCheck(from, address(0), ids, values, "");
     }
 
@@ -373,11 +331,7 @@ abstract contract ERC1155Singleton is
     ///      - `from` cannot be the zero address.
     ///      - `from` must have at least `value` amount of tokens of type `id`.
     ///      - `ids` and `values` must have the same length.
-    function _burnBatch(
-        address from,
-        uint256[] memory ids,
-        uint256[] memory values
-    ) internal {
+    function _burnBatch(address from, uint256[] memory ids, uint256[] memory values) internal {
         if (from == address(0)) {
             revert ERC1155InvalidSender(address(0));
         }
@@ -391,11 +345,7 @@ abstract contract ERC1155Singleton is
     ///      Requirements:
     ///
     ///      - `operator` cannot be the zero address.
-    function _setApprovalForAll(
-        address owner,
-        address operator,
-        bool approved
-    ) internal virtual {
+    function _setApprovalForAll(address owner, address operator, bool approved) internal virtual {
         if (operator == address(0)) {
             revert ERC1155InvalidOperator(address(0));
         }

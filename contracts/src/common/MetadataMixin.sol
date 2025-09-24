@@ -22,9 +22,7 @@ abstract contract MetadataMixin {
     /// @dev Updates the metadata provider
     ///
     /// @param metadataProvider_ Address of the new metadata provider contract
-    function _updateMetadataProvider(
-        IRegistryMetadata metadataProvider_
-    ) internal virtual {
+    function _updateMetadataProvider(IRegistryMetadata metadataProvider_) internal virtual {
         metadataProvider = metadataProvider_;
     }
 
@@ -33,9 +31,7 @@ abstract contract MetadataMixin {
     /// @param tokenId The ID of the token to query
     ///
     /// @return URI string for the token metadata
-    function _tokenURI(
-        uint256 tokenId
-    ) internal view virtual returns (string memory) {
+    function _tokenURI(uint256 tokenId) internal view virtual returns (string memory) {
         if (address(metadataProvider) == address(0)) {
             return "";
         }
