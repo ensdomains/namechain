@@ -1156,13 +1156,14 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         address user2 = makeAddr("user2");
         address user3 = makeAddr("user3");
         
-        // Register a name initially
+        // Register a name initially with transfer admin role
+        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
         uint256 tokenId = registry.register(
             "nulltest",
             user1,
             registry,
             address(0),
-            defaultRoleBitmap,
+            roleBitmapWithTransfer,
             uint64(block.timestamp) + 100
         );
         
@@ -2570,12 +2571,13 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     
     function test_tokenId_transfer_maintains_structure() public {
         string memory label = "transferstructure";
+        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
         uint256 tokenId = registry.register(
             label,
             user1,
             registry,
             address(0),
-            defaultRoleBitmap,
+            roleBitmapWithTransfer,
             uint64(block.timestamp) + 86400
         );
         
