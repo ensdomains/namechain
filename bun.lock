@@ -17,11 +17,11 @@
         "@nomicfoundation/hardhat-foundry": "^1.2.0",
         "@nomicfoundation/hardhat-network-helpers": "3.0.0",
         "@nomicfoundation/hardhat-viem": "3.0.0",
-        "@rocketh/deploy": "^0.14.0",
-        "@rocketh/proxy": "^0.14.0",
-        "@rocketh/read-execute": "^0.14.0",
-        "@rocketh/verifier": "^0.14.0",
-        "@rocketh/viem": "^0.14.0",
+        "@rocketh/deploy": "0.14.0",
+        "@rocketh/proxy": "0.14.0",
+        "@rocketh/read-execute": "0.14.0",
+        "@rocketh/verifier": "0.14.4",
+        "@rocketh/viem": "0.14.0",
         "@types/bun": "latest",
         "chai": "^5.1.1",
         "dns-packet": "^5.6.1",
@@ -189,15 +189,15 @@
 
     "@prettier/sync": ["@prettier/sync@0.3.0", "", { "peerDependencies": { "prettier": "^3.0.0" } }, "sha512-3dcmCyAxIcxy036h1I7MQU/uEEBq8oLwf1CE3xeze+MPlgkdlb/+w6rGR/1dhp6Hqi17fRS6nvwnOzkESxEkOw=="],
 
-    "@rocketh/deploy": ["@rocketh/deploy@0.14.2", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.37.6" } }, "sha512-NpXxv6Nl34iZFbCUQ1I7KoZxEYrcJEtZw+6T+5wtPd4nJIrR447oGw1WfeBpb2XitszQjTHM3B8oiRxBvVi8VA=="],
+    "@rocketh/deploy": ["@rocketh/deploy@0.14.0", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-4uBIpKchoTZ9QSxyTYYT137+nI0beOlqkh10NWwNgBrQXPpFc51pDB2cDZkgzJpJ5Bzn5hL6klaEsVfPxmAvSA=="],
 
-    "@rocketh/proxy": ["@rocketh/proxy@0.14.6", "", { "dependencies": { "@rocketh/deploy": "0.14.2", "@rocketh/read-execute": "0.14.3", "named-logs": "^0.3.2", "viem": "^2.37.6" } }, "sha512-68Aq+lberacH/tO5a7kUHL2n+jiARh+nIV0t1r3pwGRAIhE/qEHDJV0CVT/vn7dpyrPiTlWSF9ZCUSMB2ycl5Q=="],
+    "@rocketh/proxy": ["@rocketh/proxy@0.14.0", "", { "dependencies": { "@rocketh/deploy": "0.14.0", "@rocketh/read-execute": "0.14.0", "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-Dhj9/U/45NuCGCWoOOYPwQiMxA0bfHPnD8GOCwXOMJpXDJDpWDK6wPN/EyuOaG2rpmvy9JkpFf34y0rXBL9isQ=="],
 
-    "@rocketh/read-execute": ["@rocketh/read-execute@0.14.3", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.37.6" } }, "sha512-b8r2rq9N4S7te0HkzW6DWxx+2oGzDRqWYUs8MBaxc6QuwItb2M+1/Gz9ujnVFlB6mlUC8p2CF4THlYgnmFbVOQ=="],
+    "@rocketh/read-execute": ["@rocketh/read-execute@0.14.0", "", { "dependencies": { "named-logs": "^0.3.2", "viem": "^2.23.12" } }, "sha512-+QhG2I34kg36FklCVotZdKp5UuNlq+AfnKka75wVJigdAn3+RSheYf9yhofT8tIGa4dv6p4LE5eett2HOmfENQ=="],
 
-    "@rocketh/verifier": ["@rocketh/verifier@0.14.9", "", { "dependencies": { "@types/fs-extra": "^11.0.4", "@types/qs": "^6.14.0", "chalk": "5.6.2", "commander": "^13.1.0", "fs-extra": "^11.3.1", "ldenv": "^0.3.12", "neoqs": "^6.13.0" }, "peerDependencies": { "rocketh": "0.14.9" }, "bin": { "rocketh-verify": "dist/cli.js" } }, "sha512-rWylGsQMUEYvbXrM9d5oY4hR8WJDc+vuszoWBXahEEsfQC3kIuhZugsBrG3JU/jaPj5mllhSTebbkokWjwnXLA=="],
+    "@rocketh/verifier": ["@rocketh/verifier@0.14.4", "", { "dependencies": { "@types/fs-extra": "^11.0.4", "@types/qs": "^6.9.18", "chalk": "5.4.1", "commander": "^13.1.0", "fs-extra": "^11.3.0", "ldenv": "^0.3.12", "neoqs": "^6.13.0" }, "peerDependencies": { "rocketh": "0.14.4" }, "bin": { "rocketh-verify": "dist/cli.js" } }, "sha512-nfxigIPC3zXZ6ajJhxEYJ7zkm0nn3kNHRryY1HPOlhnAjwTwzELLzDP2YFutvhwRcaEGcQz5vIeQJEVAaFG4zw=="],
 
-    "@rocketh/viem": ["@rocketh/viem@0.14.2", "", { "dependencies": { "named-logs": "^0.3.2" }, "peerDependencies": { "viem": "^2.23.12" } }, "sha512-dnQXjUzboDYY+DxkDMU32zZ6R5mR6UAts5ePaIfNo1FmUmq2gtui8K3cnVS7qo+GtZANzn+xlhdc5OLuDBt2+w=="],
+    "@rocketh/viem": ["@rocketh/viem@0.14.0", "", { "dependencies": { "named-logs": "^0.3.2" }, "peerDependencies": { "viem": "^2.23.12" } }, "sha512-1RRVpCgPJrPQEIs9OUyVBzCzXNbhIME+HFJBLdYI4y4ol94otqcaTnoXC91bRLmTPb60fvfssKV4p8gK9pyUQw=="],
 
     "@rollup/rollup-android-arm-eabi": ["@rollup/rollup-android-arm-eabi@4.52.2", "", { "os": "android", "cpu": "arm" }, "sha512-o3pcKzJgSGt4d74lSZ+OCnHwkKBeAbFDmbEm5gg70eA8VkyCuC/zV9TwBnmw6VjDlRdF4Pshfb+WE9E6XY1PoQ=="],
 
@@ -361,7 +361,7 @@
 
     "chai": ["chai@5.3.3", "", { "dependencies": { "assertion-error": "^2.0.1", "check-error": "^2.1.1", "deep-eql": "^5.0.1", "loupe": "^3.1.0", "pathval": "^2.0.0" } }, "sha512-4zNhdJD/iOjSH0A05ea+Ke6MU5mmpQcbQsSOkgdaUMJ9zTlDTD/GYlwohmIE2u0gaxHYiVHEn1Fw9mZ/ktJWgw=="],
 
-    "chalk": ["chalk@5.6.2", "", {}, "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA=="],
+    "chalk": ["chalk@5.4.1", "", {}, "sha512-zgVZuo2WcZgfUEmsn6eO3kINexW8RAE4maiQ8QNs8CtpPCSyMiYsULR3HQYkm3w8FIA3SberyMJMSldGsW+U3w=="],
 
     "change-case": ["change-case@5.4.4", "", {}, "sha512-HRQyTk2/YPEkt9TnUPbOpr64Uw3KOicFWPVBb+xiHvd6eBx/qPr9xqfBFDT8P2vWsvvz4jbEkfDe71W3VyNu2w=="],
 
@@ -792,6 +792,8 @@
     "figlet/commander": ["commander@14.0.1", "", {}, "sha512-2JkV3gUZUVrbNA+1sjBOYLsMZ5cEEl8GTFP2a4AVz5hvasAMCQ1D2l2le/cX+pV4N6ZU17zjUahLpIXRrnWL8A=="],
 
     "got/get-stream": ["get-stream@6.0.1", "", {}, "sha512-ts6Wi+2j3jQjqi70w5AlN8DFnkSwC+MqmxEzdEALB2qXZYV3X/b1CTfgPLGJNMeAWxdPfU8FO1ms3NUfaHCPYg=="],
+
+    "hardhat/chalk": ["chalk@5.6.2", "", {}, "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA=="],
 
     "hardhat-deploy/@nomicfoundation/hardhat-zod-utils": ["@nomicfoundation/hardhat-zod-utils@3.0.0", "", { "dependencies": { "@nomicfoundation/hardhat-utils": "^3.0.0" }, "peerDependencies": { "zod": "^3.23.8" } }, "sha512-xAi+45+V82pZZ9QGDEiii0wp+SXXH/8hS7/pk7S0gOG6h29gPuE42yek8wh3Ff0M+DrsB/RKZjcezmdwH5a6mQ=="],
 
