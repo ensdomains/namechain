@@ -51,18 +51,42 @@ jobs:
         run: cd contracts && bun run coverage
 
       - name: Upload coverage reports
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          path: ./contracts/coverage/reports/
+          name: site
+          path: contracts/coverage/reports/
 
   deploy:
-    name: Github Pages
+    name: Coverage Reports
     runs-on: ubuntu-latest
     needs: test
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: coverage-reports
+          fetch-depth: 0
+
+      - name: Download report
+        uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: temp
+
+      - name: Replace report
+        run: |
+          mkdir -p www
+          rm -rf "www/$GITHUB_REF_NAME"
+          mv temp "www/$GITHUB_REF_NAME"
+
+      - name: Update repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "$GITHUB_SHA / $GITHUB_REF_NAME" || echo "no changes"
+
+      - name: Push repo
+        uses: ad-m/github-push-action@v0.10.0
+        with:
+          branch: coverage-reports
