@@ -61,6 +61,21 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
+      - name: Determine branch name
+        id: set-branch
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            REF="${GITHUB_HEAD_REF}"
+          elif [[ "${GITHUB_REF}" == refs/heads/* ]]; then
+            REF="${GITHUB_REF#refs/heads/}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            REF="${GITHUB_REF#refs/tags/}"
+          else
+            REF="$GITHUB_REF"
+          fi
+          REF=$(echo "$REF" | sed 's#[^A-Za-z0-9._-]#-#g')
+          echo "Ref: $REF"
+
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
@@ -76,15 +91,15 @@ jobs:
       - name: Replace report
         run: |
           mkdir -p docs
-          rm -rf "docs/$GITHUB_REF_NAME"
-          mv temp "docs/$GITHUB_REF_NAME"
+          rm -rf "docs/$REF"
+          mv temp "docs/$REF"
 
       - name: Update repo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "$GITHUB_SHA / $GITHUB_REF_NAME" || echo "no changes"
+          git commit -m "$GITHUB_SHA / $REF" || echo "no changes"
 
       - name: Push repo
         uses: ad-m/github-push-action@v1.0.0
