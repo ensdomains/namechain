@@ -37,18 +37,17 @@ jobs:
           bun-version-file: ".bun-version"
 
       - run: bun install --frozen-lockfile
-      - run: cd contracts
 
-      - name: Check types
-        run: bun run compile && bun check:types
+      - name: Compile and check types
+        run: cd contracts && bun run compile && bun check:types
 
       - name: Run tests with coverage
-        run: bun run coverage
+        run: cd contracts && bun run coverage
 
       - name: Upload coverage reports
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./coverage/reports/
+          path: ./contracts/coverage/reports/
 
   deploy:
     runs-on: ubuntu-latest
