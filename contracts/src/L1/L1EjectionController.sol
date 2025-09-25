@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {BridgeEncoder} from "./../common/BridgeEncoder.sol";
-import {EjectionController} from "./../common/EjectionController.sol";
-import {IBridge, LibBridgeRoles} from "./../common/IBridge.sol";
-import {IPermissionedRegistry} from "./../common/IPermissionedRegistry.sol";
-import {IRegistry} from "./../common/IRegistry.sol";
-import {NameUtils} from "./../common/NameUtils.sol";
-import {TransferData} from "./../common/TransferData.sol";
+import {EjectionController} from "./../common/bridge/EjectionController.sol";
+import {IBridge} from "./../common/bridge/interfaces/IBridge.sol";
+import {BridgeEncoderLib} from "./../common/bridge/libraries/BridgeEncoderLib.sol";
+import {BridgeRolesLib} from "./../common/bridge/libraries/BridgeRolesLib.sol";
+import {TransferData} from "./../common/bridge/types/TransferData.sol";
+import {IPermissionedRegistry} from "./../common/registry/interfaces/IPermissionedRegistry.sol";
+import {IRegistry} from "./../common/registry/interfaces/IRegistry.sol";
+import {NameIdLib} from "./../common/utils/NameIdLib.sol";
 
 /**
  * @title L1EjectionController
@@ -47,7 +48,7 @@ contract L1EjectionController is EjectionController {
     /// @param transferData The transfer data for the name being ejected
     function completeEjectionFromL2(
         TransferData memory transferData
-    ) external virtual onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR) returns (uint256 tokenId) {
+    ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) returns (uint256 tokenId) {
         tokenId = REGISTRY.register(
             transferData.label,
             transferData.owner,
@@ -56,7 +57,7 @@ contract L1EjectionController is EjectionController {
             transferData.roleBitmap,
             transferData.expires
         );
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
+        bytes memory dnsEncodedName = NameIdLib.dnsEncodeEthLabel(transferData.label);
         emit NameEjectedToL1(dnsEncodedName, tokenId);
     }
 
@@ -67,7 +68,7 @@ contract L1EjectionController is EjectionController {
     function syncRenewal(
         uint256 tokenId,
         uint64 newExpiry
-    ) external virtual onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR) {
+    ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
         REGISTRY.renew(tokenId, newExpiry);
         emit RenewalSynchronized(tokenId, newExpiry);
     }
@@ -92,8 +93,8 @@ contract L1EjectionController is EjectionController {
             REGISTRY.burn(tokenId);
 
             // send the message to the bridge
-            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
-            BRIDGE.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferData));
+            bytes memory dnsEncodedName = NameIdLib.dnsEncodeEthLabel(transferData.label);
+            BRIDGE.sendMessage(BridgeEncoderLib.encodeEjection(dnsEncodedName, transferData));
             emit NameEjectedToL2(dnsEncodedName, tokenId);
         }
     }

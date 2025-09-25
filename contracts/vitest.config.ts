@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     reporters: ["verbose"],
-    include: ["test/**/*.test.ts"],
-    setupFiles: ["test/vitest-setup.ts"],
+    include: ["test/integration/**/*.test.ts"],
+    setupFiles: ["test/integration/vitest-setup.ts"],
   },
 });

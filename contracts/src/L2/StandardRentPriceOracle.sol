@@ -7,9 +7,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-import {HalvingUtils} from "./../common/HalvingUtils.sol";
-import {IPermissionedRegistry} from "./../common/IPermissionedRegistry.sol";
-import {IRentPriceOracle} from "./IRentPriceOracle.sol";
+import {IPermissionedRegistry} from "./../common/registry/interfaces/IPermissionedRegistry.sol";
+import {LibHalving} from "./../common/utils/LibHalving.sol";
+import {IRentPriceOracle} from "./interfaces/IRentPriceOracle.sol";
 
 /// @param t Incremental time interval for discount, in seconds.
 /// @param value Discount percentage, relative to `type(uint128).max`.
@@ -279,8 +279,8 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     function premiumPriceAfter(uint64 duration) public view returns (uint256) {
         if (duration >= premiumPeriod) return 0;
         return
-            HalvingUtils.halving(premiumPriceInitial, premiumHalvingPeriod, duration) -
-            HalvingUtils.halving(premiumPriceInitial, premiumHalvingPeriod, premiumPeriod);
+            LibHalving.halving(premiumPriceInitial, premiumHalvingPeriod, duration) -
+            LibHalving.halving(premiumPriceInitial, premiumHalvingPeriod, premiumPeriod);
     }
 
     /// @inheritdoc IRentPriceOracle

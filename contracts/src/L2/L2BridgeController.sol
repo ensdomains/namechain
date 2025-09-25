@@ -3,16 +3,17 @@ pragma solidity >=0.8.13;
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-import {BridgeEncoder} from "./../common/BridgeEncoder.sol";
-import {EjectionController} from "./../common/EjectionController.sol";
-import {IBridge, LibBridgeRoles} from "./../common/IBridge.sol";
-import {IPermissionedRegistry} from "./../common/IPermissionedRegistry.sol";
-import {IRegistry} from "./../common/IRegistry.sol";
-import {IRegistryDatastore} from "./../common/IRegistryDatastore.sol";
-import {ITokenObserver} from "./../common/ITokenObserver.sol";
-import {LibRegistryRoles} from "./../common/LibRegistryRoles.sol";
-import {NameUtils} from "./../common/NameUtils.sol";
-import {TransferData} from "./../common/TransferData.sol";
+import {EjectionController} from "./../common/bridge/EjectionController.sol";
+import {IBridge} from "./../common/bridge/interfaces/IBridge.sol";
+import {BridgeEncoderLib} from "./../common/bridge/libraries/BridgeEncoderLib.sol";
+import {BridgeRolesLib} from "./../common/bridge/libraries/BridgeRolesLib.sol";
+import {TransferData} from "./../common/bridge/types/TransferData.sol";
+import {IPermissionedRegistry} from "./../common/registry/interfaces/IPermissionedRegistry.sol";
+import {IRegistry} from "./../common/registry/interfaces/IRegistry.sol";
+import {IRegistryDatastore} from "./../common/registry/interfaces/IRegistryDatastore.sol";
+import {ITokenObserver} from "./../common/registry/interfaces/ITokenObserver.sol";
+import {RegistryRolesLib} from "./../common/registry/libraries/RegistryRolesLib.sol";
+import {NameIdLib} from "./../common/utils/NameIdLib.sol";
 
 /// @title L2BridgeController
 ///
@@ -61,7 +62,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     /// @param transferData The transfer data for the name being migrated
     function completeEjectionFromL1(
         TransferData memory transferData
-    ) external virtual onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR) {
+    ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
         (uint256 tokenId, , ) = REGISTRY.getNameData(transferData.label);
 
         // owner should be the bridge controller
@@ -76,7 +77,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         REGISTRY.setTokenObserver(tokenId, ITokenObserver(address(0)));
         REGISTRY.safeTransferFrom(address(this), transferData.owner, tokenId, 1, "");
 
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
+        bytes memory dnsEncodedName = NameIdLib.dnsEncodeEthLabel(transferData.label);
         emit NameEjectedToL2(dnsEncodedName, tokenId);
     }
 
@@ -110,7 +111,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         uint64 expires,
         address /*renewedBy*/
     ) external virtual onlyRegistry {
-        BRIDGE.sendMessage(BridgeEncoder.encodeRenewal(tokenId, expires));
+        BRIDGE.sendMessage(BridgeEncoderLib.encodeRenewal(tokenId, expires));
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -141,10 +142,10 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             We also don't need to check that we (the bridge controller) are the sole assignee of these roles since we exercise these 
             roles further down below.
             */
-            uint256 roleBitmap = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
-                LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
-                LibRegistryRoles.ROLE_SET_SUBREGISTRY |
-                LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+            uint256 roleBitmap = RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
+                RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+                RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+                RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN;
             (uint256 counts, uint256 mask) = REGISTRY.getAssigneeCount(tokenId, roleBitmap);
             if (counts & mask != roleBitmap) {
                 revert TooManyRoleAssignees(tokenId, roleBitmap);
@@ -155,8 +156,8 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             REGISTRY.setTokenObserver(tokenId, this);
 
             // Send bridge message for ejection
-            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(transferData.label);
-            BRIDGE.sendMessage(BridgeEncoder.encodeEjection(dnsEncodedName, transferData));
+            bytes memory dnsEncodedName = NameIdLib.dnsEncodeEthLabel(transferData.label);
+            BRIDGE.sendMessage(BridgeEncoderLib.encodeEjection(dnsEncodedName, transferData));
             emit NameEjectedToL1(dnsEncodedName, tokenId);
         }
     }

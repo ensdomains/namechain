@@ -3,17 +3,20 @@ pragma solidity >=0.8.13;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {EnhancedAccessControl, LibEACBaseRoles} from "./../common/EnhancedAccessControl.sol";
-import {IPermissionedRegistry} from "./../common/IPermissionedRegistry.sol";
-import {IRegistry} from "./../common/IRegistry.sol";
-import {LibRegistryRoles} from "./../common/LibRegistryRoles.sol";
-import {IETHRegistrar} from "./IETHRegistrar.sol";
-import {IRentPriceOracle} from "./IRentPriceOracle.sol";
+import {
+    EnhancedAccessControl,
+    EACBaseRolesLib
+} from "../common/access-control/EnhancedAccessControl.sol";
+import {IPermissionedRegistry} from "../common/registry/interfaces/IPermissionedRegistry.sol";
+import {IRegistry} from "../common/registry/interfaces/IRegistry.sol";
+import {RegistryRolesLib} from "../common/registry/libraries/RegistryRolesLib.sol";
+import {IETHRegistrar} from "./interfaces/IETHRegistrar.sol";
+import {IRentPriceOracle} from "./interfaces/IRentPriceOracle.sol";
 
-uint256 constant REGISTRATION_ROLE_BITMAP = LibRegistryRoles.ROLE_SET_SUBREGISTRY |
-    LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN |
-    LibRegistryRoles.ROLE_SET_RESOLVER |
-    LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
+uint256 constant REGISTRATION_ROLE_BITMAP = RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+    RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN |
+    RegistryRolesLib.ROLE_SET_RESOLVER |
+    RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN;
 
 uint256 constant ROLE_SET_ORACLE = 1 << 0;
 
@@ -61,7 +64,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         if (maxCommitmentAge_ <= minCommitmentAge_) {
             revert MaxCommitmentAgeTooLow();
         }
-        _grantRoles(ROOT_RESOURCE, LibEACBaseRoles.ALL_ROLES, _msgSender(), true);
+        _grantRoles(ROOT_RESOURCE, EACBaseRolesLib.ALL_ROLES, _msgSender(), true);
         REGISTRY = registry_;
         BENEFICIARY = beneficiary_;
         MIN_COMMITMENT_AGE = minCommitmentAge_;

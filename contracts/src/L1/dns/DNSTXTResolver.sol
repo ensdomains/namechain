@@ -17,14 +17,14 @@ import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
-import {DNSTXTParser} from "./DNSTXTParser.sol";
+import {DNSTXTParserLib} from "./libraries/DNSTXTParserLib.sol";
 
 /// @notice Resolver that answers requests with the data encoded into the context of a DNSSEC "ENS1" TXT record.
 ///
 ///         DNS TXT record format: `ENS1 dnsname.ens.eth <context>`.
 ///         (where "dnsname.ens.eth" resolves to this contract.)
 ///
-///         The <context> is a human-readable string that is parsable by `DNSTXTParser`.
+///         The <context> is a human-readable string that is parsable by `DNSTXTParserLib`.
 ///         Context format: `<record1> <record2> ...`.
 ///
 ///         Support record formats:
@@ -122,12 +122,12 @@ contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
             if (BytesUtils.equals(bytes(key), bytes(_TEXT_DNSSEC_CONTEXT))) {
                 return abi.encode(context);
             }
-            bytes memory v = DNSTXTParser.find(context, abi.encodePacked("t[", key, "]="));
+            bytes memory v = DNSTXTParserLib.find(context, abi.encodePacked("t[", key, "]="));
             return abi.encode(v);
         } else if (selector == IContentHashResolver.contenthash.selector) {
-            return abi.encode(_parse0xString(DNSTXTParser.find(context, "c=")));
+            return abi.encode(_parse0xString(DNSTXTParserLib.find(context, "c=")));
         } else if (selector == IPubkeyResolver.pubkey.selector) {
-            bytes memory v = _parse0xString(DNSTXTParser.find(context, "xy="));
+            bytes memory v = _parse0xString(DNSTXTParserLib.find(context, "xy="));
             if (v.length == 0) {
                 return new bytes(64);
             } else if (v.length == 64) {
@@ -158,7 +158,7 @@ contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
         bool useDefault
     ) internal pure returns (bytes memory v) {
         if (ENSIP19.isEVMCoinType(coinType)) {
-            v = DNSTXTParser.find(
+            v = DNSTXTParserLib.find(
                 context,
                 coinType == COIN_TYPE_ETH
                     ? bytes("a[60]=")
@@ -169,7 +169,7 @@ contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
                     )
             );
             if (useDefault && v.length == 0) {
-                v = DNSTXTParser.find(context, "a[e0]=");
+                v = DNSTXTParserLib.find(context, "a[e0]=");
             }
             v = _parse0xString(v);
             if (v.length != 0 && v.length != 20) {
@@ -177,7 +177,10 @@ contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
             }
         } else {
             v = _parse0xString(
-                DNSTXTParser.find(context, abi.encodePacked("a[", Strings.toString(coinType), "]="))
+                DNSTXTParserLib.find(
+                    context,
+                    abi.encodePacked("a[", Strings.toString(coinType), "]=")
+                )
             );
         }
     }

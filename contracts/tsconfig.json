@@ -19,7 +19,6 @@
   "include": [
     "./plugins/**/*.ts",
     "./test/**/*.ts",
-    "./e2e/**/*.ts",
     "./artifacts/**/*.d.ts",
     "./deploy/**/*.ts",
     "./script/**/*.ts"

@@ -5,10 +5,10 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-import {IRegistryDatastore} from "./../common/IRegistryDatastore.sol";
-import {IRegistryMetadata} from "./../common/IRegistryMetadata.sol";
-import {PermissionedRegistry} from "./../common/PermissionedRegistry.sol";
-import {SimpleRegistryMetadata} from "./../common/SimpleRegistryMetadata.sol";
+import {IRegistryDatastore} from "../common/registry/interfaces/IRegistryDatastore.sol";
+import {IRegistryMetadata} from "../common/registry/interfaces/IRegistryMetadata.sol";
+import {PermissionedRegistry} from "../common/registry/PermissionedRegistry.sol";
+import {SimpleRegistryMetadata} from "../common/registry/SimpleRegistryMetadata.sol";
 /**
  * @title UserRegistry
  * @dev A user registry that inherits from PermissionedRegistry and is upgradeable using the UUPS pattern.

@@ -69,7 +69,7 @@ export default execute(
         ethSelfResolver.address,
         args.verifierAddress,
         args.l2Deploy.deployments.RegistryDatastore.address,
-        args.l2Deploy.deployments.ETHRegistry.address
+        args.l2Deploy.deployments.ETHRegistry.address,
       ],
     });
 
