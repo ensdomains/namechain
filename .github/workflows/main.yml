@@ -75,6 +75,7 @@ jobs:
           fi
           REF=$(echo "$REF" | sed 's#[^A-Za-z0-9._-]#-#g')
           echo "Ref: $REF"
+          echo "REF=$REF" >> $GITHUB_ENV
 
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -93,6 +94,12 @@ jobs:
           mkdir -p docs
           rm -rf "docs/$REF"
           mv temp "docs/$REF"
+
+      - name: Install tree
+        run: sudo apt-get install tree
+
+      - name: Rebuild index
+        run: cd docs && tree -H . -L 1 -o index.html
 
       - name: Update repo
         run: |
