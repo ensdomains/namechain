@@ -5,8 +5,8 @@ pragma solidity ^0.8.17;
 
 import {Test} from "forge-std/Test.sol";
 
-import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
-import {MetadataMixin} from "../src/common/MetadataMixin.sol";
+import {IRegistryMetadata} from "../src/common/registry/interfaces/IRegistryMetadata.sol";
+import {MetadataMixin} from "../src/common/registry/MetadataMixin.sol";
 
 // Mock implementation of IRegistryMetadata for testing
 contract MockMetadataProvider is IRegistryMetadata {

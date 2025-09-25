@@ -10,11 +10,11 @@ import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165C
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Test} from "forge-std/Test.sol";
 
-import {LibEACBaseRoles} from "./../src/common/EnhancedAccessControl.sol";
-import {HalvingUtils} from "./../src/common/HalvingUtils.sol";
-import {PermissionedRegistry, IRegistry} from "./../src/common/PermissionedRegistry.sol";
-import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
-import {SimpleRegistryMetadata} from "./../src/common/SimpleRegistryMetadata.sol";
+import {EACBaseRolesLib} from "./../src/common/access-control/EnhancedAccessControl.sol";
+import {PermissionedRegistry, IRegistry} from "./../src/common/registry/PermissionedRegistry.sol";
+import {RegistryDatastore} from "./../src/common/registry/RegistryDatastore.sol";
+import {SimpleRegistryMetadata} from "./../src/common/registry/SimpleRegistryMetadata.sol";
+import {LibHalving} from "./../src/common/utils/LibHalving.sol";
 import {
     StandardRentPriceOracle,
     PaymentRatio,
@@ -39,7 +39,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
             new RegistryDatastore(),
             new SimpleRegistryMetadata(),
             address(this),
-            LibEACBaseRoles.ALL_ROLES
+            EACBaseRolesLib.ALL_ROLES
         );
 
         tokenUSDC = new MockERC20("USDC", 6);
@@ -176,7 +176,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         assertEq(
             rentPriceOracle.premiumPriceAfter(0),
             StandardPricing.PREMIUM_PRICE_INITIAL -
-                HalvingUtils.halving(
+                LibHalving.halving(
                     StandardPricing.PREMIUM_PRICE_INITIAL,
                     StandardPricing.PREMIUM_HALVING_PERIOD,
                     StandardPricing.PREMIUM_PERIOD

@@ -7,11 +7,13 @@ import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
 import {Test} from "forge-std/Test.sol";
 
-import {ResolverProfileRewriter} from "../../src/common/ResolverProfileRewriter.sol";
+import {
+    ResolverProfileRewriterLib
+} from "../../src/common/resolver/libraries/ResolverProfileRewriterLib.sol";
 
-contract ResolverProfileRewriterTest is Test {
+contract ResolverProfileRewriterLibTest is Test {
     function replaceNode(bytes calldata call, bytes32 node) public pure returns (bytes memory) {
-        return ResolverProfileRewriter.replaceNode(call, node);
+        return ResolverProfileRewriterLib.replaceNode(call, node);
     }
 
     function drop4(bytes calldata v) public pure returns (bytes memory) {

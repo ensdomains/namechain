@@ -5,15 +5,18 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {BridgeEncoder} from "./../../src/common/BridgeEncoder.sol";
-import {EnhancedAccessControl, LibEACBaseRoles} from "./../../src/common/EnhancedAccessControl.sol";
-import {LibBridgeRoles} from "./../../src/common/IBridge.sol";
-import {IRegistry} from "./../../src/common/IRegistry.sol";
-import {IRegistryMetadata} from "./../../src/common/IRegistryMetadata.sol";
-import {LibRegistryRoles} from "./../../src/common/LibRegistryRoles.sol";
-import {NameUtils} from "./../../src/common/NameUtils.sol";
-import {RegistryDatastore} from "./../../src/common/RegistryDatastore.sol";
-import {TransferData} from "./../../src/common/TransferData.sol";
+import {
+    EnhancedAccessControl,
+    EACBaseRolesLib
+} from "./../../src/common/access-control/EnhancedAccessControl.sol";
+import {BridgeEncoderLib} from "./../../src/common/bridge/libraries/BridgeEncoderLib.sol";
+import {BridgeRolesLib} from "./../../src/common/bridge/libraries/BridgeRolesLib.sol";
+import {TransferData} from "./../../src/common/bridge/types/TransferData.sol";
+import {IRegistry} from "./../../src/common/registry/interfaces/IRegistry.sol";
+import {IRegistryMetadata} from "./../../src/common/registry/interfaces/IRegistryMetadata.sol";
+import {RegistryRolesLib} from "./../../src/common/registry/libraries/RegistryRolesLib.sol";
+import {RegistryDatastore} from "./../../src/common/registry/RegistryDatastore.sol";
+import {NameIdLib} from "./../../src/common/utils/NameIdLib.sol";
 import {L1EjectionController} from "./../../src/L1/L1EjectionController.sol";
 import {L2BridgeController} from "./../../src/L2/L2BridgeController.sol";
 import {MockL1Bridge} from "./../../src/mocks/MockL1Bridge.sol";
@@ -41,13 +44,13 @@ contract BridgeTest is Test, EnhancedAccessControl {
             datastore,
             IRegistryMetadata(address(0)),
             address(this),
-            LibEACBaseRoles.ALL_ROLES
+            EACBaseRolesLib.ALL_ROLES
         );
         l2Registry = new MockPermissionedRegistry(
             datastore,
             IRegistryMetadata(address(0)),
             address(this),
-            LibEACBaseRoles.ALL_ROLES
+            EACBaseRolesLib.ALL_ROLES
         );
 
         // Deploy bridges
@@ -64,19 +67,19 @@ contract BridgeTest is Test, EnhancedAccessControl {
 
         // Grant necessary roles to controllers
         l1Registry.grantRootRoles(
-            LibRegistryRoles.ROLE_REGISTRAR |
-                LibRegistryRoles.ROLE_RENEW |
-                LibRegistryRoles.ROLE_BURN,
+            RegistryRolesLib.ROLE_REGISTRAR |
+                RegistryRolesLib.ROLE_RENEW |
+                RegistryRolesLib.ROLE_BURN,
             address(l1Controller)
         );
         l2Registry.grantRootRoles(
-            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW,
+            RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_RENEW,
             address(l2Controller)
         );
 
         // Grant bridge roles so the bridges can call the controllers
-        l1Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l1Bridge));
-        l2Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l2Bridge));
+        l1Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l1Bridge));
+        l2Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l2Bridge));
     }
 
     function testNameEjectionFromL2ToL1() public {
@@ -86,7 +89,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
             user2,
             IRegistry(address(0x456)),
             address(0x789),
-            LibEACBaseRoles.ALL_ROLES,
+            EACBaseRolesLib.ALL_ROLES,
             uint64(block.timestamp + 365 days)
         );
 
@@ -96,7 +99,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
             subregistry: address(0x123),
             resolver: address(0x456),
             expires: uint64(block.timestamp + 123 days),
-            roleBitmap: LibRegistryRoles.ROLE_RENEW
+            roleBitmap: RegistryRolesLib.ROLE_RENEW
         });
 
         // Step 1: Initiate ejection on L2
@@ -111,8 +114,8 @@ contract BridgeTest is Test, EnhancedAccessControl {
         vm.stopPrank();
 
         // Step 2: Simulate receiving the message on L1
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("premiumname");
-        bytes memory bridgeMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);
+        bytes memory dnsEncodedName = NameIdLib.dnsEncodeEthLabel("premiumname");
+        bytes memory bridgeMessage = BridgeEncoderLib.encodeEjection(dnsEncodedName, transferData);
         l1Bridge.receiveMessage(bridgeMessage);
 
         // Step 3: Verify the name is registered on L1

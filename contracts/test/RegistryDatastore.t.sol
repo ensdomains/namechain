@@ -5,7 +5,7 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
+import {RegistryDatastore} from "../src/common/registry/RegistryDatastore.sol";
 
 contract TestRegistryDatastore is Test {
     uint256 id = uint256(keccak256("test"));

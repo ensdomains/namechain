@@ -6,16 +6,22 @@ pragma solidity >=0.8.13;
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {Test, Vm} from "forge-std/Test.sol";
 
-import {EjectionController} from "./../src/common/EjectionController.sol";
-import {EnhancedAccessControl, LibEACBaseRoles} from "./../src/common/EnhancedAccessControl.sol";
-import {IBridge, LibBridgeRoles} from "./../src/common/IBridge.sol";
-import {IEnhancedAccessControl} from "./../src/common/IEnhancedAccessControl.sol";
-import {IRegistryMetadata} from "./../src/common/IRegistryMetadata.sol";
-import {IStandardRegistry} from "./../src/common/IStandardRegistry.sol";
-import {LibRegistryRoles} from "./../src/common/LibRegistryRoles.sol";
-import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
-import {TransferData} from "./../src/common/TransferData.sol";
-import {L1EjectionController} from "./../src/L1/L1EjectionController.sol";
+import {
+    EnhancedAccessControl,
+    EACBaseRolesLib
+} from "../src/common/access-control/EnhancedAccessControl.sol";
+import {
+    IEnhancedAccessControl
+} from "../src/common/access-control/interfaces/IEnhancedAccessControl.sol";
+import {EjectionController} from "../src/common/bridge/EjectionController.sol";
+import {IBridge} from "../src/common/bridge/interfaces/IBridge.sol";
+import {BridgeRolesLib} from "../src/common/bridge/libraries/BridgeRolesLib.sol";
+import {TransferData} from "../src/common/bridge/types/TransferData.sol";
+import {IRegistryMetadata} from "../src/common/registry/interfaces/IRegistryMetadata.sol";
+import {IStandardRegistry} from "../src/common/registry/interfaces/IStandardRegistry.sol";
+import {RegistryRolesLib} from "../src/common/registry/libraries/RegistryRolesLib.sol";
+import {RegistryDatastore} from "../src/common/registry/RegistryDatastore.sol";
+import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
 import {MockPermissionedRegistry} from "./mocks/MockPermissionedRegistry.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -135,7 +141,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             datastore,
             registryMetadata,
             address(this),
-            LibEACBaseRoles.ALL_ROLES
+            EACBaseRolesLib.ALL_ROLES
         );
 
         // Create the real controller with the correct registry and bridge
@@ -143,18 +149,18 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
         // grant roles to registry operations
         registry.grantRootRoles(
-            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW,
+            RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_RENEW,
             address(this)
         );
         registry.grantRootRoles(
-            LibRegistryRoles.ROLE_REGISTRAR |
-                LibRegistryRoles.ROLE_RENEW |
-                LibRegistryRoles.ROLE_BURN,
+            RegistryRolesLib.ROLE_REGISTRAR |
+                RegistryRolesLib.ROLE_RENEW |
+                RegistryRolesLib.ROLE_BURN,
             address(ejectionController)
         );
 
         // Grant bridge roles to the bridge mock so it can call the ejection controller
-        ejectionController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(bridge));
+        ejectionController.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(bridge));
     }
 
     function test_eject_from_namechain_unlocked() public {
@@ -165,7 +171,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+            roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -177,8 +183,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
     function test_eject_from_namechain_basic() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
-        uint256 expectedRoles = LibRegistryRoles.ROLE_SET_RESOLVER |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        uint256 expectedRoles = RegistryRolesLib.ROLE_SET_RESOLVER |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY;
         address subregistry = address(0x1234);
         TransferData memory transferData = TransferData({
             label: testLabel,
@@ -216,7 +222,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+            roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -251,7 +257,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+            roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -273,7 +279,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+            roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -303,7 +309,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+            roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -343,7 +349,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+            roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -366,7 +372,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: initialExpiry,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+            roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -389,8 +395,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
     function test_ejectToNamechain() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
-        uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        uint256 roleBitmap = RegistryRolesLib.ROLE_SET_RESOLVER |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY;
 
         // Register the name directly using the registry
         registry.register(
@@ -409,8 +415,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         address expectedSubregistry = address(2);
         address expectedResolver = address(3);
         uint64 expectedExpiry = uint64(block.timestamp + 86400);
-        uint256 expectedRoleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        uint256 expectedRoleBitmap = RegistryRolesLib.ROLE_SET_RESOLVER |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY;
 
         bytes memory data = _createEjectionData(
             expectedOwner,
@@ -454,8 +460,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
 
     function test_Revert_ejectToNamechain_invalid_label() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
-        uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        uint256 roleBitmap = RegistryRolesLib.ROLE_SET_RESOLVER |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY;
 
         // Register the name directly using the registry
         registry.register(
@@ -475,8 +481,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
         address expectedSubregistry = address(2);
         address expectedResolver = address(3);
         uint64 expectedExpiry = uint64(block.timestamp + 86400);
-        uint256 expectedRoleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+        uint256 expectedRoleBitmap = RegistryRolesLib.ROLE_SET_RESOLVER |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY;
 
         bytes memory data = _createEjectionDataWithLabel(
             invalidLabel,
@@ -531,7 +537,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             address(this),
             registry,
             MOCK_RESOLVER,
-            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+            RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY,
             expiryTime
         );
         registry.register(
@@ -539,7 +545,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             address(this),
             registry,
             MOCK_RESOLVER,
-            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+            RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY,
             expiryTime
         );
         registry.register(
@@ -547,7 +553,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             address(this),
             registry,
             MOCK_RESOLVER,
-            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+            RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY,
             expiryTime
         );
 
@@ -587,8 +593,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             resolvers[i] = address(uint160(i + 100));
             expiries[i] = uint64(block.timestamp + 86400 * (i + 1));
             roleBitmaps[i] =
-                LibRegistryRoles.ROLE_SET_RESOLVER |
-                LibRegistryRoles.ROLE_SET_SUBREGISTRY |
+                RegistryRolesLib.ROLE_SET_RESOLVER |
+                RegistryRolesLib.ROLE_SET_SUBREGISTRY |
                 (i * 2);
         }
 
@@ -618,7 +624,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             address(this),
             registry,
             MOCK_RESOLVER,
-            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+            RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY,
             expiryTime
         );
         registry.register(
@@ -626,7 +632,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             address(this),
             registry,
             MOCK_RESOLVER,
-            LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+            RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY,
             expiryTime
         );
 
@@ -660,8 +666,8 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             resolvers[i] = address(uint160(i + 100));
             expiries[i] = uint64(block.timestamp + 86400);
             roleBitmaps[i] =
-                LibRegistryRoles.ROLE_SET_RESOLVER |
-                LibRegistryRoles.ROLE_SET_SUBREGISTRY;
+                RegistryRolesLib.ROLE_SET_RESOLVER |
+                RegistryRolesLib.ROLE_SET_SUBREGISTRY;
         }
 
         bytes memory data = _createBatchEjectionDataWithLabels(
@@ -730,7 +736,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+            roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY
         });
 
         // Try to call completeEjectionFromL2 directly (without proper role)
@@ -738,7 +744,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
                 0, // ROOT_RESOURCE
-                LibBridgeRoles.ROLE_EJECTOR,
+                BridgeRolesLib.ROLE_EJECTOR,
                 address(this)
             )
         );
@@ -753,7 +759,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             expires: expiryTime,
-            roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY
+            roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_SUBREGISTRY
         });
 
         // First create a name to renew
@@ -767,7 +773,7 @@ contract TestL1EjectionController is Test, ERC1155Holder, EnhancedAccessControl 
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
                 0, // ROOT_RESOURCE
-                LibBridgeRoles.ROLE_EJECTOR,
+                BridgeRolesLib.ROLE_EJECTOR,
                 address(this)
             )
         );

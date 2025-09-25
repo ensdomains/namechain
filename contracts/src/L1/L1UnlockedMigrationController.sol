@@ -8,10 +8,10 @@ import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Re
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-import {BridgeEncoder} from "./../common/BridgeEncoder.sol";
-import {IBridge} from "./../common/IBridge.sol";
-import {NameUtils} from "./../common/NameUtils.sol";
-import {MigrationData} from "./../common/TransferData.sol";
+import {IBridge} from "./../common/bridge/interfaces/IBridge.sol";
+import {BridgeEncoderLib} from "./../common/bridge/libraries/BridgeEncoderLib.sol";
+import {MigrationData} from "./../common/bridge/types/TransferData.sol";
+import {NameIdLib} from "./../common/utils/NameIdLib.sol";
 import {L1EjectionController} from "./L1EjectionController.sol";
 
 /// @title L1UnlockedMigrationController
@@ -181,10 +181,10 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
         }
         // else send ejection message to L2
         else {
-            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(
+            bytes memory dnsEncodedName = NameIdLib.dnsEncodeEthLabel(
                 migrationData.transferData.label
             );
-            bytes memory message = BridgeEncoder.encodeEjection(
+            bytes memory message = BridgeEncoderLib.encodeEjection(
                 dnsEncodedName,
                 migrationData.transferData
             );

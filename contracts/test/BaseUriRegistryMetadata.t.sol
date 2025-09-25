@@ -7,13 +7,15 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {Test} from "forge-std/Test.sol";
 
-import {BaseUriRegistryMetadata} from "./../src/common/BaseUriRegistryMetadata.sol";
-import {LibEACBaseRoles} from "./../src/common/EnhancedAccessControl.sol";
-import {IEnhancedAccessControl} from "./../src/common/IEnhancedAccessControl.sol";
-import {IRegistryMetadata} from "./../src/common/IRegistryMetadata.sol";
-import {LibRegistryRoles} from "./../src/common/LibRegistryRoles.sol";
-import {PermissionedRegistry} from "./../src/common/PermissionedRegistry.sol";
-import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
+import {EACBaseRolesLib} from "./../src/common/access-control/EnhancedAccessControl.sol";
+import {
+    IEnhancedAccessControl
+} from "./../src/common/access-control/interfaces/IEnhancedAccessControl.sol";
+import {BaseUriRegistryMetadata} from "./../src/common/registry/BaseUriRegistryMetadata.sol";
+import {IRegistryMetadata} from "./../src/common/registry/interfaces/IRegistryMetadata.sol";
+import {RegistryRolesLib} from "./../src/common/registry/libraries/RegistryRolesLib.sol";
+import {PermissionedRegistry} from "./../src/common/registry/PermissionedRegistry.sol";
+import {RegistryDatastore} from "./../src/common/registry/RegistryDatastore.sol";
 
 contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -24,7 +26,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     uint256 constant ROLE_UPDATE_METADATA = 1 << 0;
 
     uint256 constant DEFAULT_ROLE_BITMAP =
-        LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER;
+        RegistryRolesLib.ROLE_SET_SUBREGISTRY | RegistryRolesLib.ROLE_SET_RESOLVER;
 
     uint256 constant ROOT_RESOURCE = 0;
 
@@ -33,7 +35,7 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
         metadata = new BaseUriRegistryMetadata();
 
         // Use the valid ALL_ROLES value for deployer roles
-        uint256 deployerRoles = LibEACBaseRoles.ALL_ROLES;
+        uint256 deployerRoles = EACBaseRolesLib.ALL_ROLES;
         registry = new PermissionedRegistry(datastore, metadata, address(this), deployerRoles);
     }
 

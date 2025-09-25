@@ -8,26 +8,29 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {Test} from "forge-std/Test.sol";
 
-import {IEnhancedAccessControl, LibEACBaseRoles} from "./../src/common/EnhancedAccessControl.sol";
-import {LibRegistryRoles} from "./../src/common/LibRegistryRoles.sol";
-import {NameUtils} from "./../src/common/NameUtils.sol";
-import {PermissionedRegistry} from "./../src/common/PermissionedRegistry.sol";
-import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
-import {SimpleRegistryMetadata} from "./../src/common/SimpleRegistryMetadata.sol";
+import {
+    IEnhancedAccessControl,
+    EACBaseRolesLib
+} from "../src/common/access-control/EnhancedAccessControl.sol";
+import {RegistryRolesLib} from "../src/common/registry/libraries/RegistryRolesLib.sol";
+import {PermissionedRegistry} from "../src/common/registry/PermissionedRegistry.sol";
+import {RegistryDatastore} from "../src/common/registry/RegistryDatastore.sol";
+import {SimpleRegistryMetadata} from "../src/common/registry/SimpleRegistryMetadata.sol";
+import {NameIdLib} from "../src/common/utils/NameIdLib.sol";
 import {
     ETHRegistrar,
     IETHRegistrar,
     IRegistry,
     REGISTRATION_ROLE_BITMAP,
     ROLE_SET_ORACLE
-} from "./../src/L2/ETHRegistrar.sol";
+} from "../src/L2/ETHRegistrar.sol";
 import {
     StandardRentPriceOracle,
     IRentPriceOracle,
     PaymentRatio,
     DiscountPoint
-} from "./../src/L2/StandardRentPriceOracle.sol";
-import {MockERC20, MockERC20Blacklist} from "./../src/mocks/MockERC20.sol";
+} from "../src/L2/StandardRentPriceOracle.sol";
+import {MockERC20, MockERC20Blacklist} from "../src/mocks/MockERC20.sol";
 import {StandardPricing} from "./StandardPricing.sol";
 
 contract TestETHRegistrar is Test {
@@ -48,7 +51,7 @@ contract TestETHRegistrar is Test {
             new RegistryDatastore(),
             new SimpleRegistryMetadata(),
             address(this),
-            LibEACBaseRoles.ALL_ROLES
+            EACBaseRolesLib.ALL_ROLES
         );
 
         tokenUSDC = new MockERC20("USDC", 6);
@@ -81,7 +84,7 @@ contract TestETHRegistrar is Test {
         );
 
         ethRegistry.grantRootRoles(
-            LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_RENEW,
+            RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_RENEW,
             address(ethRegistrar)
         );
 
@@ -537,7 +540,7 @@ contract TestETHRegistrar is Test {
         uint256 tokenId = this._register(args);
         assertTrue(
             ethRegistry.hasRoles(
-                NameUtils.getCanonicalId(tokenId),
+                NameIdLib.getCanonicalId(tokenId),
                 REGISTRATION_ROLE_BITMAP,
                 args.owner
             )

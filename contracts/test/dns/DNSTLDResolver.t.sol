@@ -8,9 +8,12 @@ import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {Test} from "forge-std/Test.sol";
 
-import {LibEACBaseRoles} from "./../../src/common/EnhancedAccessControl.sol";
-import {PermissionedRegistry, IRegistryMetadata} from "./../../src/common/PermissionedRegistry.sol";
-import {RegistryDatastore} from "./../../src/common/RegistryDatastore.sol";
+import {EACBaseRolesLib} from "./../../src/common/access-control/EnhancedAccessControl.sol";
+import {
+    PermissionedRegistry,
+    IRegistryMetadata
+} from "./../../src/common/registry/PermissionedRegistry.sol";
+import {RegistryDatastore} from "./../../src/common/registry/RegistryDatastore.sol";
 import {
     DNSTLDResolver,
     ENS,
@@ -62,7 +65,7 @@ contract DNSTLDResolverTest is Test, ERC1155Holder, IAddrResolver {
             datastore,
             IRegistryMetadata(address(0)),
             address(this),
-            LibEACBaseRoles.ALL_ROLES
+            EACBaseRolesLib.ALL_ROLES
         );
         dns = new MockDNS(rootRegistry);
     }
@@ -129,7 +132,7 @@ contract DNSTLDResolverTest is Test, ERC1155Holder, IAddrResolver {
             address(this),
             IRegistry(address(0)),
             address(this),
-            LibEACBaseRoles.ALL_ROLES,
+            EACBaseRolesLib.ALL_ROLES,
             uint64(block.timestamp) + 86400
         );
         assertEq(dns.parseResolver("abc"), addr(bytes32(0)));

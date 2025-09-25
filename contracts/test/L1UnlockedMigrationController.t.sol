@@ -12,18 +12,18 @@ import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Hol
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {Test, Vm} from "forge-std/Test.sol";
 
-import {BridgeEncoder} from "./../src/common/BridgeEncoder.sol";
-import {LibEACBaseRoles} from "./../src/common/EnhancedAccessControl.sol";
-import {LibBridgeRoles} from "./../src/common/IBridge.sol";
-import {IRegistryMetadata} from "./../src/common/IRegistryMetadata.sol";
-import {LibRegistryRoles} from "./../src/common/LibRegistryRoles.sol";
-import {PermissionedRegistry} from "./../src/common/PermissionedRegistry.sol";
-import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
-import {TransferData, MigrationData} from "./../src/common/TransferData.sol";
-import {L1EjectionController} from "./../src/L1/L1EjectionController.sol";
-import {L1UnlockedMigrationController} from "./../src/L1/L1UnlockedMigrationController.sol";
-import {MockL1Bridge} from "./../src/mocks/MockL1Bridge.sol";
-import {MockBaseRegistrar} from "./../src/mocks/v1/MockBaseRegistrar.sol";
+import {EACBaseRolesLib} from "../src/common/access-control/EnhancedAccessControl.sol";
+import {BridgeEncoderLib} from "../src/common/bridge/libraries/BridgeEncoderLib.sol";
+import {BridgeRolesLib} from "../src/common/bridge/libraries/BridgeRolesLib.sol";
+import {TransferData, MigrationData} from "../src/common/bridge/types/TransferData.sol";
+import {IRegistryMetadata} from "../src/common/registry/interfaces/IRegistryMetadata.sol";
+import {RegistryRolesLib} from "../src/common/registry/libraries/RegistryRolesLib.sol";
+import {PermissionedRegistry} from "../src/common/registry/PermissionedRegistry.sol";
+import {RegistryDatastore} from "../src/common/registry/RegistryDatastore.sol";
+import {L1EjectionController} from "../src/L1/L1EjectionController.sol";
+import {L1UnlockedMigrationController} from "../src/L1/L1UnlockedMigrationController.sol";
+import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
+import {MockBaseRegistrar} from "../src/mocks/v1/MockBaseRegistrar.sol";
 
 // Simple mock that implements IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -178,7 +178,9 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 // so the message is in the data field
                 (bytes memory message) = abi.decode(entries[i].data, (bytes));
                 // Decode the ejection message to get the transfer data
-                (, TransferData memory decodedTransferData) = BridgeEncoder.decodeEjection(message);
+                (, TransferData memory decodedTransferData) = BridgeEncoderLib.decodeEjection(
+                    message
+                );
                 if (
                     keccak256(bytes(decodedTransferData.label)) == keccak256(bytes(expectedLabel))
                 ) {
@@ -219,7 +221,9 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
                 // so the message is in the data field
                 (bytes memory message) = abi.decode(entries[i].data, (bytes));
                 // Decode the ejection message to get the transfer data
-                (, TransferData memory decodedTransferData) = BridgeEncoder.decodeEjection(message);
+                (, TransferData memory decodedTransferData) = BridgeEncoderLib.decodeEjection(
+                    message
+                );
                 uint256 emittedTokenId = uint256(keccak256(bytes(decodedTransferData.label)));
 
                 // Check if this tokenId is in our expected list
@@ -280,7 +284,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
             datastore,
             registryMetadata,
             address(this),
-            LibEACBaseRoles.ALL_ROLES
+            EACBaseRolesLib.ALL_ROLES
         );
 
         // Deploy mock base registrar and name wrapper (keep these as mocks)
@@ -296,9 +300,9 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
 
         // Grant necessary roles to the ejection controller
         registry.grantRootRoles(
-            LibRegistryRoles.ROLE_REGISTRAR |
-                LibRegistryRoles.ROLE_RENEW |
-                LibRegistryRoles.ROLE_BURN,
+            RegistryRolesLib.ROLE_REGISTRAR |
+                RegistryRolesLib.ROLE_RENEW |
+                RegistryRolesLib.ROLE_BURN,
             address(realL1EjectionController)
         );
 
@@ -312,7 +316,7 @@ contract TestL1UnlockedMigrationController is Test, ERC1155Holder, ERC721Holder 
 
         // Grant ROLE_EJECTOR to the migration controller so it can call the ejection controller
         realL1EjectionController.grantRootRoles(
-            LibBridgeRoles.ROLE_EJECTOR,
+            BridgeRolesLib.ROLE_EJECTOR,
             address(migrationController)
         );
 

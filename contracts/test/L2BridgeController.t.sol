@@ -7,18 +7,21 @@ import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Re
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {Test, Vm} from "forge-std/Test.sol";
 
-import {BridgeEncoder} from "./../src/common/BridgeEncoder.sol";
-import {EjectionController} from "./../src/common/EjectionController.sol";
-import {LibEACBaseRoles} from "./../src/common/EnhancedAccessControl.sol";
-import {IBridge, BridgeMessageType, LibBridgeRoles} from "./../src/common/IBridge.sol";
-import {IEnhancedAccessControl} from "./../src/common/IEnhancedAccessControl.sol";
-import {IRegistry} from "./../src/common/IRegistry.sol";
-import {IRegistryMetadata} from "./../src/common/IRegistryMetadata.sol";
-import {ITokenObserver} from "./../src/common/ITokenObserver.sol";
-import {LibRegistryRoles} from "./../src/common/LibRegistryRoles.sol";
-import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
-import {TransferData} from "./../src/common/TransferData.sol";
-import {L2BridgeController} from "./../src/L2/L2BridgeController.sol";
+import {EACBaseRolesLib} from "../src/common/access-control/EnhancedAccessControl.sol";
+import {
+    IEnhancedAccessControl
+} from "../src/common/access-control/interfaces/IEnhancedAccessControl.sol";
+import {EjectionController} from "../src/common/bridge/EjectionController.sol";
+import {IBridge, BridgeMessageType} from "../src/common/bridge/interfaces/IBridge.sol";
+import {BridgeEncoderLib} from "../src/common/bridge/libraries/BridgeEncoderLib.sol";
+import {BridgeRolesLib} from "../src/common/bridge/libraries/BridgeRolesLib.sol";
+import {TransferData} from "../src/common/bridge/types/TransferData.sol";
+import {IRegistry} from "../src/common/registry/interfaces/IRegistry.sol";
+import {IRegistryMetadata} from "../src/common/registry/interfaces/IRegistryMetadata.sol";
+import {ITokenObserver} from "../src/common/registry/interfaces/ITokenObserver.sol";
+import {RegistryRolesLib} from "../src/common/registry/libraries/RegistryRolesLib.sol";
+import {RegistryDatastore} from "../src/common/registry/RegistryDatastore.sol";
+import {L2BridgeController} from "../src/L2/L2BridgeController.sol";
 import {MockPermissionedRegistry} from "./mocks/MockPermissionedRegistry.sol";
 
 // Mock implementation of IRegistryMetadata
@@ -79,17 +82,17 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             datastore,
             registryMetadata,
             address(this),
-            LibEACBaseRoles.ALL_ROLES
+            EACBaseRolesLib.ALL_ROLES
         );
 
         // Deploy combined bridge controller
         controller = new L2BridgeController(bridge, ethRegistry, datastore);
 
         // Grant roles to bridge controller for registering names
-        ethRegistry.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR, address(controller));
+        ethRegistry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, address(controller));
 
         // Grant bridge roles to the bridge mock so it can call the controller
-        controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(bridge));
+        controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(bridge));
 
         // Register a test name
         uint64 expires = uint64(block.timestamp + expiryDuration);
@@ -98,7 +101,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             user,
             ethRegistry,
             address(0),
-            LibEACBaseRoles.ALL_ROLES,
+            EACBaseRolesLib.ALL_ROLES,
             expires
         );
     }
@@ -136,7 +139,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_eject_flow_via_transfer() public {
         // Prepare the data for ejection with label and expiry
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint256 roleBitmap = LibEACBaseRoles.ALL_ROLES;
+        uint256 roleBitmap = EACBaseRolesLib.ALL_ROLES;
         bytes memory ejectionData = _createEjectionData(
             testLabel,
             l1Owner,
@@ -190,11 +193,11 @@ contract TestL2BridgeController is Test, ERC1155Holder {
 
     function test_completeEjectionFromL1() public {
         // Use specific roles instead of ALL_ROLES, including admin roles that are now required
-        uint256 originalRoles = LibRegistryRoles.ROLE_SET_RESOLVER |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY |
-            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
-            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+        uint256 originalRoles = RegistryRolesLib.ROLE_SET_RESOLVER |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
+            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN;
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
 
         string memory label2 = "test2";
@@ -227,7 +230,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         );
 
         // Try to migrate with different roles than the original ones - these should be ignored
-        uint256 differentRoles = LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_REGISTRAR;
+        uint256 differentRoles = RegistryRolesLib.ROLE_RENEW | RegistryRolesLib.ROLE_REGISTRAR;
         vm.recordLogs();
         TransferData memory migrationData = TransferData({
             label: label2,
@@ -310,7 +313,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             expires: 0,
-            roleBitmap: LibEACBaseRoles.ALL_ROLES
+            roleBitmap: EACBaseRolesLib.ALL_ROLES
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -325,14 +328,14 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             expires: 0,
-            roleBitmap: LibEACBaseRoles.ALL_ROLES
+            roleBitmap: EACBaseRolesLib.ALL_ROLES
         });
 
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
                 0, // ROOT_RESOURCE
-                LibBridgeRoles.ROLE_EJECTOR,
+                BridgeRolesLib.ROLE_EJECTOR,
                 address(this)
             )
         );
@@ -349,7 +352,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_onRenew_sendsBridgeMessage() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
+        uint32 roleBitmap = uint32(EACBaseRolesLib.ALL_ROLES);
         bytes memory ejectionData = _createEjectionData(
             testLabel,
             l1Owner,
@@ -380,7 +383,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
 
         // Call onRenew via registry's renew function to properly simulate real usage
         // Grant the controller permission to renew the token
-        ethRegistry.grantRoles(tokenId, LibRegistryRoles.ROLE_RENEW, address(controller));
+        ethRegistry.grantRoles(tokenId, RegistryRolesLib.ROLE_RENEW, address(controller));
 
         // Call renew on the registry, which will trigger onRenew on the token observer
         vm.prank(address(controller));
@@ -394,14 +397,16 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertTrue(lastMessage.length > 0, "Message should not be empty");
 
         // Decode and verify the renewal message
-        BridgeMessageType messageType = BridgeEncoder.getMessageType(lastMessage);
+        BridgeMessageType messageType = BridgeEncoderLib.getMessageType(lastMessage);
         assertEq(
             uint256(messageType),
             uint256(BridgeMessageType.RENEWAL),
             "Message should be a renewal"
         );
 
-        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoder.decodeRenewal(lastMessage);
+        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoderLib.decodeRenewal(
+            lastMessage
+        );
         assertEq(decodedTokenId, tokenId, "Token ID should match");
         assertEq(decodedExpiry, newExpiry, "Expiry should match");
     }
@@ -410,7 +415,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         // Prepare the data for ejection with an invalid label
         string memory invalidLabel = "invalid";
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint256 roleBitmap = LibEACBaseRoles.ALL_ROLES;
+        uint256 roleBitmap = EACBaseRolesLib.ALL_ROLES;
         bytes memory ejectionData = _createEjectionData(
             invalidLabel,
             l1Owner,
@@ -434,7 +439,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_Revert_onERC1155Received_UnauthorizedCaller() public {
         // Prepare valid data for ejection
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint256 roleBitmap = LibEACBaseRoles.ALL_ROLES;
+        uint256 roleBitmap = EACBaseRolesLib.ALL_ROLES;
         bytes memory ejectionData = _createEjectionData(
             testLabel,
             l1Owner,
@@ -454,7 +459,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_tokenObserver_functionality() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
+        uint32 roleBitmap = uint32(EACBaseRolesLib.ALL_ROLES);
         bytes memory ejectionData = _createEjectionData(
             testLabel,
             l1Owner,
@@ -484,7 +489,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         // Test onRenew callback - should send bridge message
         uint64 newExpiry = uint64(block.timestamp + expiryDuration * 2);
         // Grant the controller permission to renew the token
-        ethRegistry.grantRoles(tokenId, LibRegistryRoles.ROLE_RENEW, address(controller));
+        ethRegistry.grantRoles(tokenId, RegistryRolesLib.ROLE_RENEW, address(controller));
 
         // Call renew on the registry, which will trigger onRenew on the token observer
         vm.prank(address(controller));
@@ -495,7 +500,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_Revert_onRenew_UnauthorizedCaller() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
+        uint32 roleBitmap = uint32(EACBaseRolesLib.ALL_ROLES);
         bytes memory ejectionData = _createEjectionData(
             testLabel,
             l1Owner,
@@ -519,7 +524,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_Revert_onRenew_UnauthorizedCaller_randomUser() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
+        uint32 roleBitmap = uint32(EACBaseRolesLib.ALL_ROLES);
         bytes memory ejectionData = _createEjectionData(
             testLabel,
             l1Owner,
@@ -545,7 +550,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_onRenew_onlyCallableByRegistry() public {
         // First eject the name so the controller owns it and becomes the observer
         uint64 expiryTime = uint64(block.timestamp + expiryDuration);
-        uint32 roleBitmap = uint32(LibEACBaseRoles.ALL_ROLES);
+        uint32 roleBitmap = uint32(EACBaseRolesLib.ALL_ROLES);
         bytes memory ejectionData = _createEjectionData(
             testLabel,
             l1Owner,
@@ -574,14 +579,16 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertTrue(lastMessage.length > 0, "Message should not be empty");
 
         // Decode and verify the renewal message
-        BridgeMessageType messageType = BridgeEncoder.getMessageType(lastMessage);
+        BridgeMessageType messageType = BridgeEncoderLib.getMessageType(lastMessage);
         assertEq(
             uint256(messageType),
             uint256(BridgeMessageType.RENEWAL),
             "Message should be a renewal"
         );
 
-        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoder.decodeRenewal(lastMessage);
+        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoderLib.decodeRenewal(
+            lastMessage
+        );
         assertEq(decodedTokenId, tokenId, "Token ID should match");
         assertEq(decodedExpiry, newExpiry, "Expiry should match");
     }
@@ -597,14 +604,14 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             user,
             ethRegistry,
             address(0),
-            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER,
+            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER,
             expires
         );
 
-        uint256 criticalRoles = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
-            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+        uint256 criticalRoles = RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
+            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN;
         bytes memory ejectionData = _createEjectionData(
             testLabel2,
             l1Owner,
@@ -627,15 +634,15 @@ contract TestL2BridgeController is Test, ERC1155Holder {
 
         // Scenario 2: Grant the missing roles, then add extra assignees
         uint256 resource2 = ethRegistry.testGetResourceFromTokenId(tokenId2);
-        ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_SUBREGISTRY, user);
+        ethRegistry.grantRoles(resource2, RegistryRolesLib.ROLE_SET_SUBREGISTRY, user);
         ethRegistry.grantRolesDirect(
             resource2,
-            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN,
+            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN,
             user
         );
-        ethRegistry.grantRolesDirect(resource2, LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN, user);
+        ethRegistry.grantRolesDirect(resource2, RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN, user);
         address secondUser = address(0x999);
-        ethRegistry.grantRoles(resource2, LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER, secondUser);
+        ethRegistry.grantRoles(resource2, RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER, secondUser);
 
         // Get the current token ID after regeneration
         (uint256 currentTokenId, , ) = ethRegistry.getNameData(testLabel2);
@@ -657,10 +664,10 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         string memory testLabel3 = "testgoodassignees";
         uint64 expires = uint64(block.timestamp + expiryDuration);
 
-        uint256 criticalRoles = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
-            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+        uint256 criticalRoles = RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
+            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN;
         uint256 tokenId3 = ethRegistry.register(
             testLabel3,
             user,
@@ -724,10 +731,10 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint64 expires = uint64(block.timestamp + expiryDuration);
 
         // Only grant critical roles initially
-        uint256 criticalRoles = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
-            LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY |
-            LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN;
+        uint256 criticalRoles = RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
+            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN;
         uint256 tokenId4 = ethRegistry.register(
             testLabel4,
             user,
@@ -743,9 +750,9 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         // Add multiple assignees to ROLE_SET_RESOLVER (this should not affect ejection)
         address user2 = address(0x666);
         address user3 = address(0x555);
-        ethRegistry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, user);
-        ethRegistry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, user2);
-        ethRegistry.grantRoles(resourceId, LibRegistryRoles.ROLE_SET_RESOLVER, user3);
+        ethRegistry.grantRoles(resourceId, RegistryRolesLib.ROLE_SET_RESOLVER, user);
+        ethRegistry.grantRoles(resourceId, RegistryRolesLib.ROLE_SET_RESOLVER, user2);
+        ethRegistry.grantRoles(resourceId, RegistryRolesLib.ROLE_SET_RESOLVER, user3);
 
         // Get the current token ID after regeneration
         (uint256 currentTokenId, , ) = ethRegistry.getNameData(testLabel4);

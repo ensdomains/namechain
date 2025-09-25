@@ -6,8 +6,13 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 
-import {EnhancedAccessControl, LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
-import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
+import {
+    EnhancedAccessControl,
+    EACBaseRolesLib
+} from "../src/common/access-control/EnhancedAccessControl.sol";
+import {
+    IEnhancedAccessControl
+} from "../src/common/access-control/interfaces/IEnhancedAccessControl.sol";
 
 abstract contract MockRoles {
     uint256 public constant RESOURCE_1 = uint256(keccak256("RESOURCE_1"));
@@ -908,7 +913,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
 
         // Verify revoke callback was called with correct parameters
         assertEq(access.lastRevokedResource(), RESOURCE_1);
-        assertEq(access.lastRevokedRoleBitmap(), LibEACBaseRoles.ALL_ROLES);
+        assertEq(access.lastRevokedRoleBitmap(), EACBaseRolesLib.ALL_ROLES);
         assertEq(access.lastRevokedOldRoles(), ROLE_B);
         assertEq(access.lastRevokedNewRoles(), 0);
         assertEq(access.lastRevokedUpdatedRoles(), 0); // No roles remain

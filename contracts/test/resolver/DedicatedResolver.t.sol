@@ -21,11 +21,11 @@ import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactor
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {Test} from "forge-std/Test.sol";
 
-import {DedicatedResolver} from "./../../src/common/DedicatedResolver.sol";
+import {DedicatedResolver} from "./../../src/common/resolver/DedicatedResolver.sol";
 import {
     IDedicatedResolverSetters,
     NODE_ANY
-} from "./../../src/common/IDedicatedResolverSetters.sol";
+} from "./../../src/common/resolver/interfaces/IDedicatedResolverSetters.sol";
 
 contract DedicatedResolverTest is Test {
     struct I {

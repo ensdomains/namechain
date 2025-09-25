@@ -11,8 +11,13 @@ import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-import {ResolverProfileRewriter} from "./../../common/ResolverProfileRewriter.sol";
-import {RegistryUtils, IRegistry} from "./../../universalResolver/RegistryUtils.sol";
+import {
+    ResolverProfileRewriterLib
+} from "../../common/resolver/libraries/ResolverProfileRewriterLib.sol";
+import {
+    RegistryTraversalLib,
+    IRegistry
+} from "../../universalResolver/libraries/RegistryTraversalLib.sol";
 
 /// @notice Gasless DNSSEC resolver that forwards to another name.
 ///
@@ -80,7 +85,7 @@ contract DNSAliasResolver is ERC165, ResolverCaller, IERC7996, IExtendedDNSResol
         bytes calldata context
     ) external view returns (bytes memory) {
         bytes memory newName = _parseContext(name, context);
-        (, address resolver, bytes32 node, ) = RegistryUtils.findResolver(
+        (, address resolver, bytes32 node, ) = RegistryTraversalLib.findResolver(
             ROOT_REGISTRY,
             newName,
             0
@@ -88,7 +93,7 @@ contract DNSAliasResolver is ERC165, ResolverCaller, IERC7996, IExtendedDNSResol
         callResolver(
             resolver,
             newName,
-            ResolverProfileRewriter.replaceNode(data, node),
+            ResolverProfileRewriterLib.replaceNode(data, node),
             BATCH_GATEWAY_PROVIDER.gateways()
         );
     }

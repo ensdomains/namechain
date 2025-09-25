@@ -6,12 +6,14 @@ pragma solidity >=0.8.13;
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {Test, Vm} from "forge-std/Test.sol";
 
-import {LibEACBaseRoles} from "./../src/common/EnhancedAccessControl.sol";
-import {IEnhancedAccessControl} from "./../src/common/IEnhancedAccessControl.sol";
-import {IRegistry} from "./../src/common/IRegistry.sol";
-import {LibRegistryRoles} from "./../src/common/LibRegistryRoles.sol";
-import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
-import {SimpleRegistryMetadata} from "./../src/common/SimpleRegistryMetadata.sol";
+import {EACBaseRolesLib} from "../src/common/access-control/EnhancedAccessControl.sol";
+import {
+    IEnhancedAccessControl
+} from "../src/common/access-control/interfaces/IEnhancedAccessControl.sol";
+import {IRegistry} from "../src/common/registry/interfaces/IRegistry.sol";
+import {RegistryRolesLib} from "../src/common/registry/libraries/RegistryRolesLib.sol";
+import {RegistryDatastore} from "../src/common/registry/RegistryDatastore.sol";
+import {SimpleRegistryMetadata} from "../src/common/registry/SimpleRegistryMetadata.sol";
 import {MockPermissionedRegistry} from "./mocks/MockPermissionedRegistry.sol";
 
 contract TestRootRegistry is Test, ERC1155Holder {
@@ -33,13 +35,13 @@ contract TestRootRegistry is Test, ERC1155Holder {
 
     uint256 constant ROLE_SET_FLAGS = 1 << 4; // This one is specific to RootRegistry
     uint256 constant DEFAULT_ROLE_BITMAP =
-        LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER | ROLE_SET_FLAGS;
+        RegistryRolesLib.ROLE_SET_SUBREGISTRY | RegistryRolesLib.ROLE_SET_RESOLVER | ROLE_SET_FLAGS;
     uint256 constant LOCKED_RESOLVER_ROLE_BITMAP =
-        LibRegistryRoles.ROLE_SET_SUBREGISTRY | ROLE_SET_FLAGS;
+        RegistryRolesLib.ROLE_SET_SUBREGISTRY | ROLE_SET_FLAGS;
     uint256 constant LOCKED_SUBREGISTRY_ROLE_BITMAP =
-        LibRegistryRoles.ROLE_SET_RESOLVER | ROLE_SET_FLAGS;
+        RegistryRolesLib.ROLE_SET_RESOLVER | ROLE_SET_FLAGS;
     uint256 constant LOCKED_FLAGS_ROLE_BITMAP =
-        LibRegistryRoles.ROLE_SET_SUBREGISTRY | LibRegistryRoles.ROLE_SET_RESOLVER;
+        RegistryRolesLib.ROLE_SET_SUBREGISTRY | RegistryRolesLib.ROLE_SET_RESOLVER;
     uint64 constant MAX_EXPIRY = type(uint64).max;
 
     address owner = makeAddr("owner");
@@ -48,9 +50,9 @@ contract TestRootRegistry is Test, ERC1155Holder {
         datastore = new RegistryDatastore();
         metadata = new SimpleRegistryMetadata();
         // Use the valid ALL_ROLES value for deployer roles
-        uint256 deployerRoles = LibEACBaseRoles.ALL_ROLES;
+        uint256 deployerRoles = EACBaseRolesLib.ALL_ROLES;
         registry = new MockPermissionedRegistry(datastore, metadata, address(this), deployerRoles);
-        metadata.grantRootRoles(LibRegistryRoles.ROLE_REGISTRAR, address(registry));
+        metadata.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, address(registry));
     }
 
     function test_register_unlocked() public {
@@ -65,14 +67,14 @@ contract TestRootRegistry is Test, ERC1155Holder {
         assertTrue(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
-                LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+                RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 owner
             )
         );
         assertTrue(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
-                LibRegistryRoles.ROLE_SET_RESOLVER,
+                RegistryRolesLib.ROLE_SET_RESOLVER,
                 owner
             )
         );
@@ -93,14 +95,14 @@ contract TestRootRegistry is Test, ERC1155Holder {
         assertTrue(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
-                LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+                RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 owner
             )
         );
         assertTrue(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
-                LibRegistryRoles.ROLE_SET_RESOLVER,
+                RegistryRolesLib.ROLE_SET_RESOLVER,
                 owner
             )
         );
@@ -121,14 +123,14 @@ contract TestRootRegistry is Test, ERC1155Holder {
         assertFalse(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
-                LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+                RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 owner
             )
         );
         assertTrue(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
-                LibRegistryRoles.ROLE_SET_RESOLVER,
+                RegistryRolesLib.ROLE_SET_RESOLVER,
                 owner
             )
         );
@@ -149,14 +151,14 @@ contract TestRootRegistry is Test, ERC1155Holder {
         assertTrue(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
-                LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+                RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 owner
             )
         );
         assertFalse(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
-                LibRegistryRoles.ROLE_SET_RESOLVER,
+                RegistryRolesLib.ROLE_SET_RESOLVER,
                 owner
             )
         );
@@ -194,7 +196,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
                 registry.testGetResourceFromTokenId(tokenId),
-                LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+                RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 unauthorizedCaller
             )
         );
@@ -231,7 +233,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
                 registry.testGetResourceFromTokenId(tokenId),
-                LibRegistryRoles.ROLE_SET_RESOLVER,
+                RegistryRolesLib.ROLE_SET_RESOLVER,
                 unauthorizedCaller
             )
         );
@@ -266,14 +268,14 @@ contract TestRootRegistry is Test, ERC1155Holder {
         assertTrue(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
-                LibRegistryRoles.ROLE_SET_SUBREGISTRY,
+                RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 owner
             )
         );
         assertTrue(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
-                LibRegistryRoles.ROLE_SET_RESOLVER,
+                RegistryRolesLib.ROLE_SET_RESOLVER,
                 owner
             )
         );
@@ -329,13 +331,13 @@ contract TestRootRegistry is Test, ERC1155Holder {
 
         // First, revoke the REGISTRAR role from the test contract
         // since it was granted in the constructor to the deployer (this test contract)
-        registry.revokeRootRoles(LibRegistryRoles.ROLE_REGISTRAR, address(this));
+        registry.revokeRootRoles(RegistryRolesLib.ROLE_REGISTRAR, address(this));
 
         // Verify the test contract no longer has the role
         assertFalse(
             registry.hasRoles(
                 registry.ROOT_RESOURCE(),
-                LibRegistryRoles.ROLE_REGISTRAR,
+                RegistryRolesLib.ROLE_REGISTRAR,
                 address(this)
             )
         );
@@ -345,7 +347,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
                 registry.ROOT_RESOURCE(),
-                LibRegistryRoles.ROLE_REGISTRAR,
+                RegistryRolesLib.ROLE_REGISTRAR,
                 unauthorizedCaller
             )
         );

@@ -5,14 +5,15 @@ pragma solidity >=0.8.13;
 
 import {Test, Vm} from "forge-std/Test.sol";
 
-import {BridgeEncoder} from "./../src/common/BridgeEncoder.sol";
-import {LibEACBaseRoles} from "./../src/common/EnhancedAccessControl.sol";
-import {BridgeMessageType, LibBridgeRoles} from "./../src/common/IBridge.sol";
-import {IRegistryMetadata} from "./../src/common/IRegistryMetadata.sol";
-import {NameUtils} from "./../src/common/NameUtils.sol";
-import {PermissionedRegistry} from "./../src/common/PermissionedRegistry.sol";
-import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
-import {TransferData} from "./../src/common/TransferData.sol";
+import {EACBaseRolesLib} from "./../src/common/access-control/EnhancedAccessControl.sol";
+import {BridgeMessageType} from "./../src/common/bridge/interfaces/IBridge.sol";
+import {BridgeEncoderLib} from "./../src/common/bridge/libraries/BridgeEncoderLib.sol";
+import {BridgeRolesLib} from "./../src/common/bridge/libraries/BridgeRolesLib.sol";
+import {TransferData} from "./../src/common/bridge/types/TransferData.sol";
+import {IRegistryMetadata} from "./../src/common/registry/interfaces/IRegistryMetadata.sol";
+import {PermissionedRegistry} from "./../src/common/registry/PermissionedRegistry.sol";
+import {RegistryDatastore} from "./../src/common/registry/RegistryDatastore.sol";
+import {NameIdLib} from "./../src/common/utils/NameIdLib.sol";
 import {L1EjectionController} from "./../src/L1/L1EjectionController.sol";
 import {L2BridgeController} from "./../src/L2/L2BridgeController.sol";
 import {MockBridgeBase} from "./../src/mocks/MockBridgeBase.sol";
@@ -38,7 +39,7 @@ contract TestBridgeMessages is Test {
     address testOwner = address(0x1234);
     address testResolver = address(0x5678);
     uint64 testExpiry = uint64(block.timestamp + 86400);
-    uint256 testRoleBitmap = LibEACBaseRoles.ALL_ROLES;
+    uint256 testRoleBitmap = EACBaseRolesLib.ALL_ROLES;
 
     function setUp() public {
         // Deploy dependencies
@@ -50,7 +51,7 @@ contract TestBridgeMessages is Test {
             datastore,
             registryMetadata,
             address(this),
-            LibEACBaseRoles.ALL_ROLES
+            EACBaseRolesLib.ALL_ROLES
         );
 
         // Deploy bridges
@@ -66,17 +67,17 @@ contract TestBridgeMessages is Test {
         l2Bridge.setBridgeController(l2Controller);
 
         // Grant necessary roles (filter out admin roles since they're restricted)
-        uint256 regularRoles = LibEACBaseRoles.ALL_ROLES & ~LibEACBaseRoles.ADMIN_ROLES;
+        uint256 regularRoles = EACBaseRolesLib.ALL_ROLES & ~EACBaseRolesLib.ADMIN_ROLES;
         registry.grantRootRoles(regularRoles, address(l1Controller));
         registry.grantRootRoles(regularRoles, address(l2Controller));
 
         // Grant bridge roles so the bridges can call the controllers
-        l1Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l1Bridge));
-        l2Controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(l2Bridge));
+        l1Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l1Bridge));
+        l2Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l2Bridge));
     }
 
     function test_encodeDecodeEjection() public view {
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
+        bytes memory dnsEncodedName = NameIdLib.dnsEncodeEthLabel(testLabel);
         TransferData memory transferData = TransferData({
             label: testLabel,
             owner: testOwner,
@@ -87,14 +88,14 @@ contract TestBridgeMessages is Test {
         });
 
         // Encode message
-        bytes memory encodedMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);
+        bytes memory encodedMessage = BridgeEncoderLib.encodeEjection(dnsEncodedName, transferData);
 
         // Verify message type
-        BridgeMessageType messageType = BridgeEncoder.getMessageType(encodedMessage);
+        BridgeMessageType messageType = BridgeEncoderLib.getMessageType(encodedMessage);
         assertEq(uint256(messageType), uint256(BridgeMessageType.EJECTION));
 
         // Decode message
-        (bytes memory decodedDnsName, TransferData memory decodedData) = BridgeEncoder
+        (bytes memory decodedDnsName, TransferData memory decodedData) = BridgeEncoderLib
             .decodeEjection(encodedMessage);
 
         // Verify decoded data
@@ -112,14 +113,14 @@ contract TestBridgeMessages is Test {
         uint64 newExpiry = uint64(block.timestamp + 86400);
 
         // Encode message
-        bytes memory encodedMessage = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
+        bytes memory encodedMessage = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
 
         // Verify message type
-        BridgeMessageType messageType = BridgeEncoder.getMessageType(encodedMessage);
+        BridgeMessageType messageType = BridgeEncoderLib.getMessageType(encodedMessage);
         assertEq(uint256(messageType), uint256(BridgeMessageType.RENEWAL));
 
         // Decode message
-        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoder.decodeRenewal(
+        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoderLib.decodeRenewal(
             encodedMessage
         );
 
@@ -142,7 +143,7 @@ contract TestBridgeMessages is Test {
         uint64 newExpiry = uint64(block.timestamp + 86400 * 2);
 
         // Encode renewal message
-        bytes memory renewalMessage = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
+        bytes memory renewalMessage = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
 
         vm.recordLogs();
 
@@ -172,7 +173,7 @@ contract TestBridgeMessages is Test {
         uint64 newExpiry = uint64(block.timestamp + 86400);
 
         // Encode renewal message
-        bytes memory renewalMessage = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
+        bytes memory renewalMessage = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
 
         // L2 bridge should revert on renewal messages
         vm.expectRevert(MockBridgeBase.RenewalNotSupported.selector);
@@ -200,7 +201,7 @@ contract TestBridgeMessages is Test {
     }
 
     function test_l2Bridge_sendMessage_ejection() public {
-        bytes memory ejectionMessage = BridgeEncoder.encodeEjection(
+        bytes memory ejectionMessage = BridgeEncoderLib.encodeEjection(
             "test",
             TransferData({
                 label: testLabel,

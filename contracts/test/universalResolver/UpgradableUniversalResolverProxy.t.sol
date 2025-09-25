@@ -14,7 +14,7 @@ import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {Test} from "forge-std/Test.sol";
 
-import {IRegistry} from "./../../src/common/IRegistry.sol";
+import {IRegistry} from "./../../src/common/registry/interfaces/IRegistry.sol";
 import {UniversalResolverV2} from "./../../src/universalResolver/UniversalResolverV2.sol";
 import {
     UpgradableUniversalResolverProxy
