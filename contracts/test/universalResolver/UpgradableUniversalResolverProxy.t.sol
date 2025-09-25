@@ -81,7 +81,7 @@ contract ProxyTest is Test {
         vm.prank(ADMIN);
         proxy.upgradeTo(address(urV2));
 
-        // Verify the implementation was updated
+        // Verify the implementation has been set
         assertEq(proxy.implementation(), address(urV2));
         // Admin should remain unchanged
         assertEq(proxy.admin(), ADMIN);

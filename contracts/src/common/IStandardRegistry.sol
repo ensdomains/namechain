@@ -29,6 +29,11 @@ interface IStandardRegistry is IRegistry {
     error CannotSetPastExpiration(uint64 expiry);
 
     /**
+     * @dev Error emitted when a transfer is not allowed due to missing transfer admin role.
+     */
+    error TransferDisallowed(uint256 tokenId, address from);
+
+    /**
      * @dev Event emitted when a name is renewed.
      */
     event NameRenewed(
@@ -43,13 +48,13 @@ interface IStandardRegistry is IRegistry {
     event NameBurned(uint256 indexed tokenId, address burnedBy);
 
     /**
-     * @dev Registers a new subdomain.
+     * @dev Registers a new name.
      * @param label The label to register.
-     * @param owner The address of the owner of the subdomain.
-     * @param registry The registry to set as the subdomain.
-     * @param resolver The resolver to set for the subdomain.
-     * @param roleBitmap The role bitmap to set for the subdomain.
-     * @param expires The expiration date of the subdomain.
+     * @param owner The address of the owner of the name.
+     * @param registry The registry to set as the name.
+     * @param resolver The resolver to set for the name.
+     * @param roleBitmap The role bitmap to set for the name.
+     * @param expires The expiration date of the name.
      */
     function register(
         string calldata label,
@@ -68,29 +73,29 @@ interface IStandardRegistry is IRegistry {
     function renew(uint256 tokenId, uint64 expires) external;
 
     /**
-     * @dev Burns a subdomain.
-     * @param tokenId The token ID of the subdomain to burn.
+     * @dev Burns a name.
+     * @param tokenId The token ID of the name to burn.
      */
     function burn(uint256 tokenId) external;
 
     /**
-     * @dev Sets a subdomain.
-     * @param tokenId The token ID of the subdomain to set.
-     * @param registry The registry to set as the subdomain.
+     * @dev Sets a name.
+     * @param tokenId The token ID of the name to set.
+     * @param registry The registry to set as the name.
      */
     function setSubregistry(uint256 tokenId, IRegistry registry) external;
 
     /**
-     * @dev Sets a resolver for a subdomain.
-     * @param tokenId The token ID of the subdomain to set a resolver for.
-     * @param resolver The resolver to set for the subdomain.
+     * @dev Sets a resolver for a name.
+     * @param tokenId The token ID of the name to set a resolver for.
+     * @param resolver The resolver to set for the name.
      */
     function setResolver(uint256 tokenId, address resolver) external;
 
     /**
-     * @dev Fetches the expiry date of a subdomain.
-     * @param tokenId The token ID of the subdomain to fetch the expiry for.
-     * @return The expiry date of the subdomain.
+     * @dev Fetches the expiry date of a name.
+     * @param tokenId The token ID of the name to fetch the expiry for.
+     * @return The expiry date of the name.
      */
     function getExpiry(uint256 tokenId) external view returns (uint64);
 }

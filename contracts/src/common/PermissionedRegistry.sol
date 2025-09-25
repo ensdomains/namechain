@@ -50,31 +50,10 @@ contract PermissionedRegistry is
         uint256 _ownerRoles
     ) BaseRegistry(_datastore) MetadataMixin(_metadata) {
         _grantRoles(ROOT_RESOURCE, _ownerRoles, _ownerAddress, false);
-
-        if (address(_metadata) == address(0)) {
-            _updateMetadataProvider(new SimpleRegistryMetadata());
-        }
     }
 
     function uri(uint256 tokenId) public view override returns (string memory) {
         return tokenURI(tokenId);
-    }
-
-    function getNameData(
-        string calldata label
-    )
-        public
-        view
-        returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion)
-    {
-        uint256 canonicalId = NameUtils.labelToCanonicalId(label);
-        (, expiry, tokenIdVersion) = datastore.getSubregistry(canonicalId);
-        tokenId = _constructTokenId(canonicalId, tokenIdVersion);
-    }
-
-    function getExpiry(uint256 tokenId) public view override returns (uint64) {
-        (, uint64 expires, ) = datastore.getSubregistry(tokenId);
-        return expires;
     }
 
     /// @dev Internal logic for expired status.
@@ -119,40 +98,7 @@ contract PermissionedRegistry is
         onlyRootRoles(LibRegistryRoles.ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
-        uint64 oldExpiry;
-        uint32 tokenIdVersion;
-        (tokenId, oldExpiry, tokenIdVersion) = getNameData(label);
-
-        if (!_isExpired(oldExpiry)) {
-            revert NameAlreadyRegistered(label);
-        }
-
-        if (_isExpired(expires)) {
-            revert CannotSetPastExpiration(expires);
-        }
-
-        // if there is a previous owner, burn the token
-        address previousOwner = super.ownerOf(tokenId);
-        if (previousOwner != address(0)) {
-            _burn(previousOwner, tokenId, 1);
-            tokenIdVersion++; // so we have a fresh acl
-        }
-        tokenId = _generateTokenId(
-            tokenId,
-            address(registry),
-            expires,
-            tokenIdVersion
-        );
-
-        _mint(owner, tokenId, 1, "");
-        _grantRoles(getResourceFromTokenId(tokenId), roleBitmap, owner, false);
-
-        datastore.setResolver(tokenId, resolver, 0);
-        emit ResolverUpdate(tokenId, resolver, 0);
-
-        emit NewSubname(tokenId, label);
-
-        return tokenId;
+        return _register(label, owner, registry, resolver, roleBitmap, expires);
     }
 
     function setTokenObserver(
@@ -292,21 +238,22 @@ contract PermissionedRegistry is
         emit ResolverUpdate(tokenId, resolver, 0);
     }
 
-    function supportsInterface(
-        bytes4 interfaceId
-    )
-        public
-        view
-        virtual
-        override(BaseRegistry, EnhancedAccessControl, IERC165)
-        returns (bool)
-    {
-        return
-            interfaceId == type(IPermissionedRegistry).interfaceId ||
-            super.supportsInterface(interfaceId);
+    function getNameData(string memory label) public view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion) {
+        uint256 canonicalId = NameUtils.labelToCanonicalId(label);
+        (, expiry, tokenIdVersion) = datastore.getSubregistry(canonicalId);
+        tokenId = _constructTokenId(canonicalId, tokenIdVersion);
     }
 
-    // Override EnhancedAccessControl methods to use tokenId instead of resource
+    function getExpiry(uint256 tokenId) public view override returns (uint64) {
+        (, uint64 expires, ) = datastore.getSubregistry(tokenId);
+        return expires;
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view virtual override(BaseRegistry, EnhancedAccessControl, IERC165) returns (bool) {
+        return interfaceId == type(IPermissionedRegistry).interfaceId || super.supportsInterface(interfaceId);
+    }
+
+    // Enhanced access control methods adapted for token-based resources
 
     function roles(
         uint256 tokenId,
@@ -411,6 +358,57 @@ contract PermissionedRegistry is
     // Internal/private methods
 
     /**
+     * @dev Internal register method that takes string memory and performs the actual registration logic.
+     * @param label The label to register.
+     * @param owner The owner of the registered name.
+     * @param registry The registry to use for the name.
+     * @param resolver The resolver to set for the name.
+     * @param roleBitmap The roles to grant to the owner.
+     * @param expires The expiration time of the name.
+     * @return tokenId The token ID of the registered name.
+     */
+    function _register(string memory label, address owner, IRegistry registry, address resolver, uint256 roleBitmap, uint64 expires)
+        internal
+        virtual
+        returns (uint256 tokenId)
+    {
+        uint64 oldExpiry;
+        uint32 tokenIdVersion;
+        (tokenId, oldExpiry, tokenIdVersion) = getNameData(label);
+
+        if (!_isExpired(oldExpiry)) {
+            revert NameAlreadyRegistered(label);
+        }
+
+        if (_isExpired(expires)) {
+            revert CannotSetPastExpiration(expires);
+        }
+
+        // if there is a previous owner, burn the token
+        address previousOwner = super.ownerOf(tokenId);
+        if (previousOwner != address(0)) {
+            _burn(previousOwner, tokenId, 1);
+            tokenIdVersion++; // so we have a fresh acl
+        }
+        tokenId = _generateTokenId(
+            tokenId,
+            address(registry),
+            expires,
+            tokenIdVersion
+        );
+
+        _mint(owner, tokenId, 1, "");
+        _grantRoles(getResourceFromTokenId(tokenId), roleBitmap, owner, false);
+
+        datastore.setResolver(tokenId, resolver, 0);
+        emit ResolverUpdate(tokenId, resolver, 0);
+
+        emit NewSubname(tokenId, label);
+
+        return tokenId;
+    }
+
+    /**
      * @dev Fetches the access control resource ID for a given token ID.
      * @param tokenId The token ID to fetch the resource ID for.
      * @return The access control resource ID for the token ID.
@@ -437,12 +435,18 @@ contract PermissionedRegistry is
     /**
      * @dev Override the base registry _update function to transfer the roles to the new owner when the token is transferred.
      */
-    function _update(
-        address from,
-        address to,
-        uint256[] memory ids,
-        uint256[] memory values
-    ) internal virtual override {
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal virtual override {
+        // Check ROLE_CAN_TRANSFER for actual transfers only
+        // Skip check for mints (from == address(0)) and burns (to == address(0))
+        if (from != address(0) && to != address(0)) {
+            for (uint256 i = 0; i < ids.length; ++i) {
+                uint256 resource = getResourceFromTokenId(ids[i]);
+                if (!hasRoles(resource, LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN, from)) {
+                    revert TransferDisallowed(ids[i], from);
+                }
+            }
+        }
+
         super._update(from, to, ids, values);
 
         for (uint256 i = 0; i < ids.length; ++i) {

@@ -25,8 +25,8 @@ abstract contract MockBridgeBase is IBridge {
         BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
 
         if (messageType == BridgeMessageType.EJECTION) {
-            (bytes memory dnsEncodedName, TransferData memory transferData) = BridgeEncoder.decodeEjection(message);
-            _handleEjectionMessage(dnsEncodedName, transferData);
+            (TransferData memory transferData) = BridgeEncoder.decodeEjection(message);
+            _handleEjectionMessage(transferData.dnsEncodedName, transferData);
         } else if (messageType == BridgeMessageType.RENEWAL) {
             (uint256 tokenId, uint64 newExpiry) = BridgeEncoder.decodeRenewal(message);
             _handleRenewalMessage(tokenId, newExpiry);

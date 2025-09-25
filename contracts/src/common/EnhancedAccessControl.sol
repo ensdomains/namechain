@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.0.0) (access/AccessControl.sol)
+// OpenZeppelin Contracts (access/AccessControl.sol)
 
 pragma solidity ^0.8.20;
 
@@ -67,6 +67,14 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      */
     modifier canGrantRoles(uint256 resource, uint256 roleBitmap) {
         _checkCanGrantRoles(resource, roleBitmap, _msgSender());
+        _;
+    }
+
+    /**
+     * @dev Modifier that checks that sender has the admin roles for all the given roles and can revoke them.
+     */
+    modifier canRevokeRoles(uint256 resource, uint256 roleBitmap) {
+        _checkCanRevokeRoles(resource, roleBitmap, _msgSender());
         _;
     }
 
@@ -187,7 +195,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param account The account to revoke roles from.
      * @return `true` if the roles were revoked, `false` otherwise.
      */
-    function revokeRoles(uint256 resource, uint256 roleBitmap, address account) public virtual canGrantRoles(resource, roleBitmap) returns (bool) {
+    function revokeRoles(uint256 resource, uint256 roleBitmap, address account) public virtual canRevokeRoles(resource, roleBitmap) returns (bool) {
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
@@ -204,7 +212,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param account The account to revoke roles from.
      * @return `true` if the roles were revoked, `false` otherwise.
      */
-    function revokeRootRoles(uint256 roleBitmap, address account) public virtual canGrantRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
+    function revokeRootRoles(uint256 roleBitmap, address account) public virtual canRevokeRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
         return _revokeRoles(ROOT_RESOURCE, roleBitmap, account, true);
     }
 
@@ -226,6 +234,16 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         uint256 settableRoles = _getSettableRoles(resource, account);
         if ((roleBitmap & ~settableRoles) != 0) {
             revert EACCannotGrantRoles(resource, roleBitmap, account);
+        }
+    }
+
+    /**
+     * @dev Reverts if `account` does not have the admin roles for all the given roles that are being revoked.
+     */
+    function _checkCanRevokeRoles(uint256 resource, uint256 roleBitmap, address account) internal view virtual {
+        uint256 revokableRoles = _getRevokableRoles(resource, account);
+        if ((roleBitmap & ~revokableRoles) != 0) {
+            revert EACCannotRevokeRoles(resource, roleBitmap, account);
         }
     }
 
@@ -349,6 +367,22 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     function _getSettableRoles(uint256 resource, address account) internal view virtual returns (uint256) {
         uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) & LibEACBaseRoles.ADMIN_ROLES;
         return adminRoleBitmap >> 128;
+    }
+
+    /**
+     * @dev Returns the revokable roles for `account` within `resource`.
+     * 
+     * The revokable roles are the roles (including admin roles) that the account can revoke.
+     * Unlike settable roles, this includes admin roles that can be revoked.
+     * 
+     * @param resource The resource to get revokable roles for.
+     * @param account The account to get revokable roles for.
+     * @return The revokable roles for `account` within `resource`.
+     */
+    function _getRevokableRoles(uint256 resource, address account) internal view virtual returns (uint256) {
+        uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) & LibEACBaseRoles.ADMIN_ROLES;
+        uint256 regularRoles = adminRoleBitmap >> 128;
+        return regularRoles | adminRoleBitmap;
     }
 
     /**

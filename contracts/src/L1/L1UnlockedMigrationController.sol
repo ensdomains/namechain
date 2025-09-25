@@ -10,29 +10,28 @@ import {TransferData, MigrationData} from "../common/TransferData.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBridge} from "../common/IBridge.sol";
 import {BridgeEncoder} from "../common/BridgeEncoder.sol";
-import {L1EjectionController} from "./L1EjectionController.sol";
+import {L1BridgeController} from "./L1BridgeController.sol";
 import {NameUtils} from "../common/NameUtils.sol";
+import "../common/Errors.sol";
 
 /**
  * @title L1UnlockedMigrationController
  * @dev Base contract for the v1-to-v2 migration controller that only handles unlocked .eth 2LD names.
  */
 contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
-    error UnauthorizedCaller(address caller);   
-    error MigrationFailed();
     error TokenIdMismatch(uint256 tokenId, uint256 expectedTokenId);
     error MigrationNotSupported();
 
     IBaseRegistrar public immutable ethRegistryV1;
     INameWrapper public immutable nameWrapper;
     IBridge public immutable bridge;
-    L1EjectionController public immutable l1EjectionController;
+    L1BridgeController public immutable l1BridgeController;
 
-    constructor(IBaseRegistrar _ethRegistryV1, INameWrapper _nameWrapper, IBridge _bridge, L1EjectionController _l1EjectionController) Ownable(msg.sender) {
+    constructor(IBaseRegistrar _ethRegistryV1, INameWrapper _nameWrapper, IBridge _bridge, L1BridgeController _l1BridgeController) Ownable(msg.sender) {
         ethRegistryV1 = _ethRegistryV1;
         nameWrapper = _nameWrapper;
         bridge = _bridge;
-        l1EjectionController = _l1EjectionController;
+        l1BridgeController = _l1BridgeController;
     }
 
     /**
@@ -112,10 +111,10 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
             if (fuses & CANNOT_UNWRAP != 0) { // Name is locked
                 revert MigrationNotSupported();
             } else {
-                // Name is unlocked, unwrap it first then migrate
+                // Unwrap the unlocked name before migration
                 bytes32 labelHash = bytes32(tokenIds[i]);
                 nameWrapper.unwrapETH2LD(labelHash, address(this), address(this));
-                // now migrate
+                // Process migration via bridge
                 _migrateNameViaBridge(tokenIds[i], migrationDataArray[i]);
             }
         }
@@ -129,19 +128,19 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
      */
     function _migrateNameViaBridge(uint256 tokenId, MigrationData memory migrationData) internal {
         // Validate that tokenId matches the label hash
-        uint256 expectedTokenId = uint256(keccak256(bytes(migrationData.transferData.label)));
+        string memory label = NameUtils.extractLabel(migrationData.transferData.dnsEncodedName);
+        uint256 expectedTokenId = uint256(keccak256(bytes(label)));
         if (tokenId != expectedTokenId) {
             revert TokenIdMismatch(tokenId, expectedTokenId);
         }
         
-        // if migrated to L1 then setup the name on the L1
+        // Handle L1 migration by setting up the name locally
         if (migrationData.toL1) {
-            l1EjectionController.completeEjectionFromL2(migrationData.transferData);
+            l1BridgeController.completeEjectionToL1(migrationData.transferData);
         } 
-        // else send ejection message to L2
+        // Handle L2 migration by sending ejection message across bridge
         else {
-            bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(migrationData.transferData.label);
-            bytes memory message = BridgeEncoder.encodeEjection(dnsEncodedName, migrationData.transferData);
+            bytes memory message = BridgeEncoder.encodeEjection(migrationData.transferData);
             bridge.sendMessage(message);
         }
     }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-// ERC1155 implementation that supports only a single token per ID. Stores owner instead of balance to allow
+// ERC1155 implementation that supports only a single token per ID. Stores owner information to allow
 // fetching ownership information for a tokenId via `ownerOf`.
-// Portions from OpenZeppelin Contracts (last updated v5.0.0) (token/ERC1155/ERC1155.sol)
+// Portions from OpenZeppelin Contracts (token/ERC1155/ERC1155.sol)
 pragma solidity >=0.8.13;
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";

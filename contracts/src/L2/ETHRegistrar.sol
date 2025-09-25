@@ -14,7 +14,8 @@ uint256 constant REGISTRATION_ROLE_BITMAP = LibRegistryRoles
     .ROLE_SET_SUBREGISTRY |
     LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN |
     LibRegistryRoles.ROLE_SET_RESOLVER |
-    LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN;
+    LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN |
+    LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
 
 uint256 constant ROLE_SET_ORACLE = 1 << 0;
 
