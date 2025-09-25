@@ -39,24 +39,23 @@ jobs:
       - run: bun install --frozen-lockfile
 
       - name: Run tests with coverage
-        run: bun --filter contracts coverage
+        run: bun run coverage
 
       - name: Check types
         run: bun --filter contracts check:types
 
-      - name: Generate coverage report
-        run: bunx @lcov-viewer/cli lcov -o ./contracts/coverage ./contracts/lcov.info
-
-      - name: Upload coverage report to artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload coverage reports
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: coverage-report
-          path: contracts/coverage/
+          path: ./coverage/reports/
 
-      # 20250914: coveralls.io http 504
-      # 20240918: restored
-      - name: Upload coverage report to Coveralls
-        uses: coverallsapp/github-action@v2
-        with:
-          file: contracts/lcov.info
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
