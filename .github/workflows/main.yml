@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
 
 permissions:
@@ -12,7 +13,7 @@ permissions:
 
 jobs:
   test:
-    name: Contract tests
+    name: Contract Tests
     runs-on: ubuntu-latest
     steps:
       - name: Install lcov
@@ -55,7 +56,7 @@ jobs:
           path: ./contracts/coverage/reports/
 
   deploy:
-    name: Github pages
+    name: Github Pages
     runs-on: ubuntu-latest
     needs: test
     environment:
