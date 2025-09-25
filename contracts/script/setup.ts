@@ -1,32 +1,32 @@
+import { artifacts } from "@rocketh";
+import { rm } from "node:fs/promises";
 import { anvil } from "prool/instances";
-import { type Environment, executeDeployScripts, resolveConfig } from "rocketh";
+import { executeDeployScripts, resolveConfig, type Environment } from "rocketh";
 import {
   createWalletClient,
   getContract,
-  webSocket,
   keccak256,
-  stringToBytes,
   publicActions,
+  stringToBytes,
   testActions,
+  webSocket,
   zeroAddress,
   type Account,
   type Chain,
   type Client,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
-import { artifacts } from "@rocketh";
-import { rm } from "node:fs/promises";
 
-import type { RockethL1Arguments, RockethArguments } from "./types.ts";
-import { deployArtifact } from "../test/fixtures/deployArtifact.js";
-import { deployVerifiableProxy } from "../test/fixtures/deployVerifiableProxy.js";
-import { urgArtifact } from "../test/fixtures/externalArtifacts.js";
-import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
-import { WebSocketProvider } from "ethers/providers";
-import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { serve } from "@namestone/ezccip/serve";
-import { patchArtifactsV1 } from "./patchArtifactsV1.ts";
+import { WebSocketProvider } from "ethers/providers";
 import { MAX_EXPIRY, ROLES } from "../deploy/constants.ts";
+import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
+import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
+import { deployArtifact } from "../test/integration/test-fixtures/deployArtifact.ts";
+import { deployVerifiableProxy } from "../test/integration/test-fixtures/deployVerifiableProxy.ts";
+import { urgArtifact } from "../test/integration/test-fixtures/externalArtifacts.ts";
+import { patchArtifactsV1 } from "./patchArtifactsV1.ts";
+import type { RockethArguments, RockethL1Arguments } from "./types.ts";
 
 export type CrosschainSnapshot = () => Promise<void>;
 

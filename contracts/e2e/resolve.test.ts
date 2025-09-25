@@ -1,10 +1,10 @@
 import {
-  describe,
-  it,
-  expect,
+  afterAll,
   beforeAll,
   beforeEach,
-  afterAll,
+  describe,
+  expect,
+  it,
 } from "bun:test";
 import {
   type Address,
@@ -14,18 +14,21 @@ import {
   zeroAddress,
 } from "viem";
 
-import { type CrossChainEnvironment, setupCrossChainEnvironment } from "../script/setup.js";
-import { dnsEncodeName } from "../test/utils/utils.js";
+import { MAX_EXPIRY } from "../deploy/constants.js";
 import {
-  COIN_TYPE_ETH,
+  type CrossChainEnvironment,
+  setupCrossChainEnvironment,
+} from "../script/setup.js";
+import { expectVar } from "../test/integration/test-utils/expectVar.ts";
+import {
+  bundleCalls,
   COIN_TYPE_DEFAULT,
+  COIN_TYPE_ETH,
+  getReverseName,
   type KnownProfile,
   makeResolutions,
-  bundleCalls,
-  getReverseName,
-} from "../test/utils/resolutions.js";
-import { MAX_EXPIRY } from "../deploy/constants.js";
-import { expectVar } from "../test/utils/expectVar.js";
+} from "../test/integration/test-utils/resolutions.ts";
+import { dnsEncodeName } from "../test/integration/test-utils/utils.ts";
 
 describe("Resolve", () => {
   let env: CrossChainEnvironment;

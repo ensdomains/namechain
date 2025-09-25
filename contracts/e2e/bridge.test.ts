@@ -1,4 +1,4 @@
-import { describe, afterAll, beforeAll, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import {
   encodeAbiParameters,
   getAddress,
@@ -14,7 +14,10 @@ import {
   type CrossChainEnvironment,
   setupCrossChainEnvironment,
 } from "../script/setup.js";
-import { labelToCanonicalId, getCanonicalId } from "../test/utils/utils.js";
+import {
+  getCanonicalId,
+  labelToCanonicalId,
+} from "../test/integration/test-utils/utils.ts";
 
 describe("Bridge", () => {
   let env: CrossChainEnvironment;

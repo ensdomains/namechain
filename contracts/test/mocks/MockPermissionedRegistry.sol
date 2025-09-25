@@ -7,7 +7,7 @@ import {
     PermissionedRegistry,
     IRegistryDatastore,
     IRegistryMetadata
-} from "./../../src/common/registry/PermissionedRegistry.sol";
+} from "~src/common/registry/PermissionedRegistry.sol";
 
 /// @title MockPermissionedRegistry
 ///
