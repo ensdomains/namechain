@@ -57,6 +57,26 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         vm.warp(rentPriceOracle.premiumPeriod()); // avoid timestamp issues
     }
 
+    function test_constructor_invalidRatio() external {
+        PaymentRatio[] memory paymentRatios = new PaymentRatio[](1);
+        paymentRatios[0] = PaymentRatio(tokenUSDC, 1, 0);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                StandardRentPriceOracle.InvalidRatio.selector
+            )
+        );
+        new StandardRentPriceOracle(
+            address(this),
+            ethRegistry,
+            new uint256[](0),
+            new DiscountPoint[](0),
+            0,
+            0,
+            0,
+            paymentRatios
+        );
+    }
+
     function test_supportsInterface() external view {
         assertTrue(
             ERC165Checker.supportsInterface(
@@ -196,6 +216,17 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
     }
     function test_rentPrice_long() external {
         _testRentPrice(255, StandardPricing.RATE_5CP);
+    }
+
+    function test_rentPrice_paymentTokenNotSupported() external {
+        IERC20 paymentToken = IERC20(makeAddr("fake"));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IRentPriceOracle.PaymentTokenNotSupported.selector,
+                paymentToken
+            )
+        );
+        rentPriceOracle.rentPrice("abcde", user, 0, paymentToken);
     }
 
     function test_premiumPriceInitial() external view {
@@ -461,6 +492,17 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
         assertEq(rentPriceOracle.integratedDiscount(type(uint64).max), 0);
     }
 
+    function test_updateDiscountPoints_invalidDiscountPoint() external {
+        DiscountPoint[] memory points = new DiscountPoint[](1);
+        points[0] = DiscountPoint(0, 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                StandardRentPriceOracle.InvalidDiscountPoint.selector
+            )
+        );
+        rentPriceOracle.updateDiscountPoints(points);
+    }
+
     function test_updateDiscountPoints_notOwner() external {
         vm.startPrank(user);
         vm.expectRevert(
@@ -469,7 +511,7 @@ contract TestRentPriceOracle is Test, ERC1155Holder {
                 user
             )
         );
-        rentPriceOracle.updateDiscountPoints(new DiscountPoint[](1));
+        rentPriceOracle.updateDiscountPoints(new DiscountPoint[](0));
         vm.stopPrank();
     }
 

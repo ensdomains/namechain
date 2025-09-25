@@ -27,7 +27,6 @@ struct PaymentRatio {
 }
 
 contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
-
     /// @dev Internal structure to store payment token exchange rate.
     struct Ratio {
         uint128 numer;
@@ -37,6 +36,10 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     /// @notice Invalid payment token exchange rate.
     /// @dev Error selector: `0x648564d3`
     error InvalidRatio();
+
+    /// @notice Invalid discount point.
+    /// @dev Error selector: `0xd1be8bbe`
+    error InvalidDiscountPoint();
 
     /// @notice Discount points were changed.
     event DiscountPointsChanged(DiscountPoint[] points);
@@ -134,6 +137,9 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     function _setDiscountPoints(DiscountPoint[] memory points) internal {
         delete _discountPoints;
         for (uint256 i; i < points.length; ++i) {
+            if (points[i].t == 0) {
+                revert InvalidDiscountPoint();
+            }
             _discountPoints.push(points[i]);
         }
         emit DiscountPointsChanged(points);
@@ -142,11 +148,10 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     /// @notice Update the discount function.
     /// @dev - Each point is (∆t, intervalDiscount).
     ///      - Discounts are relative to `type(uint128).max`.
-    ///        *  2yr @  5.00% ==  1yr @  0.00% +  1yr @ x =>  +1yr @ x = 10.00%
-    ///        *  3yr @ 10.00% ==  2yr @  5.00% +  1yr @ x =>  +1yr @ x = 20.00%
-    ///        *  5yr @ 17.50% ==  3yr @ 10.00% +  2yr @ x =>  +2yr @ x = 28.75%
-    ///        * 10yr @ 25.00% ==  5yr @ 17.50% +  5yr @ x =>  +5yr @ x = 32.50%
-    ///        * 25yr @ 30.00% == 10yr @ 25.00% + 15yr @ x => +15yr @ x = 33.33%
+    ///      - Given an average discount, solve for the corresponding interval:
+    ///        * Assume: 1yr at 0% discount
+    ///        * Solve: 2yr @ 5% == 1yr @ 0% + 1yr @ x => x = 10.00%
+    //         * Point: (1yr, 10%) == (1 years, type(uint128).max / 10)
     ///      - Final discount is the derived from the weighted average over the intervals.
     ///      - Use empty array to disable.
     ///      - Emits `DiscountPointsChanged`.

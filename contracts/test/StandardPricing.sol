@@ -50,6 +50,11 @@ library StandardPricing {
         returns (DiscountPoint[] memory points)
     {
         // see: StandardRentPriceOracle.updateDiscountFunction()
+        // *  2yr @  5.00% ==  1yr @  0.00% +  1yr @ x =>  +1yr @ x = 10.00%
+        // *  3yr @ 10.00% ==  2yr @  5.00% +  1yr @ x =>  +1yr @ x = 20.00%
+        // *  5yr @ 17.50% ==  3yr @ 10.00% +  2yr @ x =>  +2yr @ x = 28.75%
+        // * 10yr @ 25.00% ==  5yr @ 17.50% +  5yr @ x =>  +5yr @ x = 32.50%
+        // * 25yr @ 30.00% == 10yr @ 25.00% + 15yr @ x => +15yr @ x = 33.33%
         points = new DiscountPoint[](6);
         points[0] = DiscountPoint(SEC_PER_YEAR, 0);
         points[1] = DiscountPoint(SEC_PER_YEAR, discountRatio(1, 10)); // 10%
