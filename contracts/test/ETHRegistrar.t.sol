@@ -624,4 +624,29 @@ contract TestETHRegistrar is Test {
         args.paymentToken = tokenUSDC;
         this._register(args);
     }
+
+    function test_registered_name_has_transfer_role() external {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        uint256 tokenId = this._register(args);
+        
+        assertTrue(
+            ethRegistry.hasRoles(
+                NameUtils.getCanonicalId(tokenId),
+                LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN,
+                args.owner
+            ),
+            "Registered name owner should have ROLE_CAN_TRANSFER"
+        );
+    }
+
+    function test_registered_name_can_be_transferred() external {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        uint256 tokenId = this._register(args);
+        address newOwner = makeAddr("newOwner");
+        
+        vm.prank(args.owner);
+        ethRegistry.safeTransferFrom(args.owner, newOwner, tokenId, 1, "");
+        
+        assertEq(ethRegistry.ownerOf(tokenId), newOwner, "Token should be transferred to new owner");
+    }
 }

@@ -49,13 +49,11 @@ contract UserRegistryTest is Test, ERC1155Holder {
         metadata = new SimpleRegistryMetadata();
         
         // Deploy the implementation
-        implementation = new UserRegistry();
+        implementation = new UserRegistry(datastore, metadata);
         
         // Create initialization data
         bytes memory initData = abi.encodeWithSelector(
             UserRegistry.initialize.selector,
-            address(datastore),
-            address(metadata),
             LibEACBaseRoles.ALL_ROLES,
             admin
         );
@@ -229,7 +227,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
     // Test for contract upgradeability
     function test_upgrade() public {
         // Deploy a new implementation
-        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock();
+        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(datastore, metadata);
         
         // Upgrade the proxy
         vm.prank(admin);
@@ -242,7 +240,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
     
     function test_Revert_unauthorized_upgrade() public {
         // Deploy a new implementation
-        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock();
+        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(datastore, metadata);
         
         // User1 tries to upgrade without permission
         vm.expectRevert(
@@ -299,6 +297,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
 
 // Mock V2 contract for testing upgrades
 contract UserRegistryV2Mock is UserRegistry {
+    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadataProvider) UserRegistry(_datastore, _metadataProvider) {}
     function version() public pure returns (uint256) {
         return 2;
     }

@@ -10,8 +10,9 @@ import {IRegistryDatastore} from "../../src/common/IRegistryDatastore.sol";
 import {MockPermissionedRegistry} from "../mocks/MockPermissionedRegistry.sol";
 import {IPermissionedRegistry} from "../../src/common/IPermissionedRegistry.sol";
 import {IRegistryMetadata} from "../../src/common/IRegistryMetadata.sol";
+import {SimpleRegistryMetadata} from "../../src/common/SimpleRegistryMetadata.sol";
 import {NameUtils} from "../../src/common/NameUtils.sol";
-import {L1EjectionController} from "../../src/L1/L1EjectionController.sol";
+import {L1BridgeController} from "../../src/L1/L1BridgeController.sol";
 import {L2BridgeController} from "../../src/L2/L2BridgeController.sol";
 import {MockL1Bridge} from "../../src/mocks/MockL1Bridge.sol";
 import {MockL2Bridge} from "../../src/mocks/MockL2Bridge.sol";
@@ -30,7 +31,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
     MockPermissionedRegistry l2Registry;
     MockL1Bridge l1Bridge;
     MockL2Bridge l2Bridge;
-    L1EjectionController l1Controller;
+    L1BridgeController l1Controller;
     L2BridgeController l2Controller;
     
     // Test accounts
@@ -40,19 +41,20 @@ contract BridgeTest is Test, EnhancedAccessControl {
     function setUp() public {
         // Deploy registries
         datastore = new RegistryDatastore();
-        l1Registry = new MockPermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
-        l2Registry = new MockPermissionedRegistry(datastore, IRegistryMetadata(address(0)), address(this), LibEACBaseRoles.ALL_ROLES);
+        SimpleRegistryMetadata metadata = new SimpleRegistryMetadata();
+        l1Registry = new MockPermissionedRegistry(datastore, metadata, address(this), LibEACBaseRoles.ALL_ROLES);
+        l2Registry = new MockPermissionedRegistry(datastore, metadata, address(this), LibEACBaseRoles.ALL_ROLES);
 
         // Deploy bridges
         l1Bridge = new MockL1Bridge();
         l2Bridge = new MockL2Bridge();
         
         // Deploy controllers
-        l1Controller = new L1EjectionController(l1Registry, l1Bridge);
+        l1Controller = new L1BridgeController(l1Registry, l1Bridge);
         l2Controller = new L2BridgeController(l2Bridge, l2Registry, datastore);
         
         // Set the controller contracts as targets for the bridges
-        l1Bridge.setEjectionController(l1Controller);
+        l1Bridge.setBridgeController(l1Controller);
         l2Bridge.setBridgeController(l2Controller);
         
         // Grant necessary roles to controllers
@@ -69,12 +71,12 @@ contract BridgeTest is Test, EnhancedAccessControl {
         uint256 tokenId = l2Registry.register("premiumname", user2, IRegistry(address(0x456)), address(0x789), LibEACBaseRoles.ALL_ROLES, uint64(block.timestamp + 365 days));
 
         TransferData memory transferData = TransferData({
-            label: "premiumname",
+            dnsEncodedName: NameUtils.dnsEncodeEthLabel("premiumname"),
             owner: user2,
             subregistry: address(0x123),
             resolver: address(0x456),
-            expires: uint64(block.timestamp + 123 days),
-            roleBitmap: LibRegistryRoles.ROLE_RENEW
+            roleBitmap: LibRegistryRoles.ROLE_RENEW,
+            expires: uint64(block.timestamp + 123 days)
         });
 
         // Step 1: Initiate ejection on L2
@@ -83,8 +85,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
         vm.stopPrank();
         
         // Step 2: Simulate receiving the message on L1
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("premiumname");
-        bytes memory bridgeMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);
+        bytes memory bridgeMessage = BridgeEncoder.encodeEjection(transferData);
         l1Bridge.receiveMessage(bridgeMessage);
 
         // Step 3: Verify the name is registered on L1

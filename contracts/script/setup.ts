@@ -279,9 +279,9 @@ export async function setupCrossChainEnvironment({
         defaultReverseResolver: l1Contracts("DefaultReverseResolver"),
         //universalResolverV1: l1Contracts("UniversalResolver"), ==> no deploy script yet
         // v2
-        ejectionController: l1Contracts("L1EjectionController"),
+        bridgeController: l1Contracts("L1BridgeController"),
         ethRegistry: l1Contracts("PermissionedRegistry", "ETHRegistry"),
-        ethSelfResolver: l1Contracts("DedicatedResolver", "ETHSelfResolver"),
+        ethSelfResolver: l1Contracts("DedicatedResolver", "ETHSelfResolver"),        
         ethReverseResolver: l1Contracts("ETHReverseResolver"),
         ethReverseRegistrar: l1Contracts(
           "L2ReverseRegistrar",

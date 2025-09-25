@@ -179,7 +179,7 @@ contract TestRootRegistry is Test, ERC1155Holder {
         // Verify the test contract no longer has the role
         assertFalse(registry.hasRoles(registry.ROOT_RESOURCE(), LibRegistryRoles.ROLE_REGISTRAR, address(this)));
         
-        // The test should now fail since no one has permission
+        // The test fails since no one has permission
         vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector, registry.ROOT_RESOURCE(), LibRegistryRoles.ROLE_REGISTRAR, unauthorizedCaller));
         vm.prank(unauthorizedCaller);
         registry.register(label, owner, registry, address(0), defaultRoleBitmap, MAX_EXPIRY);

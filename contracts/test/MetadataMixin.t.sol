@@ -22,10 +22,6 @@ contract MockMetadataProvider is IRegistryMetadata {
 contract MetadataMixinImpl is MetadataMixin {
     constructor(IRegistryMetadata _metadataProvider) MetadataMixin(_metadataProvider) {}
     
-    // Expose internal function as public for testing
-    function updateMetadataProvider(IRegistryMetadata _metadataProvider) public {
-        _updateMetadataProvider(_metadataProvider);
-    }
     
     // Expose internal function as public for testing
     function getTokenURI(uint256 tokenId) public view returns (string memory) {
@@ -48,10 +44,6 @@ contract MetadataMixinTest is Test {
         assertEq(address(mixinImpl.metadataProvider()), address(mockProvider));
     }
     
-    function testUpdateMetadataProvider() public {
-        mixinImpl.updateMetadataProvider(newMockProvider);
-        assertEq(address(mixinImpl.metadataProvider()), address(newMockProvider));
-    }
     
     function testTokenURI() public {
         // Set token URI in the mock provider
@@ -73,17 +65,4 @@ contract MetadataMixinTest is Test {
         assertEq(uri, "");
     }
     
-    function testTokenURIAfterUpdate() public {
-        // Set token URI in the new mock provider
-        string memory expectedUri = "ipfs://new-test-uri";
-        uint256 tokenId = 456;
-        newMockProvider.setTokenUri(tokenId, expectedUri);
-        
-        // Update provider
-        mixinImpl.updateMetadataProvider(newMockProvider);
-        
-        // Verify token URI is correctly returned from new provider
-        string memory uri = mixinImpl.getTokenURI(tokenId);
-        assertEq(uri, expectedUri);
-    }
 } 
