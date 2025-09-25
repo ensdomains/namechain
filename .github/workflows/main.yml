@@ -38,11 +38,11 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - name: Check types
-        run: bun --filter contracts check:types
-
       - name: Run tests with coverage
         run: bun run coverage
+
+      - name: Check types
+        run: bun --filter contracts check:types
 
       - name: Upload coverage reports
         uses: actions/upload-pages-artifact@v3
