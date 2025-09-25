@@ -75,9 +75,9 @@ jobs:
 
       - name: Replace report
         run: |
-          mkdir -p www
-          rm -rf "www/$GITHUB_REF_NAME"
-          mv temp "www/$GITHUB_REF_NAME"
+          mkdir -p docs
+          rm -rf "docs/$GITHUB_REF_NAME"
+          mv temp "docs/$GITHUB_REF_NAME"
 
       - name: Update repo
         run: |
