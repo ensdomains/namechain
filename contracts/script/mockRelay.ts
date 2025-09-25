@@ -48,11 +48,14 @@ export function createMockRelay(env: CrossChainEnvironment) {
       for (const log of logs) {
         const { message } = log.args;
         if (!message) continue;
+        console.log(`   -> received event from mock bridge on L1: ${log.transactionHash}`);
         const waiter = pending.get(log.transactionHash);
         try {
+          console.log(`   -> relaying tx to L2`);
           await sendToL2(message);
           waiter?.resolve();
         } catch (err: any) {
+          console.log(`   -> relay tx failed :/`);
           waiter?.reject(err);
         }
       }
@@ -64,11 +67,14 @@ export function createMockRelay(env: CrossChainEnvironment) {
       for (const log of logs) {
         const { message } = log.args;
         if (!message) continue;
+        console.log(`   -> received event from mock bridge on L2: ${log.transactionHash}`);
         const waiter = pending.get(log.transactionHash);
         try {
+          console.log(`   -> relaying tx to L1`);
           await sendToL1(message);
           waiter?.resolve();
         } catch (err: any) {
+          console.log(`   -> relay tx failed :/`);
           waiter?.reject(err);
         }
       }
@@ -76,16 +82,35 @@ export function createMockRelay(env: CrossChainEnvironment) {
   });
 
   async function waitFor(tx: Promise<Hex>) {
-    const hash = await tx;
+    let hash
+    try {
+      hash = await tx;
+    } catch (err) {
+      console.log(`   -> tx failed :/`);
+      throw err;
+    }
+
+    console.log(`   -> tx hash: ${hash}`);
+
     const { promise, resolve, reject } = Promise.withResolvers<void>();
+    
     try {
       pending.set(hash, { resolve, reject });
+      console.log(`   -> waiting for tx`);
       const receipt = await Promise.any([
         env.l1.client.waitForTransactionReceipt({ hash }),
         env.l2.client.waitForTransactionReceipt({ hash }),
       ]);
+      if (receipt.status !== "success") {
+        console.error(receipt)
+        throw new Error(`Transaction failed!`);
+      }
       await promise;
+      console.log(`   -> relay tx success!`);
       return receipt;
+    } catch (err) {
+      console.log(`   -> tx failed :/`);
+      throw err;
     } finally {
       pending.delete(hash);
     }

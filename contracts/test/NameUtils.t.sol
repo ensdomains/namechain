@@ -1,133 +1,306 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.13;
+pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
+import "forge-std/Test.sol";
 import "../src/common/NameUtils.sol";
 
-contract TestNameUtils is Test {
-    function test_labelToCanonicalId_consistency() public pure {
-        string memory label = "test";
-        uint256 canonicalId = NameUtils.labelToCanonicalId(label);
-        
-        // Should be deterministic
-        uint256 canonicalId2 = NameUtils.labelToCanonicalId(label);
-        assertEq(canonicalId, canonicalId2, "labelToCanonicalId should be deterministic");
-        
-        // Should be different for different labels
-        uint256 differentCanonicalId = NameUtils.labelToCanonicalId("different");
-        assertNotEq(canonicalId, differentCanonicalId, "Different labels should have different canonical IDs");
+// Wrapper contract to properly test library functions
+contract NameUtilsWrapper {
+    function labelToCanonicalId(string memory label) external pure returns (uint256) {
+        return NameUtils.labelToCanonicalId(label);
     }
-    
-    function test_getCanonicalId_clears_lower_32_bits() public pure {
-        // Test with a value that has bits set in lower 32 positions
-        uint256 testValue = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-        uint256 canonicalId = NameUtils.getCanonicalId(testValue);
-        
-        // Lower 32 bits should be cleared
-        uint256 expected = testValue ^ uint32(testValue);
-        assertEq(canonicalId, expected, "getCanonicalId should XOR with uint32(id)");
-        
-        // Verify lower 32 bits are indeed zero
-        uint256 lower32Bits = canonicalId & 0xFFFFFFFF;
-        assertEq(lower32Bits, 0, "Lower 32 bits should be zero");
+
+    function getCanonicalId(uint256 id) external pure returns (uint256) {
+        return NameUtils.getCanonicalId(id);
     }
-    
-    function test_getCanonicalId_with_various_inputs() public pure {
-        // Test with zero
-        uint256 zero = 0;
-        assertEq(NameUtils.getCanonicalId(zero), 0, "getCanonicalId(0) should be 0");
-        
-        // Test with value that has only upper bits set  
-        uint256 upperBitsOnly = uint256(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF) << 32;
-        assertEq(NameUtils.getCanonicalId(upperBitsOnly), upperBitsOnly, "Upper bits only should remain unchanged");
-        
-        // Test with value that has only lower bits set
-        uint256 lowerBitsOnly = 0xFFFFFFFF;
-        assertEq(NameUtils.getCanonicalId(lowerBitsOnly), 0, "Lower bits only should result in zero");
-        
-        // Test with specific patterns
-        uint256 pattern1 = 0x123456789ABCDEF0FEDCBA0987654321;
-        uint256 canonical1 = NameUtils.getCanonicalId(pattern1);
-        uint256 expected1 = pattern1 ^ uint32(pattern1);
-        assertEq(canonical1, expected1, "Pattern 1 should match expected XOR result");
+
+    function dnsEncodeEthLabel(string memory label) external pure returns (bytes memory) {
+        return NameUtils.dnsEncodeEthLabel(label);
     }
-    
-    function test_getCanonicalId_idempotent() public pure {
-        uint256 testValue = 0x123456789ABCDEF0FEDCBA0987654321;
-        uint256 canonical1 = NameUtils.getCanonicalId(testValue);
-        uint256 canonical2 = NameUtils.getCanonicalId(canonical1);
-        
-        // Applying getCanonicalId to a canonical ID should not change it
-        assertEq(canonical1, canonical2, "getCanonicalId should be idempotent");
+
+    function extractLabel(bytes memory dnsEncodedName, uint256 offset) 
+        external 
+        pure 
+        returns (string memory label, uint256 nextOffset) 
+    {
+        return NameUtils.extractLabel(dnsEncodedName, offset);
     }
-    
-    function test_getCanonicalId_preserves_upper_bits() public pure {
-        uint256 testValue = 0x123456789ABCDEF0FEDCBA0987654321;
-        uint256 canonicalId = NameUtils.getCanonicalId(testValue);
-        
-        // Upper 224 bits should be preserved
-        uint256 upperBits = testValue >> 32;
-        uint256 canonicalUpperBits = canonicalId >> 32;
-        assertEq(upperBits, canonicalUpperBits, "Upper bits should be preserved");
+
+    function extractLabel(bytes memory dnsEncodedName) external pure returns (string memory) {
+        return NameUtils.extractLabel(dnsEncodedName);
     }
-    
-    function test_dnsEncodeEthLabel_basic() public pure {
-        string memory label = "test";
-        bytes memory encoded = NameUtils.dnsEncodeEthLabel(label);
+}
+
+contract NameUtilsTest is Test {
+    NameUtilsWrapper wrapper;
+
+    function setUp() public {
+        wrapper = new NameUtilsWrapper();
+    }
+
+    // Test labelToCanonicalId function
+    function test_labelToCanonicalId_BasicLabels() public {
+        // Test common labels
+        uint256 testId = wrapper.labelToCanonicalId("test");
+        uint256 expectedHash = uint256(keccak256(bytes("test")));
+        uint256 expected = expectedHash ^ uint32(expectedHash);
+        assertEq(testId, expected);
+
+        uint256 aliceId = wrapper.labelToCanonicalId("alice");
+        expectedHash = uint256(keccak256(bytes("alice")));
+        expected = expectedHash ^ uint32(expectedHash);
+        assertEq(aliceId, expected);
+    }
+
+    function test_labelToCanonicalId_EmptyString() public {
+        uint256 emptyId = wrapper.labelToCanonicalId("");
+        uint256 expectedHash = uint256(keccak256(bytes("")));
+        uint256 expected = expectedHash ^ uint32(expectedHash);
+        assertEq(emptyId, expected);
+    }
+
+    function test_labelToCanonicalId_SpecialCharacters() public {
+        uint256 specialId = wrapper.labelToCanonicalId("test-name_123");
+        uint256 expectedHash = uint256(keccak256(bytes("test-name_123")));
+        uint256 expected = expectedHash ^ uint32(expectedHash);
+        assertEq(specialId, expected);
+    }
+
+    function test_labelToCanonicalId_UnicodeCharacters() public {
+        uint256 unicodeId = wrapper.labelToCanonicalId(unicode"tëst");
+        uint256 expectedHash = uint256(keccak256(bytes(unicode"tëst")));
+        uint256 expected = expectedHash ^ uint32(expectedHash);
+        assertEq(unicodeId, expected);
+    }
+
+    function testFuzz_labelToCanonicalId(string memory label) public {
+        uint256 canonicalId = wrapper.labelToCanonicalId(label);
+        uint256 expectedHash = uint256(keccak256(bytes(label)));
+        uint256 expected = expectedHash ^ uint32(expectedHash);
+        assertEq(canonicalId, expected);
+    }
+
+    // Test getCanonicalId function
+    function test_getCanonicalId_BasicIds() public {
+        uint256 id1 = 0x123456789abcdef0;
+        uint256 canonical1 = wrapper.getCanonicalId(id1);
+        uint256 expected1 = id1 ^ uint32(id1);
+        assertEq(canonical1, expected1);
+
+        uint256 id2 = 0xffffffffffffffff;
+        uint256 canonical2 = wrapper.getCanonicalId(id2);
+        uint256 expected2 = id2 ^ uint32(id2);
+        assertEq(canonical2, expected2);
+    }
+
+    function test_getCanonicalId_ZeroId() public {
+        uint256 canonical = wrapper.getCanonicalId(0);
+        assertEq(canonical, 0);
+    }
+
+    function test_getCanonicalId_MaxId() public {
+        uint256 maxId = type(uint256).max;
+        uint256 canonical = wrapper.getCanonicalId(maxId);
+        uint256 expected = maxId ^ uint32(maxId);
+        assertEq(canonical, expected);
+    }
+
+    function test_getCanonicalId_Properties() public {
+        uint256 id = 0x123456789abcdef0;
+        uint256 canonical = wrapper.getCanonicalId(id);
         
-        // Should be: length_byte + label + "\x03eth\x00"
+        // Verify the canonical ID follows the expected formula: id ^ uint32(id)
+        assertEq(canonical, id ^ uint32(id));
+        
+        // Test with a value where lower 32 bits are zero
+        uint256 idZeroLower = 0x1234567800000000;
+        uint256 canonicalZero = wrapper.getCanonicalId(idZeroLower);
+        assertEq(canonicalZero, idZeroLower); // Should be unchanged since uint32(id) = 0
+    }
+
+    function testFuzz_getCanonicalId(uint256 id) public {
+        uint256 canonical = wrapper.getCanonicalId(id);
+        uint256 expected = id ^ uint32(id);
+        assertEq(canonical, expected);
+    }
+
+    // Test dnsEncodeEthLabel function
+    function test_dnsEncodeEthLabel_BasicLabels() public {
+        bytes memory encoded = wrapper.dnsEncodeEthLabel("test");
         bytes memory expected = abi.encodePacked(
             bytes1(uint8(4)), // length of "test"
             "test",
             "\x03eth\x00"
         );
-        
-        assertEq(encoded, expected, "DNS encoding should match expected format");
+        assertEq(encoded, expected);
     }
-    
-    function test_dnsEncodeEthLabel_empty() public pure {
-        string memory label = "";
-        bytes memory encoded = NameUtils.dnsEncodeEthLabel(label);
-        
+
+    function test_dnsEncodeEthLabel_EmptyString() public {
+        bytes memory encoded = wrapper.dnsEncodeEthLabel("");
         bytes memory expected = abi.encodePacked(
-            bytes1(uint8(0)), // length of empty string
+            bytes1(uint8(0)), // length of ""
             "",
             "\x03eth\x00"
         );
-        
-        assertEq(encoded, expected, "Empty label should encode correctly");
+        assertEq(encoded, expected);
     }
-    
-    function test_dnsEncodeEthLabel_long() public pure {
-        string memory label = "verylonglabelnamethatshouldstillwork";
-        bytes memory encoded = NameUtils.dnsEncodeEthLabel(label);
+
+    function test_dnsEncodeEthLabel_SingleCharacter() public {
+        bytes memory encoded = wrapper.dnsEncodeEthLabel("a");
+        bytes memory expected = abi.encodePacked(
+            bytes1(uint8(1)), // length of "a"
+            "a",
+            "\x03eth\x00"
+        );
+        assertEq(encoded, expected);
+    }
+
+    function test_dnsEncodeEthLabel_LongLabel() public {
+        string memory longLabel = "verylonglabelnamethatshouldstillwork";
+        bytes memory encoded = wrapper.dnsEncodeEthLabel(longLabel);
+        bytes memory expected = abi.encodePacked(
+            bytes1(uint8(bytes(longLabel).length)),
+            longLabel,
+            "\x03eth\x00"
+        );
+        assertEq(encoded, expected);
+    }
+
+    function test_dnsEncodeEthLabel_SpecialCharacters() public {
+        bytes memory encoded = wrapper.dnsEncodeEthLabel("test-name_123");
+        bytes memory expected = abi.encodePacked(
+            bytes1(uint8(13)), // length of "test-name_123"
+            "test-name_123",
+            "\x03eth\x00"
+        );
+        assertEq(encoded, expected);
+    }
+
+    function testFuzz_dnsEncodeEthLabel(string memory label) public {
+        // Skip labels that are too long (DNS has 63 byte limit per label)
+        vm.assume(bytes(label).length <= 63);
         
+        bytes memory encoded = wrapper.dnsEncodeEthLabel(label);
         bytes memory expected = abi.encodePacked(
             bytes1(uint8(bytes(label).length)),
             label,
             "\x03eth\x00"
         );
-        
-        assertEq(encoded, expected, "Long label should encode correctly");
+        assertEq(encoded, expected);
     }
-    
-    function test_getCanonicalId_maintains_bit_structure() public pure {
-        // Test that the XOR operation correctly maintains the bit structure
-        uint256 testValue = 0x0123456789ABCDEF0FEDCBA987654321;
-        uint256 canonicalId = NameUtils.getCanonicalId(testValue);
+
+    // Test extractLabel function with offset
+    function test_extractLabel_WithOffset_BasicCase() public {
+        // Use the DNS encoding function to generate test input
+        bytes memory dnsTestName = wrapper.dnsEncodeEthLabel("test");
         
-        // Manually calculate expected result
-        uint32 lowerBits = uint32(testValue);
-        uint256 expected = testValue ^ uint256(lowerBits);
+        (string memory label, uint256 nextOffset) = wrapper.extractLabel(dnsTestName, 0);
+        assertEq(label, "test");
+        assertEq(nextOffset, 5); // 1 (length) + 4 (label) = 5
+    }
+
+    function test_extractLabel_WithOffset_SecondLabel() public {
+        // Use the DNS encoding function to generate test input
+        bytes memory dnsName = wrapper.dnsEncodeEthLabel("test");
         
-        assertEq(canonicalId, expected, "Bit structure should be maintained correctly");
+        // Extract the second label (eth) from the DNS encoded name
+        (string memory label, uint256 nextOffset) = wrapper.extractLabel(dnsName, 5);
+        assertEq(label, "eth");
+        assertEq(nextOffset, 9); // 5 + 1 (length) + 3 (label) = 9
+    }
+
+
+    function test_extractLabel_WithOffset_SingleCharLabel() public {
+        // Use the DNS encoding function to generate single character test input
+        bytes memory dnsSingleName = wrapper.dnsEncodeEthLabel("a");
         
-        // Verify specific bit positions
-        for (uint i = 0; i < 32; i++) {
-            uint256 bitMask = 1 << i;
-            uint256 canonicalBit = canonicalId & bitMask;
-            assertEq(canonicalBit, 0, string(abi.encodePacked("Bit ", vm.toString(i), " should be zero")));
-        }
+        (string memory label, uint256 nextOffset) = wrapper.extractLabel(dnsSingleName, 0);
+        assertEq(label, "a");
+        assertEq(nextOffset, 2); // 1 (length) + 1 (label) = 2
+    }
+
+    // Test extractLabel function without offset (convenience function)
+    function test_extractLabel_WithoutOffset_BasicCase() public {
+        // Use the DNS encoding function to generate test input
+        bytes memory dnsTestName = wrapper.dnsEncodeEthLabel("test");
+        
+        string memory label = wrapper.extractLabel(dnsTestName);
+        assertEq(label, "test");
+    }
+
+
+    function test_extractLabel_WithoutOffset_SingleChar() public {
+        // Use the DNS encoding function to generate single character test input
+        bytes memory dnsSingleName = wrapper.dnsEncodeEthLabel("x");
+        
+        string memory label = wrapper.extractLabel(dnsSingleName);
+        assertEq(label, "x");
+    }
+
+    // Integration tests combining multiple functions
+    function test_integration_LabelToCanonicalIdAndBack() public {
+        string memory originalLabel = "testlabel";
+        uint256 canonicalId = wrapper.labelToCanonicalId(originalLabel);
+        
+        // Verify that the canonical ID is different from the raw hash
+        uint256 rawHash = uint256(keccak256(bytes(originalLabel)));
+        assertTrue(canonicalId != rawHash);
+        
+        // Verify the canonical ID follows the expected formula
+        assertEq(canonicalId, rawHash ^ uint32(rawHash));
+    }
+
+    function test_integration_DnsEncodeAndExtract() public {
+        string memory originalLabel = "mytest";
+        bytes memory encoded = wrapper.dnsEncodeEthLabel(originalLabel);
+        string memory extracted = wrapper.extractLabel(encoded);
+        
+        assertEq(extracted, originalLabel);
+    }
+
+    function test_integration_MultipleLabelsExtraction() public {
+        // Use the DNS encoding function to generate test input
+        bytes memory dnsName = wrapper.dnsEncodeEthLabel("alice");
+        
+        // Extract first label
+        (string memory label1, uint256 offset1) = wrapper.extractLabel(dnsName, 0);
+        assertEq(label1, "alice");
+        
+        // Extract second label (eth) from the DNS encoded name
+        (string memory label2, ) = wrapper.extractLabel(dnsName, offset1);
+        assertEq(label2, "eth");
+    }
+
+    // Edge cases and error conditions
+    function test_edge_MaxLengthLabel() public {
+        // Create a 63-byte label (max DNS label length)
+        string memory maxLabel = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijk";
+        require(bytes(maxLabel).length == 63, "Test setup error");
+        
+        uint256 canonicalId = wrapper.labelToCanonicalId(maxLabel);
+        uint256 expectedHash = uint256(keccak256(bytes(maxLabel)));
+        assertEq(canonicalId, expectedHash ^ uint32(expectedHash));
+        
+        bytes memory encoded = wrapper.dnsEncodeEthLabel(maxLabel);
+        string memory extracted = wrapper.extractLabel(encoded);
+        assertEq(extracted, maxLabel);
+    }
+
+    function test_edge_CanonicalIdConsistency() public {
+        // Test that the same input always produces the same canonical ID
+        string memory label = "consistency";
+        uint256 id1 = wrapper.labelToCanonicalId(label);
+        uint256 id2 = wrapper.labelToCanonicalId(label);
+        assertEq(id1, id2);
+        
+        uint256 canonical1 = wrapper.getCanonicalId(12345);
+        uint256 canonical2 = wrapper.getCanonicalId(12345);
+        assertEq(canonical1, canonical2);
+    }
+
+    function test_edge_DifferentLabelsProduceDifferentIds() public {
+        uint256 id1 = wrapper.labelToCanonicalId("test1");
+        uint256 id2 = wrapper.labelToCanonicalId("test2");
+        assertTrue(id1 != id2);
     }
 }

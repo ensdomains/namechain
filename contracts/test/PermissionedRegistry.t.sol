@@ -12,6 +12,9 @@ import "../src/common/IRegistryMetadata.sol";
 import "../src/common/SimpleRegistryMetadata.sol";
 import "../src/common/BaseRegistry.sol";
 import "../src/common/IPermissionedRegistry.sol";
+import "../src/common/IStandardRegistry.sol";
+import "../src/L2/ETHRegistrar.sol";
+import {IPriceOracle} from "@ens/contracts/ethregistrar/IPriceOracle.sol";
 import "../src/common/ITokenObserver.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {IEnhancedAccessControl} from "../src/common/IEnhancedAccessControl.sol";
@@ -1323,16 +1326,10 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     }
 
     function test_token_transfer_also_transfers_roles() public {
-        // Register a name with owner1
+        // Register a name with owner1, including ROLE_CAN_TRANSFER_ADMIN
         address owner1 = makeAddr("owner1");
-        uint256 tokenId = registry.register(
-            "transfertest",
-            owner1,
-            registry,
-            address(0),
-            defaultRoleBitmap,
-            uint64(block.timestamp) + 100
-        );
+        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
+        uint256 tokenId = registry.register("transfertest", owner1, registry, address(0), roleBitmapWithTransfer, uint64(block.timestamp) + 100);
 
         // Capture the resource ID before transfer
         uint256 originalResourceId = registry.testGetResourceFromTokenId(
@@ -1388,8 +1385,8 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
 
         // Verify token ownership transferred
         assertEq(registry.ownerOf(newTokenId), owner2);
-
-        // Verify the resource ID has not changed
+        
+        // Verify the resource ID remains unchanged
         uint256 newResourceId = registry.testGetResourceFromTokenId(newTokenId);
         assertEq(
             newResourceId,
@@ -1817,11 +1814,9 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry.grantRoles(resourceId, LibRegistryRoles.ROLE_RENEW, user2);
 
         // Get the new token ID after first regeneration
-        uint256 intermediateTokenId = registry.testGetTokenIdFromResource(
-            resourceId
-        );
-
-        // Now revoke the role and check regeneration again
+        uint256 intermediateTokenId = registry.testGetTokenIdFromResource(resourceId);
+        
+        // revoke the role and check regeneration again
         vm.recordLogs();
         registry.revokeRoles(resourceId, LibRegistryRoles.ROLE_RENEW, user2);
 
@@ -1920,11 +1915,9 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         registry.grantRoles(resourceId, LibRegistryRoles.ROLE_RENEW, owner1);
 
         // Get the new token ID after regeneration
-        uint256 intermediateTokenId = registry.testGetTokenIdFromResource(
-            resourceId
-        );
-
-        // Now grant a role to another user, triggering another regeneration
+        uint256 intermediateTokenId = registry.testGetTokenIdFromResource(resourceId);
+        
+        // grant a role to another user, triggering another regeneration
         address user2 = makeAddr("user2");
         registry.grantRoles(resourceId, LibRegistryRoles.ROLE_RENEW, user2);
 
@@ -2006,27 +1999,13 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     // getRoleAssigneeCount tests
 
     function test_getRoleAssigneeCount_single_role_single_assignee() public {
-        uint256 tokenId = registry.register(
-            "counttest1",
-            user1,
-            registry,
-            address(0),
-            LibRegistryRoles.ROLE_SET_RESOLVER,
-            uint64(block.timestamp) + 86400
-        );
-
-        (uint256 counts, ) = registry.getAssigneeCount(
-            tokenId,
-            LibRegistryRoles.ROLE_SET_RESOLVER
-        );
-
-        // ROLE_SET_RESOLVER is 1 << 12, so count of 1 should be at bit position 12
-        uint256 expectedCount = 1 << 12;
-        assertEq(
-            counts,
-            expectedCount,
-            "Should have count of 1 for SET_RESOLVER role"
-        );
+        uint256 tokenId = registry.register("counttest1", user1, registry, address(0), LibRegistryRoles.ROLE_SET_RESOLVER, uint64(block.timestamp) + 86400);
+        
+        (uint256 counts,) = registry.getAssigneeCount(tokenId, LibRegistryRoles.ROLE_SET_RESOLVER);
+        
+        // Count of 1 for ROLE_SET_RESOLVER
+        uint256 expectedCount = 1 * LibRegistryRoles.ROLE_SET_RESOLVER;
+        assertEq(counts, expectedCount, "Should have count of 1 for SET_RESOLVER role");
     }
 
     function test_getRoleAssigneeCount_single_role_multiple_assignees() public {
@@ -2056,22 +2035,13 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         );
 
         // Get the updated token ID after regenerations
-        uint256 currentTokenId = registry.testGetTokenIdFromResource(
-            resourceId
-        );
-
-        (uint256 counts, ) = registry.getAssigneeCount(
-            currentTokenId,
-            LibRegistryRoles.ROLE_SET_RESOLVER
-        );
-
-        // Should have count of 3 at bit position 12
-        uint256 expectedCount = 3 << 12;
-        assertEq(
-            counts,
-            expectedCount,
-            "Should have count of 3 for SET_RESOLVER role"
-        );
+        uint256 currentTokenId = registry.testGetTokenIdFromResource(resourceId);
+        
+        (uint256 counts,) = registry.getAssigneeCount(currentTokenId, LibRegistryRoles.ROLE_SET_RESOLVER);
+        
+        // Should have count of 3 for ROLE_SET_RESOLVER
+        uint256 expectedCount = 3 * LibRegistryRoles.ROLE_SET_RESOLVER;
+        assertEq(counts, expectedCount, "Should have count of 3 for SET_RESOLVER role");
     }
 
     function test_getRoleAssigneeCount_single_role_no_assignees() public {
@@ -2129,14 +2099,10 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         );
 
         // user1 has SET_RESOLVER (from defaultRoleBitmap), user2 has SET_RESOLVER + RENEW, user3 has RENEW
-        // SET_RESOLVER (1<<12): 2 assignees -> 2 << 12
-        // RENEW (1<<4): 2 assignees -> 2 << 4
-        uint256 expectedCount = (2 << 12) | (2 << 4);
-        assertEq(
-            counts,
-            expectedCount,
-            "Should have correct counts for both roles"
-        );
+        // SET_RESOLVER: 2 assignees
+        // RENEW: 2 assignees
+        uint256 expectedCount = (2 * LibRegistryRoles.ROLE_SET_RESOLVER) | (2 * LibRegistryRoles.ROLE_RENEW);
+        assertEq(counts, expectedCount, "Should have correct counts for both roles");
     }
 
     function test_getRoleAssigneeCount_multiple_roles_partial_assignees()
@@ -2158,37 +2124,19 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         (uint256 counts, ) = registry.getAssigneeCount(tokenId, queryBitmap);
 
         // Only SET_RESOLVER should have 1 assignee
-        uint256 expectedCount = 1 << 12;
-        assertEq(
-            counts,
-            expectedCount,
-            "Should have count only for SET_RESOLVER"
-        );
+        uint256 expectedCount = 1 * LibRegistryRoles.ROLE_SET_RESOLVER;
+        assertEq(counts, expectedCount, "Should have count only for SET_RESOLVER");
     }
 
     function test_getRoleAssigneeCount_all_default_roles() public {
-        uint256 tokenId = registry.register(
-            "counttest6",
-            user1,
-            registry,
-            address(0),
-            defaultRoleBitmap,
-            uint64(block.timestamp) + 86400
-        );
-
-        (uint256 counts, ) = registry.getAssigneeCount(
-            tokenId,
-            defaultRoleBitmap
-        );
-
-        // defaultRoleBitmap includes SET_SUBREGISTRY (1<<8), SET_RESOLVER (1<<12), SET_TOKEN_OBSERVER (1<<16)
+        uint256 tokenId = registry.register("counttest6", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        
+        (uint256 counts,) = registry.getAssigneeCount(tokenId, defaultRoleBitmap);
+        
+        // defaultRoleBitmap includes SET_SUBREGISTRY, SET_RESOLVER, SET_TOKEN_OBSERVER
         // Each should have 1 assignee
-        uint256 expectedCount = (1 << 8) | (1 << 12) | (1 << 16);
-        assertEq(
-            counts,
-            expectedCount,
-            "Should have count of 1 for each default role"
-        );
+        uint256 expectedCount = (1 * LibRegistryRoles.ROLE_SET_SUBREGISTRY) | (1 * LibRegistryRoles.ROLE_SET_RESOLVER) | (1 * LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER);
+        assertEq(counts, expectedCount, "Should have count of 1 for each default role");
     }
 
     function test_getRoleAssigneeCount_overlapping_role_assignments() public {
@@ -2235,15 +2183,11 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         // user1: SET_RESOLVER
         // user2: SET_RESOLVER, RENEW
         // user3: RENEW, BURN
-        // SET_RESOLVER (1<<12): 2 assignees -> 2 << 12
-        // RENEW (1<<4): 2 assignees -> 2 << 4
-        // BURN (1<<20): 1 assignee -> 1 << 20
-        uint256 expectedCount = (2 << 12) | (2 << 4) | (1 << 20);
-        assertEq(
-            counts,
-            expectedCount,
-            "Should have correct counts for all roles"
-        );
+        // SET_RESOLVER: 2 assignees -> 2 at bit position of ROLE_SET_RESOLVER
+        // RENEW: 2 assignees -> 2 at bit position of ROLE_RENEW
+        // BURN: 1 assignee -> 1 at bit position of ROLE_BURN
+        uint256 expectedCount = (2 * LibRegistryRoles.ROLE_SET_RESOLVER) | (2 * LibRegistryRoles.ROLE_RENEW) | (1 * LibRegistryRoles.ROLE_BURN);
+        assertEq(counts, expectedCount, "Should have correct counts for all roles");
     }
 
     function test_getRoleAssigneeCount_after_role_revocation() public {
@@ -2270,17 +2214,10 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         );
 
         // Check count before revocation - should have 2 assignees for SET_RESOLVER
-        (uint256 countsBefore, ) = registry.getAssigneeCount(
-            tokenIdAfterGrant,
-            LibRegistryRoles.ROLE_SET_RESOLVER
-        );
-        uint256 expectedCountBefore = 2 << 12;
-        assertEq(
-            countsBefore,
-            expectedCountBefore,
-            "Should have 2 assignees before revocation"
-        );
-
+        (uint256 countsBefore,) = registry.getAssigneeCount(tokenIdAfterGrant, LibRegistryRoles.ROLE_SET_RESOLVER);
+        uint256 expectedCountBefore = 2 * LibRegistryRoles.ROLE_SET_RESOLVER;
+        assertEq(countsBefore, expectedCountBefore, "Should have 2 assignees before revocation");
+        
         // Revoke role from user2
         registry.revokeRoles(
             resourceId,
@@ -2292,16 +2229,9 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         );
 
         // Check count after revocation - should have 1 assignee for SET_RESOLVER
-        (uint256 countsAfter, ) = registry.getAssigneeCount(
-            tokenIdAfterRevoke,
-            LibRegistryRoles.ROLE_SET_RESOLVER
-        );
-        uint256 expectedCountAfter = 1 << 12;
-        assertEq(
-            countsAfter,
-            expectedCountAfter,
-            "Should have 1 assignee after revocation"
-        );
+        (uint256 countsAfter,) = registry.getAssigneeCount(tokenIdAfterRevoke, LibRegistryRoles.ROLE_SET_RESOLVER);
+        uint256 expectedCountAfter = 1 * LibRegistryRoles.ROLE_SET_RESOLVER;
+        assertEq(countsAfter, expectedCountAfter, "Should have 1 assignee after revocation");
     }
 
     function test_getRoleAssigneeCount_zero_bitmap() public {
@@ -2320,17 +2250,11 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     }
 
     function test_transfer_succeeds_with_max_assignees_BET_430() public {
-        // Register a token with default roles
+        // Register a token with default roles including ROLE_CAN_TRANSFER_ADMIN
         address tokenOwner = makeAddr("tokenOwner");
-        uint256 tokenId = registry.register(
-            "maxtransfertest",
-            tokenOwner,
-            registry,
-            address(0),
-            defaultRoleBitmap,
-            uint64(block.timestamp) + 86400
-        );
-
+        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
+        uint256 tokenId = registry.register("maxtransfertest", tokenOwner, registry, address(0), roleBitmapWithTransfer, uint64(block.timestamp) + 86400);
+        
         uint256 resourceId = registry.testGetResourceFromTokenId(tokenId);
 
         // Create 14 additional addresses and grant them the same role as the token owner has
@@ -2353,18 +2277,11 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         );
 
         // Verify we have 15 assignees for ROLE_SET_RESOLVER (max allowed)
-        (uint256 counts, ) = registry.getAssigneeCount(
-            currentTokenId,
-            LibRegistryRoles.ROLE_SET_RESOLVER
-        );
-        uint256 expectedCount = 15 << 12; // ROLE_SET_RESOLVER is at bit 12, so count goes to position 12
-        assertEq(
-            counts,
-            expectedCount,
-            "Should have 15 assignees for ROLE_SET_RESOLVER"
-        );
-
-        // Now attempt to transfer the token to a new address
+        (uint256 counts,) = registry.getAssigneeCount(currentTokenId, LibRegistryRoles.ROLE_SET_RESOLVER);
+        uint256 expectedCount = 15 * LibRegistryRoles.ROLE_SET_RESOLVER;
+        assertEq(counts, expectedCount, "Should have 15 assignees for ROLE_SET_RESOLVER");
+        
+        // attempt to transfer the token to a new address
         address newOwner = makeAddr("newTokenOwner");
 
         // This transfer should NOT fail even though we're at max assignees
@@ -2411,22 +2328,12 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
     }
 
     function test_getRoleAssigneeCount_nonexistent_role() public {
-        uint256 tokenId = registry.register(
-            "counttest10",
-            user1,
-            registry,
-            address(0),
-            defaultRoleBitmap,
-            uint64(block.timestamp) + 86400
-        );
-
-        // Use a role that doesn't exist in the registry roles
-        uint256 nonexistentRole = 1 << 24; // Role at bit 24
-        (uint256 counts, ) = registry.getAssigneeCount(
-            tokenId,
-            nonexistentRole
-        );
-
+        uint256 tokenId = registry.register("counttest10", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        
+        // Use a role that doesn't exist in the registry roles  
+        uint256 nonexistentRole = LibRegistryRoles.ROLE_BURN; // Use BURN role which won't be assigned during default registration
+        (uint256 counts,) = registry.getAssigneeCount(tokenId, nonexistentRole);
+        
         assertEq(counts, 0, "Should have 0 counts for nonexistent role");
     }
 
@@ -2860,7 +2767,133 @@ contract TestPermissionedRegistry is Test, ERC1155Holder {
         uint256 expectedResource = canonicalId | uint256(entry.eacVersionId);
         assertEq(resourceFromOptimized, expectedResource, "Resource ID should be correctly calculated");
     }
+
+    // ROLE_CAN_TRANSFER_ADMIN tests
+    function test_transfer_with_role_can_transfer_admin() public {
+        // Register a name with ROLE_CAN_TRANSFER_ADMIN included
+        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
+        uint256 tokenId = registry.register("transfertest1", user1, registry, address(0), roleBitmapWithTransfer, uint64(block.timestamp) + 86400);
+        
+        address user2 = makeAddr("user2");
+        
+        // Transfer should succeed
+        vm.prank(user1);
+        registry.safeTransferFrom(user1, user2, tokenId, 1, "");
+        
+        assertEq(registry.ownerOf(tokenId), user2);
+    }
+
+    function test_Revert_transfer_without_role_can_transfer_admin() public {
+        // Register a name without ROLE_CAN_TRANSFER_ADMIN
+        uint256 tokenId = registry.register("transfertest2", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        
+        address user2 = makeAddr("user2");
+        
+        // Transfer should revert
+        vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.TransferDisallowed.selector, tokenId, user1));
+        vm.prank(user1);
+        registry.safeTransferFrom(user1, user2, tokenId, 1, "");
+    }
+
+
+    function test_transfer_after_revoking_role_can_transfer_admin() public {
+        // Register a name with ROLE_CAN_TRANSFER_ADMIN
+        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
+        uint256 tokenId = registry.register("transfertest4", user1, registry, address(0), roleBitmapWithTransfer, uint64(block.timestamp) + 86400);
+        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
+        
+        address user2 = makeAddr("user2");
+        address user3 = makeAddr("user3");
+        
+        // First transfer should succeed
+        vm.prank(user1);
+        registry.safeTransferFrom(user1, user2, tokenId, 1, "");
+        assertEq(registry.ownerOf(tokenId), user2);
+        
+        // Revoke ROLE_CAN_TRANSFER_ADMIN from user2
+        registry.revokeRoles(resource, LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN, user2);
+        uint256 newTokenId = registry.testGetTokenIdFromResource(resource);
+        
+        // Transfer should now fail
+        vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.TransferDisallowed.selector, newTokenId, user2));
+        vm.prank(user2);
+        registry.safeTransferFrom(user2, user3, newTokenId, 1, "");
+    }
+
+    function test_batch_transfer_requires_role_can_transfer_admin() public {
+        // Register two names, one with ROLE_CAN_TRANSFER_ADMIN, one without
+        uint256 roleBitmapWithTransfer = defaultRoleBitmap | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
+        uint256 tokenId1 = registry.register("batchtest1", user1, registry, address(0), roleBitmapWithTransfer, uint64(block.timestamp) + 86400);
+        uint256 tokenId2 = registry.register("batchtest2", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        
+        address user2 = makeAddr("user2");
+        
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = tokenId1;
+        tokenIds[1] = tokenId2;
+        
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+        
+        // Batch transfer should fail because tokenId2 lacks ROLE_CAN_TRANSFER_ADMIN
+        vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.TransferDisallowed.selector, tokenId2, user1));
+        vm.prank(user1);
+        registry.safeBatchTransferFrom(user1, user2, tokenIds, amounts, "");
+    }
+
+    function test_burn_does_not_require_role_can_transfer_admin() public {
+        // Register a name without ROLE_CAN_TRANSFER_ADMIN but with ROLE_BURN
+        uint256 roleBitmapWithBurn = defaultRoleBitmap | LibRegistryRoles.ROLE_BURN;
+        uint256 tokenId = registry.register("burntest", user1, registry, address(0), roleBitmapWithBurn, uint64(block.timestamp) + 86400);
+        
+        // Burn should succeed even without ROLE_CAN_TRANSFER_ADMIN
+        vm.prank(user1);
+        registry.burn(tokenId);
+        
+        assertEq(registry.ownerOf(tokenId), address(0));
+    }
+
+    function test_mint_does_not_require_role_can_transfer_admin() public {
+        // This is tested implicitly by register() function calls above
+        // Mints (from address(0)) should not require ROLE_CAN_TRANSFER_ADMIN
+        uint256 tokenId = registry.register("minttest", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        
+        assertEq(registry.ownerOf(tokenId), user1);
+    }
+
+    function test_token_regeneration_works_without_role_can_transfer_admin() public {
+        // Register a name without ROLE_CAN_TRANSFER_ADMIN
+        uint256 tokenId = registry.register("regentest", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
+        
+        // Grant another role to trigger regeneration
+        registry.grantRoles(resource, LibRegistryRoles.ROLE_RENEW, user1);
+        
+        // Token should regenerate successfully (internal burn + mint)
+        uint256 newTokenId = registry.testGetTokenIdFromResource(resource);
+        assertNotEq(tokenId, newTokenId);
+        assertEq(registry.ownerOf(newTokenId), user1);
+    }
+
+    function test_approved_operator_cannot_transfer_without_role_can_transfer_admin() public {
+        // Register a name without ROLE_CAN_TRANSFER_ADMIN
+        uint256 tokenId = registry.register("approvaltest", user1, registry, address(0), defaultRoleBitmap, uint64(block.timestamp) + 86400);
+        
+        address operator = makeAddr("operator");
+        address user2 = makeAddr("user2");
+        
+        // Approve operator
+        vm.prank(user1);
+        registry.setApprovalForAll(operator, true);
+        
+        // Operator should not be able to transfer without ROLE_CAN_TRANSFER_ADMIN on the owner
+        vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.TransferDisallowed.selector, tokenId, user1));
+        vm.prank(operator);
+        registry.safeTransferFrom(user1, user2, tokenId, 1, "");
+    }
 }
+
 
 contract MockTokenObserver is ITokenObserver {
     uint256 public lastTokenId;
@@ -2885,3 +2918,4 @@ contract RevertingTokenObserver is ITokenObserver {
         revert ObserverReverted();
     }
 }
+
