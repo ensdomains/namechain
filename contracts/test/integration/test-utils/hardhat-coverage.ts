@@ -1,6 +1,6 @@
-import hre from "hardhat";
 import { addStatementCoverageInstrumentation } from "@nomicfoundation/edr";
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import hre from "hardhat";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { toHex } from "viem";
 
 // https://github.com/NomicFoundation/hardhat/blob/main/v-next/hardhat/src/internal/builtin-plugins/coverage/hook-handlers/hre.ts
@@ -31,7 +31,7 @@ export function recordCoverage(testName: string) {
     activeTags.delete(tags);
     if (!tags.length) return;
 
-    const rootDir = new URL("../../", import.meta.url);
+    const rootDir = new URL("../../../", import.meta.url);
     const artifactStr = await readFile(
       new URL("generated/artifacts.ts", rootDir),
       { encoding: "utf8" },
