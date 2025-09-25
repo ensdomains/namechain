@@ -14,12 +14,12 @@ import {
   zeroAddress,
 } from "viem";
 
-import { MAX_EXPIRY } from "../deploy/constants.js";
+import { MAX_EXPIRY } from "../../deploy/constants.ts";
 import {
   type CrossChainEnvironment,
   setupCrossChainEnvironment,
-} from "../script/setup.js";
-import { expectVar } from "../test/integration/test-utils/expectVar.ts";
+} from "../../script/setup.ts";
+import { expectVar } from "../integration/test-utils/expectVar.ts";
 import {
   bundleCalls,
   COIN_TYPE_DEFAULT,
@@ -27,8 +27,8 @@ import {
   getReverseName,
   type KnownProfile,
   makeResolutions,
-} from "../test/integration/test-utils/resolutions.ts";
-import { dnsEncodeName } from "../test/integration/test-utils/utils.ts";
+} from "../integration/test-utils/resolutions.ts";
+import { dnsEncodeName } from "../integration/test-utils/utils.ts";
 
 describe("Resolve", () => {
   let env: CrossChainEnvironment;

@@ -8,16 +8,16 @@ import {
   zeroAddress,
 } from "viem";
 
-import { ROLES } from "../deploy/constants.js";
-import { type MockRelayer, createMockRelay } from "../script/mockRelay.js";
+import { ROLES } from "../../deploy/constants.ts";
+import { type MockRelayer, createMockRelay } from "../../script/mockRelay.ts";
 import {
   type CrossChainEnvironment,
   setupCrossChainEnvironment,
-} from "../script/setup.js";
+} from "../../script/setup.ts";
 import {
   getCanonicalId,
   labelToCanonicalId,
-} from "../test/integration/test-utils/utils.ts";
+} from "../integration/test-utils/utils.ts";
 
 describe("Bridge", () => {
   let env: CrossChainEnvironment;
