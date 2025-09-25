@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   test:
     name: Contract tests
@@ -50,6 +55,7 @@ jobs:
           path: ./contracts/coverage/reports/
 
   deploy:
+    name: Github pages
     runs-on: ubuntu-latest
     needs: test
     environment:
