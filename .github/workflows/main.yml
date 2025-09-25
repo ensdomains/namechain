@@ -37,12 +37,13 @@ jobs:
           bun-version-file: ".bun-version"
 
       - run: bun install --frozen-lockfile
+      - run: cd contracts
+
+      - name: Check types
+        run: bun run compile && bun check:types
 
       - name: Run tests with coverage
         run: bun run coverage
-
-      - name: Check types
-        run: bun --filter contracts check:types
 
       - name: Upload coverage reports
         uses: actions/upload-pages-artifact@v3
