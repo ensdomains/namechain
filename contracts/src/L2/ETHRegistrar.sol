@@ -237,7 +237,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             registry.latestOwnerOf(tokenId),
             duration,
             paymentToken
-        ); // reverts if !isValid or !isPaymentToken
+        ); // reverts if !isValid or !isPaymentToken or duration is 0
         require(paymentToken.transferFrom(_msgSender(), beneficiary, base)); // reverts if payment failed
         registry.renew(tokenId, expires);
         emit NameRenewed(
