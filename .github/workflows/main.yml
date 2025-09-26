@@ -7,7 +7,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -62,7 +62,6 @@ jobs:
     needs: test
     steps:
       - name: Determine branch name
-        id: set-branch
         run: |
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
             REF="${GITHUB_HEAD_REF}"
