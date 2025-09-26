@@ -1,1 +1,1 @@
-genhtml filtered/forge.info --flat --source-directory ../ --output-directory reports/forge/
+genhtml ./coverage/filtered-forge.lcov --flat --output-directory ./coverage/reports/forge

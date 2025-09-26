@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - filtered-ETHTLDResolver.lcov - common/src/common/OwnedResolver.sol</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../index.html">top level</a> - common/src/common/OwnedResolver.sol<span style="font-size: 80%;"> (source / <a href="OwnedResolver.sol.func-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">filtered-ETHTLDResolver.lcov</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryLo">0.0&nbsp;%</td>
+            <td class="headerCovTableEntry">3</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-09-26 20:27:03</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryLo">0.0&nbsp;%</td>
+            <td class="headerCovTableEntry">3</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+                  <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // SPDX-License-Identifier: MIT</span>
+<span id="L2"><span class="lineNum">       2</span>              : pragma solidity ^0.8.13;</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : import {OwnableUpgradeable} from &quot;@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol&quot;;</span>
+<span id="L5"><span class="lineNum">       5</span>              : import {UUPSUpgradeable} from &quot;@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol&quot;;</span>
+<span id="L6"><span class="lineNum">       6</span>              : </span>
+<span id="L7"><span class="lineNum">       7</span>              : import {AddrResolver} from &quot;@ens/contracts/resolvers/profiles/AddrResolver.sol&quot;;</span>
+<span id="L8"><span class="lineNum">       8</span>              : import {ABIResolver} from &quot;@ens/contracts/resolvers/profiles/ABIResolver.sol&quot;;</span>
+<span id="L9"><span class="lineNum">       9</span>              : import {ContentHashResolver} from &quot;@ens/contracts/resolvers/profiles/ContentHashResolver.sol&quot;;</span>
+<span id="L10"><span class="lineNum">      10</span>              : import {DNSResolver} from &quot;@ens/contracts/resolvers/profiles/DNSResolver.sol&quot;;</span>
+<span id="L11"><span class="lineNum">      11</span>              : import {InterfaceResolver} from &quot;@ens/contracts/resolvers/profiles/InterfaceResolver.sol&quot;;</span>
+<span id="L12"><span class="lineNum">      12</span>              : import {NameResolver} from &quot;@ens/contracts/resolvers/profiles/NameResolver.sol&quot;;</span>
+<span id="L13"><span class="lineNum">      13</span>              : import {PubkeyResolver} from &quot;@ens/contracts/resolvers/profiles/PubkeyResolver.sol&quot;;</span>
+<span id="L14"><span class="lineNum">      14</span>              : import {TextResolver} from &quot;@ens/contracts/resolvers/profiles/TextResolver.sol&quot;;</span>
+<span id="L15"><span class="lineNum">      15</span>              : import {Multicallable} from &quot;@ens/contracts/resolvers/Multicallable.sol&quot;;</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              : /**</span>
+<span id="L18"><span class="lineNum">      18</span>              :  * @title OwnedResolver</span>
+<span id="L19"><span class="lineNum">      19</span>              :  * @dev A simple resolver anyone can use; only allows the owner of a node to set its</span>
+<span id="L20"><span class="lineNum">      20</span>              :  * address.</span>
+<span id="L21"><span class="lineNum">      21</span>              :  */</span>
+<span id="L22"><span class="lineNum">      22</span>              : contract OwnedResolver is</span>
+<span id="L23"><span class="lineNum">      23</span>              :     OwnableUpgradeable,</span>
+<span id="L24"><span class="lineNum">      24</span>              :     UUPSUpgradeable,</span>
+<span id="L25"><span class="lineNum">      25</span>              :     ABIResolver,</span>
+<span id="L26"><span class="lineNum">      26</span>              :     AddrResolver,</span>
+<span id="L27"><span class="lineNum">      27</span>              :     ContentHashResolver,</span>
+<span id="L28"><span class="lineNum">      28</span>              :     DNSResolver,</span>
+<span id="L29"><span class="lineNum">      29</span>              :     InterfaceResolver,</span>
+<span id="L30"><span class="lineNum">      30</span>              :     NameResolver,</span>
+<span id="L31"><span class="lineNum">      31</span>              :     PubkeyResolver,</span>
+<span id="L32"><span class="lineNum">      32</span>              :     TextResolver,</span>
+<span id="L33"><span class="lineNum">      33</span>              :     Multicallable</span>
+<span id="L34"><span class="lineNum">      34</span>              : {</span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaUNC tlaBgUNC">           0 :     function initialize(address _owner) public initializer {</span></span>
+<span id="L36"><span class="lineNum">      36</span>              :         __Ownable_init(_owner); // Initialize Ownable</span>
+<span id="L37"><span class="lineNum">      37</span>              :         __UUPSUpgradeable_init();</span>
+<span id="L38"><span class="lineNum">      38</span>              :     }</span>
+<span id="L39"><span class="lineNum">      39</span>              : </span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaUNC">           0 :     function isAuthorised(bytes32) internal view override returns (bool) {</span></span>
+<span id="L41"><span class="lineNum">      41</span>              :         return msg.sender == owner();</span>
+<span id="L42"><span class="lineNum">      42</span>              :     }</span>
+<span id="L43"><span class="lineNum">      43</span>              : </span>
+<span id="L44"><span class="lineNum">      44</span>              :     function _authorizeUpgrade(address) internal override onlyOwner {}</span>
+<span id="L45"><span class="lineNum">      45</span>              : </span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaUNC">           0 :     function supportsInterface(</span></span>
+<span id="L47"><span class="lineNum">      47</span>              :         bytes4 interfaceID</span>
+<span id="L48"><span class="lineNum">      48</span>              :     )</span>
+<span id="L49"><span class="lineNum">      49</span>              :         public</span>
+<span id="L50"><span class="lineNum">      50</span>              :         view</span>
+<span id="L51"><span class="lineNum">      51</span>              :         virtual</span>
+<span id="L52"><span class="lineNum">      52</span>              :         override(</span>
+<span id="L53"><span class="lineNum">      53</span>              :             ABIResolver,</span>
+<span id="L54"><span class="lineNum">      54</span>              :             AddrResolver,</span>
+<span id="L55"><span class="lineNum">      55</span>              :             ContentHashResolver,</span>
+<span id="L56"><span class="lineNum">      56</span>              :             DNSResolver,</span>
+<span id="L57"><span class="lineNum">      57</span>              :             InterfaceResolver,</span>
+<span id="L58"><span class="lineNum">      58</span>              :             NameResolver,</span>
+<span id="L59"><span class="lineNum">      59</span>              :             PubkeyResolver,</span>
+<span id="L60"><span class="lineNum">      60</span>              :             TextResolver,</span>
+<span id="L61"><span class="lineNum">      61</span>              :             Multicallable</span>
+<span id="L62"><span class="lineNum">      62</span>              :         )</span>
+<span id="L63"><span class="lineNum">      63</span>              :         returns (bool)</span>
+<span id="L64"><span class="lineNum">      64</span>              :     {</span>
+<span id="L65"><span class="lineNum">      65</span>              :         return super.supportsInterface(interfaceID);</span>
+<span id="L66"><span class="lineNum">      66</span>              :     }</span>
+<span id="L67"><span class="lineNum">      67</span>              : }</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

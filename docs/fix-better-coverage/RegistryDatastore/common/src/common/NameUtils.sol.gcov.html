@@ -1,0 +1,139 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - filtered-RegistryDatastore.lcov - common/src/common/NameUtils.sol</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../index.html">top level</a> - common/src/common/NameUtils.sol<span style="font-size: 80%;"> (source / <a href="NameUtils.sol.func-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">filtered-RegistryDatastore.lcov</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryLo">57.1&nbsp;%</td>
+            <td class="headerCovTableEntry">7</td>
+            <td class="headerCovTableEntry">4</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-09-26 20:27:02</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryLo">40.0&nbsp;%</td>
+            <td class="headerCovTableEntry">5</td>
+            <td class="headerCovTableEntry">2</td>
+          </tr>
+                  <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // SPDX-License-Identifier: MIT</span>
+<span id="L2"><span class="lineNum">       2</span>              : pragma solidity &gt;=0.8.13;</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : import {NameCoder} from &quot;@ens/contracts/utils/NameCoder.sol&quot;;</span>
+<span id="L5"><span class="lineNum">       5</span>              : </span>
+<span id="L6"><span class="lineNum">       6</span>              : library NameUtils {</span>
+<span id="L7"><span class="lineNum">       7</span>              :     /// @dev Convert a label to canonical id.</span>
+<span id="L8"><span class="lineNum">       8</span>              :     /// @param label The label to convert.</span>
+<span id="L9"><span class="lineNum">       9</span>              :     /// @return The canonical id corresponding to this label.</span>
+<span id="L10"><span class="lineNum">      10</span> <span class="tlaGNC tlaBgGNC">         132 :     function labelToCanonicalId(</span></span>
+<span id="L11"><span class="lineNum">      11</span>              :         string memory label</span>
+<span id="L12"><span class="lineNum">      12</span>              :     ) internal pure returns (uint256) {</span>
+<span id="L13"><span class="lineNum">      13</span> <span class="tlaGNC">         132 :         return getCanonicalId(uint256(keccak256(bytes(label))));</span></span>
+<span id="L14"><span class="lineNum">      14</span>              :     }</span>
+<span id="L15"><span class="lineNum">      15</span>              : </span>
+<span id="L16"><span class="lineNum">      16</span>              :     /// @dev Get the canonical id of a token id or canonical id.</span>
+<span id="L17"><span class="lineNum">      17</span>              :     /// @param id The token id or canonical id to convert to its canonical id version.</span>
+<span id="L18"><span class="lineNum">      18</span>              :     /// @return The canonical id.</span>
+<span id="L19"><span class="lineNum">      19</span> <span class="tlaGNC">         178 :     function getCanonicalId(uint256 id) internal pure returns (uint256) {</span></span>
+<span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC">         178 :         return id ^ uint32(id);</span></span>
+<span id="L21"><span class="lineNum">      21</span>              :     }</span>
+<span id="L22"><span class="lineNum">      22</span>              : </span>
+<span id="L23"><span class="lineNum">      23</span>              :     /// @dev DNS encodes a label as a .eth second-level domain.</span>
+<span id="L24"><span class="lineNum">      24</span>              :     /// @param label The label to encode (e.g., &quot;test&quot; becomes &quot;\x04test\x03eth\x00&quot;).</span>
+<span id="L25"><span class="lineNum">      25</span>              :     /// @return The DNS-encoded name.</span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaUNC tlaBgUNC">           0 :     function dnsEncodeEthLabel(</span></span>
+<span id="L27"><span class="lineNum">      27</span>              :         string memory label</span>
+<span id="L28"><span class="lineNum">      28</span>              :     ) internal pure returns (bytes memory) {</span>
+<span id="L29"><span class="lineNum">      29</span>              :         return</span>
+<span id="L30"><span class="lineNum">      30</span>              :             abi.encodePacked(</span>
+<span id="L31"><span class="lineNum">      31</span>              :                 bytes1(uint8(bytes(label).length)),</span>
+<span id="L32"><span class="lineNum">      32</span>              :                 label,</span>
+<span id="L33"><span class="lineNum">      33</span>              :                 &quot;\x03eth\x00&quot;</span>
+<span id="L34"><span class="lineNum">      34</span>              :             );</span>
+<span id="L35"><span class="lineNum">      35</span>              :     }</span>
+<span id="L36"><span class="lineNum">      36</span>              : </span>
+<span id="L37"><span class="lineNum">      37</span>              :     /// @dev Extracts a label from a DNS-encoded name at the given offset.</span>
+<span id="L38"><span class="lineNum">      38</span>              :     /// @param dnsEncodedName The DNS-encoded name to extract from.</span>
+<span id="L39"><span class="lineNum">      39</span>              :     /// @param offset The offset in the DNS-encoded name to start reading from.</span>
+<span id="L40"><span class="lineNum">      40</span>              :     /// @return label The extracted label as a string.</span>
+<span id="L41"><span class="lineNum">      41</span>              :     /// @return nextOffset The offset to the next label in the DNS-encoded name.</span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaUNC">           0 :     function extractLabel(</span></span>
+<span id="L43"><span class="lineNum">      43</span>              :         bytes memory dnsEncodedName,</span>
+<span id="L44"><span class="lineNum">      44</span>              :         uint256 offset</span>
+<span id="L45"><span class="lineNum">      45</span>              :     ) internal pure returns (string memory label, uint256 nextOffset) {</span>
+<span id="L46"><span class="lineNum">      46</span>              :         (, uint256 _nextOffset, uint8 size, ) = NameCoder.readLabel(dnsEncodedName, offset, false);</span>
+<span id="L47"><span class="lineNum">      47</span>              :         nextOffset = _nextOffset;</span>
+<span id="L48"><span class="lineNum">      48</span>              :         label = new string(size);</span>
+<span id="L49"><span class="lineNum">      49</span>              :         assembly {</span>
+<span id="L50"><span class="lineNum">      50</span>              :             mcopy(add(label, 32), add(add(dnsEncodedName, 33), offset), size)</span>
+<span id="L51"><span class="lineNum">      51</span>              :         }</span>
+<span id="L52"><span class="lineNum">      52</span>              :     }</span>
+<span id="L53"><span class="lineNum">      53</span>              :     </span>
+<span id="L54"><span class="lineNum">      54</span>              :     /// @dev Extracts the first label from a DNS-encoded name.</span>
+<span id="L55"><span class="lineNum">      55</span>              :     /// @param dnsEncodedName The DNS-encoded name to extract from.</span>
+<span id="L56"><span class="lineNum">      56</span>              :     /// @return The extracted label as a string.</span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaUNC">           0 :     function extractLabel(</span></span>
+<span id="L58"><span class="lineNum">      58</span>              :         bytes memory dnsEncodedName</span>
+<span id="L59"><span class="lineNum">      59</span>              :     ) internal pure returns (string memory) {</span>
+<span id="L60"><span class="lineNum">      60</span>              :         (string memory label, ) = extractLabel(dnsEncodedName, 0);</span>
+<span id="L61"><span class="lineNum">      61</span>              :         return label;</span>
+<span id="L62"><span class="lineNum">      62</span>              :     }</span>
+<span id="L63"><span class="lineNum">      63</span>              : }</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

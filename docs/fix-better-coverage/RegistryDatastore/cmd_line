@@ -1,1 +1,1 @@
-genhtml filtered/RegistryDatastore.info --flat --source-directory ../ --output-directory reports/RegistryDatastore/
+genhtml ./coverage/filtered-RegistryDatastore.lcov --flat --output-directory ./coverage/reports/RegistryDatastore

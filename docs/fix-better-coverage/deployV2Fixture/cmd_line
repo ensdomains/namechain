@@ -1,1 +1,1 @@
-genhtml filtered/deployV2Fixture.info --flat --source-directory ../ --output-directory reports/deployV2Fixture/
+genhtml ./coverage/filtered-deployV2Fixture.lcov --flat --output-directory ./coverage/reports/deployV2Fixture
