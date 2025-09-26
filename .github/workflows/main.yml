@@ -56,10 +56,6 @@ jobs:
           name: site
           path: contracts/coverage/reports/
 
-  docker:
-    needs: test
-    uses: .github/workflows/publish-docker.yml
-
   deploy:
     name: Coverage Reports
     runs-on: ubuntu-latest
