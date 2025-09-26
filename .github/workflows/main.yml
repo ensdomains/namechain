@@ -5,7 +5,6 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -56,6 +55,10 @@ jobs:
         with:
           name: site
           path: contracts/coverage/reports/
+
+  docker:
+    needs: test
+    uses: .github/workflows/publish-docker.yml
 
   deploy:
     name: Coverage Reports
