@@ -28,4 +28,5 @@ runs:
         bun-version-file: ".bun-version"
 
     - name: Install dependencies
+      shell: bash
       run: bun install --frozen-lockfile
