@@ -98,7 +98,12 @@ jobs:
         run: sudo apt-get install tree
 
       - name: Rebuild index
-        run: cd docs && tree -H . -L 1 -o index.html
+        run: |
+          cd docs
+          tree -H . -L 2 -o index.html
+          find . -type d -mindepth 1 -maxdepth 1 | while read -r dir; do
+            tree -H . -L 1 --noreport --charset utf-8 -o "$dir/index.html" "$dir"
+          done
 
       - name: Update repo
         run: |

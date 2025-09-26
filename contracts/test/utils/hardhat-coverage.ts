@@ -220,7 +220,7 @@ export function recordCoverage(testName: string) {
     // write file
     const outDir = new URL("coverage/", rootDir);
     await mkdir(outDir, { recursive: true });
-    await writeFile(new URL(`${testName}.info`, outDir), lcov);
+    await writeFile(new URL(`${testName}.lcov`, outDir), lcov);
     console.log(`Wrote Coverage: ${testName}`);
   };
 }
