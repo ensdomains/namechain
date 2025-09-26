@@ -1,9 +1,7 @@
 name: Publish Docker Image
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  workflow_call:
 
 env:
   REGISTRY: ghcr.io
