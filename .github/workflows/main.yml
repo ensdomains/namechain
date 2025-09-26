@@ -8,13 +8,12 @@ on:
 
 permissions:
   contents: write
-  packages: write
   pages: write
   id-token: write
 
 jobs:
   test:
-    name: Contract Tests
+    name: Contract tests
     runs-on: ubuntu-latest
     steps:
       - name: Install lcov
@@ -56,10 +55,6 @@ jobs:
         with:
           name: site
           path: contracts/coverage/reports/
-
-  docker:
-    needs: test
-    uses: ./.github/workflows/publish-docker.yml
 
   deploy:
     name: Coverage Reports

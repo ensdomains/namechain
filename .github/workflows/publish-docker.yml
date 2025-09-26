@@ -1,7 +1,13 @@
 name: Publish Docker Image
 
 on:
-  workflow_call:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -10,9 +16,9 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    # permissions:
-    #   contents: read
-    #   packages: write
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout repository
