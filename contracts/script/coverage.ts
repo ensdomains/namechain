@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { mkdirSync, readdirSync, rmSync } from "node:fs";
 
-const EXT = ".info";
+const EXT = ".txt";
 const cwd = new URL("../coverage/", import.meta.url);
 
 // find coverage files
