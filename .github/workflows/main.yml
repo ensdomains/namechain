@@ -11,7 +11,12 @@ jobs:
     name: Check Types
     runs-on: ubuntu-latest
     steps:
+      # setup
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/actions
       - uses: ./.github/actions/setup
+
       - name: Compile and check types
         run: cd contracts && bun compile:hardhat && bun check:types
 
@@ -19,10 +24,14 @@ jobs:
     name: Forge Tests
     runs-on: ubuntu-latest
     steps:
+      # setup
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/actions
+      - uses: ./.github/actions/setup
+
       - name: Install lcov
         run: sudo apt-get install lcov
-
-      - uses: ./.github/actions/setup
 
       - name: Run forge tests
         run: |
@@ -39,10 +48,14 @@ jobs:
     name: Hardhat Tests
     runs-on: ubuntu-latest
     steps:
+      # setup
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/actions
+      - uses: ./.github/actions/setup
+
       - name: Install lcov
         run: sudo apt-get install lcov
-
-      - uses: ./.github/actions/setup
 
       - name: Run hardhat tests
         run: |
