@@ -7,6 +7,7 @@ import {IETHRegistrar} from "./IETHRegistrar.sol";
 import {IRentPriceOracle} from "./IRentPriceOracle.sol";
 import {IRegistry} from "../common/IRegistry.sol";
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
+import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {EnhancedAccessControl, LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 
@@ -98,7 +99,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     /// @inheritdoc IETHRegistrar
     /// @dev Does not check if normalized or valid.
     function isAvailable(string memory label) external view returns (bool) {
-        (, uint64 expiry, ) = registry.getNameData(label);
+        (, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        uint64 expiry = entry.expiry;
         return _isAvailable(expiry);
     }
 
@@ -171,7 +173,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IERC20 paymentToken,
         bytes32 referrer
     ) external returns (uint256 tokenId) {
-        (, uint64 oldExpiry, ) = registry.getNameData(label);
+        (, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        uint64 oldExpiry = entry.expiry;
         if (!_isAvailable(oldExpiry)) {
             revert NameAlreadyRegistered(label);
         }
@@ -227,7 +230,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IERC20 paymentToken,
         bytes32 referrer
     ) external {
-        (uint256 tokenId, uint64 oldExpiry, ) = registry.getNameData(label);
+        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        uint64 oldExpiry = entry.expiry;
         if (_isAvailable(oldExpiry)) {
             revert NameNotRegistered(label);
         }

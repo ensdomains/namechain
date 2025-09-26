@@ -211,7 +211,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
         
         // Get the registered name and check roles
-        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
+        (uint256 registeredTokenId,) = registry.getNameData(testLabel);
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
@@ -460,7 +460,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
         
         // Get the registered name and check roles
-        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
+        (uint256 registeredTokenId,) = registry.getNameData(testLabel);
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
@@ -504,7 +504,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
         
         // Get the registered name and check roles
-        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
+        (uint256 registeredTokenId,) = registry.getNameData(testLabel);
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
@@ -543,7 +543,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
         
         // Get the registered name and check roles
-        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
+        (uint256 registeredTokenId,) = registry.getNameData(testLabel);
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
@@ -587,7 +587,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
         
         // Get the registered name and check roles
-        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
+        (uint256 registeredTokenId,) = registry.getNameData(testLabel);
         uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
         
@@ -642,7 +642,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         assertTrue((finalFuses & CANNOT_CREATE_SUBDOMAIN) != 0, "CANNOT_CREATE_SUBDOMAIN should be burnt after migration");
         
         // Verify name was successfully migrated despite all fuses being burnt after
-        (uint256 registeredTokenId,,) = registry.getNameData(testLabel);
+        (uint256 registeredTokenId,) = registry.getNameData(testLabel);
         assertTrue(registeredTokenId != 0, "Name should be successfully registered");
     }
 
