@@ -1,9 +1,8 @@
 name: Publish Docker Image
 
 on:
-  # run after successful ci
   workflow_run:
-    workflows: [main]
+    workflows: [CI]
     types: [completed]
 
 env:
