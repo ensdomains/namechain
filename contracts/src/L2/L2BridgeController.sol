@@ -48,7 +48,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR)
     {
         string memory label = NameUtils.extractLabel(transferData.dnsEncodedName);
-        (uint256 tokenId,,) = registry.getNameData(label);
+        (uint256 tokenId,) = registry.getNameData(label);
 
         // owner should be the bridge controller
         if (registry.ownerOf(tokenId) != address(this)) {
