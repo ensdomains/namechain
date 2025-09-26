@@ -1,0 +1,464 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - all.info - L1/dns/../src/L1/dns/DNSTLDResolver.sol</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../../../index.html">top level</a> - L1/dns/../src/L1/dns/DNSTLDResolver.sol<span style="font-size: 80%;"> (source / <a href="DNSTLDResolver.sol.func-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">all.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">223</td>
+            <td class="headerCovTableEntry">223</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-09-26 01:44:28</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">10</td>
+            <td class="headerCovTableEntry">10</td>
+          </tr>
+                  <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // SPDX-License-Identifier: MIT</span>
+<span id="L2"><span class="lineNum">       2</span>              : pragma solidity &gt;=0.8.24;</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : import {ERC165} from &quot;@openzeppelin/contracts/utils/introspection/ERC165.sol&quot;;</span>
+<span id="L5"><span class="lineNum">       5</span>              : import {ERC165Checker} from &quot;@openzeppelin/contracts/utils/introspection/ERC165Checker.sol&quot;;</span>
+<span id="L6"><span class="lineNum">       6</span>              : </span>
+<span id="L7"><span class="lineNum">       7</span>              : import {CCIPBatcher, CCIPReader, OffchainLookup} from &quot;@ens/contracts/ccipRead/CCIPBatcher.sol&quot;;</span>
+<span id="L8"><span class="lineNum">       8</span>              : import {IGatewayProvider} from &quot;@ens/contracts/ccipRead/IGatewayProvider.sol&quot;;</span>
+<span id="L9"><span class="lineNum">       9</span>              : import {DNSSEC} from &quot;@ens/contracts/dnssec-oracle/DNSSEC.sol&quot;;</span>
+<span id="L10"><span class="lineNum">      10</span>              : import {IDNSGateway} from &quot;@ens/contracts/dnssec-oracle/IDNSGateway.sol&quot;;</span>
+<span id="L11"><span class="lineNum">      11</span>              : import {RRUtils} from &quot;@ens/contracts/dnssec-oracle/RRUtils.sol&quot;;</span>
+<span id="L12"><span class="lineNum">      12</span>              : import {RegistryUtils as RegistryUtilsV1, ENS} from &quot;@ens/contracts/universalResolver/RegistryUtils.sol&quot;;</span>
+<span id="L13"><span class="lineNum">      13</span>              : import {RegistryUtils, IRegistry} from &quot;../../universalResolver/RegistryUtils.sol&quot;;</span>
+<span id="L14"><span class="lineNum">      14</span>              : import {NameCoder} from &quot;@ens/contracts/utils/NameCoder.sol&quot;;</span>
+<span id="L15"><span class="lineNum">      15</span>              : import {BytesUtils} from &quot;@ens/contracts/utils/BytesUtils.sol&quot;;</span>
+<span id="L16"><span class="lineNum">      16</span>              : import {HexUtils} from &quot;@ens/contracts/utils/HexUtils.sol&quot;;</span>
+<span id="L17"><span class="lineNum">      17</span>              : import {IERC7996} from &quot;@ens/contracts/utils/IERC7996.sol&quot;;</span>
+<span id="L18"><span class="lineNum">      18</span>              : import {ResolverFeatures} from &quot;@ens/contracts/resolvers/ResolverFeatures.sol&quot;;</span>
+<span id="L19"><span class="lineNum">      19</span>              : </span>
+<span id="L20"><span class="lineNum">      20</span>              : // resolver profiles</span>
+<span id="L21"><span class="lineNum">      21</span>              : import {IExtendedResolver} from &quot;@ens/contracts/resolvers/profiles/IExtendedResolver.sol&quot;;</span>
+<span id="L22"><span class="lineNum">      22</span>              : import {IExtendedDNSResolver} from &quot;@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol&quot;;</span>
+<span id="L23"><span class="lineNum">      23</span>              : import {IAddrResolver} from &quot;@ens/contracts/resolvers/profiles/IAddrResolver.sol&quot;;</span>
+<span id="L24"><span class="lineNum">      24</span>              : import {IMulticallable} from &quot;@ens/contracts/resolvers/IMulticallable.sol&quot;;</span>
+<span id="L25"><span class="lineNum">      25</span>              : </span>
+<span id="L26"><span class="lineNum">      26</span>              : /// @dev DNS class for the &quot;Internet&quot; according to RFC-1035.</span>
+<span id="L27"><span class="lineNum">      27</span>              : uint16 constant CLASS_INET = 1;</span>
+<span id="L28"><span class="lineNum">      28</span>              : </span>
+<span id="L29"><span class="lineNum">      29</span>              : /// @dev DNS query/resource type for TXT according to RFC-1035.</span>
+<span id="L30"><span class="lineNum">      30</span>              : uint16 constant QTYPE_TXT = 16;</span>
+<span id="L31"><span class="lineNum">      31</span>              : </span>
+<span id="L32"><span class="lineNum">      32</span>              : /// @dev DNS TXT record prefix for ENS data.</span>
+<span id="L33"><span class="lineNum">      33</span>              : bytes constant TXT_PREFIX = &quot;ENS1 &quot;;</span>
+<span id="L34"><span class="lineNum">      34</span>              : </span>
+<span id="L35"><span class="lineNum">      35</span>              : /// @notice Resolver that performs imported DNS fallback to V1 and gasless DNS resolution.</span>
+<span id="L36"><span class="lineNum">      36</span>              : ///</span>
+<span id="L37"><span class="lineNum">      37</span>              : /// 1. If there exists a resolver in V1, go to 4.</span>
+<span id="L38"><span class="lineNum">      38</span>              : /// 2. Query the DNSSEC oracle for TXT records.</span>
+<span id="L39"><span class="lineNum">      39</span>              : /// 3. Verify TXT records, find ENS1 record, parse resolver and context.</span>
+<span id="L40"><span class="lineNum">      40</span>              : /// 4. Call the resolver and return the requested records.</span>
+<span id="L41"><span class="lineNum">      41</span>              : ///</span>
+<span id="L42"><span class="lineNum">      42</span>              : contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {</span>
+<span id="L43"><span class="lineNum">      43</span>              :     ENS public immutable ensRegistryV1;</span>
+<span id="L44"><span class="lineNum">      44</span>              :     address public immutable dnsTLDResolverV1;</span>
+<span id="L45"><span class="lineNum">      45</span>              :     IRegistry public immutable rootRegistry;</span>
+<span id="L46"><span class="lineNum">      46</span>              :     DNSSEC public immutable dnssecOracle;</span>
+<span id="L47"><span class="lineNum">      47</span>              : </span>
+<span id="L48"><span class="lineNum">      48</span>              :     /// @dev Shared DNSSEC oracle gateway provider.</span>
+<span id="L49"><span class="lineNum">      49</span>              :     IGatewayProvider public immutable oracleGatewayProvider;</span>
+<span id="L50"><span class="lineNum">      50</span>              : </span>
+<span id="L51"><span class="lineNum">      51</span>              :     /// @dev Shared batch gateway provider.</span>
+<span id="L52"><span class="lineNum">      52</span>              :     IGatewayProvider public immutable batchGatewayProvider;</span>
+<span id="L53"><span class="lineNum">      53</span>              : </span>
+<span id="L54"><span class="lineNum">      54</span>              :     /// @dev `name` does not exist.</span>
+<span id="L55"><span class="lineNum">      55</span>              :     ///      Error selector: `0x5fe9a5df`</span>
+<span id="L56"><span class="lineNum">      56</span>              :     /// @param name The DNS-encoded ENS name.</span>
+<span id="L57"><span class="lineNum">      57</span>              :     error UnreachableName(bytes name);</span>
+<span id="L58"><span class="lineNum">      58</span>              : </span>
+<span id="L59"><span class="lineNum">      59</span>              :     /// @dev Some raw TXT data was incorrectly encoded.</span>
+<span id="L60"><span class="lineNum">      60</span>              :     ///      Error selector: `0xf4ba19b7`</span>
+<span id="L61"><span class="lineNum">      61</span>              :     error InvalidTXT();</span>
+<span id="L62"><span class="lineNum">      62</span>              : </span>
+<span id="L63"><span class="lineNum">      63</span> <span class="tlaGNC tlaBgGNC">           8 :     constructor(</span></span>
+<span id="L64"><span class="lineNum">      64</span>              :         ENS _ensRegistryV1,</span>
+<span id="L65"><span class="lineNum">      65</span>              :         address _dnsTLDResolverV1,</span>
+<span id="L66"><span class="lineNum">      66</span>              :         IRegistry _rootRegistry,</span>
+<span id="L67"><span class="lineNum">      67</span>              :         DNSSEC _dnssecOracle,</span>
+<span id="L68"><span class="lineNum">      68</span>              :         IGatewayProvider _oracleGatewayProvider,</span>
+<span id="L69"><span class="lineNum">      69</span>              :         IGatewayProvider _batchGatewayProvider</span>
+<span id="L70"><span class="lineNum">      70</span>              :     ) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {</span>
+<span id="L71"><span class="lineNum">      71</span> <span class="tlaGNC">           8 :         ensRegistryV1 = _ensRegistryV1;</span></span>
+<span id="L72"><span class="lineNum">      72</span> <span class="tlaGNC">           8 :         dnsTLDResolverV1 = _dnsTLDResolverV1;</span></span>
+<span id="L73"><span class="lineNum">      73</span> <span class="tlaGNC">           8 :         rootRegistry = _rootRegistry;</span></span>
+<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">           8 :         dnssecOracle = _dnssecOracle;</span></span>
+<span id="L75"><span class="lineNum">      75</span> <span class="tlaGNC">           8 :         oracleGatewayProvider = _oracleGatewayProvider;</span></span>
+<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">           8 :         batchGatewayProvider = _batchGatewayProvider;</span></span>
+<span id="L77"><span class="lineNum">      77</span>              :     }</span>
+<span id="L78"><span class="lineNum">      78</span>              : </span>
+<span id="L79"><span class="lineNum">      79</span>              :     /// @inheritdoc ERC165</span>
+<span id="L80"><span class="lineNum">      80</span> <span class="tlaGNC">          44 :     function supportsInterface(</span></span>
+<span id="L81"><span class="lineNum">      81</span>              :         bytes4 interfaceId</span>
+<span id="L82"><span class="lineNum">      82</span>              :     ) public view virtual override(ERC165) returns (bool) {</span>
+<span id="L83"><span class="lineNum">      83</span> <span class="tlaGNC">          44 :         return</span></span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">          44 :             type(IExtendedResolver).interfaceId == interfaceId ||</span></span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">          44 :             type(IERC7996).interfaceId == interfaceId ||</span></span>
+<span id="L86"><span class="lineNum">      86</span> <span class="tlaGNC">          44 :             super.supportsInterface(interfaceId);</span></span>
+<span id="L87"><span class="lineNum">      87</span>              :     }</span>
+<span id="L88"><span class="lineNum">      88</span>              : </span>
+<span id="L89"><span class="lineNum">      89</span>              :     /// @inheritdoc IERC7996</span>
+<span id="L90"><span class="lineNum">      90</span> <span class="tlaGNC">          21 :     function supportsFeature(bytes4 feature) public pure returns (bool) {</span></span>
+<span id="L91"><span class="lineNum">      91</span> <span class="tlaGNC">          21 :         return ResolverFeatures.RESOLVE_MULTICALL == feature;</span></span>
+<span id="L92"><span class="lineNum">      92</span>              :     }</span>
+<span id="L93"><span class="lineNum">      93</span>              : </span>
+<span id="L94"><span class="lineNum">      94</span>              :     /// @notice Resolve `name` using V1 or DNSSEC.</span>
+<span id="L95"><span class="lineNum">      95</span>              :     ///         Caller should enable EIP-3668.</span>
+<span id="L96"><span class="lineNum">      96</span>              :     /// @dev This function executes over multiple steps.</span>
+<span id="L97"><span class="lineNum">      97</span> <span class="tlaGNC">          69 :     function resolve(</span></span>
+<span id="L98"><span class="lineNum">      98</span>              :         bytes calldata name,</span>
+<span id="L99"><span class="lineNum">      99</span>              :         bytes calldata data</span>
+<span id="L100"><span class="lineNum">     100</span>              :     ) external view returns (bytes memory) {</span>
+<span id="L101"><span class="lineNum">     101</span> <span class="tlaGNC">          69 :         (address resolver, , ) = RegistryUtilsV1.findResolver(</span></span>
+<span id="L102"><span class="lineNum">     102</span> <span class="tlaGNC">          69 :             ensRegistryV1,</span></span>
+<span id="L103"><span class="lineNum">     103</span> <span class="tlaGNC">          69 :             name,</span></span>
+<span id="L104"><span class="lineNum">     104</span> <span class="tlaGNC">          69 :             0</span></span>
+<span id="L105"><span class="lineNum">     105</span> <span class="tlaGNC">          69 :         );</span></span>
+<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC">          81 :         if (resolver != address(0) &amp;&amp; resolver != dnsTLDResolverV1) {</span></span>
+<span id="L107"><span class="lineNum">     107</span> <span class="tlaGNC">          93 :             _callResolver(resolver, name, data, false, &quot;&quot;);</span></span>
+<span id="L108"><span class="lineNum">     108</span> <span class="tlaGNC">          81 :         }</span></span>
+<span id="L109"><span class="lineNum">     109</span> <span class="tlaGNC">          57 :         revert OffchainLookup(</span></span>
+<span id="L110"><span class="lineNum">     110</span> <span class="tlaGNC">          57 :             address(this),</span></span>
+<span id="L111"><span class="lineNum">     111</span> <span class="tlaGNC">          57 :             oracleGatewayProvider.gateways(),</span></span>
+<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC">          57 :             abi.encodeCall(IDNSGateway.resolve, (name, QTYPE_TXT)),</span></span>
+<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">          57 :             this.resolveOracleCallback.selector, // ==&gt; step 2</span></span>
+<span id="L114"><span class="lineNum">     114</span> <span class="tlaGNC">          57 :             abi.encode(name, data)</span></span>
+<span id="L115"><span class="lineNum">     115</span> <span class="tlaGNC">          57 :         );</span></span>
+<span id="L116"><span class="lineNum">     116</span>              :     }</span>
+<span id="L117"><span class="lineNum">     117</span>              : </span>
+<span id="L118"><span class="lineNum">     118</span>              :     /// @dev CCIP-Read callback for `resolve()` from calling the DNSSEC oracle.</span>
+<span id="L119"><span class="lineNum">     119</span>              :     ///      Reverts `UnreachableName` if no &quot;ENS1&quot; TXT record is found.</span>
+<span id="L120"><span class="lineNum">     120</span>              :     /// @param response The response data.</span>
+<span id="L121"><span class="lineNum">     121</span>              :     /// @param extraData The contextual data passed from `resolve()`.</span>
+<span id="L122"><span class="lineNum">     122</span>              :     /// @return The abi-encoded result from the resolver.</span>
+<span id="L123"><span class="lineNum">     123</span> <span class="tlaGNC">          57 :     function resolveOracleCallback(</span></span>
+<span id="L124"><span class="lineNum">     124</span>              :         bytes calldata response,</span>
+<span id="L125"><span class="lineNum">     125</span>              :         bytes calldata extraData</span>
+<span id="L126"><span class="lineNum">     126</span>              :     ) external view returns (bytes memory) {</span>
+<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">          57 :         (bytes memory name, bytes memory call) = abi.decode(</span></span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">          57 :             extraData,</span></span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">          57 :             (bytes, bytes)</span></span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">          57 :         );</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">          57 :         DNSSEC.RRSetWithSignature[] memory rrsets = abi.decode(</span></span>
+<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">          57 :             response,</span></span>
+<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">          57 :             (DNSSEC.RRSetWithSignature[])</span></span>
+<span id="L134"><span class="lineNum">     134</span> <span class="tlaGNC">          57 :         );</span></span>
+<span id="L135"><span class="lineNum">     135</span> <span class="tlaGNC">          57 :         (bytes memory data, ) = dnssecOracle.verifyRRSet(rrsets);</span></span>
+<span id="L136"><span class="lineNum">     136</span> <span class="tlaGNC">          57 :         for (</span></span>
+<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC">          57 :             RRUtils.RRIterator memory iter = RRUtils.iterateRRs(data, 0);</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">          57 :             !RRUtils.done(iter);</span></span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">          57 :             RRUtils.next(iter)</span></span>
+<span id="L140"><span class="lineNum">     140</span> <span class="tlaGNC">         113 :         ) {</span></span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">         169 :             if (</span></span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">         169 :                 iter.class == CLASS_INET &amp;&amp;</span></span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">         169 :                 iter.dnstype == QTYPE_TXT &amp;&amp;</span></span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">         169 :                 BytesUtils.equals(iter.data, iter.offset, name, 0, name.length)</span></span>
+<span id="L145"><span class="lineNum">     145</span> <span class="tlaGNC">         225 :             ) {</span></span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">         281 :                 (address resolver, bytes memory context) = _parseTXT(</span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">         281 :                     _readTXT(iter.data, iter.rdataOffset, iter.nextOffset)</span></span>
+<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">         281 :                 );</span></span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">         337 :                 if (resolver != address(0)) {</span></span>
+<span id="L150"><span class="lineNum">     150</span> <span class="tlaGNC">         393 :                     _callResolver(resolver, name, call, true, context); // ==&gt; step 3</span></span>
+<span id="L151"><span class="lineNum">     151</span> <span class="tlaGNC">         337 :                 }</span></span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">         225 :             }</span></span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">         113 :         }</span></span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">           1 :         revert UnreachableName(name);</span></span>
+<span id="L155"><span class="lineNum">     155</span>              :     }</span>
+<span id="L156"><span class="lineNum">     156</span>              : </span>
+<span id="L157"><span class="lineNum">     157</span>              :     /// @notice Efficiently call another resolver with an optional DNS context.</span>
+<span id="L158"><span class="lineNum">     158</span>              :     ///</span>
+<span id="L159"><span class="lineNum">     159</span>              :     /// 1. if `IExtendedDNSResolver` and `checkDNS`, `resolver.resolve(name, calldata, context)`.</span>
+<span id="L160"><span class="lineNum">     160</span>              :     /// 2. if `IExtendedResolver`, `resolver.resolve(name, calldata)`.</span>
+<span id="L161"><span class="lineNum">     161</span>              :     /// 3. otherwise, `resolver.staticall(calldata)`.</span>
+<span id="L162"><span class="lineNum">     162</span>              :     ///</span>
+<span id="L163"><span class="lineNum">     163</span>              :     /// - If (1) or (2), the calldata is not `multicall()`, and the resolver supports features,</span>
+<span id="L164"><span class="lineNum">     164</span>              :     ///   the call is performed directly without the batch gateway.</span>
+<span id="L165"><span class="lineNum">     165</span>              :     /// - If (1) or (2), the calldata is `multicall()`, and the resolver supports `RESOLVE_MULTICALL` feature,</span>
+<span id="L166"><span class="lineNum">     166</span>              :     ///   the call is performed directly without the batch gateway.</span>
+<span id="L167"><span class="lineNum">     167</span>              :     /// - Otherwise, the call is performed with the batch gateway.</span>
+<span id="L168"><span class="lineNum">     168</span>              :     ///   If the calldata is `multicall()` it is disassembled, called separately, and reassembled.</span>
+<span id="L169"><span class="lineNum">     169</span>              :     ///</span>
+<span id="L170"><span class="lineNum">     170</span>              :     /// @dev Reverts `UnreachableName` if resolver is not a contract.</span>
+<span id="L171"><span class="lineNum">     171</span>              :     /// @param resolver The resolver to call.</span>
+<span id="L172"><span class="lineNum">     172</span>              :     /// @param name The name to resolve.</span>
+<span id="L173"><span class="lineNum">     173</span>              :     /// @param call The resolver calldata.</span>
+<span id="L174"><span class="lineNum">     174</span>              :     /// @param checkDNS True if `IExtendedDNSResolver` should be considered.</span>
+<span id="L175"><span class="lineNum">     175</span>              :     /// @param context The context for `IExtendedDNSResolver`.</span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">          68 :     function _callResolver(</span></span>
+<span id="L177"><span class="lineNum">     177</span>              :         address resolver,</span>
+<span id="L178"><span class="lineNum">     178</span>              :         bytes memory name,</span>
+<span id="L179"><span class="lineNum">     179</span>              :         bytes memory call,</span>
+<span id="L180"><span class="lineNum">     180</span>              :         bool checkDNS,</span>
+<span id="L181"><span class="lineNum">     181</span>              :         bytes memory context</span>
+<span id="L182"><span class="lineNum">     182</span>              :     ) internal view {</span>
+<span id="L183"><span class="lineNum">     183</span> <span class="tlaGNC">          68 :         if (resolver.code.length == 0) {</span></span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">          68 :             revert UnreachableName(name);</span></span>
+<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC">          68 :         }</span></span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">          68 :         bool multi = bytes4(call) == IMulticallable.multicall.selector;</span></span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">          68 :         bool direct = ERC165Checker.supportsERC165InterfaceUnchecked(</span></span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">          68 :             resolver,</span></span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">          68 :             type(IERC7996).interfaceId</span></span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">          68 :         ) &amp;&amp;</span></span>
+<span id="L191"><span class="lineNum">     191</span> <span class="tlaGNC">          68 :             (!multi ||</span></span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">          68 :                 IERC7996(resolver).supportsFeature(</span></span>
+<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">          68 :                     ResolverFeatures.RESOLVE_MULTICALL</span></span>
+<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC">          68 :                 ));</span></span>
+<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">          68 :         bytes[] memory calls;</span></span>
+<span id="L196"><span class="lineNum">     196</span> <span class="tlaGNC">         108 :         if (multi) {</span></span>
+<span id="L197"><span class="lineNum">     197</span> <span class="tlaGNC">         148 :             calls = abi.decode(</span></span>
+<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">         148 :                 BytesUtils.substring(call, 4, call.length - 4),</span></span>
+<span id="L199"><span class="lineNum">     199</span> <span class="tlaGNC">         148 :                 (bytes[])</span></span>
+<span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC">         148 :             );</span></span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">         136 :         } else {</span></span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">         124 :             calls = new bytes[](1);</span></span>
+<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">         124 :             calls[0] = call;</span></span>
+<span id="L204"><span class="lineNum">     204</span> <span class="tlaGNC">          96 :         }</span></span>
+<span id="L205"><span class="lineNum">     205</span> <span class="tlaGNC">          68 :         bool extended;</span></span>
+<span id="L206"><span class="lineNum">     206</span> <span class="tlaGNC">          68 :         if (</span></span>
+<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">          68 :             checkDNS &amp;&amp;</span></span>
+<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">          68 :             ERC165Checker.supportsERC165InterfaceUnchecked(</span></span>
+<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">          68 :                 resolver,</span></span>
+<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">          68 :                 type(IExtendedDNSResolver).interfaceId</span></span>
+<span id="L211"><span class="lineNum">     211</span> <span class="tlaGNC">          68 :             )</span></span>
+<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">         112 :         ) {</span></span>
+<span id="L213"><span class="lineNum">     213</span> <span class="tlaGNC">         200 :             if (direct) {</span></span>
+<span id="L214"><span class="lineNum">     214</span> <span class="tlaGNC">         244 :                 ccipRead(</span></span>
+<span id="L215"><span class="lineNum">     215</span> <span class="tlaGNC">         244 :                     resolver,</span></span>
+<span id="L216"><span class="lineNum">     216</span> <span class="tlaGNC">         244 :                     abi.encodeCall(</span></span>
+<span id="L217"><span class="lineNum">     217</span> <span class="tlaGNC">         244 :                         IExtendedDNSResolver.resolve,</span></span>
+<span id="L218"><span class="lineNum">     218</span> <span class="tlaGNC">         244 :                         (name, call, context)</span></span>
+<span id="L219"><span class="lineNum">     219</span> <span class="tlaGNC">         244 :                     )</span></span>
+<span id="L220"><span class="lineNum">     220</span> <span class="tlaGNC">         244 :                 );</span></span>
+<span id="L221"><span class="lineNum">     221</span> <span class="tlaGNC">         200 :             } else {</span></span>
+<span id="L222"><span class="lineNum">     222</span> <span class="tlaGNC">         156 :                 extended = true;</span></span>
+<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC">         156 :                 for (uint256 i; i &lt; calls.length; ++i) {</span></span>
+<span id="L224"><span class="lineNum">     224</span> <span class="tlaGNC">         156 :                     calls[i] = abi.encodeCall(</span></span>
+<span id="L225"><span class="lineNum">     225</span> <span class="tlaGNC">         156 :                         IExtendedDNSResolver.resolve,</span></span>
+<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">         156 :                         (name, calls[i], context)</span></span>
+<span id="L227"><span class="lineNum">     227</span> <span class="tlaGNC">         156 :                     );</span></span>
+<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">         156 :                 }</span></span>
+<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">         156 :             }</span></span>
+<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">         136 :         } else if (</span></span>
+<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">          92 :             ERC165Checker.supportsERC165InterfaceUnchecked(</span></span>
+<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">          92 :                 resolver,</span></span>
+<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">          92 :                 type(IExtendedResolver).interfaceId</span></span>
+<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">          92 :             )</span></span>
+<span id="L235"><span class="lineNum">     235</span> <span class="tlaGNC">         108 :         ) {</span></span>
+<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC">         128 :             if (direct) {</span></span>
+<span id="L237"><span class="lineNum">     237</span> <span class="tlaGNC">         132 :                 ccipRead(</span></span>
+<span id="L238"><span class="lineNum">     238</span> <span class="tlaGNC">         132 :                     resolver,</span></span>
+<span id="L239"><span class="lineNum">     239</span> <span class="tlaGNC">         132 :                     abi.encodeCall(IExtendedResolver.resolve, (name, call))</span></span>
+<span id="L240"><span class="lineNum">     240</span> <span class="tlaGNC">         132 :                 );</span></span>
+<span id="L241"><span class="lineNum">     241</span> <span class="tlaGNC">         140 :             } else {</span></span>
+<span id="L242"><span class="lineNum">     242</span> <span class="tlaGNC">         148 :                 extended = true;</span></span>
+<span id="L243"><span class="lineNum">     243</span> <span class="tlaGNC">         160 :                 for (uint256 i; i &lt; calls.length; ++i) {</span></span>
+<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">         172 :                     calls[i] = abi.encodeCall(</span></span>
+<span id="L245"><span class="lineNum">     245</span> <span class="tlaGNC">         172 :                         IExtendedResolver.resolve,</span></span>
+<span id="L246"><span class="lineNum">     246</span> <span class="tlaGNC">         172 :                         (name, calls[i])</span></span>
+<span id="L247"><span class="lineNum">     247</span> <span class="tlaGNC">         172 :                     );</span></span>
+<span id="L248"><span class="lineNum">     248</span> <span class="tlaGNC">         160 :                 }</span></span>
+<span id="L249"><span class="lineNum">     249</span> <span class="tlaGNC">         136 :             }</span></span>
+<span id="L250"><span class="lineNum">     250</span> <span class="tlaGNC">         108 :         }</span></span>
+<span id="L251"><span class="lineNum">     251</span> <span class="tlaGNC">          20 :         ccipRead(</span></span>
+<span id="L252"><span class="lineNum">     252</span> <span class="tlaGNC">          20 :             address(this),</span></span>
+<span id="L253"><span class="lineNum">     253</span> <span class="tlaGNC">          20 :             abi.encodeCall(</span></span>
+<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC">          20 :                 this.ccipBatch,</span></span>
+<span id="L255"><span class="lineNum">     255</span> <span class="tlaGNC">          20 :                 (createBatch(resolver, calls, batchGatewayProvider.gateways()))</span></span>
+<span id="L256"><span class="lineNum">     256</span> <span class="tlaGNC">          20 :             ),</span></span>
+<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC">          20 :             this.resolveBatchCallback.selector,</span></span>
+<span id="L258"><span class="lineNum">     258</span> <span class="tlaGNC">          20 :             IDENTITY_FUNCTION,</span></span>
+<span id="L259"><span class="lineNum">     259</span> <span class="tlaGNC">          20 :             abi.encode(multi, extended)</span></span>
+<span id="L260"><span class="lineNum">     260</span> <span class="tlaGNC">          20 :         );</span></span>
+<span id="L261"><span class="lineNum">     261</span>              :     }</span>
+<span id="L262"><span class="lineNum">     262</span>              : </span>
+<span id="L263"><span class="lineNum">     263</span>              :     /// @dev CCIP-Read callback for `_callResolver()` from batch calling the gasless DNS resolver.</span>
+<span id="L264"><span class="lineNum">     264</span>              :     /// @param response The response data from the batch gateway.</span>
+<span id="L265"><span class="lineNum">     265</span>              :     /// @param extraData The abi-encoded properties of the call.</span>
+<span id="L266"><span class="lineNum">     266</span>              :     /// @return result The response from the resolver.</span>
+<span id="L267"><span class="lineNum">     267</span> <span class="tlaGNC">          20 :     function resolveBatchCallback(</span></span>
+<span id="L268"><span class="lineNum">     268</span>              :         bytes calldata response,</span>
+<span id="L269"><span class="lineNum">     269</span>              :         bytes calldata extraData</span>
+<span id="L270"><span class="lineNum">     270</span>              :     ) external pure returns (bytes memory) {</span>
+<span id="L271"><span class="lineNum">     271</span> <span class="tlaGNC">          20 :         Lookup[] memory lookups = abi.decode(response, (Batch)).lookups;</span></span>
+<span id="L272"><span class="lineNum">     272</span> <span class="tlaGNC">          20 :         (bool multi, bool extended) = abi.decode(extraData, (bool, bool));</span></span>
+<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">          30 :         if (multi) {</span></span>
+<span id="L274"><span class="lineNum">     274</span> <span class="tlaGNC">          40 :             bytes[] memory m = new bytes[](lookups.length);</span></span>
+<span id="L275"><span class="lineNum">     275</span> <span class="tlaGNC">          50 :             for (uint256 i; i &lt; lookups.length; ++i) {</span></span>
+<span id="L276"><span class="lineNum">     276</span> <span class="tlaGNC">          60 :                 Lookup memory lu = lookups[i];</span></span>
+<span id="L277"><span class="lineNum">     277</span> <span class="tlaGNC">          60 :                 bytes memory v = lu.data;</span></span>
+<span id="L278"><span class="lineNum">     278</span> <span class="tlaGNC">          66 :                 if (extended &amp;&amp; (lu.flags &amp; FLAGS_ANY_ERROR) == 0) {</span></span>
+<span id="L279"><span class="lineNum">     279</span> <span class="tlaGNC">          72 :                     v = abi.decode(v, (bytes)); // unwrap resolve()</span></span>
+<span id="L280"><span class="lineNum">     280</span> <span class="tlaGNC">          66 :                 }</span></span>
+<span id="L281"><span class="lineNum">     281</span> <span class="tlaGNC">          60 :                 m[i] = v;</span></span>
+<span id="L282"><span class="lineNum">     282</span> <span class="tlaGNC">          50 :             }</span></span>
+<span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">          40 :             return abi.encode(m);</span></span>
+<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">          40 :         } else {</span></span>
+<span id="L285"><span class="lineNum">     285</span> <span class="tlaGNC">          40 :             Lookup memory lu = lookups[0];</span></span>
+<span id="L286"><span class="lineNum">     286</span> <span class="tlaGNC">          40 :             bytes memory v = lu.data;</span></span>
+<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC">          40 :             if ((lu.flags &amp; FLAGS_ANY_ERROR) != 0) {</span></span>
+<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">          40 :                 assembly {</span></span>
+<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">          40 :                     revert(add(v, 32), mload(v))</span></span>
+<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">          40 :                 }</span></span>
+<span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">          40 :             }</span></span>
+<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">          46 :             if (extended) {</span></span>
+<span id="L293"><span class="lineNum">     293</span> <span class="tlaGNC">          52 :                 v = abi.decode(v, (bytes)); // unwrap resolve()</span></span>
+<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC">          46 :             }</span></span>
+<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">          40 :             return v;</span></span>
+<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">          30 :         }</span></span>
+<span id="L297"><span class="lineNum">     297</span>              :     }</span>
+<span id="L298"><span class="lineNum">     298</span>              : </span>
+<span id="L299"><span class="lineNum">     299</span>              :     /// @dev Parse the TXT record into resolver and context.</span>
+<span id="L300"><span class="lineNum">     300</span>              :     ///      Format: &quot;ENS1 &lt;name-or-address&gt; &lt;context?&gt;&quot;.</span>
+<span id="L301"><span class="lineNum">     301</span>              :     /// @param txt The TXT data.</span>
+<span id="L302"><span class="lineNum">     302</span>              :     /// @return resolver The resolver address or null if wrong format or name didn't resolve.</span>
+<span id="L303"><span class="lineNum">     303</span>              :     /// @return context The optional context data.</span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">          56 :     function _parseTXT(</span></span>
+<span id="L305"><span class="lineNum">     305</span>              :         bytes memory txt</span>
+<span id="L306"><span class="lineNum">     306</span>              :     ) internal view returns (address resolver, bytes memory context) {</span>
+<span id="L307"><span class="lineNum">     307</span> <span class="tlaGNC">          56 :         uint256 n = TXT_PREFIX.length;</span></span>
+<span id="L308"><span class="lineNum">     308</span> <span class="tlaGNC">         112 :         if (txt.length &gt;= n &amp;&amp; BytesUtils.equals(txt, 0, TXT_PREFIX, 0, n)) {</span></span>
+<span id="L309"><span class="lineNum">     309</span> <span class="tlaGNC">         168 :             uint256 sep = BytesUtils.find(txt, n, txt.length - n, &quot; &quot;);</span></span>
+<span id="L310"><span class="lineNum">     310</span> <span class="tlaGNC">         212 :             if (sep &lt; txt.length) {</span></span>
+<span id="L311"><span class="lineNum">     311</span> <span class="tlaGNC">         256 :                 context = BytesUtils.substring(</span></span>
+<span id="L312"><span class="lineNum">     312</span> <span class="tlaGNC">         256 :                     txt,</span></span>
+<span id="L313"><span class="lineNum">     313</span> <span class="tlaGNC">         256 :                     sep + 1,</span></span>
+<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">         256 :                     txt.length - sep - 1</span></span>
+<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">         256 :                 );</span></span>
+<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC">         224 :             } else {</span></span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">         192 :                 sep = txt.length;</span></span>
+<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">         180 :             }</span></span>
+<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">         168 :             resolver = _parseResolver(BytesUtils.substring(txt, n, sep - n));</span></span>
+<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">         112 :         }</span></span>
+<span id="L321"><span class="lineNum">     321</span>              :     }</span>
+<span id="L322"><span class="lineNum">     322</span>              : </span>
+<span id="L323"><span class="lineNum">     323</span>              :     /// @dev Parse the value into a resolver address.</span>
+<span id="L324"><span class="lineNum">     324</span>              :     ///      If the value matches `/^0x[0-9a-fA-F]{40}$/`, it's a literal address.</span>
+<span id="L325"><span class="lineNum">     325</span>              :     ///      Otherwise, it's considered a name and resolved in the registry.</span>
+<span id="L326"><span class="lineNum">     326</span>              :     ///      Reverts `DNSEncodingFailed` if the name cannot be encoded.</span>
+<span id="L327"><span class="lineNum">     327</span>              :     /// @param v The address or name.</span>
+<span id="L328"><span class="lineNum">     328</span>              :     /// @return resolver The corresponding resolver address.</span>
+<span id="L329"><span class="lineNum">     329</span> <span class="tlaGNC">        4182 :     function _parseResolver(</span></span>
+<span id="L330"><span class="lineNum">     330</span>              :         bytes memory v</span>
+<span id="L331"><span class="lineNum">     331</span>              :     ) internal view returns (address resolver) {</span>
+<span id="L332"><span class="lineNum">     332</span> <span class="tlaGNC">        4182 :         if (v.length == 42 &amp;&amp; v[0] == &quot;0&quot; &amp;&amp; v[1] == &quot;x&quot;) {</span></span>
+<span id="L333"><span class="lineNum">     333</span> <span class="tlaGNC">        4209 :             (address addr, bool valid) = HexUtils.hexToAddress(v, 2, 42);</span></span>
+<span id="L334"><span class="lineNum">     334</span> <span class="tlaGNC">        4237 :             if (valid) {</span></span>
+<span id="L335"><span class="lineNum">     335</span> <span class="tlaGNC">        4265 :                 return addr;</span></span>
+<span id="L336"><span class="lineNum">     336</span> <span class="tlaGNC">         140 :             }</span></span>
+<span id="L337"><span class="lineNum">     337</span> <span class="tlaGNC">          84 :         }</span></span>
+<span id="L338"><span class="lineNum">     338</span> <span class="tlaGNC">          29 :         bytes memory name = NameCoder.encode(string(v));</span></span>
+<span id="L339"><span class="lineNum">     339</span> <span class="tlaGNC">          29 :         (, address r, , ) = RegistryUtils.findResolver(rootRegistry, name, 0);</span></span>
+<span id="L340"><span class="lineNum">     340</span> <span class="tlaGNC">          57 :         if (r != address(0)) {</span></span>
+<span id="L341"><span class="lineNum">     341</span> <span class="tlaGNC">          84 :             // according to V1, this must be immediate onchain</span></span>
+<span id="L342"><span class="lineNum">     342</span> <span class="tlaGNC">          85 :             try IAddrResolver(r).addr(NameCoder.namehash(name, 0)) returns (</span></span>
+<span id="L343"><span class="lineNum">     343</span> <span class="tlaGNC">          84 :                 address payable a</span></span>
+<span id="L344"><span class="lineNum">     344</span> <span class="tlaGNC">          84 :             ) {</span></span>
+<span id="L345"><span class="lineNum">     345</span> <span class="tlaGNC">         113 :                 resolver = a;</span></span>
+<span id="L346"><span class="lineNum">     346</span> <span class="tlaGNC">          84 :             } catch {}</span></span>
+<span id="L347"><span class="lineNum">     347</span> <span class="tlaGNC">          56 :         }</span></span>
+<span id="L348"><span class="lineNum">     348</span>              :     }</span>
+<span id="L349"><span class="lineNum">     349</span>              : </span>
+<span id="L350"><span class="lineNum">     350</span>              :     /// @dev Decode `v[off:end]` as raw TXT chunks.</span>
+<span id="L351"><span class="lineNum">     351</span>              :     ///      Encoding: `(byte(n) &lt;n-bytes&gt;)...`</span>
+<span id="L352"><span class="lineNum">     352</span>              :     ///      Reverts `InvalidTXT` if the data is malformed.</span>
+<span id="L353"><span class="lineNum">     353</span>              :     /// @param v The raw TXT data.</span>
+<span id="L354"><span class="lineNum">     354</span>              :     /// @param off The offset of the record data.</span>
+<span id="L355"><span class="lineNum">     355</span>              :     /// @param end The upper bound of the record data.</span>
+<span id="L356"><span class="lineNum">     356</span>              :     /// @return txt The decoded TXT value.</span>
+<span id="L357"><span class="lineNum">     357</span> <span class="tlaGNC">        4160 :     function _readTXT(</span></span>
+<span id="L358"><span class="lineNum">     358</span>              :         bytes memory v,</span>
+<span id="L359"><span class="lineNum">     359</span>              :         uint256 off,</span>
+<span id="L360"><span class="lineNum">     360</span>              :         uint256 end</span>
+<span id="L361"><span class="lineNum">     361</span>              :     ) internal pure returns (bytes memory txt) {</span>
+<span id="L362"><span class="lineNum">     362</span> <span class="tlaGNC">        4160 :         if (end &gt; v.length) revert InvalidTXT();</span></span>
+<span id="L363"><span class="lineNum">     363</span> <span class="tlaGNC">        4160 :         txt = new bytes(end - off);</span></span>
+<span id="L364"><span class="lineNum">     364</span> <span class="tlaGNC">          56 :         assembly {</span></span>
+<span id="L365"><span class="lineNum">     365</span> <span class="tlaGNC">        4160 :             let ptr := add(v, 32)</span></span>
+<span id="L366"><span class="lineNum">     366</span> <span class="tlaGNC">        4160 :             off := add(ptr, off) // start of input</span></span>
+<span id="L367"><span class="lineNum">     367</span> <span class="tlaGNC">        4160 :             end := add(ptr, end) // end of input</span></span>
+<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">        4160 :             ptr := add(txt, 32) // start of output</span></span>
+<span id="L369"><span class="lineNum">     369</span> <span class="tlaGNC">          56 :             // prettier-ignore</span></span>
+<span id="L370"><span class="lineNum">     370</span> <span class="tlaGNC">       94282 :             for { } lt(off, end) { } { // while input</span></span>
+<span id="L371"><span class="lineNum">     371</span> <span class="tlaGNC">       90181 :                 let size := byte(0, mload(off)) // length of chunk</span></span>
+<span id="L372"><span class="lineNum">     372</span> <span class="tlaGNC">       90181 :                 off := add(off, 1) // advance input</span></span>
+<span id="L373"><span class="lineNum">     373</span> <span class="tlaGNC">       90181 :                 if size { // length &gt; 0</span></span>
+<span id="L374"><span class="lineNum">     374</span> <span class="tlaGNC">       90178 :                     let next := add(off, size) // compute end of chunk</span></span>
+<span id="L375"><span class="lineNum">     375</span> <span class="tlaGNC">       90178 :                     if gt(next, end) { // beyond end</span></span>
+<span id="L376"><span class="lineNum">     376</span> <span class="tlaGNC">          59 :                         end := 0 // error: overflow</span></span>
+<span id="L377"><span class="lineNum">     377</span> <span class="tlaGNC">          59 :                         break</span></span>
+<span id="L378"><span class="lineNum">     378</span> <span class="tlaGNC">          56 :                     }</span></span>
+<span id="L379"><span class="lineNum">     379</span> <span class="tlaGNC">       90175 :                     mcopy(ptr, off, size) // copy chunk</span></span>
+<span id="L380"><span class="lineNum">     380</span> <span class="tlaGNC">       90175 :                     off := next // advance input</span></span>
+<span id="L381"><span class="lineNum">     381</span> <span class="tlaGNC">       90175 :                     ptr := add(ptr, size) // advance output</span></span>
+<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">          56 :                 }</span></span>
+<span id="L383"><span class="lineNum">     383</span> <span class="tlaGNC">          56 :             }</span></span>
+<span id="L384"><span class="lineNum">     384</span> <span class="tlaGNC">        4160 :             mstore(txt, sub(ptr, add(txt, 32))) // truncate</span></span>
+<span id="L385"><span class="lineNum">     385</span> <span class="tlaGNC">          56 :         }</span></span>
+<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">        4160 :         if (off != end) revert InvalidTXT(); // overflow or junk at end</span></span>
+<span id="L387"><span class="lineNum">     387</span>              :     }</span>
+<span id="L388"><span class="lineNum">     388</span>              : }</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

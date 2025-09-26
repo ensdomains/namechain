@@ -1,0 +1,1 @@
+genhtml filtered/forge.info --flat --source-directory ../ --output-directory reports/forge/

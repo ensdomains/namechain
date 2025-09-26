@@ -1,0 +1,439 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - RegistryDatastore.info - common/../src/common/ERC1155Singleton.sol</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../../../index.html">top level</a> - common/../src/common/ERC1155Singleton.sol<span style="font-size: 80%;"> (source / <a href="ERC1155Singleton.sol.func-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">RegistryDatastore.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryMed">83.8&nbsp;%</td>
+            <td class="headerCovTableEntry">80</td>
+            <td class="headerCovTableEntry">67</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-09-26 01:44:27</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryLo">27.8&nbsp;%</td>
+            <td class="headerCovTableEntry">18</td>
+            <td class="headerCovTableEntry">5</td>
+          </tr>
+                  <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // SPDX-License-Identifier: MIT</span>
+<span id="L2"><span class="lineNum">       2</span>              : </span>
+<span id="L3"><span class="lineNum">       3</span>              : // ERC1155 implementation that supports only a single token per ID. Stores owner information to allow</span>
+<span id="L4"><span class="lineNum">       4</span>              : // fetching ownership information for a tokenId via `ownerOf`.</span>
+<span id="L5"><span class="lineNum">       5</span>              : // Portions from OpenZeppelin Contracts (token/ERC1155/ERC1155.sol)</span>
+<span id="L6"><span class="lineNum">       6</span>              : pragma solidity &gt;=0.8.13;</span>
+<span id="L7"><span class="lineNum">       7</span>              : </span>
+<span id="L8"><span class="lineNum">       8</span>              : import {IERC165} from &quot;@openzeppelin/contracts/utils/introspection/IERC165.sol&quot;;</span>
+<span id="L9"><span class="lineNum">       9</span>              : import {IERC1155} from &quot;@openzeppelin/contracts/token/ERC1155/IERC1155.sol&quot;;</span>
+<span id="L10"><span class="lineNum">      10</span>              : import {IERC1155Singleton} from &quot;./IERC1155Singleton.sol&quot;;</span>
+<span id="L11"><span class="lineNum">      11</span>              : import {IERC1155MetadataURI} from &quot;@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol&quot;;</span>
+<span id="L12"><span class="lineNum">      12</span>              : import {IERC1155Errors} from &quot;@openzeppelin/contracts/interfaces/draft-IERC6093.sol&quot;;</span>
+<span id="L13"><span class="lineNum">      13</span>              : import {ERC1155Utils} from &quot;@openzeppelin/contracts/token/ERC1155/utils/ERC1155Utils.sol&quot;;</span>
+<span id="L14"><span class="lineNum">      14</span>              : import {ERC165} from &quot;@openzeppelin/contracts/utils/introspection/ERC165.sol&quot;;</span>
+<span id="L15"><span class="lineNum">      15</span>              : import {Context} from &quot;@openzeppelin/contracts/utils/Context.sol&quot;;</span>
+<span id="L16"><span class="lineNum">      16</span>              : import {Arrays} from &quot;@openzeppelin/contracts/utils/Arrays.sol&quot;;</span>
+<span id="L17"><span class="lineNum">      17</span>              : </span>
+<span id="L18"><span class="lineNum">      18</span>              : abstract contract ERC1155Singleton is Context, ERC165, IERC1155Singleton, IERC1155Errors, IERC1155MetadataURI {</span>
+<span id="L19"><span class="lineNum">      19</span>              :     using Arrays for uint256[];</span>
+<span id="L20"><span class="lineNum">      20</span>              :     using Arrays for address[];</span>
+<span id="L21"><span class="lineNum">      21</span>              : </span>
+<span id="L22"><span class="lineNum">      22</span>              :     event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);</span>
+<span id="L23"><span class="lineNum">      23</span>              : </span>
+<span id="L24"><span class="lineNum">      24</span>              :     mapping(uint256 id =&gt; address) private _owners;</span>
+<span id="L25"><span class="lineNum">      25</span>              : </span>
+<span id="L26"><span class="lineNum">      26</span>              :     mapping(address account =&gt; mapping(address operator =&gt; bool)) private _operatorApprovals;</span>
+<span id="L27"><span class="lineNum">      27</span>              : </span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC tlaBgGNC">          67 :     function ownerOf(uint256 id) public view virtual returns (address owner) {</span></span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">          67 :         return _owners[id];</span></span>
+<span id="L30"><span class="lineNum">      30</span>              :     }</span>
+<span id="L31"><span class="lineNum">      31</span>              : </span>
+<span id="L32"><span class="lineNum">      32</span>              :     /**</span>
+<span id="L33"><span class="lineNum">      33</span>              :      * @dev See {IERC165-supportsInterface}.</span>
+<span id="L34"><span class="lineNum">      34</span>              :      */</span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaUNC tlaBgUNC">           0 :     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {</span></span>
+<span id="L36"><span class="lineNum">      36</span>              :         return interfaceId == type(IERC1155).interfaceId || interfaceId == type(IERC1155Singleton).interfaceId</span>
+<span id="L37"><span class="lineNum">      37</span>              :             || interfaceId == type(IERC1155MetadataURI).interfaceId || super.supportsInterface(interfaceId);</span>
+<span id="L38"><span class="lineNum">      38</span>              :     }</span>
+<span id="L39"><span class="lineNum">      39</span>              : </span>
+<span id="L40"><span class="lineNum">      40</span>              :     /**</span>
+<span id="L41"><span class="lineNum">      41</span>              :      *</span>
+<span id="L42"><span class="lineNum">      42</span>              :      * ERC1155 methods</span>
+<span id="L43"><span class="lineNum">      43</span>              :      *</span>
+<span id="L44"><span class="lineNum">      44</span>              :      */</span>
+<span id="L45"><span class="lineNum">      45</span>              :     function uri(uint256 /* id */ ) public view virtual returns (string memory);</span>
+<span id="L46"><span class="lineNum">      46</span>              : </span>
+<span id="L47"><span class="lineNum">      47</span>              :     /**</span>
+<span id="L48"><span class="lineNum">      48</span>              :      * @dev See {IERC1155-balanceOf}.</span>
+<span id="L49"><span class="lineNum">      49</span>              :      */</span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaUNC">           0 :     function balanceOf(address account, uint256 id) public view virtual returns (uint256) {</span></span>
+<span id="L51"><span class="lineNum">      51</span>              :         return ownerOf(id) == account ? 1 : 0;</span>
+<span id="L52"><span class="lineNum">      52</span>              :     }</span>
+<span id="L53"><span class="lineNum">      53</span>              : </span>
+<span id="L54"><span class="lineNum">      54</span>              :     /**</span>
+<span id="L55"><span class="lineNum">      55</span>              :      * @dev See {IERC1155-balanceOfBatch}.</span>
+<span id="L56"><span class="lineNum">      56</span>              :      *</span>
+<span id="L57"><span class="lineNum">      57</span>              :      * Requirements:</span>
+<span id="L58"><span class="lineNum">      58</span>              :      *</span>
+<span id="L59"><span class="lineNum">      59</span>              :      * - `accounts` and `ids` must have the same length.</span>
+<span id="L60"><span class="lineNum">      60</span>              :      */</span>
+<span id="L61"><span class="lineNum">      61</span> <span class="tlaUNC">           0 :     function balanceOfBatch(address[] memory accounts, uint256[] memory ids)</span></span>
+<span id="L62"><span class="lineNum">      62</span>              :         public</span>
+<span id="L63"><span class="lineNum">      63</span>              :         view</span>
+<span id="L64"><span class="lineNum">      64</span>              :         virtual</span>
+<span id="L65"><span class="lineNum">      65</span>              :         returns (uint256[] memory)</span>
+<span id="L66"><span class="lineNum">      66</span>              :     {</span>
+<span id="L67"><span class="lineNum">      67</span>              :         if (accounts.length != ids.length) {</span>
+<span id="L68"><span class="lineNum">      68</span>              :             revert ERC1155InvalidArrayLength(ids.length, accounts.length);</span>
+<span id="L69"><span class="lineNum">      69</span>              :         }</span>
+<span id="L70"><span class="lineNum">      70</span>              : </span>
+<span id="L71"><span class="lineNum">      71</span>              :         uint256[] memory batchBalances = new uint256[](accounts.length);</span>
+<span id="L72"><span class="lineNum">      72</span>              : </span>
+<span id="L73"><span class="lineNum">      73</span>              :         for (uint256 i = 0; i &lt; accounts.length; ++i) {</span>
+<span id="L74"><span class="lineNum">      74</span>              :             batchBalances[i] = balanceOf(accounts.unsafeMemoryAccess(i), ids.unsafeMemoryAccess(i));</span>
+<span id="L75"><span class="lineNum">      75</span>              :         }</span>
+<span id="L76"><span class="lineNum">      76</span>              : </span>
+<span id="L77"><span class="lineNum">      77</span>              :         return batchBalances;</span>
+<span id="L78"><span class="lineNum">      78</span>              :     }</span>
+<span id="L79"><span class="lineNum">      79</span>              : </span>
+<span id="L80"><span class="lineNum">      80</span>              :     /**</span>
+<span id="L81"><span class="lineNum">      81</span>              :      * @dev See {IERC1155-setApprovalForAll}.</span>
+<span id="L82"><span class="lineNum">      82</span>              :      */</span>
+<span id="L83"><span class="lineNum">      83</span> <span class="tlaUNC">           0 :     function setApprovalForAll(address operator, bool approved) public virtual {</span></span>
+<span id="L84"><span class="lineNum">      84</span>              :         _setApprovalForAll(_msgSender(), operator, approved);</span>
+<span id="L85"><span class="lineNum">      85</span>              :     }</span>
+<span id="L86"><span class="lineNum">      86</span>              : </span>
+<span id="L87"><span class="lineNum">      87</span>              :     /**</span>
+<span id="L88"><span class="lineNum">      88</span>              :      * @dev See {IERC1155-isApprovedForAll}.</span>
+<span id="L89"><span class="lineNum">      89</span>              :      */</span>
+<span id="L90"><span class="lineNum">      90</span> <span class="tlaUNC">           0 :     function isApprovedForAll(address account, address operator) public view virtual returns (bool) {</span></span>
+<span id="L91"><span class="lineNum">      91</span>              :         return _operatorApprovals[account][operator];</span>
+<span id="L92"><span class="lineNum">      92</span>              :     }</span>
+<span id="L93"><span class="lineNum">      93</span>              : </span>
+<span id="L94"><span class="lineNum">      94</span>              :     /**</span>
+<span id="L95"><span class="lineNum">      95</span>              :      * @dev See {IERC1155-safeTransferFrom}.</span>
+<span id="L96"><span class="lineNum">      96</span>              :      */</span>
+<span id="L97"><span class="lineNum">      97</span> <span class="tlaUNC">           0 :     function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) public virtual {</span></span>
+<span id="L98"><span class="lineNum">      98</span>              :         address sender = _msgSender();</span>
+<span id="L99"><span class="lineNum">      99</span>              :         if (from != sender &amp;&amp; !isApprovedForAll(from, sender)) {</span>
+<span id="L100"><span class="lineNum">     100</span>              :             revert ERC1155MissingApprovalForAll(sender, from);</span>
+<span id="L101"><span class="lineNum">     101</span>              :         }</span>
+<span id="L102"><span class="lineNum">     102</span>              :         _safeTransferFrom(from, to, id, value, data);</span>
+<span id="L103"><span class="lineNum">     103</span>              :     }</span>
+<span id="L104"><span class="lineNum">     104</span>              : </span>
+<span id="L105"><span class="lineNum">     105</span>              :     /**</span>
+<span id="L106"><span class="lineNum">     106</span>              :      * @dev See {IERC1155-safeBatchTransferFrom}.</span>
+<span id="L107"><span class="lineNum">     107</span>              :      */</span>
+<span id="L108"><span class="lineNum">     108</span> <span class="tlaUNC">           0 :     function safeBatchTransferFrom(</span></span>
+<span id="L109"><span class="lineNum">     109</span>              :         address from,</span>
+<span id="L110"><span class="lineNum">     110</span>              :         address to,</span>
+<span id="L111"><span class="lineNum">     111</span>              :         uint256[] memory ids,</span>
+<span id="L112"><span class="lineNum">     112</span>              :         uint256[] memory values,</span>
+<span id="L113"><span class="lineNum">     113</span>              :         bytes memory data</span>
+<span id="L114"><span class="lineNum">     114</span>              :     ) public virtual {</span>
+<span id="L115"><span class="lineNum">     115</span>              :         address sender = _msgSender();</span>
+<span id="L116"><span class="lineNum">     116</span>              :         if (from != sender &amp;&amp; !isApprovedForAll(from, sender)) {</span>
+<span id="L117"><span class="lineNum">     117</span>              :             revert ERC1155MissingApprovalForAll(sender, from);</span>
+<span id="L118"><span class="lineNum">     118</span>              :         }</span>
+<span id="L119"><span class="lineNum">     119</span>              :         _safeBatchTransferFrom(from, to, ids, values, data);</span>
+<span id="L120"><span class="lineNum">     120</span>              :     }</span>
+<span id="L121"><span class="lineNum">     121</span>              : </span>
+<span id="L122"><span class="lineNum">     122</span>              :     /**</span>
+<span id="L123"><span class="lineNum">     123</span>              :      * @dev Transfers a `value` amount of tokens of type `id` from `from` to `to`. Will mint (or burn) if `from`</span>
+<span id="L124"><span class="lineNum">     124</span>              :      * (or `to`) is the zero address.</span>
+<span id="L125"><span class="lineNum">     125</span>              :      *</span>
+<span id="L126"><span class="lineNum">     126</span>              :      * Emits a {TransferSingle} event if the arrays contain one element, and {TransferBatch} otherwise.</span>
+<span id="L127"><span class="lineNum">     127</span>              :      *</span>
+<span id="L128"><span class="lineNum">     128</span>              :      * Requirements:</span>
+<span id="L129"><span class="lineNum">     129</span>              :      *</span>
+<span id="L130"><span class="lineNum">     130</span>              :      * - If `to` refers to a smart contract, it must implement either {IERC1155Receiver-onERC1155Received}</span>
+<span id="L131"><span class="lineNum">     131</span>              :      *   or {IERC1155Receiver-onERC1155BatchReceived} and return the acceptance magic value.</span>
+<span id="L132"><span class="lineNum">     132</span>              :      * - `ids` and `values` must have the same length.</span>
+<span id="L133"><span class="lineNum">     133</span>              :      *</span>
+<span id="L134"><span class="lineNum">     134</span>              :      * NOTE: The ERC-1155 acceptance check is not performed in this function. See {_updateWithAcceptanceCheck} instead.</span>
+<span id="L135"><span class="lineNum">     135</span>              :      */</span>
+<span id="L136"><span class="lineNum">     136</span> <span class="tlaGNC tlaBgGNC">          52 :     function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal virtual {</span></span>
+<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC">          52 :         if (ids.length != values.length) {</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">          52 :             revert ERC1155InvalidArrayLength(ids.length, values.length);</span></span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">          52 :         }</span></span>
+<span id="L140"><span class="lineNum">     140</span> <span class="tlaGNC">          52 : </span></span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">          52 :         address operator = _msgSender();</span></span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">          52 : </span></span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">         104 :         for (uint256 i = 0; i &lt; ids.length; ++i) {</span></span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">         156 :             uint256 id = ids.unsafeMemoryAccess(i);</span></span>
+<span id="L145"><span class="lineNum">     145</span> <span class="tlaGNC">         156 :             uint256 value = values.unsafeMemoryAccess(i);</span></span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">         156 : </span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">         208 :             if (value &gt; 0) {</span></span>
+<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">         260 :                 address owner = _owners[id];</span></span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">         260 :                 if (owner != from) {</span></span>
+<span id="L150"><span class="lineNum">     150</span> <span class="tlaGNC">         260 :                     revert ERC1155InsufficientBalance(from, 0, value, id);</span></span>
+<span id="L151"><span class="lineNum">     151</span> <span class="tlaGNC">         312 :                 } else if (value &gt; 1) {</span></span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">         312 :                     revert ERC1155InsufficientBalance(from, 1, value, id);</span></span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">         312 :                 }</span></span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">         260 :                 _owners[id] = to;</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">         208 :             }</span></span>
+<span id="L156"><span class="lineNum">     156</span> <span class="tlaGNC">         104 :         }</span></span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">          52 : </span></span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">         104 :         if (ids.length == 1) {</span></span>
+<span id="L159"><span class="lineNum">     159</span> <span class="tlaGNC">         156 :             uint256 id = ids.unsafeMemoryAccess(0);</span></span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">         156 :             uint256 value = values.unsafeMemoryAccess(0);</span></span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">         156 :             emit TransferSingle(operator, from, to, id, value);</span></span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">         104 :         } else {</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">          52 :             emit TransferBatch(operator, from, to, ids, values);</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">          52 :         }</span></span>
+<span id="L165"><span class="lineNum">     165</span>              :     }</span>
+<span id="L166"><span class="lineNum">     166</span>              : </span>
+<span id="L167"><span class="lineNum">     167</span>              :     /**</span>
+<span id="L168"><span class="lineNum">     168</span>              :      * @dev Version of {_update} that performs the token acceptance check by calling</span>
+<span id="L169"><span class="lineNum">     169</span>              :      * {IERC1155Receiver-onERC1155Received} or {IERC1155Receiver-onERC1155BatchReceived} on the receiver address if it</span>
+<span id="L170"><span class="lineNum">     170</span>              :      * contains code (eg. is a smart contract at the moment of execution).</span>
+<span id="L171"><span class="lineNum">     171</span>              :      *</span>
+<span id="L172"><span class="lineNum">     172</span>              :      * IMPORTANT: Overriding this function is discouraged because it poses a reentrancy risk from the receiver. So any</span>
+<span id="L173"><span class="lineNum">     173</span>              :      * update to the contract state after this function would break the check-effect-interaction pattern. Consider</span>
+<span id="L174"><span class="lineNum">     174</span>              :      * overriding {_update} instead.</span>
+<span id="L175"><span class="lineNum">     175</span>              :      */</span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">          52 :     function _updateWithAcceptanceCheck(</span></span>
+<span id="L177"><span class="lineNum">     177</span>              :         address from,</span>
+<span id="L178"><span class="lineNum">     178</span>              :         address to,</span>
+<span id="L179"><span class="lineNum">     179</span>              :         uint256[] memory ids,</span>
+<span id="L180"><span class="lineNum">     180</span>              :         uint256[] memory values,</span>
+<span id="L181"><span class="lineNum">     181</span>              :         bytes memory data</span>
+<span id="L182"><span class="lineNum">     182</span>              :     ) internal virtual {</span>
+<span id="L183"><span class="lineNum">     183</span> <span class="tlaGNC">          52 :         _update(from, to, ids, values);</span></span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">         104 :         if (to != address(0)) {</span></span>
+<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC">         156 :             address operator = _msgSender();</span></span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">         208 :             if (ids.length == 1) {</span></span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">         260 :                 uint256 id = ids.unsafeMemoryAccess(0);</span></span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">         260 :                 uint256 value = values.unsafeMemoryAccess(0);</span></span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">         260 :                 ERC1155Utils.checkOnERC1155Received(operator, from, to, id, value, data);</span></span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">         208 :             } else {</span></span>
+<span id="L191"><span class="lineNum">     191</span> <span class="tlaGNC">         156 :                 ERC1155Utils.checkOnERC1155BatchReceived(operator, from, to, ids, values, data);</span></span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">         156 :             }</span></span>
+<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">         104 :         }</span></span>
+<span id="L194"><span class="lineNum">     194</span>              :     }</span>
+<span id="L195"><span class="lineNum">     195</span>              : </span>
+<span id="L196"><span class="lineNum">     196</span>              :     /**</span>
+<span id="L197"><span class="lineNum">     197</span>              :      * @dev Transfers a `value` tokens of token type `id` from `from` to `to`.</span>
+<span id="L198"><span class="lineNum">     198</span>              :      *</span>
+<span id="L199"><span class="lineNum">     199</span>              :      * Emits a {TransferSingle} event.</span>
+<span id="L200"><span class="lineNum">     200</span>              :      *</span>
+<span id="L201"><span class="lineNum">     201</span>              :      * Requirements:</span>
+<span id="L202"><span class="lineNum">     202</span>              :      *</span>
+<span id="L203"><span class="lineNum">     203</span>              :      * - `to` cannot be the zero address.</span>
+<span id="L204"><span class="lineNum">     204</span>              :      * - `from` must have a balance of tokens of type `id` of at least `value` amount.</span>
+<span id="L205"><span class="lineNum">     205</span>              :      * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155Received} and return the</span>
+<span id="L206"><span class="lineNum">     206</span>              :      * acceptance magic value.</span>
+<span id="L207"><span class="lineNum">     207</span>              :      */</span>
+<span id="L208"><span class="lineNum">     208</span> <span class="tlaUNC tlaBgUNC">           0 :     function _safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes memory data) internal {</span></span>
+<span id="L209"><span class="lineNum">     209</span>              :         if (to == address(0)) {</span>
+<span id="L210"><span class="lineNum">     210</span>              :             revert ERC1155InvalidReceiver(address(0));</span>
+<span id="L211"><span class="lineNum">     211</span>              :         }</span>
+<span id="L212"><span class="lineNum">     212</span>              :         if (from == address(0)) {</span>
+<span id="L213"><span class="lineNum">     213</span>              :             revert ERC1155InvalidSender(address(0));</span>
+<span id="L214"><span class="lineNum">     214</span>              :         }</span>
+<span id="L215"><span class="lineNum">     215</span>              :         (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(id, value);</span>
+<span id="L216"><span class="lineNum">     216</span>              :         _updateWithAcceptanceCheck(from, to, ids, values, data);</span>
+<span id="L217"><span class="lineNum">     217</span>              :     }</span>
+<span id="L218"><span class="lineNum">     218</span>              : </span>
+<span id="L219"><span class="lineNum">     219</span>              :     /**</span>
+<span id="L220"><span class="lineNum">     220</span>              :      * @dev xref:ROOT:erc1155.adoc#batch-operations[Batched] version of {_safeTransferFrom}.</span>
+<span id="L221"><span class="lineNum">     221</span>              :      *</span>
+<span id="L222"><span class="lineNum">     222</span>              :      * Emits a {TransferBatch} event.</span>
+<span id="L223"><span class="lineNum">     223</span>              :      *</span>
+<span id="L224"><span class="lineNum">     224</span>              :      * Requirements:</span>
+<span id="L225"><span class="lineNum">     225</span>              :      *</span>
+<span id="L226"><span class="lineNum">     226</span>              :      * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155BatchReceived} and return the</span>
+<span id="L227"><span class="lineNum">     227</span>              :      * acceptance magic value.</span>
+<span id="L228"><span class="lineNum">     228</span>              :      * - `ids` and `values` must have the same length.</span>
+<span id="L229"><span class="lineNum">     229</span>              :      */</span>
+<span id="L230"><span class="lineNum">     230</span> <span class="tlaUNC">           0 :     function _safeBatchTransferFrom(</span></span>
+<span id="L231"><span class="lineNum">     231</span>              :         address from,</span>
+<span id="L232"><span class="lineNum">     232</span>              :         address to,</span>
+<span id="L233"><span class="lineNum">     233</span>              :         uint256[] memory ids,</span>
+<span id="L234"><span class="lineNum">     234</span>              :         uint256[] memory values,</span>
+<span id="L235"><span class="lineNum">     235</span>              :         bytes memory data</span>
+<span id="L236"><span class="lineNum">     236</span>              :     ) internal {</span>
+<span id="L237"><span class="lineNum">     237</span>              :         if (to == address(0)) {</span>
+<span id="L238"><span class="lineNum">     238</span>              :             revert ERC1155InvalidReceiver(address(0));</span>
+<span id="L239"><span class="lineNum">     239</span>              :         }</span>
+<span id="L240"><span class="lineNum">     240</span>              :         if (from == address(0)) {</span>
+<span id="L241"><span class="lineNum">     241</span>              :             revert ERC1155InvalidSender(address(0));</span>
+<span id="L242"><span class="lineNum">     242</span>              :         }</span>
+<span id="L243"><span class="lineNum">     243</span>              :         _updateWithAcceptanceCheck(from, to, ids, values, data);</span>
+<span id="L244"><span class="lineNum">     244</span>              :     }</span>
+<span id="L245"><span class="lineNum">     245</span>              : </span>
+<span id="L246"><span class="lineNum">     246</span>              :     /**</span>
+<span id="L247"><span class="lineNum">     247</span>              :      * @dev Creates a `value` amount of tokens of type `id`, and assigns them to `to`.</span>
+<span id="L248"><span class="lineNum">     248</span>              :      *</span>
+<span id="L249"><span class="lineNum">     249</span>              :      * Emits a {TransferSingle} event.</span>
+<span id="L250"><span class="lineNum">     250</span>              :      *</span>
+<span id="L251"><span class="lineNum">     251</span>              :      * Requirements:</span>
+<span id="L252"><span class="lineNum">     252</span>              :      *</span>
+<span id="L253"><span class="lineNum">     253</span>              :      * - `to` cannot be the zero address.</span>
+<span id="L254"><span class="lineNum">     254</span>              :      * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155Received} and return the</span>
+<span id="L255"><span class="lineNum">     255</span>              :      * acceptance magic value.</span>
+<span id="L256"><span class="lineNum">     256</span>              :      */</span>
+<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC tlaBgGNC">          52 :     function _mint(address to, uint256 id, uint256 value, bytes memory data) internal {</span></span>
+<span id="L258"><span class="lineNum">     258</span> <span class="tlaGNC">          52 :         if (to == address(0)) {</span></span>
+<span id="L259"><span class="lineNum">     259</span> <span class="tlaGNC">          52 :             revert ERC1155InvalidReceiver(address(0));</span></span>
+<span id="L260"><span class="lineNum">     260</span> <span class="tlaGNC">          52 :         }</span></span>
+<span id="L261"><span class="lineNum">     261</span> <span class="tlaGNC">          52 :         (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(id, value);</span></span>
+<span id="L262"><span class="lineNum">     262</span> <span class="tlaGNC">          52 :         _updateWithAcceptanceCheck(address(0), to, ids, values, data);</span></span>
+<span id="L263"><span class="lineNum">     263</span>              :     }</span>
+<span id="L264"><span class="lineNum">     264</span>              : </span>
+<span id="L265"><span class="lineNum">     265</span>              :     /**</span>
+<span id="L266"><span class="lineNum">     266</span>              :      * @dev xref:ROOT:erc1155.adoc#batch-operations[Batched] version of {_mint}.</span>
+<span id="L267"><span class="lineNum">     267</span>              :      *</span>
+<span id="L268"><span class="lineNum">     268</span>              :      * Emits a {TransferBatch} event.</span>
+<span id="L269"><span class="lineNum">     269</span>              :      *</span>
+<span id="L270"><span class="lineNum">     270</span>              :      * Requirements:</span>
+<span id="L271"><span class="lineNum">     271</span>              :      *</span>
+<span id="L272"><span class="lineNum">     272</span>              :      * - `ids` and `values` must have the same length.</span>
+<span id="L273"><span class="lineNum">     273</span>              :      * - `to` cannot be the zero address.</span>
+<span id="L274"><span class="lineNum">     274</span>              :      * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155BatchReceived} and return the</span>
+<span id="L275"><span class="lineNum">     275</span>              :      * acceptance magic value.</span>
+<span id="L276"><span class="lineNum">     276</span>              :      */</span>
+<span id="L277"><span class="lineNum">     277</span> <span class="tlaUNC tlaBgUNC">           0 :     function _mintBatch(address to, uint256[] memory ids, uint256[] memory values, bytes memory data) internal {</span></span>
+<span id="L278"><span class="lineNum">     278</span>              :         if (to == address(0)) {</span>
+<span id="L279"><span class="lineNum">     279</span>              :             revert ERC1155InvalidReceiver(address(0));</span>
+<span id="L280"><span class="lineNum">     280</span>              :         }</span>
+<span id="L281"><span class="lineNum">     281</span>              :         _updateWithAcceptanceCheck(address(0), to, ids, values, data);</span>
+<span id="L282"><span class="lineNum">     282</span>              :     }</span>
+<span id="L283"><span class="lineNum">     283</span>              : </span>
+<span id="L284"><span class="lineNum">     284</span>              :     /**</span>
+<span id="L285"><span class="lineNum">     285</span>              :      * @dev Destroys a `value` amount of tokens of type `id` from `from`</span>
+<span id="L286"><span class="lineNum">     286</span>              :      *</span>
+<span id="L287"><span class="lineNum">     287</span>              :      * Emits a {TransferSingle} event.</span>
+<span id="L288"><span class="lineNum">     288</span>              :      *</span>
+<span id="L289"><span class="lineNum">     289</span>              :      * Requirements:</span>
+<span id="L290"><span class="lineNum">     290</span>              :      *</span>
+<span id="L291"><span class="lineNum">     291</span>              :      * - `from` cannot be the zero address.</span>
+<span id="L292"><span class="lineNum">     292</span>              :      * - `from` must have at least `value` amount of tokens of type `id`.</span>
+<span id="L293"><span class="lineNum">     293</span>              :      */</span>
+<span id="L294"><span class="lineNum">     294</span> <span class="tlaUNC">           0 :     function _burn(address from, uint256 id, uint256 value) internal {</span></span>
+<span id="L295"><span class="lineNum">     295</span>              :         if (from == address(0)) {</span>
+<span id="L296"><span class="lineNum">     296</span>              :             revert ERC1155InvalidSender(address(0));</span>
+<span id="L297"><span class="lineNum">     297</span>              :         }</span>
+<span id="L298"><span class="lineNum">     298</span>              :         (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(id, value);</span>
+<span id="L299"><span class="lineNum">     299</span>              :         _updateWithAcceptanceCheck(from, address(0), ids, values, &quot;&quot;);</span>
+<span id="L300"><span class="lineNum">     300</span>              :     }</span>
+<span id="L301"><span class="lineNum">     301</span>              : </span>
+<span id="L302"><span class="lineNum">     302</span>              :     /**</span>
+<span id="L303"><span class="lineNum">     303</span>              :      * @dev xref:ROOT:erc1155.adoc#batch-operations[Batched] version of {_burn}.</span>
+<span id="L304"><span class="lineNum">     304</span>              :      *</span>
+<span id="L305"><span class="lineNum">     305</span>              :      * Emits a {TransferBatch} event.</span>
+<span id="L306"><span class="lineNum">     306</span>              :      *</span>
+<span id="L307"><span class="lineNum">     307</span>              :      * Requirements:</span>
+<span id="L308"><span class="lineNum">     308</span>              :      *</span>
+<span id="L309"><span class="lineNum">     309</span>              :      * - `from` cannot be the zero address.</span>
+<span id="L310"><span class="lineNum">     310</span>              :      * - `from` must have at least `value` amount of tokens of type `id`.</span>
+<span id="L311"><span class="lineNum">     311</span>              :      * - `ids` and `values` must have the same length.</span>
+<span id="L312"><span class="lineNum">     312</span>              :      */</span>
+<span id="L313"><span class="lineNum">     313</span> <span class="tlaUNC">           0 :     function _burnBatch(address from, uint256[] memory ids, uint256[] memory values) internal {</span></span>
+<span id="L314"><span class="lineNum">     314</span>              :         if (from == address(0)) {</span>
+<span id="L315"><span class="lineNum">     315</span>              :             revert ERC1155InvalidSender(address(0));</span>
+<span id="L316"><span class="lineNum">     316</span>              :         }</span>
+<span id="L317"><span class="lineNum">     317</span>              :         _updateWithAcceptanceCheck(from, address(0), ids, values, &quot;&quot;);</span>
+<span id="L318"><span class="lineNum">     318</span>              :     }</span>
+<span id="L319"><span class="lineNum">     319</span>              : </span>
+<span id="L320"><span class="lineNum">     320</span>              :     /**</span>
+<span id="L321"><span class="lineNum">     321</span>              :      * @dev Approve `operator` to operate on all of `owner` tokens</span>
+<span id="L322"><span class="lineNum">     322</span>              :      *</span>
+<span id="L323"><span class="lineNum">     323</span>              :      * Emits an {ApprovalForAll} event.</span>
+<span id="L324"><span class="lineNum">     324</span>              :      *</span>
+<span id="L325"><span class="lineNum">     325</span>              :      * Requirements:</span>
+<span id="L326"><span class="lineNum">     326</span>              :      *</span>
+<span id="L327"><span class="lineNum">     327</span>              :      * - `operator` cannot be the zero address.</span>
+<span id="L328"><span class="lineNum">     328</span>              :      */</span>
+<span id="L329"><span class="lineNum">     329</span> <span class="tlaUNC">           0 :     function _setApprovalForAll(address owner, address operator, bool approved) internal virtual {</span></span>
+<span id="L330"><span class="lineNum">     330</span>              :         if (operator == address(0)) {</span>
+<span id="L331"><span class="lineNum">     331</span>              :             revert ERC1155InvalidOperator(address(0));</span>
+<span id="L332"><span class="lineNum">     332</span>              :         }</span>
+<span id="L333"><span class="lineNum">     333</span>              :         _operatorApprovals[owner][operator] = approved;</span>
+<span id="L334"><span class="lineNum">     334</span>              :         emit ApprovalForAll(owner, operator, approved);</span>
+<span id="L335"><span class="lineNum">     335</span>              :     }</span>
+<span id="L336"><span class="lineNum">     336</span>              : </span>
+<span id="L337"><span class="lineNum">     337</span>              :     /**</span>
+<span id="L338"><span class="lineNum">     338</span>              :      * @dev Creates an array in memory with only one value for each of the elements provided.</span>
+<span id="L339"><span class="lineNum">     339</span>              :      */</span>
+<span id="L340"><span class="lineNum">     340</span> <span class="tlaGNC tlaBgGNC">          52 :     function _asSingletonArrays(uint256 element1, uint256 element2)</span></span>
+<span id="L341"><span class="lineNum">     341</span>              :         private</span>
+<span id="L342"><span class="lineNum">     342</span>              :         pure</span>
+<span id="L343"><span class="lineNum">     343</span>              :         returns (uint256[] memory array1, uint256[] memory array2)</span>
+<span id="L344"><span class="lineNum">     344</span>              :     {</span>
+<span id="L345"><span class="lineNum">     345</span> <span class="tlaGNC">          52 :         /// @solidity memory-safe-assembly</span></span>
+<span id="L346"><span class="lineNum">     346</span> <span class="tlaGNC">          52 :         assembly {</span></span>
+<span id="L347"><span class="lineNum">     347</span> <span class="tlaGNC">          52 :             // Load the free memory pointer</span></span>
+<span id="L348"><span class="lineNum">     348</span> <span class="tlaGNC">          52 :             array1 := mload(0x40)</span></span>
+<span id="L349"><span class="lineNum">     349</span> <span class="tlaGNC">          52 :             // Set array length to 1</span></span>
+<span id="L350"><span class="lineNum">     350</span> <span class="tlaGNC">          52 :             mstore(array1, 1)</span></span>
+<span id="L351"><span class="lineNum">     351</span> <span class="tlaGNC">          52 :             // Store the single element at the next word after the length (where content starts)</span></span>
+<span id="L352"><span class="lineNum">     352</span> <span class="tlaGNC">          52 :             mstore(add(array1, 0x20), element1)</span></span>
+<span id="L353"><span class="lineNum">     353</span> <span class="tlaGNC">          52 : </span></span>
+<span id="L354"><span class="lineNum">     354</span> <span class="tlaGNC">          52 :             // Repeat for next array locating it right after the first array</span></span>
+<span id="L355"><span class="lineNum">     355</span> <span class="tlaGNC">          52 :             array2 := add(array1, 0x40)</span></span>
+<span id="L356"><span class="lineNum">     356</span> <span class="tlaGNC">          52 :             mstore(array2, 1)</span></span>
+<span id="L357"><span class="lineNum">     357</span> <span class="tlaGNC">          52 :             mstore(add(array2, 0x20), element2)</span></span>
+<span id="L358"><span class="lineNum">     358</span> <span class="tlaGNC">          52 : </span></span>
+<span id="L359"><span class="lineNum">     359</span> <span class="tlaGNC">          52 :             // Update the free memory pointer by pointing after the second array</span></span>
+<span id="L360"><span class="lineNum">     360</span> <span class="tlaGNC">          52 :             mstore(0x40, add(array2, 0x40))</span></span>
+<span id="L361"><span class="lineNum">     361</span> <span class="tlaGNC">          52 :         }</span></span>
+<span id="L362"><span class="lineNum">     362</span>              :     }</span>
+<span id="L363"><span class="lineNum">     363</span>              : }</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

@@ -1,0 +1,1 @@
+genhtml filtered/DNSTLDResolver.info --flat --source-directory ../ --output-directory reports/DNSTLDResolver/
