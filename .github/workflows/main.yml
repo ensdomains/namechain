@@ -5,7 +5,6 @@ on:
     branches: [main]
     tags: ["v*"]
   pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,7 +13,7 @@ permissions:
 
 jobs:
   test:
-    name: Contract Tests
+    name: Contract tests
     runs-on: ubuntu-latest
     steps:
       - name: Install lcov
@@ -58,7 +57,7 @@ jobs:
           path: contracts/coverage/reports/
 
   deploy:
-    name: Coverage Reports
+    name: Coverage reports
     runs-on: ubuntu-latest
     needs: test
     steps:
