@@ -1,0 +1,1 @@
+genhtml ./coverage/filtered-all.lcov --flat --output-directory ./coverage/reports/all

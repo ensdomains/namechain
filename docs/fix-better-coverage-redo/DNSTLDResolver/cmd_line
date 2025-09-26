@@ -1,0 +1,1 @@
+genhtml ./coverage/filtered-DNSTLDResolver.lcov --flat --output-directory ./coverage/reports/DNSTLDResolver
