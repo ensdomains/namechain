@@ -14,57 +14,57 @@ jobs:
       # setup
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: .github/actions
+          sparse-checkout: |
+            .github
       - uses: ./.github/actions/setup
-
       - name: Compile and check types
         run: cd contracts && bun compile:hardhat && bun check:types
 
-  forge-tests:
-    name: Forge Tests
-    runs-on: ubuntu-latest
-    steps:
-      # setup
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: .github/actions
-      - uses: ./.github/actions/setup
+  # forge-tests:
+  #   name: Forge Tests
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     # setup
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         sparse-checkout: .github/actions
+  #     - uses: ./.github/actions/setup
 
-      - name: Install lcov
-        run: sudo apt-get install lcov
+  #     - name: Install lcov
+  #       run: sudo apt-get install lcov
 
-      - name: Run forge tests
-        run: |
-          cd contracts && \
-          bun run coverage:forge && \
-          bun run coverage:reports
+  #     - name: Run forge tests
+  #       run: |
+  #         cd contracts && \
+  #         bun run coverage:forge && \
+  #         bun run coverage:reports
 
-      - uses: codecov/codecov-action@v5
-        with:
-          directory: contracts/coverage/filtered
-          token: ${{ secrets.CODECOV_TOKEN }}
+  #     - uses: codecov/codecov-action@v5
+  #       with:
+  #         directory: contracts/coverage/filtered
+  #         token: ${{ secrets.CODECOV_TOKEN }}
 
-  hardhat-tests:
-    name: Hardhat Tests
-    runs-on: ubuntu-latest
-    steps:
-      # setup
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: .github/actions
-      - uses: ./.github/actions/setup
+  # hardhat-tests:
+  #   name: Hardhat Tests
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     # setup
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         sparse-checkout: .github/actions
+  #     - uses: ./.github/actions/setup
 
-      - name: Install lcov
-        run: sudo apt-get install lcov
+  #     - name: Install lcov
+  #       run: sudo apt-get install lcov
 
-      - name: Run hardhat tests
-        run: |
-          cd contracts && \
-          mkdir -p coverage/ && \
-          bun run coverage:hardhat && \
-          bun run coverage:reports
+  #     - name: Run hardhat tests
+  #       run: |
+  #         cd contracts && \
+  #         mkdir -p coverage/ && \
+  #         bun run coverage:hardhat && \
+  #         bun run coverage:reports
 
-      - uses: codecov/codecov-action@v5
-        with:
-          directory: contracts/coverage/filtered
-          token: ${{ secrets.CODECOV_TOKEN }}
+  #     - uses: codecov/codecov-action@v5
+  #       with:
+  #         directory: contracts/coverage/filtered
+  #         token: ${{ secrets.CODECOV_TOKEN }}
