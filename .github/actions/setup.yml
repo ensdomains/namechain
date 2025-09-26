@@ -1,0 +1,31 @@
+name: "Setup Environment"
+description: "Sets up git, bun, forge, node"
+runs:
+  using: composite
+  steps:
+    - name: Cache git folder
+      uses: actions/cache@v4
+      with:
+        path: .git
+        key: git-folder
+
+    - name: Checkout repo
+      uses: actions/checkout@v4
+      with:
+        submodules: "recursive"
+
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: ".nvmrc"
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version-file: ".bun-version"
+
+    - name: Install dependencies
+      run: bun install --frozen-lockfile

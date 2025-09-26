@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { readdirSync, mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync } from "node:fs";
 
 const EXT = ".info";
 const cwd = new URL("../coverage/", import.meta.url);
@@ -22,7 +22,6 @@ for (const name of found) {
     `lcov --ignore-errors unused,unused --remove ${name} "lib/*" "*test*" "*mock*" --output-file ${N(name)}`,
     { cwd },
   );
-  createReport(name);
 }
 
 // generate combined report
@@ -31,17 +30,7 @@ execSync(
   `lcov --ignore-errors inconsistent,unused --rc branch_coverage=1 --add-tracefile "${N("*")}" --output-file ${N(name)}`,
   { cwd },
 );
-createReport(name);
 
 function N(name: string) {
   return `filtered/${name}`;
-}
-
-function createReport(name: string) {
-  const title = name.replace(EXT, "");
-  execSync(
-    `genhtml ${N(name)} --flat --source-directory ../ --output-directory reports/${title}/`,
-    { cwd },
-  );
-  console.log(`Wrote: ${title}`);
 }
