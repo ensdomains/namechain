@@ -263,7 +263,7 @@ contract TestMigratedWrappedNameRegistry is Test {
         assertEq(registry.getResolver(testLabel), mockResolver, "Should use registered resolver");
         
         // Update resolver
-        (uint256 tokenId,,) = registry.getNameData(testLabel);
+        (uint256 tokenId,) = registry.getNameData(testLabel);
         vm.prank(user);
         registry.setResolver(tokenId, address(0x9999));
         assertEq(registry.getResolver(testLabel), address(0x9999), "Should use updated resolver");
@@ -768,7 +768,8 @@ contract TestMigratedWrappedNameRegistry is Test {
         );
         
         // Verify re-registration succeeded with new owner
-        (uint256 newTokenId, uint64 expires, ) = registry.getNameData(label);
+        (uint256 newTokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        uint64 expires = entry.expiry;
         assertGt(expires, block.timestamp);
         assertEq(registry.ownerOf(newTokenId), address(0x5678));
     }
@@ -797,7 +798,8 @@ contract TestMigratedWrappedNameRegistry is Test {
         );
         
         // Verify registration succeeded
-        (, uint64 expires, ) = registry.getNameData(label);
+        (, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        uint64 expires = entry.expiry;
         assertGt(expires, block.timestamp);
     }
 

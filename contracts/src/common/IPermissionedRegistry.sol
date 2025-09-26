@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 import {IStandardRegistry} from "./IStandardRegistry.sol";
 import {ITokenObserver} from "./ITokenObserver.sol";
 import {IEnhancedAccessControl} from "./IEnhancedAccessControl.sol";
+import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 
 interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     /**
@@ -31,13 +32,12 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
      * @dev Fetches the name data for a label.
      * @param label The label to fetch the name data for.
      * @return tokenId The token ID of the name.
-     * @return expiry The expiry date of the name.
-     * @return tokenIdVersion The token ID version of the name.
+     * @return entry The entry data for the name.
      */
     function getNameData(
         string calldata label
     )
         external
         view
-        returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion);
+        returns (uint256 tokenId, IRegistryDatastore.Entry memory entry);
 }
