@@ -513,6 +513,19 @@ contract TestETHRegistrar is Test {
         this._renew(args);
     }
 
+    function test_Revert_renew_0duration() external {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        this._register(args);
+        args.duration = 0;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IRentPriceOracle.NotValid.selector,
+                args.label
+            )
+        );
+        this._renew(args);
+    }
+
     function test_Revert_renew_insufficientAllowance() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         this._register(args);
@@ -628,7 +641,7 @@ contract TestETHRegistrar is Test {
     function test_registered_name_has_transfer_role() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         uint256 tokenId = this._register(args);
-        
+
         assertTrue(
             ethRegistry.hasRoles(
                 NameUtils.getCanonicalId(tokenId),
@@ -643,10 +656,14 @@ contract TestETHRegistrar is Test {
         RegisterArgs memory args = _defaultRegisterArgs();
         uint256 tokenId = this._register(args);
         address newOwner = makeAddr("newOwner");
-        
+
         vm.prank(args.owner);
         ethRegistry.safeTransferFrom(args.owner, newOwner, tokenId, 1, "");
-        
-        assertEq(ethRegistry.ownerOf(tokenId), newOwner, "Token should be transferred to new owner");
+
+        assertEq(
+            ethRegistry.ownerOf(tokenId),
+            newOwner,
+            "Token should be transferred to new owner"
+        );
     }
 }
