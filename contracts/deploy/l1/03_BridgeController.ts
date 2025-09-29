@@ -4,48 +4,48 @@ import { ROLES } from "../constants.js";
 export default execute(
   async ({ deploy, execute: write, get, namedAccounts: { deployer} }) => {
 
-    const l1EthRegistry =
+    const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
     // TODO: real bridge
-    const l1Bridge =
-      get<(typeof artifacts.MockL1Bridge)["abi"]>("MockL1Bridge");
+    const bridge =
+      get<(typeof artifacts.MockL1Bridge)["abi"]>("MockBridge");
 
-    const l1BridgeController = await deploy("L1BridgeController", {
+    const bridgeController = await deploy("BridgeController", {
       account: deployer,
       artifact: artifacts.L1BridgeController,
-      args: [l1EthRegistry.address, l1Bridge.address],
+      args: [ethRegistry.address, bridge.address],
     });
 
     // Set the bridge controller on the bridge
-    await write(l1Bridge, {
+    await write(bridge, {
       functionName: "setBridgeController",
-      args: [l1BridgeController.address],
+      args: [bridgeController.address],
       account: deployer,
     });
 
     // Grant registrar and renew roles to the bridge controller on the eth registry
-    await write(l1EthRegistry, {
+    await write(ethRegistry, {
       functionName: "grantRootRoles",
       args: [
         ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW | ROLES.OWNER.EAC.BURN,
-        l1BridgeController.address,
+        bridgeController.address,
       ],
       account: deployer,
     });
 
     // Grant bridge roles to the bridge on the bridge controller
-    await write(l1BridgeController, {
+    await write(bridgeController, {
       functionName: "grantRootRoles",
       args: [
         ROLES.OWNER.BRIDGE.EJECTOR,
-        l1Bridge.address,
+        bridge.address,
       ],
       account: deployer,
     });
   },
   {
-    tags: ["L1BridgeController", "registry", "l1"],
-    dependencies: ["L1ETHRegistry", "MockL1Bridge"],
+    tags: ["BridgeController", "l1"],
+    dependencies: ["ETHRegistry", "MockBridge"],
   },
 );

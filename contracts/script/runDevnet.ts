@@ -1,7 +1,7 @@
 import { getAddress, toHex } from "viem";
 import { setupCrossChainEnvironment } from "./setup.js";
-import { createMockRelay } from "./mockRelay.js";
 import { registerTestNames } from "./testNames.js";
+import { setupMockRelay } from "./mockRelay.ts";
 
 const t0 = Date.now();
 
@@ -29,7 +29,7 @@ process.once("uncaughtException", async (err) => {
   throw err;
 });
 
-createMockRelay(env);
+setupMockRelay(env);
 
 console.log();
 console.log("Available Named Accounts:");
@@ -50,7 +50,7 @@ console.log("Unruggable Gateway:", (({ gateway, ...a }) => a)(env.urg));
 
 for (const lx of [env.l1, env.l2]) {
   console.table(
-    Object.entries(lx.deployments).map(([name, address]) => ({
+    Object.entries(lx.env.deployments).map(([name, { address }]) => ({
       [lx.client.chain.name]: name,
       "Contract Address": getAddress(address),
     })),

@@ -3,7 +3,6 @@ import { type Address, labelhash, zeroAddress } from "viem";
 import { deployVerifiableProxy } from "./deployVerifiableProxy.js";
 import { splitName } from "../utils/utils.js";
 import { ROLES } from "../../deploy/constants.js";
-export { ROLES };
 
 export const MAX_EXPIRY = (1n << 64n) - 1n; // see: DatastoreUtils.sol
 

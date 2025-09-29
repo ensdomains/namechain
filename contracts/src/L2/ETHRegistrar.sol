@@ -11,12 +11,14 @@ import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {EnhancedAccessControl, LibEACBaseRoles} from "../common/EnhancedAccessControl.sol";
 import {LibRegistryRoles} from "../common/LibRegistryRoles.sol";
 
-uint256 constant REGISTRATION_ROLE_BITMAP = LibRegistryRoles
-    .ROLE_SET_SUBREGISTRY |
+uint256 constant REGISTRATION_ROLE_BITMAP = 0 |
+    LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN |
+    LibRegistryRoles.ROLE_SET_SUBREGISTRY |
     LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN |
     LibRegistryRoles.ROLE_SET_RESOLVER |
     LibRegistryRoles.ROLE_SET_RESOLVER_ADMIN |
-    LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN;
+    LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
+    LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN;
 
 uint256 constant ROLE_SET_ORACLE = 1 << 0;
 
@@ -230,7 +232,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IERC20 paymentToken,
         bytes32 referrer
     ) external {
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = registry
+            .getNameData(label);
         uint64 oldExpiry = entry.expiry;
         if (_isAvailable(oldExpiry)) {
             revert NameNotRegistered(label);

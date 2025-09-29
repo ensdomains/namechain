@@ -135,7 +135,6 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder {
         controller = new L1LockedMigrationController(
             IBaseRegistrar(address(baseRegistrar)),
             INameWrapper(address(nameWrapper)),
-            bridge,
             bridgeController,
             factory,
             address(implementation)

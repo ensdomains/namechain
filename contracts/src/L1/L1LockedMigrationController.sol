@@ -31,15 +31,14 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
 
     constructor(
         IBaseRegistrar _ethRegistryV1, 
-        INameWrapper _nameWrapper, 
-        IBridge _bridge, 
+        INameWrapper _nameWrapper,
         L1BridgeController _l1BridgeController,
         VerifiableFactory _factory,
         address _migratedRegistryImplementation
     ) Ownable(msg.sender) {
         ethRegistryV1 = _ethRegistryV1;
         nameWrapper = _nameWrapper;
-        bridge = _bridge;
+        bridge = _l1BridgeController.bridge();
         l1BridgeController = _l1BridgeController;
         factory = _factory;
         migratedRegistryImplementation = _migratedRegistryImplementation;

@@ -30,6 +30,8 @@ abstract contract MockBridgeBase is IBridge {
         } else if (messageType == BridgeMessageType.RENEWAL) {
             (uint256 tokenId, uint64 newExpiry) = BridgeEncoder.decodeRenewal(message);
             _handleRenewalMessage(tokenId, newExpiry);
+        } else {
+            revert("invalid message");
         }
         
         // Emit event for tracking
