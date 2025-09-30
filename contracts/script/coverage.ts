@@ -1,36 +1,38 @@
 import { execSync } from "node:child_process";
-import { mkdirSync, readdirSync, rmSync } from "node:fs";
+import { readdirSync, rmSync } from "node:fs";
 
-const EXT = ".lcov";
-const cwd = new URL("../coverage/", import.meta.url);
+const SUFFIX = ".lcov";
+const PREFIX = "filtered-";
+const DIR = "./coverage/";
+
+const rootDir = new URL("../", import.meta.url);
+const coverageDir = new URL(DIR, rootDir);
 
 // find coverage files
-const found = readdirSync(cwd).filter((x) => x.endsWith(EXT));
+const found: string[] = [];
+for (const name of readdirSync(coverageDir)) {
+  if (name.startsWith(PREFIX)) {
+    rmSync(new URL(name, coverageDir)); // clean filtered files
+  } else if (name.endsWith(SUFFIX)) {
+    found.push(name);
+  }
+}
 if (!found.length) {
   throw new Error("no coverage files, execute: bun run coverage");
 }
 console.table(found);
 
-// clean filtered directory
-const filteredDir = new URL(N(""), cwd);
-rmSync(filteredDir, { recursive: true, force: true });
-mkdirSync(filteredDir, { recursive: true });
-
 // generate individual reports
 for (const name of found) {
   execSync(
-    `lcov --ignore-errors unused,unused --remove ${name} "lib/*" "*test*" "*mock*" --output-file ${N(name)}`,
-    { cwd },
+    `lcov --ignore-errors unused,unused --remove ${DIR}${name} "lib/*" "*test*" "*mock*" --output-file ${DIR}${PREFIX}${name}`,
+    { cwd: rootDir },
   );
 }
 
 // generate combined report
-const name = `all${EXT}`;
+const name = `all${SUFFIX}`;
 execSync(
-  `lcov --ignore-errors inconsistent,unused --rc branch_coverage=1 --add-tracefile "${N("*")}" --output-file ${N(name)}`,
-  { cwd },
+  `lcov --ignore-errors inconsistent,unused --rc branch_coverage=1 --add-tracefile "${DIR}${PREFIX}*${SUFFIX}" --output-file ${DIR}${PREFIX}${name}`,
+  { cwd: rootDir },
 );
-
-function N(name: string) {
-  return `filtered/${name}`;
-}

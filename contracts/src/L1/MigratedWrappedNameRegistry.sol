@@ -90,7 +90,8 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
 
     function getResolver(string calldata label) external view override returns (address) {
         uint256 canonicalId = NameUtils.labelToCanonicalId(label);
-        (, uint64 expires, ) = datastore.getSubregistry(canonicalId);
+        IRegistryDatastore.Entry memory entry = datastore.getEntry(address(this), canonicalId);
+        uint64 expires = entry.expiry;
         
         // Use fallback resolver for unregistered names
         if (expires == 0) {
@@ -112,8 +113,7 @@ contract MigratedWrappedNameRegistry is Initializable, PermissionedRegistry, UUP
         }
         
         // Return the configured resolver for registered names
-        (address resolver, ) = datastore.getResolver(canonicalId);
-        return resolver;
+        return entry.resolver;
     }
     
     /**

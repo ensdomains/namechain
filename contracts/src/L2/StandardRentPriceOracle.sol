@@ -7,6 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IPermissionedRegistry} from "../common/IPermissionedRegistry.sol";
+import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
 import {IRentPriceOracle} from "./IRentPriceOracle.sol";
 import {HalvingUtils} from "../common/HalvingUtils.sol";
 import {StringUtils} from "@ens/contracts/utils/StringUtils.sol";
@@ -288,7 +289,8 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
         if (baseUnits == 0) {
             revert NotValid(label);
         }
-        (uint256 tokenId, uint64 oldExpiry, ) = registry.getNameData(label);
+        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        uint64 oldExpiry = entry.expiry;
         uint64 t = oldExpiry > block.timestamp
             ? oldExpiry - uint64(block.timestamp)
             : 0;
