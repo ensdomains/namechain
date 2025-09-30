@@ -341,4 +341,4 @@ class ImportOrderSeparationRule {
   }
 }
 
-module.exports = [ImportOrderSeparationRule];
+module.exports = ImportOrderSeparationRule;
