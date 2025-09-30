@@ -88,14 +88,8 @@ class ImportOrderSeparationRule {
    */
   constructor(reporter, config) {
     this.reporter = reporter;
-    // Accept both object config or array-like [severity, options]
-    let options = config;
-    if (Array.isArray(config)) {
-      options = config[1];
-    }
-    if (options && Array.isArray(options.importOrder)) {
-      this.importOrder = options.importOrder;
-    }
+    this.importOrder =
+      config && config.getObject(`namechain/${this.ruleId}`, {}).importOrder;
   }
 
   /**
@@ -274,24 +268,15 @@ class ImportOrderSeparationRule {
      * @param {string} path
      * @returns {number}
      */
+    const regexOrder = this.importOrder.map((regex, i, arr) => [
+      new RegExp(regex),
+      (arr.length - i) * -10000,
+    ]);
     function getHierarchyLevel(path) {
-      const protocolOrder = {
-        "@": -40000,
-        "http://": -30000,
-        "https://": -20000,
-        folderPath: -10000,
-      };
-      for (const protocol in protocolOrder) {
-        if (protocol !== "folderPath" && path.startsWith(protocol)) {
-          return protocolOrder[protocol];
+      for (const [regex, order] of regexOrder) {
+        if (regex.test(path)) {
+          return order;
         }
-      }
-      if (!path.startsWith("./") && /^[a-zA-Z0-9]/.test(path)) {
-        return protocolOrder.folderPath;
-      }
-      if (path.startsWith("./")) {
-        const depth = path.split("/").filter((part) => part === "..").length;
-        return -depth;
       }
       return Infinity;
     }

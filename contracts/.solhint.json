@@ -63,7 +63,7 @@
     "namechain/import-order-separation": [
       "error",
       {
-        "importOrder": ["^@?\\w", "^\\.\\./", "^\\./"]
+        "importOrder": ["^forge-std/", "^@?\\w", "^\\.\\./", "^\\./"]
       }
     ]
   }

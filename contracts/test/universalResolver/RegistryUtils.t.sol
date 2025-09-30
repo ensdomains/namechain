@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
+
 import {Test} from "forge-std/Test.sol";
+
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import {RegistryUtils, IRegistry, NameCoder} from "../../src/universalResolver/RegistryUtils.sol";
-import {PermissionedRegistry, IRegistryMetadata} from "../../src/common/PermissionedRegistry.sol";
-import {RegistryDatastore} from "../../src/common/RegistryDatastore.sol";
-import {LibEACBaseRoles} from "../../src/common/EnhancedAccessControl.sol";
+
+import {LibEACBaseRoles} from "./../../src/common/EnhancedAccessControl.sol";
+import {PermissionedRegistry, IRegistryMetadata} from "./../../src/common/PermissionedRegistry.sol";
+import {RegistryDatastore} from "./../../src/common/RegistryDatastore.sol";
+import {RegistryUtils, IRegistry, NameCoder} from "./../../src/universalResolver/RegistryUtils.sol";
 
 contract TestRegistryUtils is Test, ERC1155Holder {
     RegistryDatastore datastore;
@@ -59,10 +63,7 @@ contract TestRegistryUtils is Test, ERC1155Holder {
         assertEq(RegistryUtils.readLabel(name, 9), ""); // 4test3eth
     }
 
-    function _readLabel(
-        bytes memory name,
-        uint256 offset
-    ) public pure returns (string memory) {
+    function _readLabel(bytes memory name, uint256 offset) public pure returns (string memory) {
         return RegistryUtils.readLabel(name, offset);
     }
     function test_Revert_readLabel_invalidOffset() external {
@@ -84,8 +85,11 @@ contract TestRegistryUtils is Test, ERC1155Holder {
         address parentRegistry,
         IRegistry[] memory registries
     ) internal view {
-        (, address resolver, bytes32 node, uint256 offset) = RegistryUtils
-            .findResolver(rootRegistry, name, 0);
+        (, address resolver, bytes32 node, uint256 offset) = RegistryUtils.findResolver(
+            rootRegistry,
+            name,
+            0
+        );
         assertEq(resolver, resolverAddress, "resolver");
         assertEq(node, NameCoder.namehash(name, 0), "node");
         assertEq(offset, resolverOffset, "offset");
@@ -97,9 +101,7 @@ contract TestRegistryUtils is Test, ERC1155Holder {
         uint256 i;
         for (offset = 0; i < registries.length; i++) {
             assertEq(
-                address(
-                    RegistryUtils.findExactRegistry(rootRegistry, name, offset)
-                ),
+                address(RegistryUtils.findExactRegistry(rootRegistry, name, offset)),
                 address(registries[i]),
                 "exact"
             );
