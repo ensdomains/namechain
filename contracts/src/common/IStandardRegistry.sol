@@ -51,6 +51,10 @@ interface IStandardRegistry is IRegistry {
      */
     error TransferDisallowed(uint256 tokenId, address from);
 
+    ////////////////////////////////////////////////////////////////////////
+    // Functions
+    ////////////////////////////////////////////////////////////////////////
+
     /**
      * @dev Registers a new name.
      * @param label The label to register.

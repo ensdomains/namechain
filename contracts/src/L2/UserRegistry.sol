@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {SimpleRegistryMetadata} from "../common/SimpleRegistryMetadata.sol";
-import {PermissionedRegistry} from "../common/PermissionedRegistry.sol";
-import {IRegistryDatastore} from "../common/IRegistryDatastore.sol";
-import {IRegistryMetadata} from "../common/IRegistryMetadata.sol";
-import {IRegistry} from "../common/IRegistry.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
+import {IRegistryDatastore} from "./../common/IRegistryDatastore.sol";
+import {IRegistryMetadata} from "./../common/IRegistryMetadata.sol";
+import {PermissionedRegistry} from "./../common/PermissionedRegistry.sol";
 
 /**
  * @title UserRegistry
@@ -15,44 +14,61 @@ import {IRegistry} from "../common/IRegistry.sol";
  * This contract is designed to be deployed via the VerifiableFactory.
  */
 contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
-    uint256 internal constant ROLE_UPGRADE = 1 << 20;
-    uint256 internal constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
+    ////////////////////////////////////////////////////////////////////////
+    // Constants
+    ////////////////////////////////////////////////////////////////////////
 
-    constructor(IRegistryDatastore _datastore, IRegistryMetadata _metadataProvider) PermissionedRegistry(_datastore, _metadataProvider, _msgSender(), 0) {
+    uint256 internal constant _ROLE_UPGRADE = 1 << 20;
+    uint256 internal constant _ROLE_UPGRADE_ADMIN = _ROLE_UPGRADE << 128;
+
+    ////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////
+
+    constructor(
+        IRegistryDatastore datastore_,
+        IRegistryMetadata metadataProvider_
+    ) PermissionedRegistry(datastore_, metadataProvider_, _msgSender(), 0) {
         // This disables initialization for the implementation contract
         _disableInitializers();
     }
 
     /**
      * @dev Initializes the UserRegistry contract.
-     * @param _deployerRoles The roles to grant to the deployer.
-     * @param _admin The address that will be set as the admin with upgrade privileges.
+     * @param deployerRoles_ The roles to grant to the deployer.
+     * @param admin_ The address that will be set as the admin with upgrade privileges.
      */
-    function initialize(
-        uint256 _deployerRoles,
-        address _admin
-    ) public initializer {
-        require(_admin != address(0), "Admin cannot be zero address");
-        
-        // Datastore and metadata provider are set immutably in constructor
-        
-        // Grant deployer roles to the admin
-        _grantRoles(ROOT_RESOURCE, _deployerRoles, _admin, false);
-    }
+    function initialize(uint256 deployerRoles_, address admin_) public initializer {
+        // TODO: custom error
+        require(admin_ != address(0), "Admin cannot be zero address");
 
-    /**
-     * @dev Function that authorizes an upgrade to a new implementation.
-     * Only accounts with the ROLE_UPGRADE_ADMIN role can upgrade the contract.
-     * @param newImplementation The address of the new implementation.
-     */
-    function _authorizeUpgrade(address newImplementation) internal override onlyRootRoles(ROLE_UPGRADE) {
-        // Authorization is handled by the onlyRootRoles modifier
+        // Datastore and metadata provider are set immutably in constructor
+
+        // Grant deployer roles to the admin
+        _grantRoles(ROOT_RESOURCE, deployerRoles_, admin_, false);
     }
 
     /**
      * @dev See {IERC165-supportsInterface}.
      */
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
-        return interfaceId == type(UUPSUpgradeable).interfaceId || super.supportsInterface(interfaceId);
+        return
+            interfaceId == type(UUPSUpgradeable).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+    // Implementation
+    ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @dev Function that authorizes an upgrade to a new implementation.
+     *      Only accounts with the _ROLE_UPGRADE_ADMIN role can upgrade the contract.
+     * @param newImplementation The address of the new implementation.
+     */
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyRootRoles(_ROLE_UPGRADE) {
+        // Authorization is handled by the onlyRootRoles modifier
     }
 }
