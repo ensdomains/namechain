@@ -39,6 +39,7 @@ jobs:
         with:
           directory: contracts/coverage/filtered
           token: ${{ secrets.CODECOV_TOKEN }}
+          flags: unit
 
   hardhat-tests:
     name: Hardhat Tests
@@ -62,3 +63,4 @@ jobs:
         with:
           directory: contracts/coverage/filtered
           token: ${{ secrets.CODECOV_TOKEN }}
+          flags: integration
