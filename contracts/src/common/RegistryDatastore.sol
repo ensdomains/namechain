@@ -5,28 +5,29 @@ import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {NameUtils} from "./NameUtils.sol";
 
 contract RegistryDatastore is IRegistryDatastore {
-    mapping(address registry => mapping(uint256 id => Entry)) entries;
+    ////////////////////////////////////////////////////////////////////////
+    // Storage
+    ////////////////////////////////////////////////////////////////////////
 
-    function getEntry(address registry, uint256 id)
-        external
-        view
-        returns (Entry memory)
-    {
-        return entries[registry][NameUtils.getCanonicalId(id)];
-    }
+    mapping(address registry => mapping(uint256 id => Entry)) private _entries;
 
+    ////////////////////////////////////////////////////////////////////////
+    // Implementation
+    ////////////////////////////////////////////////////////////////////////
 
-    function setEntry(address registry, uint256 id, Entry calldata entry)
-        external
-    {
-        entries[registry][NameUtils.getCanonicalId(id)] = entry;
+    function setEntry(address registry, uint256 id, Entry calldata entry) external {
+        _entries[registry][NameUtils.getCanonicalId(id)] = entry;
     }
 
     function setSubregistry(uint256 id, address subregistry) external {
-        entries[msg.sender][NameUtils.getCanonicalId(id)].subregistry = subregistry;
+        _entries[msg.sender][NameUtils.getCanonicalId(id)].subregistry = subregistry;
     }
 
     function setResolver(uint256 id, address resolver) external {
-        entries[msg.sender][NameUtils.getCanonicalId(id)].resolver = resolver;
+        _entries[msg.sender][NameUtils.getCanonicalId(id)].resolver = resolver;
+    }
+
+    function getEntry(address registry, uint256 id) external view returns (Entry memory) {
+        return _entries[registry][NameUtils.getCanonicalId(id)];
     }
 }

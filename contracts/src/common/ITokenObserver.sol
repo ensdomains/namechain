@@ -12,4 +12,4 @@ interface ITokenObserver {
      * @param renewedBy The address that renewed the token.
      */
     function onRenew(uint256 tokenId, uint64 expires, address renewedBy) external;
-} 
+}

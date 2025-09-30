@@ -8,6 +8,24 @@ import {IRegistry} from "./IRegistry.sol";
  * @dev Interface for the a standard registry.
  */
 interface IStandardRegistry is IRegistry {
+    ////////////////////////////////////////////////////////////////////////
+    // Events
+    ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @dev Event emitted when a name is renewed.
+     */
+    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
+
+    /**
+     * @dev Event emitted when a name is burned.
+     */
+    event NameBurned(uint256 indexed tokenId, address burnedBy);
+
+    ////////////////////////////////////////////////////////////////////////
+    // Errors
+    ////////////////////////////////////////////////////////////////////////
+
     /**
      * @dev Error emitted when a name is already registered.
      */
@@ -32,20 +50,6 @@ interface IStandardRegistry is IRegistry {
      * @dev Error emitted when a transfer is not allowed due to missing transfer admin role.
      */
     error TransferDisallowed(uint256 tokenId, address from);
-
-    /**
-     * @dev Event emitted when a name is renewed.
-     */
-    event NameRenewed(
-        uint256 indexed tokenId,
-        uint64 newExpiration,
-        address renewedBy
-    );
-
-    /**
-     * @dev Event emitted when a name is burned.
-     */
-    event NameBurned(uint256 indexed tokenId, address burnedBy);
 
     /**
      * @dev Registers a new name.
