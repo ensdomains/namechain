@@ -1,0 +1,70 @@
+{
+  "extends": "solhint:recommended",
+  "plugins": ["prettier", "namechain"],
+  "rules": {
+    "prettier/prettier": "error",
+    "compiler-version": ["error", ">=0.8.13"],
+    "no-unused-import": "error",
+    "no-global-import": "error",
+    "use-natspec": [
+      "off",
+      {
+        "title": {
+          "enabled": true,
+          "ignore": {}
+        },
+        "author": {
+          "enabled": true,
+          "ignore": {}
+        },
+        "notice": {
+          "enabled": true,
+          "ignore": {}
+        },
+        "param": {
+          "enabled": true,
+          "ignore": {}
+        },
+        "return": {
+          "enabled": true,
+          "ignore": {}
+        }
+      }
+    ],
+    "duplicated-imports": "error",
+    "const-name-snakecase": "error",
+    "contract-name-capwords": "error",
+    "func-name-mixedcase": "warn",
+    "func-visibility": [
+      "warn",
+      {
+        "ignoreConstructors": true
+      }
+    ],
+    "immutable-vars-naming": [
+      "error",
+      {
+        "immutablesAsConstants": true
+      }
+    ],
+    "modifier-name-mixedcase": "error",
+    "named-parameters-mapping": "error",
+    "private-vars-leading-underscore": [
+      "error",
+      {
+        "strict": true
+      }
+    ],
+    "imports-on-top": "error",
+    "imports-order": "off",
+    "import-path-check": "off",
+    "visibility-modifier-order": "error",
+    "namechain/ordering": "error",
+    "namechain/import-order-separation": [
+      "error",
+      {
+        "importOrder": ["^@?\\w", "^\\.\\./", "^\\./"]
+      }
+    ]
+  }
+}
