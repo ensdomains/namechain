@@ -6,9 +6,9 @@ pragma solidity >=0.8.13;
  */
 interface IMigratedWrappedNameRegistry {
     function initialize(
-        bytes calldata _parentDnsEncodedName,
-        address _ownerAddress,
-        uint256 _ownerRoles,
-        address _registrarAddress
+        bytes calldata parentDnsEncodedName_,
+        address ownerAddress_,
+        uint256 ownerRoles_,
+        address registrarAddress_
     ) external;
 }
