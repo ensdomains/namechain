@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {IRegistry} from "../common/IRegistry.sol";
+import {IRegistry} from "./../common/IRegistry.sol";
 import {IRentPriceOracle} from "./IRentPriceOracle.sol";
 
 /// @notice Interface for the ".eth" registrar which manages the ".eth" registry.
