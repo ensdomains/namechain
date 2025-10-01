@@ -11,6 +11,8 @@ const coverageDir = new URL(DIR, rootDir);
 
 if (!process.env.CC_TOKEN) throw new Error("CC_TOKEN is not set");
 
+let codecovPath = "./codecov";
+
 // check if codecov-cli is installed
 const codecov = await $`which codecov`.nothrow().quiet();
 if (codecov.exitCode !== 0) {
@@ -30,9 +32,12 @@ if (codecov.exitCode !== 0) {
   await $`shasum -a 256 -c codecov.SHA256SUM`;
 
   await $`chmod +x codecov`;
+} else {
+  codecovPath = "codecov";
 }
 
 const baseCmd = [
+  codecovPath,
   "upload-coverage",
   `-t ${process.env.CC_TOKEN}`,
   ...(process.env.CC_GIT_SERVICE
@@ -48,5 +53,5 @@ const coverageFiles = readdirSync(coverageDir).filter(
 for (const file of coverageFiles) {
   const flagName = basename(file, SUFFIX).replace(PREFIX, "");
   const filePath = join(coverageDir.pathname, file);
-  await $`./codecov ${baseCmd.join(" ")} --flag ${flagName} --file ${filePath}`;
+  await $`bash -c "${baseCmd.join(" ")} --flag ${flagName} --file ${filePath}"`;
 }
