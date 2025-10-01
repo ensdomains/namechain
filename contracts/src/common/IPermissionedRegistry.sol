@@ -1,26 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IStandardRegistry} from "./IStandardRegistry.sol";
-import {ITokenObserver} from "./ITokenObserver.sol";
 import {IEnhancedAccessControl} from "./IEnhancedAccessControl.sol";
 import {IRegistryDatastore} from "./IRegistryDatastore.sol";
+import {IStandardRegistry} from "./IStandardRegistry.sol";
+import {ITokenObserver} from "./ITokenObserver.sol";
 
 interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
+    ////////////////////////////////////////////////////////////////////////
+    // Events
+    ////////////////////////////////////////////////////////////////////////
+
     /**
      * @dev Event emitted when a token observer is set.
      */
     event TokenObserverSet(uint256 indexed tokenId, address observer);
+
+    ////////////////////////////////////////////////////////////////////////
+    // Functions
+    ////////////////////////////////////////////////////////////////////////
 
     /**
      * @dev Sets a token observer for a token.
      * @param tokenId The token ID of the token to set the observer for.
      * @param observer The observer to set.
      */
-    function setTokenObserver(
-        uint256 tokenId,
-        ITokenObserver observer
-    ) external;
+    function setTokenObserver(uint256 tokenId, ITokenObserver observer) external;
 
     /// @notice Get the latest owner of a token.
     ///         If the token was burned, returns null.
@@ -36,8 +41,5 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
      */
     function getNameData(
         string calldata label
-    )
-        external
-        view
-        returns (uint256 tokenId, IRegistryDatastore.Entry memory entry);
+    ) external view returns (uint256 tokenId, IRegistryDatastore.Entry memory entry);
 }

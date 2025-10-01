@@ -1,3 +1,4 @@
+import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
 import { serve } from "@namestone/ezccip/serve";
 import { BrowserProvider } from "ethers/providers";
 import hre from "hardhat";
@@ -14,9 +15,7 @@ import {
   toHex,
 } from "viem";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
-import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
 
-import { shouldSupportFeatures } from "./utils/supportsFeatures.js";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 import { deployArtifact } from "./fixtures/deployArtifact.js";
@@ -24,7 +23,7 @@ import { deployV1Fixture } from "./fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "./fixtures/deployV2Fixture.js";
 import { urgArtifact } from "./fixtures/externalArtifacts.js";
 import { expectVar } from "./utils/expectVar.js";
-import { dnsEncodeName, getLabelAt, splitName } from "./utils/utils.js";
+import { injectRPCCounter } from "./utils/hardhat-counter.js";
 import {
   COIN_TYPE_DEFAULT,
   COIN_TYPE_ETH,
@@ -33,7 +32,8 @@ import {
   bundleCalls,
   makeResolutions,
 } from "./utils/resolutions.js";
-import { injectRPCCounter } from "./utils/hardhat-counter.js";
+import { shouldSupportFeatures } from "./utils/supportsFeatures.js";
+import { dnsEncodeName, getLabelAt, splitName } from "./utils/utils.js";
 
 let urgCount = 0;
 const chain1 = injectRPCCounter(await hre.network.connect());
@@ -186,7 +186,7 @@ describe("ETHTLDResolver", () => {
           storage: [{ slot, label }],
         } = await hre.artifacts.getStorageLayout("RegistryDatastore");
         expectVar({ slot }).toStrictEqual("0");
-        expectVar({ label }).toStrictEqual("entries");
+        expectVar({ label }).toStrictEqual("_entries");
       });
     });
   });

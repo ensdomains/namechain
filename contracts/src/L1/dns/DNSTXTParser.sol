@@ -5,23 +5,23 @@ import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
 /// @notice Library for parsing ENS records from DNS TXT data.
 ///
-/// The record data consists of a series of key=value pairs, separated by spaces. Keys
-/// may have an optional argument in square brackets, and values may be either unquoted
-/// - in which case they may not contain spaces - or single-quoted. Single quotes in
-/// a quoted value may be backslash-escaped.
+///         The record data consists of a series of key=value pairs, separated by spaces. Keys
+///         may have an optional argument in square brackets, and values may be either unquoted
+///         - in which case they may not contain spaces - or single-quoted. Single quotes in
+///         a quoted value may be backslash-escaped.
 ///
-/// eg. `a=x`, `a[]=x`, `a[b]=x`, `a[b]='x y'`, `a[b]='x y\'s'`
+///         eg. `a=x`, `a[]=x`, `a[b]=x`, `a[b]='x y'`, `a[b]='x y\'s'`
 ///
-/// <records> ::= " "* <rr>* " "*
-///      <rr> ::= <r> | <r> <rr>
-///       <r> ::= <pk> | <kv>
-///      <pk> ::= <u> | <u> "[" <a> "]" <u>
-///      <kv> ::= <k> "=" <v>
-///       <k> ::= <u> | <u> "[" <a> "]"
-///       <v> ::= "'" <q> "'" | <u>
-///       <q> ::= <all octets except "'" unless preceded by "\">
-///       <u> ::= <all octets except " ">
-///       <a> ::= <all octets except "]">
+///         <records> ::= " "* <rr>* " "*
+///              <rr> ::= <r> | <r> <rr>
+///               <r> ::= <pk> | <kv>
+///              <pk> ::= <u> | <u> "[" <a> "]" <u>
+///              <kv> ::= <k> "=" <v>
+///               <k> ::= <u> | <u> "[" <a> "]"
+///               <v> ::= "'" <q> "'" | <u>
+///               <q> ::= <all octets except "'" unless preceded by "\">
+///               <u> ::= <all octets except " ">
+///               <a> ::= <all octets except "]">
 ///
 library DNSTXTParser {
     /// @dev The DFA internal states.
@@ -37,21 +37,20 @@ library DNSTXTParser {
         IGNORED_UNQUOTED_VALUE
     }
 
-    bytes1 constant CH_BACKSLASH = bytes1(0x5C); // "\"
-    bytes1 constant CH_QUOTE = "'";
-    bytes1 constant CH_SPACE = " ";
-    bytes1 constant CH_EQUAL = "=";
-    bytes1 constant CH_ARG_OPEN = "[";
-    bytes1 constant CH_ARG_CLOSE = "]";
+    bytes1 private constant CH_BACKSLASH = bytes1(0x5C); // "\"
+    bytes1 private constant CH_QUOTE = "'";
+    bytes1 private constant CH_SPACE = " ";
+    bytes1 private constant CH_EQUAL = "=";
+    bytes1 private constant CH_ARG_OPEN = "[";
+    bytes1 private constant CH_ARG_CLOSE = "]";
 
     /// @dev Implements a DFA to parse the text record, looking for an entry matching `key`.
+    ///
     /// @param data The text record to parse.
     /// @param key The exact key to search for with trailing equals, eg. "key=".
+    ///
     /// @return value The value if found, or an empty string if `key` does not exist.
-    function find(
-        bytes memory data,
-        bytes memory key
-    ) internal pure returns (bytes memory value) {
+    function find(bytes memory data, bytes memory key) internal pure returns (bytes memory value) {
         // Here we use a simple state machine to parse the text record. We
         // process characters one at a time; each character can trigger a
         // transition to a new state, or terminate the DFA and return a value.

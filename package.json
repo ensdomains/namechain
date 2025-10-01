@@ -6,7 +6,8 @@
     "bun": "^1.2.15"
   },
   "workspaces": [
-    "contracts"
+    "contracts",
+    "solhint-plugins"
   ],
   "devDependencies": {
     "typescript": "^5.8.3"

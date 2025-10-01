@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 /**
- * @title MigrationErrors  
+ * @title MigrationErrors
  * @dev Error definitions specific to migration operations
  */
 
