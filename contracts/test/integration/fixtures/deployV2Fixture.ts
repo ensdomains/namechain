@@ -1,7 +1,7 @@
 import type { NetworkConnection } from "hardhat/types/network";
 import { type Address, labelhash, zeroAddress } from "viem";
 import { ROLES } from "../../../deploy/constants.js";
-import { splitName } from "../utils/utils.js";
+import { splitName } from "../../utils/utils.js";
 import { deployVerifiableProxy } from "./deployVerifiableProxy.js";
 export { ROLES };
 

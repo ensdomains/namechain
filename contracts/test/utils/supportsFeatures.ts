@@ -1,6 +1,6 @@
 import { toFunctionSelector, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
-import { FEATURES } from "../../../lib/ens-contracts/test/utils/features.js";
+import { FEATURES } from "../../lib/ens-contracts/test/utils/features.js";
 
 type FeatureKeys<T> = {
   [K in keyof T]?: readonly (keyof T[K])[];

@@ -1,6 +1,6 @@
 import type { NetworkConnection } from "hardhat/types/network";
 import { type Address, labelhash, namehash, zeroAddress } from "viem";
-import { splitName } from "../utils/utils.js";
+import { splitName } from "../../utils/utils.js";
 
 export async function deployV1Fixture(
   network: NetworkConnection,

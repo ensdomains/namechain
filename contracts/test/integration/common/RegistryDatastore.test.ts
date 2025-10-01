@@ -13,9 +13,9 @@ import {
   GatewayProgram,
   GatewayRequest,
 } from "../../../lib/unruggable-gateways/src/vm.ts";
-import { deployV2Fixture } from "../fixtures/deployV2Fixture.ts";
-import { expectVar } from "../utils/expectVar.ts";
-import { labelToCanonicalId, splitName } from "../utils/utils.ts";
+import { expectVar } from "../../utils/expectVar.js";
+import { labelToCanonicalId, splitName } from "../../utils/utils.js";
+import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
 
 const connection = await hre.network.connect();
 

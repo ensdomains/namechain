@@ -17,7 +17,7 @@ import {
   dnsEncodeName,
   getCanonicalId,
   labelToCanonicalId,
-} from "../integration/utils/utils.js";
+} from "../utils/utils.js";
 
 describe("Bridge", () => {
   let env: CrossChainEnvironment;

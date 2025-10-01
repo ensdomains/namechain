@@ -12,9 +12,9 @@ import { expect } from "vitest";
 import {
   COIN_TYPE_ETH,
   shortCoin,
-} from "../../../lib/ens-contracts/test/fixtures/ensip19.js";
+} from "../../lib/ens-contracts/test/fixtures/ensip19.js";
 
-export * from "../../../lib/ens-contracts/test/fixtures/ensip19.js";
+export * from "../../lib/ens-contracts/test/fixtures/ensip19.js";
 
 export const MULTICALL_ABI = parseAbi([
   "function multicall(bytes[] calls) external view returns (bytes[])",

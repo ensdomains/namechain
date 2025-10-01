@@ -19,7 +19,7 @@ import {
   type CrossChainEnvironment,
   setupCrossChainEnvironment,
 } from "../../script/setup.js";
-import { expectVar } from "../integration/utils/expectVar.js";
+import { expectVar } from "../utils/expectVar.js";
 import {
   bundleCalls,
   COIN_TYPE_DEFAULT,
@@ -27,8 +27,8 @@ import {
   getReverseName,
   type KnownProfile,
   makeResolutions,
-} from "../integration/utils/resolutions.js";
-import { dnsEncodeName } from "../integration/utils/utils.js";
+} from "../utils/resolutions.js";
+import { dnsEncodeName } from "../utils/utils.js";
 
 describe("Resolve", () => {
   let env: CrossChainEnvironment;

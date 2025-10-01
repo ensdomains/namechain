@@ -2,8 +2,8 @@ import hre from "hardhat";
 import { type Address, zeroAddress } from "viem";
 import { describe, expect, it } from "vitest";
 
-import { expectVar } from "../utils/expectVar.ts";
-import { labelToCanonicalId } from "../utils/utils.ts";
+import { expectVar } from "../../utils/expectVar.js";
+import { labelToCanonicalId } from "../../utils/utils.js";
 import { deployV2Fixture, ROLES } from "./deployV2Fixture.js";
 
 const chain = await hre.network.connect();

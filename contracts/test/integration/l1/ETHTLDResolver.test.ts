@@ -18,12 +18,8 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 
 import { Gateway } from "../../../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../../../lib/unruggable-gateways/src/UncheckedRollup.js";
-import { deployArtifact } from "../fixtures/deployArtifact.js";
-import { deployV1Fixture } from "../fixtures/deployV1Fixture.js";
-import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
-import { urgArtifact } from "../fixtures/externalArtifacts.js";
-import { expectVar } from "../utils/expectVar.js";
-import { injectRPCCounter } from "../utils/hardhat-counter.js";
+import { expectVar } from "../../utils/expectVar.js";
+import { injectRPCCounter } from "../../utils/hardhat-counter.js";
 import {
   COIN_TYPE_DEFAULT,
   COIN_TYPE_ETH,
@@ -31,9 +27,13 @@ import {
   PROFILE_ABI,
   bundleCalls,
   makeResolutions,
-} from "../utils/resolutions.js";
-import { shouldSupportFeatures } from "../utils/supportsFeatures.js";
-import { dnsEncodeName, getLabelAt, splitName } from "../utils/utils.js";
+} from "../../utils/resolutions.js";
+import { shouldSupportFeatures } from "../../utils/supportsFeatures.js";
+import { dnsEncodeName, getLabelAt, splitName } from "../../utils/utils.js";
+import { deployArtifact } from "../fixtures/deployArtifact.js";
+import { deployV1Fixture } from "../fixtures/deployV1Fixture.js";
+import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
+import { urgArtifact } from "../fixtures/externalArtifacts.js";
 
 let urgCount = 0;
 const chain1 = injectRPCCounter(await hre.network.connect());

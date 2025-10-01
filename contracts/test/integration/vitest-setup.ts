@@ -1,5 +1,5 @@
 import { afterAll, beforeAll } from "vitest";
-import { injectCoverage, recordCoverage } from "./utils/hardhat-coverage.ts";
+import { injectCoverage, recordCoverage } from "../utils/hardhat-coverage.ts";
 
 if (process.env.COVERAGE) {
   injectCoverage();

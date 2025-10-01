@@ -10,7 +10,7 @@ export {
   dnsEncodeName,
   encodeLabelhash,
   packetToBytes,
-} from "../../../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
+} from "../../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
 
 // export function packetToBytes(packet: string) {
 //   const m = splitName(packet).flatMap(s => {

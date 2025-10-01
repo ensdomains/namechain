@@ -3,18 +3,18 @@ import hre from "hardhat";
 import { type Address, concat, encodeErrorResult, stringToHex } from "viem";
 import { describe, expect, it } from "vitest";
 
-import { deployV1Fixture } from "../../fixtures/deployV1Fixture.js";
-import { deployV2Fixture } from "../../fixtures/deployV2Fixture.js";
-import { expectVar } from "../../utils/expectVar.js";
+import { expectVar } from "../../../utils/expectVar.js";
 import {
   type KnownProfile,
   bundleCalls,
   COIN_TYPE_DEFAULT,
   COIN_TYPE_ETH,
   makeResolutions,
-} from "../../utils/resolutions.js";
-import { shouldSupportFeatures } from "../../utils/supportsFeatures.js";
-import { dnsEncodeName } from "../../utils/utils.js";
+} from "../../../utils/resolutions.js";
+import { shouldSupportFeatures } from "../../../utils/supportsFeatures.js";
+import { dnsEncodeName } from "../../../utils/utils.js";
+import { deployV1Fixture } from "../../fixtures/deployV1Fixture.js";
+import { deployV2Fixture } from "../../fixtures/deployV2Fixture.js";
 import { encodeRRs, makeTXT } from "./rr.js";
 
 const network = await hre.network.connect();
