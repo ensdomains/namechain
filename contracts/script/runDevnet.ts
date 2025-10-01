@@ -22,7 +22,7 @@ process.once("SIGINT", async () => {
 // handler for docker
 process.once("SIGTERM", async (code) => {
   await env.shutdown();
-  process.exit(code);
+  process.exit(0);
 });
 // handler for bugs
 process.once("uncaughtException", async (err) => {
