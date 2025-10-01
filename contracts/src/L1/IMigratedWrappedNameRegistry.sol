@@ -11,4 +11,6 @@ interface IMigratedWrappedNameRegistry {
         uint256 ownerRoles_,
         address registrarAddress_
     ) external;
+
+    function renew(uint256 tokenId, uint64 expires) external;
 }

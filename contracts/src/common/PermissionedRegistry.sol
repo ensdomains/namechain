@@ -51,6 +51,13 @@ contract PermissionedRegistry is
         _;
     }
 
+    modifier onlyNonExpiredToken(uint256 tokenId) {
+        if (_isExpired(getExpiry(tokenId))) {
+            revert NameExpired(tokenId);
+        }
+        _;
+    }
+
     ////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////
@@ -179,7 +186,7 @@ contract PermissionedRegistry is
     function renew(
         uint256 tokenId,
         uint64 expires
-    ) public override onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_RENEW) {
+    ) public virtual override onlyNonExpiredToken(tokenId) {
         (IRegistryDatastore.Entry memory entry, ) = _getEntry(tokenId);
         if (expires < entry.expiry) {
             revert CannotReduceExpiration(entry.expiry, expires);

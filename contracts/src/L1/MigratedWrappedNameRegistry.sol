@@ -172,6 +172,17 @@ contract MigratedWrappedNameRegistry is
         return this.onERC1155BatchReceived.selector;
     }
 
+    function renew(
+        uint256 tokenId,
+        uint64 expires
+    )
+        public
+        override(IMigratedWrappedNameRegistry, PermissionedRegistry)
+        onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_RENEW)
+    {
+        super.renew(tokenId, expires);
+    }
+
     function getResolver(string calldata label) external view override returns (address) {
         uint256 canonicalId = NameUtils.labelToCanonicalId(label);
         IRegistryDatastore.Entry memory entry = DATASTORE.getEntry(address(this), canonicalId);

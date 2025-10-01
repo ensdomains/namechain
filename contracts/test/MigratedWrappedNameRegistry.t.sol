@@ -24,6 +24,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {VerifiableFactory} from "./../lib/verifiable-factory/src/VerifiableFactory.sol";
 import {UnauthorizedCaller} from "./../src/common/Errors.sol";
+import {IEnhancedAccessControl} from "./../src/common/IEnhancedAccessControl.sol";
 import {IPermissionedRegistry} from "./../src/common/IPermissionedRegistry.sol";
 import {IRegistry} from "./../src/common/IRegistry.sol";
 import {IRegistryDatastore} from "./../src/common/IRegistryDatastore.sol";
@@ -2199,5 +2200,82 @@ contract TestMigratedWrappedNameRegistry is Test {
         } catch (bytes memory) {
             // Other failures acceptable
         }
+    }
+
+    function test_Revert_renew_without_role() public {
+        uint64 expiry = uint64(block.timestamp + 86400);
+        _registerName(
+            registry,
+            testLabel,
+            user,
+            registry,
+            mockResolver,
+            LibRegistryRoles.ROLE_SET_RESOLVER,
+            expiry
+        );
+
+        (uint256 tokenId, ) = registry.getNameData(testLabel);
+        address unauthorized = makeAddr("unauthorized");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                NameUtils.getCanonicalId(tokenId),
+                LibRegistryRoles.ROLE_RENEW,
+                unauthorized
+            )
+        );
+        vm.prank(unauthorized);
+        registry.renew(tokenId, uint64(block.timestamp + 172800));
+    }
+
+    function test_renew_with_role() public {
+        uint64 expiry = uint64(block.timestamp + 86400);
+        uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_RENEW;
+        _registerName(registry, testLabel, user, registry, mockResolver, roleBitmap, expiry);
+
+        (uint256 tokenId, ) = registry.getNameData(testLabel);
+
+        vm.prank(user);
+        uint64 newExpiry = uint64(block.timestamp + 172800);
+        registry.renew(tokenId, newExpiry);
+
+        uint64 actualExpiry = registry.getExpiry(tokenId);
+        assertEq(actualExpiry, newExpiry);
+    }
+
+    function test_Revert_renew_expired_name() public {
+        uint64 expiry = uint64(block.timestamp + 100);
+        uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_RENEW;
+        _registerName(registry, testLabel, user, registry, mockResolver, roleBitmap, expiry);
+
+        (uint256 tokenId, ) = registry.getNameData(testLabel);
+
+        vm.warp(block.timestamp + 101);
+
+        vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameExpired.selector, tokenId));
+        vm.prank(user);
+        registry.renew(tokenId, uint64(block.timestamp + 200));
+    }
+
+    function test_renew_by_granted_user() public {
+        uint64 expiry = uint64(block.timestamp + 86400);
+        uint256 roleBitmap = LibRegistryRoles.ROLE_SET_RESOLVER |
+            LibRegistryRoles.ROLE_RENEW |
+            (LibRegistryRoles.ROLE_RENEW << 128);
+        _registerName(registry, testLabel, user, registry, mockResolver, roleBitmap, expiry);
+
+        (uint256 tokenId, ) = registry.getNameData(testLabel);
+
+        address renewer = makeAddr("renewer");
+        vm.prank(user);
+        registry.grantRoles(tokenId, LibRegistryRoles.ROLE_RENEW, renewer);
+
+        vm.prank(renewer);
+        uint64 newExpiry = uint64(block.timestamp + 172800);
+        registry.renew(tokenId, newExpiry);
+
+        uint64 actualExpiry = registry.getExpiry(tokenId);
+        assertEq(actualExpiry, newExpiry);
     }
 }
