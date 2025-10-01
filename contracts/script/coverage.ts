@@ -30,9 +30,14 @@ for (const name of found) {
   );
 }
 
-// generate combined report
-const name = `all${SUFFIX}`;
-execSync(
-  `lcov --ignore-errors inconsistent,unused --rc branch_coverage=1 --add-tracefile "${DIR}${PREFIX}*${SUFFIX}" --output-file ${DIR}${PREFIX}${name}`,
-  { cwd: rootDir },
-);
+// // generate combined report
+// const name = `all${SUFFIX}`;
+// execSync(
+//   `lcov --ignore-errors inconsistent,unused --rc branch_coverage=1 --add-tracefile "${DIR}${PREFIX}*${SUFFIX}" --output-file ${DIR}${PREFIX}${name}`,
+//   { cwd: rootDir },
+// );
+
+// remove unfiltered files
+for (const name of found) {
+  rmSync(new URL(name, coverageDir));
+}

@@ -37,11 +37,12 @@ jobs:
           bun run coverage:forge && \
           bun run coverage:reports
 
-      - uses: codecov/codecov-action@v5
-        with:
-          directory: contracts/coverage/filtered
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: unit
+      - name: Upload coverage
+        run: cd contracts && bun run coverage:upload
+        env:
+          CC_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CC_GIT_SERVICE: github
+          CC_SHA: ${{ github.sha }}
 
   hardhat-tests:
     name: Hardhat Tests
@@ -63,8 +64,9 @@ jobs:
           bun run coverage:hardhat && \
           bun run coverage:reports
 
-      - uses: codecov/codecov-action@v5
-        with:
-          directory: contracts/coverage/filtered
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: integration
+      - name: Upload coverage
+        run: cd contracts && bun run coverage:upload
+        env:
+          CC_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CC_GIT_SERVICE: github
+          CC_SHA: ${{ github.sha }}
