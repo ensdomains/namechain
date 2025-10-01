@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {TransferData} from "./../common/TransferData.sol";
-import {L1BridgeController} from "./../L1/L1BridgeController.sol";
+import {TransferData} from "../common/bridge/types/TransferData.sol";
+import {L1BridgeController} from "../L1/bridge/L1BridgeController.sol";
+
 import {MockBridgeBase} from "./MockBridgeBase.sol";
 
 /**

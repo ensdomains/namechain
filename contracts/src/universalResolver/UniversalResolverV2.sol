@@ -6,7 +6,7 @@ import {
     IGatewayProvider
 } from "@ens/contracts/universalResolver/AbstractUniversalResolver.sol";
 
-import {RegistryUtils, IRegistry} from "./RegistryUtils.sol";
+import {LibRegistry, IRegistry} from "./libraries/LibRegistry.sol";
 
 contract UniversalResolverV2 is AbstractUniversalResolver {
     IRegistry public immutable ROOT_REGISTRY;
@@ -22,6 +22,6 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
     function findResolver(
         bytes memory name
     ) public view override returns (address resolver, bytes32 node, uint256 offset) {
-        (, resolver, node, offset) = RegistryUtils.findResolver(ROOT_REGISTRY, name, 0);
+        (, resolver, node, offset) = LibRegistry.findResolver(ROOT_REGISTRY, name, 0);
     }
 }
