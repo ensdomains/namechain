@@ -6,113 +6,67 @@ on:
     tags: ["v*"]
   pull_request:
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
 jobs:
-  test:
-    name: Contract tests
+  check-types:
+    name: Check Types
     runs-on: ubuntu-latest
     steps:
-      - name: Install lcov
-        run: sudo apt-get install lcov
-
-      - name: Cache git folder
-        uses: actions/cache@v4
-        with:
-          path: .git
-          key: git-folder
-
-      - uses: actions/checkout@v4
-        with:
-          submodules: "recursive"
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: ".nvmrc"
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: ".bun-version"
-
-      - run: bun install --frozen-lockfile
+      # setup
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
 
       - name: Compile and check types
-        run: cd contracts && bun run compile && bun check:types
+        run: cd contracts && bun compile:hardhat && bun check:types
 
-      - name: Run tests with coverage
-        run: cd contracts && bun run coverage
-
-      - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: site
-          path: contracts/coverage/reports/
-
-  deploy:
-    name: Coverage reports
+  forge-tests:
+    name: Forge Tests
     runs-on: ubuntu-latest
-    needs: test
     steps:
-      - name: Determine branch name
-        run: |
-          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-            REF="${GITHUB_HEAD_REF}"
-          elif [[ "${GITHUB_REF}" == refs/heads/* ]]; then
-            REF="${GITHUB_REF#refs/heads/}"
-          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            REF="${GITHUB_REF#refs/tags/}"
-          else
-            REF="$GITHUB_REF"
-          fi
-          REF=$(echo "$REF" | sed 's#[^A-Za-z0-9._-]#-#g')
-          echo "Ref: $REF"
-          echo "REF=$REF" >> $GITHUB_ENV
+      # setup
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
 
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: awalsh128/cache-apt-pkgs-action@v1.5.3
         with:
-          ref: coverage-reports
-          fetch-depth: 0
+          packages: lcov
+          version: 1.0
 
-      - name: Download report
-        uses: actions/download-artifact@v4
+      - name: Run forge tests
+        run: |
+          cd contracts && \
+          bun run coverage:forge && \
+          bun run coverage:reports
+
+      - name: Upload coverage
+        run: cd contracts && bun run coverage:upload
+        env:
+          CC_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CC_GIT_SERVICE: github
+          CC_SHA: ${{ github.sha }}
+
+  hardhat-tests:
+    name: Hardhat Tests
+    runs-on: ubuntu-latest
+    steps:
+      # setup
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+
+      - uses: awalsh128/cache-apt-pkgs-action@v1.5.3
         with:
-          name: site
-          path: temp
+          packages: lcov
+          version: 1.0
 
-      - name: Replace report
+      - name: Run hardhat tests
         run: |
-          mkdir -p docs
-          rm -rf "docs/$REF"
-          mv temp "docs/$REF"
+          cd contracts && \
+          mkdir -p coverage/ && \
+          bun run coverage:hardhat && \
+          bun run coverage:reports
 
-      - name: Install tree
-        run: sudo apt-get install tree
-
-      - name: Rebuild index
-        run: |
-          cd docs
-          tree -H . -L 1 -o index.html
-          find . -type d -mindepth 1 -maxdepth 1 | while read -r dir; do
-            tree -H . -L 1 --noreport --charset utf-8 -o "$dir/index.html" "$dir"
-          done
-
-      - name: Update repo
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "$GITHUB_SHA / $REF" || echo "no changes"
-
-      - name: Push repo
-        uses: ad-m/github-push-action@v1.0.0
-        with:
-          branch: coverage-reports
+      - name: Upload coverage
+        run: cd contracts && bun run coverage:upload
+        env:
+          CC_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CC_GIT_SERVICE: github
+          CC_SHA: ${{ github.sha }}

@@ -28,22 +28,16 @@ for (const name of found) {
     `lcov --ignore-errors unused,unused --remove ${DIR}${name} "lib/*" "*test*" "*mock*" --output-file ${DIR}${PREFIX}${name}`,
     { cwd: rootDir },
   );
-  createReport(name);
 }
 
-// generate combined report
-const name = `all${SUFFIX}`;
-execSync(
-  `lcov --ignore-errors inconsistent,unused --rc branch_coverage=1 --add-tracefile "${DIR}${PREFIX}*${SUFFIX}" --output-file ${DIR}${PREFIX}${name}`,
-  { cwd: rootDir },
-);
-createReport(name);
+// // generate combined report
+// const name = `all${SUFFIX}`;
+// execSync(
+//   `lcov --ignore-errors inconsistent,unused --rc branch_coverage=1 --add-tracefile "${DIR}${PREFIX}*${SUFFIX}" --output-file ${DIR}${PREFIX}${name}`,
+//   { cwd: rootDir },
+// );
 
-function createReport(name: string) {
-  const title = name.replace(SUFFIX, "");
-  execSync(
-    `genhtml ${DIR}${PREFIX}${name} --flat --output-directory ${DIR}reports/${title}`,
-    { cwd: rootDir },
-  );
-  console.log(`Wrote Report: ${title}`);
+// remove unfiltered files
+for (const name of found) {
+  rmSync(new URL(name, coverageDir));
 }

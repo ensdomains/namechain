@@ -1,6 +1,6 @@
-import hre from "hardhat";
 import { addStatementCoverageInstrumentation } from "@nomicfoundation/edr";
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import hre from "hardhat";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { toHex } from "viem";
 
 // https://github.com/NomicFoundation/hardhat/blob/main/v-next/hardhat/src/internal/builtin-plugins/coverage/hook-handlers/hre.ts
