@@ -33,7 +33,6 @@ if (codecov.exitCode !== 0) {
 }
 
 const baseCmd = [
-  "./codecov",
   "upload-coverage",
   `-t ${process.env.CC_TOKEN}`,
   ...(process.env.CC_GIT_SERVICE
@@ -49,5 +48,5 @@ const coverageFiles = readdirSync(coverageDir).filter(
 for (const file of coverageFiles) {
   const flagName = basename(file, SUFFIX).replace(PREFIX, "");
   const filePath = join(coverageDir.pathname, file);
-  await $`${baseCmd.join(" ")} --flag ${flagName} --file ${filePath}`;
+  await $`./codecov ${baseCmd.join(" ")} --flag ${flagName} --file ${filePath}`;
 }
