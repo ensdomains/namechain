@@ -14,6 +14,12 @@ These are all to be run from within the contracts/ folder:
 * `bun run test:hardhat` - run hardhat tests
 * `bun run test:e2e` - run end-to-end tests
 
+# Lint commands:
+
+Run in contracts/ folder.
+
+* `bun run lint`
+
 # Comment Guidelines
 
 When writing comments in code:
@@ -28,3 +34,4 @@ NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 - when writing tests that involve constants already defined in the source (e.g contracts/src/common/LibRegistryRoles.sol) use those defined constants directly instead of hardcoding their values in the tests.
+
