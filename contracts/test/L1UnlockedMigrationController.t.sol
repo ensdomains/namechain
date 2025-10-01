@@ -14,8 +14,10 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {MockBaseRegistrar} from "../src/mocks/v1/MockBaseRegistrar.sol";
-import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {ENSRegistry} from "@ens/contracts/registry/ENSRegistry.sol";
+import {BaseRegistrarImplementation} from "@ens/contracts/ethregistrar/BaseRegistrarImplementation.sol";
+import {NameWrapper, IMetadataService, CANNOT_UNWRAP} from "@ens/contracts/wrapper/NameWrapper.sol";
+import {LibV1} from "./V1Utils.sol";
 import {L1UnlockedMigrationController} from "../src/L1/L1UnlockedMigrationController.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
 import "../src/common/Errors.sol";
@@ -32,22 +34,6 @@ import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
-function unwrappedTokenId(string memory label) pure returns (uint256) {
-    return uint256(keccak256(bytes(label)));
-}
-function wrappedTokenId(string memory label) pure returns (uint256) {
-    return wrappedTokenId(keccak256(bytes(label)));
-}
-function wrappedTokenId(bytes32 labelHash) pure returns (uint256) {
-    return
-        uint256(
-            NameCoder.namehash(
-                labelHash,
-                NameCoder.namehash(bytes("\x03eth\x00"), 0)
-            )
-        );
-}
-
 // Simple mock that implements IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -56,7 +42,7 @@ contract MockRegistryMetadata is IRegistryMetadata {
 }
 
 // Mock ERC1155 contract for wrapped names
-contract MockNameWrapper is ERC1155 {
+contract MockNameWrapper2 is ERC1155 {
     mapping(uint256 => address) private _tokenOwners;
     mapping(uint256 => uint32) private _tokenFuses;
     mapping(bytes32 => bytes) public names;
@@ -66,12 +52,13 @@ contract MockNameWrapper is ERC1155 {
     function wrapETH2LD(
         string memory label,
         address owner,
-        uint16,
+        uint32 fuses,
         address
     ) external {
         uint256 tokenId = wrappedTokenId(label);
         names[bytes32(tokenId)] = NameUtils.dnsEncodeEthLabel(label);
         _mint(owner, tokenId, 1, "");
+        _tokenFuses[tokenId] = fuses;
         _tokenOwners[tokenId] = owner;
     }
 
@@ -83,10 +70,6 @@ contract MockNameWrapper is ERC1155 {
         uint256 tokenId
     ) external view returns (address, uint32, uint64) {
         return (_tokenOwners[tokenId], _tokenFuses[tokenId], 0);
-    }
-
-    function setFuses(uint256 tokenId, uint32 fuses) external {
-        _tokenFuses[tokenId] = fuses;
     }
 
     function safeTransferFrom(
@@ -130,7 +113,9 @@ contract TestL1UnlockedMigrationController is
     ERC1155Holder,
     ERC721Holder
 {
-    MockBaseRegistrar ethRegistryV1;
+    ENSRegistry ensV1;
+    BaseRegistrarImplementation ethRegistryV1;
+
     MockNameWrapper nameWrapper;
     L1UnlockedMigrationController migrationController;
     MockL1Bridge mockBridge;
@@ -147,6 +132,58 @@ contract TestL1UnlockedMigrationController is
     string testLabel = "test";
     uint256 unwrappedTestTokenId;
     uint256 wrappedTestTokenId;
+
+    function setUp() public {
+        // Set up real registry infrastructure
+        datastore = new RegistryDatastore();
+        registryMetadata = new MockRegistryMetadata();
+
+        // Deploy the real registry
+        registry = new PermissionedRegistry(
+            datastore,
+            registryMetadata,
+            address(this),
+            LibEACBaseRoles.ALL_ROLES
+        );
+
+        // Deploy mock base registrar and name wrapper (keep these as mocks)
+        ensV1 = new ENSRegistry();
+        ethRegistryV1 = new BaseRegistrarImplementation(ensV1, ETH_NODE);
+        ensV1.setSubnodeOwner(bytes32(0), keccak256("eth"), address(ethRegistryV1));
+        ethRegistryV1.addController(address(this));
+        nameWrapper = new NameWrapper(ensV1, ethRegistryV1, IMetadataService(address(0)));
+
+        // Deploy mock bridge
+        mockBridge = new MockL1Bridge();
+
+        // Deploy REAL L1BridgeController with real dependencies
+        realL1BridgeController = new L1BridgeController(registry, mockBridge);
+
+        // Grant necessary roles to the ejection controller
+        registry.grantRootRoles(
+            LibRegistryRoles.ROLE_REGISTRAR |
+                LibRegistryRoles.ROLE_RENEW |
+                LibRegistryRoles.ROLE_BURN,
+            address(realL1BridgeController)
+        );
+
+        // Deploy migration controller with the REAL ejection controller
+        migrationController = new L1UnlockedMigrationController(
+            ethRegistryV1,
+            INameWrapper(address(nameWrapper)), 
+            realL1BridgeController
+        );
+
+        // Grant ROLE_EJECTOR to the migration controller so it can call the ejection controller
+        realL1BridgeController.grantRootRoles(
+            LibBridgeRoles.ROLE_EJECTOR,
+            address(migrationController)
+        );
+
+        unwrappedTestTokenId = unwrappedTokenId(testLabel);
+        wrappedTestTokenId = wrappedTokenId(testLabel);
+    }
+
 
     /**
      * Helper method to create properly encoded migration data for transfers
@@ -340,55 +377,6 @@ contract TestL1UnlockedMigrationController is
         );
     }
 
-    function setUp() public {
-        // Set up real registry infrastructure
-        datastore = new RegistryDatastore();
-        registryMetadata = new MockRegistryMetadata();
-
-        // Deploy the real registry
-        registry = new PermissionedRegistry(
-            datastore,
-            registryMetadata,
-            address(this),
-            LibEACBaseRoles.ALL_ROLES
-        );
-
-        // Deploy mock base registrar and name wrapper (keep these as mocks)
-        ethRegistryV1 = new MockBaseRegistrar();
-        ethRegistryV1.addController(controller);
-        nameWrapper = new MockNameWrapper();
-
-        // Deploy mock bridge
-        mockBridge = new MockL1Bridge();
-
-        // Deploy REAL L1BridgeController with real dependencies
-        realL1BridgeController = new L1BridgeController(registry, mockBridge);
-
-        // Grant necessary roles to the ejection controller
-        registry.grantRootRoles(
-            LibRegistryRoles.ROLE_REGISTRAR |
-                LibRegistryRoles.ROLE_RENEW |
-                LibRegistryRoles.ROLE_BURN,
-            address(realL1BridgeController)
-        );
-
-        // Deploy migration controller with the REAL ejection controller
-        migrationController = new L1UnlockedMigrationController(
-            ethRegistryV1,
-            INameWrapper(address(nameWrapper)),
-            realL1BridgeController
-        );
-
-        // Grant ROLE_EJECTOR to the migration controller so it can call the ejection controller
-        realL1BridgeController.grantRootRoles(
-            LibBridgeRoles.ROLE_EJECTOR,
-            address(migrationController)
-        );
-
-        unwrappedTestTokenId = unwrappedTokenId(testLabel);
-        wrappedTestTokenId = wrappedTokenId(testLabel);
-    }
-
     function test_constructor() public view {
         assertEq(
             address(migrationController.ethRegistryV1()),
@@ -408,7 +396,6 @@ contract TestL1UnlockedMigrationController is
 
     function test_migrateUnwrappedEthName() public {
         // Register a name in the v1 registrar
-        vm.prank(controller);
         ethRegistryV1.register(unwrappedTestTokenId, user, 86400);
 
         // Verify user owns the token
@@ -462,7 +449,6 @@ contract TestL1UnlockedMigrationController is
 
     function test_migrateUnwrappedEthName_toL1() public {
         // Register a name in the v1 registrar
-        vm.prank(controller);
         ethRegistryV1.register(unwrappedTestTokenId, user, 86400);
 
         // Verify user owns the token
@@ -514,7 +500,6 @@ contract TestL1UnlockedMigrationController is
 
     function test_Revert_migrateUnwrappedEthName_wrong_caller() public {
         // Register a name in the v1 registrar
-        vm.prank(controller);
         ethRegistryV1.register(unwrappedTestTokenId, user, 86400);
 
         // Create migration data
@@ -535,7 +520,6 @@ contract TestL1UnlockedMigrationController is
 
     function test_Revert_migrateUnwrappedEthName_not_owner() public {
         // Register a name in the v1 registrar
-        vm.prank(controller);
         ethRegistryV1.register(unwrappedTestTokenId, user, 86400);
 
         // Create migration data
@@ -559,8 +543,6 @@ contract TestL1UnlockedMigrationController is
     function test_migrateUnlockedWrappedEthName_single() public {
         // Wrap a name (simulate) - this should mint the token to the user
         nameWrapper.wrapETH2LD(testLabel, user, 0, address(0));
-        // Ensure fuses are 0 (unlocked)
-        nameWrapper.setFuses(wrappedTestTokenId, 0);
 
         // Verify user owns the wrapped token
         assertEq(nameWrapper.ownerOf(wrappedTestTokenId), user);
@@ -609,8 +591,6 @@ contract TestL1UnlockedMigrationController is
     function test_migrateUnlockedWrappedEthName_single_toL1() public {
         // Wrap a name (simulate) - this should mint the token to the user
         nameWrapper.wrapETH2LD(testLabel, user, 0, address(0));
-        // Ensure fuses are 0 (unlocked)
-        nameWrapper.setFuses(wrappedTestTokenId, 0);
 
         // Verify user owns the wrapped token
         assertEq(nameWrapper.balanceOf(user, wrappedTestTokenId), 1);
@@ -661,9 +641,7 @@ contract TestL1UnlockedMigrationController is
         uint256 tokenId2 = wrappedTokenId(label2);
 
         nameWrapper.wrapETH2LD(label1, user, 0, address(0));
-        nameWrapper.setFuses(tokenId1, 0); // Unlocked
         nameWrapper.wrapETH2LD(label2, user, 0, address(0));
-        nameWrapper.setFuses(tokenId2, 0); // Unlocked
 
         // Verify user owns the wrapped tokens
         assertEq(nameWrapper.ownerOf(tokenId1), user);
@@ -737,9 +715,7 @@ contract TestL1UnlockedMigrationController is
         uint256 tokenId2 = wrappedTokenId(label2);
 
         nameWrapper.wrapETH2LD(label1, user, 0, address(0));
-        nameWrapper.setFuses(tokenId1, 0); // Unlocked
         nameWrapper.wrapETH2LD(label2, user, 0, address(0));
-        nameWrapper.setFuses(tokenId2, 0); // Unlocked
 
         // Verify user owns the wrapped tokens
         assertEq(nameWrapper.ownerOf(tokenId1), user);
@@ -811,8 +787,7 @@ contract TestL1UnlockedMigrationController is
     function test_Revert_migrateWrappedEthName_single_locked() public {
         // First wrap a name so the user actually owns it
         vm.prank(user);
-        nameWrapper.wrapETH2LD(testLabel, user, 0, address(0));
-        nameWrapper.setFuses(wrappedTestTokenId, CANNOT_UNWRAP); // Mark as locked
+        nameWrapper.wrapETH2LD(testLabel, user, CANNOT_UNWRAP, address(0));
 
         // Create migration data
         MigrationData memory migrationData = _createMigrationData(testLabel);
@@ -842,10 +817,8 @@ contract TestL1UnlockedMigrationController is
 
         // First wrap names so the user actually owns them
         vm.startPrank(user);
-        nameWrapper.wrapETH2LD(label1, user, 0, address(0));
-        nameWrapper.setFuses(tokenId1, CANNOT_UNWRAP); // Mark as locked
-        nameWrapper.wrapETH2LD(label2, user, 0, address(0));
-        nameWrapper.setFuses(tokenId2, CANNOT_UNWRAP); // Mark as locked
+        nameWrapper.wrapETH2LD(label1, user, CANNOT_UNWRAP, address(0));
+        nameWrapper.wrapETH2LD(label2, user, CANNOT_UNWRAP, address(0));
         vm.stopPrank();
 
         // Prepare batch data
@@ -948,7 +921,7 @@ contract TestL1UnlockedMigrationController is
 
         // Call onERC1155Received as nameWrapper (should work)
         // Use a locked token so it doesn't try to unwrap (which would trigger the ERC1155InvalidReceiver issue)
-        nameWrapper.setFuses(unwrappedTestTokenId, CANNOT_UNWRAP); // Mark as locked
+        nameWrapper.wrapETH2LD(testLabel, user, CANNOT_UNWRAP, address(0));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -982,7 +955,8 @@ contract TestL1UnlockedMigrationController is
 
         // Call onERC1155BatchReceived as nameWrapper (should work)
         // Use a locked token so it doesn't try to unwrap (which would trigger the ERC1155InvalidReceiver issue)
-        nameWrapper.setFuses(tokenId1, CANNOT_UNWRAP); // Mark as locked
+ 
+        nameWrapper.wrapETH2LD(testLabel, user, CANNOT_UNWRAP, address(0));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -1001,22 +975,21 @@ contract TestL1UnlockedMigrationController is
 
     function test_Revert_migrateUnwrappedEthName_tokenId_mismatch() public {
         // Register a name in the v1 registrar
-        vm.prank(controller);
-        ethRegistryV1.register(unwrappedTestTokenId, user, 86400);
+
+        uint256 tokenId = getUnwrappedTokenId("test");
+
+        ethRegistryV1.register(tokenId, user, 86400);
 
         // Create migration data with wrong label
-        MigrationData memory migrationData = _createMigrationData("wronglabel");
-        bytes memory data = abi.encode(migrationData);
-
-        // Calculate expected tokenId for the wrong label
-        uint256 expectedTokenId = uint256(keccak256(bytes("wronglabel")));
+        MigrationData memory md = _createMigrationData("wronglabel");
+        bytes memory data = abi.encode(md);
 
         // Try to transfer with mismatched tokenId and label
         vm.expectRevert(
             abi.encodeWithSelector(
-                L1UnlockedMigrationController.TokenIdMismatch.selector,
-                unwrappedTestTokenId,
-                expectedTokenId
+                L1UnlockedMigrationController.NodeMismatch.selector,
+                getWrappedTokenId(tokenId),
+                NameUtils.unhashedNamehash(md.transferData.dnsEncodedName, 0)
             )
         );
         vm.prank(user);
