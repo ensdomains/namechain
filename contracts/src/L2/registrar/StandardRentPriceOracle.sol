@@ -9,9 +9,9 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
-import {LibHalving} from "../../common/utils/LibHalving.sol";
 
 import {IRentPriceOracle} from "./interfaces/IRentPriceOracle.sol";
+import {LibHalving} from "./libraries/LibHalving.sol";
 
 /// @param t Incremental time interval for discount, in seconds.
 /// @param value Discount percentage, relative to `type(uint128).max`.
