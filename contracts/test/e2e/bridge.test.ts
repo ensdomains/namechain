@@ -1,20 +1,23 @@
-import { describe, afterAll, beforeAll, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import {
   encodeAbiParameters,
   getAddress,
-  labelhash,
   parseAbiParameters,
   toHex,
   zeroAddress,
 } from "viem";
 
-import { ROLES } from "../deploy/constants.js";
-import { type MockRelayer, createMockRelay } from "../script/mockRelay.js";
+import { ROLES } from "../../deploy/constants.js";
+import { type MockRelayer, createMockRelay } from "../../script/mockRelay.js";
 import {
   type CrossChainEnvironment,
   setupCrossChainEnvironment,
-} from "../script/setup.js";
-import { labelToCanonicalId, getCanonicalId, dnsEncodeName } from "../test/utils/utils.js";
+} from "../../script/setup.js";
+import {
+  dnsEncodeName,
+  getCanonicalId,
+  labelToCanonicalId,
+} from "../integration/utils/utils.js";
 
 describe("Bridge", () => {
   let env: CrossChainEnvironment;
@@ -95,8 +98,8 @@ describe("Bridge", () => {
           encodedTransferData,
         ],
         { account: owner },
-      )      
-    )
+      ),
+    );
 
     console.log("Verifying registration on L1...");
     const actualL1Owner = await env.l1.contracts.ethRegistry.read.ownerOf([
@@ -140,7 +143,16 @@ describe("Bridge", () => {
 
     const encodedTransferDataToL1 = encodeAbiParameters(
       parseAbiParameters("(bytes,address,address,address,uint256,uint64)"),
-      [[dnsEncodedName, l1User, l1Subregistry, resolver, roleBitmap, expiryTime]],
+      [
+        [
+          dnsEncodedName,
+          l1User,
+          l1Subregistry,
+          resolver,
+          roleBitmap,
+          expiryTime,
+        ],
+      ],
     );
 
     await relay.waitFor(
@@ -163,7 +175,16 @@ describe("Bridge", () => {
 
     const encodedTransferDataToL2 = encodeAbiParameters(
       parseAbiParameters("(bytes,address,address,address,uint256,uint64)"),
-      [[dnsEncodedName, l2User, l2Subregistry, resolver, roleBitmap, expiryTime]],
+      [
+        [
+          dnsEncodedName,
+          l2User,
+          l2Subregistry,
+          resolver,
+          roleBitmap,
+          expiryTime,
+        ],
+      ],
     );
 
     await relay.waitFor(
@@ -176,7 +197,7 @@ describe("Bridge", () => {
           encodedTransferDataToL2,
         ],
         { account: l1User },
-      )
+      ),
     );
 
     console.log("Verifying round trip results...");
