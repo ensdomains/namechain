@@ -1,26 +1,32 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
+
 import {Test} from "forge-std/Test.sol";
-import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import {DedicatedResolver} from "../../src/common/DedicatedResolver.sol";
-import {IDedicatedResolverSetters, NODE_ANY} from "../../src/common/IDedicatedResolverSetters.sol";
-import {IFeatureSupporter} from "@ens/contracts/utils/IFeatureSupporter.sol";
-import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
-import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
-import {IUniversalResolver} from "@ens/contracts/universalResolver/IUniversalResolver.sol";
-import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
-import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
-import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
-import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
-import {IHasAddressResolver} from "@ens/contracts/resolvers/profiles/IHasAddressResolver.sol";
-import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
-import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
-import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
-import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
-import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
+
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
+import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
+import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
+import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
+import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IHasAddressResolver} from "@ens/contracts/resolvers/profiles/IHasAddressResolver.sol";
+import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceResolver.sol";
+import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
+import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
+import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
+import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
+import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
+import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+
+import {DedicatedResolver} from "./../../src/common/DedicatedResolver.sol";
+import {
+    IDedicatedResolverSetters,
+    NODE_ANY
+} from "./../../src/common/IDedicatedResolverSetters.sol";
 
 contract DedicatedResolverTest is Test {
     struct I {
@@ -31,27 +37,18 @@ contract DedicatedResolverTest is Test {
         uint256 i;
         v = new I[](13);
         v[i++] = I(type(IExtendedResolver).interfaceId, "IExtendedResolver");
-        v[i++] = I(
-            type(IDedicatedResolverSetters).interfaceId,
-            "IDedicatedResolverSetters"
-        );
+        v[i++] = I(type(IDedicatedResolverSetters).interfaceId, "IDedicatedResolverSetters");
         v[i++] = I(type(IMulticallable).interfaceId, "IMulticallable");
         v[i++] = I(type(IAddrResolver).interfaceId, "IAddrResolver");
         v[i++] = I(type(IAddressResolver).interfaceId, "IAddressResolver");
-        v[i++] = I(
-            type(IHasAddressResolver).interfaceId,
-            "IHasAddressResolver"
-        );
+        v[i++] = I(type(IHasAddressResolver).interfaceId, "IHasAddressResolver");
         v[i++] = I(type(ITextResolver).interfaceId, "ITextResolver");
-        v[i++] = I(
-            type(IContentHashResolver).interfaceId,
-            "IContentHashResolver"
-        );
+        v[i++] = I(type(IContentHashResolver).interfaceId, "IContentHashResolver");
         v[i++] = I(type(IPubkeyResolver).interfaceId, "IPubkeyResolver");
         v[i++] = I(type(INameResolver).interfaceId, "INameResolver");
         v[i++] = I(type(IABIResolver).interfaceId, "IABIResolver");
         v[i++] = I(type(IInterfaceResolver).interfaceId, "IInterfaceResolver");
-        v[i++] = I(type(IFeatureSupporter).interfaceId, "IFeatureSupporter");
+        v[i++] = I(type(IERC7996).interfaceId, "IERC7996");
         assertEq(v.length, i);
     }
 
@@ -66,16 +63,9 @@ contract DedicatedResolverTest is Test {
         DedicatedResolver resolverImpl = new DedicatedResolver();
 
         owner = makeAddr("owner");
-        bytes memory initData = abi.encodeCall(
-            DedicatedResolver.initialize,
-            (owner)
-        );
+        bytes memory initData = abi.encodeCall(DedicatedResolver.initialize, (owner));
         resolver = DedicatedResolver(
-            factory.deployProxy(
-                address(resolverImpl),
-                uint256(keccak256(initData)),
-                initData
-            )
+            factory.deployProxy(address(resolverImpl), uint256(keccak256(initData)), initData)
         );
     }
 
@@ -88,10 +78,7 @@ contract DedicatedResolverTest is Test {
         I[] memory v = _supportedInterfaces();
         for (uint256 i; i < v.length; i++) {
             assertTrue(
-                ERC165Checker.supportsInterface(
-                    address(resolver),
-                    v[i].interfaceId
-                ),
+                ERC165Checker.supportsInterface(address(resolver), v[i].interfaceId),
                 v[i].name
             );
         }
@@ -102,16 +89,10 @@ contract DedicatedResolverTest is Test {
             resolver.supportsFeature(ResolverFeatures.RESOLVE_MULTICALL),
             "RESOLVE_MULTICALL"
         );
-        assertTrue(
-            resolver.supportsFeature(ResolverFeatures.SINGULAR),
-            "SINGULAR"
-        );
+        assertTrue(resolver.supportsFeature(ResolverFeatures.SINGULAR), "SINGULAR");
     }
 
-    function testFuzz_setAddr(
-        uint256 coinType,
-        bytes memory addressBytes
-    ) external {
+    function testFuzz_setAddr(uint256 coinType, bytes memory addressBytes) external {
         if (ENSIP19.isEVMCoinType(coinType)) {
             addressBytes = vm.randomBool() ? vm.randomBytes(20) : new bytes(0);
         }
@@ -136,10 +117,7 @@ contract DedicatedResolverTest is Test {
         vm.stopPrank();
 
         assertEq(
-            resolver.addr(
-                NODE_ANY,
-                chain == 1 ? COIN_TYPE_ETH : COIN_TYPE_DEFAULT | chain
-            ),
+            resolver.addr(NODE_ANY, chain == 1 ? COIN_TYPE_ETH : COIN_TYPE_DEFAULT | chain),
             a
         );
     }
@@ -213,10 +191,7 @@ contract DedicatedResolverTest is Test {
         vm.stopPrank();
 
         assertEq(resolver.name(NODE_ANY), name, "immediate");
-        bytes memory result = resolver.resolve(
-            "",
-            abi.encodeCall(INameResolver.name, (NODE_ANY))
-        );
+        bytes memory result = resolver.resolve("", abi.encodeCall(INameResolver.name, (NODE_ANY)));
         assertEq(abi.decode(result, (string)), name, "extended");
     }
 
@@ -270,13 +245,8 @@ contract DedicatedResolverTest is Test {
         vm.stopPrank();
 
         uint256 contentTypes = ~uint256(0);
-        (uint256 contentType_, bytes memory data_) = resolver.ABI(
-            NODE_ANY,
-            contentTypes
-        );
-        bytes memory expect = data.length > 0
-            ? abi.encode(contentType, data)
-            : abi.encode(0, "");
+        (uint256 contentType_, bytes memory data_) = resolver.ABI(NODE_ANY, contentTypes);
+        bytes memory expect = data.length > 0 ? abi.encode(contentType, data) : abi.encode(0, "");
         assertEq(abi.encode(contentType_, data_), expect, "immediate");
         bytes memory result = resolver.resolve(
             "",
@@ -306,17 +276,10 @@ contract DedicatedResolverTest is Test {
         resolver.setInterface(interfaceId, impl);
         vm.stopPrank();
 
-        assertEq(
-            resolver.interfaceImplementer(NODE_ANY, interfaceId),
-            impl,
-            "immediate"
-        );
+        assertEq(resolver.interfaceImplementer(NODE_ANY, interfaceId), impl, "immediate");
         bytes memory result = resolver.resolve(
             "",
-            abi.encodeCall(
-                IInterfaceResolver.interfaceImplementer,
-                (NODE_ANY, interfaceId)
-            )
+            abi.encodeCall(IInterfaceResolver.interfaceImplementer, (NODE_ANY, interfaceId))
         );
         assertEq(abi.decode(result, (address)), impl, "extended");
     }
@@ -344,10 +307,7 @@ contract DedicatedResolverTest is Test {
     function test_multicall_setters() external {
         bytes[] memory calls = new bytes[](2);
         calls[0] = abi.encodeCall(DedicatedResolver.setName, (testName));
-        calls[1] = abi.encodeCall(
-            DedicatedResolver.setAddr,
-            (COIN_TYPE_ETH, testAddress)
-        );
+        calls[1] = abi.encodeCall(DedicatedResolver.setAddr, (COIN_TYPE_ETH, testAddress));
 
         vm.startPrank(owner);
         resolver.multicall(calls);
@@ -360,10 +320,7 @@ contract DedicatedResolverTest is Test {
     function test_multicall_setters_notOwner() external {
         bytes[] memory calls = new bytes[](2);
         calls[0] = abi.encodeCall(DedicatedResolver.setName, (testName));
-        calls[1] = abi.encodeCall(
-            DedicatedResolver.setAddr,
-            (COIN_TYPE_ETH, testAddress)
-        );
+        calls[1] = abi.encodeCall(DedicatedResolver.setAddr, (COIN_TYPE_ETH, testAddress));
 
         vm.expectRevert();
         resolver.multicall(calls);
@@ -377,10 +334,7 @@ contract DedicatedResolverTest is Test {
 
         bytes[] memory calls = new bytes[](2);
         calls[0] = abi.encodeCall(INameResolver.name, (NODE_ANY));
-        calls[1] = abi.encodeCall(
-            IAddressResolver.addr,
-            (NODE_ANY, COIN_TYPE_ETH)
-        );
+        calls[1] = abi.encodeCall(IAddressResolver.addr, (NODE_ANY, COIN_TYPE_ETH));
 
         bytes[] memory answers = new bytes[](2);
         answers[0] = abi.encode(testName);

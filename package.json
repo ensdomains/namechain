@@ -6,16 +6,11 @@
     "bun": "^1.2.15"
   },
   "workspaces": [
-    "contracts"
+    "contracts",
+    "solhint-plugins"
   ],
   "devDependencies": {
     "typescript": "^5.8.3"
-  },
-  "resolutions": {
-    "viem": "2.31.6"
-  },
-  "patchedDependencies": {
-    "rocketh@0.11.20": "patches/rocketh@0.11.20.patch"
   },
   "engineStrict": true
 }

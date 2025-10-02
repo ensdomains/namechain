@@ -1,46 +1,63 @@
-import { toHex } from "viem";
-import { createMockRelay } from "./mockRelay.js";
+import { getAddress, toHex } from "viem";
 import { setupCrossChainEnvironment } from "./setup.js";
+import { createMockRelay } from "./mockRelay.js";
+import { registerTestNames } from "./testNames.js";
+
+const t0 = Date.now();
 
 const env = await setupCrossChainEnvironment({
   l1Port: 8545,
-  l2Port: 8456,
-  urgPort: 8457,
+  l2Port: 8546,
+  urgPort: 8547,
   saveDeployments: true,
 });
 
+// handler for shell
 process.once("SIGINT", async () => {
   console.log("\nShutting down...");
   await env.shutdown();
   process.exit();
 });
-
-createMockRelay({
-  l1Bridge: env.l1.contracts.mockBridge,
-  l2Bridge: env.l2.contracts.mockBridge,
-  l1Client: env.l1.client,
-  l2Client: env.l2.client,
+// handler for docker
+process.once("SIGTERM", async (code) => {
+  await env.shutdown();
+  process.exit(code);
+});
+// handler for bugs
+process.once("uncaughtException", async (err) => {
+  await env.shutdown();
+  throw err;
 });
 
-console.log("\nAvailable Test Accounts:");
-console.log("========================");
-console.table(env.accounts.map(({ name, address }, i) => ({ name, address })));
+createMockRelay(env);
 
-console.log("\nDeployments:");
-console.log("============");
-console.log({
-  urg: (({ gateway, ...a }) => a)(env.urg),
-  l1: dump(env.l1),
-  l2: dump(env.l2),
-});
+console.log();
+console.log("Available Named Accounts:");
+console.table(env.accounts.map((x) => ({ Name: x.name, Address: x.address })));
 
-function dump(deployment: typeof env.l1 | typeof env.l2) {
-  const { client, hostPort, contracts } = deployment;
-  return {
-    chain: toHex(client.chain.id),
-    endpoint: `{http,ws}://${hostPort}`,
-    contracts: Object.fromEntries(
-      Object.entries(contracts).map(([k, v]) => [k, v.address]),
-    ),
-  };
+console.table(
+  Object.fromEntries(
+    [env.l1, env.l2].map((x) => [
+      x.client.chain.name,
+      {
+        Chain: `${x.client.chain.id} (${toHex(x.client.chain.id)})`,
+        Endpoint: `{http,ws}://${x.hostPort}`,
+      },
+    ]),
+  ),
+);
+console.log("Unruggable Gateway:", (({ gateway, ...a }) => a)(env.urg));
+
+for (const lx of [env.l1, env.l2]) {
+  console.table(
+    Object.entries(lx.deployments).map(([name, address]) => ({
+      [lx.client.chain.name]: name,
+      "Contract Address": getAddress(address),
+    })),
+  );
 }
+
+await registerTestNames(env, ["test", "example", "demo"]);
+
+console.log();
+console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);

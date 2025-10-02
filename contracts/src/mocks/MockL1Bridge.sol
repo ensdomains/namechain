@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {L1EjectionController} from "../L1/L1EjectionController.sol";
+import {TransferData} from "./../common/TransferData.sol";
+import {L1BridgeController} from "./../L1/L1BridgeController.sol";
 import {MockBridgeBase} from "./MockBridgeBase.sol";
-import {BridgeMessageType} from "../common/IBridge.sol";
-import {BridgeEncoder} from "../common/BridgeEncoder.sol";
-import {TransferData} from "../common/TransferData.sol";
 
 /**
  * @title MockL1Bridge
@@ -13,22 +11,34 @@ import {TransferData} from "../common/TransferData.sol";
  * Accepts arbitrary messages as bytes and calls the appropriate controller methods
  */
 contract MockL1Bridge is MockBridgeBase {
-    // Ejection controller to call when receiving ejection messages
-    L1EjectionController public ejectionController;
-    
+    ////////////////////////////////////////////////////////////////////////
+    // Storage
+    ////////////////////////////////////////////////////////////////////////
+
+    // Bridge controller to call when receiving ejection messages
+    L1BridgeController public bridgeController;
+
+    ////////////////////////////////////////////////////////////////////////
+    // Events
+    ////////////////////////////////////////////////////////////////////////
+
     event NameBridgedToL2(bytes message);
-    
-    function setEjectionController(L1EjectionController _ejectionController) external {
-        ejectionController = _ejectionController;
+
+    ////////////////////////////////////////////////////////////////////////
+    // Implementation
+    ////////////////////////////////////////////////////////////////////////
+
+    function setBridgeController(L1BridgeController bridgeController_) external {
+        bridgeController = bridgeController_;
     }
-    
+
     /**
      * @dev Override sendMessage to emit specific events based on message type
      */
     function sendMessage(bytes memory message) external override {
         emit NameBridgedToL2(message);
     }
-    
+
     /**
      * @dev Handle ejection messages specific to L1 bridge
      */
@@ -36,16 +46,13 @@ contract MockL1Bridge is MockBridgeBase {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        ejectionController.completeEjectionFromL2(transferData);
+        bridgeController.completeEjectionToL1(transferData);
     }
-    
+
     /**
      * @dev Handle renewal messages specific to L1 bridge
      */
-    function _handleRenewalMessage(
-        uint256 tokenId,
-        uint64 newExpiry
-    ) internal override {
-        ejectionController.syncRenewal(tokenId, newExpiry);
+    function _handleRenewalMessage(uint256 tokenId, uint64 newExpiry) internal override {
+        bridgeController.syncRenewal(tokenId, newExpiry);
     }
 }

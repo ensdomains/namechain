@@ -12,18 +12,65 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
  * - Up to 15 assignees per role
  */
 interface IEnhancedAccessControl is IERC165 {
+    ////////////////////////////////////////////////////////////////////////
+    // Events
+    ////////////////////////////////////////////////////////////////////////
+
+    event EACRolesGranted(uint256 resource, uint256 roleBitmap, address account);
+
+    event EACRolesRevoked(uint256 resource, uint256 roleBitmap, address account);
+
+    event EACAllRolesRevoked(uint256 resource, address account);
+
+    ////////////////////////////////////////////////////////////////////////
     // Errors
+    ////////////////////////////////////////////////////////////////////////
+
     error EACUnauthorizedAccountRoles(uint256 resource, uint256 roleBitmap, address account);
+
     error EACCannotGrantRoles(uint256 resource, uint256 roleBitmap, address account);
+
+    error EACCannotRevokeRoles(uint256 resource, uint256 roleBitmap, address account);
+
     error EACRootResourceNotAllowed();
+
     error EACMaxAssignees(uint256 resource, uint256 role);
+
     error EACMinAssignees(uint256 resource, uint256 role);
+
     error EACInvalidRoleBitmap(uint256 roleBitmap);
 
-    // Events
-    event EACRolesGranted(uint256 resource, uint256 roleBitmap, address account);
-    event EACRolesRevoked(uint256 resource, uint256 roleBitmap, address account);
-    event EACAllRolesRevoked(uint256 resource, address account);
+    ////////////////////////////////////////////////////////////////////////
+    // Functions
+    ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @dev Grants all roles in the given role bitmap to `account`.
+     */
+    function grantRoles(
+        uint256 resource,
+        uint256 roleBitmap,
+        address account
+    ) external returns (bool);
+
+    /**
+     * @dev Grants all roles in the given role bitmap to `account` in the ROOT_RESOURCE.
+     */
+    function grantRootRoles(uint256 roleBitmap, address account) external returns (bool);
+
+    /**
+     * @dev Revokes all roles in the given role bitmap from `account`.
+     */
+    function revokeRoles(
+        uint256 resource,
+        uint256 roleBitmap,
+        address account
+    ) external returns (bool);
+
+    /**
+     * @dev Revokes all roles in the given role bitmap from `account` in the ROOT_RESOURCE.
+     */
+    function revokeRootRoles(uint256 roleBitmap, address account) external returns (bool);
 
     /**
      * @dev Returns the `ROOT_RESOURCE` constant.
@@ -48,7 +95,11 @@ interface IEnhancedAccessControl is IERC165 {
     /**
      * @dev Returns `true` if `account` has been granted all the given roles in `resource`.
      */
-    function hasRoles(uint256 resource, uint256 rolesBitmap, address account) external view returns (bool);
+    function hasRoles(
+        uint256 resource,
+        uint256 rolesBitmap,
+        address account
+    ) external view returns (bool);
 
     /**
      * @dev Get if any of the roles in the given role bitmap has assignees.
@@ -58,25 +109,8 @@ interface IEnhancedAccessControl is IERC165 {
     /**
      * @dev Get the no. of assignees for the roles in the given role bitmap.
      */
-    function getAssigneeCount(uint256 resource, uint256 roleBitmap) external view returns (uint256 counts, uint256 mask);
-
-    /**
-     * @dev Grants all roles in the given role bitmap to `account`.
-     */
-    function grantRoles(uint256 resource, uint256 roleBitmap, address account) external returns (bool);
-
-    /**
-     * @dev Grants all roles in the given role bitmap to `account` in the ROOT_RESOURCE.
-     */
-    function grantRootRoles(uint256 roleBitmap, address account) external returns (bool);
-
-    /**
-     * @dev Revokes all roles in the given role bitmap from `account`.
-     */
-    function revokeRoles(uint256 resource, uint256 roleBitmap, address account) external returns (bool);
-
-    /**
-     * @dev Revokes all roles in the given role bitmap from `account` in the ROOT_RESOURCE.
-     */
-    function revokeRootRoles(uint256 roleBitmap, address account) external returns (bool);
-} 
+    function getAssigneeCount(
+        uint256 resource,
+        uint256 roleBitmap
+    ) external view returns (uint256 counts, uint256 mask);
+}

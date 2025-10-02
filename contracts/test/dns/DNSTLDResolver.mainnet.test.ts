@@ -3,35 +3,9 @@ import { describe, it } from "vitest";
 import { namehash } from "viem";
 import { dnsEncodeName, getLabelAt } from "../utils/utils.js";
 import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
-import { expectVar } from "../utils/expectVar.ts";
-import {
-  COIN_TYPE_ETH,
-  KnownProfile,
-  bundleCalls,
-  makeResolutions,
-} from "../utils/resolutions.js";
-
-const KNOWN: KnownProfile[] = [
-  {
-    name: "taytems.xyz",
-    addresses: [
-      {
-        coinType: COIN_TYPE_ETH,
-        value: "0x8e8Db5CcEF88cca9d624701Db544989C996E3216",
-      },
-    ],
-  },
-  {
-    name: "raffy.xyz",
-    texts: [{ key: "avatar", value: "https://raffy.xyz/ens.jpg" }],
-    addresses: [
-      {
-        coinType: COIN_TYPE_ETH,
-        value: "0x51050ec063d393217B436747617aD1C2285Aeeee",
-      },
-    ],
-  },
-];
+import { expectVar } from "../utils/expectVar.js";
+import { bundleCalls, makeResolutions } from "../utils/resolutions.js";
+import { KNOWN_DNS } from "./mainnet.js";
 
 const url = await (async (config) => {
   return config.type === "http" && config.url.get();
@@ -91,7 +65,7 @@ if (url) {
   tests = () => {
     const timeout = 15000;
     describe("v1", () => {
-      for (const kp of KNOWN) {
+      for (const kp of KNOWN_DNS) {
         it(kp.name, { timeout }, async () => {
           const F = await chain.networkHelpers.loadFixture(fixture);
           await F.mainnetV2.setupName({
@@ -110,7 +84,7 @@ if (url) {
       }
     });
     describe("v2", () => {
-      for (const kp of KNOWN) {
+      for (const kp of KNOWN_DNS) {
         it(kp.name, { timeout }, async () => {
           const F = await chain.networkHelpers.loadFixture(fixture);
           await F.mainnetV2.setupName({

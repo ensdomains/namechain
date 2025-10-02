@@ -26,4 +26,4 @@
 	path = contracts/lib/solsha1
 	url = https://github.com/ensdomains/solsha1
 [submodule "lib/ens-contracts"]
-	branch = staging
+	branch = feature-fet-1938/fixed-deploy-scripts

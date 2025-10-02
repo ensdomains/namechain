@@ -1,15 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {IEnhancedAccessControl} from "./IEnhancedAccessControl.sol";
+import {IRegistryDatastore} from "./IRegistryDatastore.sol";
 import {IStandardRegistry} from "./IStandardRegistry.sol";
 import {ITokenObserver} from "./ITokenObserver.sol";
-import {IEnhancedAccessControl} from "./IEnhancedAccessControl.sol";
 
 interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
+    ////////////////////////////////////////////////////////////////////////
+    // Events
+    ////////////////////////////////////////////////////////////////////////
+
     /**
      * @dev Event emitted when a token observer is set.
      */
     event TokenObserverSet(uint256 indexed tokenId, address observer);
+
+    ////////////////////////////////////////////////////////////////////////
+    // Functions
+    ////////////////////////////////////////////////////////////////////////
 
     /**
      * @dev Sets a token observer for a token.
@@ -18,12 +27,19 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
      */
     function setTokenObserver(uint256 tokenId, ITokenObserver observer) external;
 
+    /// @notice Get the latest owner of a token.
+    ///         If the token was burned, returns null.
+    /// @param tokenId The token ID to query.
+    /// @return The latest owner address.
+    function latestOwnerOf(uint256 tokenId) external view returns (address);
+
     /**
      * @dev Fetches the name data for a label.
      * @param label The label to fetch the name data for.
      * @return tokenId The token ID of the name.
-     * @return expiry The expiry date of the name.
-     * @return tokenIdVersion The token ID version of the name.
+     * @return entry The entry data for the name.
      */
-    function getNameData(string calldata label) external view returns (uint256 tokenId, uint64 expiry, uint32 tokenIdVersion);    
+    function getNameData(
+        string calldata label
+    ) external view returns (uint256 tokenId, IRegistryDatastore.Entry memory entry);
 }

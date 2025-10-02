@@ -1,25 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
-import "../src/common/BridgeEncoder.sol";
-import {BridgeMessageType} from "../src/common/IBridge.sol";
-import {TransferData} from "../src/common/TransferData.sol";
-import {NameUtils} from "../src/common/NameUtils.sol";
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
+
+import {Test} from "forge-std/Test.sol";
+
+import {BridgeEncoder} from "./../src/common/BridgeEncoder.sol";
+import {BridgeMessageType} from "./../src/common/IBridge.sol";
+import {NameUtils} from "./../src/common/NameUtils.sol";
+import {TransferData} from "./../src/common/TransferData.sol";
 
 // Wrapper contract to properly test library errors
 contract BridgeEncoderWrapper {
-    function decodeEjection(bytes memory message) external pure returns (
-        bytes memory dnsEncodedName,
-        TransferData memory data
-    ) {
+    function decodeEjection(bytes memory message) external pure returns (TransferData memory data) {
         return BridgeEncoder.decodeEjection(message);
     }
 
-    function decodeRenewal(bytes memory message) external pure returns (
-        uint256 tokenId,
-        uint64 newExpiry
-    ) {
+    function decodeRenewal(
+        bytes memory message
+    ) external pure returns (uint256 tokenId, uint64 newExpiry) {
         return BridgeEncoder.decodeRenewal(message);
     }
 }
@@ -32,8 +31,9 @@ contract BridgeEncoderTest is Test {
     }
 
     function testEncodeEjection() public view {
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
         TransferData memory transferData = TransferData({
-            label: "test",
+            dnsEncodedName: dnsEncodedName,
             owner: address(0x123),
             subregistry: address(0x456),
             resolver: address(0x789),
@@ -41,17 +41,16 @@ contract BridgeEncoderTest is Test {
             roleBitmap: 0x01
         });
 
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
-        bytes memory encodedMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);
-        
+        bytes memory encodedMessage = BridgeEncoder.encodeEjection(transferData);
+
         // Verify the message type is correct
         BridgeMessageType messageType = BridgeEncoder.getMessageType(encodedMessage);
-        assertEq(uint(messageType), uint(BridgeMessageType.EJECTION));
-        
+        assertEq(uint256(messageType), uint256(BridgeMessageType.EJECTION));
+
         // Verify we can decode the message back
-        (bytes memory decodedDnsName, TransferData memory decodedData) = BridgeEncoder.decodeEjection(encodedMessage);
-        assertEq(decodedDnsName, dnsEncodedName);
-        assertEq(decodedData.label, transferData.label);
+        (TransferData memory decodedData) = BridgeEncoder.decodeEjection(encodedMessage);
+        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(dnsEncodedName));
+        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(transferData.dnsEncodedName));
         assertEq(decodedData.owner, transferData.owner);
         assertEq(decodedData.subregistry, transferData.subregistry);
         assertEq(decodedData.resolver, transferData.resolver);
@@ -64,13 +63,15 @@ contract BridgeEncoderTest is Test {
         uint64 newExpiry = uint64(block.timestamp + 365 days);
 
         bytes memory encodedMessage = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
-        
+
         // Verify the message type is correct
         BridgeMessageType messageType = BridgeEncoder.getMessageType(encodedMessage);
-        assertEq(uint(messageType), uint(BridgeMessageType.RENEWAL));
-        
+        assertEq(uint256(messageType), uint256(BridgeMessageType.RENEWAL));
+
         // Verify we can decode the message back
-        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoder.decodeRenewal(encodedMessage);
+        (uint256 decodedTokenId, uint64 decodedExpiry) = BridgeEncoder.decodeRenewal(
+            encodedMessage
+        );
         assertEq(decodedTokenId, tokenId);
         assertEq(decodedExpiry, newExpiry);
     }
@@ -78,8 +79,9 @@ contract BridgeEncoderTest is Test {
     function testDecodeEjectionInvalidMessageType() public {
         // Create a message with wrong message type but correct structure
         // to test the custom error (not ABI decoding error)
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
         TransferData memory transferData = TransferData({
-            label: "test",
+            dnsEncodedName: dnsEncodedName,
             owner: address(0x123),
             subregistry: address(0x456),
             resolver: address(0x789),
@@ -87,11 +89,9 @@ contract BridgeEncoderTest is Test {
             roleBitmap: 0x01
         });
 
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
-        
         // Manually encode with wrong message type to test custom error
-        bytes memory invalidMessage = abi.encode(uint(BridgeMessageType.RENEWAL), dnsEncodedName, transferData);
-        
+        bytes memory invalidMessage = abi.encode(uint256(BridgeMessageType.RENEWAL), transferData);
+
         // Try to decode it as an ejection message - should revert with custom error
         vm.expectRevert(abi.encodeWithSelector(BridgeEncoder.InvalidEjectionMessageType.selector));
         wrapper.decodeEjection(invalidMessage);
@@ -100,18 +100,23 @@ contract BridgeEncoderTest is Test {
     function testDecodeRenewalInvalidMessageType() public {
         uint256 tokenId = 12345;
         uint64 newExpiry = uint64(block.timestamp + 365 days);
-        
+
         // Manually encode with wrong message type to test custom error
-        bytes memory invalidMessage = abi.encode(uint(BridgeMessageType.EJECTION), tokenId, newExpiry);
-        
+        bytes memory invalidMessage = abi.encode(
+            uint256(BridgeMessageType.EJECTION),
+            tokenId,
+            newExpiry
+        );
+
         // Try to decode it as a renewal message - should revert with custom error
         vm.expectRevert(abi.encodeWithSelector(BridgeEncoder.InvalidRenewalMessageType.selector));
         wrapper.decodeRenewal(invalidMessage);
     }
 
     function testGetMessageType() public view {
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
         TransferData memory transferData = TransferData({
-            label: "test",
+            dnsEncodedName: dnsEncodedName,
             owner: address(0x123),
             subregistry: address(0x456),
             resolver: address(0x789),
@@ -119,25 +124,24 @@ contract BridgeEncoderTest is Test {
             roleBitmap: 0x01
         });
 
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
-        
         // Test ejection message type
-        bytes memory ejectionMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);
+        bytes memory ejectionMessage = BridgeEncoder.encodeEjection(transferData);
         BridgeMessageType ejectionType = BridgeEncoder.getMessageType(ejectionMessage);
-        assertEq(uint(ejectionType), uint(BridgeMessageType.EJECTION));
-        
+        assertEq(uint256(ejectionType), uint256(BridgeMessageType.EJECTION));
+
         // Test renewal message type
         uint256 tokenId = 12345;
         uint64 newExpiry = uint64(block.timestamp + 365 days);
         bytes memory renewalMessage = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
         BridgeMessageType renewalType = BridgeEncoder.getMessageType(renewalMessage);
-        assertEq(uint(renewalType), uint(BridgeMessageType.RENEWAL));
+        assertEq(uint256(renewalType), uint256(BridgeMessageType.RENEWAL));
     }
 
     function testEncodingStructure() public view {
         // Test that the new encoding structure works correctly
+        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("structuretest");
         TransferData memory transferData = TransferData({
-            label: "structuretest",
+            dnsEncodedName: dnsEncodedName,
             owner: address(0x999),
             subregistry: address(0x888),
             resolver: address(0x777),
@@ -145,18 +149,17 @@ contract BridgeEncoderTest is Test {
             roleBitmap: 0xFF
         });
 
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("structuretest");
-        bytes memory encodedMessage = BridgeEncoder.encodeEjection(dnsEncodedName, transferData);
-        
+        bytes memory encodedMessage = BridgeEncoder.encodeEjection(transferData);
+
         // Decode and verify all fields match exactly
-        (bytes memory decodedDnsName, TransferData memory decodedData) = BridgeEncoder.decodeEjection(encodedMessage);
-        
-        assertEq(decodedDnsName, dnsEncodedName);
-        assertEq(decodedData.label, transferData.label);
+        (TransferData memory decodedData) = BridgeEncoder.decodeEjection(encodedMessage);
+
+        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(dnsEncodedName));
+        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(transferData.dnsEncodedName));
         assertEq(decodedData.owner, transferData.owner);
         assertEq(decodedData.subregistry, transferData.subregistry);
         assertEq(decodedData.resolver, transferData.resolver);
         assertEq(decodedData.expires, transferData.expires);
         assertEq(decodedData.roleBitmap, transferData.roleBitmap);
     }
-} 
+}

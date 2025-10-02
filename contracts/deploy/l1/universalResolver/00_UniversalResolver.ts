@@ -1,4 +1,3 @@
-/// we import what we need from the @rocketh alias, see ../rocketh.ts
 import { artifacts, execute } from "@rocketh";
 
 export default execute(
@@ -10,15 +9,14 @@ export default execute(
       "BatchGatewayProvider",
     );
 
-    await deploy("UniversalResolver", {
+    await deploy("UniversalResolverV2", {
       account: deployer,
       artifact: artifacts.UniversalResolverV2,
       args: [rootRegistry.address, batchGatewayProvider.address],
     });
   },
-  // finally you can pass tags and dependencies
   {
-    tags: ["UniversalResolver", "l1"],
+    tags: ["UniversalResolverV2", "l1"],
     dependencies: ["RootRegistry", "BatchGatewayProvider"],
   },
 );
