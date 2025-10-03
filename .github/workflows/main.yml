@@ -72,6 +72,7 @@ jobs:
           CC_SHA: ${{ github.sha }}
 
   lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       # setup
