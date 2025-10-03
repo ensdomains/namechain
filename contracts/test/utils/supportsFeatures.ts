@@ -1,5 +1,5 @@
 import { toFunctionSelector, type Hex } from "viem";
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { FEATURES } from "../../lib/ens-contracts/test/utils/features.js";
 
 type FeatureKeys<T> = {

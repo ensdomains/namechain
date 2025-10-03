@@ -2,11 +2,19 @@
   "solidity.packageDefaultDependenciesContractsDirectory": "./contracts/src",
   "solidity.packageDefaultDependenciesDirectory": "./contracts/lib",
   "solidity.compileUsingRemoteVersion": "v0.8.25+commit.b61c2a91",
+  "solidity.solhintPackageDirectory": "./node_modules/solhint",
+  "solidity.formatter": "prettier",
+  "[solidity]": {
+    "editor.defaultFormatter": "JuanBlanco.solidity",
+    "editor.formatOnSave": true
+  },
+  "editor.formatOnSave": true,
+  "prettier.configPath": "./.prettierrc.json",
   "search.exclude": {
     "**/node_modules": true,
     "**/cache": true,
     "**/artifacts": true,
     "**/build": true,
     "**/deployments": true
-  },
+  }
 }

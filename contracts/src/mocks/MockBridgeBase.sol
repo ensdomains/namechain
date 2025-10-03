@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {TransferData} from "../common/TransferData.sol";
-import {IBridge, BridgeMessageType} from "../common/IBridge.sol";
-import {BridgeEncoder} from "../common/BridgeEncoder.sol";
+import {IBridge, BridgeMessageType} from "../common/bridge/interfaces/IBridge.sol";
+import {BridgeEncoderLib} from "../common/bridge/libraries/BridgeEncoderLib.sol";
+import {TransferData} from "../common/bridge/types/TransferData.sol";
 
 /**
  * @title MockBridgeBase
@@ -11,31 +11,42 @@ import {BridgeEncoder} from "../common/BridgeEncoder.sol";
  * Contains common functionality for message encoding/decoding and event emission
  */
 abstract contract MockBridgeBase is IBridge {
-    // Custom errors
-    error RenewalNotSupported();
-    
+    ////////////////////////////////////////////////////////////////////////
+    // Events
+    ////////////////////////////////////////////////////////////////////////
+
     // Event for message receipt acknowledgement
     event MessageProcessed(bytes message);
-    
+
+    ////////////////////////////////////////////////////////////////////////
+    // Errors
+    ////////////////////////////////////////////////////////////////////////
+
+    error RenewalNotSupported();
+
+    ////////////////////////////////////////////////////////////////////////
+    // Implementation
+    ////////////////////////////////////////////////////////////////////////
+
     /**
      * @dev Simulate receiving a message.
      * Anyone can call this method with encoded message data
      */
     function receiveMessage(bytes calldata message) external {
-        BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
+        BridgeMessageType messageType = BridgeEncoderLib.getMessageType(message);
 
         if (messageType == BridgeMessageType.EJECTION) {
-            (TransferData memory transferData) = BridgeEncoder.decodeEjection(message);
+            (TransferData memory transferData) = BridgeEncoderLib.decodeEjection(message);
             _handleEjectionMessage(transferData.dnsEncodedName, transferData);
         } else if (messageType == BridgeMessageType.RENEWAL) {
-            (uint256 tokenId, uint64 newExpiry) = BridgeEncoder.decodeRenewal(message);
+            (uint256 tokenId, uint64 newExpiry) = BridgeEncoderLib.decodeRenewal(message);
             _handleRenewalMessage(tokenId, newExpiry);
         }
-        
+
         // Emit event for tracking
         emit MessageProcessed(message);
     }
-    
+
     /**
      * @dev Abstract method for handling ejection messages
      * Must be implemented by concrete bridge contracts
@@ -44,13 +55,10 @@ abstract contract MockBridgeBase is IBridge {
         bytes memory dnsEncodedName,
         TransferData memory transferData
     ) internal virtual;
-    
+
     /**
      * @dev Abstract method for handling renewal messages
      * Must be implemented by concrete bridge contracts
      */
-    function _handleRenewalMessage(
-        uint256 tokenId,
-        uint64 newExpiry
-    ) internal virtual;
-} 
+    function _handleRenewalMessage(uint256 tokenId, uint64 newExpiry) internal virtual;
+}

@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "@openzeppelin/contracts/utils/StorageSlot.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
-import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-
-// CCIP-Read Imports
 import {EIP3668, OffchainLookup} from "@ens/contracts/ccipRead/EIP3668.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 /**
  * @title UpgradableUniversalResolverProxy
@@ -15,21 +11,53 @@ import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
  * and properly handles CCIP-Read reverts. Admin can upgrade the implementation.
  */
 contract UpgradableUniversalResolverProxy {
+    ////////////////////////////////////////////////////////////////////////
+    // Constants
+    ////////////////////////////////////////////////////////////////////////
+
     // Storage slot for implementation address (EIP-1967 compatible)
-    bytes32 private constant _IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+    bytes32 private constant _IMPLEMENTATION_SLOT =
+        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
     // Storage slot for admin (EIP-1967 compatible)
-    bytes32 private constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    bytes32 private constant _ADMIN_SLOT =
+        0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
-    // Custom errors
+    ////////////////////////////////////////////////////////////////////////
+    // Events
+    ////////////////////////////////////////////////////////////////////////
+
+    event Upgraded(address indexed implementation);
+
+    event AdminChanged(address indexed previousAdmin, address indexed newAdmin);
+
+    event AdminRemoved(address indexed admin);
+
+    ////////////////////////////////////////////////////////////////////////
+    // Errors
+    ////////////////////////////////////////////////////////////////////////
+
     error CallerNotAdmin();
+
     error InvalidImplementation();
+
     error SameImplementation();
 
-    // Events
-    event Upgraded(address indexed implementation);
-    event AdminChanged(address indexed previousAdmin, address indexed newAdmin);
-    event AdminRemoved(address indexed admin);
+    ////////////////////////////////////////////////////////////////////////
+    // Modifiers
+    ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @dev Modifier restricting a function to the admin.
+     */
+    modifier onlyAdmin() {
+        if (msg.sender != _getAdmin()) revert CallerNotAdmin();
+        _;
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////
 
     /**
      * @dev Initializes the proxy with an implementation and admin.
@@ -40,15 +68,39 @@ contract UpgradableUniversalResolverProxy {
         _setAdmin(admin_);
     }
 
-    /**
-     * @dev Modifier restricting a function to the admin.
-     */
-    modifier onlyAdmin() {
-        if (msg.sender != _getAdmin()) revert CallerNotAdmin();
-        _;
-    }
+    ////////////////////////////////////////////////////////////////////////
+    // Implementation
+    ////////////////////////////////////////////////////////////////////////
 
-    // --- Admin Functions ---
+    /**
+     * @dev Fallback function that handles forwarding calls to the implementation
+     * and properly manages CCIP-Read reverts.
+     */
+    fallback() external {
+        (bool ok, bytes memory v) = _getImplementation().staticcall(msg.data);
+        if (!ok && bytes4(v) == OffchainLookup.selector) {
+            EIP3668.Params memory p = EIP3668.decode(BytesUtils.substring(v, 4, v.length - 4));
+            if (p.sender == _getImplementation()) {
+                revert OffchainLookup(
+                    address(this),
+                    p.urls,
+                    p.callData,
+                    p.callbackFunction,
+                    p.extraData
+                );
+            }
+        }
+
+        if (ok) {
+            assembly {
+                return(add(v, 32), mload(v))
+            }
+        } else {
+            assembly {
+                revert(add(v, 32), mload(v))
+            }
+        }
+    }
 
     /**
      * @dev Upgrades to a new implementation.
@@ -83,7 +135,9 @@ contract UpgradableUniversalResolverProxy {
         return _getAdmin();
     }
 
-    // --- Internal Admin/Implementation Logic ---
+    ////////////////////////////////////////////////////////////////////////
+    // Internal Functions
+    ////////////////////////////////////////////////////////////////////////
 
     /**
      * @dev Validates if the implementation is valid.
@@ -98,26 +152,10 @@ contract UpgradableUniversalResolverProxy {
     }
 
     /**
-     * @dev Sets the implementation address in storage.
-     */
-    function _setImplementation(address newImplementation) private {
-        StorageSlot.getAddressSlot(_IMPLEMENTATION_SLOT).value = newImplementation;
-    }
-
-    /**
      * @dev Gets the current implementation address from storage.
      */
     function _getImplementation() internal view returns (address) {
         return StorageSlot.getAddressSlot(_IMPLEMENTATION_SLOT).value;
-    }
-
-    /**
-     * @dev Sets the admin address in storage.
-     */
-    function _setAdmin(address newAdmin) private {
-        address previousAdmin = _getAdmin();
-        StorageSlot.getAddressSlot(_ADMIN_SLOT).value = newAdmin;
-        emit AdminChanged(previousAdmin, newAdmin);
     }
 
     /**
@@ -127,29 +165,23 @@ contract UpgradableUniversalResolverProxy {
         return StorageSlot.getAddressSlot(_ADMIN_SLOT).value;
     }
 
-    // --- Fallback ---
+    ////////////////////////////////////////////////////////////////////////
+    // Private Functions
+    ////////////////////////////////////////////////////////////////////////
 
     /**
-     * @dev Fallback function that handles forwarding calls to the implementation
-     * and properly manages CCIP-Read reverts.
+     * @dev Sets the implementation address in storage.
      */
-    fallback() external {
-        (bool ok, bytes memory v) = _getImplementation().staticcall(msg.data);
-        if (!ok && bytes4(v) == OffchainLookup.selector) {
-            EIP3668.Params memory p = EIP3668.decode(BytesUtils.substring(v, 4, v.length - 4));
-            if (p.sender == _getImplementation()) {
-                revert OffchainLookup(address(this), p.urls, p.callData, p.callbackFunction, p.extraData);
-            }
-        }
+    function _setImplementation(address newImplementation) private {
+        StorageSlot.getAddressSlot(_IMPLEMENTATION_SLOT).value = newImplementation;
+    }
 
-        if (ok) {
-            assembly {
-                return(add(v, 32), mload(v))
-            }
-        } else {
-            assembly {
-                revert(add(v, 32), mload(v))
-            }
-        }
+    /**
+     * @dev Sets the admin address in storage.
+     */
+    function _setAdmin(address newAdmin) private {
+        address previousAdmin = _getAdmin();
+        StorageSlot.getAddressSlot(_ADMIN_SLOT).value = newAdmin;
+        emit AdminChanged(previousAdmin, newAdmin);
     }
 }
