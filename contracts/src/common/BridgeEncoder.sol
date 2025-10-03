@@ -16,43 +16,52 @@ library BridgeEncoder {
     /// @dev Error thrown when message type is invalid for renewal
     error InvalidRenewalMessageType();
 
+    error InvalideMessageType(BridgeMessageType messageType);
+    error UnexpectedMessageType(uint256 ity);
+
     ////////////////////////////////////////////////////////////////////////
     // Library Functions
     ////////////////////////////////////////////////////////////////////////
 
     /// @dev Encode an ejection message.
     function encodeEjection(TransferData memory data) internal pure returns (bytes memory) {
-        return abi.encode(uint256(BridgeMessageType.EJECTION), data);
+        return abi.encode(BridgeMessageType.EJECTION, data);
     }
 
     /// @dev Decode an ejection message.
     function decodeEjection(bytes memory message) internal pure returns (TransferData memory data) {
-        uint256 _messageType;
-        (_messageType, data) = abi.decode(message, (uint256, TransferData));
-        if (_messageType != uint(BridgeMessageType.EJECTION)) {
+        BridgeMessageType messageType;
+        (messageType, data) = abi.decode(message, (BridgeMessageType, TransferData));
+        if (messageType != BridgeMessageType.EJECTION) {
             revert InvalidEjectionMessageType();
         }
     }
 
     /// @dev Encode a renewal message.
     function encodeRenewal(uint256 tokenId, uint64 newExpiry) internal pure returns (bytes memory) {
-        return abi.encode(uint(BridgeMessageType.RENEWAL), tokenId, newExpiry);
+        return abi.encode(BridgeMessageType.RENEWAL, tokenId, newExpiry);
     }
 
     /// @dev Decode a renewal message.
     function decodeRenewal(
         bytes memory message
     ) internal pure returns (uint256 tokenId, uint64 newExpiry) {
-        uint256 _messageType;
-        (_messageType, tokenId, newExpiry) = abi.decode(message, (uint256, uint256, uint64));
-        if (_messageType != uint(BridgeMessageType.RENEWAL)) {
+        BridgeMessageType messageType;
+        (messageType, tokenId, newExpiry) = abi.decode(
+            message,
+            (BridgeMessageType, uint256, uint64)
+        );
+        if (messageType != BridgeMessageType.RENEWAL) {
             revert InvalidRenewalMessageType();
         }
     }
 
     /// @dev Helper function to get the message type from an encoded message.
     function getMessageType(bytes memory message) internal pure returns (BridgeMessageType) {
-        uint256 _messageType = abi.decode(message, (uint256));
-        return BridgeMessageType(_messageType);
+        uint256 ity = uint256(bytes32(message));
+        return
+            message.length < 32 || ity > uint256(type(BridgeMessageType).max)
+                ? BridgeMessageType.UNKNOWN
+                : BridgeMessageType(ity);
     }
 }

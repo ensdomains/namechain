@@ -96,6 +96,11 @@ contract TestETHRegistrar is Test {
         vm.warp(rentPriceOracle.premiumPeriod()); // avoid timestamp issues
     }
 
+    function test_constructor() external {
+        assertEq(address(ethRegistrar.REGISTRY()), address(ethRegistry), "ethRegistry");
+        assertEq(ethRegistrar.BENEFICIARY(), beneficiary, "beneficiary");
+    }
+
     function test_Revert_constructor_emptyRange() external {
         vm.expectRevert(abi.encodeWithSelector(IETHRegistrar.MaxCommitmentAgeTooLow.selector));
         new ETHRegistrar(
@@ -500,10 +505,6 @@ contract TestETHRegistrar is Test {
             ),
             "IRentPriceOracle"
         );
-    }
-
-    function test_beneficiary_set() external view {
-        assertEq(ethRegistrar.BENEFICIARY(), beneficiary);
     }
 
     function test_beneficiary_register() external {

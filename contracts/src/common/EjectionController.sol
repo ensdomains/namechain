@@ -28,9 +28,11 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     // Events
     ////////////////////////////////////////////////////////////////////////
 
-    event NameEjectedToL1(bytes dnsEncodedName, uint256 tokenId);
+    // TODO: tokenId doesn't make sense w/o a registry
+    // these both assume an ethRegistry
+    event NameEjectedToL1(bytes name, uint256 tokenId);
 
-    event NameEjectedToL2(bytes dnsEncodedName, uint256 tokenId);
+    event NameEjectedToL2(bytes name, uint256 tokenId);
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
@@ -132,12 +134,9 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     /// @dev Asserts that the DNS-encoded name matches the token ID.
     ///
     /// @param tokenId The token ID to check
-    /// @param dnsEncodedName The DNS-encoded name to check
-    function _assertTokenIdMatchesLabel(
-        uint256 tokenId,
-        bytes memory dnsEncodedName
-    ) internal pure {
-        string memory label = NameUtils.extractLabel(dnsEncodedName);
+    /// @param name The DNS-encoded name to check
+    function _assertTokenIdMatchesLabel(uint256 tokenId, bytes memory name) internal pure {
+        string memory label = NameUtils.firstLabel(name);
         if (NameUtils.labelToCanonicalId(label) != NameUtils.getCanonicalId(tokenId)) {
             revert InvalidLabel(tokenId, label);
         }

@@ -95,14 +95,14 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         controller.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(bridge));
 
         // Register a test name
-        uint64 expires = uint64(block.timestamp + expiryDuration);
+        uint64 expiry = uint64(block.timestamp + expiryDuration);
         tokenId = ethRegistry.register(
             testLabel,
             user,
             ethRegistry,
             address(0),
             LibEACBaseRoles.ALL_ROLES,
-            expires
+            expiry
         );
     }
 
@@ -118,12 +118,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 roleBitmap
     ) internal pure returns (bytes memory) {
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(nameLabel),
+            name: NameUtils.appendETH(nameLabel),
             owner: _owner,
             subregistry: subregistry,
             resolver: _resolver,
             roleBitmap: roleBitmap,
-            expires: expiryTime
+            expiry: expiryTime
         });
         return abi.encode(transferData);
     }
@@ -234,12 +234,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 differentRoles = LibRegistryRoles.ROLE_RENEW | LibRegistryRoles.ROLE_REGISTRAR;
         vm.recordLogs();
         TransferData memory migrationData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(label2),
+            name: NameUtils.appendETH(label2),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             roleBitmap: differentRoles,
-            expires: 0
+            expiry: 0
         });
 
         // Call through the bridge (using vm.prank to simulate bridge calling)
@@ -309,12 +309,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NotTokenOwner.selector, tokenId));
         // Call the external method which should revert
         TransferData memory migrationData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             roleBitmap: LibEACBaseRoles.ALL_ROLES,
-            expires: 0
+            expiry: 0
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -324,12 +324,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_Revert_completeEjectionToL2_not_bridge() public {
         // Try to call completeEjectionToL2 directly (without proper role)
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             roleBitmap: LibEACBaseRoles.ALL_ROLES,
-            expires: 0
+            expiry: 0
         });
 
         vm.expectRevert(
@@ -587,7 +587,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_Revert_eject_tooManyRoleAssignees() public {
         // Test multiple error scenarios: too many assignees and missing assignees
         string memory testLabel2 = "testbadassignees";
-        uint64 expires = uint64(block.timestamp + expiryDuration);
+        uint64 expiry = uint64(block.timestamp + expiryDuration);
 
         // Scenario 1: Register with only some critical roles (missing ROLE_SET_SUBREGISTRY and admin roles)
         uint256 tokenId2 = ethRegistry.register(
@@ -596,7 +596,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             ethRegistry,
             address(0),
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER | LibRegistryRoles.ROLE_CAN_TRANSFER_ADMIN,
-            expires
+            expiry
         );
 
         uint256 criticalRoles = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
@@ -609,7 +609,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             l1Owner,
             l1Subregistry,
             l1Resolver,
-            expires,
+            expiry,
             criticalRoles
         );
 
@@ -654,7 +654,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_eject_success_exactlyOneAssigneePerRole() public {
         // Test successful ejection when each critical role has exactly one assignee
         string memory testLabel3 = "testgoodassignees";
-        uint64 expires = uint64(block.timestamp + expiryDuration);
+        uint64 expiry = uint64(block.timestamp + expiryDuration);
 
         uint256 criticalRoles = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
             LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER_ADMIN |
@@ -667,7 +667,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             ethRegistry,
             address(0),
             criticalRoles,
-            expires
+            expiry
         );
 
         // Verify exactly one assignee per critical role
@@ -683,7 +683,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             l1Owner,
             l1Subregistry,
             l1Resolver,
-            expires,
+            expiry,
             criticalRoles
         );
 
@@ -721,7 +721,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_eject_success_resolverRolesIgnored() public {
         // Test that resolver roles don't affect ejection (can have multiple or zero assignees)
         string memory testLabel4 = "testresolverignored";
-        uint64 expires = uint64(block.timestamp + expiryDuration);
+        uint64 expiry = uint64(block.timestamp + expiryDuration);
 
         // Only grant critical roles initially
         uint256 criticalRoles = LibRegistryRoles.ROLE_SET_TOKEN_OBSERVER |
@@ -735,7 +735,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             ethRegistry,
             address(0),
             criticalRoles,
-            expires
+            expiry
         );
 
         // Get the resource ID (this stays stable across regenerations)
@@ -756,7 +756,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             l1Owner,
             l1Subregistry,
             l1Resolver,
-            expires,
+            expiry,
             0
         );
 

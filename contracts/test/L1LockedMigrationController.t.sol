@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
 import {
     BaseRegistrarImplementation
@@ -28,80 +28,41 @@ import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Hol
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
-import {VerifiableFactory} from "./../lib/verifiable-factory/src/VerifiableFactory.sol";
-import {LibEACBaseRoles} from "./../src/common/EnhancedAccessControl.sol";
-import {UnauthorizedCaller} from "./../src/common/Errors.sol";
-import {IBridge, LibBridgeRoles} from "./../src/common/IBridge.sol";
-import {IPermissionedRegistry} from "./../src/common/IPermissionedRegistry.sol";
-import {IRegistry} from "./../src/common/IRegistry.sol";
-import {IRegistryMetadata} from "./../src/common/IRegistryMetadata.sol";
-import {LibRegistryRoles} from "./../src/common/LibRegistryRoles.sol";
-import {NameUtils} from "./../src/common/NameUtils.sol";
-import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
-import {TransferData, MigrationData} from "./../src/common/TransferData.sol";
-import {L1BridgeController} from "./../src/L1/L1BridgeController.sol";
-import {L1LockedMigrationController, ETH_NODE} from "./../src/L1/L1LockedMigrationController.sol";
-import {LibLockedNames} from "./../src/L1/LibLockedNames.sol";
-import {MigratedWrappedNameRegistry} from "./../src/L1/MigratedWrappedNameRegistry.sol";
+import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {UnauthorizedCaller} from "../src/common/Errors.sol";
+import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
+import {LibBridgeRoles} from "../src/common/IBridge.sol";
+import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
+import {IRegistry} from "../src/common/IRegistry.sol";
+import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
+import {NameUtils} from "../src/common/NameUtils.sol";
+import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
+import {TransferData, MigrationData} from "../src/common/TransferData.sol";
+import {L1BridgeController} from "../src/L1/L1BridgeController.sol";
+import {L1LockedMigrationController} from "../src/L1/L1LockedMigrationController.sol";
+import {LibLockedNames} from "../src/L1/LibLockedNames.sol";
+import {MigratedWrappedNameRegistry} from "../src/L1/MigratedWrappedNameRegistry.sol";
 import {MockPermissionedRegistry} from "./mocks/MockPermissionedRegistry.sol";
-import {SimpleRegistryMetadata} from "./../src/common/SimpleRegistryMetadata.sol";
+import {BaseUriRegistryMetadata} from "../src/common/BaseUriRegistryMetadata.sol";
+import {TestV1Mixin} from "./fixtures/TestV1Mixin.sol";
 
-// contract MockNameWrapper {
-//     mapping(uint256 tokenId => uint32 fuses) public fuses;
-//     mapping(uint256 tokenId => uint64 expiry) public expiries;
-//     mapping(uint256 tokenId => address owner) public owners;
-//     mapping(uint256 tokenId => address resolver) public resolvers;
-
-//     function setFuseData(uint256 tokenId, uint32 _fuses, uint64 _expiry) external {
-//         fuses[tokenId] = _fuses;
-//         expiries[tokenId] = _expiry;
-//     }
-
-//     function setInitialResolver(uint256 tokenId, address resolver) external {
-//         resolvers[tokenId] = resolver;
-//     }
-
-//     function getData(uint256 id) external view returns (address, uint32, uint64) {
-//         return (owners[id], fuses[id], expiries[id]);
-//     }
-
-//     function setFuses(bytes32 node, uint16 fusesToBurn) external returns (uint32) {
-//         uint256 tokenId = uint256(node);
-//         fuses[tokenId] = fuses[tokenId] | fusesToBurn;
-//         return fuses[tokenId];
-//     }
-
-//     function setResolver(bytes32 node, address resolver) external {
-//         uint256 tokenId = uint256(node);
-//         resolvers[tokenId] = resolver;
-//     }
-
-//     function getResolver(uint256 tokenId) external view returns (address) {
-//         return resolvers[tokenId];
-//     }
-// }
-
-contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
+contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
     RegistryDatastore datastore;
-    SimpleRegistryMetadata metadata;
+    BaseUriRegistryMetadata metadata;
     MockPermissionedRegistry ethRegistry;
 
-    ENSRegistry ensV1;
-    BaseRegistrarImplementation ethRegistrarV1;
-    NameWrapper nameWrapper;
-
-    MockBridge bridge;
+    MockL1Bridge bridge;
     L1BridgeController bridgeController;
     L1LockedMigrationController controller;
 
     VerifiableFactory migratedRegistryFactory;
     MigratedWrappedNameRegistry migratedRegistryImpl;
 
-    address user = makeAddr("user");
-
     function setUp() external {
         datastore = new RegistryDatastore();
-        metadata = new SimpleRegistryMetadata();
+        metadata = new BaseUriRegistryMetadata();
         ethRegistry = new MockPermissionedRegistry(
             datastore,
             metadata,
@@ -109,21 +70,14 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
             LibEACBaseRoles.ALL_ROLES
         );
 
-        // setup V1
-        ensV1 = new ENSRegistry();
-        ethRegistrarV1 = new BaseRegistrarImplementation(ensV1, ETH_NODE);
-        _claimNodes(NameCoder.encode("eth"), 0, address(ethRegistrarV1));
-        _claimNodes(NameCoder.encode("addr.reverse"), 0, address(this));
-        ethRegistrarV1.addController(address(this));
-        nameWrapper = new NameWrapper(ensV1, ethRegistrarV1, IMetadataService(address(0)));
+        deployV1();
 
-        bridge = new MockBridge();
+        bridge = new MockL1Bridge();
 
         // Deploy migratedRegistryFactory and implementation
         migratedRegistryFactory = new VerifiableFactory();
         migratedRegistryImpl = new MigratedWrappedNameRegistry(
             nameWrapper,
-            ensV1,
             migratedRegistryFactory,
             ethRegistry,
             datastore,
@@ -154,33 +108,6 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         vm.warp(ethRegistrarV1.GRACE_PERIOD() + 1); // avoid timestamp issues
     }
 
-    // fake ReverseClaimer
-    function claim(address) external pure returns (bytes32) {}
-
-    function _claimNodes(bytes memory name, uint256 offset, address owner) internal {
-        bytes32 labelHash;
-        (labelHash, offset, , ) = NameCoder.readLabel(name, offset, false);
-        if (labelHash != bytes32(0)) {
-            _claimNodes(name, offset, owner);
-            ensV1.setSubnodeOwner(NameUtils.unhashedNamehash(name, offset), labelHash, owner);
-        }
-    }
-
-    function _registerWrappedETH2LD(
-        string memory label,
-        uint32 ownerFuses
-    ) internal returns (bytes memory name, uint256 tokenId) {
-        name = NameUtils.dnsEncodeEthLabel(label);
-        tokenId = uint256(keccak256(bytes(label)));
-        ethRegistrarV1.register(tokenId, user, 86400);
-        vm.startPrank(user);
-        ethRegistrarV1.setApprovalForAll(address(nameWrapper), true);
-        nameWrapper.wrapETH2LD(label, user, uint16(ownerFuses), address(0));
-        vm.stopPrank();
-        tokenId = uint256(NameCoder.namehash(ETH_NODE, bytes32(tokenId)));
-        assertEq(nameWrapper.ownerOf(tokenId), user, "owner");
-    }
-
     function _createMigrationData(
         bytes memory name,
         bool toL1,
@@ -189,12 +116,12 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         return
             MigrationData({
                 transferData: TransferData({
-                    dnsEncodedName: name,
+                    name: name,
                     owner: user,
                     subregistry: address(0x2222),
                     resolver: address(0x3333),
                     roleBitmap: roleBitmap,
-                    expires: 0
+                    expiry: 0
                 }),
                 toL1: toL1,
                 salt: uint256(keccak256(abi.encodePacked(name, block.timestamp)))
@@ -204,7 +131,6 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
     function test_constructor() external view {
         assertEq(address(controller.ETH_REGISTRY_V1()), address(ethRegistrarV1), "ethRegistrarV1");
         assertEq(address(controller.NAME_WRAPPER()), address(nameWrapper), "nameWrapper");
-        assertEq(address(controller.BRIDGE()), address(bridge), "bridge");
         assertEq(
             address(controller.L1_BRIDGE_CONTROLLER()),
             address(bridgeController),
@@ -234,7 +160,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
     function test_name_with_cannot_burn_fuses_can_migrate(bool toL1) public {
         // Configure name with fuses that are permanently frozen - this should now be allowed to migrate
 
-        (bytes memory name, uint256 tokenId) = _registerWrappedETH2LD(
+        (bytes memory name, uint256 tokenId) = registerWrappedETH2LD(
             "test",
             CANNOT_UNWRAP | CANNOT_BURN_FUSES
         );
@@ -251,7 +177,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
 
         // MigrationData memory migrationData = MigrationData({
         //     transferData: TransferData({
-        //         dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+        //         name: NameUtils.appendETH(testLabel),
         //         owner: user,
         //         subregistry: address(0), // Will be created by migratedRegistryFactory
         //         resolver: address(0xABCD),
@@ -278,7 +204,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -320,7 +246,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Prepare migration data - the roleBitmap should be ignored completely
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -387,7 +313,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
 
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -413,7 +339,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
 
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -439,7 +365,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Use wrong label that doesn't match tokenId
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel("wronglabel"), // This won't match testTokenId
+                name: NameUtils.appendETH("wronglabel"), // This won't match testTokenId
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -468,7 +394,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
     function test_Revert_unauthorized_caller() public {
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -504,18 +430,18 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
             nameWrapper.setFuseData(tokenIds[i], lockedFuses, uint64(block.timestamp + 86400));
 
             // DNS encode each label as .eth domain
-            bytes memory dnsEncodedName;
+            bytes memory name;
             if (i == 0) {
-                dnsEncodedName = NameUtils.dnsEncodeEthLabel("test1");
+                name = NameUtils.appendETH("test1");
             } else if (i == 1) {
-                dnsEncodedName = NameUtils.dnsEncodeEthLabel("test2");
+                name = NameUtils.appendETH("test2");
             } else {
-                dnsEncodedName = NameUtils.dnsEncodeEthLabel("test3");
+                name = NameUtils.appendETH("test3");
             }
 
             migrationDataArray[i] = MigrationData({
                 transferData: TransferData({
-                    dnsEncodedName: dnsEncodedName,
+                    name: name,
                     owner: user,
                     subregistry: address(0), // Will be created by migratedRegistryFactory
                     resolver: address(uint160(0xABCD + i)),
@@ -568,7 +494,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         uint256 saltData = uint256(keccak256(abi.encodePacked(testLabel, uint256(999))));
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -611,7 +537,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Prepare migration data - incoming roleBitmap should be ignored
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -676,7 +602,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -726,7 +652,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -791,7 +717,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -856,7 +782,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -912,7 +838,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -939,7 +865,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Prepare migration data with user as owner
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -992,7 +918,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -1043,7 +969,7 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+                name: NameUtils.appendETH(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by migratedRegistryFactory
                 resolver: address(0xABCD),
@@ -1075,16 +1001,4 @@ contract TestL1LockedMigrationController is Test, ERC1155Holder, ERC721Holder {
         );
     }
     */
-}
-
-contract MockBridge is IBridge {
-    bytes public lastMessage;
-
-    function sendMessage(bytes memory message) external override {
-        lastMessage = message;
-    }
-
-    function getLastMessage() external view returns (bytes memory) {
-        return lastMessage;
-    }
 }

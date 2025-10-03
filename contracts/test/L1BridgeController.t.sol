@@ -122,12 +122,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
 
         // Create ejection data for this specific label
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(label),
+            name: NameUtils.appendETH(label),
             owner: address(1),
             subregistry: address(2),
             resolver: address(3),
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-            expires: uint64(block.timestamp + 86400)
+            expiry: uint64(block.timestamp + 86400)
         });
         bytes memory ejectionData = abi.encode([transferData]);
 
@@ -154,12 +154,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
 
         // Create a locked name (without any subregistry roles)
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(label),
+            name: NameUtils.appendETH(label),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER, // No subregistry roles
-            expires: expiryTime
+            expiry: expiryTime
         });
 
         vm.prank(address(bridge));
@@ -224,13 +224,13 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
 
         // Create a name with only admin role via bridge migration
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(label),
+            name: NameUtils.appendETH(label),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER |
                 LibRegistryRoles.ROLE_SET_SUBREGISTRY_ADMIN, // Only admin role
-            expires: expiryTime
+            expiry: expiryTime
         });
 
         vm.prank(address(bridge));
@@ -305,12 +305,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         uint256 roleBitmap
     ) internal pure returns (bytes memory) {
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(label),
+            name: NameUtils.appendETH(label),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             roleBitmap: roleBitmap,
-            expires: expiryTime
+            expiry: expiryTime
         });
         return abi.encode(transferData);
     }
@@ -339,12 +339,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
 
         for (uint256 i = 0; i < l2Owners.length; i++) {
             transferDataArray[i] = TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(labels[i]),
+                name: NameUtils.appendETH(labels[i]),
                 owner: l2Owners[i],
                 subregistry: l2Subregistries[i],
                 resolver: l2Resolvers[i],
                 roleBitmap: roleBitmaps[i],
-                expires: expiryTimes[i]
+                expiry: expiryTimes[i]
             });
         }
 
@@ -386,12 +386,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     function test_eject_from_namechain_unlocked() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
-            expires: expiryTime
+            expiry: expiryTime
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -407,12 +407,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
             LibRegistryRoles.ROLE_SET_SUBREGISTRY;
         address subregistry = address(0x1234);
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: user,
             subregistry: subregistry,
             resolver: MOCK_RESOLVER,
             roleBitmap: expectedRoles,
-            expires: expiryTime
+            expiry: expiryTime
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -437,12 +437,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
 
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
-            expires: expiryTime
+            expiry: expiryTime
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -472,12 +472,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         // First register the name
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
-            expires: expiryTime
+            expiry: expiryTime
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -494,12 +494,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     function test_updateExpiration() public {
         uint64 expiryTime = uint64(block.timestamp) + 100;
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
-            expires: expiryTime
+            expiry: expiryTime
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -524,12 +524,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     function test_updateExpiration_emits_event() public {
         uint64 expiryTime = uint64(block.timestamp) + 100;
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
-            expires: expiryTime
+            expiry: expiryTime
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -564,12 +564,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     function test_Revert_updateExpiration_expired_name() public {
         uint64 expiryTime = uint64(block.timestamp) + 100;
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
-            expires: expiryTime
+            expiry: expiryTime
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -587,12 +587,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     function test_Revert_updateExpiration_reduce_expiry() public {
         uint64 initialExpiry = uint64(block.timestamp) + 200;
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
-            expires: initialExpiry
+            expiry: initialExpiry
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -974,12 +974,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
 
         for (uint256 i = 0; i < l2Owners.length; i++) {
             transferDataArray[i] = TransferData({
-                dnsEncodedName: NameUtils.dnsEncodeEthLabel(labels[i]),
+                name: NameUtils.appendETH(labels[i]),
                 owner: l2Owners[i],
                 subregistry: l2Subregistries[i],
                 resolver: l2Resolvers[i],
                 roleBitmap: roleBitmaps[i],
-                expires: expiryTimes[i]
+                expiry: expiryTimes[i]
             });
         }
 
@@ -989,12 +989,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     function test_Revert_completeEjectionToL1_not_bridge() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
-            expires: expiryTime
+            expiry: expiryTime
         });
 
         // Try to call completeEjectionToL1 directly (without proper role)
@@ -1012,12 +1012,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     function test_Revert_syncRenewal_not_bridge() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
-            expires: expiryTime
+            expiry: expiryTime
         });
 
         // First create a name to renew
@@ -1041,12 +1041,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
     function test_completeEjectionToL1() public {
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
-            expires: expiryTime
+            expiry: expiryTime
         });
 
         vm.recordLogs();
@@ -1078,12 +1078,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         // First, migrate a locked name (locked names don't have ROLE_SET_SUBREGISTRY)
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER, // No ROLE_SET_SUBREGISTRY for locked names
-            expires: expiryTime
+            expiry: expiryTime
         });
 
         vm.prank(address(bridge));
@@ -1114,12 +1114,12 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         // First, migrate a locked name (locked names don't have ROLE_SET_SUBREGISTRY)
         uint64 expiryTime = uint64(block.timestamp) + 86400;
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(this),
             subregistry: address(registry),
             resolver: MOCK_RESOLVER,
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER, // No ROLE_SET_SUBREGISTRY for locked names
-            expires: expiryTime
+            expiry: expiryTime
         });
 
         vm.prank(address(bridge));
@@ -1148,20 +1148,20 @@ contract TestL1BridgeController is Test, ERC1155Holder, EnhancedAccessControl {
         // Create batch transfer data
         TransferData[] memory transferDataArray = new TransferData[](2);
         transferDataArray[0] = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel(testLabel),
+            name: NameUtils.appendETH(testLabel),
             owner: address(1),
             subregistry: address(2),
             resolver: address(3),
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
-            expires: uint64(block.timestamp + 86400)
+            expiry: uint64(block.timestamp + 86400)
         });
         transferDataArray[1] = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel("test2"),
+            name: NameUtils.appendETH("test2"),
             owner: address(1),
             subregistry: address(2),
             resolver: address(3),
             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER | LibRegistryRoles.ROLE_SET_SUBREGISTRY,
-            expires: uint64(block.timestamp + 86400)
+            expiry: uint64(block.timestamp + 86400)
         });
 
         bytes memory batchData = abi.encode(transferDataArray);

@@ -52,17 +52,17 @@ contract L1BridgeController is EjectionController {
     function completeEjectionToL1(
         TransferData memory transferData
     ) external virtual onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR) returns (uint256 tokenId) {
-        string memory label = NameUtils.extractLabel(transferData.dnsEncodedName);
-
+        // TODO: check if .eth?
+        string memory label = NameUtils.firstLabel(transferData.name);
         tokenId = REGISTRY.register(
             label,
             transferData.owner,
             IRegistry(transferData.subregistry),
             transferData.resolver,
             transferData.roleBitmap,
-            transferData.expires
+            transferData.expiry
         );
-        emit NameEjectedToL1(transferData.dnsEncodedName, tokenId);
+        emit NameEjectedToL1(transferData.name, tokenId);
     }
 
     /**
@@ -110,14 +110,14 @@ contract L1BridgeController is EjectionController {
             }
 
             // check that the label matches the token id
-            _assertTokenIdMatchesLabel(tokenId, transferData.dnsEncodedName);
+            _assertTokenIdMatchesLabel(tokenId, transferData.name);
 
             // burn the token
             REGISTRY.burn(tokenId);
 
             // send the message to the bridge
             BRIDGE.sendMessage(BridgeEncoder.encodeEjection(transferData));
-            emit NameEjectedToL2(transferData.dnsEncodedName, tokenId);
+            emit NameEjectedToL2(transferData.name, tokenId);
         }
     }
 }

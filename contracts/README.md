@@ -22,8 +22,8 @@ At present the following contracts are implemented:
 3. Install [bun](https://bun.sh/) v1.2+
 4. Install dependencies:
 5. (OPTIONAL) Install [lcov](https://github.com/linux-test-project/lcov) if you want to run coverage tests
-   * Mac: `brew install lcov`
-   * Ubuntu: `sudo apt-get install lcov`
+   - Mac: `brew install lcov`
+   - Ubuntu: `sudo apt-get install lcov`
 
 ```sh
 bun i
@@ -50,8 +50,8 @@ bun run test         # ALL tests
 Or run specific test suites:
 
 ```sh
-bun run test:hardhat  # Run Hardhat tests
-bun run test:forge    # Run Forge tests
+bun run test:hardhat  # run Hardhat tests
+bun run test:forge    # run Forge tests
 bun run test:hardhat test/Ens.t.ts # specific Hardhat test
 ```
 
@@ -64,8 +64,7 @@ There are two ways to run the devnet:
 Start a local devnet with L1 and L2 chains:
 
 ```sh
-bun run devnet        # runs w/last build
-bun run devnet:clean  # builds, tests, runs
+bun run devnet
 ```
 
 This will start:

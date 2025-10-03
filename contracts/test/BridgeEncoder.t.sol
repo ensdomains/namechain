@@ -31,13 +31,13 @@ contract BridgeEncoderTest is Test {
     }
 
     function testEncodeEjection() public view {
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
+        bytes memory name = NameUtils.appendETH("test");
         TransferData memory transferData = TransferData({
-            dnsEncodedName: dnsEncodedName,
+            name: name,
             owner: address(0x123),
             subregistry: address(0x456),
             resolver: address(0x789),
-            expires: uint64(block.timestamp + 365 days),
+            expiry: uint64(block.timestamp + 365 days),
             roleBitmap: 0x01
         });
 
@@ -49,12 +49,12 @@ contract BridgeEncoderTest is Test {
 
         // Verify we can decode the message back
         (TransferData memory decodedData) = BridgeEncoder.decodeEjection(encodedMessage);
-        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(dnsEncodedName));
-        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(transferData.dnsEncodedName));
+        assertEq(keccak256(decodedData.name), keccak256(name));
+        assertEq(keccak256(decodedData.name), keccak256(transferData.name));
         assertEq(decodedData.owner, transferData.owner);
         assertEq(decodedData.subregistry, transferData.subregistry);
         assertEq(decodedData.resolver, transferData.resolver);
-        assertEq(decodedData.expires, transferData.expires);
+        assertEq(decodedData.expiry, transferData.expiry);
         assertEq(decodedData.roleBitmap, transferData.roleBitmap);
     }
 
@@ -79,13 +79,13 @@ contract BridgeEncoderTest is Test {
     function testDecodeEjectionInvalidMessageType() public {
         // Create a message with wrong message type but correct structure
         // to test the custom error (not ABI decoding error)
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
+        bytes memory name = NameUtils.appendETH("test");
         TransferData memory transferData = TransferData({
-            dnsEncodedName: dnsEncodedName,
+            name: name,
             owner: address(0x123),
             subregistry: address(0x456),
             resolver: address(0x789),
-            expires: uint64(block.timestamp + 365 days),
+            expiry: uint64(block.timestamp + 365 days),
             roleBitmap: 0x01
         });
 
@@ -114,13 +114,13 @@ contract BridgeEncoderTest is Test {
     }
 
     function testGetMessageType() public view {
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("test");
+        bytes memory name = NameUtils.appendETH("test");
         TransferData memory transferData = TransferData({
-            dnsEncodedName: dnsEncodedName,
+            name: name,
             owner: address(0x123),
             subregistry: address(0x456),
             resolver: address(0x789),
-            expires: uint64(block.timestamp + 365 days),
+            expiry: uint64(block.timestamp + 365 days),
             roleBitmap: 0x01
         });
 
@@ -139,13 +139,13 @@ contract BridgeEncoderTest is Test {
 
     function testEncodingStructure() public view {
         // Test that the new encoding structure works correctly
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel("structuretest");
+        bytes memory name = NameUtils.appendETH("structuretest");
         TransferData memory transferData = TransferData({
-            dnsEncodedName: dnsEncodedName,
+            name: name,
             owner: address(0x999),
             subregistry: address(0x888),
             resolver: address(0x777),
-            expires: uint64(block.timestamp + 500 days),
+            expiry: uint64(block.timestamp + 500 days),
             roleBitmap: 0xFF
         });
 
@@ -154,12 +154,12 @@ contract BridgeEncoderTest is Test {
         // Decode and verify all fields match exactly
         (TransferData memory decodedData) = BridgeEncoder.decodeEjection(encodedMessage);
 
-        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(dnsEncodedName));
-        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(transferData.dnsEncodedName));
+        assertEq(keccak256(decodedData.name), keccak256(name));
+        assertEq(keccak256(decodedData.name), keccak256(transferData.name));
         assertEq(decodedData.owner, transferData.owner);
         assertEq(decodedData.subregistry, transferData.subregistry);
         assertEq(decodedData.resolver, transferData.resolver);
-        assertEq(decodedData.expires, transferData.expires);
+        assertEq(decodedData.expiry, transferData.expiry);
         assertEq(decodedData.roleBitmap, transferData.roleBitmap);
     }
 }

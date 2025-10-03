@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
-import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
+import {INameWrapper, CANNOT_UNWRAP, IS_DOT_ETH} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
@@ -13,12 +13,9 @@ import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC16
 import {BridgeEncoder} from "./../common/BridgeEncoder.sol";
 import {UnauthorizedCaller} from "./../common/Errors.sol";
 import {IBridge} from "./../common/IBridge.sol";
-import {NameUtils} from "./../common/NameUtils.sol";
 import {MigrationData} from "./../common/TransferData.sol";
 import {L1BridgeController} from "./L1BridgeController.sol";
-
-/// @dev The namehash of "eth".
-bytes32 constant ETH_NODE = keccak256(abi.encode(bytes32(0), keccak256("eth")));
+import {NameUtils} from "../common/NameUtils.sol";
 
 /// @dev Base contract for the v1-to-v2 migration controller that only handles unlocked .eth 2LD names.
 contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
@@ -36,8 +33,6 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     IBaseRegistrar public immutable ETH_REGISTRY_V1;
 
     INameWrapper public immutable NAME_WRAPPER;
-
-    IBridge public immutable BRIDGE;
 
     L1BridgeController public immutable L1_BRIDGE_CONTROLLER;
 
@@ -77,7 +72,6 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     ) Ownable(msg.sender) {
         ETH_REGISTRY_V1 = ethRegistryV1;
         NAME_WRAPPER = nameWrapper;
-        BRIDGE = l1BridgeController.BRIDGE();
         L1_BRIDGE_CONTROLLER = l1BridgeController;
     }
 
@@ -99,7 +93,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     function migrateETH2LD(MigrationData[] memory mds) public {
         for (uint256 i; i < mds.length; i++) {
             MigrationData memory md = mds[i];
-            bytes32 node = NameUtils.unhashedNamehash(md.transferData.dnsEncodedName, 0);
+            bytes32 node = NameCoder.namehash(md.transferData.name, 0);
             if (node != bytes32(0) && NAME_WRAPPER.isWrapped(node)) {
                 uint256 tokenId = uint256(node);
                 _ignoredTokenId = tokenId;
@@ -107,12 +101,11 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
                 _ignoredTokenId = 0;
                 _migrateWrapped(tokenId, md, false);
             } else {
-                (bytes32 labelHash, ) = NameCoder.readLabel(md.transferData.dnsEncodedName, 0);
-                uint256 tokenId = uint256(labelHash);
-                _ignoredTokenId = tokenId;
-                ETH_REGISTRY_V1.safeTransferFrom(msg.sender, address(this), tokenId, "");
+                (bytes32 labelHash, ) = NameCoder.readLabel(md.transferData.name, 0);
+                _ignoredTokenId = uint256(labelHash);
+                ETH_REGISTRY_V1.safeTransferFrom(msg.sender, address(this), uint256(labelHash), "");
                 _ignoredTokenId = 0;
-                _migrateUnwrapped(tokenId, md, false);
+                _migrateUnwrapped(labelHash, md, false);
             }
         }
     }
@@ -132,7 +125,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
         bytes calldata data
     ) external virtual onlyCaller(address(ETH_REGISTRY_V1)) returns (bytes4) {
         if (_ignoredTokenId != tokenId) {
-            _migrateUnwrapped(tokenId, abi.decode(data, (MigrationData)), true);
+            _migrateUnwrapped(bytes32(tokenId), abi.decode(data, (MigrationData)), true);
         }
         return this.onERC721Received.selector;
     }
@@ -173,17 +166,19 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
 
+    // assume we own the token
+
     function _migrateUnwrapped(
-        uint256 tokenId,
+        bytes32 labelHash,
         MigrationData memory md,
         bool viaReceiver
     ) internal {
         _assertNodes(
-            NameCoder.namehash(ETH_NODE, bytes32(tokenId)),
-            NameUtils.unhashedNamehash(md.transferData.dnsEncodedName, 0),
+            NameCoder.namehash(NameUtils.ETH_NODE, labelHash),
+            NameCoder.namehash(md.transferData.name, 0),
             viaReceiver
         );
-        _migrate(tokenId, md);
+        _migrateETH2LD(labelHash, md);
     }
 
     /// @dev Migrate a wrapped name.
@@ -191,36 +186,27 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     /// @param md The migration data.
     /// @param viaReceiver The migration occurred via IERC1155Receiver.
     function _migrateWrapped(uint256 id, MigrationData memory md, bool viaReceiver) internal {
-        bytes memory name = NAME_WRAPPER.names(bytes32(id));
-        bytes32 node = NameUtils.unhashedNamehash(name, 0);
         (, uint32 fuses, ) = NAME_WRAPPER.getData(id);
-        if (fuses & CANNOT_UNWRAP != 0) {
-            if (viaReceiver) {
-                revert(ERROR_NAME_IS_LOCKED);
-            } else {
-                revert NameIsLocked(name);
-            }
-        }
-        bytes32 labelHash;
-        if (name.length > 0) {
-            (labelHash, ) = NameCoder.readLabel(name, 0);
-        }
-        if (node != NameCoder.namehash(ETH_NODE, labelHash)) {
+        if ((fuses & IS_DOT_ETH) == 0) {
             if (viaReceiver) {
                 revert(ERROR_NAME_NOT_ETH2LD);
             } else {
-                revert NameNotETH2LD(name);
+                revert NameNotETH2LD(NAME_WRAPPER.names(bytes32(id)));
             }
         }
-        _assertNodes(
-            node,
-            NameUtils.unhashedNamehash(md.transferData.dnsEncodedName, 0),
-            viaReceiver
-        );
+        if ((fuses & CANNOT_UNWRAP) != 0) {
+            if (viaReceiver) {
+                revert(ERROR_NAME_IS_LOCKED);
+            } else {
+                revert NameIsLocked(NAME_WRAPPER.names(bytes32(id)));
+            }
+        }
+        _assertNodes(bytes32(id), NameCoder.namehash(md.transferData.name, 0), viaReceiver);
+        (bytes32 labelHash, ) = NameCoder.readLabel(md.transferData.name, 0);
         _ignoredTokenId = uint256(labelHash);
         NAME_WRAPPER.unwrapETH2LD(labelHash, address(this), address(this));
         _ignoredTokenId = 0;
-        _migrate(uint256(labelHash), md);
+        _migrateETH2LD(labelHash, md);
     }
 
     function _assertNodes(bytes32 tokenNode, bytes32 transferNode, bool viaReceiver) internal pure {
@@ -233,18 +219,20 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
         }
     }
 
-    /// @dev Migrate a name locally or via the bridge.
-    /// @param tokenId The labelhash.
+    /// @dev Migrate V1 `{label}.eth` to V2 mainnet or Namechain.
+    /// @param labelHash The labelhash.
     /// @param md The migration data.
-    function _migrate(uint256 tokenId, MigrationData memory md) internal {
+    function _migrateETH2LD(bytes32 labelHash, MigrationData memory md) internal {
         if (md.toL1) {
             // sync actual expiration
-            md.transferData.expires = uint64(ETH_REGISTRY_V1.nameExpires(tokenId));
+            md.transferData.expiry = uint64(ETH_REGISTRY_V1.nameExpires(uint256(labelHash)));
             // Handle L1 migration by setting up the name locally
             L1_BRIDGE_CONTROLLER.completeEjectionToL1(md.transferData);
         } else {
             // Handle L2 migration by sending ejection message across BRIDGE
-            BRIDGE.sendMessage(BridgeEncoder.encodeEjection(md.transferData));
+            L1_BRIDGE_CONTROLLER.BRIDGE().sendMessage(
+                BridgeEncoder.encodeEjection(md.transferData)
+            );
         }
     }
 }

@@ -19,8 +19,9 @@ import {
 } from "@ens/contracts/wrapper/INameWrapper.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 
-import {LibRegistryRoles} from "./../src/common/LibRegistryRoles.sol";
-import {LibLockedNames} from "./../src/L1/LibLockedNames.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
+import {LibLockedNames} from "../src/L1/LibLockedNames.sol";
+import {MigrationErrors} from "../src/L1/MigrationErrors.sol";
 
 contract MockNameWrapper {
     mapping(uint256 tokenId => uint32 fuses) public fuses;
@@ -63,16 +64,8 @@ contract MockNameWrapper {
 }
 
 contract LibLockedNamesWrapper {
-    function validateLockedName(uint32 fuses, uint256 tokenId) external pure {
-        LibLockedNames.validateLockedName(fuses, tokenId);
-    }
-
     function validateEmancipatedName(uint32 fuses, uint256 tokenId) external pure {
         LibLockedNames.validateEmancipatedName(fuses, tokenId);
-    }
-
-    function validateIsDotEth2LD(uint32 fuses, uint256 tokenId) external pure {
-        LibLockedNames.validateIsDotEth2LD(fuses, tokenId);
     }
 }
 
@@ -289,46 +282,6 @@ contract TestLibLockedNames is Test {
             address(0),
             "Resolver should remain address(0)"
         );
-    }
-
-    function test_validateLockedName_valid() public pure {
-        uint32 validFuses = CANNOT_UNWRAP | IS_DOT_ETH;
-        uint256 tokenId = 0x123;
-
-        // Should not revert for valid locked name
-        LibLockedNames.validateLockedName(validFuses, tokenId);
-    }
-
-    function test_validateLockedName_with_cannot_burn_fuses() public pure {
-        uint32 validFuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | IS_DOT_ETH;
-        uint256 tokenId = 0x123;
-
-        // Should not revert for locked name with CANNOT_BURN_FUSES (previously this would have failed)
-        LibLockedNames.validateLockedName(validFuses, tokenId);
-    }
-
-    function test_Revert_validateLockedName_not_locked() public {
-        uint32 invalidFuses = IS_DOT_ETH; // Missing CANNOT_UNWRAP
-        uint256 tokenId = 0x123;
-
-        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NameNotLocked.selector, tokenId));
-        wrapper.validateLockedName(invalidFuses, tokenId);
-    }
-
-    function test_validateIsDotEth2LD_valid() public pure {
-        uint32 validFuses = IS_DOT_ETH | CANNOT_UNWRAP;
-        uint256 tokenId = 0x123;
-
-        // Should not revert for valid .eth 2LD
-        LibLockedNames.validateIsDotEth2LD(validFuses, tokenId);
-    }
-
-    function test_Revert_validateIsDotEth2LD_not_dot_eth() public {
-        uint32 invalidFuses = CANNOT_UNWRAP; // Missing IS_DOT_ETH
-        uint256 tokenId = 0x123;
-
-        vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NotDotEthName.selector, tokenId));
-        wrapper.validateIsDotEth2LD(invalidFuses, tokenId);
     }
 
     function test_generateRoleBitmapsFromFuses_all_permissions() public pure {

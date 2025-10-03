@@ -92,12 +92,12 @@ contract BridgeTest is Test, EnhancedAccessControl {
         );
 
         TransferData memory transferData = TransferData({
-            dnsEncodedName: NameUtils.dnsEncodeEthLabel("premiumname"),
+            name: NameUtils.appendETH("premiumname"),
             owner: user2,
             subregistry: address(0x123),
             resolver: address(0x456),
             roleBitmap: LibRegistryRoles.ROLE_RENEW,
-            expires: uint64(block.timestamp + 123 days)
+            expiry: uint64(block.timestamp + 123 days)
         });
 
         // Step 1: Initiate ejection on L2
@@ -119,7 +119,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
         assertEq(l1Registry.ownerOf(tokenId), transferData.owner);
         assertEq(address(l1Registry.getSubregistry("premiumname")), transferData.subregistry);
         assertEq(l1Registry.getResolver("premiumname"), transferData.resolver);
-        assertEq(l1Registry.getExpiry(tokenId), transferData.expires);
+        assertEq(l1Registry.getExpiry(tokenId), transferData.expiry);
         assertEq(
             l1Registry.roles(l1Registry.testGetResourceFromTokenId(tokenId), transferData.owner),
             transferData.roleBitmap

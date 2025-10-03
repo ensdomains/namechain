@@ -157,7 +157,7 @@ contract PermissionedRegistry is
         IRegistry registry,
         address resolver,
         uint256 roleBitmap,
-        uint64 expires
+        uint64 expiry
     )
         public
         virtual
@@ -165,7 +165,7 @@ contract PermissionedRegistry is
         onlyRootRoles(LibRegistryRoles.ROLE_REGISTRAR)
         returns (uint256 tokenId)
     {
-        return _register(label, owner, registry, resolver, roleBitmap, expires);
+        return _register(label, owner, registry, resolver, roleBitmap, expiry);
     }
 
     function setTokenObserver(
@@ -178,16 +178,16 @@ contract PermissionedRegistry is
 
     function renew(
         uint256 tokenId,
-        uint64 expires
+        uint64 expiry
     ) public override onlyNonExpiredTokenRoles(tokenId, LibRegistryRoles.ROLE_RENEW) {
         (IRegistryDatastore.Entry memory entry, ) = _getEntry(tokenId);
-        if (expires < entry.expiry) {
-            revert CannotReduceExpiration(entry.expiry, expires);
+        if (expiry < entry.expiry) {
+            revert CannotReduceExpiration(entry.expiry, expiry);
         }
 
         IRegistryDatastore.Entry memory newEntry = IRegistryDatastore.Entry({
             subregistry: entry.subregistry,
-            expiry: expires,
+            expiry: expiry,
             tokenVersionId: entry.tokenVersionId,
             resolver: entry.resolver,
             eacVersionId: entry.eacVersionId
@@ -197,10 +197,10 @@ contract PermissionedRegistry is
 
         ITokenObserver observer = tokenObservers[tokenId];
         if (address(observer) != address(0)) {
-            observer.onRenew(tokenId, expires, msg.sender);
+            observer.onRenew(tokenId, expiry, msg.sender);
         }
 
-        emit NameRenewed(tokenId, expires, msg.sender);
+        emit NameRenewed(tokenId, expiry, msg.sender);
     }
 
     function grantRoles(
@@ -304,7 +304,7 @@ contract PermissionedRegistry is
      * @param registry The registry to use for the name.
      * @param resolver The resolver to set for the name.
      * @param roleBitmap The roles to grant to the owner.
-     * @param expires The expiration time of the name.
+     * @param expiry The expiration time of the name.
      * @return tokenId The token ID of the registered name.
      */
     function _register(
@@ -313,7 +313,7 @@ contract PermissionedRegistry is
         IRegistry registry,
         address resolver,
         uint256 roleBitmap,
-        uint64 expires
+        uint64 expiry
     ) internal virtual returns (uint256 tokenId) {
         IRegistryDatastore.Entry memory entry;
         (tokenId, entry) = getNameData(label);
@@ -322,8 +322,8 @@ contract PermissionedRegistry is
             revert NameAlreadyRegistered(label);
         }
 
-        if (_isExpired(expires)) {
-            revert CannotSetPastExpiration(expires);
+        if (_isExpired(expiry)) {
+            revert CannotSetPastExpiration(expiry);
         }
 
         // if there is a previous owner, burn the token and increment the acl version id
@@ -341,7 +341,7 @@ contract PermissionedRegistry is
             canonicalId,
             IRegistryDatastore.Entry({
                 subregistry: address(registry),
-                expiry: expires,
+                expiry: expiry,
                 tokenVersionId: entry.tokenVersionId,
                 resolver: resolver,
                 eacVersionId: entry.eacVersionId
@@ -473,8 +473,8 @@ contract PermissionedRegistry is
 
     /// @dev Internal logic for expired status.
     /// @notice Only use of `block.timestamp`.
-    function _isExpired(uint64 expires) internal view returns (bool) {
-        return block.timestamp >= expires;
+    function _isExpired(uint64 expiry) internal view returns (bool) {
+        return block.timestamp >= expiry;
     }
 
     /**

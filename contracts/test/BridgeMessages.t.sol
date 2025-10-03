@@ -65,6 +65,10 @@ contract TestBridgeMessages is Test {
         l1Bridge.setBridgeController(l1Controller);
         l2Bridge.setBridgeController(l2Controller);
 
+        // link bridges
+        l1Bridge.setTargetBridge(l2Bridge);
+        l2Bridge.setTargetBridge(l1Bridge);
+
         // Grant necessary roles (filter out admin roles since they're restricted)
         uint256 regularRoles = LibEACBaseRoles.ALL_ROLES & ~LibEACBaseRoles.ADMIN_ROLES;
         registry.grantRootRoles(regularRoles, address(l1Controller));
@@ -76,13 +80,13 @@ contract TestBridgeMessages is Test {
     }
 
     function test_encodeDecodeEjection() public view {
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
+        bytes memory name = NameUtils.appendETH(testLabel);
         TransferData memory transferData = TransferData({
-            dnsEncodedName: dnsEncodedName,
+            name: name,
             owner: testOwner,
             subregistry: address(registry),
             resolver: testResolver,
-            expires: testExpiry,
+            expiry: testExpiry,
             roleBitmap: testRoleBitmap
         });
 
@@ -97,12 +101,12 @@ contract TestBridgeMessages is Test {
         (TransferData memory decodedData) = BridgeEncoder.decodeEjection(encodedMessage);
 
         // Verify decoded data
-        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(dnsEncodedName));
-        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(transferData.dnsEncodedName));
+        assertEq(keccak256(decodedData.name), keccak256(name));
+        assertEq(keccak256(decodedData.name), keccak256(transferData.name));
         assertEq(decodedData.owner, transferData.owner);
         assertEq(decodedData.subregistry, transferData.subregistry);
         assertEq(decodedData.resolver, transferData.resolver);
-        assertEq(decodedData.expires, transferData.expires);
+        assertEq(decodedData.expiry, transferData.expiry);
         assertEq(decodedData.roleBitmap, transferData.roleBitmap);
     }
 
@@ -171,60 +175,19 @@ contract TestBridgeMessages is Test {
         uint64 newExpiry = uint64(block.timestamp + 86400);
 
         // Encode renewal message
-        bytes memory renewalMessage = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
+        bytes memory message = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
 
         // L2 bridge should revert on renewal messages
         vm.expectRevert(MockBridgeBase.RenewalNotSupported.selector);
-        l2Bridge.receiveMessage(renewalMessage);
+        l2Bridge.receiveMessage(message);
     }
 
     function test_l1Bridge_sendMessage() public {
-        bytes memory testMessage = "test message";
-
-        vm.recordLogs();
-        l1Bridge.sendMessage(testMessage);
-
-        // Check for NameBridgedToL2 event
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundEvent = false;
-        bytes32 eventSig = keccak256("NameBridgedToL2(bytes)");
-
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == eventSig) {
-                foundEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundEvent, "NameBridgedToL2 event should be emitted");
-    }
-
-    function test_l2Bridge_sendMessage_ejection() public {
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
-        bytes memory ejectionMessage = BridgeEncoder.encodeEjection(
-            TransferData({
-                dnsEncodedName: dnsEncodedName,
-                owner: testOwner,
-                subregistry: address(registry),
-                resolver: testResolver,
-                expires: testExpiry,
-                roleBitmap: testRoleBitmap
-            })
-        );
-
-        vm.recordLogs();
-        l2Bridge.sendMessage(ejectionMessage);
-
-        // Check for NameBridgedToL1 event
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundEvent = false;
-        bytes32 eventSig = keccak256("NameBridgedToL1(bytes)");
-
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == eventSig) {
-                foundEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundEvent, "NameBridgedToL1 event should be emitted");
+        bytes memory message = abi.encode(BridgeMessageType.UNKNOWN, "test");
+        vm.expectEmit(false, false, false, true);
+        emit MockBridgeBase.MessageSent(message);
+        vm.expectEmit(false, false, false, true);
+        emit MockBridgeBase.MessageReceived(message);
+        l1Bridge.sendMessage(message);
     }
 }

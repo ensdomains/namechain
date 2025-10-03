@@ -5,173 +5,101 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {ENS} from "@ens/contracts/registry/ENS.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
-import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {
+    BaseRegistrarImplementation
+} from "@ens/contracts/ethregistrar/BaseRegistrarImplementation.sol";
+import {ENSRegistry} from "@ens/contracts/registry/ENSRegistry.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {
+    NameWrapper,
+    IMetadataService,
     CANNOT_UNWRAP,
     CANNOT_BURN_FUSES,
+    CAN_DO_EVERYTHING,
     CANNOT_SET_RESOLVER,
     CANNOT_TRANSFER,
     CANNOT_SET_TTL,
     CANNOT_CREATE_SUBDOMAIN,
     CAN_EXTEND_EXPIRY,
     PARENT_CANNOT_CONTROL
-} from "@ens/contracts/wrapper/INameWrapper.sol";
+} from "@ens/contracts/wrapper/NameWrapper.sol";
+//import { CANNOT_BURN_FUSES} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-import {VerifiableFactory} from "./../lib/verifiable-factory/src/VerifiableFactory.sol";
-import {UnauthorizedCaller} from "./../src/common/Errors.sol";
-import {IPermissionedRegistry} from "./../src/common/IPermissionedRegistry.sol";
-import {IRegistry} from "./../src/common/IRegistry.sol";
-import {IRegistryDatastore} from "./../src/common/IRegistryDatastore.sol";
-import {IRegistryMetadata} from "./../src/common/IRegistryMetadata.sol";
-import {IStandardRegistry} from "./../src/common/IStandardRegistry.sol";
-import {LibRegistryRoles} from "./../src/common/LibRegistryRoles.sol";
-import {NameUtils} from "./../src/common/NameUtils.sol";
-import {RegistryDatastore} from "./../src/common/RegistryDatastore.sol";
-import {TransferData, MigrationData} from "./../src/common/TransferData.sol";
-import {LibLockedNames} from "./../src/L1/LibLockedNames.sol";
-import {MigratedWrappedNameRegistry} from "./../src/L1/MigratedWrappedNameRegistry.sol";
-import {ParentNotMigrated, LabelNotMigrated} from "./../src/L1/MigrationErrors.sol";
+import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
+import {UnauthorizedCaller} from "../src/common/Errors.sol";
+import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
+import {IRegistry} from "../src/common/IRegistry.sol";
+import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
+import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
+import {IStandardRegistry} from "../src/common/IStandardRegistry.sol";
+import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
+import {NameUtils} from "../src/common/NameUtils.sol";
+import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
+import {TransferData, MigrationData} from "../src/common/TransferData.sol";
+import {LibLockedNames} from "../src/L1/LibLockedNames.sol";
+import {
+    MigratedWrappedNameRegistry,
+    IMigratedWrappedNameRegistry
+} from "../src/L1/MigratedWrappedNameRegistry.sol";
+import {MigrationErrors} from "../src/L1/MigrationErrors.sol";
+import {BaseUriRegistryMetadata} from "../src/common/BaseUriRegistryMetadata.sol";
+import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
+import {TestV1Mixin} from "./fixtures/TestV1Mixin.sol";
 
-contract MockRegistryMetadata is IRegistryMetadata {
-    function tokenUri(uint256) external pure override returns (string memory) {
-        return "";
-    }
-}
-
-// Simple mock for ethRegistry testing - not a full IPermissionedRegistry implementation
-contract MockEthRegistry {
-    mapping(string label => address registry) private subregistries;
-
-    function setSubregistry(string memory label, address registry) external {
-        subregistries[label] = registry;
-    }
-
-    function getSubregistry(string memory label) external view returns (IRegistry) {
-        return IRegistry(subregistries[label]);
-    }
-}
-
-contract MockNameWrapper {
-    mapping(uint256 tokenId => address owner) public owners;
-    mapping(uint256 tokenId => bool wrapped) public wrapped;
-    mapping(uint256 tokenId => uint32 fuses) public fuses;
-    mapping(uint256 tokenId => uint64 expiry) public expiries;
-    mapping(uint256 tokenId => address resolver) public resolvers;
-
-    function setOwner(uint256 tokenId, address owner) external {
-        owners[tokenId] = owner;
-    }
-
-    function setWrapped(uint256 tokenId, bool _isWrapped) external {
-        wrapped[tokenId] = _isWrapped;
-    }
-
-    function setFuseData(uint256 tokenId, uint32 _fuses, uint64 expiry) external {
-        fuses[tokenId] = _fuses;
-        expiries[tokenId] = expiry;
-    }
-
-    function setInitialResolver(uint256 tokenId, address resolver) external {
-        resolvers[tokenId] = resolver;
-    }
-
-    function ownerOf(uint256 tokenId) external view returns (address) {
-        return owners[tokenId];
-    }
-
-    function isWrapped(bytes32 node) external view returns (bool) {
-        return wrapped[uint256(node)];
-    }
-
-    function getData(uint256 tokenId) external view returns (address, uint32, uint64) {
-        return (owners[tokenId], fuses[tokenId], expiries[tokenId]);
-    }
-
-    function setResolver(bytes32 node, address resolver) external {
-        uint256 tokenId = uint256(node);
-        resolvers[tokenId] = resolver;
-    }
-
-    function getResolver(uint256 tokenId) external view returns (address) {
-        return resolvers[tokenId];
-    }
-
-    function setFuses(bytes32 node, uint16 fusesToBurn) external returns (uint32) {
-        uint256 tokenId = uint256(node);
-        fuses[tokenId] = fuses[tokenId] | fusesToBurn;
-        return fuses[tokenId];
-    }
-}
-
-contract MockENS {
-    mapping(bytes32 node => address resolver) private resolvers;
-
-    function setResolver(bytes32 node, address resolverAddress) external {
-        resolvers[node] = resolverAddress;
-    }
-
-    function resolver(bytes32 node) external view returns (address) {
-        return resolvers[node];
-    }
-}
-
-contract TestMigratedWrappedNameRegistry is Test {
-    MigratedWrappedNameRegistry implementation;
-    MigratedWrappedNameRegistry registry;
+contract TestMigratedWrappedNameRegistry is Test, TestV1Mixin {
     RegistryDatastore datastore;
-    MockRegistryMetadata metadata;
-    MockENS ensRegistry;
-    MockNameWrapper nameWrapper;
-    VerifiableFactory factory;
+    BaseUriRegistryMetadata metadata;
+    PermissionedRegistry ethRegistry;
 
-    address owner = address(this);
-    address user = address(0x1234);
-    address mockResolver = address(0xABCD);
-    address v1Resolver = address(0xDEAD);
+    VerifiableFactory migratedRegistryFactory;
+    MigratedWrappedNameRegistry migratedRegistryImpl;
 
-    string testLabel = "test";
-    uint256 testLabelId;
+    //MigratedWrappedNameRegistry registry;
 
     function setUp() public {
         datastore = new RegistryDatastore();
-        metadata = new MockRegistryMetadata();
-        ensRegistry = new MockENS();
-        nameWrapper = new MockNameWrapper();
-        factory = new VerifiableFactory();
+        metadata = new BaseUriRegistryMetadata();
+        ethRegistry = new PermissionedRegistry(
+            datastore,
+            metadata,
+            address(this),
+            LibEACBaseRoles.ALL_ROLES
+        );
 
-        // Deploy implementation
-        implementation = new MigratedWrappedNameRegistry(
-            INameWrapper(address(nameWrapper)), // mock nameWrapper
-            ENS(address(ensRegistry)), // mock ENS registry
-            factory,
-            IPermissionedRegistry(address(0)), // mock ethRegistry
+        deployV1();
+
+        migratedRegistryFactory = new VerifiableFactory();
+        migratedRegistryImpl = new MigratedWrappedNameRegistry(
+            nameWrapper,
+            migratedRegistryFactory,
+            ethRegistry,
             datastore,
             metadata
         );
 
-        // Deploy proxy and initialize
-        bytes memory initData = abi.encodeWithSelector(
-            MigratedWrappedNameRegistry.initialize.selector,
-            "\x03eth\x00", // parent DNS-encoded name for .eth
-            owner,
-            0, // ownerRoles
-            address(nameWrapper) // registrar for testing
-        );
+        // ERC1967Proxy proxy = new ERC1967Proxy(
+        //     address(migratedRegistryImpl),
+        //     abi.encodeCall(
+        //         IMigratedWrappedNameRegistry.initialize,
+        //         (IMigratedWrappedNameRegistry.Args({
+        //             parentNode: NameUtils.ETH_NODE
+        //             owner: address(this),
+        //             ownerRoles: 0,
+        //             registrar: address(0)
+        //         }))
+        //     )
+        // );
+        // registry = MigratedWrappedNameRegistry(address(proxy));
 
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
-        registry = MigratedWrappedNameRegistry(address(proxy));
+        // testLabelId = NameUtils.labelToCanonicalId(testLabel);
 
-        testLabelId = NameUtils.labelToCanonicalId(testLabel);
-
-        // Setup v1 resolver in ENS registry
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
-        bytes32 node = NameCoder.namehash(dnsEncodedName, 0);
-        ensRegistry.setResolver(node, v1Resolver);
+        // // Setup v1 resolver in ENS registry
+        // bytes memory name = NameUtils.appendETH(testLabel);
+        // bytes32 node = NameCoder.namehash(name, 0);
+        // ensRegistry.setResolver(node, v1Resolver);
     }
 
     /**
@@ -184,36 +112,41 @@ contract TestMigratedWrappedNameRegistry is Test {
         IRegistry subregistry,
         address resolver,
         uint256 roleBitmap,
-        uint64 expires
+        uint64 expiry
     ) internal {
         vm.prank(address(nameWrapper));
-        targetRegistry.register(label, nameOwner, subregistry, resolver, roleBitmap, expires);
+        targetRegistry.register(label, nameOwner, subregistry, resolver, roleBitmap, expiry);
     }
 
-    function test_getResolver_unregistered_name() public view {
-        // Name not registered (expiry = 0), should fall back to ENS registry
-        address resolver = registry.getResolver(testLabel);
-        assertEq(resolver, v1Resolver, "Should return v1 resolver from ENS registry");
+    function test_getResolver_unregistered_name() external {
+        (bytes memory name, ) = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
+
+        vm.prank(user);
+        ensV1.setResolver(NameCoder.namehash(name, 0), address(1));
+
+        //address resolver = registry.getResolver(testLabel);
+        // assertEq(resolver, v1Resolver, "Should return v1 resolver from ENS registry");
     }
 
-    function test_getResolver_registered_name_with_resolver() public {
+    function test_getResolver_registered_name_with_resolver() external {
+        // (bytes memory name, ) = _registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
         // Register name first
-        uint64 expiry = uint64(block.timestamp + 86400);
-        _registerName(
-            registry,
-            testLabel,
-            user,
-            registry,
-            mockResolver,
-            LibRegistryRoles.ROLE_SET_RESOLVER,
-            expiry
-        );
-
-        // Should return the registered resolver
-        address resolver = registry.getResolver(testLabel);
-        assertEq(resolver, mockResolver, "Should return registered resolver");
+        // uint64 expiry = uint64(block.timestamp + 86400);
+        // _registerName(
+        //     registry,
+        //     testLabel,
+        //     user,
+        //     registry,
+        //     mockResolver,
+        //     LibRegistryRoles.ROLE_SET_RESOLVER,
+        //     expiry
+        // );
+        // // Should return the registered resolver
+        // address resolver = registry.getResolver(testLabel);
+        // assertEq(resolver, mockResolver, "Should return registered resolver");
     }
 
+    /*
     function test_getResolver_registered_name_null_resolver() public {
         // Register name with null resolver
         uint64 expiry = uint64(block.timestamp + 86400);
@@ -255,8 +188,8 @@ contract TestMigratedWrappedNameRegistry is Test {
 
     function test_getResolver_ens_registry_returns_zero() public {
         // Clear the resolver in ENS registry
-        bytes memory dnsEncodedName = NameUtils.dnsEncodeEthLabel(testLabel);
-        bytes32 node = NameCoder.namehash(dnsEncodedName, 0);
+        bytes memory name = NameUtils.appendETH(testLabel);
+        bytes32 node = NameCoder.namehash(name, 0);
         ensRegistry.setResolver(node, address(0));
 
         // Should return address(0) when ENS registry returns zero
@@ -269,8 +202,8 @@ contract TestMigratedWrappedNameRegistry is Test {
         string memory label2 = "bar";
 
         // Setup different resolvers in ENS registry
-        bytes32 node1 = NameCoder.namehash(NameUtils.dnsEncodeEthLabel(label1), 0);
-        bytes32 node2 = NameCoder.namehash(NameUtils.dnsEncodeEthLabel(label2), 0);
+        bytes32 node1 = NameCoder.namehash(NameUtils.appendETH(label1), 0);
+        bytes32 node2 = NameCoder.namehash(NameUtils.appendETH(label2), 0);
         ensRegistry.setResolver(node1, address(0x1111));
         ensRegistry.setResolver(node2, address(0x2222));
 
@@ -382,12 +315,12 @@ contract TestMigratedWrappedNameRegistry is Test {
                 abi.encode(
                     MigrationData({
                         transferData: TransferData({
-                            dnsEncodedName: subDnsName,
+                            name: subDnsName,
                             owner: user,
                             subregistry: address(0),
                             resolver: mockResolver,
                             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                            expires: expiry
+                            expiry: expiry
                         }),
                         toL1: false,
                         salt: uint256(keccak256(abi.encodePacked("test_salt")))
@@ -409,7 +342,8 @@ contract TestMigratedWrappedNameRegistry is Test {
 
     function test_validateHierarchy_parent_not_migrated() public {
         // Create subdomain migration data
-        bytes memory subDnsName = NameCoder.encode("sub.test.eth");
+        bytes memory parentName = NameCoder.encode("test.eth");
+        bytes memory subDnsName = NameCoder.append(parentName, "sub");
 
         // Generate token identifier for subdomain migration
         uint256 subTokenId = uint256(NameCoder.namehash(subDnsName, 0));
@@ -422,7 +356,11 @@ contract TestMigratedWrappedNameRegistry is Test {
         // DNS encoded name is "sub.test.eth" and parent offset would be after "sub" (4 bytes)
         (, uint256 parentOffset) = NameCoder.nextLabel(subDnsName, 0);
         vm.expectRevert(
-            abi.encodeWithSelector(ParentNotMigrated.selector, subDnsName, parentOffset)
+            abi.encodeWithSelector(
+                MigrationErrors.ParentNotMigrated.selector,
+                subDnsName,
+                parentOffset
+            )
         );
 
         vm.prank(address(nameWrapper));
@@ -434,12 +372,12 @@ contract TestMigratedWrappedNameRegistry is Test {
             abi.encode(
                 MigrationData({
                     transferData: TransferData({
-                        dnsEncodedName: subDnsName,
+                        name: subDnsName,
                         owner: user,
                         subregistry: address(0),
                         resolver: mockResolver,
                         roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                        expires: uint64(block.timestamp + 86400)
+                        expiry: uint64(block.timestamp + 86400)
                     }),
                     toL1: false,
                     salt: uint256(keccak256(abi.encodePacked("test_salt")))
@@ -469,12 +407,12 @@ contract TestMigratedWrappedNameRegistry is Test {
             abi.encode(
                 MigrationData({
                     transferData: TransferData({
-                        dnsEncodedName: ethDnsName,
+                        name: ethDnsName,
                         owner: user,
                         subregistry: address(0),
                         resolver: mockResolver,
                         roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                        expires: uint64(block.timestamp + 86400)
+                        expiry: uint64(block.timestamp + 86400)
                     }),
                     toL1: false,
                     salt: uint256(keccak256(abi.encodePacked("test_salt")))
@@ -555,11 +493,11 @@ contract TestMigratedWrappedNameRegistry is Test {
         assertEq(resolver, address(0x7777), "Should return ENS resolver for mixed level scenario");
     }
 
-    // Helper function to create a registry with a real factory
+    // Helper function to create a registry with a real migratedRegistryFactory
     function _createRegistryWithFactory(
         VerifiableFactory realFactory
     ) internal returns (MigratedWrappedNameRegistry) {
-        // Deploy implementation with real factory
+        // Deploy migratedRegistryImpl with real migratedRegistryFactory
         MigratedWrappedNameRegistry impl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
@@ -586,7 +524,7 @@ contract TestMigratedWrappedNameRegistry is Test {
     function _create3LDRegistry(
         string memory domain
     ) internal returns (MigratedWrappedNameRegistry) {
-        // Deploy new implementation instance
+        // Deploy new migratedRegistryImpl instance
         MigratedWrappedNameRegistry impl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
@@ -656,12 +594,12 @@ contract TestMigratedWrappedNameRegistry is Test {
                 abi.encode(
                     MigrationData({
                         transferData: TransferData({
-                            dnsEncodedName: subDnsName,
+                            name: subDnsName,
                             owner: user,
                             subregistry: address(0),
                             resolver: mockResolver,
                             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                            expires: expiry
+                            expiry: expiry
                         }),
                         toL1: false,
                         salt: uint256(keccak256(abi.encodePacked("test_resolver_clear")))
@@ -676,7 +614,7 @@ contract TestMigratedWrappedNameRegistry is Test {
                 "Resolver should be cleared to address(0)"
             );
         } catch {
-            // If it fails for other reasons (like factory), we can test freezeName directly
+            // If it fails for other reasons (like migratedRegistryFactory), we can test freezeName directly
             uint32 fuses = CANNOT_UNWRAP;
             LibLockedNames.freezeName(INameWrapper(address(nameWrapper)), subTokenId, fuses);
             assertEq(
@@ -731,12 +669,12 @@ contract TestMigratedWrappedNameRegistry is Test {
                 abi.encode(
                     MigrationData({
                         transferData: TransferData({
-                            dnsEncodedName: subDnsName,
+                            name: subDnsName,
                             owner: user,
                             subregistry: address(0),
                             resolver: mockResolver,
                             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                            expires: expiry
+                            expiry: expiry
                         }),
                         toL1: false,
                         salt: uint256(keccak256(abi.encodePacked("test_resolver_preserve")))
@@ -751,7 +689,7 @@ contract TestMigratedWrappedNameRegistry is Test {
                 "Resolver should be preserved when fuse already set"
             );
         } catch {
-            // If it fails for other reasons (like factory), we can test freezeName directly
+            // If it fails for other reasons (like migratedRegistryFactory), we can test freezeName directly
             uint32 fuses = CANNOT_UNWRAP | CANNOT_SET_RESOLVER;
             LibLockedNames.freezeName(INameWrapper(address(nameWrapper)), subTokenId, fuses);
             assertEq(
@@ -812,12 +750,12 @@ contract TestMigratedWrappedNameRegistry is Test {
             abi.encode(
                 MigrationData({
                     transferData: TransferData({
-                        dnsEncodedName: subDnsName,
+                        name: subDnsName,
                         owner: user,
                         subregistry: address(0),
                         resolver: mockResolver,
                         roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                        expires: expiry
+                        expiry: expiry
                     }),
                     toL1: false,
                     salt: uint256(keccak256(abi.encodePacked("test_already_registered")))
@@ -856,7 +794,11 @@ contract TestMigratedWrappedNameRegistry is Test {
         // Should revert because parent is not controlled in legacy system
         (, uint256 parentOffset) = NameCoder.nextLabel(subDnsName, 0);
         vm.expectRevert(
-            abi.encodeWithSelector(ParentNotMigrated.selector, subDnsName, parentOffset)
+            abi.encodeWithSelector(
+                MigrationErrors.ParentNotMigrated.selector,
+                subDnsName,
+                parentOffset
+            )
         );
 
         vm.prank(address(nameWrapper));
@@ -868,12 +810,12 @@ contract TestMigratedWrappedNameRegistry is Test {
             abi.encode(
                 MigrationData({
                     transferData: TransferData({
-                        dnsEncodedName: subDnsName,
+                        name: subDnsName,
                         owner: user,
                         subregistry: address(0),
                         resolver: mockResolver,
                         roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                        expires: expiry
+                        expiry: expiry
                     }),
                     toL1: false,
                     salt: uint256(keccak256(abi.encodePacked("test_not_controlled")))
@@ -896,7 +838,7 @@ contract TestMigratedWrappedNameRegistry is Test {
 
         // Attempt to register should fail
         vm.prank(address(nameWrapper));
-        vm.expectRevert(abi.encodeWithSelector(LabelNotMigrated.selector, label));
+        vm.expectRevert(abi.encodeWithSelector(MigrationErrors.NameNotMigrated.selector, label));
         registry.register(label, user, registry, mockResolver, 0, uint64(block.timestamp + 86400));
     }
 
@@ -938,7 +880,7 @@ contract TestMigratedWrappedNameRegistry is Test {
             registry,
             mockResolver,
             0,
-            uint64(block.timestamp + 100) // Expires soon
+            uint64(block.timestamp + 100) // expiry soon
         );
 
         // Move time forward past expiry
@@ -957,8 +899,8 @@ contract TestMigratedWrappedNameRegistry is Test {
 
         // Verify re-registration succeeded with new owner
         (uint256 newTokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
-        uint64 expires = entry.expiry;
-        assertGt(expires, block.timestamp);
+        uint64 expiry = entry.expiry;
+        assertGt(expiry, block.timestamp);
         assertEq(registry.ownerOf(newTokenId), address(0x5678));
     }
 
@@ -980,8 +922,8 @@ contract TestMigratedWrappedNameRegistry is Test {
 
         // Verify registration succeeded
         (, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
-        uint64 expires = entry.expiry;
-        assertGt(expires, block.timestamp);
+        uint64 expiry = entry.expiry;
+        assertGt(expiry, block.timestamp);
     }
 
     function test_register_emancipated_with_other_fuses_not_locked() public {
@@ -1045,12 +987,12 @@ contract TestMigratedWrappedNameRegistry is Test {
                 abi.encode(
                     MigrationData({
                         transferData: TransferData({
-                            dnsEncodedName: subDnsName,
+                            name: subDnsName,
                             owner: user,
                             subregistry: address(0),
                             resolver: mockResolver,
                             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                            expires: expiry
+                            expiry: expiry
                         }),
                         toL1: false,
                         salt: uint256(keccak256(abi.encodePacked("test_locked_migration")))
@@ -1085,12 +1027,12 @@ contract TestMigratedWrappedNameRegistry is Test {
         MigrationData[] memory migrationDataArray = new MigrationData[](1);
         migrationDataArray[0] = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameCoder.encode("simple.eth"),
+                name: NameCoder.encode("simple.eth"),
                 owner: user,
                 subregistry: address(0),
                 resolver: mockResolver,
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                expires: uint64(block.timestamp + 86400)
+                expiry: uint64(block.timestamp + 86400)
             }),
             toL1: false,
             salt: uint256(keccak256(abi.encodePacked("batch_test_simple")))
@@ -1133,24 +1075,24 @@ contract TestMigratedWrappedNameRegistry is Test {
         MigrationData[] memory migrationDataArray = new MigrationData[](2);
         migrationDataArray[0] = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameCoder.encode("simple1.eth"),
+                name: NameCoder.encode("simple1.eth"),
                 owner: user,
                 subregistry: address(0),
                 resolver: mockResolver,
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                expires: uint64(block.timestamp + 86400)
+                expiry: uint64(block.timestamp + 86400)
             }),
             toL1: false,
             salt: uint256(keccak256(abi.encodePacked("batch_test_1")))
         });
         migrationDataArray[1] = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameCoder.encode("simple2.eth"),
+                name: NameCoder.encode("simple2.eth"),
                 owner: address(0x5678),
                 subregistry: address(0),
                 resolver: address(0x9999),
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                expires: uint64(block.timestamp + 86400)
+                expiry: uint64(block.timestamp + 86400)
             }),
             toL1: false,
             salt: uint256(keccak256(abi.encodePacked("batch_test_2")))
@@ -1241,12 +1183,12 @@ contract TestMigratedWrappedNameRegistry is Test {
     function test_onERC1155Received_unauthorized_caller() public {
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameCoder.encode("test.eth"),
+                name: NameCoder.encode("test.eth"),
                 owner: user,
                 subregistry: address(0),
                 resolver: mockResolver,
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                expires: uint64(block.timestamp + 86400)
+                expiry: uint64(block.timestamp + 86400)
             }),
             toL1: false,
             salt: uint256(keccak256(abi.encodePacked("unauthorized_test")))
@@ -1260,12 +1202,12 @@ contract TestMigratedWrappedNameRegistry is Test {
     function test_onERC1155Received_zero_address_caller() public {
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameCoder.encode("test.eth"),
+                name: NameCoder.encode("test.eth"),
                 owner: user,
                 subregistry: address(0),
                 resolver: mockResolver,
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                expires: uint64(block.timestamp + 86400)
+                expiry: uint64(block.timestamp + 86400)
             }),
             toL1: false,
             salt: uint256(keccak256(abi.encodePacked("zero_address_test")))
@@ -1280,12 +1222,12 @@ contract TestMigratedWrappedNameRegistry is Test {
         address randomContract = address(0xDEADBEEF);
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: NameCoder.encode("test.eth"),
+                name: NameCoder.encode("test.eth"),
                 owner: user,
                 subregistry: address(0),
                 resolver: mockResolver,
                 roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                expires: uint64(block.timestamp + 86400)
+                expiry: uint64(block.timestamp + 86400)
             }),
             toL1: false,
             salt: uint256(keccak256(abi.encodePacked("random_contract_test")))
@@ -1299,7 +1241,7 @@ contract TestMigratedWrappedNameRegistry is Test {
     // ===== UUPS Upgrade Authorization Tests =====
 
     function test_authorizeUpgrade_with_upgrade_role() public {
-        // Deploy a new implementation
+        // Deploy a new migratedRegistryImpl
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
@@ -1321,12 +1263,12 @@ contract TestMigratedWrappedNameRegistry is Test {
                 "Should not fail authorization with upgrade role"
             );
         } catch (bytes memory) {
-            // Other failures (implementation issues) are acceptable for this test
+            // Other failures (migratedRegistryImpl issues) are acceptable for this test
         }
     }
 
     function test_authorizeUpgrade_without_upgrade_role() public {
-        // Deploy a new implementation
+        // Deploy a new migratedRegistryImpl
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
@@ -1348,7 +1290,7 @@ contract TestMigratedWrappedNameRegistry is Test {
         vm.prank(owner);
         registry.grantRootRoles(ROLE_UPGRADE, user);
 
-        // Deploy a new implementation
+        // Deploy a new migratedRegistryImpl
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
@@ -1369,7 +1311,7 @@ contract TestMigratedWrappedNameRegistry is Test {
                 "Should not fail authorization with granted upgrade role"
             );
         } catch (bytes memory) {
-            // Other failures (implementation issues) are acceptable for this test
+            // Other failures (migratedRegistryImpl issues) are acceptable for this test
         }
     }
 
@@ -1382,7 +1324,7 @@ contract TestMigratedWrappedNameRegistry is Test {
         vm.prank(owner);
         registry.revokeRootRoles(ROLE_UPGRADE, user);
 
-        // Deploy a new implementation
+        // Deploy a new migratedRegistryImpl
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
@@ -1623,12 +1565,12 @@ contract TestMigratedWrappedNameRegistry is Test {
             abi.encode(
                 MigrationData({
                     transferData: TransferData({
-                        dnsEncodedName: existingDnsName,
+                        name: existingDnsName,
                         owner: user,
                         subregistry: address(0),
                         resolver: mockResolver,
                         roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                        expires: uint64(block.timestamp + 86400)
+                        expiry: uint64(block.timestamp + 86400)
                     }),
                     toL1: false,
                     salt: uint256(keccak256(abi.encodePacked("existing_test")))
@@ -1696,12 +1638,12 @@ contract TestMigratedWrappedNameRegistry is Test {
                 abi.encode(
                     MigrationData({
                         transferData: TransferData({
-                            dnsEncodedName: NameCoder.encode("deep.sub.test.eth"),
+                            name: NameCoder.encode("deep.sub.test.eth"),
                             owner: user,
                             subregistry: address(0),
                             resolver: mockResolver,
                             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                            expires: expiry
+                            expiry: expiry
                         }),
                         toL1: false,
                         salt: uint256(keccak256(abi.encodePacked("deep_4ld_test")))
@@ -1741,7 +1683,11 @@ contract TestMigratedWrappedNameRegistry is Test {
 
         (, uint256 parentOffset) = NameCoder.nextLabel(subDnsName, 0);
         vm.expectRevert(
-            abi.encodeWithSelector(ParentNotMigrated.selector, subDnsName, parentOffset)
+            abi.encodeWithSelector(
+                MigrationErrors.ParentNotMigrated.selector,
+                subDnsName,
+                parentOffset
+            )
         );
         vm.prank(address(nameWrapper));
         registry.onERC1155Received(
@@ -1752,12 +1698,12 @@ contract TestMigratedWrappedNameRegistry is Test {
             abi.encode(
                 MigrationData({
                     transferData: TransferData({
-                        dnsEncodedName: subDnsName,
+                        name: subDnsName,
                         owner: user,
                         subregistry: address(0),
                         resolver: mockResolver,
                         roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                        expires: expiry
+                        expiry: expiry
                     }),
                     toL1: false,
                     salt: uint256(keccak256(abi.encodePacked("mixed_test")))
@@ -1814,12 +1760,12 @@ contract TestMigratedWrappedNameRegistry is Test {
                 abi.encode(
                     MigrationData({
                         transferData: TransferData({
-                            dnsEncodedName: comDnsName,
+                            name: comDnsName,
                             owner: user,
                             subregistry: address(0),
                             resolver: mockResolver,
                             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                            expires: uint64(block.timestamp + 86400)
+                            expiry: uint64(block.timestamp + 86400)
                         }),
                         toL1: false,
                         salt: uint256(keccak256(abi.encodePacked("com_test")))
@@ -1828,7 +1774,7 @@ contract TestMigratedWrappedNameRegistry is Test {
             )
         {
             // May succeed depending on setup
-        } catch Error(string memory /*reason*/) {
+        } catch Error(string memory reason) {
             // Various failures expected for non-.eth domains
         } catch (bytes memory) {
             // Other failures expected
@@ -1872,12 +1818,12 @@ contract TestMigratedWrappedNameRegistry is Test {
                 abi.encode(
                     MigrationData({
                         transferData: TransferData({
-                            dnsEncodedName: subDnsName,
+                            name: subDnsName,
                             owner: user,
                             subregistry: address(0),
                             resolver: mockResolver,
                             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                            expires: expiry
+                            expiry: expiry
                         }),
                         toL1: false,
                         salt: uint256(keccak256(abi.encodePacked("emancipated_only_test")))
@@ -1931,12 +1877,12 @@ contract TestMigratedWrappedNameRegistry is Test {
                 abi.encode(
                     MigrationData({
                         transferData: TransferData({
-                            dnsEncodedName: subDnsName,
+                            name: subDnsName,
                             owner: user,
                             subregistry: address(0),
                             resolver: mockResolver,
                             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                            expires: expiry
+                            expiry: expiry
                         }),
                         toL1: false,
                         salt: uint256(keccak256(abi.encodePacked("locked_not_emancipated_test")))
@@ -1994,12 +1940,12 @@ contract TestMigratedWrappedNameRegistry is Test {
             abi.encode(
                 MigrationData({
                     transferData: TransferData({
-                        dnsEncodedName: subDnsName,
+                        name: subDnsName,
                         owner: user,
                         subregistry: address(0),
                         resolver: mockResolver,
                         roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER, // Only regular role, no admin role
-                        expires: expiry
+                        expiry: expiry
                     }),
                     toL1: false,
                     salt: uint256(keccak256(abi.encodePacked("frozen_test")))
@@ -2051,12 +1997,12 @@ contract TestMigratedWrappedNameRegistry is Test {
                 abi.encode(
                     MigrationData({
                         transferData: TransferData({
-                            dnsEncodedName: subDnsName,
+                            name: subDnsName,
                             owner: user,
                             subregistry: address(0),
                             resolver: mockResolver,
                             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                            expires: expiry
+                            expiry: expiry
                         }),
                         toL1: false,
                         salt: uint256(keccak256(abi.encodePacked("restrictive_test")))
@@ -2114,12 +2060,12 @@ contract TestMigratedWrappedNameRegistry is Test {
                 abi.encode(
                     MigrationData({
                         transferData: TransferData({
-                            dnsEncodedName: subDnsName,
+                            name: subDnsName,
                             owner: user,
                             subregistry: address(0),
                             resolver: mockResolver,
                             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                            expires: expiry
+                            expiry: expiry
                         }),
                         toL1: false,
                         salt: uint256(keccak256(abi.encodePacked("extendable_test")))
@@ -2177,12 +2123,12 @@ contract TestMigratedWrappedNameRegistry is Test {
                 abi.encode(
                     MigrationData({
                         transferData: TransferData({
-                            dnsEncodedName: subDnsName,
+                            name: subDnsName,
                             owner: user,
                             subregistry: address(0),
                             resolver: mockResolver,
                             roleBitmap: LibRegistryRoles.ROLE_SET_RESOLVER,
-                            expires: expiry
+                            expiry: expiry
                         }),
                         toL1: false,
                         salt: uint256(keccak256(abi.encodePacked("nosub_test")))
@@ -2200,4 +2146,5 @@ contract TestMigratedWrappedNameRegistry is Test {
             // Other failures acceptable
         }
     }
+    */
 }

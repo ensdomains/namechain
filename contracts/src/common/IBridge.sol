@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.0;
 
 /**
  * @dev The type of message being sent.
  */
 enum BridgeMessageType {
+    UNKNOWN,
     EJECTION,
     RENEWAL
 }

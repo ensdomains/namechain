@@ -34,12 +34,9 @@ import {
 } from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
 
-import {DedicatedResolverLayout} from "./../common/DedicatedResolverLayout.sol";
-import {IRegistryResolver} from "./../common/IRegistryResolver.sol";
-import {NameUtils} from "./../common/NameUtils.sol";
-
-/// @dev The namehash of "eth".
-bytes32 constant ETH_NODE = keccak256(abi.encode(bytes32(0), keccak256("eth")));
+import {DedicatedResolverLayout} from "../common/DedicatedResolverLayout.sol";
+import {IRegistryResolver} from "../common/IRegistryResolver.sol";
+import {NameUtils} from "../common/NameUtils.sol";
 
 /// @notice Resolver that performs ".eth" resolutions for Namechain (via gateway) or V1 (via fallback).
 ///
@@ -69,7 +66,7 @@ contract ETHTLDResolver is
     /// @dev `GatewayRequest` exit code which indicates no resolver was found.
     uint8 private constant _EXIT_CODE_NO_RESOLVER = 2;
 
-    ENS public immutable REGISTRY_V1;
+    ENS public immutable ENS_REGISTRY_V1;
 
     IBaseRegistrar public immutable ETH_REGISTRAR_V1;
 
@@ -111,8 +108,8 @@ contract ETHTLDResolver is
         address namechainDatastore_,
         address namechainEthRegistry_
     ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
-        REGISTRY_V1 = registryV1_;
-        ETH_REGISTRAR_V1 = IBaseRegistrar(registryV1_.owner(ETH_NODE));
+        ENS_REGISTRY_V1 = registryV1_;
+        ETH_REGISTRAR_V1 = IBaseRegistrar(registryV1_.owner(NameUtils.ETH_NODE));
         BATCH_GATEWAY_PROVIDER = batchGatewayProvider_;
         BURN_ADDRESS_V1 = burnAddressV1_;
         NAMECHAIN_DATASTORE = namechainDatastore_;
@@ -159,7 +156,7 @@ contract ETHTLDResolver is
         bytes calldata name,
         bytes calldata data
     ) external view returns (bytes memory) {
-        return resolveWithRegistry(NAMECHAIN_ETH_REGISTRY, ETH_NODE, name, data);
+        return resolveWithRegistry(NAMECHAIN_ETH_REGISTRY, NameUtils.ETH_NODE, name, data);
     }
 
     /// @dev CCIP-Read callback for `resolve()` from calling `namechainVerifier`.
@@ -216,13 +213,13 @@ contract ETHTLDResolver is
         if (!matched) {
             revert UnreachableName(name);
         }
-        if (nodeSuffix == ETH_NODE) {
+        if (nodeSuffix == NameUtils.ETH_NODE) {
             if (offset == prevOffset) {
                 callResolver(ethResolver, name, data, BATCH_GATEWAY_PROVIDER.gateways());
             }
             (bytes32 labelHash, ) = NameCoder.readLabel(name, prevOffset);
             if (isActiveRegistrationV1(uint256(labelHash))) {
-                (address resolver, , ) = RegistryUtilsV1.findResolver(REGISTRY_V1, name, 0);
+                (address resolver, , ) = RegistryUtilsV1.findResolver(ENS_REGISTRY_V1, name, 0);
                 callResolver(resolver, name, data, BATCH_GATEWAY_PROVIDER.gateways());
             }
         }

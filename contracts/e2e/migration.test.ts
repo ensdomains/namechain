@@ -30,7 +30,7 @@ const transferDataAbi = [
   {
     type: "tuple",
     components: [
-      { name: "dnsEncodedName", type: "bytes" },
+      { name: "name", type: "bytes" },
       { name: "owner", type: "address" },
       { name: "subregistry", type: "address" },
       { name: "resolver", type: "address" },
@@ -160,7 +160,7 @@ describe("Migration", () => {
       return encodeAbiParameters(migrationDataAbi, [
         {
           transferData: {
-            dnsEncodedName: dnsEncodeName(name),
+            name: dnsEncodeName(name),
             owner: account.address,
             subregistry,
             resolver,
@@ -275,7 +275,7 @@ describe("Migration", () => {
 
     describe("Locked", () => {
       it("locked => L1", async () => {
-        const {account, wrap, transferData} = await registerV1();
+        const { account, wrap, transferData } = await registerV1();
         await env.l1.contracts.NameWrapperV1.write.safeTransferFrom(
           [
             account.address,
@@ -286,9 +286,6 @@ describe("Migration", () => {
           ],
           { account },
         );
-
-
-
       });
     });
   });
@@ -319,7 +316,7 @@ describe("Migration", () => {
             1n,
             encodeAbiParameters(transferDataAbi, [
               {
-                dnsEncodedName: dnsEncodeName(`${testLabel2LD}.eth`),
+                name: dnsEncodeName(`${testLabel2LD}.eth`),
                 owner: user.address,
                 subregistry,
                 resolver,

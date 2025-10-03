@@ -1,10 +1,13 @@
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
 @openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
+#@ens/contracts/utils/NameCoder.sol=src/common/NameCoder.sol
 @ens/contracts/=lib/ens-contracts/contracts/
 @ensdomains/buffer/=lib/buffer/
 @unruggable/gateways/=lib/unruggable-gateways/
 @ensdomains/verifiable-factory/=lib/verifiable-factory/src/
 forge-std/=lib/forge-std/src/
+#lib/ens-contracts/contracts/utils/LibCopy.sol=src/common/LibCopy.sol
+#lib/ens-contracts/contracts/utils/NameCoder.sol=src/common/NameCoder.sol
 lib/ens-contracts/:@openzeppelin/contracts=lib/openzeppelin-contracts-v4/contracts
 lib/ens-contracts/:@openzeppelin/contracts-v5=lib/openzeppelin-contracts/contracts
 lib/ens-contracts/:@ensdomains/solsha1/contracts=lib/solsha1/contracts

@@ -64,7 +64,8 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     function completeEjectionToL2(
         TransferData memory transferData
     ) external virtual onlyRootRoles(LibBridgeRoles.ROLE_EJECTOR) {
-        string memory label = NameUtils.extractLabel(transferData.dnsEncodedName);
+        // TODO: does this need an .eth check?
+        string memory label = NameUtils.firstLabel(transferData.name);
         (uint256 tokenId, ) = REGISTRY.getNameData(label);
 
         // owner should be the bridge controller
@@ -79,7 +80,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         REGISTRY.setTokenObserver(tokenId, ITokenObserver(address(0)));
         REGISTRY.safeTransferFrom(address(this), transferData.owner, tokenId, 1, "");
 
-        emit NameEjectedToL2(transferData.dnsEncodedName, tokenId);
+        emit NameEjectedToL2(transferData.name, tokenId);
     }
 
     /**
@@ -108,10 +109,10 @@ contract L2BridgeController is EjectionController, ITokenObserver {
      */
     function onRenew(
         uint256 tokenId,
-        uint64 expires,
+        uint64 expiry,
         address /*renewedBy*/
     ) external virtual onlyRegistry {
-        BRIDGE.sendMessage(BridgeEncoder.encodeRenewal(tokenId, expires));
+        BRIDGE.sendMessage(BridgeEncoder.encodeRenewal(tokenId, expiry));
     }
 
     /**
@@ -131,7 +132,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             }
 
             // check that the label matches the token id
-            _assertTokenIdMatchesLabel(tokenId, transferData.dnsEncodedName);
+            _assertTokenIdMatchesLabel(tokenId, transferData.name);
 
             /*
             Check that there is no more than one holder of the token observer and subregistry setting roles.
@@ -161,7 +162,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
 
             // Send bridge message for ejection
             BRIDGE.sendMessage(BridgeEncoder.encodeEjection(transferData));
-            emit NameEjectedToL1(transferData.dnsEncodedName, tokenId);
+            emit NameEjectedToL1(transferData.name, tokenId);
         }
     }
 }

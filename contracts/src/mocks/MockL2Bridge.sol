@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {BridgeEncoder} from "./../common/BridgeEncoder.sol";
-import {BridgeMessageType} from "./../common/IBridge.sol";
 import {TransferData} from "./../common/TransferData.sol";
 import {L2BridgeController} from "./../L2/L2BridgeController.sol";
 import {MockBridgeBase} from "./MockBridgeBase.sol";
@@ -21,13 +19,6 @@ contract MockL2Bridge is MockBridgeBase {
     L2BridgeController public bridgeController;
 
     ////////////////////////////////////////////////////////////////////////
-    // Events
-    ////////////////////////////////////////////////////////////////////////
-
-    // Type-specific events with tokenId and data
-    event NameBridgedToL1(bytes message);
-
-    ////////////////////////////////////////////////////////////////////////
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
@@ -36,23 +27,9 @@ contract MockL2Bridge is MockBridgeBase {
     }
 
     /**
-     * @dev Send a message.
-     */
-    function sendMessage(bytes memory message) external override {
-        BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
-
-        if (messageType == BridgeMessageType.EJECTION) {
-            emit NameBridgedToL1(message);
-        }
-    }
-
-    /**
      * @dev Handle ejection messages specific to L2 bridge
      */
-    function _handleEjectionMessage(
-        bytes memory /*dnsEncodedName*/,
-        TransferData memory transferData
-    ) internal override {
+    function _handleEjectionMessage(TransferData memory transferData) internal override {
         bridgeController.completeEjectionToL2(transferData);
     }
 
