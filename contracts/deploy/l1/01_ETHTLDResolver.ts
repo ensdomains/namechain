@@ -13,8 +13,8 @@ export default execute(
   ) => {
     if (!args?.l2Deploy) throw new Error("expected L2 deployment");
 
-    const ensRegistryV1 =
-      get<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
+    const nameWrapper =
+      get<(typeof artifacts.NameWrapper)["abi"]>("NameWrapper");
 
     const batchGatewayProvider = get<(typeof artifacts.GatewayProvider)["abi"]>(
       "BatchGatewayProvider",
@@ -63,13 +63,13 @@ export default execute(
       account: deployer,
       artifact: artifacts.ETHTLDResolver,
       args: [
-        ensRegistryV1.address,
+        nameWrapper.address,
         batchGatewayProvider.address,
         zeroAddress, // burnAddressV1
         ethSelfResolver.address,
         args.verifierAddress,
         args.l2Deploy.deployments.RegistryDatastore.address,
-        args.l2Deploy.deployments.ETHRegistry.address
+        args.l2Deploy.deployments.ETHRegistry.address,
       ],
     });
 
@@ -81,10 +81,6 @@ export default execute(
   },
   {
     tags: ["ETHTLDResolver", "l1"],
-    dependencies: [
-      "DedicatedResolver",
-      "BaseRegistrarImplementation", // "ENSRegistry"
-      "BatchGatewayProvider",
-    ],
+    dependencies: ["NameWrapper", "DedicatedResolver", "BatchGatewayProvider"],
   },
 );

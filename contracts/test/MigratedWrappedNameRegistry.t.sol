@@ -3,16 +3,10 @@ pragma solidity >=0.8.13;
 
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 
-import {
-    BaseRegistrarImplementation
-} from "@ens/contracts/ethregistrar/BaseRegistrarImplementation.sol";
-import {ENSRegistry} from "@ens/contracts/registry/ENSRegistry.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {
-    NameWrapper,
-    IMetadataService,
     CANNOT_UNWRAP,
     CANNOT_BURN_FUSES,
     CAN_DO_EVERYTHING,
@@ -22,14 +16,11 @@ import {
     CANNOT_CREATE_SUBDOMAIN,
     CAN_EXTEND_EXPIRY,
     PARENT_CANNOT_CONTROL
-} from "@ens/contracts/wrapper/NameWrapper.sol";
-//import { CANNOT_BURN_FUSES} from "@ens/contracts/wrapper/INameWrapper.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
-import {UnauthorizedCaller} from "../src/common/Errors.sol";
 import {PermissionedRegistry} from "../src/common/PermissionedRegistry.sol";
 import {IRegistry} from "../src/common/IRegistry.sol";
 import {IRegistryDatastore} from "../src/common/IRegistryDatastore.sol";
@@ -47,29 +38,18 @@ import {
 import {MigrationErrors} from "../src/L1/MigrationErrors.sol";
 import {BaseUriRegistryMetadata} from "../src/common/BaseUriRegistryMetadata.sol";
 import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
-import {TestV1Mixin} from "./fixtures/TestV1Mixin.sol";
+import {NameWrapperMixin} from "./fixtures/NameWrapperMixin.sol";
+import {ETHRegistryMixin} from "./fixtures/ETHRegistryMixin.sol";
 
-contract TestMigratedWrappedNameRegistry is Test, TestV1Mixin {
-    RegistryDatastore datastore;
-    BaseUriRegistryMetadata metadata;
-    PermissionedRegistry ethRegistry;
-
+contract TestMigratedWrappedNameRegistry is NameWrapperMixin, ETHRegistryMixin {
     VerifiableFactory migratedRegistryFactory;
     MigratedWrappedNameRegistry migratedRegistryImpl;
 
-    //MigratedWrappedNameRegistry registry;
+    MigratedWrappedNameRegistry ethWrappedRegistry;
 
     function setUp() public {
-        datastore = new RegistryDatastore();
-        metadata = new BaseUriRegistryMetadata();
-        ethRegistry = new PermissionedRegistry(
-            datastore,
-            metadata,
-            address(this),
-            LibEACBaseRoles.ALL_ROLES
-        );
-
-        deployV1();
+        deployNameWrapper();
+        deployEthRegistry();
 
         migratedRegistryFactory = new VerifiableFactory();
         migratedRegistryImpl = new MigratedWrappedNameRegistry(
@@ -80,70 +60,59 @@ contract TestMigratedWrappedNameRegistry is Test, TestV1Mixin {
             metadata
         );
 
-        // ERC1967Proxy proxy = new ERC1967Proxy(
-        //     address(migratedRegistryImpl),
-        //     abi.encodeCall(
-        //         IMigratedWrappedNameRegistry.initialize,
-        //         (IMigratedWrappedNameRegistry.Args({
-        //             parentNode: NameUtils.ETH_NODE
-        //             owner: address(this),
-        //             ownerRoles: 0,
-        //             registrar: address(0)
-        //         }))
-        //     )
-        // );
-        // registry = MigratedWrappedNameRegistry(address(proxy));
-
-        // testLabelId = NameUtils.labelToCanonicalId(testLabel);
-
-        // // Setup v1 resolver in ENS registry
-        // bytes memory name = NameUtils.appendETH(testLabel);
-        // bytes32 node = NameCoder.namehash(name, 0);
-        // ensRegistry.setResolver(node, v1Resolver);
+        ethWrappedRegistry = MigratedWrappedNameRegistry(
+            migratedRegistryFactory.deployProxy(
+                address(migratedRegistryImpl),
+                0,
+                abi.encodeCall(
+                    IMigratedWrappedNameRegistry.initialize,
+                    (
+                        IMigratedWrappedNameRegistry.Args({
+                            parentNode: NameUtils.ETH_NODE,
+                            owner: address(this),
+                            ownerRoles: 0,
+                            registrar: address(0)
+                        })
+                    )
+                )
+            )
+        );
     }
 
-    /**
-     * @dev Helper method to register a name using the wrapper contract
-     */
-    function _registerName(
-        MigratedWrappedNameRegistry targetRegistry,
-        string memory label,
-        address nameOwner,
-        IRegistry subregistry,
-        address resolver,
-        uint256 roleBitmap,
-        uint64 expiry
-    ) internal {
-        vm.prank(address(nameWrapper));
-        targetRegistry.register(label, nameOwner, subregistry, resolver, roleBitmap, expiry);
+    function _migrationData() internal view returns (MigrationData memory) {
+        return
+            MigrationData({
+                transferData: TransferData({
+                    name: "", // ignored
+                    owner: user,
+                    subregistry: address(0), // ignored
+                    resolver: address(0x3333),
+                    roleBitmap: 0, // ignored
+                    expiry: 0 // ignored
+                }),
+                toL1: false, // ignored
+                salt: uint256(keccak256(abi.encodePacked(block.timestamp)))
+            });
     }
 
-    function test_getResolver_unregistered_name() external {
-        (bytes memory name, ) = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
-
+    function test_getResolver_unregistered() external {
+        (bytes memory name, uint256 tokenId) = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         vm.prank(user);
-        ensV1.setResolver(NameCoder.namehash(name, 0), address(1));
-
-        //address resolver = registry.getResolver(testLabel);
-        // assertEq(resolver, v1Resolver, "Should return v1 resolver from ENS registry");
+        nameWrapper.setResolver(bytes32(tokenId), address(1));
+        assertEq(ethWrappedRegistry.getResolver(NameUtils.firstLabel(name)), address(1));
     }
 
-    function test_getResolver_registered_name_with_resolver() external {
-        // (bytes memory name, ) = _registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
-        // Register name first
-        // uint64 expiry = uint64(block.timestamp + 86400);
-        // _registerName(
-        //     registry,
-        //     testLabel,
-        //     user,
-        //     registry,
-        //     mockResolver,
-        //     LibRegistryRoles.ROLE_SET_RESOLVER,
-        //     expiry
-        // );
-        // // Should return the registered resolver
-        // address resolver = registry.getResolver(testLabel);
-        // assertEq(resolver, mockResolver, "Should return registered resolver");
+    function test_getResolver_migrated() external {
+        (bytes memory name, uint256 tokenId) = registerWrappedETH2LD("test", CANNOT_UNWRAP);
+        vm.startPrank(user);
+        nameWrapper.setResolver(bytes32(tokenId), address(1));
+        MigrationData memory md = _migrationData();
+        nameWrapper.safeTransferFrom(user, address(ethWrappedRegistry), tokenId, 1, abi.encode(md));
+        vm.stopPrank();
+        assertEq(
+            ethWrappedRegistry.getResolver(NameUtils.firstLabel(name)),
+            md.transferData.resolver
+        );
     }
 
     /*

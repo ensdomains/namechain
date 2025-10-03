@@ -16,10 +16,8 @@ import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
-import {
-    RegistryUtils as RegistryUtilsV1,
-    ENS
-} from "@ens/contracts/universalResolver/RegistryUtils.sol";
+import {RegistryUtils as RegistryUtilsV1} from "@ens/contracts/universalResolver/RegistryUtils.sol";
+import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {ResolverCaller} from "@ens/contracts/universalResolver/ResolverCaller.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
@@ -66,7 +64,7 @@ contract ETHTLDResolver is
     /// @dev `GatewayRequest` exit code which indicates no resolver was found.
     uint8 private constant _EXIT_CODE_NO_RESOLVER = 2;
 
-    ENS public immutable ENS_REGISTRY_V1;
+    INameWrapper public immutable NAME_WRAPPER;
 
     IBaseRegistrar public immutable ETH_REGISTRAR_V1;
 
@@ -100,7 +98,7 @@ contract ETHTLDResolver is
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        ENS registryV1_,
+        INameWrapper nameWrapper,
         IGatewayProvider batchGatewayProvider_,
         address burnAddressV1_,
         address ethResolver_,
@@ -108,8 +106,8 @@ contract ETHTLDResolver is
         address namechainDatastore_,
         address namechainEthRegistry_
     ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
-        ENS_REGISTRY_V1 = registryV1_;
-        ETH_REGISTRAR_V1 = IBaseRegistrar(registryV1_.owner(NameUtils.ETH_NODE));
+        NAME_WRAPPER = nameWrapper;
+        ETH_REGISTRAR_V1 = IBaseRegistrar(nameWrapper.ens().owner(NameUtils.ETH_NODE));
         BATCH_GATEWAY_PROVIDER = batchGatewayProvider_;
         BURN_ADDRESS_V1 = burnAddressV1_;
         NAMECHAIN_DATASTORE = namechainDatastore_;
@@ -219,7 +217,7 @@ contract ETHTLDResolver is
             }
             (bytes32 labelHash, ) = NameCoder.readLabel(name, prevOffset);
             if (isActiveRegistrationV1(uint256(labelHash))) {
-                (address resolver, , ) = RegistryUtilsV1.findResolver(ENS_REGISTRY_V1, name, 0);
+                (address resolver, , ) = RegistryUtilsV1.findResolver(NAME_WRAPPER.ens(), name, 0);
                 callResolver(resolver, name, data, BATCH_GATEWAY_PROVIDER.gateways());
             }
         }

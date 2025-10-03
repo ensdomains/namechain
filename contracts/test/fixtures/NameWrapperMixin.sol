@@ -3,6 +3,9 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
+import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+
 import {
     BaseRegistrarImplementation
 } from "@ens/contracts/ethregistrar/BaseRegistrarImplementation.sol";
@@ -12,21 +15,21 @@ import {NameWrapper, IMetadataService} from "@ens/contracts/wrapper/NameWrapper.
 
 import {NameUtils} from "../../src/common/NameUtils.sol";
 
-contract TestV1Mixin is Test {
+abstract contract NameWrapperMixin is Test, ERC721Holder, ERC1155Holder {
     ENSRegistry ensV1;
     BaseRegistrarImplementation ethRegistrarV1;
     NameWrapper nameWrapper;
 
     address user = makeAddr("user");
 
-    function deployV1() internal {
-        // setup V1
+    function deployNameWrapper() internal {
         ensV1 = new ENSRegistry();
         ethRegistrarV1 = new BaseRegistrarImplementation(ensV1, NameUtils.ETH_NODE);
         claimNodes(NameCoder.encode("eth"), 0, address(ethRegistrarV1));
         claimNodes(NameCoder.encode("addr.reverse"), 0, address(this));
         ethRegistrarV1.addController(address(this));
         nameWrapper = new NameWrapper(ensV1, ethRegistrarV1, IMetadataService(address(0)));
+        vm.warp(ethRegistrarV1.GRACE_PERIOD() + 1); // avoid timestamp issues
     }
 
     // fake ReverseClaimer
@@ -70,7 +73,7 @@ contract TestV1Mixin is Test {
         uint32 fuses
     ) internal returns (bytes memory name, uint256 tokenId) {
         bytes memory parentName = nameWrapper.names(bytes32(parentTokenId));
-        (address owner, uint64 expiry, ) = nameWrapper.getData(parentTokenId);
+        (address owner, , uint64 expiry) = nameWrapper.getData(parentTokenId);
         name = NameUtils.append(parentName, label);
         vm.prank(owner);
         tokenId = uint256(

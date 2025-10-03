@@ -63,6 +63,11 @@ export async function deployV1Fixture(
     labelhash("eth"),
     ethRegistrar.address,
   ]);
+  const nameWrapper = await network.viem.deployContract("NameWrapper", [
+    ensRegistry.address,
+    ethRegistrar.address,
+    zeroAddress, // IMetadataService
+  ]);
   return {
     network,
     publicClient,
@@ -73,6 +78,7 @@ export async function deployV1Fixture(
     publicResolver,
     batchGatewayProvider,
     universalResolver,
+    nameWrapper,
     setupName,
   };
   // clobbers registry ownership up to name

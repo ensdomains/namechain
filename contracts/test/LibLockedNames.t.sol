@@ -63,23 +63,15 @@ contract MockNameWrapper {
     }
 }
 
-contract LibLockedNamesWrapper {
-    function validateEmancipatedName(uint32 fuses, uint256 tokenId) external pure {
-        LibLockedNames.validateEmancipatedName(fuses, tokenId);
-    }
-}
-
 contract TestLibLockedNames is Test {
     MockNameWrapper nameWrapper;
     VerifiableFactory factory;
-    LibLockedNamesWrapper wrapper;
 
     uint256 testTokenId = 0x1234567890abcdef;
 
     function setUp() public {
         nameWrapper = new MockNameWrapper();
         factory = new VerifiableFactory();
-        wrapper = new LibLockedNamesWrapper();
     }
 
     function test_freezeName_clears_resolver_when_fuse_not_set() public {
@@ -1047,51 +1039,6 @@ contract TestLibLockedNames is Test {
             "All fuses including CANNOT_UNWRAP should be burned"
         );
         assertTrue((finalFuses & CANNOT_UNWRAP) != 0, "CANNOT_UNWRAP should now be set");
-    }
-
-    function test_validateEmancipatedName_emancipated_only() public pure {
-        uint32 emancipatedFuses = PARENT_CANNOT_CONTROL | IS_DOT_ETH;
-        uint256 tokenId = 0x123;
-
-        // Should not revert for emancipated name
-        LibLockedNames.validateEmancipatedName(emancipatedFuses, tokenId);
-    }
-
-    function test_validateEmancipatedName_emancipated_and_locked() public pure {
-        uint32 lockedFuses = PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | IS_DOT_ETH;
-        uint256 tokenId = 0x123;
-
-        // Should not revert for emancipated and locked name
-        LibLockedNames.validateEmancipatedName(lockedFuses, tokenId);
-    }
-
-    function test_validateEmancipatedName_with_cannot_burn_fuses() public pure {
-        uint32 frozenFuses = PARENT_CANNOT_CONTROL | CANNOT_BURN_FUSES | IS_DOT_ETH;
-        uint256 tokenId = 0x123;
-
-        // Should not revert for emancipated name with CANNOT_BURN_FUSES (previously this would have failed)
-        LibLockedNames.validateEmancipatedName(frozenFuses, tokenId);
-    }
-
-    function test_validateEmancipatedName_locked_with_cannot_burn_fuses() public pure {
-        uint32 frozenLockedFuses = PARENT_CANNOT_CONTROL |
-            CANNOT_UNWRAP |
-            CANNOT_BURN_FUSES |
-            IS_DOT_ETH;
-        uint256 tokenId = 0x123;
-
-        // Should not revert for emancipated and locked name with CANNOT_BURN_FUSES (previously this would have failed)
-        LibLockedNames.validateEmancipatedName(frozenLockedFuses, tokenId);
-    }
-
-    function test_Revert_validateEmancipatedName_not_emancipated() public {
-        uint32 notEmancipatedFuses = IS_DOT_ETH; // Missing PARENT_CANNOT_CONTROL
-        uint256 tokenId = 0x123;
-
-        vm.expectRevert(
-            abi.encodeWithSelector(LibLockedNames.NameNotEmancipated.selector, tokenId)
-        );
-        wrapper.validateEmancipatedName(notEmancipatedFuses, tokenId);
     }
 
     function test_generateRoleBitmapsFromFuses_cannot_transfer_fuse_set() public pure {

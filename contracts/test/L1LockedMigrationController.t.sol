@@ -3,12 +3,6 @@ pragma solidity >=0.8.13;
 
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
-import {Test} from "forge-std/Test.sol";
-
-import {
-    BaseRegistrarImplementation
-} from "@ens/contracts/ethregistrar/BaseRegistrarImplementation.sol";
-import {ENSRegistry} from "@ens/contracts/registry/ENSRegistry.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {
     NameWrapper,
@@ -24,8 +18,6 @@ import {
     CAN_EXTEND_EXPIRY
 } from "@ens/contracts/wrapper/NameWrapper.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
-import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
 import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
@@ -46,35 +38,23 @@ import {LibLockedNames} from "../src/L1/LibLockedNames.sol";
 import {MigratedWrappedNameRegistry} from "../src/L1/MigratedWrappedNameRegistry.sol";
 import {MockPermissionedRegistry} from "./mocks/MockPermissionedRegistry.sol";
 import {BaseUriRegistryMetadata} from "../src/common/BaseUriRegistryMetadata.sol";
-import {TestV1Mixin} from "./fixtures/TestV1Mixin.sol";
+import {NameWrapperMixin} from "./fixtures/NameWrapperMixin.sol";
+import {ETHRegistryMixin} from "./fixtures/ETHRegistryMixin.sol";
 
-contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
-    RegistryDatastore datastore;
-    BaseUriRegistryMetadata metadata;
-    MockPermissionedRegistry ethRegistry;
-
+contract TestL1LockedMigrationController is NameWrapperMixin, ETHRegistryMixin {
     MockL1Bridge bridge;
     L1BridgeController bridgeController;
-    L1LockedMigrationController controller;
+    L1LockedMigrationController migrationController;
 
     VerifiableFactory migratedRegistryFactory;
     MigratedWrappedNameRegistry migratedRegistryImpl;
 
     function setUp() external {
-        datastore = new RegistryDatastore();
-        metadata = new BaseUriRegistryMetadata();
-        ethRegistry = new MockPermissionedRegistry(
-            datastore,
-            metadata,
-            address(this),
-            LibEACBaseRoles.ALL_ROLES
-        );
-
-        deployV1();
+        deployNameWrapper();
+        deployEthRegistry();
 
         bridge = new MockL1Bridge();
 
-        // Deploy migratedRegistryFactory and implementation
         migratedRegistryFactory = new VerifiableFactory();
         migratedRegistryImpl = new MigratedWrappedNameRegistry(
             nameWrapper,
@@ -84,28 +64,22 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
             metadata
         );
 
-        // Setup bridge controller
         bridgeController = new L1BridgeController(ethRegistry, bridge);
 
-        // Grant necessary roles
         ethRegistry.grantRootRoles(
             LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_BURN,
             address(bridgeController)
         );
-        bridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(controller));
+        bridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(migrationController));
 
-        controller = new L1LockedMigrationController(
-            ethRegistrarV1,
+        migrationController = new L1LockedMigrationController(
             nameWrapper,
             bridgeController,
             migratedRegistryFactory,
             address(migratedRegistryImpl)
         );
 
-        // Grant bridge controller permission to be called by migration controller
-        bridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(controller));
-
-        vm.warp(ethRegistrarV1.GRACE_PERIOD() + 1); // avoid timestamp issues
+        bridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(migrationController));
     }
 
     function _createMigrationData(
@@ -129,46 +103,47 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
     }
 
     function test_constructor() external view {
-        assertEq(address(controller.ETH_REGISTRY_V1()), address(ethRegistrarV1), "ethRegistrarV1");
-        assertEq(address(controller.NAME_WRAPPER()), address(nameWrapper), "nameWrapper");
         assertEq(
-            address(controller.L1_BRIDGE_CONTROLLER()),
+            address(migrationController.ETH_REGISTRY_V1()),
+            address(ethRegistrarV1),
+            "ethRegistrarV1"
+        );
+        assertEq(address(migrationController.NAME_WRAPPER()), address(nameWrapper), "nameWrapper");
+        assertEq(
+            address(migrationController.L1_BRIDGE_CONTROLLER()),
             address(bridgeController),
             "bridgeController"
         );
         assertEq(
-            address(controller.MIGRATED_REGISTRY_FACTORY()),
+            address(migrationController.MIGRATED_REGISTRY_FACTORY()),
             address(migratedRegistryFactory),
             "migratedRegistryFactory"
         );
         assertEq(
-            controller.MIGRATED_REGISTRY_IMPL(),
+            migrationController.MIGRATED_REGISTRY_IMPL(),
             address(migratedRegistryImpl),
             "migratedRegistryImpl"
         );
-        assertEq(controller.owner(), address(this), "owner");
+        assertEq(migrationController.owner(), address(this), "owner");
     }
 
     function test_supportsInterface() external view {
-        assertTrue(controller.supportsInterface(type(IERC165).interfaceId), "IERC165");
+        assertTrue(migrationController.supportsInterface(type(IERC165).interfaceId), "IERC165");
         assertTrue(
-            controller.supportsInterface(type(IERC1155Receiver).interfaceId),
+            migrationController.supportsInterface(type(IERC1155Receiver).interfaceId),
             "IERC1155Receiver"
         );
     }
 
-    function test_name_with_cannot_burn_fuses_can_migrate(bool toL1) public {
+    function test_name_with_cannot_burn_fuses_can_migrate(bool toL1) external {
         // Configure name with fuses that are permanently frozen - this should now be allowed to migrate
 
-        (bytes memory name, uint256 tokenId) = registerWrappedETH2LD(
-            "test",
-            CANNOT_UNWRAP | CANNOT_BURN_FUSES
-        );
+        (bytes memory name, uint256 tokenId) = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         vm.startPrank(user);
-        nameWrapper.setApprovalForAll(address(controller), true);
+        nameWrapper.setApprovalForAll(address(migrationController), true);
         nameWrapper.safeTransferFrom(
             user,
-            address(controller),
+            address(migrationController),
             tokenId,
             1,
             abi.encode(_createMigrationData(name, toL1, LibRegistryRoles.ROLE_SET_RESOLVER))
@@ -192,7 +167,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // // Migration should now succeed for names with CANNOT_BURN_FUSES (should not revert)
         // vm.prank(address(nameWrapper));
-        // controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        // migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
 
     /*
@@ -220,10 +195,10 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call onERC1155Received
         vm.prank(address(nameWrapper));
-        bytes4 selector = controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        bytes4 selector = migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Verify selector returned
-        assertEq(selector, controller.onERC1155Received.selector, "Should return correct selector");
+        assertEq(selector, migrationController.onERC1155Received.selector, "Should return correct selector");
 
         // Confirm migration finalized the name
         (, uint32 newFuses, ) = nameWrapper.getData(testTokenId);
@@ -261,7 +236,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call onERC1155Received
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = ethRegistry.getNameData(testLabel);
@@ -329,7 +304,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
         // Migration should fail for unlocked names
         vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NameNotLocked.selector, testTokenId));
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
 
     function test_name_with_cannot_burn_fuses_can_migrate() public {
@@ -354,7 +329,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Migration should now succeed for names with CANNOT_BURN_FUSES (should not revert)
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
 
     function test_Revert_token_id_mismatch() public {
@@ -388,7 +363,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
             )
         );
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
 
     function test_Revert_unauthorized_caller() public {
@@ -409,7 +384,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call from wrong address (not nameWrapper)
         vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
 
     function test_onERC1155BatchReceived() public {
@@ -459,11 +434,11 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call batch receive
         vm.prank(address(nameWrapper));
-        bytes4 selector = controller.onERC1155BatchReceived(owner, owner, tokenIds, amounts, data);
+        bytes4 selector = migrationController.onERC1155BatchReceived(owner, owner, tokenIds, amounts, data);
 
         assertEq(
             selector,
-            controller.onERC1155BatchReceived.selector,
+            migrationController.onERC1155BatchReceived.selector,
             "Should return correct selector"
         );
 
@@ -509,7 +484,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call onERC1155Received
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Verify a subregistry was created
         address actualSubregistry = address(ethRegistry.getSubregistry(testLabel));
@@ -552,7 +527,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call onERC1155Received
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = ethRegistry.getNameData(testLabel);
@@ -617,7 +592,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call onERC1155Received
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = ethRegistry.getNameData(testLabel);
@@ -668,7 +643,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call onERC1155Received
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = ethRegistry.getNameData(testLabel);
@@ -732,7 +707,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call onERC1155Received
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = ethRegistry.getNameData(testLabel);
@@ -797,7 +772,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call onERC1155Received
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Verify that ALL required fuses are burnt (migration completed, then fuses burnt)
         (, uint32 finalFuses, ) = nameWrapper.getData(testTokenId);
@@ -854,7 +829,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
         // Should revert because IS_DOT_ETH fuse is not set
         vm.expectRevert(abi.encodeWithSelector(LibLockedNames.NotDotEthName.selector, testTokenId));
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
     }
 
     function test_subregistry_owner_roles() public {
@@ -880,7 +855,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call onERC1155Received
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Get the registered name and check subregistry owner
         IRegistry subregistry = ethRegistry.getSubregistry(testLabel);
@@ -933,7 +908,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call onERC1155Received
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Verify resolver was cleared to address(0)
         assertEq(
@@ -984,7 +959,7 @@ contract TestL1LockedMigrationController is Test, TestV1Mixin, ERC1155Holder {
 
         // Call onERC1155Received
         vm.prank(address(nameWrapper));
-        controller.onERC1155Received(owner, owner, testTokenId, 1, data);
+        migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Verify resolver remains unchanged (since fuse was already set)
         assertEq(

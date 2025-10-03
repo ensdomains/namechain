@@ -18,3 +18,5 @@ ignored_warnings_from = [
 
 [fuzz]
 runs = 4096
+
+# forge i ens-domains/ens-contracts

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {console} from "forge-std/Test.sol";
+
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {RegistryUtils} from "@ens/contracts/universalResolver/RegistryUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
@@ -58,12 +60,6 @@ contract MigratedWrappedNameRegistry is
     ////////////////////////////////////////////////////////////////////////
 
     bytes32 public parentNode;
-
-    ////////////////////////////////////////////////////////////////////////
-    // Errors
-    ////////////////////////////////////////////////////////////////////////
-
-    error NotSubdomain();
 
     ////////////////////////////////////////////////////////////////////////
     // Initialization
@@ -131,41 +127,29 @@ contract MigratedWrappedNameRegistry is
     function onERC1155Received(
         address /*operator*/,
         address /*from*/,
-        uint256 tokenId,
+        uint256 id,
         uint256 /*amount*/,
         bytes calldata data
     ) external virtual returns (bytes4) {
-        if (msg.sender != address(NAME_WRAPPER)) {
-            revert UnauthorizedCaller(msg.sender);
-        }
-
-        (MigrationData memory migrationData) = abi.decode(data, (MigrationData));
-        MigrationData[] memory migrationDataArray = new MigrationData[](1);
-        migrationDataArray[0] = migrationData;
-
-        uint256[] memory tokenIds = new uint256[](1);
-        tokenIds[0] = tokenId;
-
-        _migrateSubdomains(tokenIds, migrationDataArray);
-
+        require(msg.sender == address(NAME_WRAPPER), MigrationErrors.ERROR_ONLY_NAME_WRAPPER);
+        _migrateSubdomain(id, abi.decode(data, (MigrationData)), true);
         return this.onERC1155Received.selector;
     }
 
     function onERC1155BatchReceived(
         address /*operator*/,
         address /*from*/,
-        uint256[] memory tokenIds,
+        uint256[] memory ids,
         uint256[] memory /*amounts*/,
         bytes calldata data
     ) external virtual returns (bytes4) {
-        if (msg.sender != address(NAME_WRAPPER)) {
-            revert UnauthorizedCaller(msg.sender);
+        require(msg.sender == address(NAME_WRAPPER), MigrationErrors.ERROR_ONLY_NAME_WRAPPER);
+        MigrationData[] memory mds = abi.decode(data, (MigrationData[]));
+        require(ids.length == mds.length, MigrationErrors.ERROR_ARRAY_LENGTH_MISMATCH);
+        //revert IERC1155Errors.ERC1155InvalidArrayLength(ids.length, mds.length);
+        for (uint256 i; i < ids.length; ++i) {
+            _migrateSubdomain(ids[i], mds[i], true);
         }
-
-        (MigrationData[] memory migrationDataArray) = abi.decode(data, (MigrationData[]));
-
-        _migrateSubdomains(tokenIds, migrationDataArray);
-
         return this.onERC1155BatchReceived.selector;
     }
 
@@ -194,62 +178,62 @@ contract MigratedWrappedNameRegistry is
      */
     function _authorizeUpgrade(address) internal override onlyRootRoles(_ROLE_UPGRADE) {}
 
-    function _migrateSubdomains(uint256[] memory ids, MigrationData[] memory mds) internal {
-        for (uint256 i; i < ids.length; ++i) {
-            (, uint32 fuses, uint64 expiry) = NAME_WRAPPER.getData(ids[i]);
-            LibLockedNames.validateEmancipatedName(fuses, ids[i]);
+    function _migrateSubdomain(uint256 id, MigrationData memory md, bool viaReceiver) internal {
+        (, uint32 fuses, uint64 expiry) = NAME_WRAPPER.getData(id);
+        bytes memory name = NAME_WRAPPER.names(bytes32(id));
+        string memory label = _validateHierarchy(name);
 
-            MigrationData memory md = mds[i];
-
-            // Ensure name meets migration requirements
-
-            // Ensure proper domain hierarchy for migration
-            string memory label = _validateHierarchy(md.transferData.name);
-
-            // Determine permissions from name configuration (allow subdomain renewal based on fuses)
-            (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames
-                .generateRoleBitmapsFromFuses(fuses);
-
-            // Create dedicated registry for the migrated name
-
-            address subregistry = MIGRATED_REGISTRY_FACTORY.deployProxy(
-                ERC1967Utils.getImplementation(),
-                md.salt,
-                abi.encodeCall(
-                    IMigratedWrappedNameRegistry.initialize,
-                    (
-                        IMigratedWrappedNameRegistry.Args({
-                            parentNode: bytes32(ids[i]),
-                            owner: md.transferData.owner,
-                            ownerRoles: subRegistryRoles,
-                            registrar: address(0)
-                        })
-                    )
-                )
-            );
-
-            // address subregistry = LibLockedNames.deployMigratedRegistry(
-            //     MIGRATED_REGISTRY_FACTORY,
-            //     ERC1967Utils.getImplementation(),
-            //     migrationDataArray[i].transferData.owner,
-            //     subRegistryRoles,
-            //     migrationDataArray[i].salt,
-            //     migrationDataArray[i].transferData.name
-            // );
-
-            // Complete name registration in new registry
-            _register(
-                label,
-                md.transferData.owner,
-                IRegistry(subregistry),
-                md.transferData.resolver,
-                tokenRoles,
-                expiry //md.transferData.expiry
-            );
-
-            // Finalize migration by freezing the name
-            LibLockedNames.freezeName(NAME_WRAPPER, ids[i], fuses);
+        if ((fuses & PARENT_CANNOT_CONTROL) == 0) {
+            if (viaReceiver) {
+                revert(MigrationErrors.ERROR_NAME_NOT_EMANCIPATED);
+            } else {
+                revert MigrationErrors.NameNotEmancipated(name);
+            }
         }
+
+        // Determine permissions from name configuration (allow subdomain renewal based on fuses)
+        (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames
+            .generateRoleBitmapsFromFuses(fuses);
+
+        // Create dedicated registry for the migrated name
+
+        address subregistry = MIGRATED_REGISTRY_FACTORY.deployProxy(
+            ERC1967Utils.getImplementation(),
+            md.salt,
+            abi.encodeCall(
+                IMigratedWrappedNameRegistry.initialize,
+                (
+                    IMigratedWrappedNameRegistry.Args({
+                        parentNode: bytes32(id),
+                        owner: md.transferData.owner,
+                        ownerRoles: subRegistryRoles,
+                        registrar: address(0)
+                    })
+                )
+            )
+        );
+
+        // address subregistry = LibLockedNames.deployMigratedRegistry(
+        //     MIGRATED_REGISTRY_FACTORY,
+        //     ERC1967Utils.getImplementation(),
+        //     migrationDataArray[i].transferData.owner,
+        //     subRegistryRoles,
+        //     migrationDataArray[i].salt,
+        //     migrationDataArray[i].transferData.name
+        // );
+
+        // Complete name registration in new registry
+        _register(
+            label,
+            md.transferData.owner,
+            IRegistry(subregistry),
+            md.transferData.resolver,
+            tokenRoles,
+            expiry //md.transferData.expiry
+        );
+
+        // Finalize migration by freezing the name
+        LibLockedNames.freezeName(NAME_WRAPPER, id, fuses);
     }
 
     function _register(

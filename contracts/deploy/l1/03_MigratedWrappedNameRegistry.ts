@@ -5,9 +5,6 @@ export default execute(
     const nameWrapperV1 =
       get<(typeof artifacts.NameWrapper)["abi"]>("NameWrapper");
 
-    const ensRegistryV1 =
-      get<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
-
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
@@ -28,7 +25,6 @@ export default execute(
       artifact: artifacts.MigratedWrappedNameRegistry,
       args: [
         nameWrapperV1.address,
-        ensRegistryV1.address,
         factory.address,
         ethRegistry.address,
         registryDatastore.address,

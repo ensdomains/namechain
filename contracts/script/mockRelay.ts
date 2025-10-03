@@ -46,7 +46,7 @@ export function setupMockRelay(env: CrossChainEnvironment) {
     }
   }
 
-  const unwatchL1 = env.l1.contracts.MockBridge.watchEvent.NameBridgedToL2({
+  const unwatchL1 = env.l1.contracts.MockBridge.watchEvent.MessageSent({
     onLogs: async (logs) => {
       for (const log of logs) {
         const { message } = log.args;
@@ -62,7 +62,7 @@ export function setupMockRelay(env: CrossChainEnvironment) {
     },
   });
 
-  const unwatchL2 = env.l2.contracts.MockBridge.watchEvent.NameBridgedToL1({
+  const unwatchL2 = env.l2.contracts.MockBridge.watchEvent.MessageSent({
     onLogs: async (logs) => {
       for (const log of logs) {
         const { message } = log.args;

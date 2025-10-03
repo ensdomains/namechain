@@ -68,18 +68,6 @@ library LibLockedNames {
     }
 
     /**
-     * @notice Validates that a name is properly emancipated for migration
-     * @dev Checks that PARENT_CANNOT_CONTROL is set (emancipated). Name may or may not be locked.
-     * @param fuses The current fuses on the name
-     * @param tokenId The token ID for error reporting
-     */
-    function validateEmancipatedName(uint32 fuses, uint256 tokenId) internal pure {
-        if ((fuses & PARENT_CANNOT_CONTROL) == 0) {
-            revert NameNotEmancipated(tokenId);
-        }
-    }
-
-    /**
      * @notice Generates role bitmaps based on fuses
      * @dev Returns two bitmaps: tokenRoles for the name registration and subRegistryRoles for the registry owner
      * @param fuses The current fuses on the name

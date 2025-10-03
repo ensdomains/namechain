@@ -3,10 +3,6 @@ import { ROLES } from "../constants.js";
 
 export default execute(
   async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
-    const ethRegistrarV1 = get<
-      (typeof artifacts.BaseRegistrarImplementation)["abi"]
-    >("BaseRegistrarImplementation");
-
     const nameWrapperV1 =
       get<(typeof artifacts.NameWrapper)["abi"]>("NameWrapper");
 
@@ -27,7 +23,6 @@ export default execute(
         account: deployer,
         artifact: artifacts.L1LockedMigrationController,
         args: [
-          ethRegistrarV1.address,
           nameWrapperV1.address,
           bridgeController.address,
           migratedWrappedNameRegistryFactory.address,
@@ -45,6 +40,7 @@ export default execute(
   {
     tags: ["LockedMigrationController", "l1"],
     dependencies: [
+      "NameWrapper",
       "BridgeController",
       "MigratedWrappedNameRegistryImpl",
       "MigratedWrappedNameRegistryFactory",

@@ -66,12 +66,11 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        IBaseRegistrar ethRegistryV1,
         INameWrapper nameWrapper,
         L1BridgeController l1BridgeController
     ) Ownable(msg.sender) {
-        ETH_REGISTRY_V1 = ethRegistryV1;
         NAME_WRAPPER = nameWrapper;
+        ETH_REGISTRY_V1 = IBaseRegistrar(nameWrapper.ens().owner(NameUtils.ETH_NODE));
         L1_BRIDGE_CONTROLLER = l1BridgeController;
     }
 

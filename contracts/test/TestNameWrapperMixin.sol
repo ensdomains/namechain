@@ -1,15 +1,33 @@
 import {console} from "forge-std/console.sol";
-import {TestV1Mixin} from "./fixtures/TestV1Mixin.sol";
+import {NameWrapperMixin} from "./fixtures/NameWrapperMixin.sol";
 
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
-contract TestTestV1Mixin is TestV1Mixin {
+contract TestNameWrapperMixin is NameWrapperMixin {
     function setUp() external {
-        deployV1();
+        deployNameWrapper();
     }
 
     function test_registerUnwrapped() external {
         registerUnwrapped("test");
+    }
+
+    function test_registerUnwrappedETH2LD() external {
+        registerWrappedETH2LD("test", 0);
+    }
+
+    function test_registerUnwrappedETH3LD() external {
+        (, uint256 parentTokenId) = registerWrappedETH2LD("test", 0);
+        createWrappedChild(parentTokenId, "sub", 0);
+    }
+
+    function test_registerWrappedDNS2LD() external {
+        createWrappedName("ens.domains", 0);
+    }
+
+    function test_registerWrappedDNS3LD() external {
+        (, uint256 parentTokenId) = createWrappedName("ens.domains", 0);
+        createWrappedChild(parentTokenId, "sub", 0);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -18,7 +36,6 @@ contract TestTestV1Mixin is TestV1Mixin {
 
     function test_Revert_nameWrapper_wrapRoot() external {
         vm.expectRevert(abi.encodeWithSignature("Error(string)", "readLabel: Index out of bounds"));
-        console.log(address(nameWrapper));
         nameWrapper.wrap(hex"00", address(1), address(0));
     }
 

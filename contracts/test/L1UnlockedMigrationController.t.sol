@@ -5,27 +5,15 @@ pragma solidity >=0.8.13;
 
 import {Test, Vm} from "forge-std/Test.sol";
 
-import {
-    BaseRegistrarImplementation
-} from "@ens/contracts/ethregistrar/BaseRegistrarImplementation.sol";
-import {ENSRegistry} from "@ens/contracts/registry/ENSRegistry.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
-import {
-    NameWrapper,
-    IMetadataService,
-    CANNOT_UNWRAP,
-    CAN_DO_EVERYTHING
-} from "@ens/contracts/wrapper/NameWrapper.sol";
+import {CANNOT_UNWRAP, CAN_DO_EVERYTHING} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
-import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {BridgeEncoder} from "../src/common/BridgeEncoder.sol";
-import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
 import {UnauthorizedCaller} from "../src/common/Errors.sol";
 import {LibBridgeRoles} from "../src/common/IBridge.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
@@ -37,16 +25,14 @@ import {TransferData, MigrationData} from "../src/common/TransferData.sol";
 import {L1BridgeController} from "../src/L1/L1BridgeController.sol";
 import {L1UnlockedMigrationController} from "../src/L1/L1UnlockedMigrationController.sol";
 import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
-import {TestV1Mixin} from "./fixtures/TestV1Mixin.sol";
+import {NameWrapperMixin} from "./fixtures/NameWrapperMixin.sol";
+import {ETHRegistryMixin} from "./fixtures/ETHRegistryMixin.sol";
 
 /// forge-config: default.fuzz.runs = 8
-contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721Holder {
-    RegistryDatastore datastore;
-    PermissionedRegistry ethRegistry;
-
+contract TestL1UnlockedMigrationController is NameWrapperMixin, ETHRegistryMixin {
     MockL1Bridge bridge;
     L1BridgeController bridgeController;
-    L1UnlockedMigrationController controller;
+    L1UnlockedMigrationController migrationController;
 
     MockERC721 dummy721;
     MockERC1155 dummy1155;
@@ -54,18 +40,11 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
     address user2 = makeAddr("user2");
 
     function setUp() public {
-        datastore = new RegistryDatastore();
-        ethRegistry = new PermissionedRegistry(
-            datastore,
-            new SimpleRegistryMetadata(),
-            address(this),
-            LibEACBaseRoles.ALL_ROLES
-        );
+        deployNameWrapper();
+        deployEthRegistry();
 
         dummy721 = new MockERC721();
         dummy1155 = new MockERC1155();
-
-        deployV1();
 
         // Deploy mock bridge
         bridge = new MockL1Bridge();
@@ -73,7 +52,7 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         // Deploy REAL bridgeController with real dependencies
         bridgeController = new L1BridgeController(ethRegistry, bridge);
 
-        // Grant necessary roles to the ejection controller
+        // Grant necessary roles to the ejection migrationController
         ethRegistry.grantRootRoles(
             LibRegistryRoles.ROLE_REGISTRAR |
                 LibRegistryRoles.ROLE_RENEW |
@@ -81,15 +60,9 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
             address(bridgeController)
         );
 
-        // Deploy migration controller with the REAL ejection controller
-        controller = new L1UnlockedMigrationController(
-            ethRegistrarV1,
-            nameWrapper,
-            bridgeController
-        );
+        migrationController = new L1UnlockedMigrationController(nameWrapper, bridgeController);
 
-        // Grant ROLE_EJECTOR to the migration controller so it can call the ejection controller
-        bridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(controller));
+        bridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(migrationController));
 
         vm.warp(ethRegistrarV1.GRACE_PERIOD() + 1); // avoid timestamp issues
     }
@@ -135,7 +108,7 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         for (uint256 i; i < logs.length; ++i) {
             if (
                 logs[i].emitter == address(bridge) &&
-                logs[i].topics[0] == keccak256("NameBridgedToL2(bytes)")
+                logs[i].topics[0] == keccak256("MessageSent(bytes)")
             ) {
                 bytes memory message = abi.decode(logs[i].data, (bytes));
                 TransferData memory td = BridgeEncoder.decodeEjection(message);
@@ -160,7 +133,7 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
             // assume ETH2LD
             string memory label = NameUtils.firstLabel(md.transferData.name);
             uint256 tokenIdV1 = uint256(keccak256(bytes(label)));
-            assertEq(ethRegistrarV1.ownerOf(tokenIdV1), address(controller), "burned");
+            assertEq(ethRegistrarV1.ownerOf(tokenIdV1), address(migrationController), "burned");
             if (md.toL1) {
                 (uint256 tokenId, IRegistryDatastore.Entry memory entry) = ethRegistry.getNameData(
                     label
@@ -182,24 +155,28 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
     }
 
     function test_constructor() external view {
-        assertEq(address(controller.ETH_REGISTRY_V1()), address(ethRegistrarV1), "ethRegistrarV1");
-        assertEq(address(controller.NAME_WRAPPER()), address(nameWrapper), "nameWrapper");
         assertEq(
-            address(controller.L1_BRIDGE_CONTROLLER()),
+            address(migrationController.ETH_REGISTRY_V1()),
+            address(ethRegistrarV1),
+            "ethRegistrarV1"
+        );
+        assertEq(address(migrationController.NAME_WRAPPER()), address(nameWrapper), "nameWrapper");
+        assertEq(
+            address(migrationController.L1_BRIDGE_CONTROLLER()),
             address(bridgeController),
             "bridgeController"
         );
-        assertEq(controller.owner(), address(this), "owner");
+        assertEq(migrationController.owner(), address(this), "owner");
     }
 
     function test_supportsInterface() external view {
-        assertTrue(controller.supportsInterface(type(IERC165).interfaceId), "IERC165");
+        assertTrue(migrationController.supportsInterface(type(IERC165).interfaceId), "IERC165");
         assertTrue(
-            controller.supportsInterface(type(IERC721Receiver).interfaceId),
+            migrationController.supportsInterface(type(IERC721Receiver).interfaceId),
             "IERC721Receiver"
         );
         assertTrue(
-            controller.supportsInterface(type(IERC1155Receiver).interfaceId),
+            migrationController.supportsInterface(type(IERC1155Receiver).interfaceId),
             "IERC1155Receiver"
         );
     }
@@ -213,7 +190,12 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         MigrationData memory md = _migrationData(name, toL1);
         vm.recordLogs();
         vm.prank(user);
-        ethRegistrarV1.safeTransferFrom(user, address(controller), tokenId, abi.encode(md));
+        ethRegistrarV1.safeTransferFrom(
+            user,
+            address(migrationController),
+            tokenId,
+            abi.encode(md)
+        );
         _assertMigration(vm.getRecordedLogs(), md);
     }
     function test_migrateETH2LD_unwrapped_viaApproval(bool toL1) external {
@@ -221,8 +203,8 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         MigrationData memory md = _migrationData(name, toL1);
         vm.recordLogs();
         vm.startPrank(user);
-        ethRegistrarV1.setApprovalForAll(address(controller), true);
-        controller.migrateETH2LD(md);
+        ethRegistrarV1.setApprovalForAll(address(migrationController), true);
+        migrationController.migrateETH2LD(md);
         vm.stopPrank();
         _assertMigration(vm.getRecordedLogs(), md);
     }
@@ -231,7 +213,7 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         uint256 tokenId = dummy721.mint(user);
         vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(dummy721)));
         vm.prank(user);
-        dummy721.safeTransferFrom(user, address(controller), tokenId);
+        dummy721.safeTransferFrom(user, address(migrationController), tokenId);
     }
 
     function test_Revert_migrateETH2LD_unwrapped_viaReceiver_notOperator(bool toL1) external {
@@ -240,7 +222,7 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         vm.prank(user2);
         ethRegistrarV1.safeTransferFrom(
             user,
-            address(controller),
+            address(migrationController),
             tokenId,
             abi.encode(_migrationData(name, toL1))
         );
@@ -249,17 +231,17 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         (bytes memory name, ) = registerUnwrapped("test");
         vm.expectRevert(_encodeError("ERC721: caller is not token owner or approved"));
         vm.prank(user2);
-        controller.migrateETH2LD(_migrationData(name, toL1));
+        migrationController.migrateETH2LD(_migrationData(name, toL1));
     }
 
     function test_Revert_migrateETH2LD_unwrapped_viaReceiver_nodeMismatch(bool toL1) external {
         (bytes memory name, ) = registerUnwrapped("test");
         (, uint256 tokenId) = registerUnwrapped("test2");
-        vm.expectRevert(_encodeError(controller.ERROR_NODE_MISMATCH()));
+        vm.expectRevert(_encodeError(migrationController.ERROR_NODE_MISMATCH()));
         vm.prank(user);
         ethRegistrarV1.safeTransferFrom(
             user,
-            address(controller),
+            address(migrationController),
             tokenId,
             abi.encode(_migrationData(name, toL1))
         );
@@ -271,16 +253,16 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         vm.prank(user);
         ethRegistrarV1.safeTransferFrom(
             user,
-            address(controller),
+            address(migrationController),
             0,
             abi.encode(_migrationData(name, toL1))
         );
     }
     function test_Revert_migrateETH2LD_unwrapped_viaApproval_unregistered(bool toL1) external {
         vm.startPrank(user);
-        ethRegistrarV1.setApprovalForAll(address(controller), true);
+        ethRegistrarV1.setApprovalForAll(address(migrationController), true);
         vm.expectRevert(); // ownerOf empty revert
-        controller.migrateETH2LD(_migrationData(NameCoder.encode("abc"), toL1));
+        migrationController.migrateETH2LD(_migrationData(NameCoder.encode("abc"), toL1));
         vm.stopPrank();
     }
 
@@ -291,7 +273,7 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         vm.prank(user);
         ethRegistrarV1.safeTransferFrom(
             user,
-            address(controller),
+            address(migrationController),
             tokenId,
             abi.encode(_migrationData(name, toL1))
         );
@@ -299,9 +281,9 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
     function test_Revert_migrateETH2LD_unwrapped_viaApproval_invalidName(bool toL1) external {
         bytes memory name = hex"ff"; // invalid
         vm.startPrank(user);
-        ethRegistrarV1.setApprovalForAll(address(controller), true);
+        ethRegistrarV1.setApprovalForAll(address(migrationController), true);
         vm.expectRevert(abi.encodeWithSelector(NameCoder.DNSDecodingFailed.selector, name));
-        controller.migrateETH2LD(_migrationData(name, toL1));
+        migrationController.migrateETH2LD(_migrationData(name, toL1));
         vm.stopPrank();
     }
 
@@ -314,16 +296,22 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         MigrationData memory md = _migrationData(name, toL1);
         vm.recordLogs();
         vm.prank(user);
-        nameWrapper.safeTransferFrom(user, address(controller), tokenId, 1, abi.encode(md));
+        nameWrapper.safeTransferFrom(
+            user,
+            address(migrationController),
+            tokenId,
+            1,
+            abi.encode(md)
+        );
         _assertMigration(vm.getRecordedLogs(), md);
     }
     function test_migrateETH2LD_wrapped_single_unlocked_viaApproval(bool toL1) public {
         (bytes memory name, ) = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
         MigrationData memory md = _migrationData(name, toL1);
         vm.startPrank(user);
-        nameWrapper.setApprovalForAll(address(controller), true);
+        nameWrapper.setApprovalForAll(address(migrationController), true);
         vm.recordLogs();
-        controller.migrateETH2LD(md);
+        migrationController.migrateETH2LD(md);
         vm.stopPrank();
         _assertMigration(vm.getRecordedLogs(), md);
     }
@@ -344,7 +332,7 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         vm.prank(user);
         nameWrapper.safeBatchTransferFrom(
             user,
-            address(controller),
+            address(migrationController),
             ids,
             _unitAmounts(ids.length),
             abi.encode(mds)
@@ -359,30 +347,30 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         mds[0] = _migrationData(name1, toL1_1);
         mds[1] = _migrationData(name2, toL1_2);
         vm.startPrank(user);
-        ethRegistrarV1.setApprovalForAll(address(controller), true);
-        nameWrapper.setApprovalForAll(address(controller), true);
+        ethRegistrarV1.setApprovalForAll(address(migrationController), true);
+        nameWrapper.setApprovalForAll(address(migrationController), true);
         vm.recordLogs();
-        controller.migrateETH2LD(mds);
+        migrationController.migrateETH2LD(mds);
         _assertMigrations(vm.getRecordedLogs(), mds);
     }
 
     function test_Revert_migrateETH2LD_wrapped_single_locked_viaApproval(bool toL1) external {
         (bytes memory name, ) = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         vm.startPrank(user);
-        nameWrapper.setApprovalForAll(address(controller), true);
+        nameWrapper.setApprovalForAll(address(migrationController), true);
         vm.expectRevert(
             abi.encodeWithSelector(L1UnlockedMigrationController.NameIsLocked.selector, name)
         );
-        controller.migrateETH2LD(_migrationData(name, toL1));
+        migrationController.migrateETH2LD(_migrationData(name, toL1));
         vm.stopPrank();
     }
     function test_Revert_migrateETH2LD_wrapped_single_locked_viaReceiver(bool toL1) external {
         (bytes memory name, uint256 tokenId) = registerWrappedETH2LD("test", CANNOT_UNWRAP);
-        vm.expectRevert(_encodeError(controller.ERROR_NAME_IS_LOCKED()));
+        vm.expectRevert(_encodeError(migrationController.ERROR_NAME_IS_LOCKED()));
         vm.prank(user);
         nameWrapper.safeTransferFrom(
             user,
-            address(controller),
+            address(migrationController),
             tokenId,
             1,
             abi.encode(_migrationData(name, toL1))
@@ -398,11 +386,11 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         MigrationData[] memory mds = new MigrationData[](2);
         mds[0] = _migrationData(name1, toL1);
         mds[1] = _migrationData(name2, toL1);
-        vm.expectRevert(_encodeError(controller.ERROR_NAME_IS_LOCKED()));
+        vm.expectRevert(_encodeError(migrationController.ERROR_NAME_IS_LOCKED()));
         vm.prank(user);
         nameWrapper.safeBatchTransferFrom(
             user,
-            address(controller),
+            address(migrationController),
             ids,
             _unitAmounts(ids.length),
             abi.encode(mds)
@@ -418,11 +406,11 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         mds[0] = _migrationData(name1, toL1);
         mds[1] = _migrationData(name2, toL1);
         vm.startPrank(user);
-        nameWrapper.setApprovalForAll(address(controller), true);
+        nameWrapper.setApprovalForAll(address(migrationController), true);
         vm.expectRevert(
             abi.encodeWithSelector(L1UnlockedMigrationController.NameIsLocked.selector, name1) // first name revert
         );
-        controller.migrateETH2LD(mds);
+        migrationController.migrateETH2LD(mds);
         vm.stopPrank();
     }
 
@@ -430,7 +418,7 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         uint256 tokenId = dummy1155.mint(user);
         vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(dummy1155)));
         vm.prank(user);
-        dummy1155.safeTransferFrom(user, address(controller), tokenId, 1, "");
+        dummy1155.safeTransferFrom(user, address(migrationController), tokenId, 1, "");
     }
 
     function test_Revert_migrateETH2LD_wrapped_3LD_viaReceiver(bool toL1) external {
@@ -440,11 +428,11 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
             "sub",
             CAN_DO_EVERYTHING
         );
-        vm.expectRevert(_encodeError(controller.ERROR_NAME_NOT_ETH2LD()));
+        vm.expectRevert(_encodeError(migrationController.ERROR_NAME_NOT_ETH2LD()));
         vm.prank(user);
         nameWrapper.safeTransferFrom(
             user,
-            address(controller),
+            address(migrationController),
             tokenId,
             1,
             abi.encode(_migrationData(name, toL1))
@@ -454,21 +442,21 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         (, uint256 parentTokenId) = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         (bytes memory name, ) = createWrappedChild(parentTokenId, "sub", CAN_DO_EVERYTHING);
         vm.startPrank(user);
-        nameWrapper.setApprovalForAll(address(controller), true);
+        nameWrapper.setApprovalForAll(address(migrationController), true);
         vm.expectRevert(
             abi.encodeWithSelector(L1UnlockedMigrationController.NameNotETH2LD.selector, name)
         );
-        controller.migrateETH2LD(_migrationData(name, toL1));
+        migrationController.migrateETH2LD(_migrationData(name, toL1));
         vm.stopPrank();
     }
 
     function test_Revert_migrateETH2LD_wrapped_comTLD_viaReceiver(bool toL1) external {
         (bytes memory name, uint256 tokenId) = createWrappedName("test.com", CAN_DO_EVERYTHING);
-        vm.expectRevert(_encodeError(controller.ERROR_NAME_NOT_ETH2LD()));
+        vm.expectRevert(_encodeError(migrationController.ERROR_NAME_NOT_ETH2LD()));
         vm.prank(user);
         nameWrapper.safeTransferFrom(
             user,
-            address(controller),
+            address(migrationController),
             tokenId,
             1,
             abi.encode(_migrationData(name, toL1))
@@ -477,11 +465,11 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
     function test_Revert_migrateETH2LD_wrapped_comTLD_viaApproval(bool toL1) external {
         (bytes memory name, ) = createWrappedName("test.com", CAN_DO_EVERYTHING);
         vm.startPrank(user);
-        nameWrapper.setApprovalForAll(address(controller), true);
+        nameWrapper.setApprovalForAll(address(migrationController), true);
         vm.expectRevert(
             abi.encodeWithSelector(L1UnlockedMigrationController.NameNotETH2LD.selector, name)
         );
-        controller.migrateETH2LD(_migrationData(name, toL1));
+        migrationController.migrateETH2LD(_migrationData(name, toL1));
         vm.stopPrank();
     }
 
@@ -493,7 +481,7 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         vm.prank(user2);
         nameWrapper.safeTransferFrom(
             user,
-            address(controller),
+            address(migrationController),
             tokenId,
             1,
             abi.encode(_migrationData(name, toL1))
@@ -505,7 +493,7 @@ contract TestL1UnlockedMigrationController is TestV1Mixin, ERC1155Holder, ERC721
         (bytes memory name, ) = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
         vm.expectRevert(_encodeError("ERC1155: caller is not owner nor approved"));
         vm.prank(user2);
-        controller.migrateETH2LD(_migrationData(name, toL1));
+        migrationController.migrateETH2LD(_migrationData(name, toL1));
     }
 }
 

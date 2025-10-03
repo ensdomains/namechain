@@ -63,14 +63,13 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        IBaseRegistrar ethRegistryV1,
         INameWrapper nameWrapper,
         L1BridgeController l1BridgeController,
         VerifiableFactory migratedRegistryFactory,
         address migratedRegistryImpl
     ) Ownable(msg.sender) {
-        ETH_REGISTRY_V1 = ethRegistryV1;
         NAME_WRAPPER = nameWrapper;
+        ETH_REGISTRY_V1 = IBaseRegistrar(nameWrapper.ens().owner(NameUtils.ETH_NODE));
         L1_BRIDGE_CONTROLLER = l1BridgeController;
         MIGRATED_REGISTRY_FACTORY = migratedRegistryFactory;
         MIGRATED_REGISTRY_IMPL = migratedRegistryImpl;
