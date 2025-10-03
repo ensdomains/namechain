@@ -296,7 +296,7 @@ export async function setupCrossChainEnvironment({
         universalResolver: l1Contracts("UniversalResolverV2"),
         // shared
         registryDatastore: l1Contracts("RegistryDatastore"),
-        hcaFactory: l1Contracts("HCAFactory"),
+        hcaFactory: l1Contracts("MockHCAFactoryBasic", "HCAFactory"),
         simpleRegistryMetadata: l1Contracts("SimpleRegistryMetadata"),
         dedicatedResolverFactory: l1Contracts(
           "VerifiableFactory",
@@ -329,7 +329,7 @@ export async function setupCrossChainEnvironment({
         mockDAI: l2Contracts("src/mocks/MockERC20.sol/MockERC20", "MockDAI"),
         // shared
         registryDatastore: l2Contracts("RegistryDatastore"),
-        hcaFactory: l2Contracts("HCAFactory"),
+        hcaFactory: l2Contracts("MockHCAFactoryBasic", "HCAFactory"),
         simpleRegistryMetadata: l2Contracts("SimpleRegistryMetadata"),
         dedicatedResolverFactory: l2Contracts(
           "VerifiableFactory",
