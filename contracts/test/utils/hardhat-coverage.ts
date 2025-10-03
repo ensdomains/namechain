@@ -1,6 +1,6 @@
-import hre from "hardhat";
 import { addStatementCoverageInstrumentation } from "@nomicfoundation/edr";
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import hre from "hardhat";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { toHex } from "viem";
 
 // https://github.com/NomicFoundation/hardhat/blob/main/v-next/hardhat/src/internal/builtin-plugins/coverage/hook-handlers/hre.ts
@@ -9,7 +9,7 @@ import { toHex } from "viem";
 // hooks need to be registered super early
 const activeTags: Set<string[]> = new Set();
 hre.hooks.registerHandlers("network", {
-  async onCoverageData(_, tags) {
+  async onCoverageData(/*statements*/ _, tags) {
     for (const x of activeTags) {
       x.push(...tags);
     }
@@ -24,6 +24,11 @@ export function injectCoverage() {
   };
 }
 
+// WARNING: this code sucks, but so does lcov
+// forge and hardhat have different coverage instrumentation
+// specifically, forge only marks the first line of a multiline instruction
+// whereas, hardhat marks the first line to the semicolon.
+// TODO: create forge issue
 export function recordCoverage(testName: string) {
   const tags: string[] = [];
   activeTags.add(tags);
@@ -58,12 +63,15 @@ export function recordCoverage(testName: string) {
       }
     >;
 
+    type CodeUnit = { line: number; kind: string; name: string };
+    type CodeBlock = CodeUnit & { unit: CodeUnit; id: string };
     type Location = {
       tag: string;
       file: string;
       line0: number;
       line1: number;
       count: number;
+      block?: CodeBlock;
     };
     const tagMap = new Map<string, Location>();
     const fileMap = new Map<string, Location[]>();
@@ -74,7 +82,7 @@ export function recordCoverage(testName: string) {
       const rawMetadata = JSON.parse(rawArtifact.metadata) as {
         compiler: { version: string };
       };
-      const { metadata } = addStatementCoverageInstrumentation(
+      const { metadata, source } = addStatementCoverageInstrumentation(
         code,
         rawArtifact.inputSourceName, // "project/..."
         rawMetadata.compiler.version.replace(/\+.*$/, ""), // "0.8.25"+commit.b61c2a9 => "0.8.25"
@@ -82,22 +90,76 @@ export function recordCoverage(testName: string) {
       );
 
       // generate line numbers
-      const lineNumbers: number[] = [];
-      for (let i = 0, n = 1; i < code.length; i++) {
-        lineNumbers[i] = n;
-        if (code[i] == "\n") n++;
+      const units: CodeUnit[] = [];
+      const blocks: CodeBlock[] = [];
+      const lineNumbers = code.split("\n").flatMap((line, j) => {
+        const lineNumber = j + 1;
+        let match;
+        if (
+          (match = line.match(
+            /^\s*(?:abstract\s+|)(contract|interface|library)\s+([_a-z][_a-z0-9]*)/i,
+          ))
+        ) {
+          units.push({ line: lineNumber, kind: match[1], name: match[2] });
+        } else if (
+          (match = line.match(
+            /^\s*(?:(function|modifier)\s+([_a-z][_a-z0-9]*)|(constructor))\(/i,
+          ))
+        ) {
+          if (!units.length) {
+            throw new Error("bug: block before unit");
+          }
+          const unit = units[units.length - 1];
+          const name = match[2] || match[3];
+          blocks.push({
+            line: lineNumber,
+            kind: match[1] || match[3],
+            name,
+            unit,
+            id: `${unit.name}.${name}`,
+          });
+        }
+        return Array.from({ length: line.length + 1 }, () => lineNumber);
+      });
+
+      // fix duplicates like forge does
+      const buckets = new Map<string, CodeBlock[]>();
+      for (const b of blocks) {
+        const v = buckets.get(b.id);
+        if (v) {
+          v.push(b);
+        } else {
+          buckets.set(b.id, [b]);
+        }
+      }
+      for (const v of buckets.values()) {
+        if (v.length > 1) {
+          v.forEach((x, i) => (x.id += `.${i}`));
+        }
       }
 
       // convert statements to locations
-      const locs: Location[] = metadata
+      let remaining = blocks.slice();
+      const locs = metadata
         .filter((x) => x.kind === "statement")
-        .map((x) => ({
-          tag: toHex(x.tag).slice(2),
-          file: rawArtifact.sourceName,
-          line0: lineNumbers[x.startUtf16],
-          line1: lineNumbers[x.endUtf16 - 1],
-          count: 0,
-        }));
+        .map((x) => {
+          const line0 = lineNumbers[x.startUtf16];
+          const loc: Location = {
+            tag: toHex(x.tag).slice(2),
+            file: rawArtifact.sourceName,
+            line0,
+            line1: lineNumbers[x.endUtf16 - 1],
+            count: 0,
+          };
+          // assign the nearest block to the nearest statement
+          let i = 0;
+          while (i < remaining.length && remaining[i].line < line0) i++;
+          if (i) {
+            loc.block = remaining[i - 1];
+            remaining.splice(0, i);
+          }
+          return loc;
+        });
 
       // save locations
       const file = rawArtifact.sourceName;
@@ -120,9 +182,7 @@ export function recordCoverage(testName: string) {
     let lcov = `TN:${testName}\n`;
 
     for (const [file, locs] of fileMap) {
-      //if (!locs.find(x => x.count > 0)) continue;
-
-      lcov += `SF:${file}\n`;
+      if (!locs.length) continue;
 
       // for (const loc of locs) {
       //   for (let i = loc.line0; i <= loc.line1; i++) {
@@ -138,19 +198,29 @@ export function recordCoverage(testName: string) {
           lineCounts[i] = (lineCounts[i] ?? 0) + loc.count;
         }
       }
-      for (const [line, count] of Object.entries(lineCounts)) {
-        lcov += `DA:${line},${count}\n`;
-      }
-      // lcov += `LH:${locs.reduce((a, x) => a + (x.count ? 1 : 0), 0)}\n`;
-      // lcov += `LF:${locs.length}\n`;
 
+      lcov += `SF:${file}\n`;
+      for (const loc of locs) {
+        if (loc.block) {
+          const count = lineCounts[loc.line0];
+          lcov += `DA:${loc.block.line},${count}\n`;
+          lcov += `FN:${loc.block.line},${loc.block.id}\n`;
+          lcov += `FNDA:${count},${loc.block.id}\n`;
+        }
+      }
+      for (const [line, count] of Object.entries(lineCounts)) {
+        if (count) {
+          // avoid forge vs hardhat multiline issue
+          lcov += `DA:${line},${count}\n`;
+        }
+      }
       lcov += "end_of_record\n";
     }
 
     // write file
     const outDir = new URL("coverage/", rootDir);
     await mkdir(outDir, { recursive: true });
-    await writeFile(new URL(`${testName}.info`, outDir), lcov);
+    await writeFile(new URL(`${testName}.lcov`, outDir), lcov);
     console.log(`Wrote Coverage: ${testName}`);
   };
 }

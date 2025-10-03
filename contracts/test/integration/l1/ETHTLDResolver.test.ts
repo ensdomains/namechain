@@ -116,6 +116,7 @@ async function fixture() {
     mainnetV2,
     namechain,
     gateway,
+    verifierAddress,
   } as const;
 }
 
@@ -194,20 +195,50 @@ describe("ETHTLDResolver", () => {
     });
   });
 
-  it("eth", async () => {
-    const F = await loadFixture();
-    const kp: KnownProfile = {
-      name: "eth",
-      addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
-    };
-    const [res] = makeResolutions(kp);
-    await F.ethResolver.write.multicall([[res.writeDedicated]]);
-    await sync();
-    const [answer, resolver] = await F.mainnetV2.universalResolver.read.resolve(
-      [dnsEncodeName(kp.name), res.call],
-    );
-    expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
-    res.expect(answer);
+  describe("urg", () => {
+    it("namechainVerifier", async () => {
+      const F = await loadFixture();
+      const address = await F.ethTLDResolver.read.namechainVerifier();
+      expectVar({ address }).toEqualAddress(F.verifierAddress);
+    });
+    it("setNamechainVerifier", async () => {
+      const F = await loadFixture();
+      await F.ethTLDResolver.write.setNamechainVerifier([testAddress]);
+      const address = await F.ethTLDResolver.read.namechainVerifier();
+      expectVar({ address }).toEqualAddress(testAddress);
+    });
+  });
+
+  describe("eth", () => {
+    it("ethResolver", async () => {
+      const F = await loadFixture();
+      const address = await F.ethTLDResolver.read.ethResolver();
+      expectVar({ address }).toEqualAddress(F.ethResolver.address);
+    });
+    it("setETHResolver", async () => {
+      const F = await loadFixture();
+      const resolver = await F.mainnetV2.deployDedicatedResolver();
+      await F.ethTLDResolver.write.setETHResolver([resolver.address]);
+      const address = await F.ethTLDResolver.read.ethResolver();
+      expectVar({ address }).toEqualAddress(resolver.address);
+    });
+    it("resolve", async () => {
+      const F = await loadFixture();
+      const kp: KnownProfile = {
+        name: "eth",
+        addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
+      };
+      const [res] = makeResolutions(kp);
+      await F.ethResolver.write.multicall([[res.writeDedicated]]);
+      await sync();
+      const [answer, resolver] =
+        await F.mainnetV2.universalResolver.read.resolve([
+          dnsEncodeName(kp.name),
+          res.call,
+        ]);
+      expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
+      res.expect(answer);
+    });
   });
 
   describe("unregistered", () => {
