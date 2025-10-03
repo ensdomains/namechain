@@ -34,7 +34,7 @@ import {
     DiscountPoint
 } from "~src/L2/registrar/StandardRentPriceOracle.sol";
 import {MockERC20, MockERC20Blacklist} from "~src/mocks/MockERC20.sol";
-import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
+import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
 
 contract ETHRegistrarTest is Test {
     PermissionedRegistry ethRegistry;

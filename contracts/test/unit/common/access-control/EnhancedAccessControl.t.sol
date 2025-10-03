@@ -12,7 +12,7 @@ import {
 import {EACBaseRolesLib} from "~src/common/access-control/libraries/EACBaseRolesLib.sol";
 import {HCAEquivalence} from "~src/common/hca/HCAEquivalence.sol";
 import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
-import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
+import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
 
 abstract contract MockRoles {
     uint256 public constant RESOURCE_1 = uint256(keccak256("RESOURCE_1"));

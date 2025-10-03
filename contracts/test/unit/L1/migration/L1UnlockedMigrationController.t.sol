@@ -27,7 +27,7 @@ import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1UnlockedMigrationController} from "~src/L1/migration/L1UnlockedMigrationController.sol";
 import {MockL1Bridge} from "~src/mocks/MockL1Bridge.sol";
 import {MockBaseRegistrar} from "~src/mocks/v1/MockBaseRegistrar.sol";
-import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
+import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
 
 // Simple mock that implements IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {

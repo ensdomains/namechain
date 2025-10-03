@@ -16,13 +16,26 @@ export async function deployV2Fixture(
   });
   const [walletClient] = await network.viem.getWalletClients();
   const datastore = await network.viem.deployContract("RegistryDatastore");
+  const hcaFactory = await network.viem.deployContract("MockHCAFactoryBasic");
   const rootRegistry = await network.viem.deployContract(
     "PermissionedRegistry",
-    [datastore.address, zeroAddress, walletClient.account.address, ROLES.ALL],
+    [
+      datastore.address,
+      hcaFactory.address,
+      zeroAddress,
+      walletClient.account.address,
+      ROLES.ALL,
+    ],
   );
   const ethRegistry = await network.viem.deployContract(
     "PermissionedRegistry",
-    [datastore.address, zeroAddress, walletClient.account.address, ROLES.ALL],
+    [
+      datastore.address,
+      hcaFactory.address,
+      zeroAddress,
+      walletClient.account.address,
+      ROLES.ALL,
+    ],
   );
   const batchGatewayProvider = await network.viem.deployContract(
     "GatewayProvider",
@@ -50,6 +63,7 @@ export async function deployV2Fixture(
     publicClient,
     walletClient,
     datastore,
+    hcaFactory,
     rootRegistry,
     ethRegistry,
     batchGatewayProvider,
@@ -119,6 +133,7 @@ export async function deployV2Fixture(
             "PermissionedRegistry",
             [
               datastore.address,
+              hcaFactory.address,
               metadataAddress,
               walletClient.account.address,
               roles,

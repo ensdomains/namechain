@@ -8,7 +8,7 @@ import {Test} from "forge-std/Test.sol";
 import {HCAContextUpgradable} from "~src/common/hca/HCAContextUpgradable.sol";
 import {HCAEquivalence} from "~src/common/hca/HCAEquivalence.sol";
 import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
-import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
+import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
 
 contract HCAContextUpgradableHarness is HCAContextUpgradable {
     constructor(IHCAFactoryBasic factory) HCAEquivalence(factory) {}

@@ -19,7 +19,7 @@ import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {MockBridgeBase} from "~src/mocks/MockBridgeBase.sol";
 import {MockL1Bridge} from "~src/mocks/MockL1Bridge.sol";
 import {MockL2Bridge} from "~src/mocks/MockL2Bridge.sol";
-import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
+import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
