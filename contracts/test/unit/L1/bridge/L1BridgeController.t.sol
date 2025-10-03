@@ -7,10 +7,7 @@ import {Test, Vm} from "forge-std/Test.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import {
-    EnhancedAccessControl,
-    EACBaseRolesLib
-} from "~src/common/access-control/EnhancedAccessControl.sol";
+import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {
     IEnhancedAccessControl
 } from "~src/common/access-control/interfaces/IEnhancedAccessControl.sol";
@@ -25,6 +22,7 @@ import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -37,9 +35,10 @@ contract MockBridge is IBridge {
     function sendMessage(bytes memory) external override {}
 }
 
-contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
+contract L1BridgeControllerTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
     MockPermissionedRegistry registry;
+    MockHCAFactoryBasic hcaFactory;
     L1BridgeController bridgeController;
     MockRegistryMetadata registryMetadata;
     MockBridge bridge;
@@ -51,7 +50,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
 
     function supportsInterface(
         bytes4 /*interfaceId*/
-    ) public pure override(ERC1155Holder, EnhancedAccessControl) returns (bool) {
+    ) public pure override(ERC1155Holder) returns (bool) {
         return true;
     }
 
@@ -359,12 +358,14 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
 
     function setUp() public {
         datastore = new RegistryDatastore();
+        hcaFactory = new MockHCAFactoryBasic();
         registryMetadata = new MockRegistryMetadata();
         bridge = new MockBridge();
 
         // Deploy the eth registry
         registry = new MockPermissionedRegistry(
             datastore,
+            hcaFactory,
             registryMetadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES

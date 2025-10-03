@@ -36,6 +36,7 @@ import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1LockedMigrationController} from "~src/L1/migration/L1LockedMigrationController.sol";
 import {LockedNamesLib} from "~src/L1/migration/libraries/LockedNamesLib.sol";
 import {MigratedWrappedNameRegistry} from "~src/L1/registry/MigratedWrappedNameRegistry.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
 
 contract MockNameWrapper {
@@ -106,6 +107,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
     MockPermissionedRegistry registry;
     VerifiableFactory factory;
     MigratedWrappedNameRegistry implementation;
+    MockHCAFactoryBasic hcaFactory;
 
     address owner = address(this);
     address user = address(0x1234);
@@ -119,6 +121,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         bridge = new MockBridge();
         datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
+        hcaFactory = new MockHCAFactoryBasic();
 
         // Deploy factory and implementation
         factory = new VerifiableFactory();
@@ -128,12 +131,14 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
             factory,
             IPermissionedRegistry(address(registry)), // ethRegistry
             datastore,
+            hcaFactory,
             metadata
         );
 
         // Setup eth registry
         registry = new MockPermissionedRegistry(
             datastore,
+            hcaFactory,
             metadata,
             owner,
             EACBaseRolesLib.ALL_ROLES

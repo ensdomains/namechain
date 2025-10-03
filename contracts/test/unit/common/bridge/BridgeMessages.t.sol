@@ -19,6 +19,7 @@ import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {MockBridgeBase} from "~src/mocks/MockBridgeBase.sol";
 import {MockL1Bridge} from "~src/mocks/MockL1Bridge.sol";
 import {MockL2Bridge} from "~src/mocks/MockL2Bridge.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -34,6 +35,7 @@ contract BridgeMessagesTest is Test {
     PermissionedRegistry registry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
+    MockHCAFactoryBasic hcaFactory;
 
     string testLabel = "test";
     address testOwner = address(0x1234);
@@ -44,11 +46,13 @@ contract BridgeMessagesTest is Test {
     function setUp() public {
         // Deploy dependencies
         datastore = new RegistryDatastore();
+        hcaFactory = new MockHCAFactoryBasic();
         registryMetadata = new MockRegistryMetadata();
 
         // Deploy registry
         registry = new PermissionedRegistry(
             datastore,
+            hcaFactory,
             registryMetadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES

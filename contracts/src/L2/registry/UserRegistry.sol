@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
+import {IHCAFactoryBasic} from "../../common/hca/interfaces/IHCAFactoryBasic.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../../common/registry/interfaces/IRegistryMetadata.sol";
 import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.sol";
@@ -27,8 +28,9 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
 
     constructor(
         IRegistryDatastore datastore_,
+        IHCAFactoryBasic hcaFactory_,
         IRegistryMetadata metadataProvider_
-    ) PermissionedRegistry(datastore_, metadataProvider_, _msgSender(), 0) {
+    ) PermissionedRegistry(datastore_, hcaFactory_, metadataProvider_, _msgSender(), 0) {
         // This disables initialization for the implementation contract
         _disableInitializers();
     }

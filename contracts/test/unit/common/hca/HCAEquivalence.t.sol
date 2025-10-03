@@ -1,23 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import "forge-std/Test.sol";
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
-import {HCAContext} from "../../src/hca/HCAContext.sol";
-import {IHCAFactoryBasic} from "../../src/hca/IHCAFactoryBasic.sol";
-import {MockHCAFactoryBasic} from "../mocks/MockHCAFactoryBasic.sol";
+import {Test} from "forge-std/Test.sol";
 
-contract HCAContextHarness is HCAContext {
-    constructor(address factory) HCAContext(factory) {}
+import {HCAEquivalence} from "~src/common/hca/HCAEquivalence.sol";
+import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
+
+contract HCAEquivalenceHarness is HCAEquivalence {
+    constructor(IHCAFactoryBasic factory) HCAEquivalence(factory) {}
 
     function exposedMsgSender() external view returns (address) {
-        return _msgSender();
+        return _msgSenderWithHcaEquivalence();
     }
 }
 
-contract HCAContextTest is Test {
+contract HCAEquivalenceTest is Test {
     MockHCAFactoryBasic factory;
-    HCAContextHarness harness;
+    HCAEquivalenceHarness harness;
 
     address user = address(0x1111);
     address hca = address(0xAAAA);
@@ -25,7 +27,7 @@ contract HCAContextTest is Test {
 
     function setUp() public {
         factory = new MockHCAFactoryBasic();
-        harness = new HCAContextHarness(address(factory));
+        harness = new HCAEquivalenceHarness(IHCAFactoryBasic(address(factory)));
     }
 
     function test_constructor_sets_factory() public view {
@@ -36,11 +38,7 @@ contract HCAContextTest is Test {
     function test_msgSender_returns_original_when_not_hca() public {
         vm.prank(user);
         address sender = harness.exposedMsgSender();
-        assertEq(
-            sender,
-            user,
-            "_msgSender should return original sender when not HCA"
-        );
+        assertEq(sender, user, "_msgSender should return original sender when not HCA");
     }
 
     function test_msgSender_returns_owner_when_sender_is_hca() public {
@@ -48,11 +46,7 @@ contract HCAContextTest is Test {
 
         vm.prank(hca);
         address sender = harness.exposedMsgSender();
-        assertEq(
-            sender,
-            owner,
-            "_msgSender should return account owner for HCA senders"
-        );
+        assertEq(sender, owner, "_msgSender should return account owner for HCA senders");
     }
 
     function test_msgSender_zero_owner_treated_as_eoa() public {
@@ -68,11 +62,7 @@ contract HCAContextTest is Test {
 
         vm.prank(user);
         address sender = harness.exposedMsgSender();
-        assertEq(
-            sender,
-            user,
-            "Unrelated mapping should not affect EOA sender"
-        );
+        assertEq(sender, user, "Unrelated mapping should not affect EOA sender");
     }
 
     function test_msgSender_owner_same_as_hca_returns_hca() public {
@@ -81,10 +71,6 @@ contract HCAContextTest is Test {
 
         vm.prank(hca);
         address sender = harness.exposedMsgSender();
-        assertEq(
-            sender,
-            hca,
-            "When owner == HCA, _msgSender should be the HCA address"
-        );
+        assertEq(sender, hca, "When owner == HCA, _msgSender should be the HCA address");
     }
 }

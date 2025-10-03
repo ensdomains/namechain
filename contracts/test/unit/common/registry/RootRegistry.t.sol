@@ -15,6 +15,7 @@ import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
 
 contract RootRegistryTest is Test, ERC1155Holder {
@@ -30,6 +31,7 @@ contract RootRegistryTest is Test, ERC1155Holder {
 
     RegistryDatastore datastore;
     MockPermissionedRegistry registry;
+    MockHCAFactoryBasic hcaFactory;
     SimpleRegistryMetadata metadata;
 
     // Hardcoded role constants
@@ -49,10 +51,17 @@ contract RootRegistryTest is Test, ERC1155Holder {
 
     function setUp() public {
         datastore = new RegistryDatastore();
-        metadata = new SimpleRegistryMetadata();
+        hcaFactory = new MockHCAFactoryBasic();
+        metadata = new SimpleRegistryMetadata(hcaFactory);
         // Use the valid ALL_ROLES value for deployer roles
         uint256 deployerRoles = EACBaseRolesLib.ALL_ROLES;
-        registry = new MockPermissionedRegistry(datastore, metadata, address(this), deployerRoles);
+        registry = new MockPermissionedRegistry(
+            datastore,
+            hcaFactory,
+            metadata,
+            address(this),
+            deployerRoles
+        );
         metadata.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, address(registry));
     }
 

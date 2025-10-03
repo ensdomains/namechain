@@ -25,6 +25,7 @@ import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
 
 // Mock implementation of IRegistryMetadata
@@ -54,6 +55,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     L2BridgeController controller;
     MockPermissionedRegistry ethRegistry;
     RegistryDatastore datastore;
+    MockHCAFactoryBasic hcaFactory;
     MockRegistryMetadata registryMetadata;
     MockBridge bridge;
 
@@ -77,12 +79,14 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function setUp() public {
         // Deploy dependencies
         datastore = new RegistryDatastore();
+        hcaFactory = new MockHCAFactoryBasic();
         registryMetadata = new MockRegistryMetadata();
         bridge = new MockBridge();
 
         // Deploy ETH registry
         ethRegistry = new MockPermissionedRegistry(
             datastore,
+            hcaFactory,
             registryMetadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES

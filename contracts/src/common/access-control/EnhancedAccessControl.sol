@@ -3,9 +3,10 @@
 
 pragma solidity ^0.8.20;
 
-import {HCAContext} from "../hca/HCAContext.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
+import {HCAContext} from "../hca/HCAContext.sol";
 
 import {IEnhancedAccessControl} from "./interfaces/IEnhancedAccessControl.sol";
 import {EACBaseRolesLib} from "./libraries/EACBaseRolesLib.sol";
@@ -22,7 +23,7 @@ import {EACBaseRolesLib} from "./libraries/EACBaseRolesLib.sol";
 ///      - A role bitmap is a uint256, where the lower 128 bits represent the regular roles (0-31), and the upper 128 bits represent the admin roles (32-63) for those roles.
 ///      - Each role is represented by a nybble (4 bits), in little-endian order.
 ///      - If a given role left-most nybble bit is located at index N then the corresponding admin role nybble starts at bit position N << 128.
-abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessControl {
+abstract contract EnhancedAccessControl is HCAContext, ERC165, IEnhancedAccessControl {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
@@ -192,10 +193,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param account The account to check.
      * @return `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`, `false` otherwise.
      */
-    function hasRootRoles(
-        uint256 rolesBitmap,
-        address account
-    ) public view virtual returns (bool) {
+    function hasRootRoles(uint256 rolesBitmap, address account) public view virtual returns (bool) {
         return _roles[ROOT_RESOURCE][account] & rolesBitmap == rolesBitmap;
     }
 
@@ -224,10 +222,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param roleBitmap The roles bitmap to check.
      * @return `true` if any of the roles in the given role bitmap has assignees, `false` otherwise.
      */
-    function hasAssignees(
-        uint256 resource,
-        uint256 roleBitmap
-    ) public view virtual returns (bool) {
+    function hasAssignees(uint256 resource, uint256 roleBitmap) public view virtual returns (bool) {
         (uint256 counts, ) = getAssigneeCount(resource, roleBitmap);
         return counts != 0;
     }
@@ -302,13 +297,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
             uint256 newlyAddedRoles = roleBitmap & ~currentRoles;
             _updateRoleCounts(resource, newlyAddedRoles, true);
             if (executeCallbacks) {
-                _onRolesGranted(
-                    resource,
-                    account,
-                    currentRoles,
-                    updatedRoles,
-                    roleBitmap
-                );
+                _onRolesGranted(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
             emit EACRolesGranted(resource, roleBitmap, account);
             return true;
@@ -341,13 +330,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
             uint256 newlyRemovedRoles = roleBitmap & currentRoles;
             _updateRoleCounts(resource, newlyRemovedRoles, false);
             if (executeCallbacks) {
-                _onRolesRevoked(
-                    resource,
-                    account,
-                    currentRoles,
-                    updatedRoles,
-                    roleBitmap
-                );
+                _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
             emit EACRolesRevoked(resource, roleBitmap, account);
             return true;
@@ -373,11 +356,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param roleBitmap The roles being modified
      * @param isGrant true for grant, false for revoke
      */
-    function _updateRoleCounts(
-        uint256 resource,
-        uint256 roleBitmap,
-        bool isGrant
-    ) internal {
+    function _updateRoleCounts(uint256 resource, uint256 roleBitmap, bool isGrant) internal {
         uint256 roleMask = _roleBitmapToMask(roleBitmap);
 
         if (isGrant) {
@@ -531,9 +510,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @param roleBitmap The role bitmap to convert.
      * @return roleMask The mask for the role bitmap.
      */
-    function _roleBitmapToMask(
-        uint256 roleBitmap
-    ) private pure returns (uint256 roleMask) {
+    function _roleBitmapToMask(uint256 roleBitmap) private pure returns (uint256 roleMask) {
         _checkRoleBitmap(roleBitmap);
         roleMask = roleBitmap | (roleBitmap << 1);
         roleMask |= roleMask << 2;

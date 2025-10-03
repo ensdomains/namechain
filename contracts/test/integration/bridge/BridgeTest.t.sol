@@ -5,10 +5,7 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {
-    EnhancedAccessControl,
-    EACBaseRolesLib
-} from "~src/common/access-control/EnhancedAccessControl.sol";
+import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
@@ -21,10 +18,12 @@ import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {MockL1Bridge} from "~src/mocks/MockL1Bridge.sol";
 import {MockL2Bridge} from "~src/mocks/MockL2Bridge.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
 
-contract BridgeTest is Test, EnhancedAccessControl {
+contract BridgeTest is Test {
     RegistryDatastore datastore;
+    MockHCAFactoryBasic hcaFactory;
 
     MockPermissionedRegistry l1Registry;
     MockPermissionedRegistry l2Registry;
@@ -40,15 +39,18 @@ contract BridgeTest is Test, EnhancedAccessControl {
     function setUp() public {
         // Deploy registries
         datastore = new RegistryDatastore();
-        SimpleRegistryMetadata metadata = new SimpleRegistryMetadata();
+        hcaFactory = new MockHCAFactoryBasic();
+        SimpleRegistryMetadata metadata = new SimpleRegistryMetadata(hcaFactory);
         l1Registry = new MockPermissionedRegistry(
             datastore,
+            hcaFactory,
             metadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES
         );
         l2Registry = new MockPermissionedRegistry(
             datastore,
+            hcaFactory,
             metadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES

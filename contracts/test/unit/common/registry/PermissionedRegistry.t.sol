@@ -21,6 +21,7 @@ import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
 
 contract PermissionedRegistryTest is Test, ERC1155Holder {
@@ -34,6 +35,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
     RegistryDatastore datastore;
     MockPermissionedRegistry registry;
+    MockHCAFactoryBasic hcaFactory;
     MockTokenObserver observer;
     RevertingTokenObserver revertingObserver;
     IRegistryMetadata metadata;
@@ -58,8 +60,15 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
     function setUp() public {
         datastore = new RegistryDatastore();
-        metadata = new SimpleRegistryMetadata();
-        registry = new MockPermissionedRegistry(datastore, metadata, address(this), deployerRoles);
+        hcaFactory = new MockHCAFactoryBasic();
+        metadata = new SimpleRegistryMetadata(hcaFactory);
+        registry = new MockPermissionedRegistry(
+            datastore,
+            hcaFactory,
+            metadata,
+            address(this),
+            deployerRoles
+        );
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
     }
@@ -1130,10 +1139,9 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
     function test_first_time_registration_no_eacVersionId_increment() public {
         string memory label = "firsttime";
-        address owner = makeAddr("owner");
 
         // Verify name has never been registered (entry.expiry should be 0)
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        (, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
         assertEq(entry.expiry, 0, "Name should never have been registered before");
         assertEq(entry.eacVersionId, 0, "Initial eacVersionId should be 0");
 
@@ -2517,8 +2525,12 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         assertEq(reconstructedTokenId, tokenId, "Round-trip conversion should work");
 
         // Check that the owner is correctly recognized
-        address owner = registry.ownerOf(reconstructedTokenId);
-        assertEq(owner, user1, "Owner should be found for reconstructed token ID");
+        address ownerOfReconstructedTokenId = registry.ownerOf(reconstructedTokenId);
+        assertEq(
+            ownerOfReconstructedTokenId,
+            user1,
+            "Owner should be found for reconstructed token ID"
+        );
     }
 
     function test_getNameData_returns_correct_tokenId() public {

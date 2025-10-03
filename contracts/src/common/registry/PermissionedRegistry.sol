@@ -7,6 +7,8 @@ import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol
 import {IEnhancedAccessControl} from "../access-control/interfaces/IEnhancedAccessControl.sol";
 import {ERC1155Singleton} from "../erc1155/ERC1155Singleton.sol";
 import {IERC1155Singleton} from "../erc1155/interfaces/IERC1155Singleton.sol";
+import {HCAEquivalence} from "../hca/HCAEquivalence.sol";
+import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 import {LibLabel} from "../utils/LibLabel.sol";
 
 import {BaseRegistry} from "./BaseRegistry.sol";
@@ -58,10 +60,11 @@ contract PermissionedRegistry is
 
     constructor(
         IRegistryDatastore datastore_,
+        IHCAFactoryBasic hcaFactory_,
         IRegistryMetadata metadata_,
         address ownerAddress_,
         uint256 ownerRoles_
-    ) BaseRegistry(datastore_) MetadataMixin(metadata_) {
+    ) BaseRegistry(datastore_) HCAEquivalence(hcaFactory_) MetadataMixin(metadata_) {
         _grantRoles(ROOT_RESOURCE, ownerRoles_, ownerAddress_, false);
     }
 
@@ -102,7 +105,7 @@ contract PermissionedRegistry is
         emit SubregistryUpdate(tokenId, address(0));
         emit ResolverUpdate(tokenId, address(0));
 
-        emit NameBurned(tokenId, msg.sender);
+        emit NameBurned(tokenId, _msgSender());
     }
 
     function setSubregistry(

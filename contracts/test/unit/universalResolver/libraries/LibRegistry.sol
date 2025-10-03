@@ -8,6 +8,7 @@ import {Test} from "forge-std/Test.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
+import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
 import {
     PermissionedRegistry,
     IRegistryMetadata
@@ -24,6 +25,7 @@ contract LibRegistryTest is Test, ERC1155Holder {
         return
             new PermissionedRegistry(
                 datastore,
+                IHCAFactoryBasic(address(0)),
                 IRegistryMetadata(address(0)),
                 address(this),
                 EACBaseRolesLib.ALL_ROLES

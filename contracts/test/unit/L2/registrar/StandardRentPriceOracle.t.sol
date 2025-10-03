@@ -25,9 +25,11 @@ import {
     DiscountPoint
 } from "~src/L2/registrar/StandardRentPriceOracle.sol";
 import {MockERC20} from "~src/mocks/MockERC20.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract StandardRentPriceOracleTest is Test, ERC1155Holder {
     PermissionedRegistry ethRegistry;
+    MockHCAFactoryBasic hcaFactory;
 
     StandardRentPriceOracle rentPriceOracle;
 
@@ -37,9 +39,11 @@ contract StandardRentPriceOracleTest is Test, ERC1155Holder {
     address user = makeAddr("user");
 
     function setUp() external {
+        hcaFactory = new MockHCAFactoryBasic();
         ethRegistry = new PermissionedRegistry(
             new RegistryDatastore(),
-            new SimpleRegistryMetadata(),
+            hcaFactory,
+            new SimpleRegistryMetadata(hcaFactory),
             address(this),
             EACBaseRolesLib.ALL_ROLES
         );
