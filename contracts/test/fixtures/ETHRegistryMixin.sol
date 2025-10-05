@@ -9,16 +9,31 @@ import {PermissionedRegistry} from "../../src/common/PermissionedRegistry.sol";
 contract ETHRegistryMixin {
     RegistryDatastore datastore;
     BaseUriRegistryMetadata metadata;
+    PermissionedRegistry rootRegistry;
     PermissionedRegistry ethRegistry;
 
-    function deployEthRegistry() public {
+    function deployETHRegistry() public {
         datastore = new RegistryDatastore();
         metadata = new BaseUriRegistryMetadata();
+        rootRegistry = new PermissionedRegistry(
+            datastore,
+            metadata,
+            address(this),
+            LibEACBaseRoles.ALL_ROLES
+        );
         ethRegistry = new PermissionedRegistry(
             datastore,
             metadata,
             address(this),
             LibEACBaseRoles.ALL_ROLES
+        );
+        rootRegistry.register(
+            "eth",
+            address(this),
+            ethRegistry,
+            address(0),
+            LibEACBaseRoles.ALL_ROLES,
+            type(uint64).max
         );
     }
 }

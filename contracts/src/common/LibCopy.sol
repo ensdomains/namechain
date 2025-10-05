@@ -11,4 +11,9 @@ library LibCopy {
             mcopy(dst, src, len)
         }
     }
+    function unsafePtr(bytes memory v) internal pure returns (uint256 ptr) {
+        assembly {
+            ptr := add(v, 32)
+        }
+    }
 }

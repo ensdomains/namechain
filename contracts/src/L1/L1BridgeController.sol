@@ -62,7 +62,7 @@ contract L1BridgeController is EjectionController {
             transferData.roleBitmap,
             transferData.expiry
         );
-        emit NameEjectedToL1(transferData.name, tokenId);
+        emit NameEjectedToL1(transferData.name, tokenId); // TODO: see event comment
     }
 
     /**

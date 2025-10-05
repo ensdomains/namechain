@@ -16,7 +16,7 @@ import {
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 
 import {LibRegistryRoles} from "./../common/LibRegistryRoles.sol";
-import {IMigratedWrappedNameRegistry} from "./IMigratedWrappedNameRegistry.sol";
+import {IMigratedWrapperRegistry} from "./IMigratedWrapperRegistry.sol";
 
 /**
  * @title LibLockedNames
@@ -39,12 +39,6 @@ library LibLockedNames {
             CANNOT_SET_RESOLVER |
             CANNOT_SET_TTL |
             CANNOT_CREATE_SUBDOMAIN;
-
-    ////////////////////////////////////////////////////////////////////////
-    // Errors
-    ////////////////////////////////////////////////////////////////////////
-
-    error NameNotEmancipated(uint256 tokenId);
 
     ////////////////////////////////////////////////////////////////////////
     // Library Functions

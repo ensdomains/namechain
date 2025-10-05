@@ -1,9 +1,11 @@
-import {console} from "forge-std/console.sol";
-import {NameWrapperMixin} from "./fixtures/NameWrapperMixin.sol";
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.8.13;
 
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
-contract TestNameWrapperMixin is NameWrapperMixin {
+import {NameWrapperFixture} from "./fixtures/NameWrapperFixture.sol";
+
+contract TestNameWrapperFixture is NameWrapperFixture {
     function setUp() external {
         deployNameWrapper();
     }

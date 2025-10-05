@@ -15,19 +15,31 @@ import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Re
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
-import {UnauthorizedCaller} from "../common/Errors.sol";
 import {IBridge} from "../common/IBridge.sol";
 import {NameUtils} from "../common/NameUtils.sol";
-import {MigrationData} from "../common/TransferData.sol";
+import {TransferData} from "../common/TransferData.sol";
 import {L1BridgeController} from "./L1BridgeController.sol";
 import {LibLockedNames} from "./LibLockedNames.sol";
 import {MigrationErrors} from "./MigrationErrors.sol";
-import {IMigratedWrappedNameRegistry} from "../L1/IMigratedWrappedNameRegistry.sol";
+import {IMigratedWrapperRegistry} from "../L1/IMigratedWrapperRegistry.sol";
 
-contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
+contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
+    ////////////////////////////////////////////////////////////////////////
+    // Types
+    ////////////////////////////////////////////////////////////////////////
+
+    struct Data {
+        uint256 id; // namehash
+        address owner;
+        address resolver;
+        uint256 salt;
+    }
+
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
+
+    bytes32 private constant _PAYLOAD_HASH = keccak256("LockedMigrationController");
 
     IBaseRegistrar public immutable ETH_REGISTRY_V1;
 
@@ -38,25 +50,6 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     VerifiableFactory public immutable MIGRATED_REGISTRY_FACTORY;
 
     address public immutable MIGRATED_REGISTRY_IMPL;
-
-    ////////////////////////////////////////////////////////////////////////
-    // Errors
-    ////////////////////////////////////////////////////////////////////////
-
-    error TokenIdMismatch(uint256 tokenId, uint256 expectedTokenId);
-
-    error NodeMismatch(bytes32 tokenNode, bytes32 dataNode);
-
-    ////////////////////////////////////////////////////////////////////////
-    // Modifiers
-    ////////////////////////////////////////////////////////////////////////
-
-    modifier onlyCaller(address caller) {
-        if (msg.sender != caller) {
-            revert UnauthorizedCaller(msg.sender);
-        }
-        _;
-    }
 
     ////////////////////////////////////////////////////////////////////////
     // Initialization
@@ -87,44 +80,70 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
+    function migrate(Data calldata md) external {
+        // acquire the token
+        // reverts on approval, expired, dne
+        NAME_WRAPPER.safeTransferFrom(
+            msg.sender,
+            address(this),
+            md.id,
+            1,
+            abi.encode(_PAYLOAD_HASH)
+        );
+        _finishMigration(md);
+    }
+
+    function migrate(Data[] calldata mds) external {
+        uint256[] memory ids = new uint256[](mds.length);
+        uint256[] memory amounts = new uint256[](mds.length);
+        for (uint256 i; i < mds.length; ++i) {
+            ids[i] = mds[i].id;
+            amounts[i] = 1;
+        }
+        // acquire the tokens
+        // reverts on approval, expired, dne
+        NAME_WRAPPER.safeBatchTransferFrom(
+            msg.sender,
+            address(this),
+            ids,
+            amounts,
+            abi.encode(_PAYLOAD_HASH)
+        );
+        for (uint256 i; i < mds.length; ++i) {
+            _finishMigration(mds[i]);
+        }
+    }
+
     function onERC1155Received(
         address /*operator*/,
         address /*from*/,
-        uint256 id,
+        uint256 /*id*/,
         uint256 /*amount*/,
         bytes calldata data
-    ) external virtual onlyCaller(address(NAME_WRAPPER)) returns (bytes4) {
-        _migrate(id, abi.decode(data, (MigrationData)));
+    ) external view returns (bytes4) {
+        require(msg.sender == address(NAME_WRAPPER), MigrationErrors.ERROR_ONLY_NAME_WRAPPER);
+        require(bytes32(data) == _PAYLOAD_HASH, MigrationErrors.ERROR_UNEXPECTED_TRANSFER);
         return this.onERC1155Received.selector;
     }
 
     function onERC1155BatchReceived(
         address /*operator*/,
         address /*from*/,
-        uint256[] memory ids,
-        uint256[] memory /*amounts*/,
+        uint256[] calldata /*ids*/,
+        uint256[] calldata /*amounts*/,
         bytes calldata data
-    ) external virtual onlyCaller(address(NAME_WRAPPER)) returns (bytes4) {
-        MigrationData[] memory mds = abi.decode(data, (MigrationData[]));
-        if (ids.length != mds.length) {
-            revert IERC1155Errors.ERC1155InvalidArrayLength(ids.length, mds.length);
-        }
-        for (uint256 i; i < ids.length; ++i) {
-            _migrate(ids[i], mds[i]);
-        }
-        return this.onERC1155BatchReceived.selector;
+    ) external view returns (bytes4) {
+        require(msg.sender == address(NAME_WRAPPER), MigrationErrors.ERROR_ONLY_NAME_WRAPPER);
+        require(bytes32(data) == _PAYLOAD_HASH, MigrationErrors.ERROR_UNEXPECTED_TRANSFER);
+        return this.onERC1155Received.selector;
     }
 
-    // md.toL1 ignored
-    // md.transferData.name ignored
-    // md.transferData.subregistry ignored
-    // md.transferData.expiry ignored
-    function _migrate(uint256 id, MigrationData memory md) internal {
-        (address owner, uint32 fuses, uint64 expiry) = NAME_WRAPPER.getData(id);
-        bytes memory name = NAME_WRAPPER.names(bytes32(id));
+    function _finishMigration(Data memory md) internal {
+        bytes memory name = NAME_WRAPPER.names(bytes32(md.id));
+        (, uint32 fuses, ) = NAME_WRAPPER.getData(md.id);
 
         if ((fuses & IS_DOT_ETH) == 0) {
-            revert MigrationErrors.NameNotETH2LD(name);
+            revert MigrationErrors.NameNotETH2LD(name); // reverts if doesn't exist too
         }
         if ((fuses & CANNOT_UNWRAP) == 0) {
             revert MigrationErrors.NameNotLocked(name);
@@ -135,16 +154,23 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
         (uint256 tokenRoles, uint256 subRegistryRoles) = LibLockedNames
             .generateRoleBitmapsFromFuses(adjustedFuses);
 
-        // Create new registry instance for the migrated name
-        address subregistry = MIGRATED_REGISTRY_FACTORY.deployProxy(
+        // configure transfer
+        TransferData memory td;
+        td.name = name;
+        td.owner = md.owner;
+        td.resolver = md.resolver;
+        td.roleBitmap = tokenRoles;
+
+        // create subregistry
+        td.subregistry = MIGRATED_REGISTRY_FACTORY.deployProxy(
             MIGRATED_REGISTRY_IMPL,
             md.salt,
             abi.encodeCall(
-                IMigratedWrappedNameRegistry.initialize,
+                IMigratedWrapperRegistry.initialize,
                 (
-                    IMigratedWrappedNameRegistry.Args({
-                        parentNode: bytes32(id),
-                        owner: md.transferData.owner,
+                    IMigratedWrapperRegistry.ConstructorArgs({
+                        parentNode: bytes32(md.id),
+                        owner: md.owner,
                         ownerRoles: subRegistryRoles,
                         registrar: address(0)
                     })
@@ -152,21 +178,14 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             )
         );
 
-        // Configure transfer data with registry and permission details
-        if ((fuses & IS_DOT_ETH) != 0) {
-            (bytes32 labelHash, ) = NameCoder.readLabel(name, 0);
-            expiry = uint64(ETH_REGISTRY_V1.nameExpires(uint256(labelHash))); // vs. -= GRACE_PERIOD
-        }
-
-        md.transferData.name = name;
-        md.transferData.expiry = expiry;
-        md.transferData.subregistry = subregistry;
-        md.transferData.roleBitmap = tokenRoles;
+        // copy expiry
+        (bytes32 labelHash, ) = NameCoder.readLabel(name, 0);
+        td.expiry = uint64(ETH_REGISTRY_V1.nameExpires(uint256(labelHash)));
 
         // Process the locked name migration through bridge
-        L1_BRIDGE_CONTROLLER.completeEjectionToL1(md.transferData);
+        L1_BRIDGE_CONTROLLER.completeEjectionToL1(td);
 
         // Finalize migration by freezing the name
-        LibLockedNames.freezeName(NAME_WRAPPER, id, fuses);
+        LibLockedNames.freezeName(NAME_WRAPPER, md.id, fuses);
     }
 }

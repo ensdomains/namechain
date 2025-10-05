@@ -6,16 +6,16 @@ import {Test} from "forge-std/Test.sol";
 import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
+import {ENSRegistry} from "@ens/contracts/registry/ENSRegistry.sol";
 import {
     BaseRegistrarImplementation
 } from "@ens/contracts/ethregistrar/BaseRegistrarImplementation.sol";
-import {ENSRegistry} from "@ens/contracts/registry/ENSRegistry.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {NameWrapper, IMetadataService} from "@ens/contracts/wrapper/NameWrapper.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 import {NameUtils} from "../../src/common/NameUtils.sol";
 
-abstract contract NameWrapperMixin is Test, ERC721Holder, ERC1155Holder {
+contract NameWrapperFixture is Test, ERC721Holder, ERC1155Holder {
     ENSRegistry ensV1;
     BaseRegistrarImplementation ethRegistrarV1;
     NameWrapper nameWrapper;
@@ -37,7 +37,7 @@ abstract contract NameWrapperMixin is Test, ERC721Holder, ERC1155Holder {
 
     function claimNodes(bytes memory name, uint256 offset, address owner) internal {
         bytes32 labelHash;
-        (labelHash, offset, , ) = NameCoder.readLabel(name, offset, false);
+        (labelHash, offset) = NameCoder.readLabel(name, offset);
         if (labelHash != bytes32(0)) {
             claimNodes(name, offset, owner);
             ensV1.setSubnodeOwner(NameCoder.namehash(name, offset), labelHash, owner);
@@ -87,7 +87,7 @@ abstract contract NameWrapperMixin is Test, ERC721Holder, ERC1155Holder {
     ) internal returns (bytes memory name, uint256 tokenId) {
         name = NameCoder.encode(domain);
         claimNodes(name, 0, address(this));
-        (bytes32 labelHash, uint256 offset, , ) = NameCoder.readLabel(name, 0, false);
+        (bytes32 labelHash, uint256 offset) = NameCoder.readLabel(name, 0);
         bytes32 parentNode = NameCoder.namehash(name, offset);
         ensV1.setApprovalForAll(address(nameWrapper), true);
         nameWrapper.wrap(name, user, address(0));

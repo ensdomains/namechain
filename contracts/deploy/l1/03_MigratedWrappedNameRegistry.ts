@@ -15,14 +15,14 @@ export default execute(
       (typeof artifacts.SimpleRegistryMetadata)["abi"]
     >("SimpleRegistryMetadata");
 
-    const factory = await deploy("MigratedWrappedNameRegistryFactory", {
+    const factory = await deploy("MigratedWrapperRegistryFactory", {
       account: deployer,
       artifact: artifacts.VerifiableFactory,
     });
 
-    await deploy("MigratedWrappedNameRegistryImpl", {
+    await deploy("MigratedWrapperRegistryImpl", {
       account: deployer,
-      artifact: artifacts.MigratedWrappedNameRegistry,
+      artifact: artifacts.MigratedWrapperRegistry,
       args: [
         nameWrapperV1.address,
         factory.address,
@@ -33,7 +33,7 @@ export default execute(
     });
   },
   {
-    tags: ["MigratedWrappedNameRegistry", "l1"],
+    tags: ["MigratedWrapperRegistry", "l1"],
     dependencies: [
       "ReverseRegistrar", // remove after https://github.com/ensdomains/ens-contracts/pull/490
       "NameWrapper",

@@ -21,45 +21,41 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
 import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
-import {LibEACBaseRoles} from "../src/common/EnhancedAccessControl.sol";
-import {UnauthorizedCaller} from "../src/common/Errors.sol";
 import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
 import {LibBridgeRoles} from "../src/common/IBridge.sol";
+import {NameUtils} from "../src/common/NameUtils.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 import {IRegistry} from "../src/common/IRegistry.sol";
-import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
-import {NameUtils} from "../src/common/NameUtils.sol";
-import {RegistryDatastore} from "../src/common/RegistryDatastore.sol";
 import {TransferData, MigrationData} from "../src/common/TransferData.sol";
 import {L1BridgeController} from "../src/L1/L1BridgeController.sol";
-import {L1LockedMigrationController} from "../src/L1/L1LockedMigrationController.sol";
+import {LockedMigrationController} from "../src/L1/LockedMigrationController.sol";
 import {LibLockedNames} from "../src/L1/LibLockedNames.sol";
-import {MigratedWrappedNameRegistry} from "../src/L1/MigratedWrappedNameRegistry.sol";
+import {MigratedWrapperRegistry} from "../src/L1/MigratedWrapperRegistry.sol";
 import {MockPermissionedRegistry} from "./mocks/MockPermissionedRegistry.sol";
 import {BaseUriRegistryMetadata} from "../src/common/BaseUriRegistryMetadata.sol";
-import {NameWrapperMixin} from "./fixtures/NameWrapperMixin.sol";
+import {NameWrapperFixture} from "./fixtures/NameWrapperFixture.sol";
 import {ETHRegistryMixin} from "./fixtures/ETHRegistryMixin.sol";
 
-contract TestL1LockedMigrationController is NameWrapperMixin, ETHRegistryMixin {
+contract TestLockedMigrationController is NameWrapperFixture, ETHRegistryMixin {
     MockL1Bridge bridge;
     L1BridgeController bridgeController;
-    L1LockedMigrationController migrationController;
+    LockedMigrationController migrationController;
 
     VerifiableFactory migratedRegistryFactory;
-    MigratedWrappedNameRegistry migratedRegistryImpl;
+    MigratedWrapperRegistry migratedRegistryImpl;
 
     function setUp() external {
         deployNameWrapper();
-        deployEthRegistry();
+        deployETHRegistry();
 
         bridge = new MockL1Bridge();
 
         migratedRegistryFactory = new VerifiableFactory();
-        migratedRegistryImpl = new MigratedWrappedNameRegistry(
+        migratedRegistryImpl = new MigratedWrapperRegistry(
             nameWrapper,
+            address(0), // ETHTLDResolver not needed
             migratedRegistryFactory,
-            ethRegistry,
             datastore,
             metadata
         );
@@ -70,9 +66,8 @@ contract TestL1LockedMigrationController is NameWrapperMixin, ETHRegistryMixin {
             LibRegistryRoles.ROLE_REGISTRAR | LibRegistryRoles.ROLE_BURN,
             address(bridgeController)
         );
-        bridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(migrationController));
 
-        migrationController = new L1LockedMigrationController(
+        migrationController = new LockedMigrationController(
             nameWrapper,
             bridgeController,
             migratedRegistryFactory,
@@ -82,23 +77,15 @@ contract TestL1LockedMigrationController is NameWrapperMixin, ETHRegistryMixin {
         bridgeController.grantRootRoles(LibBridgeRoles.ROLE_EJECTOR, address(migrationController));
     }
 
-    function _createMigrationData(
-        bytes memory name,
-        bool toL1,
-        uint256 roleBitmap
-    ) internal view returns (MigrationData memory) {
+    function _makeData(
+        bytes memory name
+    ) internal view returns (LockedMigrationController.Data memory) {
         return
-            MigrationData({
-                transferData: TransferData({
-                    name: name,
-                    owner: user,
-                    subregistry: address(0x2222),
-                    resolver: address(0x3333),
-                    roleBitmap: roleBitmap,
-                    expiry: 0
-                }),
-                toL1: toL1,
-                salt: uint256(keccak256(abi.encodePacked(name, block.timestamp)))
+            LockedMigrationController.Data({
+                id: uint256(NameCoder.namehash(name, 0)),
+                owner: user,
+                resolver: address(1),
+                salt: uint256(keccak256(abi.encode(name, block.timestamp)))
             });
     }
 
@@ -106,23 +93,23 @@ contract TestL1LockedMigrationController is NameWrapperMixin, ETHRegistryMixin {
         assertEq(
             address(migrationController.ETH_REGISTRY_V1()),
             address(ethRegistrarV1),
-            "ethRegistrarV1"
+            "ETH_REGISTRY_V1"
         );
-        assertEq(address(migrationController.NAME_WRAPPER()), address(nameWrapper), "nameWrapper");
+        assertEq(address(migrationController.NAME_WRAPPER()), address(nameWrapper), "NAME_WRAPPER");
         assertEq(
             address(migrationController.L1_BRIDGE_CONTROLLER()),
             address(bridgeController),
-            "bridgeController"
+            "L1_BRIDGE_CONTROLLER"
         );
         assertEq(
             address(migrationController.MIGRATED_REGISTRY_FACTORY()),
             address(migratedRegistryFactory),
-            "migratedRegistryFactory"
+            "MIGRATED_REGISTRY_FACTORY"
         );
         assertEq(
             migrationController.MIGRATED_REGISTRY_IMPL(),
             address(migratedRegistryImpl),
-            "migratedRegistryImpl"
+            "MIGRATED_REGISTRY_IMPL"
         );
         assertEq(migrationController.owner(), address(this), "owner");
     }
@@ -135,19 +122,11 @@ contract TestL1LockedMigrationController is NameWrapperMixin, ETHRegistryMixin {
         );
     }
 
-    function test_name_with_cannot_burn_fuses_can_migrate(bool toL1) external {
-        // Configure name with fuses that are permanently frozen - this should now be allowed to migrate
-
+    function test_name_with_cannot_burn_fuses_can_migrate() external {
         (bytes memory name, uint256 tokenId) = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         vm.startPrank(user);
         nameWrapper.setApprovalForAll(address(migrationController), true);
-        nameWrapper.safeTransferFrom(
-            user,
-            address(migrationController),
-            tokenId,
-            1,
-            abi.encode(_createMigrationData(name, toL1, LibRegistryRoles.ROLE_SET_RESOLVER))
-        );
+        migrationController.migrate(_makeData(name));
         vm.stopPrank();
 
         // MigrationData memory migrationData = MigrationData({
@@ -357,7 +336,7 @@ contract TestL1LockedMigrationController is NameWrapperMixin, ETHRegistryMixin {
         uint256 expectedTokenId = uint256(keccak256(bytes("wronglabel")));
         vm.expectRevert(
             abi.encodeWithSelector(
-                L1LockedMigrationController.TokenIdMismatch.selector,
+                LockedMigrationController.TokenIdMismatch.selector,
                 testTokenId,
                 expectedTokenId
             )
@@ -492,7 +471,7 @@ contract TestL1LockedMigrationController is NameWrapperMixin, ETHRegistryMixin {
 
         // Verify it's a proxy pointing to our implementation
         // The migratedRegistryFactory creates a proxy, so we can verify it's pointing to the right implementation
-        MigratedWrappedNameRegistry migratedRegistry = MigratedWrappedNameRegistry(
+        MigratedWrapperRegistry migratedRegistry = MigratedWrapperRegistry(
             actualSubregistry
         );
         assertEq(

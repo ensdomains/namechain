@@ -42,7 +42,7 @@ contract TestRegistryUtils is Test, ERC1155Holder {
         );
     }
 
-    function setUp() public {
+    function setUp() external {
         datastore = new RegistryDatastore();
         rootRegistry = _createRegistry();
     }
@@ -63,20 +63,20 @@ contract TestRegistryUtils is Test, ERC1155Holder {
         assertEq(RegistryUtils.readLabel(name, 9), ""); // 4test3eth
     }
 
-    function _readLabel(bytes memory name, uint256 offset) public pure returns (string memory) {
+    function readLabel(bytes memory name, uint256 offset) external pure returns (string memory) {
         return RegistryUtils.readLabel(name, offset);
     }
     function test_Revert_readLabel_invalidOffset() external {
         vm.expectRevert();
-        this._readLabel("", 1);
+        this.readLabel("", 1);
     }
     function test_Revert_readLabel_invalidEncoding() external {
         vm.expectRevert();
-        this._readLabel("0x01", 0);
+        this.readLabel("\x01", 0);
     }
     function test_revert_readLabel_junkAtEnd() external {
         vm.expectRevert();
-        this._readLabel("0x0000", 0);
+        this.readLabel("\x001", 0);
     }
 
     function _expectFindResolver(

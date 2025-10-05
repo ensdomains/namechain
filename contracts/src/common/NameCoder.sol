@@ -170,35 +170,25 @@ library NameCoder {
             uint256 n = bytes(ens).length;
             if (n == 0) return hex"00"; // root
             dns = new bytes(n + 2);
+            assembly {}
+            LibCopy.unsafeCopy(LibCopy.unsafePtr(dns) + 1, LibCopy.unsafePtr(bytes(ens)), n);
             uint256 start; // remember position to write length
-            uint256 ptr;
-            assembly {
-                ptr := add(dns, 32)
-            }
             uint256 size;
             for (uint256 i; i < n; ++i) {
-                bytes1 x = bytes(ens)[i]; // read byte
-                if (x == ".") {
+                if (bytes(ens)[i] == ".") {
                     size = i - start;
                     if (size == 0 || size > 255) {
                         revert NameErrors.DNSEncodingFailed(ens);
                     }
-                    assembly {
-                        mstore8(ptr, size)
-                    }
-                    LibCopy.unsafeCopy(ptr, start + 1, size);
-                    ptr += 1 + size;
-                    start = i;
+                    dns[start] = bytes1(uint8(size));
+                    start = i + 1;
                 }
             }
             size = n - start;
             if (size == 0 || size > 255) {
                 revert NameErrors.DNSEncodingFailed(ens);
             }
-            assembly {
-                mstore8(ptr, size)
-            }
-            LibCopy.unsafeCopy(ptr, start + 1, size);
+            dns[start] = bytes1(uint8(size));
         }
     }
 

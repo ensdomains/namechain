@@ -13,15 +13,6 @@ library NameUtils {
     /// @dev The DNS-encoded name of "eth".
     //bytes constant ETH_NAME = "\x03eth\x00";
 
-    function readTokenId(
-        bytes memory name,
-        uint256 offset
-    ) internal pure returns (uint256 specificTokenId, uint256 nextOffset) {
-        bytes32 labelHash;
-        (labelHash, nextOffset) = NameCoder.readLabel(name, offset);
-        specificTokenId = uint256(labelHash);
-    }
-
     /// @dev Convert a label to canonical id.
     ///
     /// @param label The label to convert.
@@ -40,11 +31,15 @@ library NameUtils {
         return id ^ uint32(id);
     }
 
-    function append(bytes memory name, string memory label) internal pure returns (bytes memory) {
+    function assertLabelSize(string memory label) internal pure returns (uint8) {
         uint256 n = bytes(label).length;
         if (n == 0) revert NameErrors.LabelIsEmpty();
         if (n > 255) revert NameErrors.LabelIsTooLong(label);
-        return abi.encodePacked(uint8(n), label, name);
+        return uint8(n);
+    }
+
+    function append(bytes memory name, string memory label) internal pure returns (bytes memory) {
+        return abi.encodePacked(assertLabelSize(label), label, name);
     }
 
     // function equalityHash(bytes memory name, uint256 offset) internal pure returns (bytes32 hash) {
@@ -120,10 +115,7 @@ library NameUtils {
                     // check remaining bytes if last partial word
                     ret := 1
                     if gt(ptr, end) {
-                        let over := sub(ptr, end)
-                        if iszero(hasZeroByte(shr(shl(3, over), x))) {
-                            ret := 0
-                        }
+                        ret := iszero(hasZeroByte(shr(shl(3, sub(ptr, end)), x)))
                     }
                     break
                 }

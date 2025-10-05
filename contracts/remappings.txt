@@ -1,7 +1,7 @@
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
 @openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
-#@ens/contracts/utils/NameCoder.sol=src/common/NameCoder.sol
 @ens/contracts/=lib/ens-contracts/contracts/
+@ens/contracts/utils/NameCoder.sol=src/common/NameCoder.sol
 @ensdomains/buffer/=lib/buffer/
 @unruggable/gateways/=lib/unruggable-gateways/
 @ensdomains/verifiable-factory/=lib/verifiable-factory/src/

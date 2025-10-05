@@ -9,24 +9,24 @@ export default execute(
     const bridgeController =
       get<(typeof artifacts.L1BridgeController)["abi"]>("BridgeController");
 
-    const migratedWrappedNameRegistryFactory = get<
+    const MigratedWrapperRegistryFactory = get<
       (typeof artifacts.VerifiableFactory)["abi"]
-    >("MigratedWrappedNameRegistryFactory");
+    >("MigratedWrapperRegistryFactory");
 
-    const migratedWrappedNameRegistryImpl = get<
-      (typeof artifacts.MigratedWrappedNameRegistry)["abi"]
-    >("MigratedWrappedNameRegistryImpl");
+    const MigratedWrapperRegistryImpl = get<
+      (typeof artifacts.MigratedWrapperRegistry)["abi"]
+    >("MigratedWrapperRegistryImpl");
 
     const lockedMigrationController = await deploy(
       "LockedMigrationController",
       {
         account: deployer,
-        artifact: artifacts.L1LockedMigrationController,
+        artifact: artifacts.LockedMigrationController,
         args: [
           nameWrapperV1.address,
           bridgeController.address,
-          migratedWrappedNameRegistryFactory.address,
-          migratedWrappedNameRegistryImpl.address,
+          MigratedWrapperRegistryFactory.address,
+          MigratedWrapperRegistryImpl.address,
         ],
       },
     );
@@ -42,8 +42,8 @@ export default execute(
     dependencies: [
       "NameWrapper",
       "BridgeController",
-      "MigratedWrappedNameRegistryImpl",
-      "MigratedWrappedNameRegistryFactory",
+      "MigratedWrapperRegistryImpl",
+      "MigratedWrapperRegistryFactory",
     ],
   },
 );

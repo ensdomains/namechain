@@ -59,8 +59,8 @@ const l1Contracts = {
   //
   MockBridge: artifacts.MockL1Bridge.abi,
   BridgeController: artifacts.L1BridgeController.abi,
-  UnlockedMigrationController: artifacts.L1UnlockedMigrationController.abi,
-  LockedMigrationController: artifacts.L1LockedMigrationController.abi,
+  UnlockedMigrationController: artifacts.UnlockedMigrationController.abi,
+  LockedMigrationController: artifacts.LockedMigrationController.abi,
   //
   UniversalResolverV2: artifacts.UniversalResolverV2.abi,
   RootRegistry: artifacts.PermissionedRegistry.abi,

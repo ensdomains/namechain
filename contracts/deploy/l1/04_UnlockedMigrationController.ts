@@ -13,7 +13,7 @@ export default execute(
       "UnlockedMigrationController",
       {
         account: deployer,
-        artifact: artifacts.L1UnlockedMigrationController,
+        artifact: artifacts.UnlockedMigrationController,
         args: [nameWrapperV1.address, bridgeController.address],
       },
     );

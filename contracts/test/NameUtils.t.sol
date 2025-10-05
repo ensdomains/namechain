@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
 import {NameUtils, NameErrors} from "../src/common/NameUtils.sol";
 

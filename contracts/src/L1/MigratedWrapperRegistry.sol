@@ -14,46 +14,46 @@ import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.s
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-import {UnauthorizedCaller} from "./../common/Errors.sol";
-import {IPermissionedRegistry} from "./../common/IPermissionedRegistry.sol";
 import {IRegistry} from "./../common/IRegistry.sol";
 import {IRegistryDatastore} from "./../common/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "./../common/IRegistryMetadata.sol";
 import {IStandardRegistry} from "./../common/IStandardRegistry.sol";
 import {LibRegistryRoles} from "./../common/LibRegistryRoles.sol";
 import {NameUtils} from "./../common/NameUtils.sol";
-import {PermissionedRegistry} from "./../common/PermissionedRegistry.sol";
+import {PermissionedRegistry, IPermissionedRegistry} from "./../common/PermissionedRegistry.sol";
 import {MigrationData} from "./../common/TransferData.sol";
-import {IMigratedWrappedNameRegistry} from "./IMigratedWrappedNameRegistry.sol";
+import {IMigratedWrapperRegistry} from "./IMigratedWrapperRegistry.sol";
 import {LibLockedNames} from "./LibLockedNames.sol";
 import {MigrationErrors} from "./MigrationErrors.sol";
 import {InvalidOwner} from "../common/Errors.sol";
 
 /**
- * @title MigratedWrappedNameRegistry
+ * @title MigratedWrapperRegistry
  * @dev A registry for migrated wrapped names that inherits from PermissionedRegistry and is upgradeable using the UUPS pattern.
  * This contract provides resolver fallback to the universal resolver for names that haven't been migrated yet.
  * It also handles subdomain migration by receiving NFT transfers from the NameWrapper.
  */
-contract MigratedWrappedNameRegistry is
+contract MigratedWrapperRegistry is
     Initializable,
     PermissionedRegistry,
     UUPSUpgradeable,
     IERC1155Receiver,
-    IMigratedWrappedNameRegistry
+    IMigratedWrapperRegistry
 {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
+
+    bytes32 private constant _PAYLOAD_HASH = keccak256("MigratedWrapperRegistry");
 
     uint256 internal constant _ROLE_UPGRADE = 1 << 20;
     uint256 internal constant _ROLE_UPGRADE_ADMIN = _ROLE_UPGRADE << 128;
 
     INameWrapper public immutable NAME_WRAPPER;
 
-    VerifiableFactory public immutable MIGRATED_REGISTRY_FACTORY;
+    address public immutable FALLBACK_RESOLVER;
 
-    IPermissionedRegistry public immutable ETH_REGISTRY;
+    VerifiableFactory public immutable FACTORY;
 
     ////////////////////////////////////////////////////////////////////////
     // Storage
@@ -67,26 +67,26 @@ contract MigratedWrappedNameRegistry is
 
     constructor(
         INameWrapper nameWrapper,
-        VerifiableFactory factory_,
-        IPermissionedRegistry ethRegistry,
+        address fallbackResolver,
+        VerifiableFactory factory,
         IRegistryDatastore datastore,
         IRegistryMetadata metadataProvider
     ) PermissionedRegistry(datastore, metadataProvider, _msgSender(), 0) {
         NAME_WRAPPER = nameWrapper;
-        MIGRATED_REGISTRY_FACTORY = factory_;
-        ETH_REGISTRY = ethRegistry;
+        FALLBACK_RESOLVER = fallbackResolver;
+        FACTORY = factory;
         // Prevents initialization on the implementation contract
         _disableInitializers();
     }
 
     /**
-     * @dev Initializes the MigratedWrappedNameRegistry contract.
+     * @dev Initializes the MigratedWrapperRegistry contract.
      * @param args.parentNode The namehash.
      * @param args.owner The address that will own this registry.
      * @param args.ownerRoles The roles to grant to the owner.
      * @param args.registrar Optional address to grant ROLE_REGISTRAR permissions (typically for testing).
      */
-    function initialize(Args calldata args) public initializer {
+    function initialize(IMigratedWrapperRegistry.ConstructorArgs calldata args) public initializer {
         if (args.owner == address(0)) {
             revert InvalidOwner();
         }
@@ -124,46 +124,74 @@ contract MigratedWrappedNameRegistry is
         return NAME_WRAPPER.names(parentNode);
     }
 
+    // TODO: should these return tokenIds?
+    function migrate(Data calldata md) external returns (uint256 tokenId) {
+        NAME_WRAPPER.safeTransferFrom(
+            msg.sender,
+            address(this),
+            uint256(md.node),
+            1,
+            abi.encode(_PAYLOAD_HASH)
+        );
+        return _finishMigration(md);
+    }
+
+    function migrate(Data[] calldata mds) external {
+        uint256[] memory ids = new uint256[](mds.length);
+        uint256[] memory amounts = new uint256[](mds.length);
+        for (uint256 i; i < mds.length; ++i) {
+            ids[i] = uint256(mds[i].node);
+            amounts[i] = 1;
+        }
+        NAME_WRAPPER.safeBatchTransferFrom(
+            msg.sender,
+            address(this),
+            ids,
+            amounts,
+            abi.encode(_PAYLOAD_HASH)
+        );
+        for (uint256 i; i < mds.length; ++i) {
+            _finishMigration(mds[i]);
+        }
+    }
+
     function onERC1155Received(
         address /*operator*/,
         address /*from*/,
-        uint256 id,
+        uint256 /*id*/,
         uint256 /*amount*/,
         bytes calldata data
-    ) external virtual returns (bytes4) {
+    ) external view returns (bytes4) {
         require(msg.sender == address(NAME_WRAPPER), MigrationErrors.ERROR_ONLY_NAME_WRAPPER);
-        _migrateSubdomain(id, abi.decode(data, (MigrationData)), true);
+        require(bytes32(data) == _PAYLOAD_HASH, MigrationErrors.ERROR_UNEXPECTED_TRANSFER);
         return this.onERC1155Received.selector;
     }
 
     function onERC1155BatchReceived(
         address /*operator*/,
         address /*from*/,
-        uint256[] memory ids,
-        uint256[] memory /*amounts*/,
+        uint256[] calldata /*ids*/,
+        uint256[] calldata /*amounts*/,
         bytes calldata data
-    ) external virtual returns (bytes4) {
+    ) external view returns (bytes4) {
         require(msg.sender == address(NAME_WRAPPER), MigrationErrors.ERROR_ONLY_NAME_WRAPPER);
-        MigrationData[] memory mds = abi.decode(data, (MigrationData[]));
-        require(ids.length == mds.length, MigrationErrors.ERROR_ARRAY_LENGTH_MISMATCH);
-        //revert IERC1155Errors.ERC1155InvalidArrayLength(ids.length, mds.length);
-        for (uint256 i; i < ids.length; ++i) {
-            _migrateSubdomain(ids[i], mds[i], true);
-        }
+        require(bytes32(data) == _PAYLOAD_HASH, MigrationErrors.ERROR_UNEXPECTED_TRANSFER);
         return this.onERC1155BatchReceived.selector;
     }
 
-    function getResolver(string calldata label) external view override returns (address) {
+    function getResolver(
+        string calldata label
+    ) external view override(IRegistry, PermissionedRegistry) returns (address) {
         (, IRegistryDatastore.Entry memory entry) = getNameData(label);
         // Use fallback resolver for unregistered names
         if (_isExpired(entry.expiry)) {
             // Retrieve resolver from legacy registry system
-            (address resolver, , ) = RegistryUtils.findResolver(
-                NAME_WRAPPER.ens(),
-                NameUtils.append(parentName(), label),
-                0
-            );
-            return resolver;
+            // (address resolver, , ) = RegistryUtils.findResolver(
+            //     NAME_WRAPPER.ens(),
+            //     NameUtils.append(parentName(), label),
+            //     0
+            // );
+            return FALLBACK_RESOLVER;
         } else {
             return entry.resolver;
         }
@@ -178,17 +206,17 @@ contract MigratedWrappedNameRegistry is
      */
     function _authorizeUpgrade(address) internal override onlyRootRoles(_ROLE_UPGRADE) {}
 
-    function _migrateSubdomain(uint256 id, MigrationData memory md, bool viaReceiver) internal {
-        (, uint32 fuses, uint64 expiry) = NAME_WRAPPER.getData(id);
-        bytes memory name = NAME_WRAPPER.names(bytes32(id));
-        string memory label = _validateHierarchy(name);
+    function _finishMigration(Data memory md) internal returns (uint256 tokenId) {
+        (, uint32 fuses, uint64 expiry) = NAME_WRAPPER.getData(uint256(md.node));
+        bytes memory name = NAME_WRAPPER.names(md.node);
+        string memory label = NameUtils.firstLabel(name);
+
+        if (NameCoder.namehash(parentNode, keccak256(bytes(label))) != md.node) {
+            revert MigrationErrors.NameNotSubdomain(name, parentName());
+        }
 
         if ((fuses & PARENT_CANNOT_CONTROL) == 0) {
-            if (viaReceiver) {
-                revert(MigrationErrors.ERROR_NAME_NOT_EMANCIPATED);
-            } else {
-                revert MigrationErrors.NameNotEmancipated(name);
-            }
+            revert MigrationErrors.NameNotEmancipated(name);
         }
 
         // Determine permissions from name configuration (allow subdomain renewal based on fuses)
@@ -196,44 +224,27 @@ contract MigratedWrappedNameRegistry is
             .generateRoleBitmapsFromFuses(fuses);
 
         // Create dedicated registry for the migrated name
-
-        address subregistry = MIGRATED_REGISTRY_FACTORY.deployProxy(
-            ERC1967Utils.getImplementation(),
-            md.salt,
-            abi.encodeCall(
-                IMigratedWrappedNameRegistry.initialize,
-                (
-                    IMigratedWrappedNameRegistry.Args({
-                        parentNode: bytes32(id),
-                        owner: md.transferData.owner,
-                        ownerRoles: subRegistryRoles,
-                        registrar: address(0)
-                    })
+        IRegistry subregistry = IRegistry(
+            FACTORY.deployProxy(
+                ERC1967Utils.getImplementation(),
+                md.salt,
+                abi.encodeCall(
+                    IMigratedWrapperRegistry.initialize,
+                    (
+                        IMigratedWrapperRegistry.ConstructorArgs({
+                            parentNode: md.node,
+                            owner: md.owner,
+                            ownerRoles: subRegistryRoles,
+                            registrar: address(0)
+                        })
+                    )
                 )
             )
         );
 
-        // address subregistry = LibLockedNames.deployMigratedRegistry(
-        //     MIGRATED_REGISTRY_FACTORY,
-        //     ERC1967Utils.getImplementation(),
-        //     migrationDataArray[i].transferData.owner,
-        //     subRegistryRoles,
-        //     migrationDataArray[i].salt,
-        //     migrationDataArray[i].transferData.name
-        // );
+        tokenId = super._register(label, md.owner, subregistry, md.resolver, tokenRoles, expiry);
 
-        // Complete name registration in new registry
-        _register(
-            label,
-            md.transferData.owner,
-            IRegistry(subregistry),
-            md.transferData.resolver,
-            tokenRoles,
-            expiry //md.transferData.expiry
-        );
-
-        // Finalize migration by freezing the name
-        LibLockedNames.freezeName(NAME_WRAPPER, id, fuses);
+        LibLockedNames.freezeName(NAME_WRAPPER, uint256(md.node), fuses);
     }
 
     function _register(
@@ -244,18 +255,13 @@ contract MigratedWrappedNameRegistry is
         uint256 roleBitmap,
         uint64 expiry
     ) internal virtual override returns (uint256 tokenId) {
-        // Check if the label has an emancipated NFT in the old system
-        // For .eth 2LDs, NameWrapper uses keccak256(label) as the token ID
-
+        // find the wrapper token
         bytes32 node = NameCoder.namehash(parentNode, keccak256(bytes(label)));
-        (, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(node));
 
         // If the name is emancipated (PARENT_CANNOT_CONTROL burned),
         // it must be migrated (owned by this registry)
-        if (
-            (fuses & PARENT_CANNOT_CONTROL) != 0 &&
-            NAME_WRAPPER.ownerOf(uint256(node)) != address(this)
-        ) {
+        (, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(node));
+        if ((fuses & PARENT_CANNOT_CONTROL) != 0) {
             revert MigrationErrors.NameNotMigrated(NameUtils.append(parentName(), label));
         }
 
@@ -263,34 +269,34 @@ contract MigratedWrappedNameRegistry is
         return super._register(label, owner, registry, resolver, roleBitmap, expiry);
     }
 
-    function _validateHierarchy(bytes memory name) internal view returns (string memory label) {
-        uint256 offset;
-        (label, offset) = NameUtils.extractLabel(name, offset);
+    // function _validateHierarchy(bytes memory name) internal view returns (string memory label) {
+    //     uint256 offset;
+    //     (label, offset) = NameUtils.extractLabel(name, offset);
 
-        // ensure child of parent
-        if (bytes(label).length == 0 || NameCoder.namehash(name, offset) != parentNode) {
-            revert MigrationErrors.NameNotSubdomain(name, parentName());
-        }
+    //     // ensure child of parent
+    //     if (bytes(label).length == 0 || NameCoder.namehash(name, offset) != parentNode) {
+    //         revert MigrationErrors.NameNotSubdomain(name, parentName());
+    //     }
 
-        // find subregistry
-        IRegistry subregistry;
-        if (parentNode == NameUtils.ETH_NODE) {
-            subregistry = ETH_REGISTRY.getSubregistry(label);
-        } else {
-            if (
-                !NAME_WRAPPER.isWrapped(parentNode) ||
-                NAME_WRAPPER.ownerOf(uint256(parentNode)) != address(this)
-            ) {
-                revert MigrationErrors.NameNotMigrated(parentName());
-            }
-            subregistry = this.getSubregistry(label);
-        }
+    //     // find subregistry
+    //     IRegistry subregistry;
+    //     if (parentNode == NameUtils.ETH_NODE) {
+    //         subregistry = ETH_REGISTRY.getSubregistry(label);
+    //     } else {
+    //         if (
+    //             !NAME_WRAPPER.isWrapped(parentNode) ||
+    //             NAME_WRAPPER.ownerOf(uint256(parentNode)) != address(this)
+    //         ) {
+    //             revert MigrationErrors.NameNotMigrated(parentName());
+    //         }
+    //         subregistry = this.getSubregistry(label);
+    //     }
 
-        // check NOT already registered
-        if (address(subregistry) != address(0)) {
-            revert IStandardRegistry.NameAlreadyRegistered(label);
-        }
+    //     // check NOT already registered
+    //     if (address(subregistry) != address(0)) {
+    //         revert IStandardRegistry.NameAlreadyRegistered(label);
+    //     }
 
-        return label;
-    }
+    //     return label;
+    // }
 }
