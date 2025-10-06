@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {BridgeEncoder} from "./../common/BridgeEncoder.sol";
-import {BridgeMessageType} from "./../common/IBridge.sol";
-import {TransferData} from "./../common/TransferData.sol";
-import {L2BridgeController} from "./../L2/L2BridgeController.sol";
+import {BridgeMessageType} from "../common/bridge/interfaces/IBridge.sol";
+import {BridgeEncoderLib} from "../common/bridge/libraries/BridgeEncoderLib.sol";
+import {TransferData} from "../common/bridge/types/TransferData.sol";
+import {L2BridgeController} from "../L2/bridge/L2BridgeController.sol";
+
 import {MockBridgeBase} from "./MockBridgeBase.sol";
 
 /**
@@ -39,7 +40,7 @@ contract MockL2Bridge is MockBridgeBase {
      * @dev Send a message.
      */
     function sendMessage(bytes memory message) external override {
-        BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
+        BridgeMessageType messageType = BridgeEncoderLib.getMessageType(message);
 
         if (messageType == BridgeMessageType.EJECTION) {
             emit NameBridgedToL1(message);

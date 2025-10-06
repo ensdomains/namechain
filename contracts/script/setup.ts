@@ -1,32 +1,32 @@
+import { artifacts } from "@rocketh";
+import { rm } from "node:fs/promises";
 import { anvil } from "prool/instances";
-import { type Environment, executeDeployScripts, resolveConfig } from "rocketh";
+import { executeDeployScripts, resolveConfig, type Environment } from "rocketh";
 import {
   createWalletClient,
   getContract,
-  webSocket,
   keccak256,
-  stringToBytes,
   publicActions,
+  stringToBytes,
   testActions,
+  webSocket,
   zeroAddress,
   type Account,
   type Chain,
   type Client,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
-import { artifacts } from "@rocketh";
-import { rm } from "node:fs/promises";
 
-import type { RockethL1Arguments, RockethArguments } from "./types.ts";
-import { deployArtifact } from "../test/fixtures/deployArtifact.js";
-import { deployVerifiableProxy } from "../test/fixtures/deployVerifiableProxy.js";
-import { urgArtifact } from "../test/fixtures/externalArtifacts.js";
-import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
-import { WebSocketProvider } from "ethers/providers";
-import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { serve } from "@namestone/ezccip/serve";
-import { patchArtifactsV1 } from "./patchArtifactsV1.ts";
-import { MAX_EXPIRY, ROLES } from "../deploy/constants.ts";
+import { WebSocketProvider } from "ethers/providers";
+import { MAX_EXPIRY, ROLES } from "../deploy/constants.js";
+import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
+import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
+import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
+import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
+import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
+import { patchArtifactsV1 } from "./patchArtifactsV1.js";
+import type { RockethArguments, RockethL1Arguments } from "./types.js";
 
 export type CrosschainSnapshot = () => Promise<void>;
 
@@ -281,7 +281,7 @@ export async function setupCrossChainEnvironment({
         // v2
         bridgeController: l1Contracts("L1BridgeController"),
         ethRegistry: l1Contracts("PermissionedRegistry", "ETHRegistry"),
-        ethSelfResolver: l1Contracts("DedicatedResolver", "ETHSelfResolver"),        
+        ethSelfResolver: l1Contracts("DedicatedResolver", "ETHSelfResolver"),
         ethReverseResolver: l1Contracts("ETHReverseResolver"),
         ethReverseRegistrar: l1Contracts(
           "L2ReverseRegistrar",

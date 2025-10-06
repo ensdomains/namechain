@@ -3,88 +3,81 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
 
 jobs:
-  test:
-    name: Contract tests
+  check-types:
+    name: Check Types
     runs-on: ubuntu-latest
     steps:
-      - name: Install lcov
-        run: sudo apt-get install lcov
+      # setup
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
 
-      - name: Cache git folder
-        uses: actions/cache@v4
+      - name: Compile and check types
+        run: cd contracts && bun compile:hardhat && bun check:types
+
+  forge-tests:
+    name: Forge Tests
+    runs-on: ubuntu-latest
+    steps:
+      # setup
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+
+      - uses: awalsh128/cache-apt-pkgs-action@v1.5.3
         with:
-          path: .git
-          key: git-folder
+          packages: lcov
+          version: 1.0
 
-      - uses: actions/checkout@v4
+      - name: Run forge tests
+        run: |
+          cd contracts && \
+          bun run coverage:forge && \
+          bun run coverage:reports
+
+      - name: Upload coverage
+        run: cd contracts && bun run coverage:upload
+        env:
+          CC_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CC_GIT_SERVICE: github
+          CC_SHA: ${{ github.sha }}
+
+  hardhat-tests:
+    name: Hardhat Tests
+    runs-on: ubuntu-latest
+    steps:
+      # setup
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+
+      - uses: awalsh128/cache-apt-pkgs-action@v1.5.3
         with:
-          submodules: "recursive"
+          packages: lcov
+          version: 1.0
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+      - name: Run hardhat tests
+        run: |
+          cd contracts && \
+          mkdir -p coverage/ && \
+          bun run coverage:hardhat && \
+          bun run coverage:reports
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: ".nvmrc"
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: ".bun-version"
-
-      - run: bun install --frozen-lockfile
-
-      - name: Run tests with coverage
-        run: bun --filter contracts coverage
-
-      - name: Check types
-        run: bun --filter contracts check:types
-
-      - name: Generate coverage report
-        run: bunx @lcov-viewer/cli lcov -o ./contracts/coverage ./contracts/lcov.info
-
-      - name: Upload coverage report to artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: contracts/coverage/
-
-      # 20250914: coveralls.io http 504
-      # 20240918: restored
-      - name: Upload coverage report to Coveralls
-        uses: coverallsapp/github-action@v2
-        with:
-          file: contracts/lcov.info
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload coverage
+        run: cd contracts && bun run coverage:upload
+        env:
+          CC_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          CC_GIT_SERVICE: github
+          CC_SHA: ${{ github.sha }}
 
   lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
-      - name: Cache git folder
-        uses: actions/cache@v4
-        with:
-          path: .git
-          key: git-folder
-
-      - uses: actions/checkout@v4
-        with:
-          submodules: "recursive"
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: ".nvmrc"
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: ".bun-version"
-
-      - run: bun install --frozen-lockfile
+      # setup
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
 
       - name: Lint
         run: bun --filter contracts lint

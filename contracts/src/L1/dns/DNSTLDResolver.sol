@@ -22,7 +22,7 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
-import {RegistryUtils, IRegistry} from "./../../universalResolver/RegistryUtils.sol";
+import {LibRegistry, IRegistry} from "../../universalResolver/libraries/LibRegistry.sol";
 
 /// @dev DNS class for the "Internet" according to RFC-1035.
 uint16 constant CLASS_INET = 1;
@@ -341,7 +341,7 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
             }
         }
         bytes memory name = NameCoder.encode(string(v));
-        (, address r, , ) = RegistryUtils.findResolver(ROOT_REGISTRY, name, 0);
+        (, address r, , ) = LibRegistry.findResolver(ROOT_REGISTRY, name, 0);
         if (r != address(0)) {
             // according to V1, this must be immediate onchain
             try IAddrResolver(r).addr(NameCoder.namehash(name, 0)) returns (address payable a) {
