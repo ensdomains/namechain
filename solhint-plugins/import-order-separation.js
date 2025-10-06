@@ -305,9 +305,6 @@ class ImportOrderSeparationRule {
    * @returns {string}
    */
   normalizePath(path) {
-    if (path.startsWith("../")) {
-      return `./${path}`;
-    }
     return path;
   }
 

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {BridgeEncoder} from "./../common/BridgeEncoder.sol";
-import {IBridge, BridgeMessageType} from "./../common/IBridge.sol";
-import {TransferData} from "./../common/TransferData.sol";
+import {IBridge, BridgeMessageType} from "../common/bridge/interfaces/IBridge.sol";
+import {BridgeEncoderLib} from "../common/bridge/libraries/BridgeEncoderLib.sol";
+import {TransferData} from "../common/bridge/types/TransferData.sol";
 
 /**
  * @title MockBridgeBase
@@ -33,13 +33,13 @@ abstract contract MockBridgeBase is IBridge {
      * Anyone can call this method with encoded message data
      */
     function receiveMessage(bytes calldata message) external {
-        BridgeMessageType messageType = BridgeEncoder.getMessageType(message);
+        BridgeMessageType messageType = BridgeEncoderLib.getMessageType(message);
 
         if (messageType == BridgeMessageType.EJECTION) {
-            (TransferData memory transferData) = BridgeEncoder.decodeEjection(message);
+            (TransferData memory transferData) = BridgeEncoderLib.decodeEjection(message);
             _handleEjectionMessage(transferData.dnsEncodedName, transferData);
         } else if (messageType == BridgeMessageType.RENEWAL) {
-            (uint256 tokenId, uint64 newExpiry) = BridgeEncoder.decodeRenewal(message);
+            (uint256 tokenId, uint64 newExpiry) = BridgeEncoderLib.decodeRenewal(message);
             _handleRenewalMessage(tokenId, newExpiry);
         }
 

@@ -3,12 +3,12 @@ pragma solidity >=0.8.13;
 
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
-import {NameUtils} from "./../../src/common/NameUtils.sol";
 import {
     PermissionedRegistry,
     IRegistryDatastore,
     IRegistryMetadata
-} from "./../../src/common/PermissionedRegistry.sol";
+} from "~src/common/registry/PermissionedRegistry.sol";
+import {LibLabel} from "~src/common/utils/LibLabel.sol";
 
 /**
  * @title MockPermissionedRegistry
@@ -88,7 +88,7 @@ contract MockPermissionedRegistry is PermissionedRegistry {
      * @dev Helper to get entry data for testing
      */
     function testGetEntry(uint256 tokenId) public view returns (IRegistryDatastore.Entry memory) {
-        return DATASTORE.getEntry(address(this), NameUtils.getCanonicalId(tokenId));
+        return DATASTORE.getEntry(address(this), LibLabel.getCanonicalId(tokenId));
     }
 
     /**
