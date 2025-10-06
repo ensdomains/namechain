@@ -12,4 +12,4 @@ lib/ens-contracts/:@openzeppelin/contracts=lib/openzeppelin-contracts-v4/contrac
 lib/ens-contracts/:@openzeppelin/contracts-v5=lib/openzeppelin-contracts/contracts
 lib/ens-contracts/:@ensdomains/solsha1/contracts=lib/solsha1/contracts
 lib/ens-contracts/:@unruggable/gateways/=lib/unruggable-gateways/contracts
-src/mocks/v1/:@openzeppelin/contracts=lib/openzeppelin-contracts-v4/contracts
+test/mocks/v1/:@openzeppelin/contracts=lib/openzeppelin-contracts-v4/contracts

@@ -82,8 +82,8 @@ const l2Contracts = {
   ETHRegistrar: artifacts.ETHRegistrar.abi,
   ETHRegistry: artifacts.PermissionedRegistry.abi,
   StandardRentPriceOracle: artifacts.StandardRentPriceOracle.abi,
-  MockUSDC: artifacts["src/mocks/MockERC20.sol/MockERC20"].abi,
-  MockDAI: artifacts["src/mocks/MockERC20.sol/MockERC20"].abi,
+  MockUSDC: artifacts["test/mocks/MockERC20.sol/MockERC20"].abi,
+  MockDAI: artifacts["test/mocks/MockERC20.sol/MockERC20"].abi,
 } as const satisfies DeployedArtifacts;
 
 export type CrosschainSnapshot = () => Promise<void>;

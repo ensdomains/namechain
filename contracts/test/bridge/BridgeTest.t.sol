@@ -16,8 +16,8 @@ import {SimpleRegistryMetadata} from "./../../src/common/SimpleRegistryMetadata.
 import {TransferData} from "./../../src/common/TransferData.sol";
 import {L1BridgeController} from "./../../src/L1/L1BridgeController.sol";
 import {L2BridgeController} from "./../../src/L2/L2BridgeController.sol";
-import {MockL1Bridge} from "./../../src/mocks/MockL1Bridge.sol";
-import {MockL2Bridge} from "./../../src/mocks/MockL2Bridge.sol";
+import {MockL1Bridge} from "./../../test/mocks/MockL1Bridge.sol";
+import {MockL2Bridge} from "./../../test/mocks/MockL2Bridge.sol";
 import {MockPermissionedRegistry} from "./../mocks/MockPermissionedRegistry.sol";
 
 contract BridgeTest is Test, EnhancedAccessControl {

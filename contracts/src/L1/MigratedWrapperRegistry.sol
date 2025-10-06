@@ -9,7 +9,7 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {INameWrapper, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+//import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -36,7 +36,6 @@ import {InvalidOwner} from "../common/Errors.sol";
 contract MigratedWrapperRegistry is
     Initializable,
     PermissionedRegistry,
-    UUPSUpgradeable,
     IERC1155Receiver,
     IMigratedWrapperRegistry
 {
@@ -45,9 +44,6 @@ contract MigratedWrapperRegistry is
     ////////////////////////////////////////////////////////////////////////
 
     bytes32 private constant _PAYLOAD_HASH = keccak256("MigratedWrapperRegistry");
-
-    uint256 internal constant _ROLE_UPGRADE = 1 << 20;
-    uint256 internal constant _ROLE_UPGRADE_ADMIN = _ROLE_UPGRADE << 128;
 
     INameWrapper public immutable NAME_WRAPPER;
 
@@ -97,7 +93,7 @@ contract MigratedWrapperRegistry is
         // Configure owner with upgrade permissions and specified roles
         _grantRoles(
             ROOT_RESOURCE,
-            _ROLE_UPGRADE | _ROLE_UPGRADE_ADMIN | args.ownerRoles,
+            LibRegistryRoles.ROLE_UPGRADE | LibRegistryRoles.ROLE_UPGRADE_ADMIN | args.ownerRoles,
             args.owner,
             false
         );
@@ -124,7 +120,6 @@ contract MigratedWrapperRegistry is
         return NAME_WRAPPER.names(parentNode);
     }
 
-    // TODO: should these return tokenIds?
     function migrate(Data calldata md) external returns (uint256 tokenId) {
         NAME_WRAPPER.safeTransferFrom(
             msg.sender,
@@ -136,6 +131,7 @@ contract MigratedWrapperRegistry is
         return _finishMigration(md);
     }
 
+    // TODO: should this return tokenIds[]?
     function migrate(Data[] calldata mds) external {
         uint256[] memory ids = new uint256[](mds.length);
         uint256[] memory amounts = new uint256[](mds.length);
@@ -185,12 +181,6 @@ contract MigratedWrapperRegistry is
         (, IRegistryDatastore.Entry memory entry) = getNameData(label);
         // Use fallback resolver for unregistered names
         if (_isExpired(entry.expiry)) {
-            // Retrieve resolver from legacy registry system
-            // (address resolver, , ) = RegistryUtils.findResolver(
-            //     NAME_WRAPPER.ens(),
-            //     NameUtils.append(parentName(), label),
-            //     0
-            // );
             return FALLBACK_RESOLVER;
         } else {
             return entry.resolver;
@@ -201,10 +191,13 @@ contract MigratedWrapperRegistry is
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
 
-    /**
-     * @dev Required override for UUPSUpgradeable - restricts upgrade permissions
-     */
-    function _authorizeUpgrade(address) internal override onlyRootRoles(_ROLE_UPGRADE) {}
+    // TODO: lib/verifiable-factory is not upgradeable
+    // /**
+    //  * @dev Required override for UUPSUpgradeable - restricts upgrade permissions
+    //  */
+    // function _authorizeUpgrade(
+    //     address
+    // ) internal override onlyRootRoles(LibRegistryRoles.ROLE_UPGRADE) {}
 
     function _finishMigration(Data memory md) internal returns (uint256 tokenId) {
         (, uint32 fuses, uint64 expiry) = NAME_WRAPPER.getData(uint256(md.node));
@@ -255,48 +248,13 @@ contract MigratedWrapperRegistry is
         uint256 roleBitmap,
         uint64 expiry
     ) internal virtual override returns (uint256 tokenId) {
-        // find the wrapper token
-        bytes32 node = NameCoder.namehash(parentNode, keccak256(bytes(label)));
-
         // If the name is emancipated (PARENT_CANNOT_CONTROL burned),
         // it must be migrated (owned by this registry)
+        bytes32 node = NameCoder.namehash(parentNode, keccak256(bytes(label)));
         (, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(node));
         if ((fuses & PARENT_CANNOT_CONTROL) != 0) {
             revert MigrationErrors.NameNotMigrated(NameUtils.append(parentName(), label));
         }
-
-        // Proceed with registration
         return super._register(label, owner, registry, resolver, roleBitmap, expiry);
     }
-
-    // function _validateHierarchy(bytes memory name) internal view returns (string memory label) {
-    //     uint256 offset;
-    //     (label, offset) = NameUtils.extractLabel(name, offset);
-
-    //     // ensure child of parent
-    //     if (bytes(label).length == 0 || NameCoder.namehash(name, offset) != parentNode) {
-    //         revert MigrationErrors.NameNotSubdomain(name, parentName());
-    //     }
-
-    //     // find subregistry
-    //     IRegistry subregistry;
-    //     if (parentNode == NameUtils.ETH_NODE) {
-    //         subregistry = ETH_REGISTRY.getSubregistry(label);
-    //     } else {
-    //         if (
-    //             !NAME_WRAPPER.isWrapped(parentNode) ||
-    //             NAME_WRAPPER.ownerOf(uint256(parentNode)) != address(this)
-    //         ) {
-    //             revert MigrationErrors.NameNotMigrated(parentName());
-    //         }
-    //         subregistry = this.getSubregistry(label);
-    //     }
-
-    //     // check NOT already registered
-    //     if (address(subregistry) != address(0)) {
-    //         revert IStandardRegistry.NameAlreadyRegistered(label);
-    //     }
-
-    //     return label;
-    // }
 }

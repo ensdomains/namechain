@@ -153,7 +153,6 @@ contract ETHTLDResolver is
         bytes calldata name,
         bytes calldata data
     ) external view returns (bytes memory result) {
-        result;
         (address resolver, bool offchain) = _determineResolver(name);
         if (offchain) {
             bytes[] memory calls;
@@ -164,7 +163,7 @@ contract ETHTLDResolver is
                 calls = new bytes[](1);
                 calls[0] = data;
             }
-            _resolveNamechain(name, multi, calls);
+            result = _resolveNamechain(name, multi, calls);
         } else {
             callResolver(resolver, name, data, BATCH_GATEWAY_PROVIDER.gateways());
         }
@@ -308,8 +307,7 @@ contract ETHTLDResolver is
         req = GatewayFetcher.newRequest(outputs < 2 ? 2 : outputs);
         uint256 offset;
         while (offset < name.length - 5) {
-            // 3eth0
-            bytes32 labelHash;
+            bytes32 labelHash; //     ^ "3eth0".length = 5
             (labelHash, offset) = NameCoder.readLabel(name, offset);
             req.push(NameUtils.getCanonicalId(uint256(labelHash)));
         }

@@ -80,7 +80,7 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
-    function migrate(Data calldata md) external {
+    function migrate(Data calldata md) external returns (uint256 tokenId) {
         // acquire the token
         // reverts on approval, expired, dne
         NAME_WRAPPER.safeTransferFrom(
@@ -90,7 +90,7 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             1,
             abi.encode(_PAYLOAD_HASH)
         );
-        _finishMigration(md);
+        tokenId = _finishMigration(md);
     }
 
     function migrate(Data[] calldata mds) external {
@@ -138,7 +138,7 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
         return this.onERC1155Received.selector;
     }
 
-    function _finishMigration(Data memory md) internal {
+    function _finishMigration(Data memory md) internal returns (uint256 tokenId) {
         bytes memory name = NAME_WRAPPER.names(bytes32(md.id));
         (, uint32 fuses, ) = NAME_WRAPPER.getData(md.id);
 
@@ -183,7 +183,7 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
         td.expiry = uint64(ETH_REGISTRY_V1.nameExpires(uint256(labelHash)));
 
         // Process the locked name migration through bridge
-        L1_BRIDGE_CONTROLLER.completeEjectionToL1(td);
+        tokenId = L1_BRIDGE_CONTROLLER.completeEjectionToL1(td);
 
         // Finalize migration by freezing the name
         LibLockedNames.freezeName(NAME_WRAPPER, md.id, fuses);

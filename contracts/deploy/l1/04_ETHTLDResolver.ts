@@ -1,10 +1,5 @@
 import { artifacts, execute } from "@rocketh";
-import {
-  type RpcLog,
-  encodeFunctionData,
-  parseEventLogs,
-  zeroAddress,
-} from "viem";
+import { type RpcLog, encodeFunctionData, parseEventLogs } from "viem";
 
 export default execute(
   async (
@@ -23,6 +18,9 @@ export default execute(
     const verifiableFactory = get<(typeof artifacts.VerifiableFactory)["abi"]>(
       "DedicatedResolverFactory",
     );
+
+    const bridgeController =
+      get<(typeof artifacts.L1BridgeController)["abi"]>("BridgeController");
 
     const dedicatedResolverImpl = get<
       (typeof artifacts.DedicatedResolver)["abi"]
@@ -65,7 +63,7 @@ export default execute(
       args: [
         nameWrapper.address,
         batchGatewayProvider.address,
-        zeroAddress, // burnAddressV1
+        bridgeController.address,
         ethSelfResolver.address,
         args.verifierAddress,
         args.l2Deploy.deployments.RegistryDatastore.address,
@@ -81,6 +79,11 @@ export default execute(
   },
   {
     tags: ["ETHTLDResolver", "l1"],
-    dependencies: ["NameWrapper", "DedicatedResolver", "BatchGatewayProvider"],
+    dependencies: [
+      "NameWrapper",
+      "DedicatedResolver",
+      "BatchGatewayProvider",
+      "BridgeController",
+    ],
   },
 );

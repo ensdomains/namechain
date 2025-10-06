@@ -22,7 +22,7 @@ import {
     IRentPriceOracle,
     DiscountPoint
 } from "./../src/L2/StandardRentPriceOracle.sol";
-import {MockERC20} from "./../src/mocks/MockERC20.sol";
+import {MockERC20} from "./../test/mocks/MockERC20.sol";
 import {StandardPricing} from "./StandardPricing.sol";
 
 contract TestRentPriceOracle is Test, ERC1155Holder {

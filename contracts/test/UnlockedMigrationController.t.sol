@@ -25,12 +25,13 @@ import {
     TransferData,
     MigrationErrors
 } from "../src/L1/UnlockedMigrationController.sol";
-import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
+import {MockL1Bridge} from "../test/mocks/MockL1Bridge.sol";
 import {NameWrapperFixture} from "./fixtures/NameWrapperFixture.sol";
 import {ETHRegistryMixin} from "./fixtures/ETHRegistryMixin.sol";
+import {NameMixin} from "./fixtures/NameMixin.sol";
 
 /// forge-config: default.fuzz.runs = 8
-contract TestUnlockedMigrationController is NameWrapperFixture, ETHRegistryMixin {
+contract TestUnlockedMigrationController is NameWrapperFixture, ETHRegistryMixin, NameMixin {
     MockL1Bridge bridge;
     L1BridgeController bridgeController;
     UnlockedMigrationController migrationController;
@@ -70,7 +71,7 @@ contract TestUnlockedMigrationController is NameWrapperFixture, ETHRegistryMixin
         return
             UnlockedMigrationController.Data({
                 toL1: toL1,
-                label: NameUtils.firstLabel(name),
+                label: firstLabel(name),
                 owner: user,
                 resolver: address(1),
                 subregistry: address(2),
@@ -223,20 +224,26 @@ contract TestUnlockedMigrationController is NameWrapperFixture, ETHRegistryMixin
     }
 
     function test_Revert_migrate_1wrapped_transfer() external {
-        (, uint256 tokenId) = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
+        bytes memory name = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
         vm.expectRevert(
             abi.encodeWithSignature("Error(string)", MigrationErrors.ERROR_UNEXPECTED_TRANSFER)
         );
         vm.prank(user);
-        nameWrapper.safeTransferFrom(user, address(migrationController), tokenId, 1, "");
+        nameWrapper.safeTransferFrom(
+            user,
+            address(migrationController),
+            uint256(namehash(name)),
+            1,
+            ""
+        );
     }
 
     function test_Revert_migrate_2wrapped_transfer() external {
-        (, uint256 tokenId1) = registerWrappedETH2LD("test1", CAN_DO_EVERYTHING);
-        (, uint256 tokenId2) = registerWrappedETH2LD("test2", CAN_DO_EVERYTHING);
+        bytes memory name1 = registerWrappedETH2LD("test1", CAN_DO_EVERYTHING);
+        bytes memory name2 = registerWrappedETH2LD("test2", CAN_DO_EVERYTHING);
         uint256[] memory ids = new uint256[](2);
-        ids[0] = tokenId1;
-        ids[1] = tokenId2;
+        ids[0] = uint256(namehash(name1));
+        ids[1] = uint256(namehash(name2));
         uint256[] memory amounts = new uint256[](2);
         amounts[0] = 1;
         amounts[1] = 1;
@@ -248,7 +255,7 @@ contract TestUnlockedMigrationController is NameWrapperFixture, ETHRegistryMixin
     }
 
     function test_Revert_migrate_1wrapped_locked(bool toL1) external {
-        (bytes memory name, ) = registerWrappedETH2LD("test", CANNOT_UNWRAP);
+        bytes memory name = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         vm.startPrank(user);
         nameWrapper.setApprovalForAll(address(migrationController), true);
         vm.expectRevert(abi.encodeWithSelector(MigrationErrors.NameIsLocked.selector, name));
@@ -257,11 +264,11 @@ contract TestUnlockedMigrationController is NameWrapperFixture, ETHRegistryMixin
     }
 
     function test_Revert_migrate_2wrapped_locked(bool[2] memory toL1) external {
-        (bytes memory name1, uint256 tokenId1) = registerWrappedETH2LD("test1", CANNOT_UNWRAP);
-        (bytes memory name2, uint256 tokenId2) = registerWrappedETH2LD("test2", CANNOT_UNWRAP);
+        bytes memory name1 = registerWrappedETH2LD("test1", CANNOT_UNWRAP);
+        bytes memory name2 = registerWrappedETH2LD("test2", CANNOT_UNWRAP);
         uint256[] memory ids = new uint256[](2);
-        ids[0] = tokenId1;
-        ids[1] = tokenId2;
+        ids[0] = uint256(namehash(name1));
+        ids[1] = uint256(namehash(name2));
         UnlockedMigrationController.Data[] memory mds = new UnlockedMigrationController.Data[](2);
         mds[0] = _makeData(name1, toL1[0]);
         mds[1] = _makeData(name2, toL1[1]);
@@ -275,8 +282,8 @@ contract TestUnlockedMigrationController is NameWrapperFixture, ETHRegistryMixin
     }
 
     function test_Revert_migrate_1wrapped_3LD(bool toL1) external {
-        (, uint256 parentTokenId) = registerWrappedETH2LD("test", CANNOT_UNWRAP);
-        (bytes memory name, ) = createWrappedChild(parentTokenId, "sub", CAN_DO_EVERYTHING);
+        bytes memory parentName = registerWrappedETH2LD("test", CANNOT_UNWRAP);
+        bytes memory name = createWrappedChild(parentName, "sub", CAN_DO_EVERYTHING);
         vm.startPrank(user);
         nameWrapper.setApprovalForAll(address(migrationController), true);
         vm.expectRevert(bytes("")); // null revert from 721 transfer
@@ -285,7 +292,7 @@ contract TestUnlockedMigrationController is NameWrapperFixture, ETHRegistryMixin
     }
 
     function test_Revert_migrate_1wrapped_comTLD(bool toL1) external {
-        (bytes memory name, ) = createWrappedName("test.com", CAN_DO_EVERYTHING);
+        bytes memory name = createWrappedName("test.com", CAN_DO_EVERYTHING);
         vm.startPrank(user);
         nameWrapper.setApprovalForAll(address(migrationController), true);
         vm.expectRevert(bytes("")); // null revert from 721 transfer
@@ -294,7 +301,7 @@ contract TestUnlockedMigrationController is NameWrapperFixture, ETHRegistryMixin
     }
 
     function test_Revert_migrate_1wrapped_notOperator(bool toL1) external {
-        (bytes memory name, ) = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
+        bytes memory name = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
         vm.expectRevert(
             abi.encodeWithSignature("Error(string)", "ERC1155: caller is not owner nor approved")
         );
@@ -338,7 +345,7 @@ contract TestUnlockedMigrationController is NameWrapperFixture, ETHRegistryMixin
     }
 
     function test_migrate_1wrapped(bool toL1) external {
-        (bytes memory name, ) = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
+        bytes memory name = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
         UnlockedMigrationController.Data memory md = _makeData(name, toL1);
         vm.recordLogs();
         vm.startPrank(user);
@@ -357,7 +364,7 @@ contract TestUnlockedMigrationController is NameWrapperFixture, ETHRegistryMixin
             mds[i] = _makeData(name, (i & 1) != 0);
         }
         for (uint256 i; i < wrapped; ++i) {
-            (bytes memory name, ) = registerWrappedETH2LD(
+            bytes memory name = registerWrappedETH2LD(
                 string(abi.encodePacked("w", 0x30 + i)),
                 CAN_DO_EVERYTHING
             );

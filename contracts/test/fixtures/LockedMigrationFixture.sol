@@ -2,7 +2,7 @@
 pragma solidity >=0.8.13;
 
 // import {VerifiableFactory} from "../../lib/verifiable-factory/src/VerifiableFactory.sol";
-// import {MockL1Bridge} from "../../src/mocks/MockL1Bridge.sol";
+// import {MockL1Bridge} from "../../test/mocks/MockL1Bridge.sol";
 // import {LibBridgeRoles} from "../../src/common/IBridge.sol";
 // import {LibRegistryRoles} from "../../src/common/LibRegistryRoles.sol";
 // import {L1BridgeController} from "../../src/L1/L1BridgeController.sol";

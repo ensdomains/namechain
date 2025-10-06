@@ -36,10 +36,12 @@ interface IMigratedWrapperRegistry is IPermissionedRegistry {
 
     function initialize(ConstructorArgs calldata args) external;
 
+    // TODO: rename to baseNode() and baseName() ?
     function parentNode() external view returns (bytes32);
 
     function parentName() external view returns (bytes memory);
 
     function migrate(Data calldata md) external returns (uint256 tokenId);
+
     function migrate(Data[] calldata mds) external;
 }

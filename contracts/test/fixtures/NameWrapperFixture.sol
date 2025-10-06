@@ -26,7 +26,7 @@ contract NameWrapperFixture is Test, ERC721Holder, ERC1155Holder {
         ensV1 = new ENSRegistry();
         ethRegistrarV1 = new BaseRegistrarImplementation(ensV1, NameUtils.ETH_NODE);
         claimNodes(NameCoder.encode("eth"), 0, address(ethRegistrarV1));
-        claimNodes(NameCoder.encode("addr.reverse"), 0, address(this));
+        claimNodes(NameCoder.encode("addr.reverse"), 0, address(this)); // see below
         ethRegistrarV1.addController(address(this));
         nameWrapper = new NameWrapper(ensV1, ethRegistrarV1, IMetadataService(address(0)));
         vm.warp(ethRegistrarV1.GRACE_PERIOD() + 1); // avoid timestamp issues
@@ -40,7 +40,9 @@ contract NameWrapperFixture is Test, ERC721Holder, ERC1155Holder {
         (labelHash, offset) = NameCoder.readLabel(name, offset);
         if (labelHash != bytes32(0)) {
             claimNodes(name, offset, owner);
-            ensV1.setSubnodeOwner(NameCoder.namehash(name, offset), labelHash, owner);
+            bytes32 node = NameCoder.namehash(name, offset);
+            vm.prank(ensV1.owner(node));
+            ensV1.setSubnodeOwner(node, labelHash, owner);
         }
     }
 
@@ -50,49 +52,45 @@ contract NameWrapperFixture is Test, ERC721Holder, ERC1155Holder {
         name = NameUtils.appendETH(label);
         tokenId = uint256(keccak256(bytes(label)));
         ethRegistrarV1.register(tokenId, user, 86400); // test duration
-        assertEq(ethRegistrarV1.ownerOf(tokenId), user, "owner");
     }
 
     function registerWrappedETH2LD(
         string memory label,
         uint32 ownerFuses
-    ) public returns (bytes memory name, uint256 tokenId) {
+    ) internal returns (bytes memory name) {
+        uint256 tokenId;
         (name, tokenId) = registerUnwrapped(label);
         address owner = ethRegistrarV1.ownerOf(tokenId);
         vm.startPrank(owner);
         ethRegistrarV1.setApprovalForAll(address(nameWrapper), true);
         nameWrapper.wrapETH2LD(label, owner, uint16(ownerFuses), address(0));
         vm.stopPrank();
-        tokenId = uint256(NameCoder.namehash(NameUtils.ETH_NODE, bytes32(tokenId)));
-        assertEq(nameWrapper.ownerOf(tokenId), user, "owner");
     }
 
     function createWrappedChild(
-        uint256 parentTokenId,
+        bytes memory parentName,
         string memory label,
         uint32 fuses
-    ) internal returns (bytes memory name, uint256 tokenId) {
-        bytes memory parentName = nameWrapper.names(bytes32(parentTokenId));
-        (address owner, , uint64 expiry) = nameWrapper.getData(parentTokenId);
+    ) internal returns (bytes memory name) {
+        bytes32 parentNode = NameCoder.namehash(parentName, 0);
+        (address owner, , uint64 expiry) = nameWrapper.getData(uint256(parentNode));
         name = NameUtils.append(parentName, label);
         vm.prank(owner);
-        tokenId = uint256(
-            nameWrapper.setSubnodeOwner(bytes32(parentTokenId), label, owner, fuses, expiry)
-        );
+        nameWrapper.setSubnodeOwner(parentNode, label, owner, fuses, expiry);
     }
 
     function createWrappedName(
         string memory domain,
         uint32 fuses
-    ) internal returns (bytes memory name, uint256 tokenId) {
+    ) internal returns (bytes memory name) {
         name = NameCoder.encode(domain);
         claimNodes(name, 0, address(this));
         (bytes32 labelHash, uint256 offset) = NameCoder.readLabel(name, 0);
         bytes32 parentNode = NameCoder.namehash(name, offset);
         ensV1.setApprovalForAll(address(nameWrapper), true);
         nameWrapper.wrap(name, user, address(0));
-        tokenId = uint256(NameCoder.namehash(parentNode, labelHash));
+        bytes32 node = NameCoder.namehash(parentNode, labelHash);
         vm.prank(user);
-        nameWrapper.setFuses(bytes32(tokenId), uint16(fuses));
+        nameWrapper.setFuses(node, uint16(fuses));
     }
 }

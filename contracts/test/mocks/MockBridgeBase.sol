@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {BridgeEncoder} from "./../common/BridgeEncoder.sol";
-import {IBridge, BridgeMessageType} from "./../common/IBridge.sol";
-import {TransferData} from "./../common/TransferData.sol";
+import {BridgeEncoder} from "../../src/common/BridgeEncoder.sol";
+import {IBridge, BridgeMessageType} from "../../src/common/IBridge.sol";
+import {TransferData} from "../../src/common/TransferData.sol";
 
 /**
  * @title MockBridgeBase

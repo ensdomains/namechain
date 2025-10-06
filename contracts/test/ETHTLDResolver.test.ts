@@ -90,13 +90,15 @@ async function fixture() {
     libs: { GatewayVM },
   });
   const ethResolver = await mainnetV2.deployDedicatedResolver();
-  const burnAddressV1 = "0x000000000000000000000000000000000000FadE";
+  const mockBridgeController = await chain1.viem.deployContract(
+    "MockBridgeController",
+  );
   const ethTLDResolver = await chain1.viem.deployContract(
     "ETHTLDResolver",
     [
       mainnetV1.nameWrapper.address,
       mainnetV1.batchGatewayProvider.address,
-      burnAddressV1,
+      mockBridgeController.address,
       ethResolver.address,
       verifierAddress,
       namechain.datastore.address,
@@ -112,7 +114,7 @@ async function fixture() {
     ethTLDResolver,
     ethResolver,
     mainnetV1,
-    burnAddressV1,
+    mockBridgeController,
     mainnetV2,
     namechain,
     gateway,
@@ -149,7 +151,7 @@ describe("ETHTLDResolver", () => {
       "IERC165",
       "IERC7996",
       "IExtendedResolver",
-      "IRegistryResolver",
+      //"IRegistryResolver",
     ],
   });
 
@@ -276,10 +278,10 @@ describe("ETHTLDResolver", () => {
         };
         const [res] = makeResolutions(kp);
         await F.mainnetV1.setupName(kp);
-        const tokenId = BigInt(labelhash(getLabelAt(kp.name, -2)));
+        const tokenId = BigInt(labelhash(getLabelAt(kp.name, -2))); // 2LD label
         await F.mainnetV1.ethRegistrar.write.safeTransferFrom([
           F.mainnetV1.walletClient.account.address,
-          F.burnAddressV1,
+          F.mockBridgeController.address,
           tokenId,
         ]);
         const available = await F.mainnetV1.ethRegistrar.read.available([

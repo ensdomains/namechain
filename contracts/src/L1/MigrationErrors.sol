@@ -15,10 +15,8 @@ library MigrationErrors {
     // Errors
     ////////////////////////////////////////////////////////////////////////
 
-    /**
-     * @dev Thrown when attempting to migrate a subdomain whose parent has not been migrated
-     * @param name The DNS-encoded name being migrated
-     */
+    /// @dev Thrown when attempting to migrate a subdomain whose parent has not been migrated
+    /// @param name The DNS-encoded name being migrated.
     error NameNotMigrated(bytes name);
     error NameNotSubdomain(bytes name, bytes parentName);
 

@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {TransferData} from "../common/TransferData.sol";
-import {L1BridgeController} from "../L1/L1BridgeController.sol";
-import {MockBridgeBase} from "./MockBridgeBase.sol";
+import {L1BridgeController} from "../../src/L1/L1BridgeController.sol";
+import {MockBridgeBase, TransferData} from "./MockBridgeBase.sol";
 /**
  * @title MockL1Bridge
  * @dev Generic mock L1-to-L2 bridge for testing cross-chain communication

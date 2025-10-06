@@ -2,14 +2,12 @@ import { artifacts, execute } from "@rocketh";
 import { ROLES } from "../constants.js";
 
 export default execute(
-  async ({ deploy, execute: write, get, namedAccounts: { deployer} }) => {
-
+  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
     // TODO: real bridge
-    const bridge =
-      get<(typeof artifacts.MockL1Bridge)["abi"]>("MockBridge");
+    const bridge = get<(typeof artifacts.MockL1Bridge)["abi"]>("MockBridge");
 
     const bridgeController = await deploy("BridgeController", {
       account: deployer,
@@ -28,7 +26,9 @@ export default execute(
     await write(ethRegistry, {
       functionName: "grantRootRoles",
       args: [
-        ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW | ROLES.OWNER.EAC.BURN,
+        ROLES.OWNER.EAC.REGISTRAR |
+          ROLES.OWNER.EAC.RENEW |
+          ROLES.OWNER.EAC.BURN,
         bridgeController.address,
       ],
       account: deployer,
@@ -37,10 +37,7 @@ export default execute(
     // Grant bridge roles to the bridge on the bridge controller
     await write(bridgeController, {
       functionName: "grantRootRoles",
-      args: [
-        ROLES.OWNER.BRIDGE.EJECTOR,
-        bridge.address,
-      ],
+      args: [ROLES.OWNER.BRIDGE.EJECTOR, bridge.address],
       account: deployer,
     });
   },

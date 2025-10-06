@@ -14,6 +14,7 @@ import {
     CANNOT_SET_RESOLVER,
     CANNOT_SET_TTL,
     CANNOT_CREATE_SUBDOMAIN,
+    PARENT_CANNOT_CONTROL,
     IS_DOT_ETH,
     CAN_EXTEND_EXPIRY
 } from "@ens/contracts/wrapper/NameWrapper.sol";
@@ -21,7 +22,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
 import {VerifiableFactory} from "../lib/verifiable-factory/src/VerifiableFactory.sol";
-import {MockL1Bridge} from "../src/mocks/MockL1Bridge.sol";
+import {MockL1Bridge} from "../test/mocks/MockL1Bridge.sol";
 import {LibBridgeRoles} from "../src/common/IBridge.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
@@ -89,6 +90,15 @@ contract TestLockedMigrationController is NameWrapperFixture, ETHRegistryMixin {
             });
     }
 
+    function _migrateETH2LD(
+        bytes memory name
+    ) internal returns (uint256 tokenId, MigratedWrapperRegistry registry) {
+        tokenId = migrationController.migrate(_makeData(name));
+        registry = MigratedWrapperRegistry(
+            datastore.getEntry(address(ethRegistry), tokenId).subregistry
+        );
+    }
+
     function test_constructor() external view {
         assertEq(
             address(migrationController.ETH_REGISTRY_V1()),
@@ -122,13 +132,29 @@ contract TestLockedMigrationController is NameWrapperFixture, ETHRegistryMixin {
         );
     }
 
-    function test_name_with_cannot_burn_fuses_can_migrate() external {
-        (bytes memory name, uint256 tokenId) = registerWrappedETH2LD("test", CANNOT_UNWRAP);
+    function test_migrate_locked() external {
+        bytes memory name = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         vm.startPrank(user);
         nameWrapper.setApprovalForAll(address(migrationController), true);
         migrationController.migrate(_makeData(name));
         vm.stopPrank();
+    }
 
+    // ntoe: cannot call CANNOT_BURN_FUSES on ETH2LD
+    function test_migrate_locked_prefrozen() external {
+        // (bytes memory parentName, bytes32 parentNode) = registerWrappedETH2LD(
+        //     "test",
+        //     CANNOT_UNWRAP
+        // );
+        // (bytes memory name, bytes32 node) = createWrappedChild(
+        //     parentNode,
+        //     "sub",
+        //     PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CANNOT_BURN_FUSES
+        // );
+        // vm.startPrank(user);
+        // nameWrapper.setApprovalForAll(address(migrationController), true);
+        // (uint256 tokenId, MigratedWrapperRegistry parentRegistry) = _migrateETH2LD(parentName);
+        // vm.stopPrank();
         // MigrationData memory migrationData = MigrationData({
         //     transferData: TransferData({
         //         name: NameUtils.appendETH(testLabel),
@@ -141,9 +167,7 @@ contract TestLockedMigrationController is NameWrapperFixture, ETHRegistryMixin {
         //     toL1: true,
         //     salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         // });
-
         // bytes memory data = abi.encode(migrationData);
-
         // // Migration should now succeed for names with CANNOT_BURN_FUSES (should not revert)
         // vm.prank(address(nameWrapper));
         // migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);

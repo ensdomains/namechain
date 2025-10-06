@@ -28,7 +28,7 @@ import {
     PaymentRatio,
     DiscountPoint
 } from "./../src/L2/StandardRentPriceOracle.sol";
-import {MockERC20, MockERC20Blacklist} from "./../src/mocks/MockERC20.sol";
+import {MockERC20, MockERC20Blacklist} from "./../test/mocks/MockERC20.sol";
 import {StandardPricing} from "./StandardPricing.sol";
 
 contract TestETHRegistrar is Test {
