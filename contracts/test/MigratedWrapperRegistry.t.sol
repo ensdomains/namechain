@@ -29,7 +29,7 @@ import {IRegistryMetadata} from "../src/common/IRegistryMetadata.sol";
 import {IStandardRegistry} from "../src/common/IStandardRegistry.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
 import {NameUtils} from "../src/common/NameUtils.sol";
-import {TransferData, MigrationData} from "../src/common/TransferData.sol";
+import {TransferData} from "../src/common/TransferData.sol";
 import {LibLockedNames} from "../src/L1/LibLockedNames.sol";
 import {
     MigratedWrapperRegistry,
@@ -249,6 +249,31 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         bytes memory parentName = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         bytes memory name = createWrappedChild(parentName, "sub", 0);
         (, MigratedWrapperRegistry registry) = _migrateETH2LD(parentName);
+        vm.startPrank(user);
+        registry.register(
+            firstLabel(name),
+            user,
+            IRegistry(address(0)),
+            address(0),
+            0,
+            uint64(block.timestamp + 1)
+        );
+    }
+
+    function test_migrate_register_afterExpired() external {
+        bytes memory parentName = registerWrappedETH2LD("test", CANNOT_UNWRAP);
+        bytes memory name = createWrappedChild(
+            parentName,
+            "sub",
+            CANNOT_UNWRAP | PARENT_CANNOT_CONTROL
+        );
+        (, , uint64 expiry) = nameWrapper.getData(uint256(namehash(name))); // child expiry
+        vm.prank(ensV1Controller);
+        nameWrapper.renew(dotEthToken(parentName), 1 days); // extend parent
+        (, MigratedWrapperRegistry registry) = _migrateETH2LD(parentName); // migrate parent
+        assertEq(nameWrapper.ownerOf(uint256(namehash(name))), user, "before");
+        vm.warp(expiry + 1); // expire child
+        assertEq(nameWrapper.ownerOf(uint256(namehash(name))), address(0), "after");
         vm.startPrank(user);
         registry.register(
             firstLabel(name),

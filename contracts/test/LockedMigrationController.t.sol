@@ -28,7 +28,7 @@ import {NameUtils} from "../src/common/NameUtils.sol";
 import {IPermissionedRegistry} from "../src/common/IPermissionedRegistry.sol";
 import {IRegistry} from "../src/common/IRegistry.sol";
 import {LibRegistryRoles} from "../src/common/LibRegistryRoles.sol";
-import {TransferData, MigrationData} from "../src/common/TransferData.sol";
+import {TransferData} from "../src/common/TransferData.sol";
 import {L1BridgeController} from "../src/L1/L1BridgeController.sol";
 import {LockedMigrationController} from "../src/L1/LockedMigrationController.sol";
 import {LibLockedNames} from "../src/L1/LibLockedNames.sol";

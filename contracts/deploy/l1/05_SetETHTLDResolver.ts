@@ -1,5 +1,5 @@
 import { artifacts, execute } from "@rocketh";
-import { labelToCanonicalId } from "../../test/utils/utils.js";
+import { labelToCanonicalId } from "../../test/utils/utils.ts";
 
 export default execute(
   async ({ execute: write, get, namedAccounts: { deployer } }) => {

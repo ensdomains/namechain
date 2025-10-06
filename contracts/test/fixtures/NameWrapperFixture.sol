@@ -21,14 +21,17 @@ contract NameWrapperFixture is Test, ERC721Holder, ERC1155Holder {
     NameWrapper nameWrapper;
 
     address user = makeAddr("user");
+    address ensV1Controller = makeAddr("ensV1Controller");
 
     function deployNameWrapper() internal {
         ensV1 = new ENSRegistry();
         ethRegistrarV1 = new BaseRegistrarImplementation(ensV1, NameUtils.ETH_NODE);
+        ethRegistrarV1.addController(ensV1Controller);
         claimNodes(NameCoder.encode("eth"), 0, address(ethRegistrarV1));
         claimNodes(NameCoder.encode("addr.reverse"), 0, address(this)); // see below
-        ethRegistrarV1.addController(address(this));
         nameWrapper = new NameWrapper(ensV1, ethRegistrarV1, IMetadataService(address(0)));
+        nameWrapper.setController(ensV1Controller, true);
+        ethRegistrarV1.addController(address(nameWrapper));
         vm.warp(ethRegistrarV1.GRACE_PERIOD() + 1); // avoid timestamp issues
     }
 
@@ -51,7 +54,8 @@ contract NameWrapperFixture is Test, ERC721Holder, ERC1155Holder {
     ) public returns (bytes memory name, uint256 tokenId) {
         name = NameUtils.appendETH(label);
         tokenId = uint256(keccak256(bytes(label)));
-        ethRegistrarV1.register(tokenId, user, 86400); // test duration
+        vm.prank(ensV1Controller);
+        ethRegistrarV1.register(tokenId, user, 1 days); // test duration
     }
 
     function registerWrappedETH2LD(

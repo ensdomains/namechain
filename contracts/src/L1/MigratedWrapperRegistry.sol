@@ -21,7 +21,6 @@ import {IStandardRegistry} from "./../common/IStandardRegistry.sol";
 import {LibRegistryRoles} from "./../common/LibRegistryRoles.sol";
 import {NameUtils} from "./../common/NameUtils.sol";
 import {PermissionedRegistry, IPermissionedRegistry} from "./../common/PermissionedRegistry.sol";
-import {MigrationData} from "./../common/TransferData.sol";
 import {IMigratedWrapperRegistry} from "./IMigratedWrapperRegistry.sol";
 import {LibLockedNames} from "./LibLockedNames.sol";
 import {MigrationErrors} from "./MigrationErrors.sol";
