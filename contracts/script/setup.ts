@@ -23,9 +23,9 @@ import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 
 import type { RockethL1Arguments, RockethArguments } from "./types.js";
-import { deployArtifact } from "../test/fixtures/deployArtifact.js";
-import { deployVerifiableProxy } from "../test/fixtures/deployVerifiableProxy.js";
-import { urgArtifact } from "../test/fixtures/externalArtifacts.js";
+import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
+import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
+import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
 import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 import { MAX_EXPIRY, ROLES } from "../deploy/constants.js";
 

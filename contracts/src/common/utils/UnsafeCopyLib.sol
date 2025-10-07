@@ -4,6 +4,8 @@ pragma solidity >=0.8.25;
 // solhint-disable no-inline-assembly
 
 library UnsafeCopyLib {
+    bool public constant REMAPPED = true;
+
     /// @dev Copy `mem[src:src+len]` to `mem[dst:dst+len]`.
     /// @param src The source memory offset.
     /// @param dst The destination memory offset.

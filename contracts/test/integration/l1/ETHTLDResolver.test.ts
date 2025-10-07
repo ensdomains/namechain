@@ -98,8 +98,7 @@ async function fixture() {
     [
       mainnetV1.nameWrapper.address,
       mainnetV1.batchGatewayProvider.address,
-      mainnetV1.nameWrapper.address,
-      ,
+      mockBridgeController.address,
       ethResolver.address,
       verifierAddress,
       namechain.datastore.address,
