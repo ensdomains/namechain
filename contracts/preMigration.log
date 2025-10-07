@@ -1,0 +1,572 @@
+[2025-10-07T09:21:54.804Z] ENS Pre-Migration Script
+[2025-10-07T09:21:54.805Z] ============================================================
+[2025-10-07T09:48:02.745Z] ENS Pre-Migration Script
+[2025-10-07T09:48:02.745Z] ============================================================
+[2025-10-07T09:48:02.745Z] Configuration:
+[2025-10-07T09:48:02.745Z]   RPC URL: undefined
+[2025-10-07T09:48:02.745Z]   Registry: 0x5fc8d32690cc91d4c39d9d3abcbd16989f875707
+[2025-10-07T09:48:02.745Z]   Bridge Controller: 0x8a791620dd6260079bf849dc5567adc3f2fdc318
+[2025-10-07T09:48:02.745Z]   Network: mainnet
+[2025-10-07T09:48:02.745Z]   Batch Size: 100
+[2025-10-07T09:48:02.745Z]   Start Index: 0
+[2025-10-07T09:48:02.745Z]   Limit: 3
+[2025-10-07T09:48:02.746Z]   Dry Run: false
+[2025-10-07T09:48:02.746Z]   Role Bitmap: 0x1111111111111111111111111111111111111111111111111111111111111111
+[2025-10-07T09:48:02.746Z] 
+[2025-10-07T09:48:02.746Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:48:04.607Z] ENS Pre-Migration Script
+[2025-10-07T09:48:04.608Z] ============================================================
+[2025-10-07T09:48:04.608Z] Configuration:
+[2025-10-07T09:48:04.608Z]   RPC URL: undefined
+[2025-10-07T09:48:04.608Z]   Registry: 0x5fc8d32690cc91d4c39d9d3abcbd16989f875707
+[2025-10-07T09:48:04.608Z]   Bridge Controller: 0x8a791620dd6260079bf849dc5567adc3f2fdc318
+[2025-10-07T09:48:04.608Z]   Network: mainnet
+[2025-10-07T09:48:04.608Z]   Batch Size: 100
+[2025-10-07T09:48:04.608Z]   Start Index: 0
+[2025-10-07T09:48:04.608Z]   Limit: 2
+[2025-10-07T09:48:04.608Z]   Dry Run: true
+[2025-10-07T09:48:04.608Z]   Role Bitmap: 0x1111111111111111111111111111111111111111111111111111111111111111
+[2025-10-07T09:48:04.608Z] 
+[2025-10-07T09:48:04.608Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:48:05.460Z] ENS Pre-Migration Script
+[2025-10-07T09:48:05.460Z] ============================================================
+[2025-10-07T09:48:05.460Z] Configuration:
+[2025-10-07T09:48:05.460Z]   RPC URL: undefined
+[2025-10-07T09:48:05.460Z]   Registry: 0x5fc8d32690cc91d4c39d9d3abcbd16989f875707
+[2025-10-07T09:48:05.460Z]   Bridge Controller: 0x8a791620dd6260079bf849dc5567adc3f2fdc318
+[2025-10-07T09:48:05.460Z]   Network: mainnet
+[2025-10-07T09:48:05.460Z]   Batch Size: NaN
+[2025-10-07T09:48:05.460Z]   Start Index: 0
+[2025-10-07T09:48:05.460Z]   Limit: 5
+[2025-10-07T09:48:05.460Z]   Dry Run: false
+[2025-10-07T09:48:05.460Z]   Role Bitmap: 0x1111111111111111111111111111111111111111111111111111111111111111
+[2025-10-07T09:48:05.460Z] 
+[2025-10-07T09:48:05.460Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:48:06.254Z] ENS Pre-Migration Script
+[2025-10-07T09:48:06.254Z] ============================================================
+[2025-10-07T09:48:06.254Z] Configuration:
+[2025-10-07T09:48:06.254Z]   RPC URL: undefined
+[2025-10-07T09:48:06.254Z]   Registry: 0x5fc8d32690cc91d4c39d9d3abcbd16989f875707
+[2025-10-07T09:48:06.254Z]   Bridge Controller: 0x8a791620dd6260079bf849dc5567adc3f2fdc318
+[2025-10-07T09:48:06.254Z]   Network: mainnet
+[2025-10-07T09:48:06.254Z]   Batch Size: 100
+[2025-10-07T09:48:06.254Z]   Start Index: 0
+[2025-10-07T09:48:06.254Z]   Limit: 3
+[2025-10-07T09:48:06.254Z]   Dry Run: false
+[2025-10-07T09:48:06.254Z]   Role Bitmap: 0x1111111111111111111111111111111111111111111111111111111111111111
+[2025-10-07T09:48:06.254Z] 
+[2025-10-07T09:48:06.255Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:49:40.515Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:49:40.516Z] Fetched 3 registrations (total: 3)
+[2025-10-07T09:49:40.516Z] Total registrations fetched: 3
+[2025-10-07T09:49:40.516Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:49:40.516Z] Fetched 2 registrations (total: 2)
+[2025-10-07T09:49:40.516Z] Total registrations fetched: 2
+[2025-10-07T09:49:40.517Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:49:40.517Z] Fetched 2 registrations (total: 2)
+[2025-10-07T09:49:40.718Z] Fetched 2 registrations (total: 4)
+[2025-10-07T09:49:40.920Z] Fetched 1 registrations (total: 5)
+[2025-10-07T09:49:40.920Z] Total registrations fetched: 5
+[2025-10-07T09:49:40.922Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:49:40.922Z] Fetched 10 registrations (total: 10)
+[2025-10-07T09:49:40.922Z] Total registrations fetched: 3
+[2025-10-07T09:53:32.164Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:53:32.164Z] Fetched 3 registrations (total: 3)
+[2025-10-07T09:53:32.164Z] Total registrations fetched: 3
+[2025-10-07T09:53:32.165Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:53:32.165Z] Fetched 2 registrations (total: 2)
+[2025-10-07T09:53:32.165Z] Total registrations fetched: 2
+[2025-10-07T09:53:32.166Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:53:32.166Z] Fetched 2 registrations (total: 2)
+[2025-10-07T09:53:32.366Z] Fetched 2 registrations (total: 4)
+[2025-10-07T09:53:32.567Z] Fetched 1 registrations (total: 5)
+[2025-10-07T09:53:32.567Z] Total registrations fetched: 5
+[2025-10-07T09:53:32.569Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:53:32.569Z] Fetched 10 registrations (total: 10)
+[2025-10-07T09:53:32.569Z] Total registrations fetched: 3
+[2025-10-07T09:57:26.395Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:57:26.396Z] Fetched 3 registrations (total: 3)
+[2025-10-07T09:57:26.396Z] Total registrations fetched: 3
+[2025-10-07T09:57:26.397Z] 
+Starting registration process...
+[2025-10-07T09:57:26.397Z] Total names to register: 3
+[2025-10-07T09:57:26.397Z] Batch size: 100
+[2025-10-07T09:57:26.397Z] Dry run: false
+[2025-10-07T09:57:26.397Z] Registering: test1.eth (expires: 1791367046)
+[2025-10-07T09:57:28.459Z] Registering: test1.eth (expires: 1791367046)
+[2025-10-07T09:57:31.395Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:57:31.396Z] Fetched 2 registrations (total: 2)
+[2025-10-07T09:57:31.396Z] Total registrations fetched: 2
+[2025-10-07T09:57:31.396Z] 
+Starting registration process...
+[2025-10-07T09:57:31.396Z] Total names to register: 2
+[2025-10-07T09:57:31.396Z] Batch size: 100
+[2025-10-07T09:57:31.396Z] Dry run: true
+[2025-10-07T09:57:31.396Z] [DRY RUN] Would register: test1.eth
+[2025-10-07T09:57:31.396Z] [DRY RUN] Would register: test2.eth
+[2025-10-07T09:57:31.397Z] 
+============================================================
+[2025-10-07T09:57:31.397Z] Pre-Migration Complete
+[2025-10-07T09:57:31.397Z] ============================================================
+[2025-10-07T09:57:31.397Z] Total processed: 2
+[2025-10-07T09:57:31.397Z] Successful: 2
+[2025-10-07T09:57:31.397Z] Failed: 0
+[2025-10-07T09:57:31.397Z] Success rate: 100%
+[2025-10-07T09:57:31.397Z] ============================================================
+[2025-10-07T09:57:31.398Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:57:31.398Z] Fetched 2 registrations (total: 2)
+[2025-10-07T09:57:31.524Z] Registering: test1.eth (expires: 1791367046)
+[2025-10-07T09:57:31.599Z] Fetched 2 registrations (total: 4)
+[2025-10-07T09:57:31.799Z] Fetched 1 registrations (total: 5)
+[2025-10-07T09:57:31.799Z] Total registrations fetched: 5
+[2025-10-07T09:57:31.800Z] 
+Starting registration process...
+[2025-10-07T09:57:31.800Z] Total names to register: 5
+[2025-10-07T09:57:31.800Z] Batch size: 2
+[2025-10-07T09:57:31.800Z] Dry run: false
+[2025-10-07T09:57:31.800Z] Registering: test3.eth (expires: 1791539851)
+[2025-10-07T09:57:33.865Z] Registering: test3.eth (expires: 1791539851)
+[2025-10-07T09:57:35.585Z] Registering: test1.eth (expires: 1791367046)
+[2025-10-07T09:57:36.401Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T09:57:36.402Z] Fetched 10 registrations (total: 10)
+[2025-10-07T09:57:36.402Z] Total registrations fetched: 3
+[2025-10-07T09:57:36.403Z] 
+Starting registration process...
+[2025-10-07T09:57:36.404Z] Total names to register: 3
+[2025-10-07T09:57:36.404Z] Batch size: 100
+[2025-10-07T09:57:36.404Z] Dry run: false
+[2025-10-07T09:57:36.404Z] Registering: test3.eth (expires: 1791539856)
+[2025-10-07T09:57:36.654Z] Registering: test2.eth (expires: 1791453446)
+[2025-10-07T09:57:36.934Z] Registering: test3.eth (expires: 1791539851)
+[2025-10-07T09:57:38.467Z] Registering: test3.eth (expires: 1791539856)
+[2025-10-07T09:57:38.718Z] Registering: test2.eth (expires: 1791453446)
+[2025-10-07T09:57:41.003Z] Registering: test3.eth (expires: 1791539851)
+[2025-10-07T09:57:41.532Z] Registering: test3.eth (expires: 1791539856)
+[2025-10-07T10:01:41.183Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:01:41.184Z] Fetched 3 registrations (total: 3)
+[2025-10-07T10:01:41.184Z] Total registrations fetched: 3
+[2025-10-07T10:01:41.185Z] 
+Starting registration process...
+[2025-10-07T10:01:41.185Z] Total names to register: 3
+[2025-10-07T10:01:41.185Z] Batch size: 100
+[2025-10-07T10:01:41.185Z] Dry run: false
+[2025-10-07T10:01:41.185Z] Registering: test3.eth (expires: 1791540101)
+[2025-10-07T10:01:41.188Z] ✓ Registered: test3.eth (tx: 0x44b85713b21e803c899690af17ff596db49944f812fe10175c711416ac28407e)
+[2025-10-07T10:01:41.188Z] 
+============================================================
+[2025-10-07T10:01:41.189Z] Pre-Migration Complete
+[2025-10-07T10:01:41.189Z] ============================================================
+[2025-10-07T10:01:41.189Z] Total processed: 3
+[2025-10-07T10:01:41.189Z] Successful: 3
+[2025-10-07T10:01:41.189Z] Failed: 0
+[2025-10-07T10:01:41.189Z] Success rate: 100%
+[2025-10-07T10:01:41.189Z] ============================================================
+[2025-10-07T10:01:41.190Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:01:41.190Z] Fetched 2 registrations (total: 2)
+[2025-10-07T10:01:41.190Z] Total registrations fetched: 2
+[2025-10-07T10:01:41.190Z] 
+Starting registration process...
+[2025-10-07T10:01:41.190Z] Total names to register: 2
+[2025-10-07T10:01:41.190Z] Batch size: 100
+[2025-10-07T10:01:41.190Z] Dry run: true
+[2025-10-07T10:01:41.190Z] 
+============================================================
+[2025-10-07T10:01:41.190Z] Pre-Migration Complete
+[2025-10-07T10:01:41.190Z] ============================================================
+[2025-10-07T10:01:41.191Z] Total processed: 3
+[2025-10-07T10:01:41.191Z] Successful: 3
+[2025-10-07T10:01:41.191Z] Failed: 0
+[2025-10-07T10:01:41.191Z] Success rate: 100%
+[2025-10-07T10:01:41.191Z] ============================================================
+[2025-10-07T10:01:41.191Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:01:41.191Z] Fetched 2 registrations (total: 2)
+[2025-10-07T10:01:41.392Z] Fetched 2 registrations (total: 4)
+[2025-10-07T10:01:41.593Z] Fetched 1 registrations (total: 5)
+[2025-10-07T10:01:41.594Z] Total registrations fetched: 5
+[2025-10-07T10:01:41.594Z] 
+Starting registration process...
+[2025-10-07T10:01:41.594Z] Total names to register: 5
+[2025-10-07T10:01:41.594Z] Batch size: 2
+[2025-10-07T10:01:41.595Z] Dry run: false
+[2025-10-07T10:01:41.595Z] Registering: test4.eth (expires: 1791626501)
+[2025-10-07T10:01:41.605Z] ✓ Registered: test4.eth (tx: 0x59c055dc4bea943232c601c45370b13c3f2b035260f20ff98eb9b872a43601e1)
+[2025-10-07T10:01:41.606Z] Registering: test5.eth (expires: 1791712901)
+[2025-10-07T10:01:41.609Z] ✓ Registered: test5.eth (tx: 0x7530537feebfb0d62aa2f1ccfff4c41c3f9bf3025f37c44ce4a7abf8d396d44e)
+[2025-10-07T10:01:41.609Z] 
+============================================================
+[2025-10-07T10:01:41.609Z] Pre-Migration Complete
+[2025-10-07T10:01:41.609Z] ============================================================
+[2025-10-07T10:01:41.609Z] Total processed: 5
+[2025-10-07T10:01:41.609Z] Successful: 5
+[2025-10-07T10:01:41.609Z] Failed: 0
+[2025-10-07T10:01:41.609Z] Success rate: 100%
+[2025-10-07T10:01:41.609Z] ============================================================
+[2025-10-07T10:01:41.611Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:01:41.611Z] Fetched 10 registrations (total: 10)
+[2025-10-07T10:01:41.611Z] Total registrations fetched: 3
+[2025-10-07T10:01:41.611Z] 
+Starting registration process...
+[2025-10-07T10:01:41.612Z] Total names to register: 3
+[2025-10-07T10:01:41.612Z] Batch size: 100
+[2025-10-07T10:01:41.612Z] Dry run: false
+[2025-10-07T10:01:41.612Z] 
+============================================================
+[2025-10-07T10:01:41.612Z] Pre-Migration Complete
+[2025-10-07T10:01:41.612Z] ============================================================
+[2025-10-07T10:01:41.612Z] Total processed: 5
+[2025-10-07T10:01:41.612Z] Successful: 5
+[2025-10-07T10:01:41.612Z] Failed: 0
+[2025-10-07T10:01:41.612Z] Success rate: 100%
+[2025-10-07T10:01:41.612Z] ============================================================
+[2025-10-07T10:02:58.456Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:02:58.456Z] Fetched 3 registrations (total: 3)
+[2025-10-07T10:02:58.457Z] Total registrations fetched: 3
+[2025-10-07T10:02:58.457Z] 
+Starting registration process...
+[2025-10-07T10:02:58.457Z] Total names to register: 3
+[2025-10-07T10:02:58.457Z] Batch size: 100
+[2025-10-07T10:02:58.457Z] Dry run: false
+[2025-10-07T10:02:58.457Z] Registering: test1.eth (expires: 1791367378)
+[2025-10-07T10:02:58.460Z] ✓ Registered: test1.eth (tx: 0x3bf10677c72d716270d4b4664a74ecf74e511f44b8e073a3960c9b6ee66bccda)
+[2025-10-07T10:02:58.461Z] Registering: test2.eth (expires: 1791453778)
+[2025-10-07T10:02:58.463Z] ✓ Registered: test2.eth (tx: 0x88be7631b2d5388d18d844c4f8ad409e35f4b5057b2957ad2a5f261bfd1f3ee5)
+[2025-10-07T10:02:58.463Z] Registering: test3.eth (expires: 1791540178)
+[2025-10-07T10:02:58.466Z] ✓ Registered: test3.eth (tx: 0x62493625a6f7a68038facaf2733ffd2f45ebc3c85828632e3a7dfe7c10976ef4)
+[2025-10-07T10:02:58.466Z] 
+============================================================
+[2025-10-07T10:02:58.466Z] Pre-Migration Complete
+[2025-10-07T10:02:58.466Z] ============================================================
+[2025-10-07T10:02:58.467Z] Total processed: 3
+[2025-10-07T10:02:58.467Z] Successful: 3
+[2025-10-07T10:02:58.467Z] Failed: 0
+[2025-10-07T10:02:58.467Z] Success rate: 100%
+[2025-10-07T10:02:58.467Z] ============================================================
+[2025-10-07T10:02:58.469Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:02:58.470Z] Fetched 2 registrations (total: 2)
+[2025-10-07T10:02:58.470Z] Total registrations fetched: 2
+[2025-10-07T10:02:58.470Z] 
+Starting registration process...
+[2025-10-07T10:02:58.470Z] Total names to register: 2
+[2025-10-07T10:02:58.470Z] Batch size: 100
+[2025-10-07T10:02:58.470Z] Dry run: true
+[2025-10-07T10:02:58.470Z] [DRY RUN] Would register: test1.eth
+[2025-10-07T10:02:58.470Z] [DRY RUN] Would register: test2.eth
+[2025-10-07T10:02:58.470Z] 
+============================================================
+[2025-10-07T10:02:58.470Z] Pre-Migration Complete
+[2025-10-07T10:02:58.470Z] ============================================================
+[2025-10-07T10:02:58.470Z] Total processed: 2
+[2025-10-07T10:02:58.470Z] Successful: 2
+[2025-10-07T10:02:58.470Z] Failed: 0
+[2025-10-07T10:02:58.470Z] Success rate: 100%
+[2025-10-07T10:02:58.470Z] ============================================================
+[2025-10-07T10:02:58.471Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:02:58.471Z] Fetched 2 registrations (total: 2)
+[2025-10-07T10:02:58.673Z] Fetched 2 registrations (total: 4)
+[2025-10-07T10:02:58.875Z] Fetched 1 registrations (total: 5)
+[2025-10-07T10:02:58.875Z] Total registrations fetched: 5
+[2025-10-07T10:02:58.875Z] 
+Starting registration process...
+[2025-10-07T10:02:58.875Z] Total names to register: 5
+[2025-10-07T10:02:58.875Z] Batch size: 2
+[2025-10-07T10:02:58.875Z] Dry run: false
+[2025-10-07T10:02:58.875Z] Registering: test1.eth (expires: 1791367378)
+[2025-10-07T10:02:59.880Z] Registering: test1.eth (expires: 1791367378)
+[2025-10-07T10:03:01.887Z] Registering: test1.eth (expires: 1791367378)
+[2025-10-07T10:03:03.475Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:03:03.475Z] Fetched 10 registrations (total: 10)
+[2025-10-07T10:03:03.475Z] Total registrations fetched: 3
+[2025-10-07T10:03:03.476Z] 
+Starting registration process...
+[2025-10-07T10:03:03.476Z] Total names to register: 3
+[2025-10-07T10:03:03.476Z] Batch size: 100
+[2025-10-07T10:03:03.476Z] Dry run: false
+[2025-10-07T10:03:03.476Z] Registering: test1.eth (expires: 1791367383)
+[2025-10-07T10:03:04.503Z] Registering: test1.eth (expires: 1791367383)
+[2025-10-07T10:03:04.893Z] Registering: test1.eth (expires: 1791367378)
+[2025-10-07T10:03:04.897Z] Registering: test2.eth (expires: 1791453778)
+[2025-10-07T10:03:05.902Z] Registering: test2.eth (expires: 1791453778)
+[2025-10-07T10:03:06.507Z] Registering: test1.eth (expires: 1791367383)
+[2025-10-07T10:03:07.911Z] Registering: test2.eth (expires: 1791453778)
+[2025-10-07T10:03:52.596Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:03:52.596Z] Fetched 3 registrations (total: 3)
+[2025-10-07T10:03:52.596Z] Total registrations fetched: 3
+[2025-10-07T10:03:52.597Z] 
+Starting registration process...
+[2025-10-07T10:03:52.597Z] Total names to register: 3
+[2025-10-07T10:03:52.597Z] Batch size: 100
+[2025-10-07T10:03:52.597Z] Dry run: false
+[2025-10-07T10:03:52.597Z] Registering: t11.eth (expires: 1791367432)
+[2025-10-07T10:03:52.601Z] ✓ Registered: t11.eth (tx: 0x69da95c8a7aefedac3c07a74a7266f3415def6b70b2df0dc13fac0674a988d5a)
+[2025-10-07T10:03:52.601Z] Registering: t12.eth (expires: 1791453832)
+[2025-10-07T10:03:52.603Z] ✓ Registered: t12.eth (tx: 0x16b61fb471da17e77b46bce2f021f5d585f06991e3405a21e430897bd0fa19ec)
+[2025-10-07T10:03:52.604Z] Registering: t13.eth (expires: 1791540232)
+[2025-10-07T10:03:52.606Z] ✓ Registered: t13.eth (tx: 0xbde8d5e9b90553fa3f750b78081dee4cd1d673550a3dad8808215a886ecd2be3)
+[2025-10-07T10:03:52.606Z] 
+============================================================
+[2025-10-07T10:03:52.606Z] Pre-Migration Complete
+[2025-10-07T10:03:52.606Z] ============================================================
+[2025-10-07T10:03:52.606Z] Total processed: 3
+[2025-10-07T10:03:52.606Z] Successful: 3
+[2025-10-07T10:03:52.606Z] Failed: 0
+[2025-10-07T10:03:52.606Z] Success rate: 100%
+[2025-10-07T10:03:52.606Z] ============================================================
+[2025-10-07T10:03:52.609Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:03:52.609Z] Fetched 2 registrations (total: 2)
+[2025-10-07T10:03:52.609Z] Total registrations fetched: 2
+[2025-10-07T10:03:52.609Z] 
+Starting registration process...
+[2025-10-07T10:03:52.609Z] Total names to register: 2
+[2025-10-07T10:03:52.609Z] Batch size: 100
+[2025-10-07T10:03:52.609Z] Dry run: true
+[2025-10-07T10:03:52.609Z] [DRY RUN] Would register: t21.eth
+[2025-10-07T10:03:52.609Z] [DRY RUN] Would register: t22.eth
+[2025-10-07T10:03:52.609Z] 
+============================================================
+[2025-10-07T10:03:52.609Z] Pre-Migration Complete
+[2025-10-07T10:03:52.609Z] ============================================================
+[2025-10-07T10:03:52.609Z] Total processed: 2
+[2025-10-07T10:03:52.609Z] Successful: 2
+[2025-10-07T10:03:52.609Z] Failed: 0
+[2025-10-07T10:03:52.609Z] Success rate: 100%
+[2025-10-07T10:03:52.609Z] ============================================================
+[2025-10-07T10:03:52.610Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:03:52.610Z] Fetched 2 registrations (total: 2)
+[2025-10-07T10:03:52.812Z] Fetched 2 registrations (total: 4)
+[2025-10-07T10:03:53.013Z] Fetched 1 registrations (total: 5)
+[2025-10-07T10:03:53.013Z] Total registrations fetched: 5
+[2025-10-07T10:03:53.013Z] 
+Starting registration process...
+[2025-10-07T10:03:53.013Z] Total names to register: 5
+[2025-10-07T10:03:53.013Z] Batch size: 2
+[2025-10-07T10:03:53.013Z] Dry run: false
+[2025-10-07T10:03:53.014Z] Registering: t31.eth (expires: 1791367432)
+[2025-10-07T10:03:53.017Z] ✓ Registered: t31.eth (tx: 0xfbdbb43eeeee5fe030362ce64089c70c1959fb792e788eebe0f3339487bad7c4)
+[2025-10-07T10:03:53.017Z] Registering: t32.eth (expires: 1791453832)
+[2025-10-07T10:03:53.020Z] ✓ Registered: t32.eth (tx: 0x3e09d071cfa7c583f6a12f6e0ce345f60b67f262add8491ed3277b82a1391f56)
+[2025-10-07T10:03:53.020Z] Registering: t33.eth (expires: 1791540232)
+[2025-10-07T10:03:53.022Z] ✓ Registered: t33.eth (tx: 0x263004f2a7ed5b33243eae924de9be0469a4f9216e78b7ffa5e16cf1595bc6b9)
+[2025-10-07T10:03:53.022Z] Registering: t34.eth (expires: 1791626632)
+[2025-10-07T10:03:53.025Z] ✓ Registered: t34.eth (tx: 0xb19c1f64567fb04b5a2849c907822b5ea84ac8ec4fcc3d0642ac9272f311aed4)
+[2025-10-07T10:03:53.025Z] Registering: t35.eth (expires: 1791713032)
+[2025-10-07T10:03:53.027Z] ✓ Registered: t35.eth (tx: 0xfdc85545aa9cc4d09ae36d616ff6171b73a6274e9b765d659cda2cbd9280286b)
+[2025-10-07T10:03:53.027Z] 
+============================================================
+[2025-10-07T10:03:53.027Z] Pre-Migration Complete
+[2025-10-07T10:03:53.027Z] ============================================================
+[2025-10-07T10:03:53.027Z] Total processed: 5
+[2025-10-07T10:03:53.028Z] Successful: 5
+[2025-10-07T10:03:53.028Z] Failed: 0
+[2025-10-07T10:03:53.028Z] Success rate: 100%
+[2025-10-07T10:03:53.028Z] ============================================================
+[2025-10-07T10:03:53.030Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:03:53.030Z] Fetched 10 registrations (total: 10)
+[2025-10-07T10:03:53.030Z] Total registrations fetched: 3
+[2025-10-07T10:03:53.030Z] 
+Starting registration process...
+[2025-10-07T10:03:53.030Z] Total names to register: 3
+[2025-10-07T10:03:53.030Z] Batch size: 100
+[2025-10-07T10:03:53.030Z] Dry run: false
+[2025-10-07T10:03:53.030Z] Registering: t41.eth (expires: 1791367433)
+[2025-10-07T10:03:53.034Z] ✓ Registered: t41.eth (tx: 0x83a63cb8194d0daaf5ceec02c3b0bccf3932b58c6c7c43fe147be98664cf0e58)
+[2025-10-07T10:03:53.034Z] Registering: t42.eth (expires: 1791453833)
+[2025-10-07T10:03:53.037Z] ✓ Registered: t42.eth (tx: 0x49ab9e17a014aced184f5fa7c88e020d02a6e3d3a3f1e32bedf307078bf634e7)
+[2025-10-07T10:03:53.037Z] Registering: t43.eth (expires: 1791540233)
+[2025-10-07T10:03:53.039Z] ✓ Registered: t43.eth (tx: 0xe39ade74ba16d71fa689272c901296f70d06c570d8c05b7eb826e70b81efef23)
+[2025-10-07T10:03:53.039Z] 
+============================================================
+[2025-10-07T10:03:53.039Z] Pre-Migration Complete
+[2025-10-07T10:03:53.039Z] ============================================================
+[2025-10-07T10:03:53.039Z] Total processed: 3
+[2025-10-07T10:03:53.040Z] Successful: 3
+[2025-10-07T10:03:53.040Z] Failed: 0
+[2025-10-07T10:03:53.040Z] Success rate: 100%
+[2025-10-07T10:03:53.040Z] ============================================================
+[2025-10-07T10:04:06.330Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:04:06.330Z] Fetched 3 registrations (total: 3)
+[2025-10-07T10:04:06.330Z] Total registrations fetched: 3
+[2025-10-07T10:04:06.330Z] 
+Starting registration process...
+[2025-10-07T10:04:06.330Z] Total names to register: 3
+[2025-10-07T10:04:06.330Z] Batch size: 100
+[2025-10-07T10:04:06.330Z] Dry run: false
+[2025-10-07T10:04:06.331Z] Registering: t11.eth (expires: 1791367446)
+[2025-10-07T10:04:06.334Z] ✓ Registered: t11.eth (tx: 0xa5ed7cd969bbaff99eb862dec4526f608c0156ed9c93be7b47f60b8c4fd7c5b6)
+[2025-10-07T10:04:06.334Z] Registering: t12.eth (expires: 1791453846)
+[2025-10-07T10:04:06.337Z] ✓ Registered: t12.eth (tx: 0xa3692b831538fcab76827027aa3975517d33510c130fd0fb5d7edb0c97946efb)
+[2025-10-07T10:04:06.337Z] Registering: t13.eth (expires: 1791540246)
+[2025-10-07T10:04:06.339Z] ✓ Registered: t13.eth (tx: 0xddc911ec2e8fe2ecd84b53f777de4953247612bc920f1fe5a17200c3db803e57)
+[2025-10-07T10:04:06.339Z] 
+============================================================
+[2025-10-07T10:04:06.339Z] Pre-Migration Complete
+[2025-10-07T10:04:06.339Z] ============================================================
+[2025-10-07T10:04:06.339Z] Total processed: 3
+[2025-10-07T10:04:06.339Z] Successful: 3
+[2025-10-07T10:04:06.339Z] Failed: 0
+[2025-10-07T10:04:06.339Z] Success rate: 100%
+[2025-10-07T10:04:06.339Z] ============================================================
+[2025-10-07T10:04:06.342Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:04:06.342Z] Fetched 2 registrations (total: 2)
+[2025-10-07T10:04:06.342Z] Total registrations fetched: 2
+[2025-10-07T10:04:06.342Z] 
+Starting registration process...
+[2025-10-07T10:04:06.342Z] Total names to register: 2
+[2025-10-07T10:04:06.342Z] Batch size: 100
+[2025-10-07T10:04:06.342Z] Dry run: true
+[2025-10-07T10:04:06.342Z] [DRY RUN] Would register: t21.eth
+[2025-10-07T10:04:06.342Z] [DRY RUN] Would register: t22.eth
+[2025-10-07T10:04:06.342Z] 
+============================================================
+[2025-10-07T10:04:06.342Z] Pre-Migration Complete
+[2025-10-07T10:04:06.342Z] ============================================================
+[2025-10-07T10:04:06.342Z] Total processed: 2
+[2025-10-07T10:04:06.342Z] Successful: 2
+[2025-10-07T10:04:06.342Z] Failed: 0
+[2025-10-07T10:04:06.342Z] Success rate: 100%
+[2025-10-07T10:04:06.342Z] ============================================================
+[2025-10-07T10:04:06.343Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:04:06.343Z] Fetched 2 registrations (total: 2)
+[2025-10-07T10:04:06.545Z] Fetched 2 registrations (total: 4)
+[2025-10-07T10:04:06.747Z] Fetched 1 registrations (total: 5)
+[2025-10-07T10:04:06.748Z] Total registrations fetched: 5
+[2025-10-07T10:04:06.748Z] 
+Starting registration process...
+[2025-10-07T10:04:06.748Z] Total names to register: 5
+[2025-10-07T10:04:06.748Z] Batch size: 2
+[2025-10-07T10:04:06.748Z] Dry run: false
+[2025-10-07T10:04:06.748Z] Registering: t31.eth (expires: 1791367446)
+[2025-10-07T10:04:06.754Z] ✓ Registered: t31.eth (tx: 0xd08d83fcced1869f27c25f5afa6cf0d84cbd3ceaadee732b7aff7607940acd7c)
+[2025-10-07T10:04:06.754Z] Registering: t32.eth (expires: 1791453846)
+[2025-10-07T10:04:06.758Z] ✓ Registered: t32.eth (tx: 0x73b33c7ce4cb1c301025b7b7b87f2a66adbddc7c6f9dc613ae743ca6a34c3c54)
+[2025-10-07T10:04:06.758Z] Registering: t33.eth (expires: 1791540246)
+[2025-10-07T10:04:06.762Z] ✓ Registered: t33.eth (tx: 0xf55812f1ae1fa11af7afbb92c4d907bb2f681cc92a00d2b198769df676c945b3)
+[2025-10-07T10:04:06.762Z] Registering: t34.eth (expires: 1791626646)
+[2025-10-07T10:04:06.767Z] ✓ Registered: t34.eth (tx: 0xe125c2c781138ffde7d2398eab45140c6bd4635dc3459ff2bbbc03ad4e5d134e)
+[2025-10-07T10:04:06.767Z] Registering: t35.eth (expires: 1791713046)
+[2025-10-07T10:04:06.771Z] ✓ Registered: t35.eth (tx: 0x0841fc721b33bb45f6ec67e2c64c439a2f8fb70db06279412065830351860902)
+[2025-10-07T10:04:06.771Z] 
+============================================================
+[2025-10-07T10:04:06.771Z] Pre-Migration Complete
+[2025-10-07T10:04:06.771Z] ============================================================
+[2025-10-07T10:04:06.771Z] Total processed: 5
+[2025-10-07T10:04:06.771Z] Successful: 5
+[2025-10-07T10:04:06.771Z] Failed: 0
+[2025-10-07T10:04:06.771Z] Success rate: 100%
+[2025-10-07T10:04:06.771Z] ============================================================
+[2025-10-07T10:04:06.773Z] Fetching registrations from TheGraph (mainnet)...
+[2025-10-07T10:04:06.773Z] Fetched 10 registrations (total: 10)
+[2025-10-07T10:04:06.774Z] Total registrations fetched: 3
+[2025-10-07T10:04:06.774Z] 
+Starting registration process...
+[2025-10-07T10:04:06.774Z] Total names to register: 3
+[2025-10-07T10:04:06.774Z] Batch size: 100
+[2025-10-07T10:04:06.774Z] Dry run: false
+[2025-10-07T10:04:06.774Z] Registering: t41.eth (expires: 1791367446)
+[2025-10-07T10:04:06.777Z] ✓ Registered: t41.eth (tx: 0x04227b867a658b5bb32228572b83edfa76e73e106988c577509d43a5b0c8a736)
+[2025-10-07T10:04:06.777Z] Registering: t42.eth (expires: 1791453846)
+[2025-10-07T10:04:06.780Z] ✓ Registered: t42.eth (tx: 0x4a94dc6da649c562465fb1ef9c7fb932beba411b1aef38cc04fc71e4a303bff7)
+[2025-10-07T10:04:06.780Z] Registering: t43.eth (expires: 1791540246)
+[2025-10-07T10:04:06.782Z] ✓ Registered: t43.eth (tx: 0xe4a413c69a6bcf9142f67269ed514d3691148c73a89e9c057077086db5f0a8e5)
+[2025-10-07T10:04:06.782Z] 
+============================================================
+[2025-10-07T10:04:06.782Z] Pre-Migration Complete
+[2025-10-07T10:04:06.782Z] ============================================================
+[2025-10-07T10:04:06.782Z] Total processed: 3
+[2025-10-07T10:04:06.782Z] Successful: 3
+[2025-10-07T10:04:06.783Z] Failed: 0
+[2025-10-07T10:04:06.783Z] Success rate: 100%
+[2025-10-07T10:04:06.783Z] ============================================================
+[2025-10-07T10:07:54.379Z] Fetching registrations from TheGraph...
+[2025-10-07T10:07:54.380Z] Fetched 3 registrations (total: 3)
+[2025-10-07T10:07:54.380Z] Total registrations fetched: 3
+[2025-10-07T10:07:54.380Z] 
+Starting registration process...
+[2025-10-07T10:07:54.380Z] Total names to register: 3
+[2025-10-07T10:07:54.380Z] Batch size: 100
+[2025-10-07T10:07:54.380Z] Dry run: false
+[2025-10-07T10:07:54.381Z] Registering: t11.eth (expires: 1791367674)
+[2025-10-07T10:07:54.385Z] ✓ Registered: t11.eth (tx: 0x082358885f260c30bb21725598f49a986225216772d05e61d8a165be258163a7)
+[2025-10-07T10:07:54.385Z] Registering: t12.eth (expires: 1791454074)
+[2025-10-07T10:07:54.389Z] ✓ Registered: t12.eth (tx: 0x451192c7e8e0168063e1c1d7c30b37e125159fb483dcaadbb068313fb1d7e3d0)
+[2025-10-07T10:07:54.389Z] Registering: t13.eth (expires: 1791540474)
+[2025-10-07T10:07:54.392Z] ✓ Registered: t13.eth (tx: 0xcd7669f7328994375d24c1e90dc474fcd60ab38dddd9bf5085fa08084bea127c)
+[2025-10-07T10:07:54.392Z] 
+============================================================
+[2025-10-07T10:07:54.392Z] Pre-Migration Complete
+[2025-10-07T10:07:54.392Z] ============================================================
+[2025-10-07T10:07:54.392Z] Total processed: 3
+[2025-10-07T10:07:54.392Z] Successful: 3
+[2025-10-07T10:07:54.392Z] Failed: 0
+[2025-10-07T10:07:54.392Z] Success rate: 100%
+[2025-10-07T10:07:54.392Z] ============================================================
+[2025-10-07T10:07:54.396Z] Fetching registrations from TheGraph...
+[2025-10-07T10:07:54.396Z] Fetched 2 registrations (total: 2)
+[2025-10-07T10:07:54.396Z] Total registrations fetched: 2
+[2025-10-07T10:07:54.396Z] 
+Starting registration process...
+[2025-10-07T10:07:54.396Z] Total names to register: 2
+[2025-10-07T10:07:54.396Z] Batch size: 100
+[2025-10-07T10:07:54.396Z] Dry run: true
+[2025-10-07T10:07:54.396Z] [DRY RUN] Would register: t21.eth
+[2025-10-07T10:07:54.396Z] [DRY RUN] Would register: t22.eth
+[2025-10-07T10:07:54.396Z] 
+============================================================
+[2025-10-07T10:07:54.396Z] Pre-Migration Complete
+[2025-10-07T10:07:54.396Z] ============================================================
+[2025-10-07T10:07:54.396Z] Total processed: 2
+[2025-10-07T10:07:54.396Z] Successful: 2
+[2025-10-07T10:07:54.396Z] Failed: 0
+[2025-10-07T10:07:54.396Z] Success rate: 100%
+[2025-10-07T10:07:54.396Z] ============================================================
+[2025-10-07T10:07:54.398Z] Fetching registrations from TheGraph...
+[2025-10-07T10:07:54.398Z] Fetched 2 registrations (total: 2)
+[2025-10-07T10:07:54.601Z] Fetched 2 registrations (total: 4)
+[2025-10-07T10:07:54.804Z] Fetched 1 registrations (total: 5)
+[2025-10-07T10:07:54.804Z] Total registrations fetched: 5
+[2025-10-07T10:07:54.805Z] 
+Starting registration process...
+[2025-10-07T10:07:54.805Z] Total names to register: 5
+[2025-10-07T10:07:54.805Z] Batch size: 2
+[2025-10-07T10:07:54.805Z] Dry run: false
+[2025-10-07T10:07:54.805Z] Registering: t31.eth (expires: 1791367674)
+[2025-10-07T10:07:54.814Z] ✓ Registered: t31.eth (tx: 0x1c01e860bf84f00880859a9ac2809f801e57f498c27291be1bc8e9cd6e407026)
+[2025-10-07T10:07:54.815Z] Registering: t32.eth (expires: 1791454074)
+[2025-10-07T10:07:54.821Z] ✓ Registered: t32.eth (tx: 0x47ac4d145132957556c3590dac99e4b75e199ec7d90f181e8d370877114842ec)
+[2025-10-07T10:07:54.821Z] Registering: t33.eth (expires: 1791540474)
+[2025-10-07T10:07:54.827Z] ✓ Registered: t33.eth (tx: 0x763130719cfc7b8cd85a69f9ec94c1e556b34072395276c4dbaf7d6ef3acc87f)
+[2025-10-07T10:07:54.827Z] Registering: t34.eth (expires: 1791626874)
+[2025-10-07T10:07:54.831Z] ✓ Registered: t34.eth (tx: 0x15848cf69b95c8b1d4a5dfc151348869d1e62e6c1ef9a39856ccd0795e0d4472)
+[2025-10-07T10:07:54.831Z] Registering: t35.eth (expires: 1791713274)
+[2025-10-07T10:07:54.834Z] ✓ Registered: t35.eth (tx: 0x86655aae404b96d7a156b28f4917ddb436b4dd184d1d974f2f4a9062b5903814)
+[2025-10-07T10:07:54.834Z] 
+============================================================
+[2025-10-07T10:07:54.835Z] Pre-Migration Complete
+[2025-10-07T10:07:54.835Z] ============================================================
+[2025-10-07T10:07:54.835Z] Total processed: 5
+[2025-10-07T10:07:54.835Z] Successful: 5
+[2025-10-07T10:07:54.835Z] Failed: 0
+[2025-10-07T10:07:54.835Z] Success rate: 100%
+[2025-10-07T10:07:54.835Z] ============================================================
+[2025-10-07T10:07:54.837Z] Fetching registrations from TheGraph...
+[2025-10-07T10:07:54.837Z] Fetched 10 registrations (total: 10)
+[2025-10-07T10:07:54.838Z] Total registrations fetched: 3
+[2025-10-07T10:07:54.838Z] 
+Starting registration process...
+[2025-10-07T10:07:54.838Z] Total names to register: 3
+[2025-10-07T10:07:54.838Z] Batch size: 100
+[2025-10-07T10:07:54.838Z] Dry run: false
+[2025-10-07T10:07:54.838Z] Registering: t41.eth (expires: 1791367674)
+[2025-10-07T10:07:54.841Z] ✓ Registered: t41.eth (tx: 0x70fbc6783899cfcbc875922ad803b07614d109af950478114dbbf431ee78cc88)
+[2025-10-07T10:07:54.841Z] Registering: t42.eth (expires: 1791454074)
+[2025-10-07T10:07:54.845Z] ✓ Registered: t42.eth (tx: 0xaa5466fed122831d331ba4ee49076e210846d16707e75fc71a5194b3bb41099b)
+[2025-10-07T10:07:54.845Z] Registering: t43.eth (expires: 1791540474)
+[2025-10-07T10:07:54.848Z] ✓ Registered: t43.eth (tx: 0x59736cb6978501d5fa894382793d59c6104ce262d4fe3fad6c460610e3711737)
+[2025-10-07T10:07:54.848Z] 
+============================================================
+[2025-10-07T10:07:54.848Z] Pre-Migration Complete
+[2025-10-07T10:07:54.848Z] ============================================================
+[2025-10-07T10:07:54.848Z] Total processed: 3
+[2025-10-07T10:07:54.848Z] Successful: 3
+[2025-10-07T10:07:54.848Z] Failed: 0
+[2025-10-07T10:07:54.848Z] Success rate: 100%
+[2025-10-07T10:07:54.848Z] ============================================================

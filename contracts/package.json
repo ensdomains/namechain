@@ -15,6 +15,7 @@
     "@rocketh/viem": "0.14.0",
     "@types/bun": "latest",
     "chai": "^5.1.1",
+    "commander": "^12.1.0",
     "dns-packet": "^5.6.1",
     "hardhat": "3.0.1",
     "hardhat-deploy": "2.0.0-next.41",
@@ -55,6 +56,7 @@
     "clean": "forge clean && hardhat clean && rm -rf coverage/",
     "devnet": "hardhat compile && bun ./script/runDevnet.ts",
     "aakit": "bun ./script/deployAAkit.ts",
+    "premigrate": "bun ./script/preMigration.ts",
     "check:types": "tsc --noEmit"
   },
   "type": "module"
