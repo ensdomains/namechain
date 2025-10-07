@@ -32,8 +32,7 @@ import {
     MigratedWrapperRegistry,
     RegistryRolesLib,
     LockedNamesLib,
-    IRegistry,
-    IPermissionedRegistry
+    IRegistry
 } from "~src/L1/registry/MigratedWrapperRegistry.sol";
 
 contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin, NameMixin {
@@ -81,7 +80,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin, 
     ) internal view returns (LockedMigrationController.Data memory) {
         return
             LockedMigrationController.Data({
-                id: uint256(namehash(name)),
+                node: namehash(name),
                 owner: user,
                 resolver: address(1),
                 salt: uint256(keccak256(abi.encode(name, block.timestamp)))

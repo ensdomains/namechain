@@ -539,7 +539,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     function test_validateHierarchy_parent_not_migrated() public {
         // Create subdomain migration data
         bytes memory parentName = NameCoder.encode("test.eth");
-        bytes memory subDnsName = NameCoder.appendLabel(parentName, "sub");
+        bytes memory subDnsName = NameCoder.addLabel(parentName, "sub");
 
         // Generate token identifier for subdomain migration
         uint256 subTokenId = uint256(NameCoder.namehash(subDnsName, 0));

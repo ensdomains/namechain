@@ -1,30 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {console} from "forge-std/Test.sol";
-
-import {ENS} from "@ens/contracts/registry/ENS.sol";
-import {RegistryUtils} from "@ens/contracts/universalResolver/RegistryUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {INameWrapper, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-//import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
+import {InvalidOwner} from "../../common/CommonErrors.sol";
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../../common/registry/interfaces/IRegistryMetadata.sol";
-import {IStandardRegistry} from "../../common/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.sol";
-import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
-import {IMigratedWrapperRegistry} from "../registry/interfaces/IMigratedWrapperRegistry.sol";
 import {LockedNamesLib} from "../migration/libraries/LockedNamesLib.sol";
 import {MigrationErrors} from "../migration/libraries/MigrationErrors.sol";
-import {InvalidOwner} from "../../common/CommonErrors.sol";
+import {IMigratedWrapperRegistry} from "../registry/interfaces/IMigratedWrapperRegistry.sol";
 
 /**
  * @title MigratedWrapperRegistry
@@ -115,10 +108,6 @@ contract MigratedWrapperRegistry is
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
-    function parentName() public view returns (bytes memory) {
-        return NAME_WRAPPER.names(parentNode);
-    }
-
     function migrate(Data calldata md) external returns (uint256 tokenId) {
         NAME_WRAPPER.safeTransferFrom(
             msg.sender,
@@ -184,6 +173,10 @@ contract MigratedWrapperRegistry is
         } else {
             return entry.resolver;
         }
+    }
+
+    function parentName() public view returns (bytes memory) {
+        return NAME_WRAPPER.names(parentNode);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -252,7 +245,7 @@ contract MigratedWrapperRegistry is
         bytes32 node = NameCoder.namehash(parentNode, keccak256(bytes(label)));
         (, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(node));
         if ((fuses & PARENT_CANNOT_CONTROL) != 0) {
-            revert MigrationErrors.NameNotMigrated(NameCoder.appendLabel(parentName(), label));
+            revert MigrationErrors.NameNotMigrated(NameCoder.addLabel(parentName(), label));
         }
         return super._register(label, owner, registry, resolver, roleBitmap, expiry);
     }

@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {UnsafeCopyLib} from "~src/common/utils/UnsafeCopyLib.sol";
+import {LibMem} from "~src/common/utils/LibMem.sol";
 
 /// @dev Ensure remappings.txt is applied correctly.
 ///
@@ -13,7 +13,7 @@ import {UnsafeCopyLib} from "~src/common/utils/UnsafeCopyLib.sol";
 /// 1. Check UnsafeCopyLib is remapped to get `mcopy`.
 ///
 contract RemappingsTest is Test {
-    function test_UnsafeCopyLib() external pure {
-        assertTrue(UnsafeCopyLib.REMAPPED);
+    function test_LibMem() external pure {
+        assertTrue(LibMem.REMAPPED);
     }
 }

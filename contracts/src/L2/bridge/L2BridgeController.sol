@@ -6,13 +6,11 @@ import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "../../common/bridge/types/TransferData.sol";
-import {InvalidOwner} from "../../common/CommonErrors.sol";
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {ITokenObserver} from "../../common/registry/interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
-import {LibLabel} from "../../common/utils/LibLabel.sol";
 
 /**
  * @title L2BridgeController
@@ -38,11 +36,11 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        IBridge bridge_,
-        IPermissionedRegistry registry_,
-        IRegistryDatastore datastore_
-    ) EjectionController(registry_, bridge_) {
-        DATASTORE = datastore_;
+        IBridge bridge,
+        IPermissionedRegistry registry,
+        IRegistryDatastore datastore
+    ) EjectionController(registry, bridge) {
+        DATASTORE = datastore;
     }
 
     /// @inheritdoc EjectionController
@@ -56,6 +54,18 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     ////////////////////////////////////////////////////////////////////////
     // Implementation
     ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @dev Default implementation of onRenew that does nothing.
+     * Can be overridden in derived contracts for custom behavior.
+     */
+    function onRenew(
+        uint256 tokenId,
+        uint64 expiry,
+        address /*renewedBy*/
+    ) external virtual onlyRegistry {
+        BRIDGE.sendMessage(BridgeEncoderLib.encodeRenewal(tokenId, expiry));
+    }
 
     /**
      * @dev Should be called when a name is being ejected to L2.
@@ -96,18 +106,6 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             return this.onERC1155Received.selector;
         }
         return super.onERC1155Received(operator, from, tokenId, amount, data);
-    }
-
-    /**
-     * @dev Default implementation of onRenew that does nothing.
-     * Can be overridden in derived contracts for custom behavior.
-     */
-    function onRenew(
-        uint256 tokenId,
-        uint64 expiry,
-        address /*renewedBy*/
-    ) external virtual onlyRegistry {
-        BRIDGE.sendMessage(BridgeEncoderLib.encodeRenewal(tokenId, expiry));
     }
 
     /// @dev `EjectionController._onEject()` implementation.

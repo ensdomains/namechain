@@ -2,6 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {
     INameWrapper,
     CAN_EXTEND_EXPIRY,
@@ -10,17 +11,15 @@ import {
 } from "@ens/contracts/wrapper/INameWrapper.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
-import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {TransferData} from "../../common/bridge/types/TransferData.sol";
 import {L1BridgeController} from "../bridge/L1BridgeController.sol";
+import {IMigratedWrapperRegistry} from "../registry/interfaces/IMigratedWrapperRegistry.sol";
+
 import {LockedNamesLib} from "./libraries/LockedNamesLib.sol";
 import {MigrationErrors} from "./libraries/MigrationErrors.sol";
-import {IMigratedWrapperRegistry} from "../registry/interfaces/IMigratedWrapperRegistry.sol";
 
 contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     ////////////////////////////////////////////////////////////////////////
@@ -28,7 +27,7 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     ////////////////////////////////////////////////////////////////////////
 
     struct Data {
-        uint256 id; // namehash
+        bytes32 node;
         address owner;
         address resolver;
         uint256 salt;
@@ -85,7 +84,7 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
         NAME_WRAPPER.safeTransferFrom(
             msg.sender,
             address(this),
-            md.id,
+            uint256(md.node),
             1,
             abi.encode(_PAYLOAD_HASH)
         );
@@ -96,7 +95,7 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
         uint256[] memory ids = new uint256[](mds.length);
         uint256[] memory amounts = new uint256[](mds.length);
         for (uint256 i; i < mds.length; ++i) {
-            ids[i] = mds[i].id;
+            ids[i] = uint256(mds[i].node);
             amounts[i] = 1;
         }
         // acquire the tokens
@@ -138,8 +137,8 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     }
 
     function _finishMigration(Data memory md) internal returns (uint256 tokenId) {
-        bytes memory name = NAME_WRAPPER.names(bytes32(md.id));
-        (, uint32 fuses, ) = NAME_WRAPPER.getData(md.id);
+        bytes memory name = NAME_WRAPPER.names(md.node);
+        (, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(md.node));
 
         if ((fuses & IS_DOT_ETH) == 0) {
             revert MigrationErrors.NameNotETH2LD(name); // reverts if doesn't exist too
@@ -168,7 +167,7 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
                 IMigratedWrapperRegistry.initialize,
                 (
                     IMigratedWrapperRegistry.ConstructorArgs({
-                        parentNode: bytes32(md.id),
+                        parentNode: md.node,
                         owner: md.owner,
                         ownerRoles: subRegistryRoles,
                         registrar: address(0)
@@ -185,6 +184,6 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
         tokenId = L1_BRIDGE_CONTROLLER.completeEjectionToL1(td);
 
         // Finalize migration by freezing the name
-        LockedNamesLib.freezeName(NAME_WRAPPER, md.id, fuses);
+        LockedNamesLib.freezeName(NAME_WRAPPER, uint256(md.node), fuses);
     }
 }

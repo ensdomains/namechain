@@ -17,12 +17,12 @@ import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {RegistryUtils as RegistryUtilsV1} from "@ens/contracts/universalResolver/RegistryUtils.sol";
-import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {ResolverCaller} from "@ens/contracts/universalResolver/ResolverCaller.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {GatewayFetcher} from "@unruggable/gateways/contracts/GatewayFetcher.sol";
@@ -32,12 +32,12 @@ import {
 } from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
 
+import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
 import {
     DedicatedResolverLayoutLib
 } from "../../common/resolver/libraries/DedicatedResolverLayoutLib.sol";
 import {LibLabel} from "../../common/utils/LibLabel.sol";
 import {L1BridgeController} from "../bridge/L1BridgeController.sol";
-import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
 
 /// @notice Resolver that performs ".eth" resolutions for Namechain (via gateway) or V1 (via fallback).
 ///
@@ -172,7 +172,42 @@ contract ETHTLDResolver is
         }
     }
 
-    /// @dev CCIP-Read callback for `resolve()` from calling `namechainVerifier`.
+    /// @dev Return `true` if `name` does not exist onchain.
+    function isResolverOffchain(bytes memory name) external view returns (bool offchain) {
+        (, offchain) = _determineResolver(name);
+    }
+
+    /// @notice Determine underlying resolver and location for `name`.
+    /// @dev This function executes over multiple steps.
+    ///
+    /// @param name The DNS-encoded name.
+    ///
+    /// @return resolver The resolver address.
+    /// @return offchain If `true`, `resolver` is on Namechain, otherwise on Mainnet.
+    function getResolver(
+        bytes memory name
+    ) external view returns (address resolver, bool offchain) {
+        (resolver, offchain) = _determineResolver(name);
+        if (offchain) {
+            fetch(
+                namechainVerifier,
+                _createRequest(0, name),
+                this.getResolverCallback.selector // ==> step 2
+            );
+        }
+    }
+
+    /// @notice CCIP-Read callback for `getResolver()`.
+    function getResolverCallback(
+        bytes[] calldata values,
+        uint8 /*exitCode*/,
+        bytes calldata /*extraData*/
+    ) external pure returns (address resolver, bool offchain) {
+        resolver = abi.decode(values[1], (address));
+        offchain = true;
+    }
+
+    /// @notice CCIP-Read callback for `resolve()`.
     ///
     /// @param values The outputs for `GatewayRequest`.
     /// @param exitCode The exit code for `GatewayRequest`.
@@ -203,7 +238,9 @@ contract ETHTLDResolver is
     }
 
     /// @dev Determine if actively registered on V1.
+    ///
     /// @param labelHash The labelhash of the "eth" 2LD.
+    ///
     /// @return `true` if the registration is active.
     function isActiveRegistrationV1(bytes32 labelHash) public view returns (bool) {
         return
@@ -214,53 +251,9 @@ contract ETHTLDResolver is
             );
     }
 
-    function _determineResolver(
-        bytes memory name
-    ) internal view returns (address resolver, bool offchain) {
-        (bool matched, , uint256 prevOffset, uint256 offset) = NameCoder.matchSuffix(
-            name,
-            0,
-            NameCoder.ETH_NODE
-        );
-        if (!matched) {
-            revert UnreachableName(name);
-        }
-        if (offset == prevOffset) {
-            return (ethResolver, false);
-        }
-        (bytes32 labelHash, ) = NameCoder.readLabel(name, prevOffset);
-        if (isActiveRegistrationV1(labelHash)) {
-            (resolver, , ) = RegistryUtilsV1.findResolver(NAME_WRAPPER.ens(), name, 0);
-            return (resolver, false);
-        }
-        return (address(0), true);
-    }
-
-    function isOffchain(bytes memory name) external view returns (bool offchain) {
-        (, offchain) = _determineResolver(name);
-    }
-
-    function getResolver(
-        bytes memory name
-    ) external view returns (address resolver, bool offchain) {
-        (resolver, offchain) = _determineResolver(name);
-        if (offchain) {
-            fetch(
-                namechainVerifier,
-                _createRequest(0, name),
-                this.getResolverCallback.selector // ==> step 2
-            );
-        }
-    }
-
-    function getResolverCallback(
-        bytes[] calldata values,
-        uint8 /*exitCode*/,
-        bytes calldata /*extraData*/
-    ) external pure returns (address resolver, bool offchain) {
-        resolver = abi.decode(values[1], (address));
-        offchain = true;
-    }
+    ////////////////////////////////////////////////////////////////////////
+    // Internal Functions
+    ////////////////////////////////////////////////////////////////////////
 
     /// @dev Create `GatewayRequest` for registry traversal.
     ///
@@ -344,7 +337,7 @@ contract ETHTLDResolver is
         bytes memory name,
         bool multi,
         bytes[] memory m
-    ) public view returns (bytes memory) {
+    ) internal view returns (bytes memory) {
         // output[ 0] = registry
         // output[ 1] = last non-zero resolver
         // output[-1] = default address
@@ -453,11 +446,29 @@ contract ETHTLDResolver is
             new string[](0)
         );
     }
-    // solhint-enable private-vars-leading-underscore
 
-    ////////////////////////////////////////////////////////////////////////
-    // Internal Functions
-    ////////////////////////////////////////////////////////////////////////
+    /// @dev Determine underlying resolver and location for `name`.
+    function _determineResolver(
+        bytes memory name
+    ) internal view returns (address resolver, bool offchain) {
+        (bool matched, , uint256 prevOffset, uint256 offset) = NameCoder.matchSuffix(
+            name,
+            0,
+            NameCoder.ETH_NODE
+        );
+        if (!matched) {
+            revert UnreachableName(name);
+        }
+        if (offset == prevOffset) {
+            return (ethResolver, false);
+        }
+        (bytes32 labelHash, ) = NameCoder.readLabel(name, prevOffset);
+        if (isActiveRegistrationV1(labelHash)) {
+            (resolver, , ) = RegistryUtilsV1.findResolver(NAME_WRAPPER.ens(), name, 0);
+            return (resolver, false);
+        }
+        return (address(0), true);
+    }
 
     /// @dev Prepare response based on the request.
     ///

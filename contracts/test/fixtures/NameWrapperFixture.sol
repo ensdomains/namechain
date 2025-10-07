@@ -83,7 +83,7 @@ contract NameWrapperFixture is Test, ERC721Holder, ERC1155Holder {
     ) public returns (bytes memory name) {
         bytes32 parentNode = NameCoder.namehash(parentName, 0);
         (address owner, , uint64 expiry) = nameWrapper.getData(uint256(parentNode));
-        name = NameCoder.appendLabel(parentName, label);
+        name = NameCoder.addLabel(parentName, label);
         vm.prank(owner);
         nameWrapper.setSubnodeOwner(parentNode, label, owner, fuses, expiry);
     }

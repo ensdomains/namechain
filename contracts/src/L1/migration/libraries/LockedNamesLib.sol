@@ -9,14 +9,10 @@ import {
     CANNOT_SET_RESOLVER,
     CANNOT_SET_TTL,
     CANNOT_CREATE_SUBDOMAIN,
-    IS_DOT_ETH,
-    CAN_EXTEND_EXPIRY,
-    PARENT_CANNOT_CONTROL
+    CAN_EXTEND_EXPIRY
 } from "@ens/contracts/wrapper/INameWrapper.sol";
-import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 
 import {RegistryRolesLib} from "../../../common/registry/libraries/RegistryRolesLib.sol";
-import {IMigratedWrapperRegistry} from "../../registry/interfaces/IMigratedWrapperRegistry.sol";
 
 /**
  * @title LockedNamesLib
