@@ -56,8 +56,10 @@ export async function deployV2Fixture(
   ]);
   const dedicatedResolverFactory =
     await network.viem.deployContract("VerifiableFactory");
-  const dedicatedResolverImpl =
-    await network.viem.deployContract("DedicatedResolver");
+  const dedicatedResolverImpl = await network.viem.deployContract(
+    "DedicatedResolver",
+    [hcaFactory.address],
+  );
   return {
     network,
     publicClient,

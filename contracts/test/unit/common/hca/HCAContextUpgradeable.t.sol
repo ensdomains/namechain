@@ -5,12 +5,12 @@ pragma solidity ^0.8.25;
 
 import {Test} from "forge-std/Test.sol";
 
-import {HCAContextUpgradable} from "~src/common/hca/HCAContextUpgradable.sol";
+import {HCAContextUpgradeable} from "~src/common/hca/HCAContextUpgradeable.sol";
 import {HCAEquivalence} from "~src/common/hca/HCAEquivalence.sol";
 import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
 import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
 
-contract HCAContextUpgradableHarness is HCAContextUpgradable {
+contract HCAContextUpgradeableHarness is HCAContextUpgradeable {
     constructor(IHCAFactoryBasic factory) HCAEquivalence(factory) {}
 
     function exposedMsgSender() external view returns (address) {
@@ -18,9 +18,9 @@ contract HCAContextUpgradableHarness is HCAContextUpgradable {
     }
 }
 
-contract HCAContextUpgradableTest is Test {
+contract HCAContextUpgradeableTest is Test {
     MockHCAFactoryBasic factory;
-    HCAContextUpgradableHarness harness;
+    HCAContextUpgradeableHarness harness;
 
     address user = address(0x1111);
     address hca = address(0xAAAA);
@@ -28,7 +28,7 @@ contract HCAContextUpgradableTest is Test {
 
     function setUp() public {
         factory = new MockHCAFactoryBasic();
-        harness = new HCAContextUpgradableHarness(factory);
+        harness = new HCAContextUpgradeableHarness(factory);
     }
 
     function test_constructor_sets_factory() public view {

@@ -18,8 +18,13 @@ import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+
+import {HCAContextUpgradeable} from "../hca/HCAContextUpgradeable.sol";
+import {HCAEquivalence} from "../hca/HCAEquivalence.sol";
+import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 
 import {IDedicatedResolverSetters, NODE_ANY} from "./interfaces/IDedicatedResolverSetters.sol";
 
@@ -28,6 +33,7 @@ import {IDedicatedResolverSetters, NODE_ANY} from "./interfaces/IDedicatedResolv
 contract DedicatedResolver is
     ERC165,
     OwnableUpgradeable,
+    HCAContextUpgradeable,
     IDedicatedResolverSetters,
     IERC7996,
     IExtendedResolver,
@@ -77,6 +83,8 @@ contract DedicatedResolver is
     ////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////
+
+    constructor(IHCAFactoryBasic hcaFactory) HCAEquivalence(hcaFactory) {}
 
     /// @dev Initialize the contract.
     /// @param owner The owner of the resolver.
@@ -295,6 +303,16 @@ contract DedicatedResolver is
     ////////////////////////////////////////////////////////////////////////
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
+
+    function _msgSender()
+        internal
+        view
+        virtual
+        override(ContextUpgradeable, HCAContextUpgradeable)
+        returns (address)
+    {
+        return HCAContextUpgradeable._msgSender();
+    }
 
     /// @dev Returns true if `x` has a single bit set.
     function _isPowerOf2(uint256 x) internal pure returns (bool) {
