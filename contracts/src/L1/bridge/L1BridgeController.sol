@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
 import {EjectionController} from "../../common/bridge/EjectionController.sol";
 import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
@@ -28,7 +30,7 @@ contract L1BridgeController is EjectionController {
     // Errors
     ////////////////////////////////////////////////////////////////////////
 
-    error NotTokenOwner(uint256 tokenId);
+    //error NotTokenOwner(uint256 tokenId);
 
     error LockedNameCannotBeEjected(uint256 tokenId);
 
@@ -37,9 +39,9 @@ contract L1BridgeController is EjectionController {
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        IPermissionedRegistry registry_,
-        IBridge bridge_
-    ) EjectionController(registry_, bridge_) {}
+        IPermissionedRegistry registry,
+        IBridge bridge
+    ) EjectionController(registry, bridge) {}
 
     ////////////////////////////////////////////////////////////////////////
     // Implementation
@@ -48,22 +50,20 @@ contract L1BridgeController is EjectionController {
     /**
      * @dev Should be called when a name is being ejected to L1.
      *
-     * @param transferData The transfer data for the name being ejected
+     * @param td The transfer data for the name being ejected
      */
     function completeEjectionToL1(
-        TransferData memory transferData
+        TransferData calldata td
     ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) returns (uint256 tokenId) {
-        string memory label = LibLabel.extractLabel(transferData.dnsEncodedName);
-
         tokenId = REGISTRY.register(
-            label,
-            transferData.owner,
-            IRegistry(transferData.subregistry),
-            transferData.resolver,
-            transferData.roleBitmap,
-            transferData.expires
+            td.label,
+            td.owner,
+            IRegistry(td.subregistry),
+            td.resolver,
+            td.roleBitmap,
+            td.expiry
         );
-        emit NameEjectedToL1(transferData.dnsEncodedName, tokenId);
+        emit NameInjected(tokenId, td.label);
     }
 
     /**
@@ -84,41 +84,29 @@ contract L1BridgeController is EjectionController {
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
 
-    /**
-     * Overrides the EjectionController._onEject function.
-     */
-    function _onEject(
-        uint256[] memory tokenIds,
-        TransferData[] memory transferDataArray
-    ) internal virtual override {
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            uint256 tokenId = tokenIds[i];
-            TransferData memory transferData = transferDataArray[i];
+    /// @dev `EjectionController._onEject()` implementation.
+    function _onEject(TransferData[] memory tds) internal virtual override {
+        for (uint256 i; i < tds.length; ++i) {
+            TransferData memory td = tds[i];
+
+            (uint256 tokenId, ) = REGISTRY.getNameData(td.label);
+            // TODO: avoid small expiry ejections?
 
             // Check if name is locked (no assignees for ROLE_SET_SUBREGISTRY or ROLE_SET_SUBREGISTRY_ADMIN means locked)
-            uint256 resource = LibLabel.getCanonicalId(tokenId);
             (uint256 count, ) = REGISTRY.getAssigneeCount(
-                resource,
+                LibLabel.getCanonicalId(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY | RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN
             );
             if (count == 0) {
                 revert LockedNameCannotBeEjected(tokenId);
             }
 
-            // check that the owner is not null address
-            if (transferData.owner == address(0)) {
-                revert InvalidOwner();
-            }
-
-            // check that the label matches the token id
-            _assertTokenIdMatchesLabel(tokenId, transferData.dnsEncodedName);
-
             // burn the token
             REGISTRY.burn(tokenId);
 
             // send the message to the bridge
-            BRIDGE.sendMessage(BridgeEncoderLib.encodeEjection(transferData));
-            emit NameEjectedToL2(transferData.dnsEncodedName, tokenId);
+            BRIDGE.sendMessage(BridgeEncoderLib.encodeEjection(td));
+            emit NameEjected(tokenId, td.label);
         }
     }
 }

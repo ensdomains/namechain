@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {IBridge, BridgeMessageType} from "../common/bridge/interfaces/IBridge.sol";
-import {BridgeEncoderLib} from "../common/bridge/libraries/BridgeEncoderLib.sol";
-import {TransferData} from "../common/bridge/types/TransferData.sol";
+import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
+import {IBridge, BridgeMessageType} from "~src/common/bridge/interfaces/IBridge.sol";
+import {TransferData} from "~src/common/bridge/types/TransferData.sol";
 
 /**
  * @title MockBridgeBase
@@ -12,11 +12,19 @@ import {TransferData} from "../common/bridge/types/TransferData.sol";
  */
 abstract contract MockBridgeBase is IBridge {
     ////////////////////////////////////////////////////////////////////////
+    // Storage
+    ////////////////////////////////////////////////////////////////////////
+
+    MockBridgeBase public receiverBridge;
+    bytes public lastMessage;
+
+    ////////////////////////////////////////////////////////////////////////
     // Events
     ////////////////////////////////////////////////////////////////////////
 
     // Event for message receipt acknowledgement
-    event MessageProcessed(bytes message);
+    event MessageSent(bytes message);
+    event MessageReceived(bytes message);
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
@@ -28,33 +36,40 @@ abstract contract MockBridgeBase is IBridge {
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
+    /// @dev Set the bridge on the "other" side.
+    function setReceiverBridge(MockBridgeBase bridge) external {
+        receiverBridge = bridge;
+    }
+
+    function sendMessage(bytes memory message) external override {
+        lastMessage = message;
+        emit MessageSent(message);
+        if (address(receiverBridge) != address(0)) {
+            receiverBridge.receiveMessage(message);
+        }
+    }
+
     /**
      * @dev Simulate receiving a message.
      * Anyone can call this method with encoded message data
      */
     function receiveMessage(bytes calldata message) external {
         BridgeMessageType messageType = BridgeEncoderLib.getMessageType(message);
-
+        emit MessageReceived(message);
         if (messageType == BridgeMessageType.EJECTION) {
             (TransferData memory transferData) = BridgeEncoderLib.decodeEjection(message);
-            _handleEjectionMessage(transferData.dnsEncodedName, transferData);
+            _handleEjectionMessage(transferData);
         } else if (messageType == BridgeMessageType.RENEWAL) {
             (uint256 tokenId, uint64 newExpiry) = BridgeEncoderLib.decodeRenewal(message);
             _handleRenewalMessage(tokenId, newExpiry);
         }
-
-        // Emit event for tracking
-        emit MessageProcessed(message);
     }
 
     /**
      * @dev Abstract method for handling ejection messages
      * Must be implemented by concrete bridge contracts
      */
-    function _handleEjectionMessage(
-        bytes memory dnsEncodedName,
-        TransferData memory transferData
-    ) internal virtual;
+    function _handleEjectionMessage(TransferData memory transferData) internal virtual;
 
     /**
      * @dev Abstract method for handling renewal messages

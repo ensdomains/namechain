@@ -5,6 +5,8 @@ pragma solidity >=0.8.13;
 
 import {Test, Vm} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {BridgeMessageType} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
@@ -13,12 +15,11 @@ import {TransferData} from "~src/common/bridge/types/TransferData.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
-import {MockBridgeBase} from "~src/mocks/MockBridgeBase.sol";
-import {MockL1Bridge} from "~src/mocks/MockL1Bridge.sol";
-import {MockL2Bridge} from "~src/mocks/MockL2Bridge.sol";
+import {MockBridgeBase} from "~test/mocks/MockBridgeBase.sol";
+import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
+import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -58,6 +59,10 @@ contract BridgeMessagesTest is Test {
         l1Bridge = new MockL1Bridge();
         l2Bridge = new MockL2Bridge();
 
+        // link bridges
+        l1Bridge.setReceiverBridge(l2Bridge);
+        l2Bridge.setReceiverBridge(l1Bridge);
+
         // Deploy controllers
         l1Controller = new L1BridgeController(registry, l1Bridge);
         l2Controller = new L2BridgeController(l2Bridge, registry, datastore);
@@ -77,13 +82,12 @@ contract BridgeMessagesTest is Test {
     }
 
     function test_encodeDecodeEjection() public view {
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
         TransferData memory transferData = TransferData({
-            dnsEncodedName: dnsEncodedName,
+            label: testLabel,
             owner: testOwner,
             subregistry: address(registry),
             resolver: testResolver,
-            expires: testExpiry,
+            expiry: testExpiry,
             roleBitmap: testRoleBitmap
         });
 
@@ -98,12 +102,12 @@ contract BridgeMessagesTest is Test {
         (TransferData memory decodedData) = BridgeEncoderLib.decodeEjection(encodedMessage);
 
         // Verify decoded data
-        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(dnsEncodedName));
-        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(transferData.dnsEncodedName));
+        assertEq(keccak256(bytes(decodedData.label)), keccak256(bytes(testLabel)));
+        assertEq(keccak256(bytes(decodedData.label)), keccak256(bytes(transferData.label)));
         assertEq(decodedData.owner, transferData.owner);
         assertEq(decodedData.subregistry, transferData.subregistry);
         assertEq(decodedData.resolver, transferData.resolver);
-        assertEq(decodedData.expires, transferData.expires);
+        assertEq(decodedData.expiry, transferData.expiry);
         assertEq(decodedData.roleBitmap, transferData.roleBitmap);
     }
 
@@ -142,12 +146,12 @@ contract BridgeMessagesTest is Test {
         uint64 newExpiry = uint64(block.timestamp + 86400 * 2);
 
         // Encode renewal message
-        bytes memory renewalMessage = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
+        bytes memory message = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
 
         vm.recordLogs();
 
         // Simulate receiving the message through the bridge
-        l1Bridge.receiveMessage(renewalMessage);
+        l1Bridge.receiveMessage(message);
 
         // Verify the renewal was processed
         uint64 updatedExpiry = datastore.getEntry(address(registry), tokenId).expiry;
@@ -172,60 +176,28 @@ contract BridgeMessagesTest is Test {
         uint64 newExpiry = uint64(block.timestamp + 86400);
 
         // Encode renewal message
-        bytes memory renewalMessage = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
+        bytes memory message = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
 
         // L2 bridge should revert on renewal messages
         vm.expectRevert(MockBridgeBase.RenewalNotSupported.selector);
-        l2Bridge.receiveMessage(renewalMessage);
+        l2Bridge.receiveMessage(message);
     }
 
-    function test_l1Bridge_sendMessage() public {
-        bytes memory testMessage = "test message";
-
-        vm.recordLogs();
-        l1Bridge.sendMessage(testMessage);
-
-        // Check for NameBridgedToL2 event
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundEvent = false;
-        bytes32 eventSig = keccak256("NameBridgedToL2(bytes)");
-
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == eventSig) {
-                foundEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundEvent, "NameBridgedToL2 event should be emitted");
+    function test_l1Bridge_sendMessage() external {
+        bytes memory message = abi.encode(BridgeMessageType.UNKNOWN, "test");
+        vm.expectEmit(false, false, false, true);
+        emit MockBridgeBase.MessageSent(message);
+        vm.expectEmit(false, false, false, true);
+        emit MockBridgeBase.MessageReceived(message);
+        l1Bridge.sendMessage(message);
     }
 
-    function test_l2Bridge_sendMessage_ejection() public {
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
-        bytes memory ejectionMessage = BridgeEncoderLib.encodeEjection(
-            TransferData({
-                dnsEncodedName: dnsEncodedName,
-                owner: testOwner,
-                subregistry: address(registry),
-                resolver: testResolver,
-                expires: testExpiry,
-                roleBitmap: testRoleBitmap
-            })
-        );
-
-        vm.recordLogs();
-        l2Bridge.sendMessage(ejectionMessage);
-
-        // Check for NameBridgedToL1 event
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundEvent = false;
-        bytes32 eventSig = keccak256("NameBridgedToL1(bytes)");
-
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == eventSig) {
-                foundEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundEvent, "NameBridgedToL1 event should be emitted");
+    function test_l2Bridge_sendMessage() external {
+        bytes memory message = abi.encode(BridgeMessageType.UNKNOWN, "test");
+        vm.expectEmit(false, false, false, true);
+        emit MockBridgeBase.MessageSent(message);
+        vm.expectEmit(false, false, false, true);
+        emit MockBridgeBase.MessageReceived(message);
+        l2Bridge.sendMessage(message);
     }
 }

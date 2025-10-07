@@ -1,6 +1,7 @@
 import type { NetworkConnection } from "hardhat/types/network";
 import { type Address, labelhash, namehash, zeroAddress } from "viem";
 import { splitName } from "../../utils/utils.js";
+import { LOCAL_BATCH_GATEWAY_URL } from "../../../deploy/constants.ts";
 
 export async function deployV1Fixture(
   network: NetworkConnection,
@@ -38,7 +39,7 @@ export async function deployV1Fixture(
   await reverseRegistrar.write.setDefaultResolver([publicResolver.address]);
   const batchGatewayProvider = await network.viem.deployContract(
     "GatewayProvider",
-    [walletClient.account.address, ["x-batch-gateway:true"]],
+    [walletClient.account.address, [LOCAL_BATCH_GATEWAY_URL]],
   );
   const universalResolver = await network.viem.deployContract(
     "UniversalResolver",
@@ -63,6 +64,11 @@ export async function deployV1Fixture(
     labelhash("eth"),
     ethRegistrar.address,
   ]);
+  const nameWrapper = await network.viem.deployContract("NameWrapper", [
+    ensRegistry.address,
+    ethRegistrar.address,
+    zeroAddress, // IMetadataService
+  ]);
   return {
     network,
     publicClient,
@@ -73,6 +79,7 @@ export async function deployV1Fixture(
     publicResolver,
     batchGatewayProvider,
     universalResolver,
+    nameWrapper,
     setupName,
   };
   // clobbers registry ownership up to name

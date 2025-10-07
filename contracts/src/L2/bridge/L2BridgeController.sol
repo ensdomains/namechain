@@ -60,47 +60,42 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     /**
      * @dev Should be called when a name is being ejected to L2.
      *
-     * @param transferData The transfer data for the name being migrated
+     * @param td The transfer data for the name being migrated
      */
     function completeEjectionToL2(
-        TransferData memory transferData
+        TransferData calldata td
     ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
-        string memory label = LibLabel.extractLabel(transferData.dnsEncodedName);
-        (uint256 tokenId, ) = REGISTRY.getNameData(label);
+        (uint256 tokenId, ) = REGISTRY.getNameData(td.label);
 
         // owner should be the bridge controller
         if (REGISTRY.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
         }
 
-        REGISTRY.setSubregistry(tokenId, IRegistry(transferData.subregistry));
-        REGISTRY.setResolver(tokenId, transferData.resolver);
+        REGISTRY.setSubregistry(tokenId, IRegistry(td.subregistry));
+        REGISTRY.setResolver(tokenId, td.resolver);
 
         // Clear token observer and transfer ownership to recipient
         REGISTRY.setTokenObserver(tokenId, ITokenObserver(address(0)));
-        REGISTRY.safeTransferFrom(address(this), transferData.owner, tokenId, 1, "");
+        REGISTRY.safeTransferFrom(address(this), td.owner, tokenId, 1, "");
 
-        emit NameEjectedToL2(transferData.dnsEncodedName, tokenId);
+        emit NameInjected(tokenId, td.label);
     }
 
-    /**
-     * @dev Override onERC1155Received to handle minting scenarios
-     * When from is address(0), it's a mint operation and we should just return success
-     * Otherwise, delegate to the parent implementation for ejection processing
-     */
+    /// @dev Override onERC1155Received to handle minting.
     function onERC1155Received(
-        address /* operator */,
+        address operator,
         address from,
         uint256 tokenId,
-        uint256 /* amount */,
+        uint256 amount,
         bytes calldata data
-    ) external virtual override onlyRegistry returns (bytes4) {
-        // If from is not address(0), it's not a mint operation - process as ejection
-        if (from != address(0)) {
-            _processEjection(tokenId, data);
+    ) public virtual override onlyRegistry returns (bytes4) {
+        if (from == address(0)) {
+            // When from is address(0), it's a mint operation and we should just return success
+            // TODO: when does this happen?
+            return this.onERC1155Received.selector;
         }
-
-        return this.onERC1155Received.selector;
+        return super.onERC1155Received(operator, from, tokenId, amount, data);
     }
 
     /**
@@ -109,30 +104,18 @@ contract L2BridgeController is EjectionController, ITokenObserver {
      */
     function onRenew(
         uint256 tokenId,
-        uint64 expires,
+        uint64 expiry,
         address /*renewedBy*/
     ) external virtual onlyRegistry {
-        BRIDGE.sendMessage(BridgeEncoderLib.encodeRenewal(tokenId, expires));
+        BRIDGE.sendMessage(BridgeEncoderLib.encodeRenewal(tokenId, expiry));
     }
 
-    /**
-     * Overrides the EjectionController._onEject function.
-     */
-    function _onEject(
-        uint256[] memory tokenIds,
-        TransferData[] memory transferDataArray
-    ) internal virtual override {
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            uint256 tokenId = tokenIds[i];
-            TransferData memory transferData = transferDataArray[i];
+    /// @dev `EjectionController._onEject()` implementation.
+    function _onEject(TransferData[] memory tds) internal virtual override {
+        for (uint256 i; i < tds.length; ++i) {
+            TransferData memory td = tds[i];
 
-            // check that the owner is not null address
-            if (transferData.owner == address(0)) {
-                revert InvalidOwner();
-            }
-
-            // check that the label matches the token id
-            _assertTokenIdMatchesLabel(tokenId, transferData.dnsEncodedName);
+            (uint256 tokenId, ) = REGISTRY.getNameData(td.label);
 
             /*
             Check that there is no more than one holder of the token observer and subregistry setting roles.
@@ -161,8 +144,8 @@ contract L2BridgeController is EjectionController, ITokenObserver {
             REGISTRY.setTokenObserver(tokenId, this);
 
             // Send bridge message for ejection
-            BRIDGE.sendMessage(BridgeEncoderLib.encodeEjection(transferData));
-            emit NameEjectedToL1(transferData.dnsEncodedName, tokenId);
+            BRIDGE.sendMessage(BridgeEncoderLib.encodeEjection(td));
+            emit NameEjected(tokenId, td.label);
         }
     }
 }

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity >=0.8.13;
 
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
 import {Test} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
 import {BridgeMessageType} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 
 // Wrapper contract to properly test library errors
 contract BridgeEncoderWrapper {
@@ -31,13 +32,12 @@ contract BridgeEncoderLibTest is Test {
     }
 
     function testEncodeEjection() public view {
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel("test");
         TransferData memory transferData = TransferData({
-            dnsEncodedName: dnsEncodedName,
+            label: "test",
             owner: address(0x123),
             subregistry: address(0x456),
             resolver: address(0x789),
-            expires: uint64(block.timestamp + 365 days),
+            expiry: uint64(block.timestamp + 365 days),
             roleBitmap: 0x01
         });
 
@@ -49,12 +49,11 @@ contract BridgeEncoderLibTest is Test {
 
         // Verify we can decode the message back
         (TransferData memory decodedData) = BridgeEncoderLib.decodeEjection(encodedMessage);
-        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(dnsEncodedName));
-        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(transferData.dnsEncodedName));
+        assertEq(keccak256(bytes(decodedData.label)), keccak256(bytes(transferData.label)));
         assertEq(decodedData.owner, transferData.owner);
         assertEq(decodedData.subregistry, transferData.subregistry);
         assertEq(decodedData.resolver, transferData.resolver);
-        assertEq(decodedData.expires, transferData.expires);
+        assertEq(decodedData.expiry, transferData.expiry);
         assertEq(decodedData.roleBitmap, transferData.roleBitmap);
     }
 
@@ -79,13 +78,12 @@ contract BridgeEncoderLibTest is Test {
     function testDecodeEjectionInvalidMessageType() public {
         // Create a message with wrong message type but correct structure
         // to test the custom error (not ABI decoding error)
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel("test");
         TransferData memory transferData = TransferData({
-            dnsEncodedName: dnsEncodedName,
+            label: "test",
             owner: address(0x123),
             subregistry: address(0x456),
             resolver: address(0x789),
-            expires: uint64(block.timestamp + 365 days),
+            expiry: uint64(block.timestamp + 365 days),
             roleBitmap: 0x01
         });
 
@@ -118,13 +116,12 @@ contract BridgeEncoderLibTest is Test {
     }
 
     function testGetMessageType() public view {
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel("test");
         TransferData memory transferData = TransferData({
-            dnsEncodedName: dnsEncodedName,
+            label: "test",
             owner: address(0x123),
             subregistry: address(0x456),
             resolver: address(0x789),
-            expires: uint64(block.timestamp + 365 days),
+            expiry: uint64(block.timestamp + 365 days),
             roleBitmap: 0x01
         });
 
@@ -143,13 +140,12 @@ contract BridgeEncoderLibTest is Test {
 
     function testEncodingStructure() public view {
         // Test that the new encoding structure works correctly
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel("structuretest");
         TransferData memory transferData = TransferData({
-            dnsEncodedName: dnsEncodedName,
+            label: "structuretest",
             owner: address(0x999),
             subregistry: address(0x888),
             resolver: address(0x777),
-            expires: uint64(block.timestamp + 500 days),
+            expiry: uint64(block.timestamp + 500 days),
             roleBitmap: 0xFF
         });
 
@@ -158,12 +154,11 @@ contract BridgeEncoderLibTest is Test {
         // Decode and verify all fields match exactly
         (TransferData memory decodedData) = BridgeEncoderLib.decodeEjection(encodedMessage);
 
-        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(dnsEncodedName));
-        assertEq(keccak256(decodedData.dnsEncodedName), keccak256(transferData.dnsEncodedName));
+        assertEq(keccak256(bytes(decodedData.label)), keccak256(bytes(transferData.label)));
         assertEq(decodedData.owner, transferData.owner);
         assertEq(decodedData.subregistry, transferData.subregistry);
         assertEq(decodedData.resolver, transferData.resolver);
-        assertEq(decodedData.expires, transferData.expires);
+        assertEq(decodedData.expiry, transferData.expiry);
         assertEq(decodedData.roleBitmap, transferData.roleBitmap);
     }
 }

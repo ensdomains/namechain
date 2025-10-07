@@ -45,41 +45,9 @@ contract LibRegistryTest is Test, ERC1155Holder {
         );
     }
 
-    function setUp() public {
+    function setUp() external {
         datastore = new RegistryDatastore();
         rootRegistry = _createRegistry();
-    }
-
-    function test_readLabel_root() external pure {
-        bytes memory name = NameCoder.encode("");
-        assertEq(LibRegistry.readLabel(name, 0), "");
-    }
-    function test_readLabel_eth() external pure {
-        bytes memory name = NameCoder.encode("eth");
-        assertEq(LibRegistry.readLabel(name, 0), "eth");
-        assertEq(LibRegistry.readLabel(name, 4), ""); // 3eth
-    }
-    function test_readLabel_test_eth() external pure {
-        bytes memory name = NameCoder.encode("test.eth");
-        assertEq(LibRegistry.readLabel(name, 0), "test");
-        assertEq(LibRegistry.readLabel(name, 5), "eth"); // 4test
-        assertEq(LibRegistry.readLabel(name, 9), ""); // 4test3eth
-    }
-
-    function _readLabel(bytes memory name, uint256 offset) public pure returns (string memory) {
-        return LibRegistry.readLabel(name, offset);
-    }
-    function test_Revert_readLabel_invalidOffset() external {
-        vm.expectRevert();
-        this._readLabel("", 1);
-    }
-    function test_Revert_readLabel_invalidEncoding() external {
-        vm.expectRevert();
-        this._readLabel("0x01", 0);
-    }
-    function test_revert_readLabel_junkAtEnd() external {
-        vm.expectRevert();
-        this._readLabel("0x0000", 0);
     }
 
     function _expectFindResolver(

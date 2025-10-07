@@ -14,7 +14,7 @@ export async function registerTestNames(
     const resolver = await env.l2.deployDedicatedResolver(account);
 
     // Register the name exactly like in urg.test.ts
-    await env.l2.contracts.ethRegistry.write.register([
+    await env.l2.contracts.ETHRegistry.write.register([
       label,
       account.address,
       zeroAddress,

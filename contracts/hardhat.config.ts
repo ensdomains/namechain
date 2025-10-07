@@ -7,6 +7,7 @@ import HardhatDeploy from "hardhat-deploy";
 
 import HardhatStorageLayoutPlugin from "./plugins/storage-layout/index.ts";
 import HardhatIgnoreWarningsPlugin from "./plugins/ignore-warnings/index.ts";
+import HardhatForgeRemapPlugin from "./plugins/forge-remap/index.ts";
 
 const config = {
   solidity: {
@@ -32,6 +33,7 @@ const config = {
     sources: {
       solidity: [
         "./src/",
+        "./test/mocks/",
         "./lib/verifiable-factory/src/",
         "./lib/ens-contracts/contracts/",
         "./lib/openzeppelin-contracts/contracts/utils/introspection/",
@@ -50,6 +52,7 @@ const config = {
     HardhatViem,
     HardhatStorageLayoutPlugin,
     HardhatIgnoreWarningsPlugin,
+    HardhatForgeRemapPlugin,
     HardhatDeploy,
   ],
 } satisfies HardhatUserConfig;

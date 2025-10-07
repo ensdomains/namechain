@@ -22,12 +22,12 @@ export {
 //   return concat(m);
 // }
 
-// see: NameUtils.labelToCanonicalId()
+// see: LibLabel.labelToCanonicalId()
 export function labelToCanonicalId(label: string) {
   return getCanonicalId(BigInt(labelhash(label)));
 }
 
-// see: NameUtils.getCanonicalId
+// see: LibLabel.getCanonicalId
 export function getCanonicalId(id: bigint) {
   return id ^ BigInt.asUintN(32, id);
 }

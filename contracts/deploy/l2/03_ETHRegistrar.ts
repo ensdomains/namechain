@@ -1,5 +1,5 @@
 import { artifacts, execute } from "@rocketh";
-import { ROLES } from "../constants.ts";
+import { ROLES } from "../constants.js";
 
 export default execute(
   async ({
