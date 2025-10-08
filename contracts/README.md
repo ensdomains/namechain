@@ -89,12 +89,6 @@ uint256 canonical = 0x9c22ff5f21f0b81b113e63f7db6da94fedef11b2000000000000000000
 datastore.getEntry(registry, canonical); // Always finds the current data
 ```
 
-**Enables**:
-- **Token Regeneration**: Names can be burned and re-minted without losing storage
-- **Version/Timestamp Encoding**: Lower 32 bits available for metadata
-- **Consistent Storage Access**: Single storage slot lookup regardless of tokenId variations
-- **No Storage Duplication**: Different tokenIds for same name share storage
-
 #### Usage in Code
 
 ```solidity
@@ -112,7 +106,9 @@ DATASTORE.setSubregistry(canonicalId, subregistryAddr);
 
 ### Access Control
 
-ENSv2 uses **Enhanced Access Control (EAC)**, a bitmap-based permission system that stores up to 32 roles and their assignee counts in a single uint256:
+ENSv2 uses **Enhanced Access Control (EAC)**, a role-based access control system that stores up to 32 roles and their assignee counts in a single uint256:
+
+Eeach role have a complementary admin role that grants the holder permission to grant/revoke that role. Roles are assigned against a "resource", which is just a uint256 that can represent anything. For a given role assigned for a given resource, a maximum of 15 assignees are allowed. For registered names the canonical token ID acts as the equivalent access control resource id.
 
 #### Role Representation
 
