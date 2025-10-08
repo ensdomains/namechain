@@ -622,16 +622,15 @@ export async function batchRegisterNames(
     if (result.skipped) {
       checkpoint.skippedCount++;
       resultType = 'skipped';
-      // Don't increment totalProcessed for skipped names
     } else if (result.success) {
       checkpoint.successCount++;
-      checkpoint.totalProcessed++;
       resultType = 'registered';
     } else {
       checkpoint.failureCount++;
-      checkpoint.totalProcessed++;
       resultType = 'failed';
     }
+
+    checkpoint.totalProcessed++;
 
     logger.finishedName(registration.labelName, resultType);
 
@@ -639,11 +638,9 @@ export async function batchRegisterNames(
     checkpoint.timestamp = new Date().toISOString();
 
     // Save checkpoint periodically (unless disabled)
-    // Use total attempted (not just processed) for progress
-    const totalAttempted = checkpoint.successCount + checkpoint.failureCount + checkpoint.skippedCount;
-    if (!config.disableCheckpoint && totalAttempted % 10 === 0) {
+    if (!config.disableCheckpoint && checkpoint.totalProcessed % 10 === 0) {
       saveCheckpoint(checkpoint);
-      logger.progress(totalAttempted, registrations.length, {
+      logger.progress(checkpoint.totalProcessed, registrations.length, {
         registered: checkpoint.successCount,
         skipped: checkpoint.skippedCount,
         failed: checkpoint.failureCount,
@@ -657,7 +654,6 @@ export async function batchRegisterNames(
   }
 
   // Summary
-  const totalAttempted = checkpoint.successCount + checkpoint.failureCount + checkpoint.skippedCount;
   const actualRegistrations = checkpoint.successCount + checkpoint.failureCount;
 
   logger.info('');
@@ -665,11 +661,11 @@ export async function batchRegisterNames(
   logger.header('Pre-Migration Complete');
   logger.divider();
 
-  logger.config('Total names checked', totalAttempted);
+  logger.config('Total names processed', checkpoint.totalProcessed);
   logger.config('Successfully registered', green(checkpoint.successCount.toString()));
   logger.config('Skipped (already registered)', yellow(checkpoint.skippedCount.toString()));
   logger.config('Failed', checkpoint.failureCount > 0 ? red(checkpoint.failureCount.toString()) : checkpoint.failureCount);
-  logger.config('Actual registrations attempted', checkpoint.totalProcessed);
+  logger.config('Actual registrations attempted', actualRegistrations);
 
   if (actualRegistrations > 0) {
     const rate = Math.round((checkpoint.successCount / actualRegistrations) * 100);
