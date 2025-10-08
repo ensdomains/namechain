@@ -88,7 +88,7 @@ Token IDs change in two scenarios:
 - **ERC1155 operations**: `ownerOf()`, `safeTransferFrom()`, `balanceOf()`
 - **Permission checks**: Access control validates against token ID
 - **Public-facing operations**: `setResolver(tokenId, ...)`, `setSubregistry(tokenId, ...)`
-- **Events**: All events emit the current token ID
+- **Events**: All events emit the current token ID. `TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);` event tracks the transition of the token ID when it regenerates.
 
 **Canonical ID** is used internally for:
 - **Storage lookups**: `DATASTORE.getEntry(registry, canonicalId)`
