@@ -31,16 +31,25 @@ import { MAX_EXPIRY, ROLES } from "../deploy/constants.js";
 
 type DeployedArtifacts = Record<string, Abi>;
 
+// typescript key (see below) mapped to rocketh deploy name
+const renames: Record<string, string> = {
+  ETHRegistrarV1: "BaseRegistrarImplementation",
+  MockL1Bridge: "MockBridge",
+  MockL2Bridge: "MockBridge",
+  L1BridgeController: "BridgeController",
+  L2BridgeController: "BridgeController",
+};
+
 const sharedContracts = {
   RegistryDatastore: artifacts.RegistryDatastore.abi,
   SimpleRegistryMetadata: artifacts.SimpleRegistryMetadata.abi,
   DedicatedResolverFactory: artifacts.VerifiableFactory.abi,
   DedicatedResolverImpl: artifacts.DedicatedResolver.abi,
+  // common
+  MockBridge: artifacts.MockBridgeBase.abi,
+  ETHRegistry: artifacts.PermissionedRegistry.abi,
+  BridgeController: artifacts.EjectionController.abi,
 } as const satisfies DeployedArtifacts;
-
-const renames: Record<string, string> = {
-  ETHRegistrarV1: "BaseRegistrarImplementation",
-};
 
 const l1Contracts = {
   ...sharedContracts,
@@ -57,14 +66,13 @@ const l1Contracts = {
   DefaultReverseRegistrar: artifacts.DefaultReverseRegistrar.abi,
   DefaultReverseResolver: artifacts.DefaultReverseResolver.abi,
   //
-  MockBridge: artifacts.MockL1Bridge.abi,
-  BridgeController: artifacts.L1BridgeController.abi,
+  MockL1Bridge: artifacts.MockL1Bridge.abi,
+  L1BridgeController: artifacts.L1BridgeController.abi,
   UnlockedMigrationController: artifacts.UnlockedMigrationController.abi,
   LockedMigrationController: artifacts.LockedMigrationController.abi,
   //
   UniversalResolverV2: artifacts.UniversalResolverV2.abi,
   RootRegistry: artifacts.PermissionedRegistry.abi,
-  ETHRegistry: artifacts.PermissionedRegistry.abi,
   ETHReverseRegistrar: artifacts.L2ReverseRegistrar.abi,
   ETHReverseResolver: artifacts.ETHReverseResolver.abi,
   ETHSelfResolver: artifacts.DedicatedResolver.abi,
@@ -76,17 +84,16 @@ const l1Contracts = {
 
 const l2Contracts = {
   ...sharedContracts,
-  MockBridge: artifacts.MockL2Bridge.abi,
-  BridgeController: artifacts.L2BridgeController.abi,
+  MockL2Bridge: artifacts.MockL2Bridge.abi,
+  L2BridgeController: artifacts.L2BridgeController.abi,
   //
   ETHRegistrar: artifacts.ETHRegistrar.abi,
-  ETHRegistry: artifacts.PermissionedRegistry.abi,
   StandardRentPriceOracle: artifacts.StandardRentPriceOracle.abi,
   MockUSDC: artifacts["test/mocks/MockERC20.sol/MockERC20"].abi,
   MockDAI: artifacts["test/mocks/MockERC20.sol/MockERC20"].abi,
 } as const satisfies DeployedArtifacts;
 
-export type CrosschainSnapshot = () => Promise<void>;
+export type CrossChainSnapshot = () => Promise<void>;
 export type CrossChainEnvironment = Awaited<
   ReturnType<typeof setupCrossChainEnvironment>
 >;
@@ -94,7 +101,7 @@ export type CrossChainEnvironment = Awaited<
 export type L1Deployment = ChainDeployment<typeof l1Contracts>;
 export type L2Deployment = ChainDeployment<typeof l2Contracts>;
 
-type ClientType = ReturnType<typeof createClient>;
+export type CrossChainClient = ReturnType<typeof createClient>;
 
 function createClient(transport: Transport, chain: Chain, account: Account) {
   return createWalletClient({
@@ -110,13 +117,16 @@ function createClient(transport: Transport, chain: Chain, account: Account) {
 
 export class ChainDeployment<
   A extends DeployedArtifacts = typeof sharedContracts,
+  B extends DeployedArtifacts = typeof sharedContracts,
 > {
   readonly contracts: {
-    [K in keyof A]: GetContractReturnType<A[K], ClientType>;
+    [K in keyof A]: GetContractReturnType<A[K], CrossChainClient>;
   };
+  readonly rx!: ChainDeployment<B, A>;
   constructor(
+    readonly isL1: boolean,
     readonly anvil: ReturnType<typeof createAnvil>,
-    readonly client: ClientType,
+    readonly client: CrossChainClient,
     readonly transport: Transport,
     readonly hostPort: string,
     readonly env: Environment,
@@ -139,6 +149,9 @@ export class ChainDeployment<
         return [name, contract];
       }),
     ) as typeof this.contracts;
+  }
+  get name() {
+    return this.isL1 ? "L1" : "L2";
   }
   logAnvil() {
     // TODO: enable `RUST_LOG=node=info`
@@ -218,7 +231,7 @@ export async function setupCrossChainEnvironment({
 
     const cacheTime = 0; // must be 0 due to client caching
 
-    const names = ["deployer", "owner", "bridger", "user"];
+    const names = ["deployer", "owner", "bridger", "user", "user2"];
     extraAccounts += names.length;
 
     const l1Anvil = createAnvil({
@@ -373,6 +386,7 @@ export async function setupCrossChainEnvironment({
     } satisfies RockethL1Arguments);
 
     const l1 = new ChainDeployment(
+      true,
       l1Anvil,
       l1Client,
       l1Transport,
@@ -382,6 +396,7 @@ export async function setupCrossChainEnvironment({
     );
 
     const l2 = new ChainDeployment(
+      true,
       l2Anvil,
       l2Client,
       l2Transport,
@@ -390,8 +405,13 @@ export async function setupCrossChainEnvironment({
       l2Contracts,
     );
 
-    await setup_ens_eth(l1, deployer);
+    (l1 as any).rx = l2;
+    (l2 as any).rx = l1;
+
+    await setupEnsDotEth(l1, deployer);
     console.log("Setup ens.eth");
+
+    //await setupBridgeBlacklists(l1, l2);
 
     await sync();
     console.log("Deployed ENSv2");
@@ -410,7 +430,7 @@ export async function setupCrossChainEnvironment({
       shutdown,
       saveState,
     };
-    async function saveState(): Promise<CrosschainSnapshot> {
+    async function saveState(): Promise<CrossChainSnapshot> {
       const fs = await Promise.all(
         [l1Client, l2Client].map(async (c) => {
           // this does not reset block number
@@ -445,7 +465,21 @@ export async function setupCrossChainEnvironment({
   }
 }
 
-async function setup_ens_eth(l1: L1Deployment, owner: Account) {
+// async function setupBridgeBlacklists(l1: L1Deployment, l2: L2Deployment) {
+//   // prevent ejection to the other sides controller
+//   const blacklisted = [
+//     l1.contracts.BridgeController.address,
+//     l2.contracts.BridgeController.address,
+//   ];
+//   for (const x of blacklisted) {
+//     await Promise.all([
+//       l1.contracts.BridgeController.write.setInvalidTransferOwner([x, true]),
+//       l2.contracts.BridgeController.write.setInvalidTransferOwner([x, true]),
+//     ]);
+//   }
+// }
+
+async function setupEnsDotEth(l1: L1Deployment, owner: Account) {
   // create registry for "ens.eth"
   const ens_ethRegistry = await l1.deployPermissionedRegistry(owner);
   // create "ens.eth"

@@ -17,7 +17,7 @@ import {
 
 import {
   type CrossChainEnvironment,
-  CrosschainSnapshot,
+  CrossChainSnapshot,
   setupCrossChainEnvironment,
 } from "../../script/setup.js";
 import { dnsEncodeName } from "../utils/utils.js";
@@ -34,7 +34,7 @@ import { expectVar } from "../utils/expectVar.js";
 
 describe("Resolve", () => {
   let env: CrossChainEnvironment;
-  let resetState: CrosschainSnapshot;
+  let resetState: CrossChainSnapshot;
   beforeAll(async () => {
     env = await setupCrossChainEnvironment();
     resetState = await env.saveState();

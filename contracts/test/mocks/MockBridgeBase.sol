@@ -17,12 +17,15 @@ abstract contract MockBridgeBase is IBridge {
 
     MockBridgeBase public receiverBridge;
     bytes public lastMessage;
+    //bytes32 _rollingHash;
 
     ////////////////////////////////////////////////////////////////////////
     // Events
     ////////////////////////////////////////////////////////////////////////
 
     // Event for message receipt acknowledgement
+    // event MessageSent(bytes32 id, bytes message);
+    // event MessageReceived(bytes32 id, bytes message);
     event MessageSent(bytes message);
     event MessageReceived(bytes message);
 
@@ -43,6 +46,8 @@ abstract contract MockBridgeBase is IBridge {
 
     function sendMessage(bytes memory message) external override {
         lastMessage = message;
+        //_rollingHash = keccak256(abi.encode(_rollingHash, message));
+        //emit MessageSent(_rollingHash, message);
         emit MessageSent(message);
         if (address(receiverBridge) != address(0)) {
             receiverBridge.receiveMessage(message);

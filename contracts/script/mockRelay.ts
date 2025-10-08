@@ -1,5 +1,5 @@
-import type { Hex } from "viem";
-import type { CrossChainEnvironment } from "./setup.js";
+import { Log, parseEventLogs, TransactionReceipt, type Hex } from "viem";
+import type { CrossChainEnvironment, ChainDeployment } from "./setup.js";
 
 function print(...a: any[]) {
   console.log("   ->", ...a);
@@ -7,95 +7,84 @@ function print(...a: any[]) {
 
 export type MockRelay = ReturnType<typeof setupMockRelay>;
 
-export function setupMockRelay(env: CrossChainEnvironment) {
-  const pending = new Map<
-    Hex,
-    {
-      resolve: () => void;
-      reject: (reason?: any) => void;
-    }
-  >();
+export type MockRelayReceipt = PromiseSettledResult<TransactionReceipt>;
 
-  async function sendToL1(message: Hex) {
-    try {
-      const hash = await env.l1.contracts.MockBridge.write.receiveMessage([
-        message,
-      ]);
-      print(`waiting for tx: ${hash} [L1]`);
-      const receipt = await env.l1.client.waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success") throw new Error("Transaction failed!");
-      return receipt;
-    } catch (err) {
-      console.error("Error relaying bridged message from L2 to L1:", err);
-      throw err;
+async function send(chain: ChainDeployment, message: Hex, waiting = false) {
+  const errorPrefix = `receiveMessage failed[${chain.name}->${chain.rx.name}]:`;
+  try {
+    const hash = await chain.contracts.MockBridge.write.receiveMessage([
+      message,
+    ]);
+    print(`waiting for tx: ${hash} [${chain.name}]`);
+    const receipt = await chain.client.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") {
+      throw new Error(`${errorPrefix} ${receipt.status}`);
     }
+    return receipt;
+  } catch (err) {
+    if (!waiting) {
+      console.error(errorPrefix, err);
+    }
+    throw err;
   }
+}
 
-  async function sendToL2(message: Hex) {
-    try {
-      const hash = await env.l2.contracts.MockBridge.write.receiveMessage([
-        message,
-      ]);
-      print(`waiting for tx: ${hash} [L2]`);
-      const receipt = await env.l2.client.waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success") throw new Error("Transaction failed!");
-      return receipt;
-    } catch (err) {
-      console.error("Error relaying bridged message from L1 to L2:", err);
-      throw err;
+export function setupMockRelay(env: CrossChainEnvironment) {
+  const pending = new Map<Hex, (v: MockRelayReceipt[]) => void>();
+
+  async function relay(chain: ChainDeployment, logs: Log[]) {
+    const buckets = new Map<Hex, Promise<TransactionReceipt>[]>();
+    for (const log of parseEventLogs({
+      abi: chain.contracts.MockBridge.abi,
+      logs,
+    })) {
+      const tx = log.transactionHash;
+      let bucket = buckets.get(tx);
+      if (!bucket) {
+        bucket = [];
+        buckets.set(tx, bucket);
+      }
+      bucket.push(send(chain.rx, log.args.message, pending.has(tx)));
+    }
+    // TODO: is this ever more than 1 thing?
+    for (const [tx, bucket] of buckets) {
+      const answer = await Promise.allSettled(bucket);
+      pending.get(tx)?.(answer);
     }
   }
 
   const unwatchL1 = env.l1.contracts.MockBridge.watchEvent.MessageSent({
-    onLogs: async (logs) => {
-      for (const log of logs) {
-        const { message } = log.args;
-        if (!message) continue;
-        const waiter = pending.get(log.transactionHash);
-        try {
-          await sendToL2(message);
-          waiter?.resolve();
-        } catch (err: any) {
-          waiter?.reject(err);
-        }
-      }
-    },
+    onLogs: (logs) => relay(env.l1, logs),
   });
-
   const unwatchL2 = env.l2.contracts.MockBridge.watchEvent.MessageSent({
-    onLogs: async (logs) => {
-      for (const log of logs) {
-        const { message } = log.args;
-        if (!message) continue;
-        const waiter = pending.get(log.transactionHash);
-        try {
-          await sendToL1(message);
-          waiter?.resolve();
-        } catch (err: any) {
-          waiter?.reject(err);
-        }
-      }
-    },
+    onLogs: (logs) => relay(env.l2, logs),
   });
 
-  async function waitFor(tx: Promise<Hex>) {
+  async function waitFor(tx: Promise<Hex>, timeoutMs = 1000) {
     let hash = await tx;
-    const { promise, resolve, reject } = Promise.withResolvers<void>();
+    const { promise, resolve, reject } =
+      Promise.withResolvers<MockRelayReceipt[]>();
+    const timer = setTimeout(() => reject(new Error("Timeout")), timeoutMs);
     try {
-      pending.set(hash, { resolve, reject });
+      pending.set(hash, resolve);
       print(`waiting for tx: ${hash}`);
-      const receipt = await Promise.any([
+      const txReceipt = await Promise.any([
         env.l1.client.waitForTransactionReceipt({ hash }),
         env.l2.client.waitForTransactionReceipt({ hash }),
       ]);
-      if (receipt.status !== "success") {
-        console.error(receipt);
-        throw new Error(`Transaction failed!`);
+      if (txReceipt.status !== "success") {
+        console.error(txReceipt);
+        throw new Error("waitFor() failed!");
       }
-      await promise;
-      print(`relay success!`);
-      return receipt;
+      const rxReceipts = await promise;
+      const success = rxReceipts.reduce(
+        (a, x) => a + +(x.status === "fulfilled"),
+        0,
+      );
+      print(`relayed ${success}/${rxReceipts.length} messages!`);
+      return { txReceipt, rxReceipts };
     } finally {
+      clearTimeout(timer);
       pending.delete(hash);
     }
   }
@@ -103,8 +92,6 @@ export function setupMockRelay(env: CrossChainEnvironment) {
   console.log("Created Mock Relay");
   return {
     waitFor,
-    sendToL1,
-    sendToL2,
     removeListeners() {
       unwatchL1();
       unwatchL2();

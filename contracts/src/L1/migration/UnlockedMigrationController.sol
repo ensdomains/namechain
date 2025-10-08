@@ -205,11 +205,10 @@ contract UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC16
             resolver: md.resolver,
             subregistry: md.subregistry,
             roleBitmap: md.roleBitmap,
-            expiry: md.toL1
-                ? uint64(ETH_REGISTRAR_V1.nameExpires(uint256(keccak256(bytes(md.label)))))
-                : 0
+            expiry: 0
         });
         if (md.toL1) {
+            td.expiry = uint64(ETH_REGISTRAR_V1.nameExpires(uint256(keccak256(bytes(md.label)))));
             L1_BRIDGE_CONTROLLER.completeEjectionToL1(td);
         } else {
             L1_BRIDGE_CONTROLLER.BRIDGE().sendMessage(BridgeEncoderLib.encodeEjection(td));

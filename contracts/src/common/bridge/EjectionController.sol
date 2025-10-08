@@ -31,7 +31,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     // Storage
     ////////////////////////////////////////////////////////////////////////
 
-    mapping(address owner => bool invalid) public isInvalidTransferOwner;
+    //mapping(address owner => bool invalid) public isInvalidTransferOwner;
 
     ////////////////////////////////////////////////////////////////////////
     // Events
@@ -41,7 +41,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
 
     event NameEjected(uint256 indexed tokenId, string label);
 
-    event TransferOwnerValidityChanged(address owner, bool invalid);
+    //event TransferOwnerValidityChanged(address owner, bool invalid);
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
@@ -71,7 +71,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
         REGISTRY = registry;
         BRIDGE = bridge;
 
-        isInvalidTransferOwner[address(0)] = true;
+        //isInvalidTransferOwner[address(0)] = true;
 
         // Grant admin roles to the deployer so they can manage bridge roles
         _grantRoles(ROOT_RESOURCE, BridgeRolesLib.ROLE_EJECTOR_ADMIN, msg.sender, true);
@@ -91,13 +91,13 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
-    function setInvalidTransferOwner(
-        address owner,
-        bool invalid
-    ) external onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR_ADMIN) {
-        isInvalidTransferOwner[owner] = invalid;
-        emit TransferOwnerValidityChanged(owner, invalid);
-    }
+    // function setInvalidTransferOwner(
+    //     address owner,
+    //     bool invalid
+    // ) external onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR_ADMIN) {
+    //     isInvalidTransferOwner[owner] = invalid;
+    //     emit TransferOwnerValidityChanged(owner, invalid);
+    // }
 
     // TODO: do we need to check amount?
     // underlying is ERC1155Singleton so no?
@@ -153,11 +153,11 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     ///
     /// @param tokenId The token ID to check
     /// @param td The `TransferData` to check.
-    function _checkEjection(uint256 tokenId, TransferData memory td) internal view {
+    function _checkEjection(uint256 tokenId, TransferData memory td) internal pure {
         if (LibLabel.getCanonicalId(tokenId) != LibLabel.labelToCanonicalId(td.label)) {
             revert TokenLabelMismatch(tokenId, td.label);
         }
-        if (isInvalidTransferOwner[td.owner]) {
+        if (td.owner == address(0)) {
             revert InvalidTransferOwner(td.owner);
         }
     }
