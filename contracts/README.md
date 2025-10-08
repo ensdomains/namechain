@@ -48,7 +48,7 @@ ENSv2 transitions from a flat registry to a hierarchical system that enables:
 - Each registry is responsible for one name and its direct subdomains
 - Registries implement ERC1155, treating subdomains as NFTs
 - Must implement the `IRegistry` interface for standard resolution
-- All registries store data in the singleton `RegistryDatastore`
+- All registries store data in the singleton `RegistryDatastore` to reduce the number of storage proofs needed for CCIP-Read cross-chain lookups
 
 **Root Registry** → **TLD Registries** (.eth, .box, etc.) → **Domain Registries** (example.eth) → **Subdomain Registries** (sub.example.eth)
 
@@ -72,35 +72,39 @@ Token IDs regenerate on significant state changes (expiry, permission updates) t
    - Always has lower 32 bits zeroed out
    - Formula: `canonicalId = tokenId ^ uint32(tokenId)
 
-#### Why This Matters
+#### Token ID Changes
 
-```solidity
-// Example: Name lifecycle
-// First registration
-uint256 tokenId1 = 0x9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658;
-uint256 canonical = 0x9c22ff5f21f0b81b113e63f7db6da94fedef11b200000000000000000000000;
+Token IDs change in two scenarios:
 
-// After expiry and re-registration (different tokenId!)
-uint256 tokenId2 = 0x9c22ff5f21f0b81b113e63f7db6da94fedef11b212345678901234567890abcd;
-uint256 canonical = 0x9c22ff5f21f0b81b113e63f7db6da94fedef11b200000000000000000000000; // SAME!
+1. **Access Control Changes**: When permissions are modified, the token ID regenerates to prevent griefing attacks:
+   - **Attack Scenario**: Owner lists name for sale on marketplace, then changes permissions before sale completes
+   - **Protection**: New token ID invalidates the marketplace listing, preventing buyer from receiving name with unexpected permissions
 
-// All storage lookups use canonical ID
-datastore.getEntry(registry, canonical); // Always finds the current data
-```
+2. **Name Expiry**: When a name expires and is re-registered, it receives a new token ID
 
-#### Usage in Code
+#### Which Functions Use Which ID?
 
 ```solidity
 import {LibLabel} from "./utils/LibLabel.sol";
+**Token ID** is used for:
 
-// Convert label to canonical ID
-uint256 canonicalId = LibLabel.labelToCanonicalId("example");
+**Canonical ID** is used internally for:
+- **Storage lookups**: `DATASTORE.getEntry(registry, canonicalId)`
+- **Storage writes**: `DATASTORE.setEntry(registry, canonicalId, entry)`
 
-// Get canonical version of any ID
-uint256 canonical = LibLabel.getCanonicalId(someTokenId);
+```solidity
+// Example: setResolver() uses both
+function setResolver(uint256 tokenId, address resolver) external {
+    // 1. Check permissions using tokenId
+    _checkRoles(tokenId, ROLE_SET_RESOLVER, msg.sender);
 
-// Storage always uses canonical IDs
-DATASTORE.setSubregistry(canonicalId, subregistryAddr);
+    // 2. Store using canonical ID
+    uint256 canonicalId = LibLabel.getCanonicalId(tokenId);
+    DATASTORE.setResolver(canonicalId, resolver);
+
+    // 3. Emit event with tokenId
+    emit ResolverUpdate(tokenId, resolver);
+}
 ```
 
 ### Access Control
