@@ -111,10 +111,10 @@ function setResolver(uint256 tokenId, address resolver) external {
 
 ### Access Control
 
-ENSv2 uses **Enhanced Access Control (EAC)**, a role-based access control system that stores up to 32 roles and their assignee counts in a single uint256:
+ENSv2 uses **Enhanced Access Control (EAC)**, a general-purpose access control mixin. Compared to OpenZeppelin's roles modifier, EAC adds two key features:
 
 1. **Resource-scoped permissions** - Roles are assigned to specific resources (e.g., individual names) rather than contract-wide
-2. **Paired admin roles** - Each base role has a corresponding admin role that can grant/revoke both itself and the base role
+2. **Paired admin roles** - Each base role has exactly one corresponding admin role (and vice-versa)
 
 #### How EAC Works
 
@@ -130,13 +130,25 @@ ENSv2 uses **Enhanced Access Control (EAC)**, a role-based access control system
 └───────────────────────────────┴───────────────────────────────┘
 ```
 
-#### Registry Roles
+**Permission Inheritance**: When checking permissions for a resource, EAC combines (via bitwise OR) the roles from:
+- The specific resource (e.g., your name's permissions)
+- The root resource (global permissions set by registry owner)
 
-From [`RegistryRolesLib.sol`](src/common/registry/libraries/RegistryRolesLib.sol):
+This means root permissions are **unrevokable by name owners** - only the registry owner can remove them.
+
+#### EAC in Registry Contracts
+
+In registry contracts, EAC is used with these specific behaviors:
+
+**Resource ID Generation**: Resource IDs are generated from token IDs to maintain key invariants:
+- Each time a name expires and is re-registered, it gets a new token ID and resource ID (clearing old permissions)
+- Each time a new role is granted on a name, the token ID changes (preventing frontrunning during sales/transfers)
+
+**Registry-Specific Roles**: From [`RegistryRolesLib.sol`](src/common/registry/libraries/RegistryRolesLib.sol):
 
 | Role | Bit Position | Admin Bit Position | Description |
 |------|--------------|--------------------| ----------- |
-| `ROLE_REGISTRAR` | 0 | 128 | Can register new names |
+| `ROLE_REGISTRAR` | 0 | 128 | Can register new names (root-only) |
 | `ROLE_RENEW` | 4 | 132 | Can renew name registrations |
 | `ROLE_SET_SUBREGISTRY` | 8 | 136 | Can change subregistry addresses |
 | `ROLE_SET_RESOLVER` | 12 | 140 | Can change the resolver address |
@@ -144,33 +156,30 @@ From [`RegistryRolesLib.sol`](src/common/registry/libraries/RegistryRolesLib.sol
 | `ROLE_BURN` | 24 | 152 | Can burn (delete) the name |
 | `ROLE_CAN_TRANSFER_ADMIN` | - | 148 | Can grant/revoke transfer admin rights |
 
-
-
-**Permission Inheritance**: When checking permissions for a resource, EAC combines (via bitwise OR) the roles from:
-- The specific resource (e.g., your name's permissions)
-- The root resource (global permissions set by registry owner)
-
-This means root permissions are **unrevokable by name owners** - only the registry owner can remove them.
+**Note**: `ROLE_REGISTRAR` is a root-only ACL since creating new subnames has no logical resource-specific equivalent (the resource doesn't exist yet).
 
 #### Key Behaviors
 
 1. **Admin Role Capabilities**
    - Admin roles can grant/revoke both the base role and the admin role itself
-   - In registries, only the name owner can hold admin roles
+   - In registries, **only the name owner can hold admin roles**
    - Admin roles automatically transfer with ownership
+   - **Why this restriction?** To prevent granting admin rights to another account and retaining control after a transfer. While theoretically secure (auditable), this was judged too risky.
 
 2. **Transfer Behavior**
-   - When you transfer a name, **all roles** (both base and admin) transfer to the new owner
-   - Existing delegated base roles to other accounts remain intact unless explicitly revoked
+   - When you transfer a name, **all admin roles** transfer to the new owner
+   - Existing **base roles** delegated to other accounts remain intact unless explicitly revoked
+   - Example: If Alice granted Bob `ROLE_SET_RESOLVER` and transfers the name to Charlie, Charlie becomes the new admin but Bob keeps his resolver permission
 
 3. **Token ID Regeneration**
    - Token IDs regenerate on expiry/re-registration (clears all old permissions)
    - Token IDs regenerate when granting new roles (prevents front-running during sales/transfers)
    - The underlying canonical ID remains unchanged (points to same storage)
 
-4. **Role Revocation (Fuse-Burning)**
-   - Name owners can revoke their own admin/base roles (equivalent to burning fuses in Name Wrapper)
-   - This creates permanent permission restrictions
+4. **Role Delegation and Revocation**
+   - **Name owners can grant base roles** to other accounts (e.g., to allow setting resolvers)
+   - **Name owners can revoke their own admin/base roles** (equivalent to burning fuses in Name Wrapper)
+   - Revoking roles creates permanent permission restrictions
 
 #### Usage Examples
 
