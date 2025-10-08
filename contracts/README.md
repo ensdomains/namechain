@@ -70,7 +70,7 @@ Token IDs regenerate on significant state changes (expiry, permission updates) t
 
 2. **Canonical ID** (`uint256`): Internal stable storage key derived from token ID
    - Always has lower 32 bits zeroed out
-   - Formula: `canonicalId = tokenId ^ uint32(tokenId)
+   - Formula: `canonicalId = tokenId ^ uint32(tokenId)`
 
 #### Token ID Changes
 
@@ -195,7 +195,7 @@ registry.grantRoles(tokenId, roles, operator);
 registry.grantRoles(ROOT_RESOURCE, ROLE_SET_RESOLVER, admin);
 
 // Check permissions
-registry.checkRoles(tokenId, ROLE_SET_RESOLVER, alice);
+registry.hasRoles(tokenId, ROLE_SET_RESOLVER, alice);
 ```
 
 #### Creating Emancipated Names
@@ -258,7 +258,7 @@ interface IRegistry is IERC1155Singleton {
 ```
 
 #### `RegistryDatastore` - Singleton Storage
-[src/common/RegistryDatastore.sol](src/common/RegistryDatastore.sol)
+[src/common/registry/RegistryDatastore.sol](src/common/registry/RegistryDatastore.sol)
 
 Universal storage contract for all registries. Reduces storage proof complexity for L2 resolution.
 
@@ -288,7 +288,7 @@ Feature-complete registry with role-based access control:
 - Metadata support (name, description, image)
 
 #### `ERC1155Singleton` - Gas-Optimized NFT
-[src/common/ERC1155Singleton.sol](src/common/ERC1155Singleton.sol)
+[src/common/erc1155/ERC1155Singleton.sol](src/common/erc1155/ERC1155Singleton.sol)
 
 Modified ERC1155 allowing only one token per ID:
 - Saves gas by omitting balance tracking
@@ -360,8 +360,8 @@ registry.safeTransferFrom(
 
 ### L1 Components
 
-#### `ETHFallbackResolver` - Unified Resolution
-[src/L1/resolver/ETHFallbackResolver.sol](src/L1/resolver/ETHFallbackResolver.sol)
+#### `ETHTLDResolver` - Unified Resolution
+[src/L1/resolver/ETHTLDResolver.sol](src/L1/resolver/ETHTLDResolver.sol)
 
 Cross-chain resolver combining three systems:
 1. **L2 Names** (via CCIP-Read): New registrations on Namechain
@@ -377,39 +377,39 @@ Migrated to v2? → Use CCIP-Read for L2
 Exists in v1? → Use legacy resolver
 ```
 
-#### `L1EjectionController` - L1 Name Management
-[src/L1/bridge/L1EjectionController.sol](src/L1/bridge/L1EjectionController.sol)
+#### `L1BridgeController` - L1 Name Management
+[src/L1/bridge/L1BridgeController.sol](src/L1/bridge/L1BridgeController.sol)
 
 Manages ejected names on L1 and handles re-import to L2.
 
 #### Migration Controllers
-- `L1MigrationController`: Handles ENSv1 → ENSv2 migration on L1
-- `L2MigrationController`: Receives migrated names on L2
+- `L1LockedMigrationController`: Handles ENSv1 → ENSv2 migration on L1 for locked names
+- `L1UnlockedMigrationController`: Handles ENSv1 → ENSv2 migration on L1 for unlocked names
 
 ### Cross-Chain Bridge
 
-#### `BridgeEncoder` - Message Format
-[src/common/bridge/BridgeEncoder.sol](src/common/bridge/BridgeEncoder.sol)
+#### `BridgeEncoderLib` - Message Format
+[src/common/bridge/libraries/BridgeEncoderLib.sol](src/common/bridge/libraries/BridgeEncoderLib.sol)
 
 Encodes/decodes cross-chain messages:
 
 **Message Types**:
 1. **EJECTION**: Transfer name from L2 to L1
    ```solidity
-   bytes memory msg = BridgeEncoder.encodeEjection(
+   bytes memory msg = BridgeEncoderLib.encodeEjection(
        transferData  // owner, expiry, subregistry, resolver
    );
    ```
 
 2. **RENEWAL**: Sync expiry updates between chains
    ```solidity
-   bytes memory msg = BridgeEncoder.encodeRenewal(tokenId, newExpiry);
+   bytes memory msg = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
    ```
 
 ### Resolution
 
-#### `UniversalResolver` - One-Stop Resolution
-[src/universalResolver/UniversalResolver.sol](src/universalResolver/UniversalResolver.sol)
+#### `UniversalResolverV2` - One-Stop Resolution
+[src/universalResolver/UniversalResolverV2.sol](src/universalResolver/UniversalResolverV2.sol)
 
 Single contract for resolving any ENS name:
 - Handles recursive registry traversal
