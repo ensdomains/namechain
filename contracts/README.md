@@ -163,15 +163,19 @@ From [`RegistryRolesLib.sol`](src/common/registry/libraries/RegistryRolesLib.sol
 
 | Role | Bit Position | Description |
 |------|--------------|-------------|
-| `ROLE_OWNER` | 0 | Full control over the name |
-| `ROLE_SET_RESOLVER` | 1 | Can change the resolver address |
-| `ROLE_SET_RESOLVER_ADMIN` | 2 | Can grant/revoke ROLE_SET_RESOLVER |
-| `ROLE_SET_SUBREGISTRY` | 3 | Can change subregistry addresses |
-| `ROLE_SET_SUBREGISTRY_ADMIN` | 4 | Can grant/revoke ROLE_SET_SUBREGISTRY |
-| `ROLE_CAN_TRANSFER` | 5 | Can transfer name ownership |
-| `ROLE_CAN_TRANSFER_ADMIN` | 6 | Can grant/revoke ROLE_CAN_TRANSFER |
-| `ROLE_CAN_BURN` | 7 | Can burn (delete) the name |
-| `ROLE_CAN_BURN_ADMIN` | 8 | Can grant/revoke ROLE_CAN_BURN |
+| `ROLE_REGISTRAR` | 0 | Can register new names |
+| `ROLE_REGISTRAR_ADMIN` | 128 | Can grant/revoke ROLE_REGISTRAR |
+| `ROLE_RENEW` | 4 | Can renew name registrations |
+| `ROLE_RENEW_ADMIN` | 132 | Can grant/revoke ROLE_RENEW |
+| `ROLE_SET_SUBREGISTRY` | 8 | Can change subregistry addresses |
+| `ROLE_SET_SUBREGISTRY_ADMIN` | 136 | Can grant/revoke ROLE_SET_SUBREGISTRY |
+| `ROLE_SET_RESOLVER` | 12 | Can change the resolver address |
+| `ROLE_SET_RESOLVER_ADMIN` | 140 | Can grant/revoke ROLE_SET_RESOLVER |
+| `ROLE_SET_TOKEN_OBSERVER` | 16 | Can set token observer contracts |
+| `ROLE_SET_TOKEN_OBSERVER_ADMIN` | 144 | Can grant/revoke ROLE_SET_TOKEN_OBSERVER |
+| `ROLE_CAN_TRANSFER_ADMIN` | 148 | Can grant/revoke transfer admin rights |
+| `ROLE_BURN` | 24 | Can burn (delete) the name |
+| `ROLE_BURN_ADMIN` | 152 | Can grant/revoke ROLE_BURN |
 
 #### Example Usage
 
