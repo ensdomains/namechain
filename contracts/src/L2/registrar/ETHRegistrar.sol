@@ -5,6 +5,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {EnhancedAccessControl} from "../../common/access-control/EnhancedAccessControl.sol";
 import {EACBaseRolesLib} from "../../common/access-control/libraries/EACBaseRolesLib.sol";
+import {HCAEquivalence} from "../../common/hca/HCAEquivalence.sol";
+import {IHCAFactoryBasic} from "../../common/hca/interfaces/IHCAFactoryBasic.sol";
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
@@ -61,7 +63,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         uint64 maxCommitmentAge_,
         uint64 minRegisterDuration_,
         IRentPriceOracle rentPriceOracle_
-    ) {
+    ) HCAEquivalence(IHCAFactoryBasic(address(0))) {
         if (maxCommitmentAge_ <= minCommitmentAge_) {
             revert MaxCommitmentAgeTooLow();
         }

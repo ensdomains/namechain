@@ -27,6 +27,7 @@ import {
     IDedicatedResolverSetters,
     NODE_ANY
 } from "~src/common/resolver/interfaces/IDedicatedResolverSetters.sol";
+import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
 
 contract DedicatedResolverTest is Test {
     struct I {
@@ -53,6 +54,7 @@ contract DedicatedResolverTest is Test {
     }
 
     address owner;
+    MockHCAFactoryBasic hcaFactory;
     DedicatedResolver resolver;
 
     string testName = "test.eth";
@@ -60,7 +62,8 @@ contract DedicatedResolverTest is Test {
 
     function setUp() external {
         VerifiableFactory factory = new VerifiableFactory();
-        DedicatedResolver resolverImpl = new DedicatedResolver();
+        hcaFactory = new MockHCAFactoryBasic();
+        DedicatedResolver resolverImpl = new DedicatedResolver(hcaFactory);
 
         owner = makeAddr("owner");
         bytes memory initData = abi.encodeCall(DedicatedResolver.initialize, (owner));

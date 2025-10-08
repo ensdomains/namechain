@@ -3,6 +3,8 @@ pragma solidity >=0.8.13;
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
 import {EACBaseRolesLib} from "../access-control/libraries/EACBaseRolesLib.sol";
+import {HCAEquivalence} from "../hca/HCAEquivalence.sol";
+import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 
 import {IRegistryMetadata} from "./interfaces/IRegistryMetadata.sol";
 
@@ -25,7 +27,7 @@ contract BaseUriRegistryMetadata is EnhancedAccessControl, IRegistryMetadata {
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
-    constructor() {
+    constructor(IHCAFactoryBasic hcaFactory) HCAEquivalence(hcaFactory) {
         _grantRoles(ROOT_RESOURCE, EACBaseRolesLib.ALL_ROLES, _msgSender(), true);
     }
 

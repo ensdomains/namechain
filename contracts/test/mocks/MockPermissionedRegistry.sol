@@ -3,6 +3,7 @@ pragma solidity >=0.8.13;
 
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
+import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
 import {
     PermissionedRegistry,
     IRegistryDatastore,
@@ -20,10 +21,11 @@ contract MockPermissionedRegistry is PermissionedRegistry {
     // Pass through all constructor arguments
     constructor(
         IRegistryDatastore datastore_,
+        IHCAFactoryBasic hcaFactory_,
         IRegistryMetadata metadata_,
         address ownerAddress_,
         uint256 ownerRoles_
-    ) PermissionedRegistry(datastore_, metadata_, ownerAddress_, ownerRoles_) {}
+    ) PermissionedRegistry(datastore_, hcaFactory_, metadata_, ownerAddress_, ownerRoles_) {}
 
     /**
      * @dev Public wrapper for getResourceFromTokenId - for testing only
