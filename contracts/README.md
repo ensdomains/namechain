@@ -84,9 +84,11 @@ Token IDs change in two scenarios:
 
 #### Which Functions Use Which ID?
 
-```solidity
-import {LibLabel} from "./utils/LibLabel.sol";
 **Token ID** is used for:
+- **ERC1155 operations**: `ownerOf()`, `safeTransferFrom()`, `balanceOf()`
+- **Permission checks**: Access control validates against token ID
+- **Public-facing operations**: `setResolver(tokenId, ...)`, `setSubregistry(tokenId, ...)`
+- **Events**: All events emit the current token ID
 
 **Canonical ID** is used internally for:
 - **Storage lookups**: `DATASTORE.getEntry(registry, canonicalId)`
