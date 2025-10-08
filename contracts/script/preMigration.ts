@@ -87,11 +87,11 @@ export interface PreMigrationConfig {
   limit: number | null;
   dryRun: boolean;
   roleBitmap: bigint;
-  fresh?: boolean;
+  continue?: boolean;
   disableCheckpoint?: boolean;
 }
 
-interface Checkpoint {
+export interface Checkpoint {
   lastProcessedIndex: number;
   totalProcessed: number;
   successCount: number;
@@ -130,20 +130,24 @@ const BASE_REGISTRAR_ABI = [
   },
 ] as const;
 
-// Cleanup utilities
-function cleanupPreviousRun(): void {
-  const files = [CHECKPOINT_FILE, ERROR_LOG_FILE, INFO_LOG_FILE];
-
-  for (const file of files) {
-    try {
-      if (existsSync(file)) {
-        rmSync(file);
-        logger.cleanup(file, true);
-      }
-    } catch (error) {
-      logger.cleanup(file, false);
-    }
-  }
+/**
+ * Checkpoint system behavior:
+ * - Default: Always start fresh (checkpoint file ignored)
+ * - With --continue: Resume from checkpoint if exists
+ * - With disableCheckpoint: true: No checkpoint loading/saving (tests only)
+ *
+ * Checkpoints save progress every 10 names and on completion.
+ * This allows resuming long migrations if interrupted.
+ */
+export function createFreshCheckpoint(): Checkpoint {
+  return {
+    lastProcessedIndex: -1,
+    totalProcessed: 0,
+    successCount: 0,
+    failureCount: 0,
+    skippedCount: 0,
+    timestamp: new Date().toISOString(),
+  };
 }
 
 // Pre-migration specific logger
@@ -265,7 +269,7 @@ class PreMigrationLogger extends Logger {
 const logger = new PreMigrationLogger();
 
 // Checkpoint management
-function loadCheckpoint(): Checkpoint | null {
+export function loadCheckpoint(): Checkpoint | null {
   if (!existsSync(CHECKPOINT_FILE)) {
     return null;
   }
@@ -279,7 +283,7 @@ function loadCheckpoint(): Checkpoint | null {
   }
 }
 
-function saveCheckpoint(checkpoint: Checkpoint): void {
+export function saveCheckpoint(checkpoint: Checkpoint): void {
   try {
     writeFileSync(CHECKPOINT_FILE, JSON.stringify(checkpoint, null, 2));
   } catch (error) {
@@ -293,7 +297,7 @@ interface MainnetVerificationResult {
   expiry: bigint;
 }
 
-async function verifyNameOnMainnet(
+export async function verifyNameOnMainnet(
   labelName: string,
   mainnetClient: any,
   baseRegistrarAddress: Address = BASE_REGISTRAR_ADDRESS
@@ -446,7 +450,7 @@ export async function fetchAllRegistrations(
 }
 
 // Registration logic
-async function registerName(
+export async function registerName(
   client: any,
   registry: any,
   config: PreMigrationConfig,
@@ -577,31 +581,28 @@ export async function batchRegisterNames(
   logger.info(`TheGraph batch size: ${config.batchSize}`);
   logger.info(`Dry run: ${config.dryRun}`);
 
-  // Load checkpoint (unless disabled for testing)
+  // Load checkpoint based on configuration
   let checkpoint: Checkpoint;
   if (config.disableCheckpoint) {
-    checkpoint = {
-      lastProcessedIndex: -1,
-      totalProcessed: 0,
-      successCount: 0,
-      failureCount: 0,
-      skippedCount: 0,
-      timestamp: new Date().toISOString(),
-    };
-  } else {
+    // Tests can disable checkpoints completely
+    checkpoint = createFreshCheckpoint();
+  } else if (config.continue) {
+    // Explicit opt-in: try to load checkpoint
     const loaded = loadCheckpoint();
-    checkpoint = loaded || {
-      lastProcessedIndex: -1,
-      totalProcessed: 0,
-      successCount: 0,
-      failureCount: 0,
-      skippedCount: 0,
-      timestamp: new Date().toISOString(),
-    };
-    // Handle legacy checkpoints without skippedCount
-    if (loaded && !('skippedCount' in loaded)) {
-      checkpoint.skippedCount = 0;
+    if (loaded) {
+      logger.info(`Resuming from checkpoint: ${loaded.totalProcessed} names already processed`);
+      // Handle legacy checkpoints without skippedCount
+      checkpoint = {
+        ...loaded,
+        skippedCount: loaded.skippedCount ?? 0,
+      };
+    } else {
+      logger.warning("--continue flag set but no checkpoint found, starting fresh");
+      checkpoint = createFreshCheckpoint();
     }
+  } else {
+    // Default: always start fresh (ignore existing checkpoint)
+    checkpoint = createFreshCheckpoint();
   }
 
   const results: RegistrationResult[] = [];
@@ -686,7 +687,7 @@ export async function batchRegisterNames(
 export async function main(argv = process.argv): Promise<void> {
   const program = new Command()
     .name("premigrate")
-    .description("Pre-migrate ENS .eth 2LDs from Mainnet to v2")
+    .description("Pre-migrate ENS .eth 2LDs from Mainnet to v2. By default starts fresh. Use --continue to resume from checkpoint.")
     .requiredOption("--namechain-rpc-url <url>", "Namechain (v2) RPC endpoint")
     .option("--mainnet-rpc-url <url>", "Mainnet RPC endpoint for verification", "https://mainnet.gateway.tenderly.co/")
     .requiredOption("--namechain-registry <address>", "ETH Registry contract address")
@@ -697,7 +698,7 @@ export async function main(argv = process.argv): Promise<void> {
     .option("--start-index <number>", "Starting index for resuming partial migrations", "0")
     .option("--limit <number>", "Maximum total number of names to fetch and register")
     .option("--dry-run", "Simulate without executing transactions", false)
-    .option("--fresh", "Delete previous logs and checkpoints before starting", false)
+    .option("--continue", "Continue from previous checkpoint if it exists", false)
     .option("--role-bitmap <hex>", "Custom role bitmap (hex string) for when registering names");
 
   program.parse(argv);
@@ -714,18 +715,11 @@ export async function main(argv = process.argv): Promise<void> {
     startIndex: parseInt(opts.startIndex) || 0,
     limit: opts.limit ? parseInt(opts.limit) : null,
     dryRun: opts.dryRun,
-    fresh: opts.fresh,
+    continue: opts.continue,
     roleBitmap: opts.roleBitmap ? BigInt(opts.roleBitmap) : ROLES.ALL,
   };
 
   try {
-    // Clean up previous run if --fresh flag is set
-    if (config.fresh) {
-      console.log("\nCleaning up previous migration files...");
-      cleanupPreviousRun();
-      console.log("");
-    }
-
     logger.header("ENS Pre-Migration Script");
     logger.divider();
 
@@ -739,7 +733,11 @@ export async function main(argv = process.argv): Promise<void> {
     logger.config('Start Index', config.startIndex);
     logger.config('Limit', config.limit ?? "none");
     logger.config('Dry Run', config.dryRun);
-    logger.config('Fresh Start', config.fresh ?? false);
+    logger.config('Continue Mode', config.continue ?? false);
+    if (config.continue && loadCheckpoint()) {
+      const cp = loadCheckpoint()!;
+      logger.config('Checkpoint Found', `${cp.totalProcessed} processed, ${cp.skippedCount} skipped, ${cp.failureCount} failed`);
+    }
     logger.config('Role Bitmap', `0x${config.roleBitmap.toString(16)}`);
     logger.info("");
 
