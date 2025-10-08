@@ -28,7 +28,7 @@ describe("Pre-Migration Script E2E", () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = mockTheGraphFetch({
       registrations: mockRegistrations,
-    });
+    }) as typeof globalThis.fetch;
 
     try {
       const config: PreMigrationConfig = {
@@ -87,7 +87,7 @@ describe("Pre-Migration Script E2E", () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = mockTheGraphFetch({
       registrations: mockRegistrations,
-    });
+    }) as typeof globalThis.fetch;
 
     try {
       const config: PreMigrationConfig = {
@@ -135,7 +135,7 @@ describe("Pre-Migration Script E2E", () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = mockTheGraphFetch({
       registrations: mockRegistrations,
-    });
+    }) as typeof globalThis.fetch;
 
     try {
       const config: PreMigrationConfig = {
@@ -183,7 +183,7 @@ describe("Pre-Migration Script E2E", () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = mockTheGraphFetch({
       registrations: mockRegistrations,
-    });
+    }) as typeof globalThis.fetch;
 
     try {
       const config: PreMigrationConfig = {

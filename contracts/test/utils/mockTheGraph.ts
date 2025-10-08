@@ -55,7 +55,7 @@ export function createMockRegistrations(count: number, prefix = "test"): ENSRegi
 
 export function mockTheGraphFetch(
   options: MockTheGraphOptions = {}
-): typeof globalThis.fetch {
+): (url: RequestInfo | URL, init?: RequestInit) => Promise<Response> {
   const { registrations = [], errorMessage, delay = 0 } = options;
 
   return async (url: RequestInfo | URL, init?: RequestInit) => {
