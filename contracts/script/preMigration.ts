@@ -13,6 +13,7 @@ import {
   getContract,
   keccak256,
   toHex,
+  publicActions,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
@@ -40,6 +41,13 @@ export class UnexpectedOwnerError extends Error {
       `Name ${labelName}.eth is already registered but owned by unexpected address: ${actualOwner} (expected: ${expectedOwner})`
     );
     this.name = "UnexpectedOwnerError";
+  }
+}
+
+export class InvalidLabelNameError extends Error {
+  constructor(public readonly labelName: any) {
+    super(`Invalid label name: ${labelName}`);
+    this.name = "InvalidLabelNameError";
   }
 }
 
@@ -148,28 +156,40 @@ class PreMigrationLogger extends Logger {
     });
   }
 
-  registering(name: string, expiry: string): void {
+  processingName(name: string, index: number, total: number): void {
     this.raw(
-      blue(`Registering: ${bold(name)}.eth`) + dim(` (expires: ${expiry})`),
-      `Registering: ${name}.eth (expires: ${expiry})`
+      cyan(`[${index}/${total}] Processing: ${bold(name)}.eth`),
+      `[${index}/${total}] Processing: ${name}.eth`
     );
   }
 
-  registered(name: string, tx: string): void {
+  finishedName(name: string, result: 'registered' | 'skipped' | 'failed'): void {
+    const icon = result === 'registered' ? '✓' : result === 'skipped' ? '⊘' : '✗';
+    const color = result === 'registered' ? green : result === 'skipped' ? yellow : red;
+    this.raw(
+      color(`${icon} Done: ${bold(name)}.eth`) + dim(` (${result})`),
+      `${icon} Done: ${name}.eth (${result})`
+    );
+  }
+
+  registering(name: string, expiry: string): void {
+    this.raw(
+      blue(`  → Registering on namechain`) + dim(` (expires: ${expiry})`),
+      `  → Registering on namechain (expires: ${expiry})`
+    );
+  }
+
+  registered(tx: string): void {
     this.raw(
       green(`  → ✓ Registered successfully`) + dim(` (tx: ${tx})`),
       `  → ✓ Registered successfully (tx: ${tx})`
     );
   }
 
-  skipped(name: string, owner: string): void {
-    this.raw(
-      yellow(`Skipping: ${bold(name)}.eth`),
-      `Skipping: ${name}.eth`
-    );
+  alreadyRegistered(owner: string): void {
     this.raw(
       yellow(`  → ⊘ Already registered by this migration`) +
-        dim(` (owner: ${owner}...)`),
+      dim(` (owner: ${owner}...)`),
       `  → ⊘ Already registered by this migration (owner: ${owner}...)`
     );
   }
@@ -205,9 +225,9 @@ class PreMigrationLogger extends Logger {
     this.raw(
       magenta(
         `Progress: ${bold(`${current}/${total}`)} (${percent}%) - ` +
-          `${green("Registered: " + stats.registered)}, ` +
-          `${yellow("Skipped: " + stats.skipped)}, ` +
-          `${red("Failed: " + stats.failed)}`
+        `${green("Registered: " + stats.registered)}, ` +
+        `${yellow("Skipped: " + stats.skipped)}, ` +
+        `${red("Failed: " + stats.failed)}`
       ),
       `Progress: ${current}/${total} (${percent}%) - Registered: ${stats.registered}, Skipped: ${stats.skipped}, Failed: ${stats.failed}`
     );
@@ -231,6 +251,13 @@ class PreMigrationLogger extends Logger {
     this.raw(
       yellow(`  → ⊘ Not registered on mainnet: ${reason}`),
       `  → ⊘ Not registered on mainnet: ${reason}`
+    );
+  }
+
+  skippingInvalidName(domainName: string): void {
+    this.raw(
+      yellow(`  → ⊘ Skipping: ${bold(domainName)}`) + dim(` (invalid label name)`),
+      `  → ⊘ Skipping: ${domainName} (invalid label name)`
     );
   }
 }
@@ -271,6 +298,10 @@ async function verifyNameOnMainnet(
   mainnetClient: any,
   baseRegistrarAddress: Address = BASE_REGISTRAR_ADDRESS
 ): Promise<MainnetVerificationResult> {
+  if (!labelName || typeof labelName !== 'string' || labelName.trim() === '') {
+    throw new InvalidLabelNameError(labelName);
+  }
+
   const tokenId = keccak256(toHex(labelName));
 
   const expiry = await mainnetClient.readContract({
@@ -379,7 +410,16 @@ export async function fetchAllRegistrations(
         break;
       }
 
-      allRegistrations.push(...registrations);
+      // Filter out invalid registrations (null or empty labelName)
+      const validRegistrations = registrations.filter((reg) => {
+        if (!reg.labelName || typeof reg.labelName !== 'string' || reg.labelName.trim() === '') {
+          logger.skippingInvalidName(reg.domain.name);
+          return false;
+        }
+        return true;
+      });
+
+      allRegistrations.push(...validRegistrations);
       skip += registrations.length;
 
       logger.info(
@@ -417,6 +457,29 @@ async function registerName(
   const { labelName } = registration;
 
   try {
+    // Check if name is already registered in namechain first
+    try {
+      const [tokenId] = await registry.read.getNameData([labelName]);
+      const owner = await registry.read.ownerOf([tokenId]);
+
+      if (owner !== zeroAddress) {
+        // Verify the owner is the bridge controller (from this migration)
+        if (owner.toLowerCase() !== config.bridgeControllerAddress.toLowerCase()) {
+          logger.error(`Name ${labelName}.eth is already registered but owned by unexpected address: ${owner}`);
+          throw new UnexpectedOwnerError(labelName, owner, config.bridgeControllerAddress);
+        }
+
+        logger.alreadyRegistered(owner.substring(0, 10));
+        return { labelName, success: true, skipped: true };
+      }
+    } catch (error) {
+      // If it's our validation error, re-throw it
+      if (error instanceof UnexpectedOwnerError) {
+        throw error;
+      }
+      // Otherwise, name doesn't exist or error checking - proceed with mainnet verification
+    }
+
     // Verify name is still registered on mainnet
     logger.verifyingMainnet(labelName);
     const mainnetResult = await verifyNameOnMainnet(
@@ -435,29 +498,6 @@ async function registerName(
 
     const expiryDateFormatted = new Date(Number(mainnetResult.expiry) * 1000).toISOString().split('T')[0];
     logger.mainnetVerified(labelName, expiryDateFormatted);
-
-    // Check if name is already registered
-    try {
-      const [tokenId] = await registry.read.getNameData([labelName]);
-      const owner = await registry.read.ownerOf([tokenId]);
-
-      if (owner !== zeroAddress) {
-        // Verify the owner is the bridge controller (from this migration)
-        if (owner.toLowerCase() !== config.bridgeControllerAddress.toLowerCase()) {
-          logger.error(`Name ${labelName}.eth is already registered but owned by unexpected address: ${owner}`);
-          throw new UnexpectedOwnerError(labelName, owner, config.bridgeControllerAddress);
-        }
-
-        logger.skipped(labelName, owner.substring(0, 10));
-        return { labelName, success: true, skipped: true };
-      }
-    } catch (error) {
-      // If it's our validation error, re-throw it
-      if (error instanceof UnexpectedOwnerError) {
-        throw error;
-      }
-      // Otherwise, name doesn't exist or error checking - proceed with registration
-    }
 
     // Use mainnet expiry for registration
     const expires = mainnetResult.expiry;
@@ -480,12 +520,14 @@ async function registerName(
 
     await client.waitForTransactionReceipt({ hash });
 
-    logger.registered(labelName, hash);
+    logger.registered(hash);
     return { labelName, success: true, txHash: hash };
   } catch (error) {
-    // Re-throw validation errors (name owned by unexpected address) - don't retry
-    if (error instanceof UnexpectedOwnerError) {
-      throw error;
+    // Don't retry validation errors - these are permanent failures
+    if (error instanceof UnexpectedOwnerError || error instanceof InvalidLabelNameError) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.failed(labelName, errorMessage, undefined, MAX_RETRIES);
+      return { labelName, success: false, error: errorMessage };
     }
 
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -514,7 +556,7 @@ export async function batchRegisterNames(
       retryCount: 0,
       timeout: 30000,
     }),
-  });
+  }).extend(publicActions);
 
   const registry = providedRegistry || getContract({
     address: config.registryAddress,
@@ -532,7 +574,7 @@ export async function batchRegisterNames(
 
   logger.info(`\nStarting registration process...`);
   logger.info(`Total names to register: ${registrations.length}`);
-  logger.info(`Batch size: ${config.batchSize}`);
+  logger.info(`TheGraph batch size: ${config.batchSize}`);
   logger.info(`Dry run: ${config.dryRun}`);
 
   // Load checkpoint (unless disabled for testing)
@@ -567,19 +609,30 @@ export async function batchRegisterNames(
 
   for (let i = startIndex; i < registrations.length; i++) {
     const registration = registrations[i];
+
+    // Log start of processing
+    logger.processingName(registration.labelName, i + 1, registrations.length);
+
     const result = await registerName(client, registry, config, registration, mainnetClient);
     results.push(result);
 
+    // Determine result type and log completion
+    let resultType: 'registered' | 'skipped' | 'failed';
     if (result.skipped) {
       checkpoint.skippedCount++;
+      resultType = 'skipped';
       // Don't increment totalProcessed for skipped names
     } else if (result.success) {
       checkpoint.successCount++;
       checkpoint.totalProcessed++;
+      resultType = 'registered';
     } else {
       checkpoint.failureCount++;
       checkpoint.totalProcessed++;
+      resultType = 'failed';
     }
+
+    logger.finishedName(registration.labelName, resultType);
 
     checkpoint.lastProcessedIndex = i;
     checkpoint.timestamp = new Date().toISOString();
@@ -636,8 +689,8 @@ export async function main(argv = process.argv): Promise<void> {
     .description("Pre-migrate ENS .eth 2LDs from Mainnet to v2")
     .requiredOption("--namechain-rpc-url <url>", "Namechain (v2) RPC endpoint")
     .option("--mainnet-rpc-url <url>", "Mainnet RPC endpoint for verification", "https://mainnet.gateway.tenderly.co/")
-    .requiredOption("--registry <address>", "ETH Registry contract address")
-    .requiredOption("--bridge-controller <address>", "L2BridgeController address")
+    .requiredOption("--namechain-registry <address>", "ETH Registry contract address")
+    .requiredOption("--namechain-bridge-controller <address>", "L2BridgeController address")
     .requiredOption("--private-key <key>", "Deployer private key (has REGISTRAR role)")
     .requiredOption("--thegraph-api-key <key>", "TheGraph Gateway API key (get from https://thegraph.com/studio/apikeys/)")
     .option("--batch-size <number>", "Number of names to fetch per TheGraph API request", "100")
@@ -653,8 +706,8 @@ export async function main(argv = process.argv): Promise<void> {
   const config: PreMigrationConfig = {
     rpcUrl: opts.namechainRpcUrl,
     mainnetRpcUrl: opts.mainnetRpcUrl,
-    registryAddress: opts.registry as Address,
-    bridgeControllerAddress: opts.bridgeController as Address,
+    registryAddress: opts.namechainRegistry as Address,
+    bridgeControllerAddress: opts.namechainBridgeController as Address,
     privateKey: opts.privateKey as `0x${string}`,
     thegraphApiKey: opts.thegraphApiKey,
     batchSize: parseInt(opts.batchSize) || 100,
