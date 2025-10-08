@@ -595,6 +595,7 @@ export async function batchRegisterNames(
       checkpoint = {
         ...loaded,
         skippedCount: loaded.skippedCount ?? 0,
+        lastProcessedIndex: -1, // Reset since we're fetching from new offset
       };
     } else {
       logger.warning("--continue flag set but no checkpoint found, starting fresh");
@@ -637,14 +638,18 @@ export async function batchRegisterNames(
     checkpoint.lastProcessedIndex = i;
     checkpoint.timestamp = new Date().toISOString();
 
-    // Save checkpoint periodically (unless disabled)
-    if (!config.disableCheckpoint && checkpoint.totalProcessed % 10 === 0) {
+    // Save checkpoint after each name (unless disabled)
+    if (!config.disableCheckpoint) {
       saveCheckpoint(checkpoint);
-      logger.progress(checkpoint.totalProcessed, registrations.length, {
-        registered: checkpoint.successCount,
-        skipped: checkpoint.skippedCount,
-        failed: checkpoint.failureCount,
-      });
+
+      // Log progress every 10 names
+      if (checkpoint.totalProcessed % 10 === 0) {
+        logger.progress(checkpoint.totalProcessed, registrations.length, {
+          registered: checkpoint.successCount,
+          skipped: checkpoint.skippedCount,
+          failed: checkpoint.failureCount,
+        });
+      }
     }
   }
 
@@ -733,6 +738,9 @@ export async function main(argv = process.argv): Promise<void> {
     if (config.continue && loadCheckpoint()) {
       const cp = loadCheckpoint()!;
       logger.config('Checkpoint Found', `${cp.totalProcessed} processed, ${cp.skippedCount} skipped, ${cp.failureCount} failed`);
+      // Skip already-processed names in TheGraph query
+      config.startIndex = cp.totalProcessed;
+      logger.info(`Adjusted start index to ${config.startIndex} based on checkpoint`);
     }
     logger.config('Role Bitmap', `0x${config.roleBitmap.toString(16)}`);
     logger.info("");

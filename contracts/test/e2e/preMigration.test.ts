@@ -242,17 +242,20 @@ describe("Pre-Migration Script E2E", () => {
       // Verify first 5 registered
       const checkpoint1 = loadCheckpoint();
       expect(checkpoint1!.successCount).toBe(5);
+      expect(checkpoint1!.totalProcessed).toBe(5);
 
       // Second run WITH --continue: should resume from index 5
-      const config2 = { ...config1, continue: true, limit: 10 };
+      // Adjust startIndex based on checkpoint (simulating main() behavior)
+      const config2 = { ...config1, continue: true, limit: 10, startIndex: checkpoint1!.totalProcessed };
       const registrations2 = await fetchAllRegistrations(config2, theGraphMock.fetch as typeof fetch);
-      expect(registrations2.length).toBe(10);
+      expect(registrations2.length).toBe(5); // Only fetches remaining 5 names
 
       await batchRegisterNames(config2, registrations2, env.l2.client, env.l2.contracts.ethRegistry);
 
-      // Verify all 10 registered
+      // Verify all 10 registered total
       const checkpoint2 = loadCheckpoint();
       expect(checkpoint2!.successCount).toBe(10);
+      expect(checkpoint2!.totalProcessed).toBe(10);
 
       // Verify names 6-10 are registered
       for (let i = 6; i <= 10; i++) {
