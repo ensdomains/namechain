@@ -60,7 +60,7 @@ ENSv2 transitions from a flat registry to a hierarchical system that enables:
 
 ### Mutable Token ID System
 
-Token IDs regenerate on significant state changes (expiry, permission updates) to prevent griefing attacks from expired token approvals. There is an internal id called cannonical ID that points to the same storage
+Token IDs regenerate on significant state changes (expiry, permission updates) to prevent griefing attacks from expired token approvals. There is an internal id called canonical ID that points to the same storage.
 
 #### Key Properties
 
