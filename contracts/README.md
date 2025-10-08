@@ -36,7 +36,7 @@ ENSv2 transitions from a flat registry to a hierarchical system that enables:
 
 1. **Hierarchical Registries**: Each name has its own registry contract managing its subdomains
 2. **Canonical ID System**: Canonical internal token ID enables for external token ID to be changed but still map to the same internal data
-3. **Bitmap-Based Access Control**: Gas-efficient access control supporting up to 32 roles
+3. **Role-Based Access Control**: Gas-efficient access control supporting up to 32 roles
 4. **Universal Resolver**: Single entry point for all name resolution
 5. **Migration Framework**: Transition path from ENSv1 to ENSv2
 
