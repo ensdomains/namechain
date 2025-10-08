@@ -5,13 +5,17 @@ import { Command } from "commander";
 import { writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import {
   createWalletClient,
+  createPublicClient,
   http,
   type Address,
   type Hash,
   zeroAddress,
   getContract,
+  keccak256,
+  toHex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { mainnet } from "viem/chains";
 import {
   Logger,
   red,
@@ -64,6 +68,8 @@ interface GraphQLResponse {
 
 export interface PreMigrationConfig {
   rpcUrl: string;
+  mainnetRpcUrl: string;
+  mainnetBaseRegistrarAddress?: Address;
   registryAddress: Address;
   bridgeControllerAddress: Address;
   privateKey: `0x${string}`;
@@ -103,6 +109,18 @@ const CHECKPOINT_FILE = "preMigration-checkpoint.json";
 const ERROR_LOG_FILE = "preMigration-errors.log";
 const INFO_LOG_FILE = "preMigration.log";
 const MAX_RETRIES = 3;
+
+// ENS v1 BaseRegistrar on Ethereum mainnet
+const BASE_REGISTRAR_ADDRESS = "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85" as Address;
+const BASE_REGISTRAR_ABI = [
+  {
+    inputs: [{ internalType: "uint256", name: "id", type: "uint256" }],
+    name: "nameExpires",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
 
 // Cleanup utilities
 function cleanupPreviousRun(): void {
@@ -194,6 +212,27 @@ class PreMigrationLogger extends Logger {
       `Progress: ${current}/${total} (${percent}%) - Registered: ${stats.registered}, Skipped: ${stats.skipped}, Failed: ${stats.failed}`
     );
   }
+
+  verifyingMainnet(name: string): void {
+    this.raw(
+      dim(`  → Checking mainnet status for ${name}.eth...`),
+      `  → Checking mainnet status for ${name}.eth...`
+    );
+  }
+
+  mainnetVerified(name: string, expiry: string): void {
+    this.raw(
+      green(`  → ✓ Verified on mainnet`) + dim(` (expires: ${expiry})`),
+      `  → ✓ Verified on mainnet (expires: ${expiry})`
+    );
+  }
+
+  mainnetNotRegistered(name: string, reason: string): void {
+    this.raw(
+      yellow(`  → ⊘ Not registered on mainnet: ${reason}`),
+      `  → ⊘ Not registered on mainnet: ${reason}`
+    );
+  }
 }
 
 const logger = new PreMigrationLogger();
@@ -221,11 +260,38 @@ function saveCheckpoint(checkpoint: Checkpoint): void {
   }
 }
 
+// Mainnet verification
+interface MainnetVerificationResult {
+  isRegistered: boolean;
+  expiry: bigint;
+}
+
+async function verifyNameOnMainnet(
+  labelName: string,
+  mainnetClient: any,
+  baseRegistrarAddress: Address = BASE_REGISTRAR_ADDRESS
+): Promise<MainnetVerificationResult> {
+  const tokenId = keccak256(toHex(labelName));
+
+  const expiry = await mainnetClient.readContract({
+    address: baseRegistrarAddress,
+    abi: BASE_REGISTRAR_ABI,
+    functionName: "nameExpires",
+    args: [tokenId],
+  });
+
+  const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
+  const isRegistered = expiry > 0n && expiry > currentTimestamp;
+
+  return { isRegistered, expiry };
+}
+
 // TheGraph queries
 async function fetchRegistrations(
   config: PreMigrationConfig,
   skip: number,
-  first: number
+  first: number,
+  fetchFn: typeof fetch = fetch
 ): Promise<ENSRegistration[]> {
   const endpoint = GATEWAY_ENDPOINT.replace("{API_KEY}", config.thegraphApiKey);
 
@@ -253,7 +319,7 @@ async function fetchRegistrations(
     }
   `;
 
-  const response = await fetch(endpoint, {
+  const response = await fetchFn(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -290,7 +356,8 @@ async function fetchRegistrations(
 }
 
 export async function fetchAllRegistrations(
-  config: PreMigrationConfig
+  config: PreMigrationConfig,
+  fetchFn: typeof fetch = fetch
 ): Promise<ENSRegistration[]> {
   const allRegistrations: ENSRegistration[] = [];
   let skip = config.startIndex;
@@ -303,7 +370,8 @@ export async function fetchAllRegistrations(
       const registrations = await fetchRegistrations(
         config,
         skip,
-        config.batchSize
+        config.batchSize,
+        fetchFn
       );
 
       if (registrations.length === 0) {
@@ -343,11 +411,31 @@ async function registerName(
   registry: any,
   config: PreMigrationConfig,
   registration: ENSRegistration,
+  mainnetClient: any,
   retries = 0
 ): Promise<RegistrationResult> {
-  const { labelName, expiryDate } = registration;
+  const { labelName } = registration;
 
   try {
+    // Verify name is still registered on mainnet
+    logger.verifyingMainnet(labelName);
+    const mainnetResult = await verifyNameOnMainnet(
+      labelName,
+      mainnetClient,
+      config.mainnetBaseRegistrarAddress
+    );
+
+    if (!mainnetResult.isRegistered) {
+      const reason = mainnetResult.expiry === 0n
+        ? "never registered or fully expired"
+        : "expired";
+      logger.mainnetNotRegistered(labelName, reason);
+      return { labelName, success: true, skipped: true };
+    }
+
+    const expiryDateFormatted = new Date(Number(mainnetResult.expiry) * 1000).toISOString().split('T')[0];
+    logger.mainnetVerified(labelName, expiryDateFormatted);
+
     // Check if name is already registered
     try {
       const [tokenId] = await registry.read.getNameData([labelName]);
@@ -371,9 +459,8 @@ async function registerName(
       // Otherwise, name doesn't exist or error checking - proceed with registration
     }
 
-    // Convert expiry to uint64
-    const expires = BigInt(expiryDate);
-    const expiryDateFormatted = new Date(Number(expiryDate) * 1000).toISOString().split('T')[0];
+    // Use mainnet expiry for registration
+    const expires = mainnetResult.expiry;
 
     logger.registering(labelName, expiryDateFormatted);
 
@@ -406,7 +493,7 @@ async function registerName(
     if (retries < MAX_RETRIES) {
       logger.failed(labelName, errorMessage, retries + 1, MAX_RETRIES);
       await new Promise((resolve) => setTimeout(resolve, 1000 * (retries + 1)));
-      return registerName(client, registry, config, registration, retries + 1);
+      return registerName(client, registry, config, registration, mainnetClient, retries + 1);
     }
 
     logger.failed(labelName, errorMessage, undefined, MAX_RETRIES);
@@ -418,7 +505,8 @@ export async function batchRegisterNames(
   config: PreMigrationConfig,
   registrations: ENSRegistration[],
   providedClient?: any,
-  providedRegistry?: any
+  providedRegistry?: any,
+  providedMainnetClient?: any
 ): Promise<void> {
   const client = providedClient || createWalletClient({
     account: privateKeyToAccount(config.privateKey),
@@ -432,6 +520,14 @@ export async function batchRegisterNames(
     address: config.registryAddress,
     abi: artifacts.PermissionedRegistry.abi,
     client,
+  });
+
+  const mainnetClient = providedMainnetClient || createPublicClient({
+    chain: mainnet,
+    transport: http(config.mainnetRpcUrl, {
+      retryCount: 3,
+      timeout: 30000,
+    }),
   });
 
   logger.info(`\nStarting registration process...`);
@@ -471,7 +567,7 @@ export async function batchRegisterNames(
 
   for (let i = startIndex; i < registrations.length; i++) {
     const registration = registrations[i];
-    const result = await registerName(client, registry, config, registration);
+    const result = await registerName(client, registry, config, registration, mainnetClient);
     results.push(result);
 
     if (result.skipped) {
@@ -538,7 +634,8 @@ export async function main(argv = process.argv): Promise<void> {
   const program = new Command()
     .name("premigrate")
     .description("Pre-migrate ENS .eth 2LDs from Mainnet to v2")
-    .requiredOption("--rpc-url <url>", "v2 chain RPC endpoint")
+    .requiredOption("--namechain-rpc-url <url>", "Namechain (v2) RPC endpoint")
+    .option("--mainnet-rpc-url <url>", "Mainnet RPC endpoint for verification", "https://mainnet.gateway.tenderly.co/")
     .requiredOption("--registry <address>", "ETH Registry contract address")
     .requiredOption("--bridge-controller <address>", "L2BridgeController address")
     .requiredOption("--private-key <key>", "Deployer private key (has REGISTRAR role)")
@@ -554,7 +651,8 @@ export async function main(argv = process.argv): Promise<void> {
   const opts = program.opts();
 
   const config: PreMigrationConfig = {
-    rpcUrl: opts.rpcUrl,
+    rpcUrl: opts.namechainRpcUrl,
+    mainnetRpcUrl: opts.mainnetRpcUrl,
     registryAddress: opts.registry as Address,
     bridgeControllerAddress: opts.bridgeController as Address,
     privateKey: opts.privateKey as `0x${string}`,
@@ -579,7 +677,8 @@ export async function main(argv = process.argv): Promise<void> {
     logger.divider();
 
     logger.info(`Configuration:`);
-    logger.config('RPC URL', config.rpcUrl);
+    logger.config('Namechain RPC URL', config.rpcUrl);
+    logger.config('Mainnet RPC URL', config.mainnetRpcUrl);
     logger.config('Registry', config.registryAddress);
     logger.config('Bridge Controller', config.bridgeControllerAddress);
     logger.config('TheGraph API Key', `${config.thegraphApiKey.substring(0, 8)}...`);
@@ -592,7 +691,7 @@ export async function main(argv = process.argv): Promise<void> {
     logger.info("");
 
     // Fetch registrations from TheGraph
-    const registrations = await fetchAllRegistrations(config);
+    const registrations = await fetchAllRegistrations(config); // Uses default fetch
 
     if (registrations.length === 0) {
       logger.warning("No registrations found. Exiting.");
