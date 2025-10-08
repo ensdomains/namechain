@@ -10,6 +10,9 @@
     },
     "contracts": {
       "name": "contracts",
+      "dependencies": {
+        "yoctocolors": "^2.1.2",
+      },
       "devDependencies": {
         "@ensdomains/address-encoder": "^1.1.3",
         "@ensdomains/hardhat-chai-matchers-viem": "^0.1.14",

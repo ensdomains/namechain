@@ -59,5 +59,8 @@
     "premigrate": "bun ./script/preMigration.ts",
     "check:types": "tsc --noEmit"
   },
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "yoctocolors": "^2.1.2"
+  }
 }
