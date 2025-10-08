@@ -447,6 +447,210 @@ export async function fetchAllRegistrations(
   return allRegistrations;
 }
 
+// Streaming batch processing - fetches and registers one batch at a time
+async function fetchAndRegisterInBatches(
+  config: PreMigrationConfig,
+): Promise<void> {
+  // Load checkpoint if continuing
+  let checkpoint: Checkpoint | null = null;
+
+  if (config.continue) {
+    checkpoint = loadCheckpoint();
+    if (checkpoint) {
+      logger.info(`Resuming from checkpoint: ${checkpoint.totalProcessed} names already processed`);
+      config.startIndex = checkpoint.totalProcessed;
+    }
+  }
+
+  if (!checkpoint) {
+    checkpoint = createFreshCheckpoint();
+  }
+
+  // Setup clients once for all batches
+  const client = createWalletClient({
+    account: privateKeyToAccount(config.privateKey),
+    transport: http(config.rpcUrl, { retryCount: 0, timeout: 30000 }),
+  }).extend(publicActions);
+
+  const registry = getContract({
+    address: config.registryAddress,
+    abi: artifacts.PermissionedRegistry.abi,
+    client,
+  });
+
+  const mainnetClient = createPublicClient({
+    chain: mainnet,
+    transport: http(config.mainnetRpcUrl, { retryCount: 3, timeout: 30000 }),
+  });
+
+  let skip = config.startIndex;
+  let hasMore = true;
+
+  logger.info(`\nFetching and registering in batches of ${config.batchSize}...`);
+
+  while (hasMore) {
+    try {
+      // Fetch one batch
+      const batch = await fetchRegistrations(config, skip, config.batchSize);
+
+      if (batch.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      // Increment totalExpected with all names in this batch
+      checkpoint.totalExpected += batch.length;
+
+      // Filter invalid labels and count them
+      let invalidLabelsInBatch = 0;
+      const validBatch = batch.filter((reg) => {
+        if (!reg.labelName || typeof reg.labelName !== 'string' || reg.labelName.trim() === '') {
+          logger.skippingInvalidName(reg.domain?.name || 'unknown');
+          invalidLabelsInBatch++;
+          checkpoint!.invalidLabelCount++;
+          checkpoint!.totalProcessed++;
+          return false;
+        }
+        return true;
+      });
+
+      if (invalidLabelsInBatch > 0 && !config.disableCheckpoint) {
+        saveCheckpoint(checkpoint);
+      }
+
+      logger.info(
+        `\nFetched ${batch.length} registrations (${invalidLabelsInBatch} invalid labels filtered). ` +
+        `Starting registration of ${validBatch.length} valid names...`
+      );
+
+      // Process valid batch immediately
+      if (validBatch.length > 0) {
+        checkpoint = await processBatch(
+          config,
+          validBatch,
+          client,
+          registry,
+          mainnetClient,
+          checkpoint
+        );
+      }
+
+      skip += batch.length;
+
+      // Show batch summary
+      logger.info(
+        `Batch complete. Total: ${checkpoint.totalProcessed} processed ` +
+        `(${checkpoint.successCount} registered, ${checkpoint.skippedCount} skipped, ` +
+        `${checkpoint.invalidLabelCount} invalid, ${checkpoint.failureCount} failed)`
+      );
+
+      // Check limit
+      if (config.limit && checkpoint.totalProcessed >= config.limit) {
+        logger.info(`\nReached limit of ${config.limit} names. Stopping.`);
+        hasMore = false;
+        break;
+      }
+
+      // Rate limiting between batches
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    } catch (error) {
+      logger.error(`Failed to fetch/process batch at skip=${skip}: ${error}`);
+      throw error;
+    }
+  }
+
+  // Final summary
+  printFinalSummary(checkpoint);
+}
+
+// Process a single batch of registrations
+async function processBatch(
+  config: PreMigrationConfig,
+  registrations: ENSRegistration[],
+  client: any,
+  registry: any,
+  mainnetClient: any,
+  checkpoint: Checkpoint
+): Promise<Checkpoint> {
+  logger.info(`Processing ${registrations.length} names...`);
+
+  for (let i = 0; i < registrations.length; i++) {
+    const registration = registrations[i];
+    const globalIndex = checkpoint.totalProcessed + 1;
+
+    // Log start of processing
+    logger.processingName(registration.labelName, globalIndex, checkpoint.totalExpected);
+
+    const result = await registerName(client, registry, config, registration, mainnetClient);
+
+    // Determine result type and update checkpoint
+    let resultType: 'registered' | 'skipped' | 'failed';
+    if (result.skipped) {
+      checkpoint.skippedCount++;
+      resultType = 'skipped';
+    } else if (result.success) {
+      checkpoint.successCount++;
+      resultType = 'registered';
+    } else {
+      if (result.invalidLabel) {
+        checkpoint.invalidLabelCount++;
+      } else {
+        checkpoint.failureCount++;
+      }
+      resultType = 'failed';
+    }
+
+    checkpoint.totalProcessed++;
+    checkpoint.timestamp = new Date().toISOString();
+
+    logger.finishedName(registration.labelName, resultType);
+
+    // Save checkpoint after each name
+    if (!config.disableCheckpoint) {
+      saveCheckpoint(checkpoint);
+
+      // Log progress every 10 names
+      if (checkpoint.totalProcessed % 10 === 0) {
+        logger.progress(checkpoint.totalProcessed, checkpoint.totalExpected, {
+          registered: checkpoint.successCount,
+          skipped: checkpoint.skippedCount,
+          failed: checkpoint.failureCount,
+        });
+      }
+    }
+  }
+
+  return checkpoint;
+}
+
+// Print final summary after all processing
+function printFinalSummary(checkpoint: Checkpoint): void {
+  const actualRegistrations = checkpoint.successCount + checkpoint.failureCount;
+
+  logger.info('');
+  logger.divider();
+  logger.header('Pre-Migration Complete');
+  logger.divider();
+
+  logger.config('Total names processed', checkpoint.totalProcessed);
+  logger.config('Successfully registered', green(checkpoint.successCount.toString()));
+  logger.config('Skipped (already registered/expired)', yellow(checkpoint.skippedCount.toString()));
+  logger.config('Invalid labels', yellow(checkpoint.invalidLabelCount.toString()));
+  logger.config('Failed (other errors)', checkpoint.failureCount > 0 ? red(checkpoint.failureCount.toString()) : checkpoint.failureCount);
+  logger.config('Actual registrations attempted', actualRegistrations);
+
+  if (actualRegistrations > 0) {
+    const rate = Math.round((checkpoint.successCount / actualRegistrations) * 100);
+    logger.config('Registration success rate', `${rate}%`);
+  }
+
+  logger.divider();
+
+  if (checkpoint.failureCount > 0) {
+    logger.warning(`\nSome registrations failed. Check ${ERROR_LOG_FILE} for details.`);
+  }
+}
+
 // Registration logic
 export async function registerName(
   client: any,
@@ -759,16 +963,8 @@ export async function main(argv = process.argv): Promise<void> {
     logger.config('Role Bitmap', `0x${config.roleBitmap.toString(16)}`);
     logger.info("");
 
-    // Fetch registrations from TheGraph
-    const registrations = await fetchAllRegistrations(config); // Uses default fetch
-
-    if (registrations.length === 0) {
-      logger.warning("No registrations found. Exiting.");
-      return;
-    }
-
-    // Register names on L2
-    await batchRegisterNames(config, registrations);
+    // Fetch and register in streaming batches
+    await fetchAndRegisterInBatches(config);
 
     logger.success("\nPre-migration script completed successfully!");
   } catch (error) {
