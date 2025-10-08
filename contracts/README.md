@@ -60,18 +60,17 @@ ENSv2 transitions from a flat registry to a hierarchical system that enables:
 
 ### Mutable Token ID System
 
-ENSv2 uses internal canonical ID system to enable token regeneration while maintaining stable storage:
+Token IDs regenerate on significant state changes (expiry, permission updates) to prevent griefing attacks from expired token approvals. There is an internal id called cannonical ID that points to the same storage
 
 #### Key Properties
 
-1. **Token ID** (`uint256`): Unique ERC1155 identifier that can change over time
+1. **Token ID** (`uint256`): External id representing a name
    - Different tokenIds can exist for the same name (e.g., after expiry/re-registration)
    - Lower 32 bits may encode version, timestamp, or other metadata
 
-2. **Canonical ID** (`uint256`): Stable storage key that never changes
+2. **Canonical ID** (`uint256`): Internal stable storage key derived from token ID
    - Always has lower 32 bits zeroed out
-   - Formula: `canonicalId = tokenId ^ uint32(tokenId)`
-   - Idempotent: `getCanonicalId(getCanonicalId(x)) == getCanonicalId(x)`
+   - Formula: `canonicalId = tokenId ^ uint32(tokenId)
 
 #### Why This Matters
 
