@@ -94,6 +94,7 @@ export interface PreMigrationConfig {
 export interface Checkpoint {
   lastProcessedIndex: number;
   totalProcessed: number;
+  totalExpected: number;
   successCount: number;
   failureCount: number;
   skippedCount: number;
@@ -143,6 +144,7 @@ export function createFreshCheckpoint(): Checkpoint {
   return {
     lastProcessedIndex: -1,
     totalProcessed: 0,
+    totalExpected: 0,
     successCount: 0,
     failureCount: 0,
     skippedCount: 0,
@@ -586,24 +588,28 @@ export async function batchRegisterNames(
   if (config.disableCheckpoint) {
     // Tests can disable checkpoints completely
     checkpoint = createFreshCheckpoint();
+    checkpoint.totalExpected = registrations.length;
   } else if (config.continue) {
     // Explicit opt-in: try to load checkpoint
     const loaded = loadCheckpoint();
     if (loaded) {
       logger.info(`Resuming from checkpoint: ${loaded.totalProcessed} names already processed`);
-      // Handle legacy checkpoints without skippedCount
+      // Handle legacy checkpoints without skippedCount or totalExpected
       checkpoint = {
         ...loaded,
         skippedCount: loaded.skippedCount ?? 0,
+        totalExpected: (loaded.totalExpected ?? loaded.totalProcessed) + registrations.length,
         lastProcessedIndex: -1, // Reset since we're fetching from new offset
       };
     } else {
       logger.warning("--continue flag set but no checkpoint found, starting fresh");
       checkpoint = createFreshCheckpoint();
+      checkpoint.totalExpected = registrations.length;
     }
   } else {
     // Default: always start fresh (ignore existing checkpoint)
     checkpoint = createFreshCheckpoint();
+    checkpoint.totalExpected = registrations.length;
   }
 
   const results: RegistrationResult[] = [];
@@ -644,7 +650,7 @@ export async function batchRegisterNames(
 
       // Log progress every 10 names
       if (checkpoint.totalProcessed % 10 === 0) {
-        logger.progress(checkpoint.totalProcessed, registrations.length, {
+        logger.progress(checkpoint.totalProcessed, checkpoint.totalExpected, {
           registered: checkpoint.successCount,
           skipped: checkpoint.skippedCount,
           failed: checkpoint.failureCount,

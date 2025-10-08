@@ -5,6 +5,7 @@ export function createTestCheckpoint(overrides: Partial<Checkpoint> = {}): Check
   return {
     lastProcessedIndex: -1,
     totalProcessed: 0,
+    totalExpected: 0,
     successCount: 0,
     failureCount: 0,
     skippedCount: 0,
