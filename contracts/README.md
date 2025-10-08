@@ -270,9 +270,11 @@ Universal storage contract for all registries. Reduces storage proof complexity 
 **Storage Structure**:
 ```solidity
 struct Entry {
-    address subregistry;  // Registry for subdomains
-    address resolver;     // Resolver for this name
-    uint64 flags;         // Implementation-specific data (e.g., expiry)
+   uint64 expiry;          // Timestamp when the name expires (0 = never expires)
+   uint32 tokenVersionId;  // Version counter for token regeneration (incremented on burn/remint)
+   address subregistry;    // Registry contract for subdomains under this name
+   uint32 eacVersionId;    // Version counter for access control changes (incremented on permission updates)
+   address resolver;       // Resolver contract for name resolution data
 }
 ```
 
