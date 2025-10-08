@@ -397,7 +397,6 @@ Encodes/decodes cross-chain messages:
 1. **EJECTION**: Transfer name from L2 to L1
    ```solidity
    bytes memory msg = BridgeEncoder.encodeEjection(
-       dnsEncodedName,
        transferData  // owner, expiry, subregistry, resolver
    );
    ```
