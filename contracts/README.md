@@ -35,8 +35,8 @@ ENSv2 transitions from a flat registry to a hierarchical system that enables:
 ### Key Features
 
 1. **Hierarchical Registries**: Each name has its own registry contract managing its subdomains
-2. **Canonical ID System**: Stable storage identifiers enabling token regeneration
-3. **Bitmap-Based Access Control**: Gas-efficient permission management supporting up to 32 roles
+2. **Canonical ID System**: Canonical internal token ID enables for external token ID to be changed but still map to the same internal data
+3. **Bitmap-Based Access Control**: Gas-efficient access control supporting up to 32 roles
 4. **Universal Resolver**: Single entry point for all name resolution
 5. **Migration Framework**: Transition path from ENSv1 to ENSv2
 
@@ -60,19 +60,7 @@ ENSv2 transitions from a flat registry to a hierarchical system that enables:
 
 ### Token ID System
 
-ENSv2 uses a dual-identifier system to enable token regeneration while maintaining stable storage:
-
-#### How Token IDs Work
-
-```solidity
-// Label to Token ID conversion
-string label = "example";
-bytes32 labelHash = keccak256(bytes(label));
-uint256 tokenId = uint256(labelHash);
-
-// Canonical ID derivation (XOR with lower 32 bits)
-uint256 canonicalId = tokenId ^ uint32(tokenId);
-```
+ENSv2 uses internal canonical ID system to enable token regeneration while maintaining stable storage:
 
 #### Key Properties
 
@@ -261,7 +249,6 @@ struct Entry {
 Feature-complete registry with role-based access control:
 - ERC1155 NFT for subdomains
 - Enhanced Access Control with 32 roles
-- Token regeneration support
 - Expiry management
 - Metadata support (name, description, image)
 
