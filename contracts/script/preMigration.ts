@@ -98,6 +98,7 @@ export interface Checkpoint {
   successCount: number;
   failureCount: number;
   skippedCount: number;
+  invalidLabelCount: number;
   timestamp: string;
 }
 
@@ -107,6 +108,7 @@ interface RegistrationResult {
   txHash?: Hash;
   error?: string;
   skipped?: boolean;
+  invalidLabel?: boolean;
 }
 
 // Constants
@@ -148,6 +150,7 @@ export function createFreshCheckpoint(): Checkpoint {
     successCount: 0,
     failureCount: 0,
     skippedCount: 0,
+    invalidLabelCount: 0,
     timestamp: new Date().toISOString(),
   };
 }
@@ -533,7 +536,12 @@ export async function registerName(
     if (error instanceof UnexpectedOwnerError || error instanceof InvalidLabelNameError) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.failed(labelName, errorMessage, undefined, MAX_RETRIES);
-      return { labelName, success: false, error: errorMessage };
+      return {
+        labelName,
+        success: false,
+        error: errorMessage,
+        invalidLabel: error instanceof InvalidLabelNameError
+      };
     }
 
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -594,10 +602,11 @@ export async function batchRegisterNames(
     const loaded = loadCheckpoint();
     if (loaded) {
       logger.info(`Resuming from checkpoint: ${loaded.totalProcessed} names already processed`);
-      // Handle legacy checkpoints without skippedCount or totalExpected
+      // Handle legacy checkpoints without skippedCount, totalExpected, or invalidLabelCount
       checkpoint = {
         ...loaded,
         skippedCount: loaded.skippedCount ?? 0,
+        invalidLabelCount: loaded.invalidLabelCount ?? 0,
         totalExpected: (loaded.totalExpected ?? loaded.totalProcessed) + registrations.length,
         lastProcessedIndex: -1, // Reset since we're fetching from new offset
       };
@@ -633,7 +642,11 @@ export async function batchRegisterNames(
       checkpoint.successCount++;
       resultType = 'registered';
     } else {
-      checkpoint.failureCount++;
+      if (result.invalidLabel) {
+        checkpoint.invalidLabelCount++;
+      } else {
+        checkpoint.failureCount++;
+      }
       resultType = 'failed';
     }
 
@@ -674,8 +687,9 @@ export async function batchRegisterNames(
 
   logger.config('Total names processed', checkpoint.totalProcessed);
   logger.config('Successfully registered', green(checkpoint.successCount.toString()));
-  logger.config('Skipped (already registered)', yellow(checkpoint.skippedCount.toString()));
-  logger.config('Failed', checkpoint.failureCount > 0 ? red(checkpoint.failureCount.toString()) : checkpoint.failureCount);
+  logger.config('Skipped (already registered/expired)', yellow(checkpoint.skippedCount.toString()));
+  logger.config('Invalid labels', yellow(checkpoint.invalidLabelCount.toString()));
+  logger.config('Failed (other errors)', checkpoint.failureCount > 0 ? red(checkpoint.failureCount.toString()) : checkpoint.failureCount);
   logger.config('Actual registrations attempted', actualRegistrations);
 
   if (actualRegistrations > 0) {
@@ -743,7 +757,8 @@ export async function main(argv = process.argv): Promise<void> {
     logger.config('Continue Mode', config.continue ?? false);
     if (config.continue && loadCheckpoint()) {
       const cp = loadCheckpoint()!;
-      logger.config('Checkpoint Found', `${cp.totalProcessed} processed, ${cp.skippedCount} skipped, ${cp.failureCount} failed`);
+      const invalidCount = cp.invalidLabelCount ?? 0;
+      logger.config('Checkpoint Found', `${cp.totalProcessed} processed, ${cp.skippedCount} skipped, ${invalidCount} invalid, ${cp.failureCount} failed`);
       // Skip already-processed names in TheGraph query
       config.startIndex = cp.totalProcessed;
       logger.info(`Adjusted start index to ${config.startIndex} based on checkpoint`);

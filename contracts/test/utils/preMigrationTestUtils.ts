@@ -9,6 +9,7 @@ export function createTestCheckpoint(overrides: Partial<Checkpoint> = {}): Check
     successCount: 0,
     failureCount: 0,
     skippedCount: 0,
+    invalidLabelCount: 0,
     timestamp: new Date().toISOString(),
     ...overrides,
   };
