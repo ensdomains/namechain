@@ -161,21 +161,15 @@ Each 4-bit nybble stores the **assignee count** (max 15) for that role.
 
 From [`RegistryRolesLib.sol`](src/common/registry/libraries/RegistryRolesLib.sol):
 
-| Role | Bit Position | Description |
-|------|--------------|-------------|
-| `ROLE_REGISTRAR` | 0 | Can register new names |
-| `ROLE_REGISTRAR_ADMIN` | 128 | Can grant/revoke ROLE_REGISTRAR |
-| `ROLE_RENEW` | 4 | Can renew name registrations |
-| `ROLE_RENEW_ADMIN` | 132 | Can grant/revoke ROLE_RENEW |
-| `ROLE_SET_SUBREGISTRY` | 8 | Can change subregistry addresses |
-| `ROLE_SET_SUBREGISTRY_ADMIN` | 136 | Can grant/revoke ROLE_SET_SUBREGISTRY |
-| `ROLE_SET_RESOLVER` | 12 | Can change the resolver address |
-| `ROLE_SET_RESOLVER_ADMIN` | 140 | Can grant/revoke ROLE_SET_RESOLVER |
-| `ROLE_SET_TOKEN_OBSERVER` | 16 | Can set token observer contracts |
-| `ROLE_SET_TOKEN_OBSERVER_ADMIN` | 144 | Can grant/revoke ROLE_SET_TOKEN_OBSERVER |
-| `ROLE_CAN_TRANSFER_ADMIN` | 148 | Can grant/revoke transfer admin rights |
-| `ROLE_BURN` | 24 | Can burn (delete) the name |
-| `ROLE_BURN_ADMIN` | 152 | Can grant/revoke ROLE_BURN |
+| Role | Bit Position | Admin Bit Position | Description |
+|------|--------------|--------------------| ----------- |
+| `ROLE_REGISTRAR` | 0 | 128 | Can register new names |
+| `ROLE_RENEW` | 4 | 132 | Can renew name registrations |
+| `ROLE_SET_SUBREGISTRY` | 8 | 136 | Can change subregistry addresses |
+| `ROLE_SET_RESOLVER` | 12 | 140 | Can change the resolver address |
+| `ROLE_SET_TOKEN_OBSERVER` | 16 | 144 | Can set token observer contracts |
+| `ROLE_BURN` | 24 | 152 | Can burn (delete) the name |
+| `ROLE_CAN_TRANSFER_ADMIN` | - | 148 | Can grant/revoke transfer admin rights |
 
 #### Example Usage
 
