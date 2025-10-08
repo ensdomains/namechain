@@ -113,49 +113,22 @@ function setResolver(uint256 tokenId, address resolver) external {
 
 ENSv2 uses **Enhanced Access Control (EAC)**, a role-based access control system that stores up to 32 roles and their assignee counts in a single uint256:
 
-Eeach role have a complementary admin role that grants the holder permission to grant/revoke that role. Roles are assigned against a "resource", which is just a uint256 that can represent anything. For a given role assigned for a given resource, a maximum of 15 assignees are allowed. For registered names the canonical token ID acts as the equivalent access control resource id.
+1. **Resource-scoped permissions** - Roles are assigned to specific resources (e.g., individual names) rather than contract-wide
+2. **Paired admin roles** - Each base role has a corresponding admin role that can grant/revoke both itself and the base role
 
-#### Role Representation
+#### How EAC Works
 
+**Resources**: A resource is any `uint256` identifier. In registries, each name is a resource identified by its canonical token ID. The special resource ID `0` (ROOT_RESOURCE) applies globally to all resources.
+
+**Roles**: Each role occupies a 4-bit "nybble" (half-byte) in a `uint256` bitmap, storing the assignee count (max 15 per role). Roles 0-31 are "base roles" that grant specific permissions. Roles 32-63 are their corresponding "admin roles".
+
+**Role Layout**:
 ```
-Role Bitmap (uint256):
 ┌────────── 128 bits ───────────┬────────── 128 bits ───────────┐
-│     Admin Roles (32-63)       │     Regular Roles (0-31)      │
-│  Each role = 4 bits (nybble)  │  Each role = 4 bits (nybble)  │
+│     Admin Roles (32-63)       │     Base Roles (0-31)         │
+│  Each = 4 bits (max 15 users) │  Each = 4 bits (max 15 users) │
 └───────────────────────────────┴───────────────────────────────┘
 ```
-
-Each 4-bit nybble stores the **assignee count** (max 15) for that role.
-
-#### Key Features
-
-1. **Resource-Based Permissions**: Roles are scoped to specific resources (e.g., tokenIds)
-   ```solidity
-   // Grant role for specific token
-   registry.grantRoles(tokenId, ROLE_SET_RESOLVER, alice);
-
-   // Check permission
-   registry.checkRoles(tokenId, ROLE_SET_RESOLVER, alice);
-   ```
-
-2. **Root Resource Override**: Roles in `ROOT_RESOURCE` (0x0) apply globally
-   ```solidity
-   // Grant admin powers across all names
-   registry.grantRoles(ROOT_RESOURCE, ROLE_OWNER, admin);
-   ```
-
-3. **Role Composition**: Combine roles using bitwise OR
-   ```solidity
-   uint256 roles = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY | ROLE_CAN_TRANSFER;
-   registry.grantRoles(tokenId, roles, operator);
-   ```
-
-4. **Admin Roles**: Each role has a corresponding admin that can grant/revoke it
-   ```solidity
-   // Role 0's admin is role 32
-   // Role 1's admin is role 33, etc.
-   uint256 adminRole = regularRole + 32;
-   ```
 
 #### Registry Roles
 
@@ -170,6 +143,58 @@ From [`RegistryRolesLib.sol`](src/common/registry/libraries/RegistryRolesLib.sol
 | `ROLE_SET_TOKEN_OBSERVER` | 16 | 144 | Can set token observer contracts |
 | `ROLE_BURN` | 24 | 152 | Can burn (delete) the name |
 | `ROLE_CAN_TRANSFER_ADMIN` | - | 148 | Can grant/revoke transfer admin rights |
+
+
+
+**Permission Inheritance**: When checking permissions for a resource, EAC combines (via bitwise OR) the roles from:
+- The specific resource (e.g., your name's permissions)
+- The root resource (global permissions set by registry owner)
+
+This means root permissions are **unrevokable by name owners** - only the registry owner can remove them.
+
+#### Key Behaviors
+
+1. **Admin Role Capabilities**
+   - Admin roles can grant/revoke both the base role and the admin role itself
+   - In registries, only the name owner can hold admin roles
+   - Admin roles automatically transfer with ownership
+
+2. **Transfer Behavior**
+   - When you transfer a name, **all roles** (both base and admin) transfer to the new owner
+   - Existing delegated base roles to other accounts remain intact unless explicitly revoked
+
+3. **Token ID Regeneration**
+   - Token IDs regenerate on expiry/re-registration (clears all old permissions)
+   - Token IDs regenerate when granting new roles (prevents front-running during sales/transfers)
+   - The underlying canonical ID remains unchanged (points to same storage)
+
+4. **Role Revocation (Fuse-Burning)**
+   - Name owners can revoke their own admin/base roles (equivalent to burning fuses in Name Wrapper)
+   - This creates permanent permission restrictions
+
+#### Usage Examples
+
+```solidity
+// Grant a base role for a specific name
+registry.grantRoles(tokenId, ROLE_SET_RESOLVER, alice);
+
+// Grant multiple roles at once
+uint256 roles = ROLE_SET_RESOLVER | ROLE_SET_SUBREGISTRY;
+registry.grantRoles(tokenId, roles, operator);
+
+// Set global permissions (requires registry owner)
+registry.grantRoles(ROOT_RESOURCE, ROLE_SET_RESOLVER, admin);
+
+// Check permissions
+registry.checkRoles(tokenId, ROLE_SET_RESOLVER, alice);
+```
+
+#### Creating Emancipated Names
+
+You can create the equivalent of Name Wrapper "emancipated" names by:
+1. Creating a subregistry where the owner has no root ACLs
+2. Locking the subregistry into the parent registry
+3. Result: Parent registry owner cannot interfere with subname operations
 
 #### Example Usage
 
