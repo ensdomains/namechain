@@ -58,7 +58,7 @@ ENSv2 transitions from a flat registry to a hierarchical system that enables:
 3. Query that resolver for the requested record
 4. Supports wildcard resolution (parent resolver handles subdomains)
 
-### Token ID System
+### Mutable Token ID System
 
 ENSv2 uses internal canonical ID system to enable token regeneration while maintaining stable storage:
 
