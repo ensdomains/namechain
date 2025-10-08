@@ -2,6 +2,7 @@ import { getAddress, toHex } from "viem";
 import { setupCrossChainEnvironment } from "./setup.js";
 import { createMockRelay } from "./mockRelay.js";
 import { registerTestNames } from "./testNames.js";
+import { createServer } from 'node:http';
 
 const t0 = Date.now();
 
@@ -21,7 +22,7 @@ process.once("SIGINT", async () => {
 // handler for docker
 process.once("SIGTERM", async (code) => {
   await env.shutdown();
-  process.exit(code);
+  process.exit(0);
 });
 // handler for bugs
 process.once("uncaughtException", async (err) => {
@@ -59,5 +60,16 @@ for (const lx of [env.l1, env.l2]) {
 
 await registerTestNames(env, ["test", "example", "demo"]);
 
-console.log();
 console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);
+
+const server = createServer((_req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("healthy\n");
+})
+
+server.listen(8000, () => {
+  console.log(`Healthcheck endpoint listening on :8000/health`);
+});
+
+// ensure server shuts down with the env
+process.once("exit", () => server.close());
