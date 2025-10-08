@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# Navigate to repo root (where .git folder is)
+cd "$(dirname "$0")/.."
+
+# Run checks from contracts folder
+cd contracts && bun run check:types
+cd "$(git rev-parse --show-toplevel)/contracts" && bun run lint
