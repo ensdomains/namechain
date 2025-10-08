@@ -419,16 +419,9 @@ export async function fetchAllRegistrations(
         break;
       }
 
-      // Filter out invalid registrations (null or empty labelName)
-      const validRegistrations = registrations.filter((reg) => {
-        if (!reg.labelName || typeof reg.labelName !== 'string' || reg.labelName.trim() === '') {
-          logger.skippingInvalidName(reg.domain.name);
-          return false;
-        }
-        return true;
-      });
-
-      allRegistrations.push(...validRegistrations);
+      // Don't filter invalid labels here - let registerName() handle them
+      // This ensures they're counted in checkpoint.totalProcessed and invalidLabelCount
+      allRegistrations.push(...registrations);
       skip += registrations.length;
 
       logger.info(
