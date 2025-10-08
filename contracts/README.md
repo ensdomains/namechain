@@ -333,16 +333,28 @@ Length-based pricing with premium decay for expired names:
 - Fiat-pegged via Chainlink oracles
 - Multi-token support
 
-#### `L2EjectionController` - Name Migration
-[src/L2/bridge/L2EjectionController.sol](src/L2/bridge/L2EjectionController.sol)
+#### `L2BridgeController` - Name Migration
+[src/L2/bridge/L2BridgeController.sol](src/L2/bridge/L2BridgeController.sol)
 
-Manages ejection of names from L2 to L1:
+Manages ejection of names from L2 to L1. Ejection is triggered by transferring the token to the bridge controller:
 ```solidity
-// Eject name to L1 for enhanced security
-ejectionController.initiateEjection(
-    label,
-    l1Owner,
-    l1Subregistry
+// Prepare transfer data for ejection
+TransferData memory transferData = TransferData({
+    dnsEncodedName: LibLabel.dnsEncodeEthLabel(label),
+    owner: l1Owner,
+    subregistry: l1Subregistry,
+    resolver: l1Resolver,
+    roleBitmap: roleBitmap,
+    expires: expiryTime
+});
+
+// Transfer token to bridge controller to initiate ejection
+registry.safeTransferFrom(
+    msg.sender,
+    address(bridgeController),
+    tokenId,
+    1,
+    abi.encode(transferData)
 );
 ```
 
