@@ -211,7 +211,7 @@ You can create the equivalent of Name Wrapper "emancipated" names by:
 import {RegistryRolesLib} from "./libraries/RegistryRolesLib.sol";
 
 // Scenario: Delegate resolver management without transfer rights
-uint256 tokenId = LibLabel.labelToCanonicalId("example");
+(uint256 tokenId, ) = registry.getNameData("example");
 
 // Grant only resolver permissions
 registry.grantRoles(
