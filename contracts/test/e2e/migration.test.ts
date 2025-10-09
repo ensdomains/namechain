@@ -217,7 +217,7 @@ describe("Migration", () => {
         [this.namehash, label, owner.address, fuses, MAX_EXPIRY],
         { account: this.account },
       );
-      return new WrappedToken(dnsEncodeName(`${label}.${this.name}`), owner);
+      return new WrappedToken(`${label}.${this.name}`, owner);
     }
     lockedTransferTuple({
       owner = this.account.address,
@@ -679,13 +679,53 @@ describe("Migration", () => {
                 1n,
                 encodeLockedMigrationData({
                   ...token.lockedTransferTuple(),
-                  owner: zeroAddress,
+                  owner: zeroAddress, // wrong
                 }),
               ],
               { account: token.account },
             )
             .catch(unwrapError),
         ).rejects.toThrow("InvalidOwner()");
+      });
+
+      it("token node mismatch", async () => {
+        const token = await registerWrapped();
+        expect(
+          env.l1.contracts.NameWrapperV1.write
+            .safeTransferFrom(
+              [
+                token.account.address,
+                env.l1.contracts.LockedMigrationController.address,
+                token.tokenId,
+                1n,
+                encodeLockedMigrationData({
+                  ...token.lockedTransferTuple(),
+                  node: "0x1111111111111111111111111111111111111111111111111111111111111111", // wrong
+                }),
+              ],
+              { account: token.account },
+            )
+            .catch(unwrapError),
+        ).rejects.toThrow("TokenNodeMismatch(");
+      });
+
+      it("not ETH2LD", async () => {
+        const parentToken = await registerWrapped();
+        const token = await parentToken.createChild();
+        expect(
+          env.l1.contracts.NameWrapperV1.write
+            .safeTransferFrom(
+              [
+                token.account.address,
+                env.l1.contracts.LockedMigrationController.address,
+                token.tokenId,
+                1n,
+                encodeLockedMigrationData(token.lockedTransferTuple()),
+              ],
+              { account: token.account },
+            )
+            .catch(unwrapError),
+        ).rejects.toThrow("NameNotETH2LD(");
       });
     });
 
