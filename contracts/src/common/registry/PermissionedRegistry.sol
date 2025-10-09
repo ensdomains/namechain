@@ -295,7 +295,7 @@ contract PermissionedRegistry is
      * @param entry The entry data to set.
      */
     function _setEntry(uint256 tokenId, IRegistryDatastore.Entry memory entry) internal {
-        DATASTORE.setEntry(address(this), LibLabel.getCanonicalId(tokenId), entry);
+        DATASTORE.setEntry(LibLabel.getCanonicalId(tokenId), entry);
     }
 
     /**
@@ -455,7 +455,7 @@ contract PermissionedRegistry is
         IRegistryDatastore.Entry memory entry
     ) internal virtual returns (uint256 newTokenId) {
         newTokenId = _constructTokenId(canonicalId, entry.tokenVersionId);
-        DATASTORE.setEntry(address(this), canonicalId, entry);
+        DATASTORE.setEntry(canonicalId, entry);
         emit SubregistryUpdate(newTokenId, entry.subregistry);
     }
 
