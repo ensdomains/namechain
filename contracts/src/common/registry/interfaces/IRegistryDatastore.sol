@@ -22,7 +22,7 @@ interface IRegistryDatastore {
     // Functions
     ////////////////////////////////////////////////////////////////////////
 
-    function setEntry(address registry, uint256 id, Entry calldata entry) external;
+    function setEntry(uint256 id, Entry calldata entry) external;
 
     function setSubregistry(uint256 id, address subregistry) external;
 
