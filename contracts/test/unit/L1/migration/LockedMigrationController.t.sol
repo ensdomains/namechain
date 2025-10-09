@@ -87,14 +87,14 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin, 
             });
     }
 
-    function _migrateETH2LD(
-        bytes memory name
-    ) internal returns (uint256 tokenId, MigratedWrapperRegistry registry) {
-        tokenId = migrationController.migrate(_makeData(name));
-        registry = MigratedWrapperRegistry(
-            datastore.getEntry(address(ethRegistry), tokenId).subregistry
-        );
-    }
+    // function _migrateETH2LD(
+    //     bytes memory name
+    // ) internal returns (uint256 tokenId, MigratedWrapperRegistry registry) {
+    //     tokenId = migrationController.migrate(_makeData(name));
+    //     registry = MigratedWrapperRegistry(
+    //         datastore.getEntry(address(ethRegistry), tokenId).subregistry
+    //     );
+    // }
 
     function test_constructor() external view {
         assertEq(
@@ -131,44 +131,50 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin, 
 
     function test_migrate_locked() external {
         bytes memory name = registerWrappedETH2LD("test", CANNOT_UNWRAP);
+        LockedMigrationController.Data memory md = _makeData(name);
         vm.startPrank(user);
-        nameWrapper.setApprovalForAll(address(migrationController), true);
-        migrationController.migrate(_makeData(name));
+        nameWrapper.safeTransferFrom(
+            user,
+            address(migrationController),
+            uint256(md.node),
+            1,
+            abi.encode(md)
+        );
         vm.stopPrank();
     }
 
     // ntoe: cannot call CANNOT_BURN_FUSES on ETH2LD
-    function test_migrate_locked_prefrozen() external {
-        // (bytes memory parentName, bytes32 parentNode) = registerWrappedETH2LD(
-        //     "test",
-        //     CANNOT_UNWRAP
-        // );
-        // (bytes memory name, bytes32 node) = createWrappedChild(
-        //     parentNode,
-        //     "sub",
-        //     PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CANNOT_BURN_FUSES
-        // );
-        // vm.startPrank(user);
-        // nameWrapper.setApprovalForAll(address(migrationController), true);
-        // (uint256 tokenId, MigratedWrapperRegistry parentRegistry) = _migrateETH2LD(parentName);
-        // vm.stopPrank();
-        // MigrationData memory migrationData = MigrationData({
-        //     transferData: TransferData({
-        //         name: NameCoder.ethName(testLabel),
-        //         owner: user,
-        //         subregistry: address(0), // Will be created by migratedRegistryFactory
-        //         resolver: address(0xABCD),
-        //         roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER, // Note: only regular roles, no admin roles expected
-        //         expires: uint64(block.timestamp + 86400)
-        //     }),
-        //     toL1: true,
-        //     salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
-        // });
-        // bytes memory data = abi.encode(migrationData);
-        // // Migration should now succeed for names with CANNOT_BURN_FUSES (should not revert)
-        // vm.prank(address(nameWrapper));
-        // migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
-    }
+    // function test_migrate_locked_prefrozen() external {
+    //     (bytes memory parentName, bytes32 parentNode) = registerWrappedETH2LD(
+    //         "test",
+    //         CANNOT_UNWRAP
+    //     );
+    //     (bytes memory name, bytes32 node) = createWrappedChild(
+    //         parentNode,
+    //         "sub",
+    //         PARENT_CANNOT_CONTROL | CANNOT_UNWRAP | CANNOT_BURN_FUSES
+    //     );
+    //     vm.startPrank(user);
+    //     nameWrapper.setApprovalForAll(address(migrationController), true);
+    //     (uint256 tokenId, MigratedWrapperRegistry parentRegistry) = _migrateETH2LD(parentName);
+    //     vm.stopPrank();
+    //     MigrationData memory migrationData = MigrationData({
+    //         transferData: TransferData({
+    //             name: NameCoder.ethName(testLabel),
+    //             owner: user,
+    //             subregistry: address(0), // Will be created by migratedRegistryFactory
+    //             resolver: address(0xABCD),
+    //             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER, // Note: only regular roles, no admin roles expected
+    //             expires: uint64(block.timestamp + 86400)
+    //         }),
+    //         toL1: true,
+    //         salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
+    //     });
+    //     bytes memory data = abi.encode(migrationData);
+    //     // Migration should now succeed for names with CANNOT_BURN_FUSES (should not revert)
+    //     vm.prank(address(nameWrapper));
+    //     migrationController.onERC1155Received(owner, owner, testTokenId, 1, data);
+    // }
 
     /*
     function test_onERC1155Received_locked_name() public {

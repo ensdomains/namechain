@@ -33,7 +33,7 @@ import {
     MigratedWrapperRegistry,
     IMigratedWrapperRegistry,
     LockedNamesLib,
-    MigrationErrors
+    TransferErrors
 } from "~src/L1/registry/MigratedWrapperRegistry.sol";
 import {NameWrapperFixture} from "~test/fixtures/NameWrapperFixture.sol";
 import {NameMixin} from "~test/fixtures/NameMixin.sol";
@@ -116,7 +116,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         address resolver = ensV1.resolver(node);
 
         if ((fuses & IS_DOT_ETH) == 0) {
-            revert MigrationErrors.NameNotETH2LD(name);
+            revert TransferErrors.NameNotETH2LD(name);
         }
 
         vm.prank(owner);
@@ -230,7 +230,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         vm.startPrank(user);
         nameWrapper.setApprovalForAll(address(registry), true);
         IMigratedWrapperRegistry.Data memory md = _makeData(name);
-        vm.expectRevert(abi.encodeWithSelector(MigrationErrors.NameNotEmancipated.selector, name));
+        vm.expectRevert(abi.encodeWithSelector(TransferErrors.NameNotEmancipated.selector, name));
         registry.migrate(md);
         vm.stopPrank();
     }
@@ -243,7 +243,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         nameWrapper.setApprovalForAll(address(registry), true);
         IMigratedWrapperRegistry.Data memory md = _makeData(name);
         vm.expectRevert(
-            abi.encodeWithSelector(MigrationErrors.NameNotSubdomain.selector, name, parentName)
+            abi.encodeWithSelector(TransferErrors.NameNotSubdomain.selector, name, parentName)
         );
         registry.migrate(md);
         vm.stopPrank();
@@ -553,7 +553,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         (, uint256 parentOffset) = NameCoder.nextLabel(subDnsName, 0);
         vm.expectRevert(
             abi.encodeWithSelector(
-                MigrationErrors.ParentNotMigrated.selector,
+                TransferErrors.ParentNotMigrated.selector,
                 subDnsName,
                 parentOffset
             )
@@ -991,7 +991,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         (, uint256 parentOffset) = NameCoder.nextLabel(subDnsName, 0);
         vm.expectRevert(
             abi.encodeWithSelector(
-                MigrationErrors.ParentNotMigrated.selector,
+                TransferErrors.ParentNotMigrated.selector,
                 subDnsName,
                 parentOffset
             )
@@ -1034,7 +1034,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
 
         // Attempt to register should fail
         vm.prank(address(nameWrapper));
-        vm.expectRevert(abi.encodeWithSelector(MigrationErrors.NameNotMigrated.selector, label));
+        vm.expectRevert(abi.encodeWithSelector(TransferErrors.NameNotMigrated.selector, label));
         registry.register(label, user, registry, mockResolver, 0, uint64(block.timestamp + 86400));
     }
 
@@ -1762,7 +1762,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         (, uint256 parentOffset) = NameCoder.nextLabel(subDnsName, 0);
         vm.expectRevert(
             abi.encodeWithSelector(
-                MigrationErrors.ParentNotMigrated.selector,
+                TransferErrors.ParentNotMigrated.selector,
                 subDnsName,
                 parentOffset
             )

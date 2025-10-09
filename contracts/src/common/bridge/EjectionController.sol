@@ -6,7 +6,7 @@ import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Re
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
-import {UnauthorizedCaller} from "../CommonErrors.sol";
+import {CommonErrors} from "../CommonErrors.sol";
 import {IPermissionedRegistry} from "../registry/interfaces/IPermissionedRegistry.sol";
 import {LibLabel} from "../utils/LibLabel.sol";
 
@@ -58,7 +58,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
 
     modifier onlyRegistry() {
         if (msg.sender != address(REGISTRY)) {
-            revert UnauthorizedCaller(msg.sender);
+            revert CommonErrors.UnauthorizedCaller(msg.sender);
         }
         _;
     }
@@ -160,5 +160,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
         if (td.owner == address(0)) {
             revert InvalidTransferOwner(td.owner);
         }
+        // TODO: check small expiry
+        // TODO: check roles
     }
 }

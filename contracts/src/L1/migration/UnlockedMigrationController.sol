@@ -10,10 +10,9 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
+import {TransferErrors} from "../../common/TransferErrors.sol";
 import {TransferData} from "../../common/bridge/types/TransferData.sol";
 import {L1BridgeController} from "../bridge/L1BridgeController.sol";
-
-import {MigrationErrors} from "./libraries/MigrationErrors.sol";
 
 /// @dev Base contract for the v1-to-v2 migration controller that only handles unlocked .eth 2LD names.
 contract UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
@@ -84,9 +83,9 @@ contract UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC16
         uint256 tokenId,
         bytes calldata data
     ) external returns (bytes4) {
-        require(msg.sender == address(ETH_REGISTRAR_V1), MigrationErrors.ERROR_ONLY_ETH_REGISTRAR);
+        require(msg.sender == address(ETH_REGISTRAR_V1), TransferErrors.ERROR_ONLY_ETH_REGISTRAR);
         if (bytes32(data) != _PAYLOAD_HASH) {
-            require(_ignoredTokenId == tokenId, MigrationErrors.ERROR_UNEXPECTED_TRANSFER);
+            require(_ignoredTokenId == tokenId, TransferErrors.ERROR_UNEXPECTED_TRANSFER);
             _ignoredTokenId = 0;
         }
         return this.onERC721Received.selector;
@@ -112,8 +111,8 @@ contract UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC16
         uint256 /*amount*/,
         bytes calldata data
     ) external view returns (bytes4) {
-        require(msg.sender == address(NAME_WRAPPER), MigrationErrors.ERROR_ONLY_NAME_WRAPPER);
-        require(bytes32(data) == _PAYLOAD_HASH, MigrationErrors.ERROR_UNEXPECTED_TRANSFER);
+        require(msg.sender == address(NAME_WRAPPER), TransferErrors.ERROR_ONLY_NAME_WRAPPER);
+        require(bytes32(data) == _PAYLOAD_HASH, TransferErrors.ERROR_UNEXPECTED_TRANSFER);
         return this.onERC1155Received.selector;
     }
 
@@ -125,8 +124,8 @@ contract UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC16
         uint256[] calldata /*amounts*/,
         bytes calldata data
     ) external view returns (bytes4) {
-        require(msg.sender == address(NAME_WRAPPER), MigrationErrors.ERROR_ONLY_NAME_WRAPPER);
-        require(bytes32(data) == _PAYLOAD_HASH, MigrationErrors.ERROR_UNEXPECTED_TRANSFER);
+        require(msg.sender == address(NAME_WRAPPER), TransferErrors.ERROR_ONLY_NAME_WRAPPER);
+        require(bytes32(data) == _PAYLOAD_HASH, TransferErrors.ERROR_UNEXPECTED_TRANSFER);
         return this.onERC1155BatchReceived.selector;
     }
 
@@ -141,7 +140,7 @@ contract UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC16
                 // by construction, this is already .eth
                 (, uint32 fuses, ) = NAME_WRAPPER.getData(id);
                 if ((fuses & CANNOT_UNWRAP) != 0) {
-                    revert MigrationErrors.NameIsLocked(NameCoder.ethName(md.label));
+                    revert TransferErrors.NameIsLocked(NameCoder.ethName(md.label));
                 }
                 mds[wrapped] = md; // reorder
                 ids[wrapped++] = id;

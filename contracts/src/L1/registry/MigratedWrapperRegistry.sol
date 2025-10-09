@@ -9,14 +9,14 @@ import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.s
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-import {InvalidOwner} from "../../common/CommonErrors.sol";
+import {CommonErrors} from "../../common/CommonErrors.sol";
+import {TransferErrors} from "../../common/TransferErrors.sol";
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../../common/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.sol";
 import {LockedNamesLib} from "../migration/libraries/LockedNamesLib.sol";
-import {MigrationErrors} from "../migration/libraries/MigrationErrors.sol";
 import {IMigratedWrapperRegistry} from "../registry/interfaces/IMigratedWrapperRegistry.sol";
 
 /**
@@ -76,7 +76,7 @@ contract MigratedWrapperRegistry is
      */
     function initialize(IMigratedWrapperRegistry.ConstructorArgs calldata args) public initializer {
         if (args.owner == address(0)) {
-            revert InvalidOwner();
+            revert CommonErrors.InvalidOwner();
         }
 
         // Set the parent domain for name resolution fallback
@@ -146,8 +146,8 @@ contract MigratedWrapperRegistry is
         uint256 /*amount*/,
         bytes calldata data
     ) external view returns (bytes4) {
-        require(msg.sender == address(NAME_WRAPPER), MigrationErrors.ERROR_ONLY_NAME_WRAPPER);
-        require(bytes32(data) == _PAYLOAD_HASH, MigrationErrors.ERROR_UNEXPECTED_TRANSFER);
+        require(msg.sender == address(NAME_WRAPPER), TransferErrors.ERROR_ONLY_NAME_WRAPPER);
+        require(bytes32(data) == _PAYLOAD_HASH, TransferErrors.ERROR_UNEXPECTED_TRANSFER);
         return this.onERC1155Received.selector;
     }
 
@@ -158,8 +158,8 @@ contract MigratedWrapperRegistry is
         uint256[] calldata /*amounts*/,
         bytes calldata data
     ) external view returns (bytes4) {
-        require(msg.sender == address(NAME_WRAPPER), MigrationErrors.ERROR_ONLY_NAME_WRAPPER);
-        require(bytes32(data) == _PAYLOAD_HASH, MigrationErrors.ERROR_UNEXPECTED_TRANSFER);
+        require(msg.sender == address(NAME_WRAPPER), TransferErrors.ERROR_ONLY_NAME_WRAPPER);
+        require(bytes32(data) == _PAYLOAD_HASH, TransferErrors.ERROR_UNEXPECTED_TRANSFER);
         return this.onERC1155BatchReceived.selector;
     }
 
@@ -197,11 +197,11 @@ contract MigratedWrapperRegistry is
         string memory label = NameCoder.firstLabel(name);
 
         if (NameCoder.namehash(parentNode, keccak256(bytes(label))) != md.node) {
-            revert MigrationErrors.NameNotSubdomain(name, parentName());
+            revert TransferErrors.NameNotSubdomain(name, parentName());
         }
 
         if ((fuses & PARENT_CANNOT_CONTROL) == 0) {
-            revert MigrationErrors.NameNotEmancipated(name);
+            revert TransferErrors.NameNotEmancipated(name);
         }
 
         // Determine permissions from name configuration (allow subdomain renewal based on fuses)
@@ -245,7 +245,7 @@ contract MigratedWrapperRegistry is
         bytes32 node = NameCoder.namehash(parentNode, keccak256(bytes(label)));
         (, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(node));
         if ((fuses & PARENT_CANNOT_CONTROL) != 0) {
-            revert MigrationErrors.NameNotMigrated(NameCoder.addLabel(parentName(), label));
+            revert TransferErrors.NameNotMigrated(NameCoder.addLabel(parentName(), label));
         }
         return super._register(label, owner, registry, resolver, roleBitmap, expiry);
     }

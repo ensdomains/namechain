@@ -12,14 +12,17 @@ import {
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 import {TransferData} from "../../common/bridge/types/TransferData.sol";
 import {L1BridgeController} from "../bridge/L1BridgeController.sol";
 import {IMigratedWrapperRegistry} from "../registry/interfaces/IMigratedWrapperRegistry.sol";
+import {CommonErrors} from "../../common/CommonErrors.sol";
+import {TransferErrors} from "../../common/TransferErrors.sol";
+import {WrappedErrorLib} from "../../common/utils/WrappedErrorLib.sol";
 
 import {LockedNamesLib} from "./libraries/LockedNamesLib.sol";
-import {MigrationErrors} from "./libraries/MigrationErrors.sol";
 
 contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     ////////////////////////////////////////////////////////////////////////
@@ -37,6 +40,8 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     // Constants
     ////////////////////////////////////////////////////////////////////////
 
+    uint256 private constant _DATA_SIZE = 128;
+
     bytes32 private constant _PAYLOAD_HASH = keccak256("LockedMigrationController");
 
     IBaseRegistrar public immutable ETH_REGISTRY_V1;
@@ -48,6 +53,19 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     VerifiableFactory public immutable MIGRATED_REGISTRY_FACTORY;
 
     address public immutable MIGRATED_REGISTRY_IMPL;
+
+    ////////////////////////////////////////////////////////////////////////
+    // Modifiers
+    ////////////////////////////////////////////////////////////////////////
+
+    modifier onlyNameWrapper() {
+        if (msg.sender != address(NAME_WRAPPER)) {
+            WrappedErrorLib.wrapAndRevert(
+                abi.encodeWithSelector(CommonErrors.UnauthorizedCaller.selector, msg.sender)
+            );
+        }
+        _;
+    }
 
     ////////////////////////////////////////////////////////////////////////
     // Initialization
@@ -78,112 +96,123 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
-    function migrate(Data calldata md) external returns (uint256 tokenId) {
-        // acquire the token
-        // reverts on approval, expired, dne
-        NAME_WRAPPER.safeTransferFrom(
-            msg.sender,
-            address(this),
-            uint256(md.node),
-            1,
-            abi.encode(_PAYLOAD_HASH)
-        );
-        tokenId = _finishMigration(md);
-    }
-
-    function migrate(Data[] calldata mds) external {
-        uint256[] memory ids = new uint256[](mds.length);
-        uint256[] memory amounts = new uint256[](mds.length);
-        for (uint256 i; i < mds.length; ++i) {
-            ids[i] = uint256(mds[i].node);
-            amounts[i] = 1;
-        }
-        // acquire the tokens
-        // reverts on approval, expired, dne
-        NAME_WRAPPER.safeBatchTransferFrom(
-            msg.sender,
-            address(this),
-            ids,
-            amounts,
-            abi.encode(_PAYLOAD_HASH)
-        );
-        for (uint256 i; i < mds.length; ++i) {
-            _finishMigration(mds[i]);
-        }
-    }
-
     function onERC1155Received(
         address /*operator*/,
         address /*from*/,
-        uint256 /*id*/,
-        uint256 /*amount*/,
+        uint256 id,
+        uint256 amount,
         bytes calldata data
-    ) external view returns (bytes4) {
-        require(msg.sender == address(NAME_WRAPPER), MigrationErrors.ERROR_ONLY_NAME_WRAPPER);
-        require(bytes32(data) == _PAYLOAD_HASH, MigrationErrors.ERROR_UNEXPECTED_TRANSFER);
+    ) external onlyNameWrapper returns (bytes4) {
+        if (data.length != _DATA_SIZE) {
+            WrappedErrorLib.wrapAndRevert(
+                abi.encodeWithSelector(TransferErrors.InvalidTransferData.selector)
+            );
+        }
+        uint256[] memory ids = new uint256[](1);
+        uint256[] memory amounts = new uint256[](1);
+        Data[] memory mds = new Data[](1);
+        ids[0] = id;
+        amounts[0] = amount;
+        mds[0] = abi.decode(data, (Data)); // reverts empty
+        try this.finishERC1155Migration(ids, amounts, mds) {
+            // success
+        } catch (bytes memory reason) {
+            WrappedErrorLib.wrapAndRevert(reason);
+        }
         return this.onERC1155Received.selector;
     }
 
     function onERC1155BatchReceived(
         address /*operator*/,
         address /*from*/,
-        uint256[] calldata /*ids*/,
-        uint256[] calldata /*amounts*/,
+        uint256[] calldata ids,
+        uint256[] calldata amounts,
         bytes calldata data
-    ) external view returns (bytes4) {
-        require(msg.sender == address(NAME_WRAPPER), MigrationErrors.ERROR_ONLY_NAME_WRAPPER);
-        require(bytes32(data) == _PAYLOAD_HASH, MigrationErrors.ERROR_UNEXPECTED_TRANSFER);
-        return this.onERC1155Received.selector;
+    ) external onlyNameWrapper returns (bytes4) {
+        if (data.length != 64 + _DATA_SIZE * ids.length) {
+            WrappedErrorLib.wrapAndRevert(
+                abi.encodeWithSelector(TransferErrors.InvalidTransferData.selector)
+            );
+        }
+        Data[] memory mds = abi.decode(data, (Data[]));
+        try this.finishERC1155Migration(ids, amounts, mds) {
+            // success
+        } catch (bytes memory reason) {
+            WrappedErrorLib.wrapAndRevert(reason);
+        }
+        return this.onERC1155BatchReceived.selector;
     }
 
-    function _finishMigration(Data memory md) internal returns (uint256 tokenId) {
-        bytes memory name = NAME_WRAPPER.names(md.node);
-        (, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(md.node));
-
-        if ((fuses & IS_DOT_ETH) == 0) {
-            revert MigrationErrors.NameNotETH2LD(name); // reverts if doesn't exist too
+    function finishERC1155Migration(
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        Data[] memory mds
+    ) external {
+        if (ids.length != amounts.length) {
+            revert IERC1155Errors.ERC1155InvalidArrayLength(ids.length, amounts.length);
         }
-        if ((fuses & CANNOT_UNWRAP) == 0) {
-            revert MigrationErrors.NameNotLocked(name);
+        if (ids.length != mds.length) {
+            revert IERC1155Errors.ERC1155InvalidArrayLength(ids.length, mds.length);
         }
+        for (uint256 i; i < ids.length; ++i) {
+            if (amounts[i] != 1) {
+                revert TransferErrors.InvalidTransferAmount();
+            }
+            if (bytes32(ids[i]) != mds[i].node) {
+                revert TransferErrors.NameWrapperTokenMismatch(ids[i], mds[i].node);
+            }
+        }
+        for (uint256 i; i < mds.length; ++i) {
+            Data memory md = mds[i];
 
-        // Determine permissions from name configuration (mask out CAN_EXTEND_EXPIRY to prevent automatic renewal for 2LDs)
-        uint32 adjustedFuses = fuses & ~CAN_EXTEND_EXPIRY;
-        (uint256 tokenRoles, uint256 subRegistryRoles) = LockedNamesLib
-            .generateRoleBitmapsFromFuses(adjustedFuses);
+            bytes memory name = NAME_WRAPPER.names(md.node);
+            (, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(md.node));
 
-        // configure transfer
-        TransferData memory td;
-        td.label = NameCoder.firstLabel(name);
-        td.owner = md.owner;
-        td.resolver = md.resolver;
-        td.roleBitmap = tokenRoles;
+            if ((fuses & IS_DOT_ETH) == 0) {
+                revert TransferErrors.NameNotETH2LD(name); // reverts if doesn't exist too
+            }
+            if ((fuses & CANNOT_UNWRAP) == 0) {
+                revert TransferErrors.NameNotLocked(name);
+            }
 
-        // create subregistry
-        td.subregistry = MIGRATED_REGISTRY_FACTORY.deployProxy(
-            MIGRATED_REGISTRY_IMPL,
-            md.salt,
-            abi.encodeCall(
-                IMigratedWrapperRegistry.initialize,
-                (
-                    IMigratedWrapperRegistry.ConstructorArgs({
-                        parentNode: md.node,
-                        owner: md.owner,
-                        ownerRoles: subRegistryRoles,
-                        registrar: address(0)
-                    })
+            // Determine permissions from name configuration (mask out CAN_EXTEND_EXPIRY to prevent automatic renewal for 2LDs)
+            uint32 adjustedFuses = fuses & ~CAN_EXTEND_EXPIRY;
+            (uint256 tokenRoles, uint256 subRegistryRoles) = LockedNamesLib
+                .generateRoleBitmapsFromFuses(adjustedFuses);
+
+            // configure transfer
+            TransferData memory td;
+            td.label = NameCoder.firstLabel(name); // safe by construction
+            td.owner = md.owner;
+            td.resolver = md.resolver;
+            td.roleBitmap = tokenRoles;
+
+            // create subregistry
+            td.subregistry = MIGRATED_REGISTRY_FACTORY.deployProxy(
+                MIGRATED_REGISTRY_IMPL,
+                md.salt,
+                abi.encodeCall(
+                    IMigratedWrapperRegistry.initialize,
+                    (
+                        IMigratedWrapperRegistry.ConstructorArgs({
+                            parentNode: md.node,
+                            owner: md.owner,
+                            ownerRoles: subRegistryRoles,
+                            registrar: address(0)
+                        })
+                    )
                 )
-            )
-        );
+            );
 
-        // copy expiry
-        (bytes32 labelHash, ) = NameCoder.readLabel(name, 0);
-        td.expiry = uint64(ETH_REGISTRY_V1.nameExpires(uint256(labelHash)));
+            // copy expiry
+            (bytes32 labelHash, ) = NameCoder.readLabel(name, 0);
+            td.expiry = uint64(ETH_REGISTRY_V1.nameExpires(uint256(labelHash)));
 
-        // Process the locked name migration through bridge
-        tokenId = L1_BRIDGE_CONTROLLER.completeEjectionToL1(td);
+            // Process the locked name migration through bridge
+            L1_BRIDGE_CONTROLLER.completeEjectionToL1(td);
 
-        // Finalize migration by freezing the name
-        LockedNamesLib.freezeName(NAME_WRAPPER, uint256(md.node), fuses);
+            // Finalize migration by freezing the name
+            LockedNamesLib.freezeName(NAME_WRAPPER, uint256(md.node), fuses);
+        }
     }
 }

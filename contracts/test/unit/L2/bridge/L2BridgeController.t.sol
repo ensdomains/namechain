@@ -19,7 +19,7 @@ import {IBridge, BridgeMessageType} from "~src/common/bridge/interfaces/IBridge.
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
-import {UnauthorizedCaller} from "~src/common/CommonErrors.sol";
+import {CommonErrors} from "~src/common/CommonErrors.sol";
 import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {ITokenObserver} from "~src/common/registry/interfaces/ITokenObserver.sol";
@@ -426,7 +426,9 @@ contract L2BridgeControllerTest is Test, ERC1155Holder {
         );
 
         // Try to call onERC1155Received directly (not through registry)
-        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(
+            abi.encodeWithSelector(CommonErrors.UnauthorizedCaller.selector, address(this))
+        );
         controller.onERC1155Received(address(this), user, tokenId, 1, ejectionData);
     }
 
@@ -489,7 +491,9 @@ contract L2BridgeControllerTest is Test, ERC1155Holder {
         uint64 newExpiry = uint64(block.timestamp + expiryDuration * 2);
 
         // Try to call onRenew directly from an unauthorized address (not the registry)
-        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(
+            abi.encodeWithSelector(CommonErrors.UnauthorizedCaller.selector, address(this))
+        );
         controller.onRenew(tokenId, newExpiry, address(this));
     }
 
@@ -512,7 +516,9 @@ contract L2BridgeControllerTest is Test, ERC1155Holder {
         address randomUser = address(0x9999);
 
         // Try to call onRenew from a random user (not the registry)
-        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, randomUser));
+        vm.expectRevert(
+            abi.encodeWithSelector(CommonErrors.UnauthorizedCaller.selector, randomUser)
+        );
         vm.prank(randomUser);
         controller.onRenew(tokenId, newExpiry, randomUser);
     }

@@ -27,7 +27,7 @@ import {
 import {
     UnlockedMigrationController,
     TransferData,
-    MigrationErrors
+    TransferErrors
 } from "~src/L1/migration/UnlockedMigrationController.sol";
 import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
 import {NameWrapperFixture} from "~test/fixtures/NameWrapperFixture.sol";
@@ -178,7 +178,7 @@ contract UnlockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin
     function test_Revert_migrate_unwrapped_transferWrongNFT() external {
         uint256 tokenId = dummy721.mint(user);
         vm.expectRevert(
-            abi.encodeWithSignature("Error(string)", MigrationErrors.ERROR_ONLY_ETH_REGISTRAR)
+            abi.encodeWithSignature("Error(string)", TransferErrors.ERROR_ONLY_ETH_REGISTRAR)
         );
         vm.prank(user);
         dummy721.safeTransferFrom(user, address(migrationController), tokenId);
@@ -187,7 +187,7 @@ contract UnlockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin
     function test_Revert_migrate_unwrapped_transfer() external {
         (, uint256 tokenId) = registerUnwrapped("test");
         vm.expectRevert(
-            abi.encodeWithSignature("Error(string)", MigrationErrors.ERROR_UNEXPECTED_TRANSFER)
+            abi.encodeWithSignature("Error(string)", TransferErrors.ERROR_UNEXPECTED_TRANSFER)
         );
         vm.prank(user);
         ethRegistrarV1.safeTransferFrom(user, address(migrationController), tokenId, "");
@@ -220,7 +220,7 @@ contract UnlockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin
     function test_Revert_migrate_1wrapped_transferWrongNFT() external {
         uint256 tokenId = dummy1155.mint(user);
         vm.expectRevert(
-            abi.encodeWithSignature("Error(string)", MigrationErrors.ERROR_ONLY_NAME_WRAPPER)
+            abi.encodeWithSignature("Error(string)", TransferErrors.ERROR_ONLY_NAME_WRAPPER)
         );
         vm.prank(user);
         dummy1155.safeTransferFrom(user, address(migrationController), tokenId, 1, "");
@@ -229,7 +229,7 @@ contract UnlockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin
     function test_Revert_migrate_1wrapped_transfer() external {
         bytes memory name = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
         vm.expectRevert(
-            abi.encodeWithSignature("Error(string)", MigrationErrors.ERROR_UNEXPECTED_TRANSFER)
+            abi.encodeWithSignature("Error(string)", TransferErrors.ERROR_UNEXPECTED_TRANSFER)
         );
         vm.prank(user);
         nameWrapper.safeTransferFrom(
@@ -251,7 +251,7 @@ contract UnlockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin
         amounts[0] = 1;
         amounts[1] = 1;
         vm.expectRevert(
-            abi.encodeWithSignature("Error(string)", MigrationErrors.ERROR_UNEXPECTED_TRANSFER)
+            abi.encodeWithSignature("Error(string)", TransferErrors.ERROR_UNEXPECTED_TRANSFER)
         );
         vm.prank(user);
         nameWrapper.safeBatchTransferFrom(user, address(migrationController), ids, amounts, "");
@@ -261,7 +261,7 @@ contract UnlockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin
         bytes memory name = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         vm.startPrank(user);
         nameWrapper.setApprovalForAll(address(migrationController), true);
-        vm.expectRevert(abi.encodeWithSelector(MigrationErrors.NameIsLocked.selector, name));
+        vm.expectRevert(abi.encodeWithSelector(TransferErrors.NameIsLocked.selector, name));
         migrationController.migrate(_makeData(name, toL1));
         vm.stopPrank();
     }
@@ -278,7 +278,7 @@ contract UnlockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin
         vm.startPrank(user);
         nameWrapper.setApprovalForAll(address(migrationController), true);
         vm.expectRevert(
-            abi.encodeWithSelector(MigrationErrors.NameIsLocked.selector, name1) // first name revert
+            abi.encodeWithSelector(TransferErrors.NameIsLocked.selector, name1) // first name revert
         );
         migrationController.migrate(mds);
         vm.stopPrank();

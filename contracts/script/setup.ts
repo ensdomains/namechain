@@ -12,6 +12,7 @@ import {
   type GetContractReturnType,
   type Transport,
   type Abi,
+  Hex,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { artifacts } from "@rocketh";
@@ -30,6 +31,8 @@ import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 import { MAX_EXPIRY, ROLES } from "../deploy/constants.js";
 
 type DeployedArtifacts = Record<string, Abi>;
+
+type Future<T> = T | Promise<T>;
 
 // typescript key (see below) mapped to rocketh deploy name
 const renames: Record<string, string> = {
@@ -103,13 +106,25 @@ export type L2Deployment = ChainDeployment<typeof l2Contracts>;
 
 export type CrossChainClient = ReturnType<typeof createClient>;
 
+function ansi(c: any, s: any) {
+  return `\x1b[${c}m${s}\x1b[0m`;
+}
+
+function ansiForChain(isL1: boolean) {
+  return isL1 ? 36 : 35;
+}
+
+function nameForChain(isL1: boolean) {
+  return isL1 ? "L1" : "L2";
+}
+
 function createClient(transport: Transport, chain: Chain, account: Account) {
   return createWalletClient({
     transport,
     chain,
     account,
     pollingInterval: 0,
-    cacheTime: 0,
+    cacheTime: 0, // must be 0 due to client caching
   })
     .extend(publicActions)
     .extend(testActions({ mode: "anvil" }));
@@ -150,14 +165,17 @@ export class ChainDeployment<
       }),
     ) as typeof this.contracts;
   }
+  // get nameStr() {
+  //   return nameForChain(this.isL1);
+  // }
+  // get name() {
+  //   return ansi(ansiForChain(this.isL1), this.nameStr);
+  // }
   get name() {
-    return this.isL1 ? "L1" : "L2";
+    return nameForChain(this.isL1);
   }
-  logAnvil() {
-    // TODO: enable `RUST_LOG=node=info`
-    const log = (s: string) => console.log(s);
-    this.anvil.on("message", log);
-    return () => this.anvil.off("message", log);
+  get arrow() {
+    return `${this.name}->${this.rx.name}`;
   }
   async deployPermissionedRegistry(account: Account, roles = ROLES.ALL) {
     const client = createClient(this.transport, this.client.chain, account);
@@ -200,6 +218,7 @@ export async function setupCrossChainEnvironment({
   mnemonic = "test test test test test test test test test test test junk",
   saveDeployments = false,
   quiet = !saveDeployments,
+  procLog = false,
 }: {
   l1ChainId?: number;
   l2ChainId?: number;
@@ -210,6 +229,7 @@ export async function setupCrossChainEnvironment({
   mnemonic?: string;
   saveDeployments?: boolean;
   quiet?: boolean;
+  procLog?: boolean; // show anvil process logs
 } = {}) {
   // shutdown functions for partial initialization
   const finalizers: (() => Promise<void>)[] = [];
@@ -229,11 +249,10 @@ export async function setupCrossChainEnvironment({
   try {
     console.log("Deploying ENSv2...");
 
-    const cacheTime = 0; // must be 0 due to client caching
-
     const names = ["deployer", "owner", "bridger", "user", "user2"];
     extraAccounts += names.length;
 
+    process.env["RUST_LOG"] = "info";
     const l1Anvil = createAnvil({
       chainId: l1ChainId,
       port: l1Port,
@@ -270,6 +289,27 @@ export async function setupCrossChainEnvironment({
       const match = message.match(/Listening on (.*)$/);
       if (!match) throw new Error(`expected host: ${message}`);
       return match[1];
+    });
+
+    [l1Anvil, l2Anvil].forEach((anvil, i) => {
+      const isL1 = !i;
+      const log = (chunk: string) => {
+        chunk = chunk.trim();
+        if (!chunk) return;
+        const lines = chunk.split("\n").flatMap((line) => {
+          // "2025-10-08T18:08:32.755539Z  INFO node::console"
+          if (line.slice(34, 47) == "node::console") {
+            return `${nameForChain(isL1)} ${line}`;
+          } else if (procLog) {
+            return ansi(ansiForChain(isL1), `${nameForChain(isL1)} ${line}`);
+          } else {
+            return [];
+          }
+        });
+        if (!lines.length) return;
+        console.log(lines.join("\n"));
+      };
+      anvil.on("message", log);
     });
 
     const transportOptions = {
@@ -396,7 +436,7 @@ export async function setupCrossChainEnvironment({
     );
 
     const l2 = new ChainDeployment(
-      true,
+      false,
       l2Anvil,
       l2Client,
       l2Transport,
@@ -427,24 +467,33 @@ export async function setupCrossChainEnvironment({
         verifierAddress,
       },
       sync,
+      waitFor,
       shutdown,
       saveState,
     };
+    // determine the chain of the transaction
+    async function findChain(hash: Future<Hex>) {
+      return l1Client
+        .getTransaction({ hash: await hash })
+        .then(() => l1)
+        .catch(() => l2);
+    }
+    async function waitFor(hash: Future<Hex>) {
+      hash = await hash;
+      const chain = await findChain(hash);
+      const receipt = await chain.client.waitForTransactionReceipt({ hash });
+      return { receipt, chain };
+    }
     async function saveState(): Promise<CrossChainSnapshot> {
       const fs = await Promise.all(
         [l1Client, l2Client].map(async (c) => {
-          // this does not reset block number
           let state = await c.request({ method: "evm_snapshot" } as any);
           return async () => {
-            if (
-              !(await c.request({
-                method: "evm_revert",
-                params: [state],
-              } as any))
-            ) {
-              throw new Error("revert failed");
-            }
-            await c.mine({ blocks: 1 });
+            const ok = await c.request({
+              method: "evm_revert",
+              params: [state],
+            } as any);
+            if (!ok) throw new Error("revert failed");
             // apparently the snapshots cannot be reused
             state = await c.request({ method: "evm_snapshot" } as any);
           };

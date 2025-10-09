@@ -31,11 +31,11 @@ export default execute(
     await write(ethRegistry, {
       functionName: "grantRootRoles",
       args: [
-        ROLES.OWNER.EAC.REGISTRAR |
-          ROLES.OWNER.EAC.RENEW |
-          ROLES.OWNER.EAC.SET_RESOLVER |
-          ROLES.OWNER.EAC.SET_SUBREGISTRY |
-          ROLES.OWNER.EAC.SET_TOKEN_OBSERVER,
+        ROLES.OWNER.REGISTRY.REGISTRAR |
+          ROLES.OWNER.REGISTRY.RENEW |
+          ROLES.OWNER.REGISTRY.SET_RESOLVER |
+          ROLES.OWNER.REGISTRY.SET_SUBREGISTRY |
+          ROLES.OWNER.REGISTRY.SET_TOKEN_OBSERVER,
         bridgeController.address,
       ],
       account: deployer,

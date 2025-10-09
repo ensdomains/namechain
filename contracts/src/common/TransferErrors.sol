@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-/// @dev Errors for migration process.
-library MigrationErrors {
+/// @dev Errors for bridge and migration process.
+library TransferErrors {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
@@ -24,4 +24,10 @@ library MigrationErrors {
     error NameNotLocked(bytes name);
     error NameNotETH2LD(bytes name);
     error NameNotEmancipated(bytes name);
+
+    error InvalidTransferData();
+
+    error InvalidTransferAmount();
+
+    error NameWrapperTokenMismatch(uint256 tokenId, bytes32 node);
 }

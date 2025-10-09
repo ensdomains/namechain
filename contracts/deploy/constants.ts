@@ -6,25 +6,20 @@ interface Flags {
   [key: string]: bigint | Flags;
 }
 const OWNER = {
-  // see: LibRegistryRoles.sol
-  EAC: {
+  // see: RegistryRolesLib.sol
+  REGISTRY: {
     REGISTRAR: 1n << 0n,
     RENEW: 1n << 4n,
     SET_SUBREGISTRY: 1n << 8n,
     SET_RESOLVER: 1n << 12n,
     SET_TOKEN_OBSERVER: 1n << 16n,
     CAN_TRANSFER: 1n << 20n, // admin only?
-    BURN: 1n << 20n,
-    UPGRADE: 1n << 24n,
+    BURN: 1n << 24n,
+    UPGRADE: 1n << 28n,
   },
-  // see: L2/ETHRegistry.sol
-  ETH: {
-    SET_PRICE_ORACLE: 1n << 20n,
-    SET_COMMITMENT_AGES: 1n << 24n,
-  },
-  // see: L2/UserRegistry.sol
-  USER: {
-    UPGRADE: 1n << 20n,
+  // see: L2/ETHRegistrar.sol
+  ETH_REGISTRAR: {
+    SET_ORACLE: 1n << 0n,
   },
   // see: LibBridgeRoles.sol
   BRIDGE: {
@@ -60,8 +55,8 @@ export const ROLES = {
 
   // see ETHRegistry.sol
   ETH_REGISTRY:
-    ADMIN.EAC.CAN_TRANSFER |
-    BOTH.EAC.SET_SUBREGISTRY |
-    BOTH.EAC.SET_RESOLVER |
-    BOTH.EAC.SET_TOKEN_OBSERVER,
+    ADMIN.REGISTRY.CAN_TRANSFER |
+    BOTH.REGISTRY.SET_SUBREGISTRY |
+    BOTH.REGISTRY.SET_RESOLVER |
+    BOTH.REGISTRY.SET_TOKEN_OBSERVER,
 } as const;

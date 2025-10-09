@@ -15,7 +15,7 @@ contract TestNameWrapperFixture is NameWrapperFixture, NameMixin {
     ////////////////////////////////////////////////////////////////////////
 
     function test_registerUnwrapped() external {
-        (bytes memory name, uint256 tokenId) = registerUnwrapped("test");
+        (, uint256 tokenId) = registerUnwrapped("test");
         assertEq(ethRegistrarV1.ownerOf(tokenId), user, "owner");
     }
 

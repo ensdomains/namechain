@@ -3,6 +3,7 @@ pragma solidity >=0.8.13;
 
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
+/// @dev Convenience functions for names.
 contract NameMixin {
     function namehash(bytes memory name) internal pure returns (bytes32) {
         return NameCoder.namehash(name, 0);

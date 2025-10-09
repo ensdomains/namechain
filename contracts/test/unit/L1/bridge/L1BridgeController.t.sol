@@ -20,7 +20,6 @@ import {EjectionController} from "~src/common/bridge/EjectionController.sol";
 import {IBridge} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
-import {InvalidOwner} from "~src/common/CommonErrors.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {IStandardRegistry, IRegistry} from "~src/common/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";

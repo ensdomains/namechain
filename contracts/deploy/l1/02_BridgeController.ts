@@ -26,9 +26,9 @@ export default execute(
     await write(ethRegistry, {
       functionName: "grantRootRoles",
       args: [
-        ROLES.OWNER.EAC.REGISTRAR |
-          ROLES.OWNER.EAC.RENEW |
-          ROLES.OWNER.EAC.BURN,
+        ROLES.OWNER.REGISTRY.REGISTRAR |
+          ROLES.OWNER.REGISTRY.RENEW |
+          ROLES.OWNER.REGISTRY.BURN,
         bridgeController.address,
       ],
       account: deployer,

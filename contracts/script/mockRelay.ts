@@ -1,28 +1,35 @@
-import { Log, parseEventLogs, TransactionReceipt, type Hex } from "viem";
+import { type Hex, Log, parseEventLogs, TransactionReceipt } from "viem";
 import type { CrossChainEnvironment, ChainDeployment } from "./setup.js";
 
 function print(...a: any[]) {
-  console.log("   ->", ...a);
+  console.log("   -", ...a);
+}
+
+function pluralize(n: number) {
+  return `${n} message${n == 1 ? "" : "s"}`;
 }
 
 export type MockRelay = ReturnType<typeof setupMockRelay>;
 
-export type MockRelayReceipt = PromiseSettledResult<TransactionReceipt>;
+export type MockRelayReceipt =
+  | TransactionReceipt
+  | { status: "error"; error: any };
 
-async function send(chain: ChainDeployment, message: Hex, waiting = false) {
-  const errorPrefix = `receiveMessage failed[${chain.name}->${chain.rx.name}]:`;
+async function send(chain: ChainDeployment, message: Hex, expected = false) {
+  const errorPrefix = `receiveMessage() failed ${chain.arrow}:`;
   try {
+    // this will simulate the tx to estimate gas and fail if it reverts
     const hash = await chain.contracts.MockBridge.write.receiveMessage([
       message,
     ]);
-    print(`waiting for tx: ${hash} [${chain.name}]`);
+    print(`wait for ${chain.name} tx: ${hash}`);
     const receipt = await chain.client.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") {
-      throw new Error(`${errorPrefix} ${receipt.status}`);
+      throw Object.assign(new Error(errorPrefix), { receipt }); // rare
     }
     return receipt;
   } catch (err) {
-    if (!waiting) {
+    if (!expected) {
       console.error(errorPrefix, err);
     }
     throw err;
@@ -33,7 +40,7 @@ export function setupMockRelay(env: CrossChainEnvironment) {
   const pending = new Map<Hex, (v: MockRelayReceipt[]) => void>();
 
   async function relay(chain: ChainDeployment, logs: Log[]) {
-    const buckets = new Map<Hex, Promise<TransactionReceipt>[]>();
+    const buckets = new Map<Hex, MockRelayReceipt[]>();
     for (const log of parseEventLogs({
       abi: chain.contracts.MockBridge.abi,
       logs,
@@ -44,12 +51,16 @@ export function setupMockRelay(env: CrossChainEnvironment) {
         bucket = [];
         buckets.set(tx, bucket);
       }
-      bucket.push(send(chain.rx, log.args.message, pending.has(tx)));
+      // process sequentially to avoid nonce issues
+      try {
+        bucket.push(await send(chain.rx, log.args.message, pending.has(tx)));
+      } catch (error: any) {
+        bucket.push({ status: "error", error });
+      }
     }
     // TODO: is this ever more than 1 thing?
     for (const [tx, bucket] of buckets) {
-      const answer = await Promise.allSettled(bucket);
-      pending.get(tx)?.(answer);
+      pending.get(tx)?.(bucket);
     }
   }
 
@@ -60,35 +71,34 @@ export function setupMockRelay(env: CrossChainEnvironment) {
     onLogs: (logs) => relay(env.l2, logs),
   });
 
-  async function waitFor(tx: Promise<Hex>, timeoutMs = 1000) {
-    let hash = await tx;
-    const { promise, resolve, reject } =
-      Promise.withResolvers<MockRelayReceipt[]>();
-    const timer = setTimeout(() => reject(new Error("Timeout")), timeoutMs);
+  async function waitFor(tx: Promise<Hex>) {
+    const hash = await tx;
+    const { promise, resolve } = Promise.withResolvers<MockRelayReceipt[]>();
     try {
       pending.set(hash, resolve);
-      print(`waiting for tx: ${hash}`);
-      const txReceipt = await Promise.any([
-        env.l1.client.waitForTransactionReceipt({ hash }),
-        env.l2.client.waitForTransactionReceipt({ hash }),
-      ]);
-      if (txReceipt.status !== "success") {
-        console.error(txReceipt);
-        throw new Error("waitFor() failed!");
+      const { receipt, chain } = await env.waitFor(hash);
+      if (receipt.status !== "success") {
+        throw Object.assign(new Error("waitFor() failed!"), { receipt }); // rare
+      }
+      const sent = parseEventLogs({
+        abi: chain.contracts.MockBridge.abi,
+        logs: receipt.logs,
+      }).length;
+      print(`sent ${chain.arrow}: ${pluralize(sent)}`);
+      if (!sent) {
+        resolve([]); // there were no messages
       }
       const rxReceipts = await promise;
       const success = rxReceipts.reduce(
-        (a, x) => a + +(x.status === "fulfilled"),
+        (a, x) => a + +(x.status === "success"),
         0,
       );
-      print(`relayed ${success}/${rxReceipts.length} messages!`);
-      return { txReceipt, rxReceipts };
+      print(`recv ${chain.arrow}: ${success}/${pluralize(sent)}`);
+      return { txReceipt: receipt, rxReceipts };
     } finally {
-      clearTimeout(timer);
       pending.delete(hash);
     }
   }
-
   console.log("Created Mock Relay");
   return {
     waitFor,
