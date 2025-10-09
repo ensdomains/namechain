@@ -29,6 +29,10 @@ export class Logger {
     this.options = { enableFileLogging: false, ...options };
   }
 
+  // ============================================================
+  // Internal / Protected Methods
+  // ============================================================
+
   /**
    * Write a message to the appropriate log file
    */
@@ -45,6 +49,16 @@ export class Logger {
 
     const timestamp = new Date().toISOString();
     writeFileSync(file, `[${timestamp}]${prefix} ${message}\n`, { flag: "a" });
+  }
+
+  /**
+   * Strip ANSI color codes from a string
+   */
+  private _stripAnsi(str: string): string {
+    return str.replace(
+      /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g,
+      ""
+    );
   }
 
   /**
@@ -81,15 +95,9 @@ export class Logger {
     this._writeToFile("info", fileMsg ?? this._stripAnsi(consoleMsg));
   }
 
-  /**
-   * Strip ANSI color codes from a string
-   */
-  private _stripAnsi(str: string): string {
-    return str.replace(
-      /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g,
-      ""
-    );
-  }
+  // ============================================================
+  // Public Logging Methods
+  // ============================================================
 
   /**
    * Log an informational message
@@ -119,6 +127,10 @@ export class Logger {
     this.rawWarn(yellow(`WARNING: ${message}`), `WARNING: ${message}`);
   }
 
+  // ============================================================
+  // Formatting Methods
+  // ============================================================
+
   /**
    * Log a header/section title
    */
@@ -143,6 +155,10 @@ export class Logger {
     const valueStr = String(value);
     this.raw(cyan(`${key}: `) + valueStr, `${key}: ${valueStr}`);
   }
+
+  // ============================================================
+  // Utility Methods
+  // ============================================================
 
   /**
    * Log a cleanup operation result

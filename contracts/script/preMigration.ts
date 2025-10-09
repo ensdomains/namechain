@@ -30,6 +30,19 @@ import {
 } from "./logger.js";
 import { ROLES } from "../deploy/constants.js";
 
+// Helper function to determine if an error is retriable
+function isRetriableError(error: any): boolean {
+  const message = error?.message?.toLowerCase() || '';
+  return (
+    message.includes('timeout') ||
+    message.includes('network') ||
+    message.includes('rate limit') ||
+    message.includes('connection') ||
+    message.includes('econnrefused') ||
+    message.includes('etimedout')
+  );
+}
+
 // Custom Errors
 export class UnexpectedOwnerError extends Error {
   constructor(
@@ -121,6 +134,12 @@ const ERROR_LOG_FILE = "preMigration-errors.log";
 const INFO_LOG_FILE = "preMigration.log";
 const MAX_RETRIES = 3;
 
+// Configuration constants
+const RATE_LIMIT_DELAY_MS = 200;
+const RPC_TIMEOUT_MS = 30000;
+const RETRY_BASE_DELAY_MS = 1000;
+const PROGRESS_LOG_INTERVAL = 10;
+
 // ENS v1 BaseRegistrar on Ethereum mainnet
 const BASE_REGISTRAR_ADDRESS = "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85" as Address;
 const BASE_REGISTRAR_ABI = [
@@ -139,8 +158,8 @@ const BASE_REGISTRAR_ABI = [
  * - With --continue: Resume from checkpoint if exists
  * - With disableCheckpoint: true: No checkpoint loading/saving (tests only)
  *
- * Checkpoints save progress every 10 names and on completion.
- * This allows resuming long migrations if interrupted.
+ * Checkpoints save progress periodically and on completion,
+ * allowing resuming long migrations if interrupted.
  */
 export function createFreshCheckpoint(): Checkpoint {
   return {
@@ -302,6 +321,15 @@ interface MainnetVerificationResult {
   expiry: bigint;
 }
 
+/**
+ * Verifies if an ENS name is currently registered on Ethereum mainnet.
+ *
+ * @param labelName - The label name (without .eth suffix) to verify
+ * @param mainnetClient - Viem public client configured for mainnet
+ * @param baseRegistrarAddress - Address of the ENS BaseRegistrar contract
+ * @returns Verification result with registration status and expiry timestamp
+ * @throws {InvalidLabelNameError} If the label name is invalid or empty
+ */
 export async function verifyNameOnMainnet(
   labelName: string,
   mainnetClient: any,
@@ -395,6 +423,14 @@ async function fetchRegistrations(
   return result.data.registrations;
 }
 
+/**
+ * Fetches all ENS registrations from TheGraph in paginated batches.
+ * Loads all registrations into memory - use fetchAndRegisterInBatches for large datasets.
+ *
+ * @param config - Pre-migration configuration including API keys and limits
+ * @param fetchFn - Fetch function for making HTTP requests (injectable for testing)
+ * @returns Array of all fetched ENS registrations
+ */
 export async function fetchAllRegistrations(
   config: PreMigrationConfig,
   fetchFn: typeof fetch = fetch
@@ -419,8 +455,7 @@ export async function fetchAllRegistrations(
         break;
       }
 
-      // Don't filter invalid labels here - let registerName() handle them
-      // This ensures they're counted in checkpoint.totalProcessed and invalidLabelCount
+      // Include all registrations for accurate tracking and counting
       allRegistrations.push(...registrations);
       skip += registrations.length;
 
@@ -436,7 +471,7 @@ export async function fetchAllRegistrations(
       }
 
       // Rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
     } catch (error) {
       logger.error(`Failed to fetch registrations at skip=${skip}: ${error}`);
       throw error;
@@ -466,10 +501,10 @@ async function fetchAndRegisterInBatches(
     checkpoint = createFreshCheckpoint();
   }
 
-  // Setup clients once for all batches
+  // Client instances shared across batch processing for connection reuse
   const client = createWalletClient({
     account: privateKeyToAccount(config.privateKey),
-    transport: http(config.rpcUrl, { retryCount: 0, timeout: 30000 }),
+    transport: http(config.rpcUrl, { retryCount: 0, timeout: RPC_TIMEOUT_MS }),
   }).extend(publicActions);
 
   const registry = getContract({
@@ -480,7 +515,7 @@ async function fetchAndRegisterInBatches(
 
   const mainnetClient = createPublicClient({
     chain: mainnet,
-    transport: http(config.mainnetRpcUrl, { retryCount: 3, timeout: 30000 }),
+    transport: http(config.mainnetRpcUrl, { retryCount: 3, timeout: RPC_TIMEOUT_MS }),
   });
 
   let skip = config.startIndex;
@@ -498,10 +533,10 @@ async function fetchAndRegisterInBatches(
         break;
       }
 
-      // Increment totalExpected with all names in this batch
+      // Track expected total including all names in batch
       checkpoint.totalExpected += batch.length;
 
-      // Filter invalid labels and count them
+      // Separate valid from invalid registrations for processing
       let invalidLabelsInBatch = 0;
       const validBatch = batch.filter((reg) => {
         if (!reg.labelName || typeof reg.labelName !== 'string' || reg.labelName.trim() === '') {
@@ -552,7 +587,7 @@ async function fetchAndRegisterInBatches(
       }
 
       // Rate limiting between batches
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
     } catch (error) {
       logger.error(`Failed to fetch/process batch at skip=${skip}: ${error}`);
       throw error;
@@ -609,8 +644,8 @@ async function processBatch(
     if (!config.disableCheckpoint) {
       saveCheckpoint(checkpoint);
 
-      // Log progress every 10 names
-      if (checkpoint.totalProcessed % 10 === 0) {
+      // Log progress periodically
+      if (checkpoint.totalProcessed % PROGRESS_LOG_INTERVAL === 0) {
         logger.progress(checkpoint.totalProcessed, checkpoint.totalExpected, {
           registered: checkpoint.successCount,
           skipped: checkpoint.skippedCount,
@@ -621,6 +656,11 @@ async function processBatch(
   }
 
   return checkpoint;
+}
+
+// Helper to calculate success rate percentage
+function calculateSuccessRate(successCount: number, totalAttempts: number): number {
+  return totalAttempts > 0 ? Math.round((successCount / totalAttempts) * 100) : 0;
 }
 
 // Print final summary after all processing
@@ -639,8 +679,8 @@ function printFinalSummary(checkpoint: Checkpoint): void {
   logger.config('Failed (other errors)', checkpoint.failureCount > 0 ? red(checkpoint.failureCount.toString()) : checkpoint.failureCount);
   logger.config('Actual registrations attempted', actualRegistrations);
 
+  const rate = calculateSuccessRate(checkpoint.successCount, actualRegistrations);
   if (actualRegistrations > 0) {
-    const rate = Math.round((checkpoint.successCount / actualRegistrations) * 100);
     logger.config('Registration success rate', `${rate}%`);
   }
 
@@ -651,7 +691,18 @@ function printFinalSummary(checkpoint: Checkpoint): void {
   }
 }
 
-// Registration logic
+/**
+ * Registers a single ENS name on the destination chain with mainnet verification.
+ * Includes automatic retry logic for transient errors.
+ *
+ * @param client - Viem wallet client for transaction signing
+ * @param registry - Registry contract instance
+ * @param config - Pre-migration configuration
+ * @param registration - ENS registration data from TheGraph
+ * @param mainnetClient - Mainnet client for verification
+ * @param retries - Current retry attempt count (internal use)
+ * @returns Registration result with success status and transaction hash
+ */
 export async function registerName(
   client: any,
   registry: any,
@@ -679,11 +730,11 @@ export async function registerName(
         return { labelName, success: true, skipped: true };
       }
     } catch (error) {
-      // If it's our validation error, re-throw it
+      // Validation errors are permanent failures - re-throw them
       if (error instanceof UnexpectedOwnerError) {
         throw error;
       }
-      // Otherwise, name doesn't exist or error checking - proceed with mainnet verification
+      // Name not found or read error - proceed with mainnet verification
     }
 
     // Verify name is still registered on mainnet
@@ -743,9 +794,10 @@ export async function registerName(
 
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    if (retries < MAX_RETRIES) {
+    // Only retry if it's a retriable error
+    if (isRetriableError(error) && retries < MAX_RETRIES) {
       logger.failed(labelName, errorMessage, retries + 1, MAX_RETRIES);
-      await new Promise((resolve) => setTimeout(resolve, 1000 * (retries + 1)));
+      await new Promise((resolve) => setTimeout(resolve, RETRY_BASE_DELAY_MS * (retries + 1)));
       return registerName(client, registry, config, registration, mainnetClient, retries + 1);
     }
 
@@ -754,6 +806,15 @@ export async function registerName(
   }
 }
 
+/**
+ * Batch registers multiple ENS names with checkpoint support.
+ * Processes a pre-fetched list of registrations sequentially.
+ *
+ * @param config - Pre-migration configuration
+ * @param registrations - Pre-fetched array of registrations to process
+ * @param providedClient - Optional wallet client (created if not provided)
+ * @param providedRegistry - Optional registry contract (created if not provided)
+ */
 export async function batchRegisterNames(
   config: PreMigrationConfig,
   registrations: ENSRegistration[],
@@ -764,7 +825,7 @@ export async function batchRegisterNames(
     account: privateKeyToAccount(config.privateKey),
     transport: http(config.rpcUrl, {
       retryCount: 0,
-      timeout: 30000,
+      timeout: RPC_TIMEOUT_MS,
     }),
   }).extend(publicActions);
 
@@ -778,7 +839,7 @@ export async function batchRegisterNames(
     chain: mainnet,
     transport: http(config.mainnetRpcUrl, {
       retryCount: 3,
-      timeout: 30000,
+      timeout: RPC_TIMEOUT_MS,
     }),
   });
 
@@ -857,8 +918,8 @@ export async function batchRegisterNames(
     if (!config.disableCheckpoint) {
       saveCheckpoint(checkpoint);
 
-      // Log progress every 10 names
-      if (checkpoint.totalProcessed % 10 === 0) {
+      // Log progress periodically
+      if (checkpoint.totalProcessed % PROGRESS_LOG_INTERVAL === 0) {
         logger.progress(checkpoint.totalProcessed, checkpoint.totalExpected, {
           registered: checkpoint.successCount,
           skipped: checkpoint.skippedCount,
@@ -888,8 +949,8 @@ export async function batchRegisterNames(
   logger.config('Failed (other errors)', checkpoint.failureCount > 0 ? red(checkpoint.failureCount.toString()) : checkpoint.failureCount);
   logger.config('Actual registrations attempted', actualRegistrations);
 
+  const rate = calculateSuccessRate(checkpoint.successCount, actualRegistrations);
   if (actualRegistrations > 0) {
-    const rate = Math.round((checkpoint.successCount / actualRegistrations) * 100);
     logger.config('Registration success rate', `${rate}%`);
   }
 
@@ -900,7 +961,12 @@ export async function batchRegisterNames(
   }
 }
 
-// Main function - exported for testing
+/**
+ * Main entry point for the pre-migration CLI tool.
+ * Parses command-line arguments and orchestrates the migration process.
+ *
+ * @param argv - Command-line arguments (defaults to process.argv)
+ */
 export async function main(argv = process.argv): Promise<void> {
   const program = new Command()
     .name("premigrate")
