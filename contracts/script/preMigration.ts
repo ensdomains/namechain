@@ -758,8 +758,7 @@ export async function batchRegisterNames(
   config: PreMigrationConfig,
   registrations: ENSRegistration[],
   providedClient?: any,
-  providedRegistry?: any,
-  providedMainnetClient?: any
+  providedRegistry?: any
 ): Promise<void> {
   const client = providedClient || createWalletClient({
     account: privateKeyToAccount(config.privateKey),
@@ -775,7 +774,7 @@ export async function batchRegisterNames(
     client,
   });
 
-  const mainnetClient = providedMainnetClient || createPublicClient({
+  const mainnetClient = createPublicClient({
     chain: mainnet,
     transport: http(config.mainnetRpcUrl, {
       retryCount: 3,
@@ -912,7 +911,7 @@ export async function main(argv = process.argv): Promise<void> {
     .requiredOption("--namechain-bridge-controller <address>", "L2BridgeController address")
     .requiredOption("--private-key <key>", "Deployer private key (has REGISTRAR role)")
     .requiredOption("--thegraph-api-key <key>", "TheGraph Gateway API key (get from https://thegraph.com/studio/apikeys/)")
-    .option("--batch-size <number>", "Number of names to fetch per TheGraph API request", "100")
+    .option("--batch-size <number>", "Number of names to fetch per TheGraph API request", "1000")
     .option("--start-index <number>", "Starting index for resuming partial migrations", "0")
     .option("--limit <number>", "Maximum total number of names to fetch and register")
     .option("--dry-run", "Simulate without executing transactions", false)
