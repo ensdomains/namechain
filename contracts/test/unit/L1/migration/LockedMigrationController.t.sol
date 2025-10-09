@@ -29,11 +29,11 @@ import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {L1BridgeController, TransferData} from "~src/L1/bridge/L1BridgeController.sol";
 import {LockedMigrationController} from "~src/L1/migration/LockedMigrationController.sol";
 import {
-    MigratedWrapperRegistry,
+    MigratedWrappedNameRegistry,
     RegistryRolesLib,
     LockedNamesLib,
     IRegistry
-} from "~src/L1/registry/MigratedWrapperRegistry.sol";
+} from "~src/L1/registry/MigratedWrappedNameRegistry.sol";
 
 contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin, NameMixin {
     MockL1Bridge bridge;
@@ -41,7 +41,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin, 
     LockedMigrationController migrationController;
 
     VerifiableFactory migratedRegistryFactory;
-    MigratedWrapperRegistry migratedRegistryImpl;
+    MigratedWrappedNameRegistry migratedRegistryImpl;
 
     function setUp() external {
         _deployNameWrapper();
@@ -50,7 +50,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin, 
         bridge = new MockL1Bridge();
 
         migratedRegistryFactory = new VerifiableFactory();
-        migratedRegistryImpl = new MigratedWrapperRegistry(
+        migratedRegistryImpl = new MigratedWrappedNameRegistry(
             nameWrapper,
             address(0), // ETHTLDResolver not needed
             migratedRegistryFactory,
@@ -89,9 +89,9 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin, 
 
     // function _migrateETH2LD(
     //     bytes memory name
-    // ) internal returns (uint256 tokenId, MigratedWrapperRegistry registry) {
+    // ) internal returns (uint256 tokenId, MigratedWrappedNameRegistry registry) {
     //     tokenId = migrationController.migrate(_makeData(name));
-    //     registry = MigratedWrapperRegistry(
+    //     registry = MigratedWrappedNameRegistry(
     //         datastore.getEntry(address(ethRegistry), tokenId).subregistry
     //     );
     // }
@@ -156,7 +156,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin, 
     //     );
     //     vm.startPrank(user);
     //     nameWrapper.setApprovalForAll(address(migrationController), true);
-    //     (uint256 tokenId, MigratedWrapperRegistry parentRegistry) = _migrateETH2LD(parentName);
+    //     (uint256 tokenId, MigratedWrappedNameRegistry parentRegistry) = _migrateETH2LD(parentName);
     //     vm.stopPrank();
     //     MigrationData memory migrationData = MigrationData({
     //         transferData: TransferData({
@@ -498,7 +498,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin, 
 
         // Verify it's a proxy pointing to our implementation
         // The migratedRegistryFactory creates a proxy, so we can verify it's pointing to the right implementation
-        MigratedWrapperRegistry migratedRegistry = MigratedWrapperRegistry(
+        MigratedWrappedNameRegistry migratedRegistry = MigratedWrappedNameRegistry(
             actualSubregistry
         );
         assertEq(

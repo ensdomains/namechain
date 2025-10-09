@@ -30,11 +30,11 @@ import {IStandardRegistry} from "~src/common/registry/interfaces/IStandardRegist
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
 import {
-    MigratedWrapperRegistry,
-    IMigratedWrapperRegistry,
+    MigratedWrappedNameRegistry,
+    IMigratedWrappedNameRegistry,
     LockedNamesLib,
     TransferErrors
-} from "~src/L1/registry/MigratedWrapperRegistry.sol";
+} from "~src/L1/registry/MigratedWrappedNameRegistry.sol";
 import {NameWrapperFixture} from "~test/fixtures/NameWrapperFixture.sol";
 import {NameMixin} from "~test/fixtures/NameMixin.sol";
 import {ETHRegistryMixin} from "~test/fixtures/ETHRegistryMixin.sol";
@@ -48,9 +48,9 @@ import {LibRegistry} from "~src/universalResolver/libraries/LibRegistry.sol";
 import {MockBridgeController} from "~test/mocks/MockBridgeController.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 
-contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, NameMixin {
+contract TestMigratedWrappedNameRegistry is NameWrapperFixture, ETHRegistryMixin, NameMixin {
     VerifiableFactory migratedRegistryFactory;
-    MigratedWrapperRegistry migratedRegistryImpl;
+    MigratedWrappedNameRegistry migratedRegistryImpl;
 
     MockBridgeController mockBridgeController;
     ETHTLDResolver ethTLDResolver;
@@ -75,7 +75,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         );
 
         migratedRegistryFactory = new VerifiableFactory();
-        migratedRegistryImpl = new MigratedWrapperRegistry(
+        migratedRegistryImpl = new MigratedWrappedNameRegistry(
             nameWrapper,
             address(ethTLDResolver),
             migratedRegistryFactory,
@@ -88,10 +88,10 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
 
     function _makeData(
         bytes memory name
-    ) internal view returns (IMigratedWrapperRegistry.Data memory) {
+    ) internal view returns (IMigratedWrappedNameRegistry.Data memory) {
         bytes32 node = namehash(name);
         return
-            IMigratedWrapperRegistry.Data({
+            IMigratedWrappedNameRegistry.Data({
                 node: node,
                 owner: nameWrapper.ownerOf(uint256(node)),
                 resolver: ensV1.resolver(node),
@@ -102,7 +102,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     // function _migrateLockedETH2LD(
     //     string memory label,
     //     uint32 fuses
-    // ) internal returns (bytes memory name, uint256 tokenId, MigratedWrapperRegistry registry) {
+    // ) internal returns (bytes memory name, uint256 tokenId, MigratedWrappedNameRegistry registry) {
     //     bytes32 node;
     //     (name, node) = registerWrappedETH2LD(label, fuses | CANNOT_UNWRAP);
     //     (tokenId, registry) = _migrateETH2LD(node);
@@ -110,7 +110,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
 
     function _migrateETH2LD(
         bytes memory name
-    ) internal returns (uint256 tokenId, MigratedWrapperRegistry registry) {
+    ) internal returns (uint256 tokenId, MigratedWrappedNameRegistry registry) {
         bytes32 node = namehash(name);
         (address owner, uint32 fuses, uint64 expiry) = nameWrapper.getData(uint256(node));
         address resolver = ensV1.resolver(node);
@@ -126,15 +126,15 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         (uint256 tokenRoles, uint256 subRegistryRoles) = LockedNamesLib
             .generateRoleBitmapsFromFuses(fuses & ~CAN_EXTEND_EXPIRY);
 
-        registry = MigratedWrapperRegistry(
+        registry = MigratedWrappedNameRegistry(
             migratedRegistryFactory.deployProxy(
                 address(migratedRegistryImpl),
-                0,
+                0, // salt
                 abi.encodeCall(
-                    IMigratedWrapperRegistry.initialize,
+                    IMigratedWrappedNameRegistry.initialize,
                     (
-                        IMigratedWrapperRegistry.ConstructorArgs({
-                            parentNode: node,
+                        IMigratedWrappedNameRegistry.ConstructorArgs({
+                            node: node,
                             owner: owner,
                             ownerRoles: subRegistryRoles,
                             registrar: address(0)
@@ -159,11 +159,11 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     // function _getRegistry(
     //     PermissionedRegistry parentRegistry,
     //     bytes memory name
-    // ) internal view returns (MigratedWrapperRegistry) {
+    // ) internal view returns (MigratedWrappedNameRegistry) {
     //     (, IRegistryDatastore.Entry memory entry) = parentRegistry.getNameData(
     //         NameCoder.firstLabel(name)
     //     );
-    //     return MigratedWrapperRegistry(entry.subregistry);
+    //     return MigratedWrappedNameRegistry(entry.subregistry);
     // }
 
     function _findResolver(bytes memory name) internal view returns (address resolver) {
@@ -214,7 +214,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
             "sub",
             CANNOT_UNWRAP | PARENT_CANNOT_CONTROL
         );
-        (, MigratedWrapperRegistry registry) = _migrateETH2LD(parentName);
+        (, MigratedWrappedNameRegistry registry) = _migrateETH2LD(parentName);
         vm.startPrank(user);
         nameWrapper.setApprovalForAll(address(registry), true);
         uint256 tokenId = registry.migrate(_makeData(name));
@@ -226,10 +226,10 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     function test_Revert_migrate_notEmancipated() external {
         bytes memory parentName = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         bytes memory name = createWrappedChild(parentName, "sub", 0);
-        (, MigratedWrapperRegistry registry) = _migrateETH2LD(parentName);
+        (, MigratedWrappedNameRegistry registry) = _migrateETH2LD(parentName);
         vm.startPrank(user);
         nameWrapper.setApprovalForAll(address(registry), true);
-        IMigratedWrapperRegistry.Data memory md = _makeData(name);
+        IMigratedWrappedNameRegistry.Data memory md = _makeData(name);
         vm.expectRevert(abi.encodeWithSelector(TransferErrors.NameNotEmancipated.selector, name));
         registry.migrate(md);
         vm.stopPrank();
@@ -238,10 +238,10 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     function test_Revert_migrate_notSubdomain() external {
         bytes memory parentName = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         bytes memory name = createWrappedName("test.com", 0);
-        (, MigratedWrapperRegistry registry) = _migrateETH2LD(parentName);
+        (, MigratedWrappedNameRegistry registry) = _migrateETH2LD(parentName);
         vm.startPrank(user);
         nameWrapper.setApprovalForAll(address(registry), true);
-        IMigratedWrapperRegistry.Data memory md = _makeData(name);
+        IMigratedWrappedNameRegistry.Data memory md = _makeData(name);
         vm.expectRevert(
             abi.encodeWithSelector(TransferErrors.NameNotSubdomain.selector, name, parentName)
         );
@@ -252,7 +252,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     function test_Revert_register_notMigrated() external {
         bytes memory parentName = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         bytes memory name = createWrappedChild(parentName, "sub", 0);
-        (, MigratedWrapperRegistry registry) = _migrateETH2LD(parentName);
+        (, MigratedWrappedNameRegistry registry) = _migrateETH2LD(parentName);
         vm.startPrank(user);
         registry.register(
             firstLabel(name),
@@ -274,7 +274,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         (, , uint64 expiry) = nameWrapper.getData(uint256(namehash(name))); // child expiry
         vm.prank(ensV1Controller);
         nameWrapper.renew(firstTokenId(parentName), 1 days); // extend parent
-        (, MigratedWrapperRegistry registry) = _migrateETH2LD(parentName); // migrate parent
+        (, MigratedWrappedNameRegistry registry) = _migrateETH2LD(parentName); // migrate parent
         assertEq(nameWrapper.ownerOf(uint256(namehash(name))), user, "before");
         vm.warp(expiry + 1); // expire child
         assertEq(nameWrapper.ownerOf(uint256(namehash(name))), address(0), "after");
@@ -312,7 +312,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     function test_getResolver_child() external {
         bytes memory parentName = registerWrappedETH2LD("test", CANNOT_UNWRAP);
         bytes memory name = createWrappedChild(parentName, "sub", PARENT_CANNOT_CONTROL);
-        (, MigratedWrapperRegistry registry) = _migrateETH2LD(parentName); // migrate parent
+        (, MigratedWrappedNameRegistry registry) = _migrateETH2LD(parentName); // migrate parent
         vm.startPrank(user);
         nameWrapper.setApprovalForAll(address(registry), true);
         uint256 tokenId = registry.migrate(_makeData(name)); // migrate child
@@ -337,7 +337,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         bytes memory name = createWrappedChild(parentName, "sub", 0);
         vm.prank(user);
         nameWrapper.setResolver(namehash(name), userResolver);
-        (, MigratedWrapperRegistry registry) = _migrateETH2LD(parentName);
+        (, MigratedWrappedNameRegistry registry) = _migrateETH2LD(parentName);
         assertEq(_findResolver(name), userResolver, "fallback");
         assertEq(registry.getResolver(firstLabel(name)), address(ethTLDResolver), "tld");
     }
@@ -592,7 +592,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         nameWrapper.setOwner(ethTokenId, user);
 
         // Should revert with NoParentDomain error
-        vm.expectRevert(MigratedWrapperRegistry.NoParentDomain.selector);
+        vm.expectRevert(MigratedWrappedNameRegistry.NoParentDomain.selector);
 
         vm.prank(address(nameWrapper));
         registry.onERC1155Received(
@@ -619,7 +619,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
 
     function test_getResolver_3LD_unregistered() public {
         // Create a 3LD registry for "sub.test.eth"
-        MigratedWrapperRegistry subRegistry = _create3LDRegistry("sub.test.eth");
+        MigratedWrappedNameRegistry subRegistry = _create3LDRegistry("sub.test.eth");
 
         // Test label "example" which would resolve to "example.sub.test.eth"
         string memory label3LD = "example";
@@ -640,7 +640,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
 
     function test_getResolver_3LD_registered() public {
         // Create a 3LD registry for "sub.test.eth"
-        MigratedWrapperRegistry subRegistry = _create3LDRegistry("sub.test.eth");
+        MigratedWrappedNameRegistry subRegistry = _create3LDRegistry("sub.test.eth");
 
         string memory label3LD = "example";
         address expectedResolver = address(0x4444);
@@ -670,7 +670,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         // Already set up in setUp()
 
         // 2. Create 3LD registry (sub.test.eth) but don't register "sub" in 2LD registry
-        MigratedWrapperRegistry subRegistry = _create3LDRegistry("sub.test.eth");
+        MigratedWrappedNameRegistry subRegistry = _create3LDRegistry("sub.test.eth");
 
         // 3. Query for "example" in 3LD registry (would be example.sub.test.eth)
         string memory labelMixed = "example";
@@ -692,9 +692,9 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     // Helper function to create a registry with a real migratedRegistryFactory
     function _createRegistryWithFactory(
         VerifiableFactory realFactory
-    ) internal returns (MigratedWrapperRegistry) {
+    ) internal returns (MigratedWrappedNameRegistry) {
         // Deploy migratedRegistryImpl with real migratedRegistryFactory
-        MigratedWrapperRegistry impl = new MigratedWrapperRegistry(
+        MigratedWrappedNameRegistry impl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
             realFactory,
@@ -705,7 +705,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
 
         // Deploy proxy and initialize
         bytes memory initData = abi.encodeWithSelector(
-            MigratedWrapperRegistry.initialize.selector,
+            MigratedWrappedNameRegistry.initialize.selector,
             "\x03eth\x00", // parent DNS-encoded name for .eth
             owner,
             0, // ownerRoles
@@ -713,15 +713,15 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
-        return MigratedWrapperRegistry(address(proxy));
+        return MigratedWrappedNameRegistry(address(proxy));
     }
 
     // Helper function to create a 3LD registry
     function _create3LDRegistry(
         string memory domain
-    ) internal returns (MigratedWrapperRegistry) {
+    ) internal returns (MigratedWrappedNameRegistry) {
         // Deploy new migratedRegistryImpl instance
-        MigratedWrapperRegistry impl = new MigratedWrapperRegistry(
+        MigratedWrappedNameRegistry impl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
             VerifiableFactory(address(0)),
@@ -735,7 +735,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
 
         // Deploy proxy and initialize
         bytes memory initData = abi.encodeWithSelector(
-            MigratedWrapperRegistry.initialize.selector,
+            MigratedWrappedNameRegistry.initialize.selector,
             parentDnsName,
             owner,
             0, // ownerRoles
@@ -743,7 +743,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
-        return MigratedWrapperRegistry(address(proxy));
+        return MigratedWrappedNameRegistry(address(proxy));
     }
 
     function test_subdomain_freezeName_clears_resolver_when_fuse_not_set() public {
@@ -1438,19 +1438,19 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     // ===== UUPS Upgrade Authorization Tests =====
 
     // function test_authorizeUpgrade_with_upgrade_role() public {
-    //     (,, MigratedWrapperRegistry registry) = _migrateLockedETH2LD("test", 0);
+    //     (,, MigratedWrappedNameRegistry registry) = _migrateLockedETH2LD("test", 0);
     //     vm.prank(user);
     //     registry.upgradeToAndCall(address(1), "");
     // }
 
     // function test_authorizeUpgrade_without_upgrade_role() public {
-    //     (,, MigratedWrapperRegistry registry) = _migrateLockedETH2LD("test", 0);
+    //     (,, MigratedWrappedNameRegistry registry) = _migrateLockedETH2LD("test", 0);
     //     vm.expectRevert();
     //     registry.upgradeToAndCall(address(1), "");
     // }
 
     // function test_authorizeUpgrade_with_granted_upgrade_role() public {
-    //     (,, MigratedWrapperRegistry registry) = _migrateLockedETH2LD("test", 0);
+    //     (,, MigratedWrappedNameRegistry registry) = _migrateLockedETH2LD("test", 0);
     //     vm.prank(user);
     //     registry.grantRootRoles(RegistryRolesLib.ROLE_UPGRADE, user2);
     //     vm.prank(user2);
@@ -1458,7 +1458,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     // }
 
     // function test_authorizeUpgrade_revoked_upgrade_role() public {
-    //     (,, MigratedWrapperRegistry registry) = _migrateLockedETH2LD("test", 0);
+    //     (,, MigratedWrappedNameRegistry registry) = _migrateLockedETH2LD("test", 0);
     //     vm.prank(user);
     //     registry.revokeRootRoles(RegistryRolesLib.ROLE_UPGRADE, user);
     //     vm.prank(user);
@@ -1470,7 +1470,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     // ===== Initialize Function Edge Case Tests =====
 
     function test_initialize_zero_address_owner() public {
-        MigratedWrapperRegistry newImpl = new MigratedWrapperRegistry(
+        MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
             VerifiableFactory(address(0)),
@@ -1480,7 +1480,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         );
 
         bytes memory initData = abi.encodeWithSelector(
-            MigratedWrapperRegistry.initialize.selector,
+            MigratedWrappedNameRegistry.initialize.selector,
             "\x03eth\x00",
             address(0), // Zero address owner
             0,
@@ -1492,7 +1492,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     }
 
     function test_initialize_with_registrar_address() public {
-        MigratedWrapperRegistry newImpl = new MigratedWrapperRegistry(
+        MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
             VerifiableFactory(address(0)),
@@ -1503,7 +1503,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
 
         address testRegistrar = address(0x1337);
         bytes memory initData = abi.encodeWithSelector(
-            MigratedWrapperRegistry.initialize.selector,
+            MigratedWrappedNameRegistry.initialize.selector,
             "\x03eth\x00",
             user,
             RegistryRolesLib.ROLE_SET_RESOLVER,
@@ -1511,7 +1511,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(newImpl), initData);
-        MigratedWrapperRegistry newRegistry = MigratedWrapperRegistry(address(proxy));
+        MigratedWrappedNameRegistry newRegistry = MigratedWrappedNameRegistry(address(proxy));
 
         // Check that registrar has ROLE_REGISTRAR
         assertTrue(
@@ -1525,7 +1525,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     }
 
     function test_initialize_with_custom_owner_roles() public {
-        MigratedWrapperRegistry newImpl = new MigratedWrapperRegistry(
+        MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
             VerifiableFactory(address(0)),
@@ -1536,7 +1536,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
 
         uint256 customRoles = RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_SET_RESOLVER;
         bytes memory initData = abi.encodeWithSelector(
-            MigratedWrapperRegistry.initialize.selector,
+            MigratedWrappedNameRegistry.initialize.selector,
             "\x04test\x03eth\x00",
             user,
             customRoles,
@@ -1544,7 +1544,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(newImpl), initData);
-        MigratedWrapperRegistry newRegistry = MigratedWrapperRegistry(address(proxy));
+        MigratedWrappedNameRegistry newRegistry = MigratedWrappedNameRegistry(address(proxy));
 
         // Check that owner has custom roles plus upgrade roles
         uint256 ROLE_UPGRADE = 1 << 20;
@@ -1558,7 +1558,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
     }
 
     function test_initialize_different_parent_dns_name() public {
-        MigratedWrapperRegistry newImpl = new MigratedWrapperRegistry(
+        MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
             VerifiableFactory(address(0)),
@@ -1569,7 +1569,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
 
         bytes memory customParentName = "\x07example\x03com\x00";
         bytes memory initData = abi.encodeWithSelector(
-            MigratedWrapperRegistry.initialize.selector,
+            MigratedWrappedNameRegistry.initialize.selector,
             customParentName,
             user,
             0,
@@ -1577,7 +1577,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(newImpl), initData);
-        MigratedWrapperRegistry newRegistry = MigratedWrapperRegistry(address(proxy));
+        MigratedWrappedNameRegistry newRegistry = MigratedWrappedNameRegistry(address(proxy));
 
         // Check that parent DNS name was set correctly
         assertEq(
@@ -1601,7 +1601,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         mockEthRegistry.setSubregistry("existing", address(0x1234)); // Name already exists
 
         // Deploy new registry with mock ethRegistry
-        MigratedWrapperRegistry newImpl = new MigratedWrapperRegistry(
+        MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             ENS(address(ensRegistry)),
             VerifiableFactory(address(0)),
@@ -1611,7 +1611,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         );
 
         bytes memory initData = abi.encodeWithSelector(
-            MigratedWrapperRegistry.initialize.selector,
+            MigratedWrappedNameRegistry.initialize.selector,
             "\x03eth\x00",
             owner,
             0,
@@ -1619,7 +1619,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(newImpl), initData);
-        MigratedWrapperRegistry newRegistry = MigratedWrapperRegistry(address(proxy));
+        MigratedWrappedNameRegistry newRegistry = MigratedWrappedNameRegistry(address(proxy));
 
         // Try to migrate 2LD that already exists in ethRegistry
         bytes memory existingDnsName = NameCoder.encode("existing.eth");
@@ -1675,7 +1675,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
         );
 
         // Create 3LD registry and register "sub"
-        MigratedWrapperRegistry subRegistry = _create3LDRegistry("sub.test.eth");
+        MigratedWrappedNameRegistry subRegistry = _create3LDRegistry("sub.test.eth");
         _registerName(
             registry,
             "sub",
@@ -1812,7 +1812,7 @@ contract TestMigratedWrapperRegistry is NameWrapperFixture, ETHRegistryMixin, Na
 
         // Create minimal test case - this test primarily verifies the concept works
         // Full deep hierarchy testing can be done in integration tests
-        MigratedWrapperRegistry cRegistry = _create3LDRegistry("c.d.eth");
+        MigratedWrappedNameRegistry cRegistry = _create3LDRegistry("c.d.eth");
 
         // Simplified assertion - deep hierarchy support exists
         assertTrue(address(cRegistry) != address(0), "Deep hierarchy registries can be created");

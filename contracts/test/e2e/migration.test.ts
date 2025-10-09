@@ -15,8 +15,22 @@ import {
   namehash,
   toHex,
   zeroAddress,
+  BaseError,
+  ContractFunctionRevertedError,
+  ContractFunctionExecutionError,
+  Hex,
+  decodeAbiParameters,
+  stringToHex,
+  decodeErrorResult,
+  slice,
+  keccak256,
 } from "viem";
-import { AbiParametersToPrimitiveTypes } from "abitype";
+import {
+  Abi,
+  AbiParameter,
+  AbiParametersToPrimitiveTypes,
+  AbiParameterToPrimitiveType,
+} from "abitype";
 
 import {
   type CrossChainEnvironment,
@@ -24,7 +38,11 @@ import {
   setupCrossChainEnvironment,
 } from "../../script/setup.js";
 import { type MockRelay, setupMockRelay } from "../../script/mockRelay.js";
-import { dnsEncodeName, labelToCanonicalId } from "../../test/utils/utils.js";
+import {
+  dnsEncodeName,
+  getLabelAt,
+  labelToCanonicalId,
+} from "../../test/utils/utils.js";
 import { expectVar } from "../utils/expectVar.js";
 import { ROLES, MAX_EXPIRY } from "../../deploy/constants.js";
 
@@ -44,33 +62,26 @@ const unlockedMigrationDataAbi = [
   },
 ] as const;
 
-// see: LockedMigrationController.sol
-const lockedMigrationDataAbi = [
-  {
-    type: "tuple",
-    components: [
-      { name: "node", type: "bytes32" },
-      { name: "owner", type: "address" },
-      { name: "resolver", type: "address" },
-      { name: "salt", type: "uint256" },
-    ],
-  },
-] as const;
+const lockedMigrationDataComponents = [
+  { name: "node", type: "bytes32" },
+  { name: "owner", type: "address" },
+  { name: "resolver", type: "address" },
+  { name: "salt", type: "uint256" },
+] as const satisfies AbiParameter[];
 
-// see: TransferData.sol
-const transferDataAbi = [
-  {
-    type: "tuple",
-    components: [
-      { name: "label", type: "string" },
-      { name: "owner", type: "address" },
-      { name: "subregistry", type: "address" },
-      { name: "resolver", type: "address" },
-      { name: "roleBitmap", type: "uint256" },
-      { name: "expiry", type: "uint64" },
-    ],
-  },
-] as const;
+// see: LockedMigrationController.sol
+const lockedMigrationDataAbi = {
+  type: "tuple",
+  components: [
+    { name: "node", type: "bytes32" },
+    { name: "owner", type: "address" },
+    { name: "resolver", type: "address" },
+    { name: "salt", type: "uint256" },
+  ],
+} as const;
+type LockedMigrationData = AbiParameterToPrimitiveType<
+  typeof lockedMigrationDataAbi
+>;
 
 type UnlockedMigrationData = AbiParametersToPrimitiveTypes<
   typeof unlockedMigrationDataAbi
@@ -117,39 +128,75 @@ describe("Migration", () => {
   let env: CrossChainEnvironment;
   let relay: MockRelay;
   let resetState: CrossChainSnapshot;
+  let nextSalt = 0n;
   beforeAll(async () => {
-    env = await setupCrossChainEnvironment();
+    env = await setupCrossChainEnvironment({ procLog: true }); // show anvil logs
     relay = setupMockRelay(env);
+
     // add owner as controller so we can register() directly
     const { owner } = env.namedAccounts;
     await env.l1.contracts.ETHRegistrarV1.write.addController([owner.address], {
       account: owner,
     });
+
     resetState = await env.saveState();
-    //env.l1.logAnvil();
-    //env.l2.logAnvil();
   });
 
   afterAll(() => env?.shutdown());
   beforeEach(() => resetState?.());
 
-  const subregistry = "0x1111111111111111111111111111111111111111";
-  const resolver = "0x2222222222222222222222222222222222222222";
+  function unwrapError(err: unknown): never {
+    if (err instanceof ContractFunctionExecutionError) {
+      if (err.cause instanceof ContractFunctionRevertedError) {
+        let { raw } = err.cause;
+        if (raw?.startsWith("0x08c379a0")) {
+          [raw] = decodeAbiParameters([{ type: "bytes" }], slice(raw, 4));
+          if (raw.startsWith(stringToHex("❌("))) {
+            const abi = [
+              ...env.l1.contracts.UnlockedMigrationController.abi,
+              ...env.l1.contracts.LockedMigrationController.abi,
+              ...env.l1.contracts.MigratedWrappedNameRegistryImpl.abi,
+              ...env.interfaces.CommonErrors,
+              ...env.interfaces.TransferErrors,
+            ];
+            const newErr = new ContractFunctionRevertedError({
+              abi,
+              data: slice(raw, 4),
+              functionName: err.functionName,
+            });
+            if (newErr.data) {
+              throw new ContractFunctionExecutionError(newErr, err);
+            }
+          }
+        }
+      }
+    }
+    throw err;
+  }
+
+  const SUBREGISTRY = "0x1111111111111111111111111111111111111111";
+  const RESOLVER = "0x2222222222222222222222222222222222222222";
 
   const defaultUnlockedData = {
-    resolver,
-    subregistry,
+    resolver: RESOLVER,
+    subregistry: SUBREGISTRY,
     roleBitmap: 0n,
     salt: 0n,
   } as const;
 
-  class Wrapped {
+  class WrappedToken {
     constructor(
       readonly name: string,
       readonly account: Account,
     ) {}
     get namehash() {
       return namehash(this.name);
+    }
+    get tokenId() {
+      return BigInt(this.namehash);
+    }
+    label(i = 0) {
+      return getLabelAt(this.name, i);
     }
     async approve() {
       return env.l1.contracts.NameWrapperV1.write.setApprovalForAll(
@@ -170,12 +217,34 @@ describe("Migration", () => {
         [this.namehash, label, owner.address, fuses, MAX_EXPIRY],
         { account: this.account },
       );
-      return new Wrapped(dnsEncodeName(`${label}.${this.name}`), owner);
+      return new WrappedToken(dnsEncodeName(`${label}.${this.name}`), owner);
     }
-    //unwrappedTransferData(toL1: boolean) {}
+    lockedTransferTuple({
+      owner = this.account.address,
+      resolver = RESOLVER,
+      salt = this.tokenId ^ ++nextSalt,
+    }: Partial<Omit<LockedMigrationData, "node">> = {}) {
+      return { node: this.namehash, owner, resolver, salt };
+    }
   }
 
-  async function registerV1({
+  function encodeLockedMigrationData(
+    v: LockedMigrationData | LockedMigrationData[],
+  ) {
+    if (Array.isArray(v)) {
+      return encodeAbiParameters(
+        [{ type: "tuple[]", components: lockedMigrationDataComponents }],
+        [v],
+      );
+    } else {
+      return encodeAbiParameters(
+        [{ type: "tuple", components: lockedMigrationDataComponents }],
+        [v],
+      );
+    }
+  }
+
+  async function registerUnwrapped({
     label = "test",
     account = env.namedAccounts.user,
     duration = 86400n,
@@ -235,44 +304,172 @@ describe("Migration", () => {
         [label, account.address, fuses, zeroAddress],
         { account },
       );
-      return new Wrapped(name, account);
+      return new WrappedToken(name, account);
     }
   }
 
-  describe("Migration", () => {
-    describe("Unlocked", () => {
-      it("unwrapped 2LD => L1", async () => {
-        const { label, account, expiry, approve } = await registerV1();
-        await approve();
-        await env.l1.contracts.UnlockedMigrationController.write.migrate(
+  async function registerWrapped(
+    opts: {
+      label?: string;
+      account?: Account;
+      duration?: bigint;
+      fuses?: number;
+    } = {},
+  ) {
+    const { wrap } = await registerUnwrapped(opts);
+    return wrap(opts.fuses);
+  }
+
+  describe("Unlocked", () => {
+    it("unwrapped 2LD => L1", async () => {
+      const { label, account, expiry, approve } = await registerUnwrapped();
+      await approve();
+      await env.l1.contracts.UnlockedMigrationController.write.migrate(
+        [
+          {
+            toL1: true,
+            label,
+            owner: account.address,
+            ...defaultUnlockedData,
+          },
+        ],
+        { account },
+      );
+      const [, entry] = await env.l1.contracts.ETHRegistry.read.getNameData([
+        label,
+      ]);
+      expectVar({ entry }).toMatchObject({
+        expiry,
+        subregistry: SUBREGISTRY,
+        resolver: RESOLVER,
+      });
+    });
+
+    it("unwrapped 2LD => L2", async () => {
+      const { label, account, expiry, approve } = await registerUnwrapped();
+      await approve();
+      await relay.waitFor(
+        env.l1.contracts.UnlockedMigrationController.write.migrate(
           [
             {
-              toL1: true,
+              toL1: false,
               label,
               owner: account.address,
               ...defaultUnlockedData,
             },
           ],
           { account },
-        );
-        const [, entry] = await env.l1.contracts.ETHRegistry.read.getNameData([
-          label,
-        ]);
-        expectVar({ entry }).toMatchObject({
-          expiry,
-          subregistry,
-          resolver,
-        });
+        ),
+      );
+      const [, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([
+        label,
+      ]);
+      expectVar({ entry }).toMatchObject({
+        expiry,
+        subregistry: SUBREGISTRY,
+        resolver: RESOLVER,
       });
+    });
 
-      it("unwrapped 2LD => L2", async () => {
-        const { label, account, expiry, approve } = await registerV1();
-        await approve();
-        await relay.waitFor(
+    it("wrapped 2LD => L1", async () => {
+      const { label, account, expiry, wrap } = await registerUnwrapped();
+      const wrapped = await wrap();
+      await wrapped.approve();
+      await env.l1.contracts.UnlockedMigrationController.write.migrate(
+        [
+          {
+            toL1: true,
+            label,
+            owner: account.address,
+            ...defaultUnlockedData,
+          },
+        ],
+        { account },
+      );
+      const [, entry] = await env.l1.contracts.ETHRegistry.read.getNameData([
+        label,
+      ]);
+      expectVar({ entry }).toMatchObject({
+        expiry,
+        subregistry: SUBREGISTRY,
+        resolver: RESOLVER,
+      });
+    });
+
+    function migrate(unwrapped: number, wrapped: number) {
+      it(`${unwrapped}u + ${wrapped}w`, async () => {
+        const items: { td: UnlockedMigrationData; expiry: bigint }[] = [];
+        const account = env.namedAccounts.user;
+        for (let i = 0; i < unwrapped; i++) {
+          const { label, expiry } = await registerUnwrapped({
+            label: `u${i}`,
+            account,
+          });
+          items.push({
+            td: {
+              toL1: true,
+              label,
+              owner: account.address,
+              ...defaultUnlockedData,
+            },
+            expiry,
+          });
+        }
+        for (let i = 0; i < wrapped; i++) {
+          const { label, expiry, wrap } = await registerUnwrapped({
+            label: `w${i}`,
+            account,
+          });
+          await wrap();
+          items.push({
+            td: {
+              toL1: true,
+              label,
+              owner: account.address,
+              ...defaultUnlockedData,
+            },
+            expiry,
+          });
+        }
+        if (unwrapped) {
+          await env.l1.contracts.ETHRegistrarV1.write.setApprovalForAll(
+            [env.l1.contracts.UnlockedMigrationController.address, true],
+            { account },
+          );
+        }
+        if (wrapped) {
+          await env.l1.contracts.NameWrapperV1.write.setApprovalForAll(
+            [env.l1.contracts.UnlockedMigrationController.address, true],
+            { account },
+          );
+        }
+        await env.l1.contracts.UnlockedMigrationController.write.migrate(
+          [items.map((x) => x.td)],
+          { account },
+        );
+      });
+    }
+
+    migrate(0, 1);
+    migrate(1, 0);
+
+    migrate(0, 2);
+    migrate(1, 1);
+    migrate(2, 1);
+
+    describe("errors", () => {
+      it(`locked 2LD fails`, async () => {
+        const { label, account, wrap } = await registerUnwrapped();
+        await wrap(FUSES.CANNOT_UNWRAP);
+        await env.l1.contracts.NameWrapperV1.write.setApprovalForAll(
+          [env.l1.contracts.UnlockedMigrationController.address, true],
+          { account },
+        );
+        expect(
           env.l1.contracts.UnlockedMigrationController.write.migrate(
             [
               {
-                toL1: false,
+                toL1: true,
                 label,
                 owner: account.address,
                 ...defaultUnlockedData,
@@ -280,311 +477,278 @@ describe("Migration", () => {
             ],
             { account },
           ),
-        );
-        const [, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([
-          label,
-        ]);
-        expectVar({ entry }).toMatchObject({
-          expiry,
-          subregistry,
-          resolver,
-        });
+        ).rejects.toThrow("NameIsLocked");
       });
 
-      it("wrapped 2LD => L1", async () => {
-        const { label, account, expiry, wrap } = await registerV1();
-        const wrapped = await wrap();
-        await wrapped.approve();
-        await env.l1.contracts.UnlockedMigrationController.write.migrate(
-          [
-            {
-              toL1: true,
-              label,
-              owner: account.address,
-              ...defaultUnlockedData,
-            },
-          ],
-          { account },
-        );
-        const [, entry] = await env.l1.contracts.ETHRegistry.read.getNameData([
-          label,
-        ]);
-        expectVar({ entry }).toMatchObject({
-          expiry,
-          subregistry,
-          resolver,
-        });
-      });
-
-      function migrate(unwrapped: number, wrapped: number) {
-        it(`${unwrapped}u + ${wrapped}w`, async () => {
-          const items: { td: UnlockedMigrationData; expiry: bigint }[] = [];
-          const account = env.namedAccounts.user;
-          for (let i = 0; i < unwrapped; i++) {
-            const { label, expiry } = await registerV1({
-              label: `u${i}`,
-              account,
-            });
-            items.push({
-              td: {
+      it("nonexistent token fails", async () => {
+        const account = env.namedAccounts.user;
+        expect(
+          env.l1.contracts.UnlockedMigrationController.write.migrate(
+            [
+              {
                 toL1: true,
-                label,
+                label: "abc",
                 owner: account.address,
                 ...defaultUnlockedData,
               },
-              expiry,
-            });
-          }
-          for (let i = 0; i < wrapped; i++) {
-            const { label, expiry, wrap } = await registerV1({
-              label: `w${i}`,
-              account,
-            });
-            await wrap();
-            items.push({
-              td: {
-                toL1: true,
-                label,
-                owner: account.address,
-                ...defaultUnlockedData,
-              },
-              expiry,
-            });
-          }
-          if (unwrapped) {
-            await env.l1.contracts.ETHRegistrarV1.write.setApprovalForAll(
-              [env.l1.contracts.UnlockedMigrationController.address, true],
-              { account },
-            );
-          }
-          if (wrapped) {
-            await env.l1.contracts.NameWrapperV1.write.setApprovalForAll(
-              [env.l1.contracts.UnlockedMigrationController.address, true],
-              { account },
-            );
-          }
-          await env.l1.contracts.UnlockedMigrationController.write.migrate(
-            [items.map((x) => x.td)],
+            ],
             { account },
-          );
+          ),
+        ).rejects.toThrow(); // empty revert from ownerOf()
+      });
+
+      it("unowned unwrapped fails", async () => {
+        const { label, account } = await registerUnwrapped({
+          account: env.namedAccounts.user2,
         });
+        expect(
+          env.l1.contracts.UnlockedMigrationController.write.migrate(
+            [
+              {
+                toL1: true,
+                label,
+                owner: account.address,
+                ...defaultUnlockedData,
+              },
+            ],
+            { account },
+          ),
+        ).rejects.toThrow("ERC721: caller is not token owner or approved");
+      });
+
+      it("unowned wrapped fails", async () => {
+        const { label, account, wrap } = await registerUnwrapped({
+          account: env.namedAccounts.user2,
+        });
+        await wrap();
+        expect(
+          env.l1.contracts.UnlockedMigrationController.write.migrate(
+            [
+              {
+                toL1: true,
+                label,
+                owner: account.address,
+                ...defaultUnlockedData,
+              },
+            ],
+            { account },
+          ),
+        ).rejects.toThrow("ERC1155: caller is not owner nor approved");
+      });
+
+      // it("wrapped 3LD fails", async () => {
+      //   const { account, wrap } = await registerV1();
+      //   const parent = await wrap();
+      //   const child = await parent.createChild();
+      //   await env.l1.contracts.NameWrapperV1.write.setApprovalForAll(
+      //     [env.l1.contracts.UnlockedMigrationController.address, true],
+      //     { account },
+      //   );
+      // });
+
+      it("invalid receipient", async () => {
+        const { label, account, approve } = await registerUnwrapped();
+        await approve();
+        const { rxReceipts } = await relay.waitFor(
+          env.l1.contracts.UnlockedMigrationController.write.migrate(
+            [
+              {
+                toL1: false,
+                label,
+                owner: zeroAddress,
+                ...defaultUnlockedData,
+              },
+            ],
+            { account },
+          ),
+        );
+        expect(rxReceipts).toHaveLength(1);
+        expect(rxReceipts[0].status).toStrictEqual("error");
+      });
+    });
+  });
+
+  describe("Locked", () => {
+    it("locked", async () => {
+      const { account, wrap } = await registerUnwrapped();
+      const token = await wrap(FUSES.CANNOT_UNWRAP);
+      await env.l1.contracts.NameWrapperV1.write.safeTransferFrom(
+        [
+          account.address,
+          env.l1.contracts.LockedMigrationController.address,
+          token.tokenId,
+          1n,
+          encodeLockedMigrationData(token.lockedTransferTuple()),
+        ],
+        { account },
+      );
+    });
+
+    it("locked x2", async () => {
+      const account = env.namedAccounts.user;
+      const fuses = FUSES.CANNOT_UNWRAP;
+      const tokens = [
+        await registerWrapped({ label: "test1", account, fuses }),
+        await registerWrapped({ label: "test2", account, fuses }),
+      ];
+      await env.l1.contracts.NameWrapperV1.write.safeBatchTransferFrom(
+        [
+          account.address,
+          env.l1.contracts.LockedMigrationController.address,
+          tokens.map((x) => x.tokenId),
+          tokens.map(() => 1n),
+          encodeLockedMigrationData(tokens.map((x) => x.lockedTransferTuple())),
+        ],
+        { account },
+      );
+      for (const x of tokens) {
+        const [tokenId, entry] =
+          await env.l1.contracts.ETHRegistry.read.getNameData([x.label()]);
+        const owner = await env.l1.contracts.ETHRegistry.read.ownerOf([
+          tokenId,
+        ]);
+        const expiryV1 = await env.l1.contracts.ETHRegistrarV1.read.nameExpires(
+          [BigInt(labelhash(x.label()))],
+        );
+        expect(owner, "owner").toStrictEqual(x.account.address);
+        expect(entry.expiry, "expiry").toStrictEqual(expiryV1);
+        expect(entry.resolver, "resolver").toStrictEqual(RESOLVER);
       }
+    });
 
-      migrate(0, 1);
-      migrate(1, 0);
+    describe("single errors", () => {
+      it("invalid amount: 0", async () => {
+        const token = await registerWrapped();
+        expect(
+          env.l1.contracts.NameWrapperV1.write.safeTransferFrom(
+            [
+              token.account.address,
+              env.l1.contracts.LockedMigrationController.address,
+              token.tokenId,
+              0n, // wrong
+              encodeLockedMigrationData([]),
+            ],
+            { account: token.account },
+          ),
+        ).rejects.toThrow("ERC1155: insufficient balance for transfer");
+      });
 
-      migrate(0, 2);
-      migrate(1, 1);
-      migrate(2, 1);
+      it("invalid amount: 2", async () => {
+        const token = await registerWrapped();
+        expect(
+          env.l1.contracts.NameWrapperV1.write.safeTransferFrom(
+            [
+              token.account.address,
+              env.l1.contracts.LockedMigrationController.address,
+              token.tokenId,
+              2n, // wrong
+              encodeLockedMigrationData([]),
+            ],
+            { account: token.account },
+          ),
+        ).rejects.toThrow("ERC1155: insufficient balance for transfer");
+      });
 
-      describe("errors", () => {
-        it(`locked 2LD fails`, async () => {
-          const { label, account, wrap } = await registerV1();
-          await wrap(FUSES.CANNOT_UNWRAP);
-          await env.l1.contracts.NameWrapperV1.write.setApprovalForAll(
-            [env.l1.contracts.UnlockedMigrationController.address, true],
-            { account },
-          );
-          expect(
-            env.l1.contracts.UnlockedMigrationController.write.migrate(
+      it("invalid transfer data", async () => {
+        const token = await registerWrapped();
+        expect(
+          env.l1.contracts.NameWrapperV1.write
+            .safeTransferFrom(
               [
-                {
-                  toL1: true,
-                  label,
-                  owner: account.address,
-                  ...defaultUnlockedData,
-                },
+                token.account.address,
+                env.l1.contracts.LockedMigrationController.address,
+                token.tokenId,
+                1n,
+                "0x1234",
               ],
-              { account },
-            ),
-          ).rejects.toThrow("NameIsLocked");
-        });
+              { account: token.account },
+            )
+            .catch(unwrapError),
+        ).rejects.toThrow("InvalidTransferData()");
+      });
 
-        it("nonexistent token fails", async () => {
-          const account = env.namedAccounts.user;
-          expect(
-            env.l1.contracts.UnlockedMigrationController.write.migrate(
+      it("invalid owner", async () => {
+        const token = await registerWrapped();
+        expect(
+          env.l1.contracts.NameWrapperV1.write
+            .safeTransferFrom(
               [
-                {
-                  toL1: true,
-                  label: "abc",
-                  owner: account.address,
-                  ...defaultUnlockedData,
-                },
-              ],
-              { account },
-            ),
-          ).rejects.toThrow(); // empty revert from ownerOf()
-        });
-
-        it("unowned unwrapped fails", async () => {
-          const { label, account } = await registerV1({
-            account: env.namedAccounts.user2,
-          });
-          expect(
-            env.l1.contracts.UnlockedMigrationController.write.migrate(
-              [
-                {
-                  toL1: true,
-                  label,
-                  owner: account.address,
-                  ...defaultUnlockedData,
-                },
-              ],
-              { account },
-            ),
-          ).rejects.toThrow("ERC721: caller is not token owner or approved");
-        });
-
-        it("unowned wrapped fails", async () => {
-          const { label, account, wrap } = await registerV1({
-            account: env.namedAccounts.user2,
-          });
-          await wrap();
-          expect(
-            env.l1.contracts.UnlockedMigrationController.write.migrate(
-              [
-                {
-                  toL1: true,
-                  label,
-                  owner: account.address,
-                  ...defaultUnlockedData,
-                },
-              ],
-              { account },
-            ),
-          ).rejects.toThrow("ERC1155: caller is not owner nor approved");
-        });
-
-        // it("wrapped 3LD fails", async () => {
-        //   const { account, wrap } = await registerV1();
-        //   const parent = await wrap();
-        //   const child = await parent.createChild();
-        //   await env.l1.contracts.NameWrapperV1.write.setApprovalForAll(
-        //     [env.l1.contracts.UnlockedMigrationController.address, true],
-        //     { account },
-        //   );
-        // });
-
-        it("invalid receipient", async () => {
-          const { label, account, approve } = await registerV1();
-          await approve();
-          const { rxReceipts } = await relay.waitFor(
-            env.l1.contracts.UnlockedMigrationController.write.migrate(
-              [
-                {
-                  toL1: false,
-                  label,
+                token.account.address,
+                env.l1.contracts.LockedMigrationController.address,
+                token.tokenId,
+                1n,
+                encodeLockedMigrationData({
+                  ...token.lockedTransferTuple(),
                   owner: zeroAddress,
-                  ...defaultUnlockedData,
-                },
+                }),
               ],
-              { account },
-            ),
-          );
-          expect(rxReceipts).toHaveLength(1);
-          expect(rxReceipts[0].status).toStrictEqual("error");
-        });
+              { account: token.account },
+            )
+            .catch(unwrapError),
+        ).rejects.toThrow("InvalidOwner()");
       });
     });
 
-    // describe("Locked", () => {
-    //   it("locked", async () => {
-    //     const { account, wrap } = await registerV1();
-    //     const wrapped = await wrap(FUSES.CANNOT_UNWRAP);
-    //     await wrapped.approve();
+    describe("batch errors", () => {
+      it("invalid array length: ids & amounts", async () => {
+        const account = env.namedAccounts.user;
+        const fuses = FUSES.CANNOT_UNWRAP;
+        const tokens = [await registerWrapped({ account, fuses })];
+        expect(
+          env.l1.contracts.NameWrapperV1.write.safeBatchTransferFrom(
+            [
+              account.address,
+              env.l1.contracts.LockedMigrationController.address,
+              tokens.map((x) => x.tokenId),
+              [], // wrong
+              encodeLockedMigrationData(
+                tokens.map((x) => x.lockedTransferTuple()),
+              ),
+            ],
+            { account },
+          ),
+        ).rejects.toThrow("ERC1155: ids and amounts length mismatch");
+      });
 
-    //     // await env.l1.contracts.NameWrapperV1.write.safeTransferFrom(
-    //     //   [
-    //     //     account.address,
-    //     //     env.l1.contracts.LockedMigrationController.address,
-    //     //     await wrap(FUSES.CANNOT_UNWRAP),
-    //     //     1n,
-    //     //     transferData(false),
-    //     //   ],
-    //     //   { account },
-    //     // );
-    //   });
-    // });
-  });
+      it("invalid array length: ids & data", async () => {
+        const account = env.namedAccounts.user;
+        const fuses = FUSES.CANNOT_UNWRAP;
+        const tokens = [await registerWrapped({ account, fuses })];
+        expect(
+          env.l1.contracts.NameWrapperV1.write
+            .safeBatchTransferFrom(
+              [
+                account.address,
+                env.l1.contracts.LockedMigrationController.address,
+                tokens.map((x) => x.tokenId),
+                tokens.map(() => 1n),
+                encodeLockedMigrationData([]), // wrong
+              ],
+              { account },
+            )
+            .catch(unwrapError),
+        ).rejects.toThrow("ERC1155InvalidArrayLength(");
+      });
 
-  // TODO: finish this after migration tests
-  describe("Ejection", () => {
-    it("2LD => L1", async () => {
-      const account = env.namedAccounts.user2;
-      const label = "testabss2";
-      const expiry = BigInt(Math.floor(Date.now() / 1000) + 86400);
-      await env.l2.contracts.ETHRegistry.write.register([
-        label,
-        account.address,
-        subregistry,
-        resolver,
-        ROLES.ETH_REGISTRY,
-        expiry,
-      ]);
-      const [tokenId0] = await env.l2.contracts.ETHRegistry.read.getNameData([
-        label,
-      ]);
-      await relay.waitFor(
-        env.l2.contracts.ETHRegistry.write.safeTransferFrom(
-          [
-            account.address,
-            env.l2.contracts.BridgeController.address,
-            tokenId0,
-            1n,
-            encodeAbiParameters(transferDataAbi, [
-              {
-                label,
-                owner: account.address,
-                subregistry,
-                resolver,
-                roleBitmap: ROLES.ETH_REGISTRY,
-                expiry,
-              },
-            ]),
-          ],
-          { account },
-        ),
-      );
-
-      // await relay.waitFor(
-      //   env.l2.contracts.ETHRegistry.write.safeTransferFrom(
-      //     [
-      //       user.address,
-      //       env.l2.contracts.BridgeController.address,
-      //       tokenId0,
-      //       1n,
-      //       encodeAbiParameters(transferDataAbi, [
-      //         {
-      //           label,
-      //           owner: user.address,
-      //           subregistry,
-      //           resolver,
-      //           roleBitmap: ROLES.ETH_REGISTRY,
-      //           expiry,
-      //         },
-      //       ]),
-      //     ],
-      //     { account: user },
-      //   ),
-      // );
-      // const [tokenId1, entry] =
-      //   await env.l1.contracts.ETHRegistry.read.getNameData([label]);
-      // expectVar({ entry }).toMatchObject({
-      //   expiry,
-      //   subregistry,
-      //   resolver,
-      // });
-      // const owner0 = await env.l2.contracts.ETHRegistry.read.ownerOf([
-      //   tokenId0,
-      // ]);
-      // expectVar({ owner0 }).toStrictEqual(
-      //   getAddress(env.l2.contracts.BridgeController.address),
-      // );
-      // const owner1 = await env.l1.contracts.ETHRegistry.read.ownerOf([
-      //   tokenId1,
-      // ]);
-      // expectVar({ owner1 }).toStrictEqual(user.address);
+      it("invalid transfer data", async () => {
+        const account = env.namedAccounts.user;
+        const fuses = FUSES.CANNOT_UNWRAP;
+        const tokens = [await registerWrapped({ account, fuses })];
+        expect(
+          env.l1.contracts.NameWrapperV1.write
+            .safeBatchTransferFrom(
+              [
+                account.address,
+                env.l1.contracts.LockedMigrationController.address,
+                tokens.map((x) => x.tokenId),
+                tokens.map(() => 1n),
+                "0x1234", // wrong
+              ],
+              { account },
+            )
+            .catch(unwrapError),
+        ).rejects.toThrow("InvalidTransferData()");
+      });
     });
   });
 });

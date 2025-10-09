@@ -5,14 +5,14 @@ import {IPermissionedRegistry} from "../../../common/registry/interfaces/IPermis
 
 // TODO: rename parent* to base*?
 
-/// @dev Interface for IMigratedWrapperRegistry initialization and core functions
-interface IMigratedWrapperRegistry is IPermissionedRegistry {
+/// @dev Interface for IMigratedWrappedNameRegistry initialization and core functions
+interface IMigratedWrappedNameRegistry is IPermissionedRegistry {
     ////////////////////////////////////////////////////////////////////////
     // Types
     ////////////////////////////////////////////////////////////////////////
 
     struct ConstructorArgs {
-        bytes32 parentNode;
+        bytes32 node;
         address owner;
         uint256 ownerRoles;
         address registrar;

@@ -6,8 +6,8 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../../common/registry/interfaces/IRegistryMetadata.sol";
-import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
+import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.sol";
 
 /**
  * @title UserRegistry

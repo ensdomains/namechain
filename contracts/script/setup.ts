@@ -73,6 +73,7 @@ const l1Contracts = {
   L1BridgeController: artifacts.L1BridgeController.abi,
   UnlockedMigrationController: artifacts.UnlockedMigrationController.abi,
   LockedMigrationController: artifacts.LockedMigrationController.abi,
+  MigratedWrappedNameRegistryImpl: artifacts.MigratedWrappedNameRegistry.abi,
   //
   UniversalResolverV2: artifacts.UniversalResolverV2.abi,
   RootRegistry: artifacts.PermissionedRegistry.abi,
@@ -293,18 +294,31 @@ export async function setupCrossChainEnvironment({
 
     [l1Anvil, l2Anvil].forEach((anvil, i) => {
       const isL1 = !i;
+      let showConsole = true;
       const log = (chunk: string) => {
-        chunk = chunk.trim();
-        if (!chunk) return;
+        // ref: https://github.com/adraffy/blocksmith.js/blob/main/src/Foundry.js#L991
         const lines = chunk.split("\n").flatMap((line) => {
-          // "2025-10-08T18:08:32.755539Z  INFO node::console"
-          if (line.slice(34, 47) == "node::console") {
-            return `${nameForChain(isL1)} ${line}`;
-          } else if (procLog) {
-            return ansi(ansiForChain(isL1), `${nameForChain(isL1)} ${line}`);
-          } else {
-            return [];
+          if (!line) return [];
+          // "2025-10-08T18:08:32.755539Z  INFO node::console: hello world"
+          // "2025-10-09T16:21:27.441327Z  INFO node::user: eth_estimateGas"
+          // "2025-10-09T16:24:09.289834Z  INFO node::user:     Block Number: 17"
+          // "2025-10-09T16:31:48.449325Z  INFO node::user:"
+          // "2025-10-09T16:31:48.451639Z  WARN backend: Skipping..."
+          const match = line.match(
+            /^.{27}  ([A-Z]+) (\w+(?:|::\w+)):(?:$| (.*)$)/,
+          );
+          if (match) {
+            const [, , kind, action] = match;
+            if (/^\s*$/.test(action)) return []; // collapse whitespace
+            if (kind === "node::user" && /^\w+$/.test(action)) {
+              showConsole = action !== "eth_estimateGas"; // detect if inside gas estimation
+            }
+            if (kind === "node::console") {
+              return showConsole ? `${nameForChain(isL1)} ${line}` : []; // ignore console during gas estimation
+            }
           }
+          if (!procLog) return [];
+          return ansi(ansiForChain(isL1), `${nameForChain(isL1)} ${line}`);
         });
         if (!lines.length) return;
         console.log(lines.join("\n"));
@@ -459,6 +473,10 @@ export async function setupCrossChainEnvironment({
     return {
       accounts,
       namedAccounts,
+      interfaces: {
+        CommonErrors: artifacts.CommonErrors.abi,
+        TransferErrors: artifacts.TransferErrors.abi,
+      },
       l1,
       l2,
       urg: {

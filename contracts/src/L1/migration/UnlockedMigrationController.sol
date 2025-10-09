@@ -10,8 +10,8 @@ import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Recei
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
-import {TransferErrors} from "../../common/TransferErrors.sol";
 import {TransferData} from "../../common/bridge/types/TransferData.sol";
+import {TransferErrors} from "../../common/TransferErrors.sol";
 import {L1BridgeController} from "../bridge/L1BridgeController.sol";
 
 /// @dev Base contract for the v1-to-v2 migration controller that only handles unlocked .eth 2LD names.

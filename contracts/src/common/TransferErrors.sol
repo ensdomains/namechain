@@ -29,5 +29,5 @@ library TransferErrors {
 
     error InvalidTransferAmount();
 
-    error NameWrapperTokenMismatch(uint256 tokenId, bytes32 node);
+    error TokenNodeMismatch(uint256 tokenId, bytes32 node);
 }

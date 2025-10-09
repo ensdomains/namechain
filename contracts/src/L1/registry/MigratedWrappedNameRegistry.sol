@@ -10,32 +10,34 @@ import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Re
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {CommonErrors} from "../../common/CommonErrors.sol";
-import {TransferErrors} from "../../common/TransferErrors.sol";
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../../common/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.sol";
+import {TransferErrors} from "../../common/TransferErrors.sol";
 import {LockedNamesLib} from "../migration/libraries/LockedNamesLib.sol";
-import {IMigratedWrapperRegistry} from "../registry/interfaces/IMigratedWrapperRegistry.sol";
+import {
+    IMigratedWrappedNameRegistry
+} from "../registry/interfaces/IMigratedWrappedNameRegistry.sol";
 
 /**
- * @title MigratedWrapperRegistry
+ * @title MigratedWrappedNameRegistry
  * @dev A registry for migrated wrapped names that inherits from PermissionedRegistry and is upgradeable using the UUPS pattern.
  * This contract provides resolver fallback to the universal resolver for names that haven't been migrated yet.
  * It also handles subdomain migration by receiving NFT transfers from the NameWrapper.
  */
-contract MigratedWrapperRegistry is
+contract MigratedWrappedNameRegistry is
     Initializable,
     PermissionedRegistry,
     IERC1155Receiver,
-    IMigratedWrapperRegistry
+    IMigratedWrappedNameRegistry
 {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
 
-    bytes32 private constant _PAYLOAD_HASH = keccak256("MigratedWrapperRegistry");
+    bytes32 private constant _PAYLOAD_HASH = keccak256("MigratedWrappedNameRegistry");
 
     INameWrapper public immutable NAME_WRAPPER;
 
@@ -68,19 +70,21 @@ contract MigratedWrapperRegistry is
     }
 
     /**
-     * @dev Initializes the MigratedWrapperRegistry contract.
-     * @param args.parentNode The namehash.
+     * @dev Initializes the MigratedWrappedNameRegistry contract.
+     * @param args.node The namehash.
      * @param args.owner The address that will own this registry.
      * @param args.ownerRoles The roles to grant to the owner.
      * @param args.registrar Optional address to grant ROLE_REGISTRAR permissions (typically for testing).
      */
-    function initialize(IMigratedWrapperRegistry.ConstructorArgs calldata args) public initializer {
+    function initialize(
+        IMigratedWrappedNameRegistry.ConstructorArgs calldata args
+    ) public initializer {
         if (args.owner == address(0)) {
             revert CommonErrors.InvalidOwner();
         }
 
         // Set the parent domain for name resolution fallback
-        parentNode = args.parentNode;
+        parentNode = args.node;
 
         // Configure owner with upgrade permissions and specified roles
         _grantRoles(
@@ -214,10 +218,10 @@ contract MigratedWrapperRegistry is
                 ERC1967Utils.getImplementation(),
                 md.salt,
                 abi.encodeCall(
-                    IMigratedWrapperRegistry.initialize,
+                    IMigratedWrappedNameRegistry.initialize,
                     (
-                        IMigratedWrapperRegistry.ConstructorArgs({
-                            parentNode: md.node,
+                        IMigratedWrappedNameRegistry.ConstructorArgs({
+                            node: md.node,
                             owner: md.owner,
                             ownerRoles: subRegistryRoles,
                             registrar: address(0)
