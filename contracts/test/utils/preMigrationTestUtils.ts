@@ -24,21 +24,3 @@ export function deleteTestCheckpoint(filename = "preMigration-checkpoint.json"):
     rmSync(filename);
   }
 }
-
-export function createMockRegistration(labelName: string, expiryDate?: string): ENSRegistration {
-  const now = Math.floor(Date.now() / 1000);
-  return {
-    id: `0x${Buffer.from(labelName).toString('hex')}`,
-    labelName,
-    registrant: "0x1234567890abcdef1234567890abcdef12345678",
-    expiryDate: expiryDate || String(now + 31536000), // 1 year from now
-    registrationDate: String(now),
-    domain: {
-      name: `${labelName}.eth`,
-      labelhash: `0x${Buffer.from(labelName).toString('hex')}`,
-      parent: {
-        id: "0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae",
-      },
-    },
-  };
-}

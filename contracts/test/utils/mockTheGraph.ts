@@ -4,6 +4,22 @@ import BaseRegistrarArtifact from "../../artifacts/lib/ens-contracts/contracts/e
 
 const BASE_REGISTRAR_ABI = BaseRegistrarArtifact.abi;
 
+export async function setupBaseRegistrarController(
+  l1Client: any,
+  baseRegistrarAddress: Address,
+  ownerAddress: Address = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+): Promise<void> {
+  await l1Client.impersonateAccount({ address: ownerAddress });
+  await l1Client.writeContract({
+    account: ownerAddress,
+    address: baseRegistrarAddress,
+    abi: BASE_REGISTRAR_ABI,
+    functionName: "addController",
+    args: [l1Client.account.address],
+  });
+  await l1Client.stopImpersonatingAccount({ address: ownerAddress });
+}
+
 function createMockTheGraphResponse(
   registrations: ENSRegistration[]
 ): Response {
@@ -20,22 +36,18 @@ function createMockTheGraphResponse(
   );
 }
 
-export interface DynamicTheGraphMock {
+export interface TheGraphMock {
   registerName: (labelName: string, owner: Address, duration: bigint) => Promise<void>;
   fetch: (url: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   getRegistrations: () => ENSRegistration[];
 }
 
-export function createDynamicTheGraphMock(
+export function createTheGraphMock(
   l1Client: any,
   baseRegistrarAddress: Address
-): DynamicTheGraphMock {
+): TheGraphMock {
   const registeredNames = new Map<string, ENSRegistration>();
 
-  // Capture original fetch before it gets mocked
-  const originalFetch = globalThis.fetch;
-
-  // Create fetch function once that dynamically accesses the map
   const fetchFn = async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const urlString = url.toString();
 
@@ -55,33 +67,14 @@ export function createDynamicTheGraphMock(
       return createMockTheGraphResponse(Array.from(registeredNames.values()));
     }
 
-    // Pass through all other requests (e.g., RPC calls) using original fetch
-    return originalFetch(url, init);
+    // Pass through all other requests
+    return fetch(url, init);
   };
 
   return {
     async registerName(labelName: string, owner: Address, duration: bigint) {
       const tokenId = keccak256(toHex(labelName));
 
-      // Check if caller is a controller
-      const isController = await l1Client.readContract({
-        address: baseRegistrarAddress,
-        abi: BASE_REGISTRAR_ABI,
-        functionName: "controllers",
-        args: [l1Client.account.address],
-      });
-
-      // Add as controller if needed
-      if (!isController) {
-        await l1Client.writeContract({
-          address: baseRegistrarAddress,
-          abi: BASE_REGISTRAR_ABI,
-          functionName: "addController",
-          args: [l1Client.account.address],
-        });
-      }
-
-      // Register the name
       await l1Client.writeContract({
         address: baseRegistrarAddress,
         abi: BASE_REGISTRAR_ABI,

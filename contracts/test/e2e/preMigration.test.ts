@@ -13,7 +13,7 @@ import {
   type CrossChainEnvironment,
   setupCrossChainEnvironment,
 } from "../../script/setup.js";
-import { createDynamicTheGraphMock } from "../utils/mockTheGraph.js";
+import { createTheGraphMock, setupBaseRegistrarController } from "../utils/mockTheGraph.js";
 import { deleteTestCheckpoint } from "../utils/preMigrationTestUtils.js";
 
 describe("Pre-Migration Script E2E", () => {
@@ -22,29 +22,10 @@ describe("Pre-Migration Script E2E", () => {
   beforeAll(async () => {
     env = await setupCrossChainEnvironment();
 
-    // Add deployer as controller on BaseRegistrar (using owner account)
-    // Owner is account[1]: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
-    await env.l1.client.impersonateAccount({
-      address: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-    });
-
-    await env.l1.client.writeContract({
-      account: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-      address: env.l1.contracts.ethRegistrarV1.address,
-      abi: [{
-        inputs: [{ internalType: "address", name: "controller", type: "address" }],
-        name: "addController",
-        outputs: [],
-        stateMutability: "nonpayable",
-        type: "function",
-      }],
-      functionName: "addController",
-      args: [env.l1.client.account.address],
-    });
-
-    await env.l1.client.stopImpersonatingAccount({
-      address: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-    });
+    await setupBaseRegistrarController(
+      env.l1.client,
+      env.l1.contracts.ethRegistrarV1.address
+    );
   });
 
   afterAll(() => env?.shutdown);
@@ -55,8 +36,7 @@ describe("Pre-Migration Script E2E", () => {
   });
 
   it("should fetch from TheGraph and register names from ENS v1 on L2", async () => {
-    // Create dynamic TheGraph mock that uses real ENS v1 contracts
-    const theGraphMock = createDynamicTheGraphMock(
+    const theGraphMock = createTheGraphMock(
       env.l1.client,
       env.l1.contracts.ethRegistrarV1.address
     );
@@ -108,7 +88,7 @@ describe("Pre-Migration Script E2E", () => {
   });
 
   it("should skip names that are expired on mainnet", async () => {
-    const theGraphMock = createDynamicTheGraphMock(
+    const theGraphMock = createTheGraphMock(
       env.l1.client,
       env.l1.contracts.ethRegistrarV1.address
     );
@@ -155,7 +135,7 @@ describe("Pre-Migration Script E2E", () => {
 
   describe("Checkpoint System", () => {
     it("should start fresh when --continue is not set (default behavior)", async () => {
-      const theGraphMock = createDynamicTheGraphMock(
+      const theGraphMock = createTheGraphMock(
         env.l1.client,
         env.l1.contracts.ethRegistrarV1.address
       );
@@ -206,7 +186,7 @@ describe("Pre-Migration Script E2E", () => {
     });
 
     it("should continue from checkpoint when --continue is set", async () => {
-      const theGraphMock = createDynamicTheGraphMock(
+      const theGraphMock = createTheGraphMock(
         env.l1.client,
         env.l1.contracts.ethRegistrarV1.address
       );
@@ -271,7 +251,7 @@ describe("Pre-Migration Script E2E", () => {
       // Ensure no checkpoint exists
       deleteTestCheckpoint();
 
-      const theGraphMock = createDynamicTheGraphMock(
+      const theGraphMock = createTheGraphMock(
         env.l1.client,
         env.l1.contracts.ethRegistrarV1.address
       );
@@ -315,7 +295,7 @@ describe("Pre-Migration Script E2E", () => {
       fakeCheckpoint.successCount = 50;
       saveCheckpoint(fakeCheckpoint);
 
-      const theGraphMock = createDynamicTheGraphMock(
+      const theGraphMock = createTheGraphMock(
         env.l1.client,
         env.l1.contracts.ethRegistrarV1.address
       );
