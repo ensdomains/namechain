@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
-import {UnauthorizedCaller} from "../CommonErrors.sol";
+import {CommonErrors} from "../CommonErrors.sol";
 import {IPermissionedRegistry} from "../registry/interfaces/IPermissionedRegistry.sol";
 import {LibLabel} from "../utils/LibLabel.sol";
 
@@ -27,18 +28,29 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     IBridge public immutable BRIDGE;
 
     ////////////////////////////////////////////////////////////////////////
+    // Storage
+    ////////////////////////////////////////////////////////////////////////
+
+    //mapping(address owner => bool invalid) public isInvalidTransferOwner;
+
+    ////////////////////////////////////////////////////////////////////////
     // Events
     ////////////////////////////////////////////////////////////////////////
 
-    event NameEjectedToL1(bytes dnsEncodedName, uint256 tokenId);
+    event NameInjected(uint256 indexed tokenId, string label);
 
-    event NameEjectedToL2(bytes dnsEncodedName, uint256 tokenId);
+    event NameEjected(uint256 indexed tokenId, string label);
+
+    //event TransferOwnerValidityChanged(address owner, bool invalid);
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
 
-    error InvalidLabel(uint256 tokenId, string label);
+    error TokenLabelMismatch(uint256 tokenId, string label);
+    error InvalidTokenAmount(uint256 tokenId); // IERC1155Errors.ERC1155InsufficientBalance?
+
+    error InvalidTransferOwner(address owner);
 
     ////////////////////////////////////////////////////////////////////////
     // Modifiers
@@ -46,7 +58,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
 
     modifier onlyRegistry() {
         if (msg.sender != address(REGISTRY)) {
-            revert UnauthorizedCaller(msg.sender);
+            revert CommonErrors.UnauthorizedCaller(msg.sender);
         }
         _;
     }
@@ -55,9 +67,11 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
-    constructor(IPermissionedRegistry registry_, IBridge bridge_) {
-        REGISTRY = registry_;
-        BRIDGE = bridge_;
+    constructor(IPermissionedRegistry registry, IBridge bridge) {
+        REGISTRY = registry;
+        BRIDGE = bridge;
+
+        //isInvalidTransferOwner[address(0)] = true;
 
         // Grant admin roles to the deployer so they can manage bridge roles
         _grantRoles(ROOT_RESOURCE, BridgeRolesLib.ROLE_EJECTOR_ADMIN, msg.sender, true);
@@ -77,15 +91,33 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
+    // function setInvalidTransferOwner(
+    //     address owner,
+    //     bool invalid
+    // ) external onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR_ADMIN) {
+    //     isInvalidTransferOwner[owner] = invalid;
+    //     emit TransferOwnerValidityChanged(owner, invalid);
+    // }
+
+    // TODO: do we need to check amount?
+    // underlying is ERC1155Singleton so no?
+    // L1BridgeController burns
+    // L2BridgeController operates
+    // both fail if not owned
+
     /// Implements ERC1155Receiver.onERC1155Received
     function onERC1155Received(
         address /*operator*/,
         address /* from */,
-        uint256 tokenId,
+        uint256 id,
         uint256 /*amount*/,
         bytes calldata data
-    ) external virtual onlyRegistry returns (bytes4) {
-        _processEjection(tokenId, data);
+    ) public virtual onlyRegistry returns (bytes4) {
+        TransferData memory td = abi.decode(data, (TransferData));
+        _checkEjection(id, td);
+        TransferData[] memory tds = new TransferData[](1);
+        tds[0] = td;
+        _onEject(tds);
         return this.onERC1155Received.selector;
     }
 
@@ -93,14 +125,18 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     function onERC1155BatchReceived(
         address /*operator*/,
         address /* from */,
-        uint256[] memory tokenIds,
-        uint256[] memory /*amounts*/,
+        uint256[] calldata ids,
+        uint256[] calldata /*amounts*/,
         bytes calldata data
-    ) external virtual onlyRegistry returns (bytes4) {
-        TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
-
-        _onEject(tokenIds, transferDataArray);
-
+    ) public virtual onlyRegistry returns (bytes4) {
+        TransferData[] memory tds = abi.decode(data, (TransferData[]));
+        if (ids.length != tds.length) {
+            revert IERC1155Errors.ERC1155InvalidArrayLength(ids.length, tds.length);
+        }
+        for (uint256 i; i < tds.length; ++i) {
+            _checkEjection(ids[i], tds[i]);
+        }
+        _onEject(tds);
         return this.onERC1155BatchReceived.selector;
     }
 
@@ -108,40 +144,23 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
 
-    /// @dev Core ejection logic for single token transfers
-    ///      Can be called by derived classes that need to customize onERC1155Received behavior
-    function _processEjection(uint256 tokenId, bytes calldata data) internal {
-        TransferData memory transferData = abi.decode(data, (TransferData));
-
-        TransferData[] memory transferDataArray = new TransferData[](1);
-        transferDataArray[0] = transferData;
-
-        uint256[] memory tokenIds = new uint256[](1);
-        tokenIds[0] = tokenId;
-
-        _onEject(tokenIds, transferDataArray);
-    }
-
     /// @dev Called when names are ejected.
     ///
-    /// @param tokenIds Array of token IDs of the names being ejected
-    /// @param transferDataArray Array of transfer data items
-    function _onEject(
-        uint256[] memory tokenIds,
-        TransferData[] memory transferDataArray
-    ) internal virtual;
+    /// @param tds Array of transfer data items
+    function _onEject(TransferData[] memory tds) internal virtual;
 
     /// @dev Asserts that the DNS-encoded name matches the token ID.
     ///
     /// @param tokenId The token ID to check
-    /// @param dnsEncodedName The DNS-encoded name to check
-    function _assertTokenIdMatchesLabel(
-        uint256 tokenId,
-        bytes memory dnsEncodedName
-    ) internal pure {
-        string memory label = LibLabel.extractLabel(dnsEncodedName);
-        if (LibLabel.labelToCanonicalId(label) != LibLabel.getCanonicalId(tokenId)) {
-            revert InvalidLabel(tokenId, label);
+    /// @param td The `TransferData` to check.
+    function _checkEjection(uint256 tokenId, TransferData memory td) internal pure {
+        if (LibLabel.getCanonicalId(tokenId) != LibLabel.labelToCanonicalId(td.label)) {
+            revert TokenLabelMismatch(tokenId, td.label);
         }
+        if (td.owner == address(0)) {
+            revert InvalidTransferOwner(td.owner);
+        }
+        // TODO: check small expiry
+        // TODO: check roles
     }
 }

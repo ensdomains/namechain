@@ -3,8 +3,7 @@ pragma solidity >=0.8.13;
 
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
-import {Test} from "forge-std/Test.sol";
-import {Vm} from "forge-std/Vm.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
@@ -1130,10 +1129,9 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
     function test_first_time_registration_no_eacVersionId_increment() public {
         string memory label = "firsttime";
-        address owner = makeAddr("owner");
 
         // Verify name has never been registered (entry.expiry should be 0)
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        (, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
         assertEq(entry.expiry, 0, "Name should never have been registered before");
         assertEq(entry.eacVersionId, 0, "Initial eacVersionId should be 0");
 
@@ -2517,8 +2515,11 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         assertEq(reconstructedTokenId, tokenId, "Round-trip conversion should work");
 
         // Check that the owner is correctly recognized
-        address owner = registry.ownerOf(reconstructedTokenId);
-        assertEq(owner, user1, "Owner should be found for reconstructed token ID");
+        assertEq(
+            registry.ownerOf(reconstructedTokenId),
+            user1,
+            "Owner should be found for reconstructed token ID"
+        );
     }
 
     function test_getNameData_returns_correct_tokenId() public {

@@ -33,7 +33,7 @@ import {
     PaymentRatio,
     DiscountPoint
 } from "~src/L2/registrar/StandardRentPriceOracle.sol";
-import {MockERC20, MockERC20Blacklist} from "~src/mocks/MockERC20.sol";
+import {MockERC20, MockERC20Blacklist} from "~test/mocks/MockERC20.sol";
 
 contract ETHRegistrarTest is Test {
     PermissionedRegistry ethRegistry;
@@ -98,6 +98,16 @@ contract ETHRegistrarTest is Test {
         }
 
         vm.warp(rentPriceOracle.premiumPeriod()); // avoid timestamp issues
+    }
+
+    function test_constructor() external {
+        assertEq(address(ethRegistrar.REGISTRY()), address(ethRegistry), "REGISTRY");
+        assertEq(ethRegistrar.BENEFICIARY(), beneficiary, "BENEFICIARY");
+        assertEq(
+            address(ethRegistrar.rentPriceOracle()),
+            address(rentPriceOracle),
+            "rentPriceOracle"
+        );
     }
 
     function test_Revert_constructor_emptyRange() external {
@@ -504,10 +514,6 @@ contract ETHRegistrarTest is Test {
             ),
             "IRentPriceOracle"
         );
-    }
-
-    function test_beneficiary_set() external view {
-        assertEq(ethRegistrar.BENEFICIARY(), beneficiary);
     }
 
     function test_beneficiary_register() external {

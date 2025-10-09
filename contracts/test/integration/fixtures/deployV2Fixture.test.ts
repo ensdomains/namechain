@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { expectVar } from "../../utils/expectVar.js";
 import { labelToCanonicalId } from "../../utils/utils.js";
-import { deployV2Fixture, ROLES } from "./deployV2Fixture.js";
+import { deployV2Fixture } from "./deployV2Fixture.js";
+import { ROLES } from "../../../deploy/constants.js";
 
 const chain = await hre.network.connect();
 async function fixture() {
@@ -92,7 +93,7 @@ describe("deployV2Fixture", () => {
     const F = await loadFixture();
     const { parentRegistry, tokenId } = await F.setupName({
       name: "locked.test.eth",
-      roles: ROLES.ALL & ~ROLES.OWNER.EAC.SET_RESOLVER,
+      roles: ROLES.ALL & ~ROLES.OWNER.REGISTRY.SET_RESOLVER,
     });
     await parentRegistry.write.setSubregistry([tokenId, testAddress]);
     await expect(
@@ -104,7 +105,7 @@ describe("deployV2Fixture", () => {
     const F = await loadFixture();
     const { parentRegistry, tokenId } = await F.setupName({
       name: "locked.test.eth",
-      roles: ROLES.ALL & ~ROLES.OWNER.EAC.SET_SUBREGISTRY,
+      roles: ROLES.ALL & ~ROLES.OWNER.REGISTRY.SET_SUBREGISTRY,
     });
     await parentRegistry.write.setResolver([tokenId, testAddress]);
     await expect(

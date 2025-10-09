@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {EnhancedAccessControl} from "../../common/access-control/EnhancedAccessControl.sol";
 import {EACBaseRolesLib} from "../../common/access-control/libraries/EACBaseRolesLib.sol";
@@ -13,11 +13,14 @@ import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib
 import {IETHRegistrar} from "./interfaces/IETHRegistrar.sol";
 import {IRentPriceOracle} from "./interfaces/IRentPriceOracle.sol";
 
-uint256 constant REGISTRATION_ROLE_BITMAP = RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+uint256 constant REGISTRATION_ROLE_BITMAP = 0 |
+    RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN |
+    RegistryRolesLib.ROLE_SET_SUBREGISTRY |
     RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN |
     RegistryRolesLib.ROLE_SET_RESOLVER |
     RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN |
-    RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN;
+    RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
+    RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN;
 
 uint256 constant ROLE_SET_ORACLE = 1 << 0;
 
@@ -55,23 +58,23 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        IPermissionedRegistry registry_,
-        address beneficiary_,
-        uint64 minCommitmentAge_,
-        uint64 maxCommitmentAge_,
-        uint64 minRegisterDuration_,
+        IPermissionedRegistry registry,
+        address beneficiary,
+        uint64 minCommitmentAge,
+        uint64 maxCommitmentAge,
+        uint64 minRegisterDuration,
         IRentPriceOracle rentPriceOracle_
     ) {
-        if (maxCommitmentAge_ <= minCommitmentAge_) {
+        if (maxCommitmentAge <= minCommitmentAge) {
             revert MaxCommitmentAgeTooLow();
         }
         _grantRoles(ROOT_RESOURCE, EACBaseRolesLib.ALL_ROLES, _msgSender(), true);
 
-        REGISTRY = registry_;
-        BENEFICIARY = beneficiary_;
-        MIN_COMMITMENT_AGE = minCommitmentAge_;
-        MAX_COMMITMENT_AGE = maxCommitmentAge_;
-        MIN_REGISTER_DURATION = minRegisterDuration_;
+        REGISTRY = registry;
+        BENEFICIARY = beneficiary;
+        MIN_COMMITMENT_AGE = minCommitmentAge;
+        MAX_COMMITMENT_AGE = maxCommitmentAge;
+        MIN_REGISTER_DURATION = minRegisterDuration;
 
         rentPriceOracle = rentPriceOracle_;
         emit RentPriceOracleChanged(rentPriceOracle_);
@@ -129,8 +132,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             makeCommitment(label, owner, secret, subregistry, resolver, duration, referrer)
         );
         (uint256 base, uint256 premium) = rentPrice(label, owner, duration, paymentToken); // reverts if !isValid or !isPaymentToken
-        // TODO: custom error
-        require(paymentToken.transferFrom(_msgSender(), BENEFICIARY, base + premium)); // reverts if payment failed
+        SafeERC20.safeTransferFrom(paymentToken, _msgSender(), BENEFICIARY, base + premium); // reverts if payment failed
         tokenId = REGISTRY.register(
             label,
             owner,
@@ -165,17 +167,16 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         if (_isAvailable(oldExpiry)) {
             revert NameNotRegistered(label);
         }
-        uint64 expires = oldExpiry + duration;
+        uint64 expiry = oldExpiry + duration;
         (uint256 base, ) = rentPrice(
             label,
             REGISTRY.latestOwnerOf(tokenId),
             duration,
             paymentToken
         ); // reverts if !isValid or !isPaymentToken
-        // TODO: custom error
-        require(paymentToken.transferFrom(_msgSender(), BENEFICIARY, base)); // reverts if payment failed
-        REGISTRY.renew(tokenId, expires);
-        emit NameRenewed(tokenId, label, duration, expires, paymentToken, referrer, base);
+        SafeERC20.safeTransferFrom(paymentToken, _msgSender(), BENEFICIARY, base); // reverts if payment failed
+        REGISTRY.renew(tokenId, expiry);
+        emit NameRenewed(tokenId, label, duration, expiry, paymentToken, referrer, base);
     }
 
     /// @inheritdoc IRentPriceOracle

@@ -8,6 +8,8 @@ import {Test, Vm} from "forge-std/Test.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {
     IEnhancedAccessControl
@@ -17,13 +19,12 @@ import {IBridge, BridgeMessageType} from "~src/common/bridge/interfaces/IBridge.
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
-import {InvalidOwner, UnauthorizedCaller} from "~src/common/CommonErrors.sol";
+import {CommonErrors} from "~src/common/CommonErrors.sol";
 import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {ITokenObserver} from "~src/common/registry/interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
 
@@ -50,7 +51,7 @@ contract MockBridge is IBridge {
     }
 }
 
-contract TestL2BridgeController is Test, ERC1155Holder {
+contract L2BridgeControllerTest is Test, ERC1155Holder {
     L2BridgeController controller;
     MockPermissionedRegistry ethRegistry;
     RegistryDatastore datastore;
@@ -98,14 +99,14 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(bridge));
 
         // Register a test name
-        uint64 expires = uint64(block.timestamp + expiryDuration);
+        uint64 expiry = uint64(block.timestamp + expiryDuration);
         tokenId = ethRegistry.register(
             testLabel,
             user,
             ethRegistry,
             address(0),
             EACBaseRolesLib.ALL_ROLES,
-            expires
+            expiry
         );
     }
 
@@ -121,12 +122,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 roleBitmap
     ) internal pure returns (bytes memory) {
         TransferData memory transferData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(nameLabel),
+            label: nameLabel,
             owner: _owner,
             subregistry: subregistry,
             resolver: _resolver,
             roleBitmap: roleBitmap,
-            expires: expiryTime
+            expiry: expiryTime
         });
         return abi.encode(transferData);
     }
@@ -156,24 +157,10 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertEq(ethRegistry.ownerOf(tokenId), user);
 
         // User transfers the token to the bridge controller
-        vm.recordLogs();
         vm.prank(user);
+        vm.expectEmit(false, false, false, true);
+        emit EjectionController.NameEjected(0, testLabel);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
-
-        // Check for NameEjectedToL1 event
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundEvent = false;
-
-        bytes32 eventSig = keccak256("NameEjectedToL1(bytes,uint256)");
-
-        for (uint256 i = 0; i < logs.length; i++) {
-            // Check if this log is our event (emitter and first topic match)
-            if (logs[i].emitter == address(controller) && logs[i].topics[0] == eventSig) {
-                foundEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundEvent, "NameEjectedToL1 event not found");
 
         // Verify subregistry is cleared after ejection
         address subregAddr = datastore.getEntry(address(ethRegistry), tokenId).subregistry;
@@ -237,21 +224,22 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 differentRoles = RegistryRolesLib.ROLE_RENEW | RegistryRolesLib.ROLE_REGISTRAR;
         vm.recordLogs();
         TransferData memory migrationData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(label2),
+            label: label2,
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             roleBitmap: differentRoles,
-            expires: 0
+            expiry: 0
         });
 
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
+        vm.expectEmit(false, false, false, true);
+        emit EjectionController.NameInjected(0, label2);
         controller.completeEjectionToL2(migrationData);
 
         // Verify ejection results
         _verifyEjectionResults(tokenId2, label2, originalRoles, differentRoles);
-        _verifyEjectionEvent(tokenId2, differentRoles);
     }
 
     // Helper function to verify ejection results
@@ -287,37 +275,17 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         );
     }
 
-    // Helper function to check for event emission
-    function _verifyEjectionEvent(
-        uint256 /* _tokenId */,
-        uint256 /* expectedRoleBitmap */
-    ) internal {
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundEvent = false;
-
-        bytes32 eventSig = keccak256("NameEjectedToL2(bytes,uint256)");
-
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (logs[i].emitter == address(controller) && logs[i].topics[0] == eventSig) {
-                foundEvent = true;
-                break;
-            }
-        }
-
-        assertTrue(foundEvent, "NameEjectedToL2 event not found");
-    }
-
     function test_Revert_completeEjectionToL2_notOwner() public {
         // Expect revert with NotTokenOwner error from the L2BridgeController logic
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NotTokenOwner.selector, tokenId));
         // Call the external method which should revert
         TransferData memory migrationData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+            label: testLabel,
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             roleBitmap: EACBaseRolesLib.ALL_ROLES,
-            expires: 0
+            expiry: 0
         });
         // Call through the bridge (using vm.prank to simulate bridge calling)
         vm.prank(address(bridge));
@@ -327,12 +295,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_Revert_completeEjectionToL2_not_bridge() public {
         // Try to call completeEjectionToL2 directly (without proper role)
         TransferData memory transferData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+            label: testLabel,
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
             roleBitmap: EACBaseRolesLib.ALL_ROLES,
-            expires: 0
+            expiry: 0
         });
 
         vm.expectRevert(
@@ -434,7 +402,11 @@ contract TestL2BridgeController is Test, ERC1155Holder {
 
         // User transfers the token to the bridge controller, should revert with InvalidLabel
         vm.expectRevert(
-            abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId, invalidLabel)
+            abi.encodeWithSelector(
+                EjectionController.TokenLabelMismatch.selector,
+                tokenId,
+                invalidLabel
+            )
         );
         vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);
@@ -454,7 +426,9 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         );
 
         // Try to call onERC1155Received directly (not through registry)
-        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(
+            abi.encodeWithSelector(CommonErrors.UnauthorizedCaller.selector, address(this))
+        );
         controller.onERC1155Received(address(this), user, tokenId, 1, ejectionData);
     }
 
@@ -517,7 +491,9 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint64 newExpiry = uint64(block.timestamp + expiryDuration * 2);
 
         // Try to call onRenew directly from an unauthorized address (not the registry)
-        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
+        vm.expectRevert(
+            abi.encodeWithSelector(CommonErrors.UnauthorizedCaller.selector, address(this))
+        );
         controller.onRenew(tokenId, newExpiry, address(this));
     }
 
@@ -540,7 +516,9 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         address randomUser = address(0x9999);
 
         // Try to call onRenew from a random user (not the registry)
-        vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, randomUser));
+        vm.expectRevert(
+            abi.encodeWithSelector(CommonErrors.UnauthorizedCaller.selector, randomUser)
+        );
         vm.prank(randomUser);
         controller.onRenew(tokenId, newExpiry, randomUser);
     }
@@ -594,7 +572,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_Revert_eject_tooManyRoleAssignees() public {
         // Test multiple error scenarios: too many assignees and missing assignees
         string memory testLabel2 = "testbadassignees";
-        uint64 expires = uint64(block.timestamp + expiryDuration);
+        uint64 expiry = uint64(block.timestamp + expiryDuration);
 
         // Scenario 1: Register with only some critical roles (missing ROLE_SET_SUBREGISTRY and admin roles)
         uint256 tokenId2 = ethRegistry.register(
@@ -603,7 +581,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             ethRegistry,
             address(0),
             RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER | RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN,
-            expires
+            expiry
         );
 
         uint256 criticalRoles = RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
@@ -616,7 +594,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             l1Owner,
             l1Subregistry,
             l1Resolver,
-            expires,
+            expiry,
             criticalRoles
         );
 
@@ -661,7 +639,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_eject_success_exactlyOneAssigneePerRole() public {
         // Test successful ejection when each critical role has exactly one assignee
         string memory testLabel3 = "testgoodassignees";
-        uint64 expires = uint64(block.timestamp + expiryDuration);
+        uint64 expiry = uint64(block.timestamp + expiryDuration);
 
         uint256 criticalRoles = RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
             RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
@@ -674,7 +652,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             ethRegistry,
             address(0),
             criticalRoles,
-            expires
+            expiry
         );
 
         // Verify exactly one assignee per critical role
@@ -690,12 +668,13 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             l1Owner,
             l1Subregistry,
             l1Resolver,
-            expires,
+            expiry,
             criticalRoles
         );
 
-        vm.recordLogs();
         vm.prank(user);
+        vm.expectEmit(false, false, false, true);
+        emit EjectionController.NameEjected(0, testLabel3);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId3, 1, ejectionData);
 
         // Verify successful ejection
@@ -709,26 +688,12 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             address(controller),
             "Token observer should be set to controller"
         );
-
-        // Verify event emission
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool foundEvent = false;
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (
-                logs[i].emitter == address(controller) &&
-                logs[i].topics[0] == keccak256("NameEjectedToL1(bytes,uint256)")
-            ) {
-                foundEvent = true;
-                break;
-            }
-        }
-        assertTrue(foundEvent, "NameEjectedToL1 event should be emitted");
     }
 
     function test_eject_success_resolverRolesIgnored() public {
         // Test that resolver roles don't affect ejection (can have multiple or zero assignees)
         string memory testLabel4 = "testresolverignored";
-        uint64 expires = uint64(block.timestamp + expiryDuration);
+        uint64 expiry = uint64(block.timestamp + expiryDuration);
 
         // Only grant critical roles initially
         uint256 criticalRoles = RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
@@ -742,7 +707,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             ethRegistry,
             address(0),
             criticalRoles,
-            expires
+            expiry
         );
 
         // Get the resource ID (this stays stable across regenerations)
@@ -763,7 +728,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             l1Owner,
             l1Subregistry,
             l1Resolver,
-            expires,
+            expiry,
             0
         );
 
@@ -810,7 +775,9 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         );
 
         // Transfer should revert due to null owner
-        vm.expectRevert(abi.encodeWithSelector(InvalidOwner.selector));
+        vm.expectRevert(
+            abi.encodeWithSelector(EjectionController.InvalidTransferOwner.selector, address(0))
+        );
         vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), testTokenId, 1, ejectionData);
     }

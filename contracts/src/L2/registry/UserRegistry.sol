@@ -7,6 +7,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../../common/registry/interfaces/IRegistryMetadata.sol";
 import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.sol";
+import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
 
 /**
  * @title UserRegistry
@@ -14,13 +15,6 @@ import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.s
  * This contract is designed to be deployed via the VerifiableFactory.
  */
 contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
-    ////////////////////////////////////////////////////////////////////////
-    // Constants
-    ////////////////////////////////////////////////////////////////////////
-
-    uint256 internal constant _ROLE_UPGRADE = 1 << 20;
-    uint256 internal constant _ROLE_UPGRADE_ADMIN = _ROLE_UPGRADE << 128;
-
     ////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////
@@ -68,7 +62,7 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
      */
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyRootRoles(_ROLE_UPGRADE) {
+    ) internal override onlyRootRoles(RegistryRolesLib.ROLE_UPGRADE) {
         // Authorization is handled by the onlyRootRoles modifier
     }
 }

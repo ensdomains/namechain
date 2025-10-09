@@ -15,7 +15,7 @@ interface IStandardRegistry is IRegistry {
     /**
      * @dev Event emitted when a name is renewed.
      */
-    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
+    event NameRenewed(uint256 indexed tokenId, uint64 newExpiry, address renewedBy);
 
     /**
      * @dev Event emitted when a name is burned.
@@ -39,7 +39,7 @@ interface IStandardRegistry is IRegistry {
     /**
      * @dev Error emitted when a name cannot be reduced in expiration.
      */
-    error CannotReduceExpiration(uint64 oldExpiration, uint64 newExpiration);
+    error CannotReduceExpiration(uint64 oldExpiry, uint64 newExpiry);
 
     /**
      * @dev Error emitted when a name cannot be set to a past expiration.
@@ -62,7 +62,7 @@ interface IStandardRegistry is IRegistry {
      * @param registry The registry to set as the name.
      * @param resolver The resolver to set for the name.
      * @param roleBitmap The role bitmap to set for the name.
-     * @param expires The expiration date of the name.
+     * @param expiry The expiration date of the name.
      */
     function register(
         string calldata label,
@@ -70,15 +70,15 @@ interface IStandardRegistry is IRegistry {
         IRegistry registry,
         address resolver,
         uint256 roleBitmap,
-        uint64 expires
+        uint64 expiry
     ) external returns (uint256 tokenId);
 
     /**
      * @dev Renews a subdomain.
      * @param tokenId The token ID of the subdomain to renew.
-     * @param expires The expiration date of the subdomain.
+     * @param expiry The expiration date of the subdomain.
      */
-    function renew(uint256 tokenId, uint64 expires) external;
+    function renew(uint256 tokenId, uint64 expiry) external;
 
     /**
      * @dev Burns a name.

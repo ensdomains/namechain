@@ -9,16 +9,10 @@ import {
     CANNOT_SET_RESOLVER,
     CANNOT_SET_TTL,
     CANNOT_CREATE_SUBDOMAIN,
-    IS_DOT_ETH,
-    CAN_EXTEND_EXPIRY,
-    PARENT_CANNOT_CONTROL
+    CAN_EXTEND_EXPIRY
 } from "@ens/contracts/wrapper/INameWrapper.sol";
-import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 
 import {RegistryRolesLib} from "../../../common/registry/libraries/RegistryRolesLib.sol";
-import {
-    IMigratedWrappedNameRegistry
-} from "../../registry/interfaces/IMigratedWrappedNameRegistry.sol";
 
 /**
  * @title LockedNamesLib
@@ -43,44 +37,8 @@ library LockedNamesLib {
             CANNOT_CREATE_SUBDOMAIN;
 
     ////////////////////////////////////////////////////////////////////////
-    // Errors
-    ////////////////////////////////////////////////////////////////////////
-
-    error NameNotLocked(uint256 tokenId);
-
-    error NameNotEmancipated(uint256 tokenId);
-
-    error NotDotEthName(uint256 tokenId);
-
-    ////////////////////////////////////////////////////////////////////////
     // Library Functions
     ////////////////////////////////////////////////////////////////////////
-
-    /**
-     * @notice Deploys a new MigratedWrappedNameRegistry via VerifiableFactory
-     * @dev The owner will have the specified roles on the deployed registry
-     * @param factory The VerifiableFactory to use for deployment
-     * @param implementation The implementation address for the proxy
-     * @param owner The address that will own the deployed registry
-     * @param ownerRoles The roles to grant to the owner
-     * @param salt The salt for CREATE2 deployment
-     * @param parentDnsEncodedName The DNS-encoded name of the parent domain
-     * @return subregistry The address of the deployed registry
-     */
-    function deployMigratedRegistry(
-        VerifiableFactory factory,
-        address implementation,
-        address owner,
-        uint256 ownerRoles,
-        uint256 salt,
-        bytes memory parentDnsEncodedName
-    ) internal returns (address subregistry) {
-        bytes memory initData = abi.encodeCall(
-            IMigratedWrappedNameRegistry.initialize,
-            (parentDnsEncodedName, owner, ownerRoles, address(0))
-        );
-        subregistry = factory.deployProxy(implementation, salt, initData);
-    }
 
     /**
      * @notice Freezes a name by clearing its resolver if possible and burning all migration fuses
@@ -97,42 +55,6 @@ library LockedNamesLib {
 
         // Burn all migration fuses
         nameWrapper.setFuses(bytes32(tokenId), uint16(FUSES_TO_BURN));
-    }
-
-    /**
-     * @notice Validates that a name is properly locked for migration
-     * @dev Checks that CANNOT_UNWRAP is set
-     * @param fuses The current fuses on the name
-     * @param tokenId The token ID for error reporting
-     */
-    function validateLockedName(uint32 fuses, uint256 tokenId) internal pure {
-        if ((fuses & CANNOT_UNWRAP) == 0) {
-            revert NameNotLocked(tokenId);
-        }
-    }
-
-    /**
-     * @notice Validates that a name is properly emancipated for migration
-     * @dev Checks that PARENT_CANNOT_CONTROL is set (emancipated). Name may or may not be locked.
-     * @param fuses The current fuses on the name
-     * @param tokenId The token ID for error reporting
-     */
-    function validateEmancipatedName(uint32 fuses, uint256 tokenId) internal pure {
-        if ((fuses & PARENT_CANNOT_CONTROL) == 0) {
-            revert NameNotEmancipated(tokenId);
-        }
-    }
-
-    /**
-     * @notice Validates that a name is a .eth second-level domain
-     * @dev Checks the IS_DOT_ETH fuse, which is only valid for .eth 2LDs
-     * @param fuses The current fuses on the name
-     * @param tokenId The token ID for error reporting
-     */
-    function validateIsDotEth2LD(uint32 fuses, uint256 tokenId) internal pure {
-        if ((fuses & IS_DOT_ETH) == 0) {
-            revert NotDotEthName(tokenId);
-        }
     }
 
     /**

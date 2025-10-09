@@ -2,13 +2,13 @@ import { artifacts, execute } from "@rocketh";
 
 export default execute(
   async ({ deploy, namedAccounts: { deployer } }) => {
-    await deploy("MockL2Bridge", {
+    await deploy("MockBridge", {
       account: deployer,
-      artifact: artifacts.MockL2Bridge,
+      artifact: artifacts.MockL1Bridge,
       args: [],
     });
   },
   {
-    tags: ["MockL2Bridge", "mocks", "l2"],
+    tags: ["MockBridge", "mocks", "l1"],
   },
 );
