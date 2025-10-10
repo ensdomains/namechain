@@ -8,7 +8,7 @@ import {
 } from "viem";
 
 import { ROLES } from "../../deploy/constants.js";
-import { type MockRelayer, createMockRelay } from "../../script/mockRelay.js";
+import { type MockRelay, setupMockRelay } from "../../script/mockRelay.js";
 import {
   type CrossChainEnvironment,
   setupCrossChainEnvironment,
@@ -21,10 +21,10 @@ import {
 
 describe("Bridge", () => {
   let env: CrossChainEnvironment;
-  let relay: MockRelayer;
+  let relay: MockRelay;
   beforeAll(async () => {
     env = await setupCrossChainEnvironment();
-    relay = createMockRelay(env);
+    relay = setupMockRelay(env);
   });
   afterAll(() => env?.shutdown);
   // beforeEach(() => env?.resetState());
@@ -35,16 +35,16 @@ describe("Bridge", () => {
     const dnsEncodedName = dnsEncodeName(name);
     const user = env.accounts[1];
     const l1Owner = env.accounts[2];
-    const l1Subregistry = env.l1.contracts.ethRegistry.address;
+    const l1Subregistry = env.l1.contracts.ETHRegistry.address;
     const l1Resolver = zeroAddress;
     const expiryTime = BigInt(Math.floor(Date.now() / 1000) + 31536000); // 1 year from now
     const roleBitmap = ROLES.ALL;
 
     console.log("Registering the name on L2...");
-    const registerTx = await env.l2.contracts.ethRegistry.write.register([
+    const registerTx = await env.l2.contracts.ETHRegistry.write.register([
       label,
       user.address,
-      env.l2.contracts.ethRegistry.address,
+      env.l2.contracts.ETHRegistry.address,
       zeroAddress,
       roleBitmap,
       expiryTime,
@@ -52,12 +52,12 @@ describe("Bridge", () => {
     await env.l2.client.waitForTransactionReceipt({ hash: registerTx });
     console.log(`Name registered on L2, tx hash: ${registerTx}`);
 
-    const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData([
+    const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
       label,
     ]);
     console.log(`TokenID from registry: ${tokenId}`);
 
-    const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
+    const owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
     console.log(`Token owner: ${owner}`);
 
     const canonicalId = getCanonicalId(tokenId);
@@ -84,15 +84,15 @@ describe("Bridge", () => {
       ],
     );
 
-    console.log("L2 registry", env.l2.contracts.ethRegistry.address);
-    console.log("L2 controller", env.l2.contracts.bridgeController.address);
+    console.log("L2 registry", env.l2.contracts.ETHRegistry.address);
+    console.log("L2 controller", env.l2.contracts.L2BridgeController.address);
 
     console.log("Transferring token to L2BridgeController...");
     await relay.waitFor(
-      env.l2.contracts.ethRegistry.write.safeTransferFrom(
+      env.l2.contracts.ETHRegistry.write.safeTransferFrom(
         [
           owner,
-          env.l2.contracts.bridgeController.address,
+          env.l2.contracts.L2BridgeController.address,
           tokenId,
           1n,
           encodedTransferData,
@@ -102,7 +102,7 @@ describe("Bridge", () => {
     );
 
     console.log("Verifying registration on L1...");
-    const actualL1Owner = await env.l1.contracts.ethRegistry.read.ownerOf([
+    const actualL1Owner = await env.l1.contracts.ETHRegistry.read.ownerOf([
       tokenId,
     ]);
     console.log(`Owner on L1: ${actualL1Owner}`);
@@ -118,14 +118,14 @@ describe("Bridge", () => {
     const dnsEncodedName = dnsEncodeName(name);
     const l1User = env.accounts[1].address;
     const l2User = env.accounts[1].address;
-    const l2Subregistry = env.l2.contracts.ethRegistry.address;
-    const l1Subregistry = env.l1.contracts.ethRegistry.address;
+    const l2Subregistry = env.l2.contracts.ETHRegistry.address;
+    const l1Subregistry = env.l1.contracts.ETHRegistry.address;
     const resolver = zeroAddress;
     const expiryTime = BigInt(Math.floor(Date.now() / 1000) + 31536000); // 1 year from now
     const roleBitmap = ROLES.ALL;
 
     console.log("Registering the name on L2...");
-    const registerTx = await env.l2.contracts.ethRegistry.write.register([
+    const registerTx = await env.l2.contracts.ETHRegistry.write.register([
       label,
       l2User,
       l2Subregistry,
@@ -136,7 +136,7 @@ describe("Bridge", () => {
     await env.l2.client.waitForTransactionReceipt({ hash: registerTx });
     console.log(`Name registered on L2, tx hash: ${registerTx}`);
 
-    const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData([
+    const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
       label,
     ]);
     console.log(`TokenID from registry: ${tokenId}`);
@@ -156,10 +156,10 @@ describe("Bridge", () => {
     );
 
     await relay.waitFor(
-      env.l2.contracts.ethRegistry.write.safeTransferFrom(
+      env.l2.contracts.ETHRegistry.write.safeTransferFrom(
         [
           l2User,
-          env.l2.contracts.bridgeController.address,
+          env.l2.contracts.L2BridgeController.address,
           tokenId,
           1n,
           encodedTransferDataToL1,
@@ -168,7 +168,7 @@ describe("Bridge", () => {
       ),
     );
 
-    const owner = await env.l1.contracts.ethRegistry.read.ownerOf([tokenId]);
+    const owner = await env.l1.contracts.ETHRegistry.read.ownerOf([tokenId]);
     console.log(`Owner on L1: ${owner}`);
     console.log("✓ Name successfully registered on L1");
     expect(owner).toBe(l1User);
@@ -188,10 +188,10 @@ describe("Bridge", () => {
     );
 
     await relay.waitFor(
-      env.l1.contracts.ethRegistry.write.safeTransferFrom(
+      env.l1.contracts.ETHRegistry.write.safeTransferFrom(
         [
           l1User,
-          env.l1.contracts.bridgeController.address,
+          env.l1.contracts.L1BridgeController.address,
           tokenId,
           1n,
           encodedTransferDataToL2,
@@ -202,13 +202,13 @@ describe("Bridge", () => {
 
     console.log("Verifying round trip results...");
 
-    const finalL2Owner = await env.l2.contracts.ethRegistry.read.ownerOf([
+    const finalL2Owner = await env.l2.contracts.ETHRegistry.read.ownerOf([
       tokenId,
     ]);
     console.log(`Final owner on L2: ${finalL2Owner}`);
     expect(finalL2Owner).toBe(l2User);
 
-    const subregistry = await env.l2.contracts.ethRegistry.read.getSubregistry([
+    const subregistry = await env.l2.contracts.ETHRegistry.read.getSubregistry([
       label,
     ]);
     console.log(`Subregistry on L2: ${subregistry}`);

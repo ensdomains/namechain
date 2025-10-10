@@ -19,8 +19,8 @@ import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadat
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
-import {MockL1Bridge} from "~src/mocks/MockL1Bridge.sol";
-import {MockL2Bridge} from "~src/mocks/MockL2Bridge.sol";
+import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
+import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
 import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
 
 contract BridgeTest is Test, EnhancedAccessControl {

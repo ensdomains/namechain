@@ -22,8 +22,8 @@ At present the following contracts are implemented:
 3. Install [bun](https://bun.sh/) v1.2+
 4. Install dependencies:
 5. (OPTIONAL) Install [lcov](https://github.com/linux-test-project/lcov) if you want to run coverage tests
-   * Mac: `brew install lcov`
-   * Ubuntu: `sudo apt-get install lcov`
+   - Mac: `brew install lcov`
+   - Ubuntu: `sudo apt-get install lcov`
 
 ```sh
 bun i
@@ -65,7 +65,6 @@ Start a local devnet with L1 and L2 chains:
 
 ```sh
 bun run devnet        # runs w/last build
-bun run devnet:clean  # builds, tests, runs
 ```
 
 This will start:

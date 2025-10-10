@@ -6,7 +6,7 @@ export default execute(
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
     type MockERC20 =
-      (typeof artifacts)["src/mocks/MockERC20.sol/MockERC20"]["abi"];
+      (typeof artifacts)["test/mocks/MockERC20.sol/MockERC20"]["abi"];
     const mockUSDC = get<MockERC20>("MockUSDC");
     const mockDAI = get<MockERC20>("MockDAI");
     const paymentTokens = [mockUSDC, mockDAI];

@@ -25,8 +25,8 @@ import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1UnlockedMigrationController} from "~src/L1/migration/L1UnlockedMigrationController.sol";
-import {MockL1Bridge} from "~src/mocks/MockL1Bridge.sol";
-import {MockBaseRegistrar} from "~src/mocks/v1/MockBaseRegistrar.sol";
+import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
+import {MockBaseRegistrar} from "~test/mocks/v1/MockBaseRegistrar.sol";
 
 // Simple mock that implements IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -158,7 +158,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     }
 
     /**
-     * Helper method to verify that a NameBridgedToL2 event was emitted with correct data
+     * Helper method to verify that a MessageSent event was emitted with correct data
      */
     function _assertBridgeMigrationEvent(string memory expectedLabel) internal {
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -166,18 +166,18 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     }
 
     /**
-     * Helper method to verify that a NameBridgedToL2 event was emitted with correct data using provided logs
+     * Helper method to verify that a MessageSent event was emitted with correct data using provided logs
      */
     function _assertBridgeMigrationEventWithLogs(
         string memory expectedLabel,
         Vm.Log[] memory entries
     ) internal view {
         bool foundMigrationEvent = false;
-        bytes32 expectedSig = keccak256("NameBridgedToL2(bytes)");
+        bytes32 expectedSig = keccak256("MessageSent(bytes)");
 
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].emitter == address(mockBridge) && entries[i].topics[0] == expectedSig) {
-                // For NameBridgedToL2(bytes message) - single parameter is NOT indexed
+                // For MessageSent(bytes message) - single parameter is NOT indexed
                 // so the message is in the data field
                 (bytes memory message) = abi.decode(entries[i].data, (bytes));
                 // Decode the ejection message to get the transfer data
@@ -195,12 +195,12 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         }
         assertTrue(
             foundMigrationEvent,
-            string(abi.encodePacked("NameBridgedToL2 event not found for token: ", expectedLabel))
+            string(abi.encodePacked("MessageSent event not found for token: ", expectedLabel))
         );
     }
 
     /**
-     * Helper method to count NameBridgedToL2 events for multiple tokens
+     * Helper method to count MessageSent events for multiple tokens
      */
     function _countBridgeMigrationEvents(
         uint256[] memory expectedTokenIds
@@ -210,18 +210,18 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     }
 
     /**
-     * Helper method to count NameBridgedToL2 events for multiple tokens using provided logs
+     * Helper method to count MessageSent events for multiple tokens using provided logs
      */
     function _countBridgeMigrationEventsWithLogs(
         uint256[] memory expectedTokenIds,
         Vm.Log[] memory entries
     ) internal view returns (uint256) {
         uint256 migratedEventCount = 0;
-        bytes32 expectedSig = keccak256("NameBridgedToL2(bytes)");
+        bytes32 expectedSig = keccak256("MessageSent(bytes)");
 
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].emitter == address(mockBridge) && entries[i].topics[0] == expectedSig) {
-                // For NameBridgedToL2(bytes message) - single parameter is NOT indexed
+                // For MessageSent(bytes message) - single parameter is NOT indexed
                 // so the message is in the data field
                 (bytes memory message) = abi.decode(entries[i].data, (bytes));
                 // Decode the ejection message to get the transfer data

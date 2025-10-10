@@ -24,7 +24,7 @@ import {
     IRentPriceOracle,
     DiscountPoint
 } from "~src/L2/registrar/StandardRentPriceOracle.sol";
-import {MockERC20} from "~src/mocks/MockERC20.sol";
+import {MockERC20} from "~test/mocks/MockERC20.sol";
 
 contract StandardRentPriceOracleTest is Test, ERC1155Holder {
     PermissionedRegistry ethRegistry;

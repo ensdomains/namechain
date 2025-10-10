@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {TransferData} from "../common/bridge/types/TransferData.sol";
-import {L1BridgeController} from "../L1/bridge/L1BridgeController.sol";
+import {TransferData} from "~src/common/bridge/types/TransferData.sol";
+import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 
 import {MockBridgeBase} from "./MockBridgeBase.sol";
 
@@ -20,24 +20,11 @@ contract MockL1Bridge is MockBridgeBase {
     L1BridgeController public bridgeController;
 
     ////////////////////////////////////////////////////////////////////////
-    // Events
-    ////////////////////////////////////////////////////////////////////////
-
-    event NameBridgedToL2(bytes message);
-
-    ////////////////////////////////////////////////////////////////////////
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
     function setBridgeController(L1BridgeController bridgeController_) external {
         bridgeController = bridgeController_;
-    }
-
-    /**
-     * @dev Override sendMessage to emit specific events based on message type
-     */
-    function sendMessage(bytes memory message) external override {
-        emit NameBridgedToL2(message);
     }
 
     /**

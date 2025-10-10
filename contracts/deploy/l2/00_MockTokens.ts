@@ -4,7 +4,7 @@ import { artifacts, execute } from "@rocketh";
 export default execute(
   async ({ deploy, namedAccounts: { deployer } }) => {
     // Use our local MockERC20 contract
-    const MockERC20 = artifacts["src/mocks/MockERC20.sol/MockERC20"];
+    const MockERC20 = artifacts["test/mocks/MockERC20.sol/MockERC20"];
 
     const mockUSDC = await deploy("MockUSDC", {
       account: deployer,

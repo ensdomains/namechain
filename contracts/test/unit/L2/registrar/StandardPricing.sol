@@ -4,7 +4,7 @@ pragma solidity >=0.8.13;
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
 import {PaymentRatio, DiscountPoint} from "~src/L2/registrar/StandardRentPriceOracle.sol";
-import {MockERC20} from "~src/mocks/MockERC20.sol";
+import {MockERC20} from "~test/mocks/MockERC20.sol";
 
 library StandardPricing {
     uint64 constant SEC_PER_YEAR = 31_557_600; // 365.25

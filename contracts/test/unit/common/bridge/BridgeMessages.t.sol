@@ -16,9 +16,9 @@ import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
-import {MockBridgeBase} from "~src/mocks/MockBridgeBase.sol";
-import {MockL1Bridge} from "~src/mocks/MockL1Bridge.sol";
-import {MockL2Bridge} from "~src/mocks/MockL2Bridge.sol";
+import {MockBridgeBase} from "~test/mocks/MockBridgeBase.sol";
+import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
+import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -185,10 +185,10 @@ contract BridgeMessagesTest is Test {
         vm.recordLogs();
         l1Bridge.sendMessage(testMessage);
 
-        // Check for NameBridgedToL2 event
+        // Check for MessageSent event
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
-        bytes32 eventSig = keccak256("NameBridgedToL2(bytes)");
+        bytes32 eventSig = keccak256("MessageSent(bytes)");
 
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == eventSig) {
@@ -196,7 +196,7 @@ contract BridgeMessagesTest is Test {
                 break;
             }
         }
-        assertTrue(foundEvent, "NameBridgedToL2 event should be emitted");
+        assertTrue(foundEvent, "MessageSent event should be emitted");
     }
 
     function test_l2Bridge_sendMessage_ejection() public {
@@ -215,10 +215,10 @@ contract BridgeMessagesTest is Test {
         vm.recordLogs();
         l2Bridge.sendMessage(ejectionMessage);
 
-        // Check for NameBridgedToL1 event
+        // Check for MessageSent event
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
-        bytes32 eventSig = keccak256("NameBridgedToL1(bytes)");
+        bytes32 eventSig = keccak256("MessageSent(bytes)");
 
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == eventSig) {
@@ -226,6 +226,6 @@ contract BridgeMessagesTest is Test {
                 break;
             }
         }
-        assertTrue(foundEvent, "NameBridgedToL1 event should be emitted");
+        assertTrue(foundEvent, "MessageSent event should be emitted");
     }
 }
