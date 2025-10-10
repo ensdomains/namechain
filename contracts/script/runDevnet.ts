@@ -3,14 +3,25 @@ import { setupCrossChainEnvironment } from "./setup.js";
 import { registerTestNames } from "./testNames.js";
 import { setupMockRelay } from "./mockRelay.js";
 import { createServer } from "node:http";
+import { parseArgs } from "node:util";
 
 const t0 = Date.now();
+
+const args = parseArgs({
+  args: process.argv.slice(2),
+  options: {
+    procLog: {
+      type: "boolean",
+    },
+  },
+});
 
 const env = await setupCrossChainEnvironment({
   l1Port: 8545,
   l2Port: 8546,
   urgPort: 8547,
   saveDeployments: true,
+  procLog: args.values.procLog,
 });
 
 // handler for shell
