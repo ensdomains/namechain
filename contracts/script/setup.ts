@@ -361,8 +361,8 @@ export async function setupCrossChainEnvironment({
     const l2Client = createClient(l2Transport, l2Chain, deployer);
 
     async function deployChain(chain: Chain, args?: RockethArguments) {
-      const mainnet = chain.id === l1ChainId;
-      const tag = mainnet ? "l1" : "l2";
+      const isL1 = chain.id === l1ChainId;
+      const tag = isL1 ? "l1" : "l2";
       const name = `${tag}-local`;
       if (saveDeployments) {
         await rm(new URL(`../deployments/${name}`, import.meta.url), {
@@ -375,12 +375,14 @@ export async function setupCrossChainEnvironment({
       ]);
       const tags = [tag, "local"];
       const scripts = [`deploy/${tag}`, "deploy/shared"];
-      if (mainnet) {
+      if (isL1) {
         await patchArtifactsV1();
         scripts.unshift("lib/ens-contracts/deploy");
         tags.push("use_root"); // deploy root contracts
         tags.push("allow_unsafe"); // tate hacks
         tags.push("legacy"); // legacy registry
+      } else {
+        scripts.unshift("lib/ens-contracts/deploy/utils/shared/"); // multicall3
       }
       return executeDeployScripts(
         resolveConfig({
