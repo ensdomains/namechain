@@ -9,13 +9,12 @@ export default execute(
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
-    const l2Bridge =
-      get<(typeof artifacts.MockL2Bridge)["abi"]>("MockL2Bridge");
+    const l2Bridge = get<(typeof artifacts.MockL2Bridge)["abi"]>("MockBridge");
 
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
 
-    const l2BridgeController = await deploy("L2BridgeController", {
+    const l2BridgeController = await deploy("BridgeController", {
       account: deployer,
       artifact: artifacts.L2BridgeController,
       args: [l2Bridge.address, ethRegistry.address, registryDatastore.address],

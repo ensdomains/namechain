@@ -1,8 +1,8 @@
 import { getAddress, toHex } from "viem";
 import { setupCrossChainEnvironment } from "./setup.js";
-import { createMockRelay } from "./mockRelay.js";
 import { registerTestNames } from "./testNames.js";
-import { createServer } from 'node:http';
+import { setupMockRelay } from "./mockRelay.js";
+import { createServer } from "node:http";
 
 const t0 = Date.now();
 
@@ -30,7 +30,7 @@ process.once("uncaughtException", async (err) => {
   throw err;
 });
 
-createMockRelay(env);
+setupMockRelay(env);
 
 console.log();
 console.log("Available Named Accounts:");
@@ -51,7 +51,7 @@ console.log("Unruggable Gateway:", (({ gateway, ...a }) => a)(env.urg));
 
 for (const lx of [env.l1, env.l2]) {
   console.table(
-    Object.entries(lx.deployments).map(([name, address]) => ({
+    Object.entries(lx.env.deployments).map(([name, { address }]) => ({
       [lx.client.chain.name]: name,
       "Contract Address": getAddress(address),
     })),
@@ -65,7 +65,7 @@ console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);
 const server = createServer((_req, res) => {
   res.writeHead(200, { "Content-Type": "text/plain" });
   res.end("healthy\n");
-})
+});
 
 server.listen(8000, () => {
   console.log(`Healthcheck endpoint listening on :8000/health`);
