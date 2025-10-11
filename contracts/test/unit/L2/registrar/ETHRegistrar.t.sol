@@ -90,9 +90,9 @@ contract ETHRegistrarTest is Test {
         ethRegistrar = new ETHRegistrar(
             ethRegistry,
             beneficiary,
-            1 minutes, // minCommitmentAge
-            1 days, // maxCommitmentAge
-            28 days, // minRegisterDuration
+            StandardPricing.MIN_COMMITMENT_AGE,
+            StandardPricing.MAX_COMMITMENT_AGE,
+            StandardPricing.MIN_REGISTER_DURATION,
             rentPriceOracle
         );
 
@@ -109,6 +109,31 @@ contract ETHRegistrarTest is Test {
         }
 
         vm.warp(rentPriceOracle.premiumPeriod()); // avoid timestamp issues
+    }
+
+    function test_constructor() external view {
+        assertEq(address(ethRegistrar.REGISTRY()), address(ethRegistry), "REGISTRY");
+        assertEq(ethRegistrar.BENEFICIARY(), address(beneficiary), "BENEFICIARY");
+        assertEq(
+            ethRegistrar.MIN_COMMITMENT_AGE(),
+            StandardPricing.MIN_COMMITMENT_AGE,
+            "MIN_COMMITMENT_AGE"
+        );
+        assertEq(
+            ethRegistrar.MAX_COMMITMENT_AGE(),
+            StandardPricing.MAX_COMMITMENT_AGE,
+            "MAX_COMMITMENT_AGE"
+        );
+        assertEq(
+            ethRegistrar.MIN_REGISTER_DURATION(),
+            StandardPricing.MIN_REGISTER_DURATION,
+            "MIN_REGISTER_DURATION"
+        );
+        assertEq(
+            address(ethRegistrar.rentPriceOracle()),
+            address(rentPriceOracle),
+            "rentPriceOracle"
+        );
     }
 
     function test_Revert_constructor_emptyRange() external {
@@ -190,6 +215,8 @@ contract ETHRegistrarTest is Test {
         assertTrue(rentPriceOracle.isPaymentToken(tokenUSDC), "USDC");
         assertTrue(rentPriceOracle.isPaymentToken(tokenDAI), "DAI");
         assertTrue(rentPriceOracle.isPaymentToken(tokenBlack), "Black");
+        assertTrue(rentPriceOracle.isPaymentToken(tokenVoid), "Void");
+        assertTrue(rentPriceOracle.isPaymentToken(tokenFalse), "False");
         assertFalse(rentPriceOracle.isPaymentToken(IERC20(address(0))));
     }
 
@@ -517,10 +544,6 @@ contract ETHRegistrarTest is Test {
         );
     }
 
-    function test_beneficiary_set() external view {
-        assertEq(ethRegistrar.BENEFICIARY(), beneficiary);
-    }
-
     function test_beneficiary_register() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         (uint256 base, ) = ethRegistrar.rentPrice(
@@ -614,13 +637,13 @@ contract ETHRegistrarTest is Test {
         );
     }
 
-    function test_voidReturn_accepted_with_SafeERC20() public {
+    function test_voidReturn_acceptedBySafeERC20() public {
         RegisterArgs memory args = _defaultRegisterArgs();
         args.paymentToken = tokenVoid;
         this._register(args);
     }
 
-    function test_falseReturn_rejected_with_SafeERC20() public {
+    function test_falseReturn_rejectedBySafeERC20() public {
         RegisterArgs memory args = _defaultRegisterArgs();
         args.paymentToken = tokenFalse;
         vm.expectRevert(

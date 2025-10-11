@@ -43,7 +43,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     IRentPriceOracle public rentPriceOracle;
 
-    mapping(bytes32 commitment => uint64 commitTime) private _commitTime;
+    /// @inheritdoc IETHRegistrar
+    mapping(bytes32 commitment => uint64 commitTime) public commitmentAt;
 
     ////////////////////////////////////////////////////////////////////////
     // Events
@@ -100,10 +101,10 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     /// @inheritdoc IETHRegistrar
     function commit(bytes32 commitment) external {
-        if (_commitTime[commitment] + MAX_COMMITMENT_AGE > block.timestamp) {
+        if (commitmentAt[commitment] + MAX_COMMITMENT_AGE > block.timestamp) {
             revert UnexpiredCommitmentExists(commitment);
         }
-        _commitTime[commitment] = uint64(block.timestamp);
+        commitmentAt[commitment] = uint64(block.timestamp);
         emit CommitmentMade(commitment);
     }
 
@@ -195,11 +196,6 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         return _isAvailable(expiry);
     }
 
-    /// @inheritdoc IETHRegistrar
-    function commitmentAt(bytes32 commitment) external view returns (uint64) {
-        return _commitTime[commitment];
-    }
-
     /// @inheritdoc IRentPriceOracle
     function rentPrice(
         string memory label,
@@ -231,7 +227,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     /// @dev Assert `commitment` is timely, then delete it.
     function _consumeCommitment(bytes32 commitment) internal {
         uint64 t = uint64(block.timestamp);
-        uint64 t0 = _commitTime[commitment];
+        uint64 t0 = commitmentAt[commitment];
         uint64 tMin = t0 + MIN_COMMITMENT_AGE;
         if (t < tMin) {
             revert CommitmentTooNew(commitment, tMin, t);
@@ -240,7 +236,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         if (t >= tMax) {
             revert CommitmentTooOld(commitment, tMax, t);
         }
-        delete _commitTime[commitment];
+        delete commitmentAt[commitment];
     }
 
     /// @dev Internal logic for registration availability.
