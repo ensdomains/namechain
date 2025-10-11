@@ -6,7 +6,7 @@ pragma solidity >=0.8.13;
 import {Test} from "forge-std/Test.sol";
 
 import {IERC20Errors, IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 import {StandardPricing} from "./StandardPricing.sol";
@@ -33,7 +33,12 @@ import {
     PaymentRatio,
     DiscountPoint
 } from "~src/L2/registrar/StandardRentPriceOracle.sol";
-import {MockERC20, MockERC20Blacklist} from "~src/mocks/MockERC20.sol";
+import {
+    MockERC20,
+    MockERC20Blacklist,
+    MockERC20VoidReturn,
+    MockERC20FalseReturn
+} from "~src/mocks/MockERC20.sol";
 
 contract ETHRegistrarTest is Test {
     PermissionedRegistry ethRegistry;
@@ -44,6 +49,8 @@ contract ETHRegistrarTest is Test {
     MockERC20 tokenUSDC;
     MockERC20 tokenDAI;
     MockERC20Blacklist tokenBlack;
+    MockERC20VoidReturn tokenVoid;
+    MockERC20FalseReturn tokenFalse;
 
     address user = makeAddr("user");
     address beneficiary = makeAddr("beneficiary");
@@ -59,11 +66,15 @@ contract ETHRegistrarTest is Test {
         tokenUSDC = new MockERC20("USDC", 6);
         tokenDAI = new MockERC20("DAI", 18);
         tokenBlack = new MockERC20Blacklist();
+        tokenVoid = new MockERC20VoidReturn();
+        tokenFalse = new MockERC20FalseReturn();
 
-        PaymentRatio[] memory paymentRatios = new PaymentRatio[](3);
+        PaymentRatio[] memory paymentRatios = new PaymentRatio[](5);
         paymentRatios[0] = StandardPricing.ratioFromStable(tokenUSDC);
         paymentRatios[1] = StandardPricing.ratioFromStable(tokenDAI);
         paymentRatios[2] = StandardPricing.ratioFromStable(tokenBlack);
+        paymentRatios[3] = StandardPricing.ratioFromStable(tokenVoid);
+        paymentRatios[4] = StandardPricing.ratioFromStable(tokenFalse);
 
         rentPriceOracle = new StandardRentPriceOracle(
             address(this),
@@ -601,5 +612,20 @@ contract ETHRegistrarTest is Test {
             newOwner,
             "Token should be transferred to new owner"
         );
+    }
+
+    function test_voidReturn_accepted_with_SafeERC20() public {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        args.paymentToken = tokenVoid;
+        this._register(args);
+    }
+
+    function test_falseReturn_rejected_with_SafeERC20() public {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        args.paymentToken = tokenFalse;
+        vm.expectRevert(
+            abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, tokenFalse)
+        );
+        this._register(args);
     }
 }
