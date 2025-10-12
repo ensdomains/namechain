@@ -1,14 +1,20 @@
 import { artifacts, execute } from "@rocketh";
-import { MAX_EXPIRY } from "../constants.js";
 import { zeroAddress } from "viem";
+import { MAX_EXPIRY } from "../constants.js";
 
 // TODO: ownership
 export default execute(
-  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
+  async ({
+    deploy,
+    execute: write,
+    get,
+    getV1,
+    namedAccounts: { deployer },
+  }) => {
     const ensRegistryV1 =
-      get<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
+      getV1<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
 
-    const defaultReverseRegistrarV1 = get<
+    const defaultReverseRegistrarV1 = getV1<
       (typeof artifacts.DefaultReverseRegistrar)["abi"]
     >("DefaultReverseRegistrar");
 

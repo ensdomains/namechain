@@ -8,21 +8,28 @@ import {
 
 export default execute(
   async (
-    { deploy, execute: write, get, save, namedAccounts: { deployer }, network },
+    {
+      deploy,
+      execute: write,
+      get,
+      getV1,
+      save,
+      namedAccounts: { deployer },
+      network,
+    },
     args,
   ) => {
     if (!args?.l2Deploy) throw new Error("expected L2 deployment");
 
     const ensRegistryV1 =
-      get<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
+      getV1<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
 
-    const batchGatewayProvider = get<(typeof artifacts.GatewayProvider)["abi"]>(
-      "BatchGatewayProvider",
-    );
+    const batchGatewayProvider = getV1<
+      (typeof artifacts.GatewayProvider)["abi"]
+    >("BatchGatewayProvider");
 
-    const verifiableFactory = get<(typeof artifacts.VerifiableFactory)["abi"]>(
-      "DedicatedResolverFactory",
-    );
+    const verifiableFactory =
+      get<(typeof artifacts.VerifiableFactory)["abi"]>("VerifiableFactory");
 
     const dedicatedResolverImpl = get<
       (typeof artifacts.DedicatedResolver)["abi"]

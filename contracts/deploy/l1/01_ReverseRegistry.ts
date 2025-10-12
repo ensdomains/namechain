@@ -3,8 +3,14 @@ import { MAX_EXPIRY, ROLES } from "../constants.ts";
 
 // TODO: ownership
 export default execute(
-  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
-    const defaultReverseResolverV1 = get<
+  async ({
+    deploy,
+    execute: write,
+    get,
+    getV1,
+    namedAccounts: { deployer },
+  }) => {
+    const defaultReverseResolverV1 = getV1<
       (typeof artifacts.DefaultReverseResolver)["abi"]
     >("DefaultReverseResolver");
 
