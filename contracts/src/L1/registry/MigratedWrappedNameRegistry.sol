@@ -16,6 +16,7 @@ import {IRegistryMetadata} from "../../common/registry/interfaces/IRegistryMetad
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.sol";
 import {TransferErrors} from "../../common/TransferErrors.sol";
+import {WrappedErrorLib} from "../../common/utils/WrappedErrorLib.sol";
 import {LockedNamesLib} from "../migration/libraries/LockedNamesLib.sol";
 import {
     IMigratedWrappedNameRegistry
@@ -50,6 +51,19 @@ contract MigratedWrappedNameRegistry is
     ////////////////////////////////////////////////////////////////////////
 
     bytes32 public parentNode;
+
+    ////////////////////////////////////////////////////////////////////////
+    // Modifiers
+    ////////////////////////////////////////////////////////////////////////
+
+    modifier onlySender(address sender) {
+        if (msg.sender != sender) {
+            WrappedErrorLib.wrapAndRevert(
+                abi.encodeWithSelector(CommonErrors.UnauthorizedCaller.selector, msg.sender)
+            );
+        }
+        _;
+    }
 
     ////////////////////////////////////////////////////////////////////////
     // Initialization
@@ -146,11 +160,10 @@ contract MigratedWrappedNameRegistry is
     function onERC1155Received(
         address /*operator*/,
         address /*from*/,
-        uint256 /*id*/,
-        uint256 /*amount*/,
+        uint256 id,
+        uint256 amount,
         bytes calldata data
-    ) external view returns (bytes4) {
-        require(msg.sender == address(NAME_WRAPPER), TransferErrors.ERROR_ONLY_NAME_WRAPPER);
+    ) external view onlySender(address(NAME_WRAPPER)) returns (bytes4) {
         require(bytes32(data) == _PAYLOAD_HASH, TransferErrors.ERROR_UNEXPECTED_TRANSFER);
         return this.onERC1155Received.selector;
     }
@@ -161,8 +174,7 @@ contract MigratedWrappedNameRegistry is
         uint256[] calldata /*ids*/,
         uint256[] calldata /*amounts*/,
         bytes calldata data
-    ) external view returns (bytes4) {
-        require(msg.sender == address(NAME_WRAPPER), TransferErrors.ERROR_ONLY_NAME_WRAPPER);
+    ) external view onlySender(address(NAME_WRAPPER)) returns (bytes4) {
         require(bytes32(data) == _PAYLOAD_HASH, TransferErrors.ERROR_UNEXPECTED_TRANSFER);
         return this.onERC1155BatchReceived.selector;
     }

@@ -28,17 +28,6 @@ import {LockedNamesLib} from "./libraries/LockedNamesLib.sol";
 
 contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     ////////////////////////////////////////////////////////////////////////
-    // Types
-    ////////////////////////////////////////////////////////////////////////
-
-    struct Data {
-        bytes32 node;
-        address owner;
-        address resolver;
-        uint256 salt;
-    }
-
-    ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
 
@@ -108,9 +97,9 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             );
         }
         uint256[] memory ids = new uint256[](1);
-        Data[] memory mds = new Data[](1);
+        IMigratedWrappedNameRegistry.Data[] memory mds = new IMigratedWrappedNameRegistry.Data[](1);
         ids[0] = id;
-        mds[0] = abi.decode(data, (Data)); // reverts empty
+        mds[0] = abi.decode(data, (IMigratedWrappedNameRegistry.Data)); // reverts empty
         try this.finishERC1155Migration(ids, mds) {
             // success
         } catch (bytes memory reason) {
@@ -135,7 +124,10 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
                 abi.encodeWithSelector(TransferErrors.InvalidTransferData.selector)
             );
         }
-        Data[] memory mds = abi.decode(data, (Data[])); // reverts empty
+        IMigratedWrappedNameRegistry.Data[] memory mds = abi.decode(
+            data,
+            (IMigratedWrappedNameRegistry.Data[])
+        ); // reverts empty
         try this.finishERC1155Migration(ids, mds) {
             // success
         } catch (bytes memory reason) {
@@ -146,7 +138,7 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
 
     function finishERC1155Migration(
         uint256[] memory ids,
-        Data[] memory mds
+        IMigratedWrappedNameRegistry.Data[] memory mds
     ) external onlySender(address(this)) {
         if (ids.length != mds.length) {
             revert IERC1155Errors.ERC1155InvalidArrayLength(ids.length, mds.length);
@@ -158,7 +150,7 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             // if (amounts[i] != 1) {
             //     revert TransferErrors.InvalidTransferAmount();
             // }
-            Data memory md = mds[i];
+            IMigratedWrappedNameRegistry.Data memory md = mds[i];
             if (bytes32(ids[i]) != md.node) {
                 revert TransferErrors.TokenNodeMismatch(ids[i], mds[i].node);
             }
@@ -167,7 +159,7 @@ contract LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             }
         }
         for (uint256 i; i < mds.length; ++i) {
-            Data memory md = mds[i];
+            IMigratedWrappedNameRegistry.Data memory md = mds[i];
 
             bytes memory name = NAME_WRAPPER.names(md.node);
             (, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(md.node));

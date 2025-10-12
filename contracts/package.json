@@ -44,7 +44,7 @@
     "compile": "bun run compile:forge && bun run compile:hardhat",
     "test:forge": "forge test",
     "test:hardhat": "bun run compile:hardhat && vitest run",
-    "test:e2e": "bun run compile:hardhat --quiet && bun test ./e2e/*.test.ts",
+    "test:e2e": "bun run compile:hardhat --quiet && bun test ./test/e2e/",
     "test": "bun run test:forge && bun run test:hardhat",
     "interfaces": "bun run compile:hardhat --quiet && bun ./script/interfaces.ts",
     "coverage:forge": "mkdir -p coverage/ && forge coverage --report lcov --report-file coverage/forge.lcov",

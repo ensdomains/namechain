@@ -3,7 +3,8 @@ pragma solidity >=0.8.13;
 
 import {IPermissionedRegistry} from "../../../common/registry/interfaces/IPermissionedRegistry.sol";
 
-// TODO: rename parent* to base*?
+/// @dev Size of `abi.encode(Data({...}))`.
+uint256 constant DATA_SIZE = 128;
 
 /// @dev Interface for IMigratedWrappedNameRegistry initialization and core functions
 interface IMigratedWrappedNameRegistry is IPermissionedRegistry {
@@ -22,6 +23,7 @@ interface IMigratedWrappedNameRegistry is IPermissionedRegistry {
         bytes32 node;
         address owner;
         address resolver;
+        //address registrar; const? setter?
         uint256 salt;
     }
 
@@ -31,11 +33,11 @@ interface IMigratedWrappedNameRegistry is IPermissionedRegistry {
 
     function initialize(ConstructorArgs calldata args) external;
 
-    function migrate(Data calldata md) external returns (uint256 tokenId);
+    // function migrate(Data calldata md) external returns (uint256 tokenId);
 
-    function migrate(Data[] calldata mds) external;
+    // function migrate(Data[] calldata mds) external;
 
-    function parentNode() external view returns (bytes32);
+    // function parentNode() external view returns (bytes32);
 
     function parentName() external view returns (bytes memory);
 }

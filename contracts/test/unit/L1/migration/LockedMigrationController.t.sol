@@ -30,6 +30,7 @@ import {L1BridgeController, TransferData} from "~src/L1/bridge/L1BridgeControlle
 import {LockedMigrationController} from "~src/L1/migration/LockedMigrationController.sol";
 import {
     MigratedWrappedNameRegistry,
+    IMigratedWrappedNameRegistry,
     RegistryRolesLib,
     LockedNamesLib,
     IRegistry
@@ -77,9 +78,9 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin, 
 
     function _makeData(
         bytes memory name
-    ) internal view returns (LockedMigrationController.Data memory) {
+    ) internal view returns (IMigratedWrappedNameRegistry.Data memory) {
         return
-            LockedMigrationController.Data({
+            IMigratedWrappedNameRegistry.Data({
                 node: namehash(name),
                 owner: user,
                 resolver: address(1),
@@ -131,7 +132,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin, 
 
     function test_migrate_locked() external {
         bytes memory name = registerWrappedETH2LD("test", CANNOT_UNWRAP);
-        LockedMigrationController.Data memory md = _makeData(name);
+        IMigratedWrappedNameRegistry.Data memory md = _makeData(name);
         vm.startPrank(user);
         nameWrapper.safeTransferFrom(
             user,

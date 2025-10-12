@@ -44,7 +44,7 @@ abstract contract MockBridgeBase is IBridge {
         receiverBridge = bridge;
     }
 
-    function sendMessage(bytes memory message) external override {
+    function sendMessage(bytes calldata message) external override {
         lastMessage = message;
         //_rollingHash = keccak256(abi.encode(_rollingHash, message));
         //emit MessageSent(_rollingHash, message);

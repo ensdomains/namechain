@@ -26,7 +26,7 @@ library TransferErrors {
     error NameNotEmancipated(bytes name);
 
     error InvalidTransferData();
-
+    error InvalidTransferOwner();
     error InvalidTransferAmount();
 
     error TokenNodeMismatch(uint256 tokenId, bytes32 node);
