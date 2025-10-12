@@ -5,7 +5,8 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {INameWrapper, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
+//import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
+//import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {TransferData} from "../../common/bridge/types/TransferData.sol";
@@ -56,7 +57,7 @@ contract WrapperRegistry is
         IRegistryMetadata metadataProvider
     )
         PermissionedRegistry(datastore, metadataProvider, _msgSender(), 0)
-        WrapperReceiver(nameWrapper, migratedRegistryFactory)
+        WrapperReceiver(nameWrapper, migratedRegistryFactory, address(this))
     {
         FALLBACK_RESOLVER = fallbackResolver;
         _disableInitializers();
@@ -100,19 +101,28 @@ contract WrapperRegistry is
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
+    // TODO: lib/verifiable-factory is not upgradeable
+    // /// @dev Required override for UUPSUpgradeable - restricts upgrade permissions
+    // function _authorizeUpgrade(
+    //     address
+    // ) internal override onlyRootRoles(RegistryRolesLib.ROLE_UPGRADE) {}
+
     /// @inheritdoc IMigratedWrappedNameRegistry
     function parentName() external view returns (bytes memory) {
         return NAME_WRAPPER.names(parentNode);
     }
 
+    /// @inheritdoc PermissionedRegistry
+    /// @dev Restore the latest resolver to `FALLBACK_RESOLVER` upon visiting migrateable children.
     function getResolver(
         string calldata label
-    ) external view override(IRegistry, PermissionedRegistry) returns (address) {
-        (, IRegistryDatastore.Entry memory entry) = getNameData(label);
-        if (_isExpired(entry.expiry)) {
-            return FALLBACK_RESOLVER; // unregistered children resolver in V1
+    ) public view override(IRegistry, PermissionedRegistry) returns (address) {
+        bytes32 node = NameCoder.namehash(parentNode, keccak256(bytes(label)));
+        (address owner, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(node));
+        if (owner != address(this) && (fuses & PARENT_CANNOT_CONTROL) != 0) {
+            return FALLBACK_RESOLVER;
         }
-        return entry.resolver;
+        return super.getResolver(label);
     }
 
     function _inject(TransferData memory td) internal override returns (uint256 tokenId) {
@@ -127,6 +137,8 @@ contract WrapperRegistry is
             );
     }
 
+    /// @inheritdoc PermissionedRegistry
+    /// @dev Prevent registration of emancipated children.
     function _register(
         string memory label,
         address owner,
@@ -135,8 +147,6 @@ contract WrapperRegistry is
         uint256 roleBitmap,
         uint64 expiry
     ) internal override returns (uint256 tokenId) {
-        // If the name is emancipated (PARENT_CANNOT_CONTROL burned),
-        // it must be migrated (owned by this registry)
         bytes32 node = NameCoder.namehash(parentNode, keccak256(bytes(label)));
         (, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(node));
         if ((fuses & PARENT_CANNOT_CONTROL) != 0) {
@@ -147,9 +157,5 @@ contract WrapperRegistry is
 
     function _parentNode() internal view override returns (bytes32) {
         return parentNode;
-    }
-
-    function _registryImplementation() internal view override returns (address) {
-        return ERC1967Utils.getImplementation();
     }
 }

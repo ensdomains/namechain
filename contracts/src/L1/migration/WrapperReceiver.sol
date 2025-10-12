@@ -45,6 +45,7 @@ abstract contract WrapperReceiver is ERC165, IERC1155Receiver {
 
     INameWrapper public immutable NAME_WRAPPER;
     VerifiableFactory public immutable MIGRATED_REGISTRY_FACTORY;
+    address public immutable MIGRATED_REGISTRY_IMPL;
 
     ////////////////////////////////////////////////////////////////////////
     // Modifiers
@@ -76,9 +77,14 @@ abstract contract WrapperReceiver is ERC165, IERC1155Receiver {
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
-    constructor(INameWrapper nameWrapper, VerifiableFactory migratedRegistryFactory) {
+    constructor(
+        INameWrapper nameWrapper,
+        VerifiableFactory migratedRegistryFactory,
+        address migratedRegistryImpl
+    ) {
         NAME_WRAPPER = nameWrapper;
         MIGRATED_REGISTRY_FACTORY = migratedRegistryFactory;
+        MIGRATED_REGISTRY_IMPL = migratedRegistryImpl;
     }
 
     /// @inheritdoc IERC165
@@ -147,7 +153,6 @@ abstract contract WrapperReceiver is ERC165, IERC1155Receiver {
             revert IERC1155Errors.ERC1155InvalidArrayLength(ids.length, mds.length);
         }
         bytes32 parentNode = _parentNode();
-        address registryImpl = _registryImplementation();
         TransferData memory td;
         for (uint256 i; i < ids.length; ++i) {
             // never happens: caught by ERC1155Fuse
@@ -158,7 +163,7 @@ abstract contract WrapperReceiver is ERC165, IERC1155Receiver {
             // }
             IMigratedWrappedNameRegistry.Data memory md = mds[i];
             if (bytes32(ids[i]) != md.node) {
-                revert TransferErrors.TokenNodeMismatch(ids[i], mds[i].node);
+                revert TransferErrors.TokenNodeMismatch(ids[i], md.node);
             }
             if (md.owner == address(0)) {
                 revert TransferErrors.InvalidTransferOwner();
@@ -181,25 +186,19 @@ abstract contract WrapperReceiver is ERC165, IERC1155Receiver {
                 revert TransferErrors.NameNotEmancipated(name);
             }
 
-            // PermissionedRegistry._register() => NameAlreadyRegistered
-            // wont happen by construction
-
-            // PermissionedRegistry._register() => CannotSetPastExpiration
-            // wont happen as this operation is synchronous
-
-            // PermissionedRegistry._register() => _grantRoles() => _checkRoleBitmap()
-            // wont happen as roles are correct by construction
-
             // copy expiry
             if ((fuses & IS_DOT_ETH) != 0) {
                 fuses &= ~CAN_EXTEND_EXPIRY; // 2LD is always renewable by anyone
                 td.expiry = uint64(NAME_WRAPPER.registrar().nameExpires(uint256(labelHash))); // does not revert
-                // NameWrapper subtracts GRACE_PERIOD from expiry during _beforeTransfer()
-                // therefore the following holds by construction:
-                assert(td.expiry >= block.timestamp);
             } else {
                 td.expiry = expiry;
             }
+            // NameWrapper subtracts GRACE_PERIOD from expiry during _beforeTransfer()
+            // https://github.com/ensdomains/ens-contracts/blob/staging/contracts/wrapper/NameWrapper.sol#L822
+            // expired names cannot be transferred:
+            assert(td.expiry >= block.timestamp);
+            // PermissionedRegistry._register() => CannotSetPastExpiration
+            // wont happen as this operation is synchronous
 
             if ((fuses & CANNOT_SET_RESOLVER) != 0) {
                 td.resolver = NAME_WRAPPER.ens().resolver(md.node); // copy V1 resolver
@@ -208,6 +207,8 @@ abstract contract WrapperReceiver is ERC165, IERC1155Receiver {
             }
 
             (uint256 tokenRoles, uint256 subRegistryRoles) = _generateRoleBitmapsFromFuses(fuses);
+            // PermissionedRegistry._register() => _grantRoles() => _checkRoleBitmap()
+            // wont happen as roles are correct by construction
 
             // configure transfer
             td.label = label; // safe by construction
@@ -217,7 +218,7 @@ abstract contract WrapperReceiver is ERC165, IERC1155Receiver {
 
             // create subregistry
             td.subregistry = MIGRATED_REGISTRY_FACTORY.deployProxy(
-                registryImpl,
+                MIGRATED_REGISTRY_IMPL,
                 md.salt,
                 abi.encodeCall(
                     IMigratedWrappedNameRegistry.initialize,
@@ -233,7 +234,9 @@ abstract contract WrapperReceiver is ERC165, IERC1155Receiver {
             );
 
             // add name to V2
-            _inject(td); // md.owner could reject transfer
+            _inject(td);
+            // PermissionedRegistry._register() => NameAlreadyRegistered
+            // ERC1155._safeTransferFrom() => ERC1155InvalidReceiver
 
             // Burn all migration fuses
             NAME_WRAPPER.setFuses(md.node, uint16(FUSES_TO_BURN));
@@ -244,9 +247,11 @@ abstract contract WrapperReceiver is ERC165, IERC1155Receiver {
 
     function _parentNode() internal view virtual returns (bytes32);
 
-    // TODO: just use immutable?
-    function _registryImplementation() internal view virtual returns (address);
-
+    /// @notice Generates role bitmaps based on fuses
+    /// @dev Returns two bitmaps: tokenRoles for the name registration and subRegistryRoles for the registry owner
+    /// @param fuses The current fuses on the name
+    /// @return tokenRoles The role bitmap for the owner on their name in their parent registry.
+    /// @return subRegistryRoles The role bitmap for the owner on their name's subregistry.
     function _generateRoleBitmapsFromFuses(
         uint32 fuses
     ) internal pure returns (uint256 tokenRoles, uint256 subRegistryRoles) {

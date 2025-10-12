@@ -17,8 +17,6 @@ contract LockedMigrationController2 is WrapperReceiver {
 
     L1BridgeController public immutable L1_BRIDGE_CONTROLLER;
 
-    address public immutable MIGRATED_REGISTRY_IMPL;
-
     ////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////
@@ -28,9 +26,8 @@ contract LockedMigrationController2 is WrapperReceiver {
         L1BridgeController l1BridgeController,
         VerifiableFactory migratedRegistryFactory,
         address migratedRegistryImpl
-    ) WrapperReceiver(nameWrapper, migratedRegistryFactory) {
+    ) WrapperReceiver(nameWrapper, migratedRegistryFactory, migratedRegistryImpl) {
         L1_BRIDGE_CONTROLLER = l1BridgeController;
-        MIGRATED_REGISTRY_IMPL = migratedRegistryImpl;
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -39,10 +36,6 @@ contract LockedMigrationController2 is WrapperReceiver {
 
     function _inject(TransferData memory td) internal override returns (uint256 tokenId) {
         return L1_BRIDGE_CONTROLLER.completeEjectionToL1(td);
-    }
-
-    function _registryImplementation() internal view override returns (address) {
-        return MIGRATED_REGISTRY_IMPL;
     }
 
     function _parentNode() internal pure override returns (bytes32) {

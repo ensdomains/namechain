@@ -181,7 +181,7 @@ contract MigratedWrappedNameRegistry is
 
     function getResolver(
         string calldata label
-    ) external view override(IRegistry, PermissionedRegistry) returns (address) {
+    ) public view override(IRegistry, PermissionedRegistry) returns (address) {
         (, IRegistryDatastore.Entry memory entry) = getNameData(label);
         // Use fallback resolver for unregistered names
         if (_isExpired(entry.expiry)) {
