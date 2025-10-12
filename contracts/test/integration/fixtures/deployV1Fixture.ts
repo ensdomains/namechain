@@ -103,7 +103,8 @@ export async function deployV1Fixture(
       ]);
     }
     // set resolver on leaf
-    await ensRegistry.write.setResolver([namehash(name), resolverAddress]);
-    return { labels };
+    const node = namehash(name);
+    await ensRegistry.write.setResolver([node, resolverAddress]);
+    return { name, labels, resolverAddress, node };
   }
 }

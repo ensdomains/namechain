@@ -44,6 +44,8 @@ contract MockNameWrapper {
     mapping(uint256 tokenId => address owner) public owners;
     mapping(uint256 tokenId => address resolver) public resolvers;
 
+    ENS public ens;
+
     function setFuseData(uint256 tokenId, uint32 _fuses, uint64 _expiry) external {
         fuses[tokenId] = _fuses;
         expiries[tokenId] = _expiry;
@@ -109,6 +111,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
     address owner = address(this);
     address user = address(0x1234);
+    address fallbackResolver = address(0);
 
     string testLabel = "test";
     uint256 testTokenId;
@@ -124,11 +127,11 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         factory = new VerifiableFactory();
         implementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(0)), // mock ENS registry
-            factory,
             IPermissionedRegistry(address(registry)), // ethRegistry
+            factory,
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         // Setup eth registry

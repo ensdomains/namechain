@@ -5,16 +5,16 @@ import {CCIPReader} from "@ens/contracts/ccipRead/CCIPReader.sol";
 import {IGatewayProvider} from "@ens/contracts/ccipRead/IGatewayProvider.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
-import {
-    RegistryUtils as RegistryUtilsV1,
-    ENS
-} from "@ens/contracts/universalResolver/RegistryUtils.sol";
+import {RegistryUtils, ENS} from "@ens/contracts/universalResolver/RegistryUtils.sol";
 import {ResolverCaller} from "@ens/contracts/universalResolver/ResolverCaller.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-/// @notice Resolver that performs ".eth" resolutions for V1.
-contract ETHTLDV1Resolver is IExtendedResolver, IERC7996, ResolverCaller, ERC165 {
+/// @notice Resolver that performs resolutions using ENSv1.
+///
+/// Basically an UniversalResolverV1 (ResolverCaller + RegistryUtils) that implements IExtendedResolver.
+///
+contract ENSV1Resolver is IExtendedResolver, IERC7996, ResolverCaller, ERC165 {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
@@ -59,7 +59,7 @@ contract ETHTLDV1Resolver is IExtendedResolver, IERC7996, ResolverCaller, ERC165
         bytes calldata name,
         bytes calldata data
     ) external view returns (bytes memory) {
-        (address resolver, , ) = RegistryUtilsV1.findResolver(REGISTRY_V1, name, 0);
+        (address resolver, , ) = RegistryUtils.findResolver(REGISTRY_V1, name, 0);
         callResolver(resolver, name, data, BATCH_GATEWAY_PROVIDER.gateways());
     }
 }

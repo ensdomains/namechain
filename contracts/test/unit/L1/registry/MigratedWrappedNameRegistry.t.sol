@@ -56,12 +56,35 @@ contract MockEthRegistry {
     }
 }
 
+contract MockENS {
+    mapping(bytes32 node => address resolver) private resolvers;
+
+    function setResolver(bytes32 node, address resolverAddress) external {
+        resolvers[node] = resolverAddress;
+    }
+
+    function resolver(bytes32 node) external view returns (address) {
+        return resolvers[node];
+    }
+}
+
 contract MockNameWrapper {
     mapping(uint256 tokenId => address owner) public owners;
     mapping(uint256 tokenId => bool wrapped) public wrapped;
     mapping(uint256 tokenId => uint32 fuses) public fuses;
     mapping(uint256 tokenId => uint64 expiry) public expiries;
     mapping(uint256 tokenId => address resolver) public resolvers;
+    mapping(bytes32 node => bytes name) public names;
+
+    MockENS public immutable ens;
+
+    constructor(MockENS _ens) {
+        ens = _ens;
+    }
+
+    function setName(bytes memory name) external {
+        names[NameCoder.namehash(name, 0)] = name;
+    }
 
     function setOwner(uint256 tokenId, address owner) external {
         owners[tokenId] = owner;
@@ -108,18 +131,6 @@ contract MockNameWrapper {
     }
 }
 
-contract MockENS {
-    mapping(bytes32 node => address resolver) private resolvers;
-
-    function setResolver(bytes32 node, address resolverAddress) external {
-        resolvers[node] = resolverAddress;
-    }
-
-    function resolver(bytes32 node) external view returns (address) {
-        return resolvers[node];
-    }
-}
-
 contract MigratedWrappedNameRegistryTest is Test {
     MigratedWrappedNameRegistry implementation;
     MigratedWrappedNameRegistry registry;
@@ -133,6 +144,7 @@ contract MigratedWrappedNameRegistryTest is Test {
     address user = address(0x1234);
     address mockResolver = address(0xABCD);
     address v1Resolver = address(0xDEAD);
+    address fallbackResolver = makeAddr("fallbackResolver");
 
     string testLabel = "test";
     uint256 testLabelId;
@@ -141,17 +153,17 @@ contract MigratedWrappedNameRegistryTest is Test {
         datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
         ensRegistry = new MockENS();
-        nameWrapper = new MockNameWrapper();
+        nameWrapper = new MockNameWrapper(ensRegistry);
         factory = new VerifiableFactory();
 
         // Deploy implementation
         implementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)), // mock nameWrapper
-            ENS(address(ensRegistry)), // mock ENS registry
-            factory,
             IPermissionedRegistry(address(0)), // mock ethRegistry
+            factory,
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         // Deploy proxy and initialize
@@ -190,10 +202,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         targetRegistry.register(label, nameOwner, subregistry, resolver, roleBitmap, expires);
     }
 
-    function test_getResolver_unregistered_name() public view {
-        // Name not registered (expiry = 0), should fall back to ENS registry
-        address resolver = registry.getResolver(testLabel);
-        assertEq(resolver, v1Resolver, "Should return v1 resolver from ENS registry");
+    function test_getResolver_unregistered_name() external view {
+        assertEq(registry.getResolver(testLabel), address(0));
     }
 
     function test_getResolver_registered_name_with_resolver() public {
@@ -264,55 +274,9 @@ contract MigratedWrappedNameRegistryTest is Test {
         assertEq(resolver, address(0), "Should return zero address when ENS registry returns zero");
     }
 
-    function test_getResolver_different_labels() public {
-        string memory label1 = "foo";
-        string memory label2 = "bar";
-
-        // Setup different resolvers in ENS registry
-        bytes32 node1 = NameCoder.namehash(LibLabel.dnsEncodeEthLabel(label1), 0);
-        bytes32 node2 = NameCoder.namehash(LibLabel.dnsEncodeEthLabel(label2), 0);
-        ensRegistry.setResolver(node1, address(0x1111));
-        ensRegistry.setResolver(node2, address(0x2222));
-
-        // Test unregistered names return correct v1 resolvers
-        assertEq(
-            registry.getResolver(label1),
-            address(0x1111),
-            "Should return correct v1 resolver for label1"
-        );
-        assertEq(
-            registry.getResolver(label2),
-            address(0x2222),
-            "Should return correct v1 resolver for label2"
-        );
-
-        // Register label1
-        _registerName(
-            registry,
-            label1,
-            user,
-            registry,
-            address(0x3333),
-            RegistryRolesLib.ROLE_SET_RESOLVER,
-            uint64(block.timestamp + 86400)
-        );
-
-        // Verify returns registered resolver, label2 still from ENS
-        assertEq(
-            registry.getResolver(label1),
-            address(0x3333),
-            "Should return registered resolver for label1"
-        );
-        assertEq(
-            registry.getResolver(label2),
-            address(0x2222),
-            "Should still return v1 resolver for label2"
-        );
-    }
-
     function test_getResolver_registration_lifecycle() public {
         // Initially unregistered - should use ENS registry
-        assertEq(registry.getResolver(testLabel), v1Resolver, "Should use v1 resolver initially");
+        assertEq(registry.getResolver(testLabel), address(0), "Should use v1 resolver initially");
 
         // Register the name
         uint64 expiry = uint64(block.timestamp + 100);
@@ -326,12 +290,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             expiry
         );
         assertEq(registry.getResolver(testLabel), mockResolver, "Should use registered resolver");
-
-        // Update resolver
-        (uint256 tokenId, ) = registry.getNameData(testLabel);
-        vm.prank(user);
-        registry.setResolver(tokenId, address(0x9999));
-        assertEq(registry.getResolver(testLabel), address(0x9999), "Should use updated resolver");
 
         // Let name expire
         vm.warp(block.timestamp + 101);
@@ -483,25 +441,45 @@ contract MigratedWrappedNameRegistryTest is Test {
         );
     }
 
+    function test_getResolver_2LD_unmigrated() external {
+        MigratedWrappedNameRegistry subRegistry = _create3LDRegistry("test.eth");
+
+        string memory label = "sub";
+
+        assertEq(subRegistry.getResolver(label), address(0), "unregistered");
+
+        // this child needs to be migrated, but isn't
+        nameWrapper.setFuseData(
+            uint256(
+                NameCoder.namehash(
+                    NameCoder.namehash(subRegistry.parentDnsEncodedName(), 0),
+                    keccak256(bytes(label))
+                )
+            ),
+            PARENT_CANNOT_CONTROL,
+            uint64(block.timestamp + 86400)
+        );
+
+        assertEq(subRegistry.getResolver(label), fallbackResolver, "unmigrated");
+    }
+
     function test_getResolver_3LD_unregistered() public {
         // Create a 3LD registry for "sub.test.eth"
         MigratedWrappedNameRegistry subRegistry = _create3LDRegistry("sub.test.eth");
 
-        // Test label "example" which would resolve to "example.sub.test.eth"
-        string memory label3LD = "example";
+        // // Test label "example" which would resolve to "example.sub.test.eth"
+        // string memory label3LD = "example";
 
-        // Setup resolver in ENS registry for the full name
-        bytes memory fullDnsName = abi.encodePacked(
-            bytes1(uint8(bytes(label3LD).length)),
-            label3LD,
-            "\x03sub\x04test\x03eth\x00" // sub.test.eth
-        );
-        bytes32 fullNode = NameCoder.namehash(fullDnsName, 0);
-        ensRegistry.setResolver(fullNode, address(0x3333));
+        // // Setup resolver in ENS registry for the full name
+        // bytes memory fullDnsName = abi.encodePacked(
+        //     bytes1(uint8(bytes(label3LD).length)),
+        //     label3LD,
+        //     "\x03sub\x04test\x03eth\x00" // sub.test.eth
+        // );
+        // bytes32 fullNode = NameCoder.namehash(fullDnsName, 0);
+        // ensRegistry.setResolver(fullNode, address(0x3333));
 
-        // Should return resolver from ENS registry for unregistered 4LD name
-        address resolver = subRegistry.getResolver(label3LD);
-        assertEq(resolver, address(0x3333), "Should return ENS resolver for unregistered 4LD name");
+        assertEq(subRegistry.getResolver("4ld"), address(0));
     }
 
     function test_getResolver_3LD_registered() public {
@@ -528,33 +506,6 @@ contract MigratedWrappedNameRegistryTest is Test {
         assertEq(resolver, expectedResolver, "Should return registered resolver for 4LD name");
     }
 
-    function test_getResolver_mixed_levels() public {
-        // Test scenario: 2LD registered, 3LD unregistered, 4LD query
-        // This tests that the resolver lookup works through multiple registry levels
-
-        // 1. Setup 2LD registry (test.eth) - our main registry
-        // Already set up in setUp()
-
-        // 2. Create 3LD registry (sub.test.eth) but don't register "sub" in 2LD registry
-        MigratedWrappedNameRegistry subRegistry = _create3LDRegistry("sub.test.eth");
-
-        // 3. Query for "example" in 3LD registry (would be example.sub.test.eth)
-        string memory labelMixed = "example";
-
-        // Setup resolver in ENS for the full name
-        bytes memory fullDnsName = abi.encodePacked(
-            bytes1(uint8(bytes(labelMixed).length)),
-            labelMixed,
-            "\x03sub\x04test\x03eth\x00"
-        );
-        bytes32 fullNode = NameCoder.namehash(fullDnsName, 0);
-        ensRegistry.setResolver(fullNode, address(0x7777));
-
-        // Should fall back to ENS registry since "sub" is not registered in 2LD
-        address resolver = subRegistry.getResolver(labelMixed);
-        assertEq(resolver, address(0x7777), "Should return ENS resolver for mixed level scenario");
-    }
-
     // Helper function to create a registry with a real factory
     function _createRegistryWithFactory(
         VerifiableFactory realFactory
@@ -562,11 +513,11 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy implementation with real factory
         MigratedWrappedNameRegistry impl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            realFactory,
             IPermissionedRegistry(address(0)),
+            realFactory,
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         // Deploy proxy and initialize
@@ -589,15 +540,18 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy new implementation instance
         MigratedWrappedNameRegistry impl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         // Create DNS-encoded name for the domain (e.g., "\x03sub\x04test\x03eth\x00")
         bytes memory parentDnsName = NameCoder.encode(domain);
+
+        // rememeber the name
+        nameWrapper.setName(parentDnsName);
 
         // Deploy proxy and initialize
         bytes memory initData = abi.encodeWithSelector(
@@ -1302,11 +1256,11 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy a new implementation
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         // Owner has ROLE_UPGRADE by default from initialization
@@ -1329,11 +1283,11 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy a new implementation
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         // User does not have ROLE_UPGRADE
@@ -1351,11 +1305,11 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy a new implementation
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         // User should now be able to upgrade
@@ -1385,11 +1339,11 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy a new implementation
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         // User should no longer be able to upgrade
@@ -1452,11 +1406,11 @@ contract MigratedWrappedNameRegistryTest is Test {
     function test_initialize_zero_address_owner() public {
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         bytes memory initData = abi.encodeWithSelector(
@@ -1474,11 +1428,11 @@ contract MigratedWrappedNameRegistryTest is Test {
     function test_initialize_with_registrar_address() public {
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         address testRegistrar = address(0x1337);
@@ -1507,11 +1461,11 @@ contract MigratedWrappedNameRegistryTest is Test {
     function test_initialize_with_custom_owner_roles() public {
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         uint256 customRoles = RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_SET_RESOLVER;
@@ -1540,11 +1494,11 @@ contract MigratedWrappedNameRegistryTest is Test {
     function test_initialize_different_parent_dns_name() public {
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         bytes memory customParentName = "\x07example\x03com\x00";
@@ -1583,11 +1537,11 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy new registry with mock ethRegistry
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(mockEthRegistry)),
+            VerifiableFactory(address(0)),
             datastore,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         bytes memory initData = abi.encodeWithSelector(

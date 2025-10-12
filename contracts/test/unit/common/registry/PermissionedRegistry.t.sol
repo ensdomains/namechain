@@ -50,7 +50,6 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER;
     uint256 constant NO_ROLES_ROLE_BITMAP = 0;
 
-    address owner = makeAddr("owner");
     address user1 = makeAddr("user1");
 
     // all roles
@@ -263,7 +262,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     function test_register_unlocked() public {
         uint256 tokenId = registry.register(
             "test2",
-            owner,
+            user1,
             registry,
             address(0),
             DEFAULT_ROLE_BITMAP,
@@ -275,14 +274,14 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY,
-                owner
+                user1
             )
         );
         assertTrue(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
                 RegistryRolesLib.ROLE_SET_RESOLVER,
-                owner
+                user1
             )
         );
     }
@@ -290,7 +289,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     function test_register_locked() public {
         uint256 tokenId = registry.register(
             "test2",
-            owner,
+            user1,
             registry,
             address(0),
             NO_ROLES_ROLE_BITMAP,
@@ -302,14 +301,14 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY,
-                owner
+                user1
             )
         );
         assertFalse(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
                 RegistryRolesLib.ROLE_SET_RESOLVER,
-                owner
+                user1
             )
         );
     }
@@ -317,7 +316,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     function test_register_locked_subregistry() public {
         uint256 tokenId = registry.register(
             "test2",
-            owner,
+            user1,
             registry,
             address(0),
             LOCKED_SUBREGISTRY_ROLE_BITMAP,
@@ -329,14 +328,14 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY,
-                owner
+                user1
             )
         );
         assertTrue(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
                 RegistryRolesLib.ROLE_SET_RESOLVER,
-                owner
+                user1
             )
         );
     }
@@ -344,7 +343,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     function test_register_locked_resolver() public {
         uint256 tokenId = registry.register(
             "test2",
-            owner,
+            user1,
             registry,
             address(0),
             LOCKED_RESOLVER_ROLE_BITMAP,
@@ -356,14 +355,14 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY,
-                owner
+                user1
             )
         );
         assertFalse(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
                 RegistryRolesLib.ROLE_SET_RESOLVER,
-                owner
+                user1
             )
         );
     }
@@ -556,7 +555,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         uint256 roleBitmap = DEFAULT_ROLE_BITMAP | RegistryRolesLib.ROLE_BURN;
         uint256 tokenId = registry.register(
             "test2",
-            owner,
+            user1,
             registry,
             address(0),
             roleBitmap,
@@ -568,18 +567,18 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY,
-                owner
+                user1
             )
         );
         assertTrue(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
                 RegistryRolesLib.ROLE_SET_RESOLVER,
-                owner
+                user1
             )
         );
 
-        vm.prank(owner);
+        vm.prank(user1);
         registry.burn(tokenId);
 
         // Verify roles are revoked after burning
@@ -587,14 +586,14 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY,
-                owner
+                user1
             )
         );
         assertFalse(
             registry.hasRoles(
                 registry.testGetResourceFromTokenId(tokenId),
                 RegistryRolesLib.ROLE_SET_RESOLVER,
-                owner
+                user1
             )
         );
     }
@@ -1133,7 +1132,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         address owner = makeAddr("owner");
 
         // Verify name has never been registered (entry.expiry should be 0)
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        ( /*uint256 tokenId*/, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
         assertEq(entry.expiry, 0, "Name should never have been registered before");
         assertEq(entry.eacVersionId, 0, "Initial eacVersionId should be 0");
 
@@ -2565,7 +2564,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     function testCanonicalIdOptimization() public {
         uint256 tokenId = registry.register(
             "optimization",
-            owner,
+            user1,
             registry,
             address(0),
             DEFAULT_ROLE_BITMAP,

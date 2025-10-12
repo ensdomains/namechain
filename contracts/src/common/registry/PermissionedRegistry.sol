@@ -146,7 +146,7 @@ contract PermissionedRegistry is
 
     function getResolver(
         string calldata label
-    ) external view virtual override(BaseRegistry, IRegistry) returns (address) {
+    ) public view virtual override(BaseRegistry, IRegistry) returns (address) {
         uint256 canonicalId = LibLabel.labelToCanonicalId(label);
         IRegistryDatastore.Entry memory entry = DATASTORE.getEntry(address(this), canonicalId);
         return _isExpired(entry.expiry) ? address(0) : entry.resolver;

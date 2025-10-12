@@ -49,11 +49,11 @@ contract MigratedWrappedNameRegistry is
 
     INameWrapper public immutable NAME_WRAPPER;
 
-    ENS public immutable ENS_REGISTRY;
-
     VerifiableFactory public immutable FACTORY;
 
     IPermissionedRegistry public immutable ETH_REGISTRY;
+
+    address public immutable FALLBACK_RESOLVER;
 
     ////////////////////////////////////////////////////////////////////////
     // Storage
@@ -72,17 +72,17 @@ contract MigratedWrappedNameRegistry is
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        INameWrapper nameWrapper_,
-        ENS ensRegistry_,
-        VerifiableFactory factory_,
-        IPermissionedRegistry ethRegistry_,
-        IRegistryDatastore datastore_,
-        IRegistryMetadata metadataProvider_
-    ) PermissionedRegistry(datastore_, metadataProvider_, _msgSender(), 0) {
-        NAME_WRAPPER = nameWrapper_;
-        ENS_REGISTRY = ensRegistry_;
-        FACTORY = factory_;
-        ETH_REGISTRY = ethRegistry_;
+        INameWrapper nameWrapper,
+        IPermissionedRegistry ethRegistry,
+        VerifiableFactory factory,
+        IRegistryDatastore datastore,
+        IRegistryMetadata metadataProvider,
+        address fallbackResolver
+    ) PermissionedRegistry(datastore, metadataProvider, _msgSender(), 0) {
+        NAME_WRAPPER = nameWrapper;
+        ETH_REGISTRY = ethRegistry;
+        FACTORY = factory;
+        FALLBACK_RESOLVER = fallbackResolver;
         // Prevents initialization on the implementation contract
         _disableInitializers();
     }
@@ -173,36 +173,20 @@ contract MigratedWrappedNameRegistry is
         return this.onERC1155BatchReceived.selector;
     }
 
-    function getResolver(string calldata label) external view override returns (address) {
-        uint256 canonicalId = LibLabel.labelToCanonicalId(label);
-        IRegistryDatastore.Entry memory entry = DATASTORE.getEntry(address(this), canonicalId);
-        uint64 expires = entry.expiry;
-
-        // Use fallback resolver for unregistered names
-        if (expires == 0) {
-            // Construct complete domain name for registry lookup
-            bytes memory dnsEncodedName = abi.encodePacked(
-                bytes1(uint8(bytes(label).length)),
-                label,
-                parentDnsEncodedName
-            );
-
-            // Retrieve resolver from legacy registry system
-            (address resolverAddress, , ) = RegistryUtils.findResolver(
-                ENS_REGISTRY,
-                dnsEncodedName,
-                0
-            );
-            return resolverAddress;
+    /// @inheritdoc PermissionedRegistry
+    /// @dev Restore the latest resolver to `FALLBACK_RESOLVER` upon visiting migratable children.
+    function getResolver(
+        string calldata label
+    ) public view override(PermissionedRegistry) returns (address) {
+        bytes32 node = NameCoder.namehash(
+            NameCoder.namehash(parentDnsEncodedName, 0),
+            keccak256(bytes(label))
+        );
+        (address owner, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(node));
+        if (owner != address(this) && (fuses & PARENT_CANNOT_CONTROL) != 0) {
+            return FALLBACK_RESOLVER;
         }
-
-        // Return no resolver for expired names
-        if (expires <= block.timestamp) {
-            return address(0);
-        }
-
-        // Return the configured resolver for registered names
-        return entry.resolver;
+        return super.getResolver(label);
     }
 
     ////////////////////////////////////////////////////////////////////////
