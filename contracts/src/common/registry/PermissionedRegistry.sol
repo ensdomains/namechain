@@ -136,22 +136,6 @@ contract PermissionedRegistry is
         return super.ownerOf(tokenId);
     }
 
-    function getSubregistry(
-        string calldata label
-    ) external view virtual override(BaseRegistry, IRegistry) returns (IRegistry) {
-        uint256 canonicalId = LibLabel.labelToCanonicalId(label);
-        IRegistryDatastore.Entry memory entry = DATASTORE.getEntry(address(this), canonicalId);
-        return IRegistry(_isExpired(entry.expiry) ? address(0) : entry.subregistry);
-    }
-
-    function getResolver(
-        string calldata label
-    ) public view virtual override(BaseRegistry, IRegistry) returns (address) {
-        uint256 canonicalId = LibLabel.labelToCanonicalId(label);
-        IRegistryDatastore.Entry memory entry = DATASTORE.getEntry(address(this), canonicalId);
-        return _isExpired(entry.expiry) ? address(0) : entry.resolver;
-    }
-
     function register(
         string calldata label,
         address owner,
@@ -218,6 +202,22 @@ contract PermissionedRegistry is
         address account
     ) public override(EnhancedAccessControl, IEnhancedAccessControl) returns (bool) {
         return super.revokeRoles(_getResourceFromTokenId(tokenId), roleBitmap, account);
+    }
+
+    function getSubregistry(
+        string calldata label
+    ) public view virtual override(BaseRegistry, IRegistry) returns (IRegistry) {
+        uint256 canonicalId = LibLabel.labelToCanonicalId(label);
+        IRegistryDatastore.Entry memory entry = DATASTORE.getEntry(address(this), canonicalId);
+        return IRegistry(_isExpired(entry.expiry) ? address(0) : entry.subregistry);
+    }
+
+    function getResolver(
+        string calldata label
+    ) public view virtual override(BaseRegistry, IRegistry) returns (address) {
+        uint256 canonicalId = LibLabel.labelToCanonicalId(label);
+        IRegistryDatastore.Entry memory entry = DATASTORE.getEntry(address(this), canonicalId);
+        return _isExpired(entry.expiry) ? address(0) : entry.resolver;
     }
 
     function uri(uint256 tokenId) public view override returns (string memory) {
