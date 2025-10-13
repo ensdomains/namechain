@@ -1,7 +1,7 @@
 import { type Hex, Log, parseEventLogs, TransactionReceipt } from "viem";
 import type { CrossChainEnvironment, ChainDeployment } from "./setup.js";
 
-function print(...a: any[]) {
+function print(...a: unknown[]) {
   console.log("   -", ...a);
 }
 
@@ -13,7 +13,7 @@ export type MockRelay = ReturnType<typeof setupMockRelay>;
 
 export type MockRelayReceipt =
   | TransactionReceipt
-  | { status: "error"; error: any };
+  | { status: "error"; error: unknown };
 
 async function send(chain: ChainDeployment, message: Hex, expected = false) {
   const errorPrefix = `receiveMessage() failed ${chain.arrow}:`;
@@ -54,7 +54,7 @@ export function setupMockRelay(env: CrossChainEnvironment) {
       // process sequentially to avoid nonce issues
       try {
         bucket.push(await send(chain.rx, log.args.message, pending.has(tx)));
-      } catch (error: any) {
+      } catch (error: unknown) {
         bucket.push({ status: "error", error });
       }
     }
