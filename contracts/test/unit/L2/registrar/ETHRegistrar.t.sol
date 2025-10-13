@@ -6,7 +6,7 @@ pragma solidity >=0.8.13;
 import {Test} from "forge-std/Test.sol";
 
 import {IERC20Errors, IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 import {StandardPricing} from "./StandardPricing.sol";
@@ -33,7 +33,12 @@ import {
     PaymentRatio,
     DiscountPoint
 } from "~src/L2/registrar/StandardRentPriceOracle.sol";
-import {MockERC20, MockERC20Blacklist} from "~test/mocks/MockERC20.sol";
+import {
+    MockERC20,
+    MockERC20Blacklist,
+    MockERC20VoidReturn,
+    MockERC20FalseReturn
+} from "~test/mocks/MockERC20.sol";
 
 contract ETHRegistrarTest is Test {
     PermissionedRegistry ethRegistry;
@@ -44,6 +49,8 @@ contract ETHRegistrarTest is Test {
     MockERC20 tokenUSDC;
     MockERC20 tokenDAI;
     MockERC20Blacklist tokenBlack;
+    MockERC20VoidReturn tokenVoid;
+    MockERC20FalseReturn tokenFalse;
 
     address user = makeAddr("user");
     address beneficiary = makeAddr("beneficiary");
@@ -59,11 +66,15 @@ contract ETHRegistrarTest is Test {
         tokenUSDC = new MockERC20("USDC", 6);
         tokenDAI = new MockERC20("DAI", 18);
         tokenBlack = new MockERC20Blacklist();
+        tokenVoid = new MockERC20VoidReturn();
+        tokenFalse = new MockERC20FalseReturn();
 
-        PaymentRatio[] memory paymentRatios = new PaymentRatio[](3);
+        PaymentRatio[] memory paymentRatios = new PaymentRatio[](5);
         paymentRatios[0] = StandardPricing.ratioFromStable(tokenUSDC);
         paymentRatios[1] = StandardPricing.ratioFromStable(tokenDAI);
         paymentRatios[2] = StandardPricing.ratioFromStable(tokenBlack);
+        paymentRatios[3] = StandardPricing.ratioFromStable(tokenVoid);
+        paymentRatios[4] = StandardPricing.ratioFromStable(tokenFalse);
 
         rentPriceOracle = new StandardRentPriceOracle(
             address(this),
@@ -79,9 +90,9 @@ contract ETHRegistrarTest is Test {
         ethRegistrar = new ETHRegistrar(
             ethRegistry,
             beneficiary,
-            1 minutes, // minCommitmentAge
-            1 days, // maxCommitmentAge
-            28 days, // minRegisterDuration
+            StandardPricing.MIN_COMMITMENT_AGE,
+            StandardPricing.MAX_COMMITMENT_AGE,
+            StandardPricing.MIN_REGISTER_DURATION,
             rentPriceOracle
         );
 
@@ -98,6 +109,31 @@ contract ETHRegistrarTest is Test {
         }
 
         vm.warp(rentPriceOracle.premiumPeriod()); // avoid timestamp issues
+    }
+
+    function test_constructor() external view {
+        assertEq(address(ethRegistrar.REGISTRY()), address(ethRegistry), "REGISTRY");
+        assertEq(ethRegistrar.BENEFICIARY(), address(beneficiary), "BENEFICIARY");
+        assertEq(
+            ethRegistrar.MIN_COMMITMENT_AGE(),
+            StandardPricing.MIN_COMMITMENT_AGE,
+            "MIN_COMMITMENT_AGE"
+        );
+        assertEq(
+            ethRegistrar.MAX_COMMITMENT_AGE(),
+            StandardPricing.MAX_COMMITMENT_AGE,
+            "MAX_COMMITMENT_AGE"
+        );
+        assertEq(
+            ethRegistrar.MIN_REGISTER_DURATION(),
+            StandardPricing.MIN_REGISTER_DURATION,
+            "MIN_REGISTER_DURATION"
+        );
+        assertEq(
+            address(ethRegistrar.rentPriceOracle()),
+            address(rentPriceOracle),
+            "rentPriceOracle"
+        );
     }
 
     function test_Revert_constructor_emptyRange() external {
@@ -179,6 +215,8 @@ contract ETHRegistrarTest is Test {
         assertTrue(rentPriceOracle.isPaymentToken(tokenUSDC), "USDC");
         assertTrue(rentPriceOracle.isPaymentToken(tokenDAI), "DAI");
         assertTrue(rentPriceOracle.isPaymentToken(tokenBlack), "Black");
+        assertTrue(rentPriceOracle.isPaymentToken(tokenVoid), "Void");
+        assertTrue(rentPriceOracle.isPaymentToken(tokenFalse), "False");
         assertFalse(rentPriceOracle.isPaymentToken(IERC20(address(0))));
     }
 
@@ -519,10 +557,6 @@ contract ETHRegistrarTest is Test {
         );
     }
 
-    function test_beneficiary_set() external view {
-        assertEq(ethRegistrar.BENEFICIARY(), beneficiary);
-    }
-
     function test_beneficiary_register() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         (uint256 base, ) = ethRegistrar.rentPrice(
@@ -614,5 +648,20 @@ contract ETHRegistrarTest is Test {
             newOwner,
             "Token should be transferred to new owner"
         );
+    }
+
+    function test_voidReturn_acceptedBySafeERC20() public {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        args.paymentToken = tokenVoid;
+        this._register(args);
+    }
+
+    function test_falseReturn_rejectedBySafeERC20() public {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        args.paymentToken = tokenFalse;
+        vm.expectRevert(
+            abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, tokenFalse)
+        );
+        this._register(args);
     }
 }
