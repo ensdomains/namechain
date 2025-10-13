@@ -1,7 +1,8 @@
 import { artifacts, execute } from "@rocketh";
-import { MAX_EXPIRY, ROLES } from "../constants.js";
+import { MAX_EXPIRY, ROLES } from "../constants.ts";
+import { zeroAddress } from "viem";
 
- // TODO: ownership
+// TODO: ownership
 export default execute(
   async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
     const rootRegistry =
@@ -13,9 +14,6 @@ export default execute(
     const registryMetadata = get<
       (typeof artifacts.SimpleRegistryMetadata)["abi"]
     >("SimpleRegistryMetadata");
-
-    const ethTLDResolver =
-      get<(typeof artifacts.ETHTLDResolver)["abi"]>("ETHTLDResolver");
 
     const ethRegistry = await deploy("ETHRegistry", {
       account: deployer,
@@ -31,23 +29,11 @@ export default execute(
     await write(rootRegistry, {
       account: deployer,
       functionName: "register",
-      args: [
-        "eth",
-        deployer, 
-        ethRegistry.address,
-        ethTLDResolver.address,
-        0n,
-        MAX_EXPIRY,
-      ],
+      args: ["eth", deployer, ethRegistry.address, zeroAddress, 0n, MAX_EXPIRY],
     });
   },
   {
     tags: ["ETHRegistry", "l1"],
-    dependencies: [
-      "RootRegistry",
-      "RegistryDatastore",
-      "RegistryMetadata",
-      "ETHTLDResolver",
-    ],
+    dependencies: ["RootRegistry", "RegistryDatastore", "RegistryMetadata"],
   },
 );

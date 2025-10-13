@@ -34,7 +34,7 @@ library LibRegistry {
         (exactRegistry, resolver, node, resolverOffset) = findResolver(rootRegistry, name, next);
         // if there was a parent registry...
         if (address(exactRegistry) != address(0)) {
-            string memory label = readLabel(name, offset);
+            (string memory label, ) = NameCoder.extractLabel(name, offset);
             // remember the resolver (if it exists)
             address res = exactRegistry.getResolver(label);
             if (res != address(0)) {
@@ -63,7 +63,7 @@ library LibRegistry {
         }
         IRegistry parent = findExactRegistry(rootRegistry, name, next);
         if (address(parent) != address(0)) {
-            string memory label = readLabel(name, offset);
+            (string memory label, ) = NameCoder.extractLabel(name, offset);
             exactRegistry = parent.getSubregistry(label);
         }
     }
@@ -82,24 +82,6 @@ library LibRegistry {
         (bytes32 labelHash, uint256 next) = NameCoder.readLabel(name, offset);
         if (labelHash != bytes32(0)) {
             parentRegistry = findExactRegistry(rootRegistry, name, next);
-        }
-    }
-
-    /// @dev Read label at offset from a DNS-encoded name.
-    ///      eg. `readLabel("\x03abc\x00", 0) = "abc"`.
-    ///
-    /// @param name The DNS-encoded name.
-    /// @param offset The offset into `name`.
-    ///
-    /// @return label The label.
-    function readLabel(
-        bytes memory name,
-        uint256 offset
-    ) internal pure returns (string memory label) {
-        (uint8 size, ) = NameCoder.nextLabel(name, offset);
-        label = new string(size);
-        assembly {
-            mcopy(add(label, 32), add(add(name, 33), offset), size)
         }
     }
 }

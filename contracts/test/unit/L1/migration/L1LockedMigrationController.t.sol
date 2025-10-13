@@ -5,6 +5,7 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {
     INameWrapper,
@@ -30,7 +31,6 @@ import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1LockedMigrationController} from "~src/L1/migration/L1LockedMigrationController.sol";
 import {LockedNamesLib} from "~src/L1/migration/libraries/LockedNamesLib.sol";
@@ -164,7 +164,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -206,7 +206,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data - the roleBitmap should be ignored completely
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -273,7 +273,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -299,7 +299,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -325,7 +325,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Use wrong label that doesn't match tokenId
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel("wronglabel"), // This won't match testTokenId
+                dnsEncodedName: NameCoder.ethName("wronglabel"), // This won't match testTokenId
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -354,7 +354,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
     function test_Revert_unauthorized_caller() public {
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -392,11 +392,11 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
             // DNS encode each label as .eth domain
             bytes memory dnsEncodedName;
             if (i == 0) {
-                dnsEncodedName = LibLabel.dnsEncodeEthLabel("test1");
+                dnsEncodedName = NameCoder.ethName("test1");
             } else if (i == 1) {
-                dnsEncodedName = LibLabel.dnsEncodeEthLabel("test2");
+                dnsEncodedName = NameCoder.ethName("test2");
             } else {
-                dnsEncodedName = LibLabel.dnsEncodeEthLabel("test3");
+                dnsEncodedName = NameCoder.ethName("test3");
             }
 
             migrationDataArray[i] = MigrationData({
@@ -454,7 +454,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         uint256 saltData = uint256(keccak256(abi.encodePacked(testLabel, uint256(999))));
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -497,7 +497,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data - incoming roleBitmap should be ignored
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -562,7 +562,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -612,7 +612,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -677,7 +677,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -742,7 +742,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -798,7 +798,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -825,7 +825,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data with user as owner
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -878,7 +878,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -929,7 +929,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),

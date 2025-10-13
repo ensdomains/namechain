@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {INameWrapper, CAN_EXTEND_EXPIRY} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
@@ -132,12 +133,12 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165 {
             migrationDataArray[i].transferData.roleBitmap = tokenRoles;
 
             // Ensure name data consistency for migration
-            string memory label = LibLabel.extractLabel(
-                migrationDataArray[i].transferData.dnsEncodedName
+            (bytes32 labelHash, ) = NameCoder.readLabel(
+                migrationDataArray[i].transferData.dnsEncodedName,
+                0
             );
-            uint256 expectedTokenId = uint256(keccak256(bytes(label)));
-            if (tokenIds[i] != expectedTokenId) {
-                revert TokenIdMismatch(tokenIds[i], expectedTokenId);
+            if (tokenIds[i] != uint256(labelHash)) {
+                revert TokenIdMismatch(tokenIds[i], uint256(labelHash));
             }
 
             // Process the locked name migration through bridge
