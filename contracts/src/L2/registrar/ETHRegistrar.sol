@@ -171,8 +171,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             REGISTRY.latestOwnerOf(tokenId),
             duration,
             paymentToken
-        ); // reverts if !isValid or !isPaymentToken
-        // TODO: custom error
+        ); // reverts if !isValid or !isPaymentToken or duration is 0
         require(paymentToken.transferFrom(_msgSender(), BENEFICIARY, base)); // reverts if payment failed
         REGISTRY.renew(tokenId, expires);
         emit NameRenewed(tokenId, label, duration, expires, paymentToken, referrer, base);
