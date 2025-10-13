@@ -259,10 +259,9 @@ describe("ETHTLDResolver", () => {
       await expect(F.ethTLDResolver.read.isResolverOffchain([dns]))
         .toBeRevertedWithCustomError("UnreachableName")
         .withArgs([dns]);
-      // await expect(
-      //   F.ethTLDResolver.read.getResolver([dnsEncodeName("eth")]),
-      //   "getResolver",
-      // ).resolves.toStrictEqual([resolverAddress, false]);
+      await expect(F.ethTLDResolver.read.getResolver([dns]))
+        .toBeRevertedWithCustomError("UnreachableName")
+        .withArgs([dns]);
     });
     it("dne", async () => {
       const F = await loadFixture();
