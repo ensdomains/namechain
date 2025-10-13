@@ -2,24 +2,17 @@ import { artifacts, execute } from "@rocketh";
 import { ROLES } from "../constants.js";
 
 export default execute(
-  async ({
-    deploy,
-    read,
-    execute: write,
-    get,
-    namedAccounts: { deployer },
-  }) => {
+  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
     const nameWrapperV1 =
       get<(typeof artifacts.NameWrapper)["abi"]>("NameWrapper");
 
     const bridgeController =
       get<(typeof artifacts.L1BridgeController)["abi"]>("BridgeController");
 
-    const MigratedWrappedNameRegistryFactory = get<
-      (typeof artifacts.VerifiableFactory)["abi"]
-    >("MigratedWrappedNameRegistryFactory");
+    const verifiableFactory =
+      get<(typeof artifacts.VerifiableFactory)["abi"]>("VerifiableFactory");
 
-    const MigratedWrappedNameRegistryImpl = get<
+    const migratedWrappedNameRegistryImpl = get<
       (typeof artifacts.MigratedWrappedNameRegistry)["abi"]
     >("MigratedWrappedNameRegistryImpl");
 
@@ -29,12 +22,10 @@ export default execute(
         account: deployer,
         artifact: artifacts.L1LockedMigrationController,
         args: [
-          await read(nameWrapperV1, { functionName: "registrar" }), // TODO: remove
           nameWrapperV1.address,
-          await read(bridgeController, { functionName: "BRIDGE" }), // TODO: remove
           bridgeController.address,
-          MigratedWrappedNameRegistryFactory.address,
-          MigratedWrappedNameRegistryImpl.address,
+          verifiableFactory.address,
+          migratedWrappedNameRegistryImpl.address,
         ],
       },
     );
@@ -50,8 +41,8 @@ export default execute(
     dependencies: [
       "NameWrapper",
       "BridgeController",
+      "VerifiableFactory",
       "MigratedWrappedNameRegistryImpl",
-      "MigratedWrappedNameRegistryFactory",
     ],
   },
 );

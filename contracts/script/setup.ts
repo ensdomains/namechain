@@ -50,7 +50,7 @@ const renames: Record<string, string> = {
 const sharedContracts = {
   RegistryDatastore: artifacts.RegistryDatastore.abi,
   SimpleRegistryMetadata: artifacts.SimpleRegistryMetadata.abi,
-  DedicatedResolverFactory: artifacts.VerifiableFactory.abi,
+  VerifiableFactory: artifacts.VerifiableFactory.abi,
   DedicatedResolverImpl: artifacts.DedicatedResolver.abi,
   // common
   MockBridge: artifacts.MockBridgeBase.abi,
@@ -205,7 +205,7 @@ export class ChainDeployment<
   deployDedicatedResolver(account: Account, salt?: bigint) {
     return deployVerifiableProxy({
       walletClient: createClient(this.transport, this.client.chain, account),
-      factoryAddress: this.contracts.DedicatedResolverFactory.address,
+      factoryAddress: this.contracts.VerifiableFactory.address,
       implAddress: this.contracts.DedicatedResolverImpl.address,
       implAbi: this.contracts.DedicatedResolverImpl.abi,
       salt,

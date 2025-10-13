@@ -20,9 +20,8 @@ export default execute(
       "BatchGatewayProvider",
     );
 
-    const verifiableFactory = get<(typeof artifacts.VerifiableFactory)["abi"]>(
-      "DedicatedResolverFactory",
-    );
+    const verifiableFactory =
+      get<(typeof artifacts.VerifiableFactory)["abi"]>("VerifiableFactory");
 
     const dedicatedResolverImpl = get<
       (typeof artifacts.DedicatedResolver)["abi"]
@@ -82,6 +81,7 @@ export default execute(
   {
     tags: ["ETHTLDResolver", "l1"],
     dependencies: [
+      "VerifiableFactory",
       "DedicatedResolver",
       "BaseRegistrarImplementation", // "ENSRegistry"
       "BatchGatewayProvider",

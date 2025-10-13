@@ -2,13 +2,7 @@ import { artifacts, execute } from "@rocketh";
 import { ROLES } from "../constants.js";
 
 export default execute(
-  async ({
-    deploy,
-    read,
-    execute: write,
-    get,
-    namedAccounts: { deployer },
-  }) => {
+  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
     const nameWrapperV1 =
       get<(typeof artifacts.NameWrapper)["abi"]>("NameWrapper");
 
@@ -20,12 +14,7 @@ export default execute(
       {
         account: deployer,
         artifact: artifacts.L1UnlockedMigrationController,
-        args: [
-          await read(nameWrapperV1, { functionName: "registrar" }), // TODO: remove
-          nameWrapperV1.address,
-          await read(bridgeController, { functionName: "BRIDGE" }), // TODO: remove
-          bridgeController.address,
-        ],
+        args: [nameWrapperV1.address, bridgeController.address],
       },
     );
 

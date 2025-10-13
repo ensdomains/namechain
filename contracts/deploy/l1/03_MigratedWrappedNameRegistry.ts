@@ -1,7 +1,7 @@
 import { artifacts, execute } from "@rocketh";
 
 export default execute(
-  async ({ deploy, get, read, namedAccounts: { deployer } }) => {
+  async ({ deploy, get, namedAccounts: { deployer } }) => {
     const nameWrapperV1 =
       get<(typeof artifacts.NameWrapper)["abi"]>("NameWrapper");
 
@@ -15,19 +15,16 @@ export default execute(
       (typeof artifacts.SimpleRegistryMetadata)["abi"]
     >("SimpleRegistryMetadata");
 
-    const factory = await deploy("MigratedWrappedNameRegistryFactory", {
-      account: deployer,
-      artifact: artifacts.VerifiableFactory,
-    });
+    const verifiableFactory =
+      get<(typeof artifacts.VerifiableFactory)["abi"]>("VerifiableFactory");
 
     await deploy("MigratedWrappedNameRegistryImpl", {
       account: deployer,
       artifact: artifacts.MigratedWrappedNameRegistry,
       args: [
         nameWrapperV1.address,
-        await read(nameWrapperV1, { functionName: "ens" }), // TODO remove
-        factory.address,
         ethRegistry.address,
+        verifiableFactory.address,
         registryDatastore.address,
         registryMetadata.address,
       ],
@@ -35,6 +32,6 @@ export default execute(
   },
   {
     tags: ["MigratedWrappedNameRegistry", "l1"],
-    dependencies: ["NameWrapper", "ETHRegistry"],
+    dependencies: ["NameWrapper", "ETHRegistry", "VerifiableFactory"],
   },
 );

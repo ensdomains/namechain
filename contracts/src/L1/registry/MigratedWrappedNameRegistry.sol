@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {RegistryUtils} from "@ens/contracts/universalResolver/RegistryUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {INameWrapper, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
@@ -44,12 +43,11 @@ contract MigratedWrappedNameRegistry is
     // Constants
     ////////////////////////////////////////////////////////////////////////
 
+    // TODO: these clobbers ROLE_CAN_TRANSFER_ADMIN and should be in RegistryRolesLib
     uint256 internal constant _ROLE_UPGRADE = 1 << 20;
     uint256 internal constant _ROLE_UPGRADE_ADMIN = _ROLE_UPGRADE << 128;
 
     INameWrapper public immutable NAME_WRAPPER;
-
-    ENS public immutable ENS_REGISTRY;
 
     VerifiableFactory public immutable FACTORY;
 
@@ -72,17 +70,15 @@ contract MigratedWrappedNameRegistry is
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        INameWrapper nameWrapper_,
-        ENS ensRegistry_,
-        VerifiableFactory factory_,
-        IPermissionedRegistry ethRegistry_,
-        IRegistryDatastore datastore_,
-        IRegistryMetadata metadataProvider_
-    ) PermissionedRegistry(datastore_, metadataProvider_, _msgSender(), 0) {
-        NAME_WRAPPER = nameWrapper_;
-        ENS_REGISTRY = ensRegistry_;
-        FACTORY = factory_;
-        ETH_REGISTRY = ethRegistry_;
+        INameWrapper nameWrapper,
+        IPermissionedRegistry ethRegistry,
+        VerifiableFactory factory,
+        IRegistryDatastore datastore,
+        IRegistryMetadata metadataProvider
+    ) PermissionedRegistry(datastore, metadataProvider, _msgSender(), 0) {
+        NAME_WRAPPER = nameWrapper;
+        ETH_REGISTRY = ethRegistry;
+        FACTORY = factory;
         // Prevents initialization on the implementation contract
         _disableInitializers();
     }
@@ -189,7 +185,7 @@ contract MigratedWrappedNameRegistry is
 
             // Retrieve resolver from legacy registry system
             (address resolverAddress, , ) = RegistryUtils.findResolver(
-                ENS_REGISTRY,
+                NAME_WRAPPER.ens(),
                 dnsEncodedName,
                 0
             );
