@@ -5,7 +5,6 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {
     INameWrapper,
@@ -75,10 +74,6 @@ contract MockNameWrapper {
     }
 }
 
-contract MockBaseRegistrar {
-    // Empty mock - we'll force cast it to IBaseRegistrar
-}
-
 contract MockBridge is IBridge {
     bytes public lastMessage;
 
@@ -100,7 +95,6 @@ contract MockRegistryMetadata is IRegistryMetadata {
 contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
     L1LockedMigrationController controller;
     MockNameWrapper nameWrapper;
-    MockBaseRegistrar baseRegistrar;
     MockBridge bridge;
     L1BridgeController bridgeController;
     RegistryDatastore datastore;
@@ -118,7 +112,6 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
     function setUp() public {
         nameWrapper = new MockNameWrapper();
-        baseRegistrar = new MockBaseRegistrar();
         bridge = new MockBridge();
         datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
@@ -153,9 +146,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         bridgeController.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(controller));
 
         controller = new L1LockedMigrationController(
-            IBaseRegistrar(address(baseRegistrar)),
             INameWrapper(address(nameWrapper)),
-            bridge,
             bridgeController,
             factory,
             address(implementation)

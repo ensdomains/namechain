@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { expectVar } from "../../utils/expectVar.js";
 import { labelToCanonicalId } from "../../utils/utils.js";
-import { deployV2Fixture, ROLES } from "./deployV2Fixture.js";
+import { deployV2Fixture } from "./deployV2Fixture.js";
+import { ROLES } from "../../../deploy/constants.js";
 
 const chain = await hre.network.connect();
 async function fixture() {

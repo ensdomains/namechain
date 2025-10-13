@@ -42,6 +42,7 @@ contract MigratedWrappedNameRegistry is
     // Constants
     ////////////////////////////////////////////////////////////////////////
 
+    // TODO: these clobbers ROLE_CAN_TRANSFER_ADMIN and should be in RegistryRolesLib
     uint256 internal constant _ROLE_UPGRADE = 1 << 20;
     uint256 internal constant _ROLE_UPGRADE_ADMIN = _ROLE_UPGRADE << 128;
 
