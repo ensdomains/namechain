@@ -38,7 +38,7 @@ import {
     MockERC20Blacklist,
     MockERC20VoidReturn,
     MockERC20FalseReturn
-} from "~src/mocks/MockERC20.sol";
+} from "~test/mocks/MockERC20.sol";
 
 contract ETHRegistrarTest is Test {
     PermissionedRegistry ethRegistry;
