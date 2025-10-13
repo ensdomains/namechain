@@ -2,16 +2,14 @@ import { artifacts, execute } from "@rocketh";
 import { ROLES } from "../constants.js";
 
 export default execute(
-  async ({ deploy, execute: write, get, namedAccounts: { deployer} }) => {
-
+  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
     const l1EthRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
     // TODO: real bridge
-    const l1Bridge =
-      get<(typeof artifacts.MockL1Bridge)["abi"]>("MockL1Bridge");
+    const l1Bridge = get<(typeof artifacts.MockL1Bridge)["abi"]>("MockBridge");
 
-    const l1BridgeController = await deploy("L1BridgeController", {
+    const l1BridgeController = await deploy("BridgeController", {
       account: deployer,
       artifact: artifacts.L1BridgeController,
       args: [l1EthRegistry.address, l1Bridge.address],
@@ -28,7 +26,9 @@ export default execute(
     await write(l1EthRegistry, {
       functionName: "grantRootRoles",
       args: [
-        ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW | ROLES.OWNER.EAC.BURN,
+        ROLES.OWNER.EAC.REGISTRAR |
+          ROLES.OWNER.EAC.RENEW |
+          ROLES.OWNER.EAC.BURN,
         l1BridgeController.address,
       ],
       account: deployer,
@@ -37,10 +37,7 @@ export default execute(
     // Grant bridge roles to the bridge on the bridge controller
     await write(l1BridgeController, {
       functionName: "grantRootRoles",
-      args: [
-        ROLES.OWNER.BRIDGE.EJECTOR,
-        l1Bridge.address,
-      ],
+      args: [ROLES.OWNER.BRIDGE.EJECTOR, l1Bridge.address],
       account: deployer,
     });
   },
