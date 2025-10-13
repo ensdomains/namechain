@@ -102,14 +102,13 @@ const l2Contracts = {
 } as const satisfies DeployedArtifacts;
 
 export type CrossChainSnapshot = () => Promise<void>;
+export type CrossChainClient = ReturnType<typeof createClient>;
 export type CrossChainEnvironment = Awaited<
   ReturnType<typeof setupCrossChainEnvironment>
 >;
 
 export type L1Deployment = ChainDeployment<typeof l1Contracts>;
 export type L2Deployment = ChainDeployment<typeof l2Contracts>;
-
-export type CrossChainClient = ReturnType<typeof createClient>;
 
 function ansi(c: any, s: any) {
   return `\x1b[${c}m${s}\x1b[0m`;

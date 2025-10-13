@@ -13,6 +13,7 @@ import {
   namehash,
   parseAbi,
   toHex,
+  zeroAddress,
 } from "viem";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 
@@ -21,9 +22,9 @@ import { UncheckedRollup } from "../../../lib/unruggable-gateways/src/UncheckedR
 import { expectVar } from "../../utils/expectVar.js";
 import { injectRPCCounter } from "../../utils/hardhat-counter.js";
 import {
+  type KnownProfile,
   COIN_TYPE_DEFAULT,
   COIN_TYPE_ETH,
-  type KnownProfile,
   PROFILE_ABI,
   bundleCalls,
   makeResolutions,
@@ -129,7 +130,7 @@ const loadFixture = async () => {
 
 const dummySelector = "0x12345678";
 const testAddress = "0x8000000000000000000000000000000000000001";
-const testNames = ["test.eth", "a.b.c.test.eth"];
+const testNames = ["test.eth", "a.b.c.test.eth"] as const;
 
 describe("ETHTLDResolver", () => {
   const rpcs: Record<string, any> = {};
@@ -206,7 +207,7 @@ describe("ETHTLDResolver", () => {
     });
   });
 
-  describe("eth", () => {
+  describe("<self>", () => {
     it("ethResolver", async () => {
       const F = await loadFixture();
       const address = await F.ethTLDResolver.read.ethResolver();
@@ -235,6 +236,94 @@ describe("ETHTLDResolver", () => {
         ]);
       expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
       res.expect(answer);
+    });
+  });
+
+  describe("introspection", () => {
+    it("<self>", async () => {
+      const F = await loadFixture();
+      const resolverAddress = await F.ethTLDResolver.read.ethResolver();
+      const dns = dnsEncodeName("eth");
+      await expect(
+        F.ethTLDResolver.read.isResolverOffchain([dns]),
+        "isResolverOffchain",
+      ).resolves.toStrictEqual(false);
+      await expect(
+        F.ethTLDResolver.read.getResolver([dns]),
+        "getResolver",
+      ).resolves.toStrictEqual([resolverAddress, false]);
+    });
+    it("not .eth", async () => {
+      const F = await loadFixture();
+      const dns = dnsEncodeName("com");
+      await expect(F.ethTLDResolver.read.isResolverOffchain([dns]))
+        .toBeRevertedWithCustomError("UnreachableName")
+        .withArgs([dns]);
+      // await expect(
+      //   F.ethTLDResolver.read.getResolver([dnsEncodeName("eth")]),
+      //   "getResolver",
+      // ).resolves.toStrictEqual([resolverAddress, false]);
+    });
+    it("dne", async () => {
+      const F = await loadFixture();
+      const name = testNames[0];
+      const dns = dnsEncodeName(name);
+      await sync();
+      await expect(
+        F.ethTLDResolver.read.isActiveRegistrationV1([
+          keccak256(toHex(getLabelAt(name))),
+        ]),
+        "isActiveRegistrationV1",
+      ).resolves.toStrictEqual(false);
+      await expect(
+        F.ethTLDResolver.read.isResolverOffchain([dns]),
+        "isResolverOffchain",
+      ).resolves.toStrictEqual(true);
+      await expect(
+        F.ethTLDResolver.read.getResolver([dns]),
+        "getResolver",
+      ).resolves.toStrictEqual([zeroAddress, true]);
+    });
+    it("Mainnet V1", async () => {
+      const F = await loadFixture();
+      const name = testNames[0];
+      const dns = dnsEncodeName(name);
+      const { resolverAddress } = await F.mainnetV1.setupName({ name });
+      await expect(
+        F.ethTLDResolver.read.isActiveRegistrationV1([
+          keccak256(toHex(getLabelAt(name))),
+        ]),
+        "isActiveRegistrationV1",
+      ).resolves.toStrictEqual(true);
+      await expect(
+        F.ethTLDResolver.read.isResolverOffchain([dns]),
+        "isResolverOffchain",
+      ).resolves.toStrictEqual(false);
+      await expect(
+        F.ethTLDResolver.read.getResolver([dns]),
+        "getResolver",
+      ).resolves.toStrictEqual([resolverAddress, false]);
+    });
+    it("Namechain", async () => {
+      const F = await loadFixture();
+      const name = testNames[0];
+      const dns = dnsEncodeName(name);
+      const { resolverAddress } = await F.namechain.setupName({ name });
+      await sync();
+      await expect(
+        F.ethTLDResolver.read.isActiveRegistrationV1([
+          keccak256(toHex(getLabelAt(name))),
+        ]),
+        "isActiveRegistrationV1",
+      ).resolves.toStrictEqual(false);
+      await expect(
+        F.ethTLDResolver.read.isResolverOffchain([dns]),
+        "isResolverOffchain",
+      ).resolves.toStrictEqual(true);
+      await expect(
+        F.ethTLDResolver.read.getResolver([dns]),
+        "getResolver",
+      ).resolves.toStrictEqual([resolverAddress, true]);
     });
   });
 

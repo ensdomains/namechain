@@ -34,6 +34,9 @@ import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRe
 
 import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
 import {
+    ICompositeExtendedResolver
+} from "../../common/resolver/interfaces/ICompositeExtendedResolver.sol";
+import {
     DedicatedResolverLayoutLib
 } from "../../common/resolver/libraries/DedicatedResolverLayoutLib.sol";
 import {LibLabel} from "../../common/utils/LibLabel.sol";
@@ -47,7 +50,7 @@ import {L1BridgeController} from "../bridge/L1BridgeController.sol";
 /// 2. Otherwise, resolve using Namechain.
 /// 3. If no resolver is found, reverts `UnreachableName`.
 contract ETHTLDResolver is
-    IExtendedResolver,
+    ICompositeExtendedResolver,
     IERC7996,
     GatewayFetchTarget,
     ResolverCaller,
@@ -109,7 +112,7 @@ contract ETHTLDResolver is
         address namechainEthRegistry
     ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
         NAME_WRAPPER = nameWrapper;
-        ETH_REGISTRAR_V1 = IBaseRegistrar(nameWrapper.ens().owner(NameCoder.ETH_NODE));
+        ETH_REGISTRAR_V1 = nameWrapper.registrar();
         BATCH_GATEWAY_PROVIDER = batchGatewayProvider;
         L1_BRIDGE_CONTROLLER = l1BridgeController;
         NAMECHAIN_DATASTORE = namechainDatastore;
@@ -125,6 +128,7 @@ contract ETHTLDResolver is
     ) public view virtual override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
+            type(ICompositeExtendedResolver).interfaceId == interfaceId ||
             type(IERC7996).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
@@ -172,20 +176,20 @@ contract ETHTLDResolver is
         }
     }
 
-    /// @dev Return `true` if `name` does not exist onchain.
-    function isResolverOffchain(bytes memory name) external view returns (bool offchain) {
+    /// @inheritdoc ICompositeExtendedResolver
+    function isResolverOffchain(bytes calldata name) external view returns (bool offchain) {
         (, offchain) = _determineResolver(name);
     }
 
-    /// @notice Determine underlying resolver and location for `name`.
+    /// @inheritdoc ICompositeExtendedResolver
     /// @dev This function executes over multiple steps.
-    ///
-    /// @param name The DNS-encoded name.
-    ///
-    /// @return resolver The resolver address.
-    /// @return offchain If `true`, `resolver` is on Namechain, otherwise on Mainnet.
+    /// * `getResolver("eth") = (ethResolver, false)`
+    /// * `getResolver(<not .eth>)` reverts
+    /// * `getResolver(<unmigrated .eth>) = (<L1 resolver>, false)`
+    /// * `getResolver(<namechain .eth>) = (<L2 resolver>, true)`
+    /// * `getResolver(*.eth) = (address(0), true)`
     function getResolver(
-        bytes memory name
+        bytes calldata name
     ) external view returns (address resolver, bool offchain) {
         (resolver, offchain) = _determineResolver(name);
         if (offchain) {
@@ -203,7 +207,7 @@ contract ETHTLDResolver is
         uint8 /*exitCode*/,
         bytes calldata /*extraData*/
     ) external pure returns (address resolver, bool offchain) {
-        resolver = abi.decode(values[1], (address));
+        resolver = address(uint160(uint256(bytes32(values[1]))));
         offchain = true;
     }
 

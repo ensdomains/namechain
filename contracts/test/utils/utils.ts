@@ -53,9 +53,9 @@ export function getParentName(name: string) {
   return i == -1 ? "" : name.slice(i + 1);
 }
 
-// "a.b.c"  0 => "a"
+// "a.b.c"  0 => "a" aka firstLabel()
 //         -1 => "c"
 //          5 => ""
-export function getLabelAt(name: string, index: number) {
+export function getLabelAt(name: string, index = 0) {
   return splitName(name).at(index) ?? "";
 }

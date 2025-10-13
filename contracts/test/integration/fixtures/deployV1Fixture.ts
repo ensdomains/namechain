@@ -1,5 +1,11 @@
 import type { NetworkConnection } from "hardhat/types/network";
-import { type Address, labelhash, namehash, zeroAddress } from "viem";
+import {
+  type Address,
+  getAddress,
+  labelhash,
+  namehash,
+  zeroAddress,
+} from "viem";
 import { splitName } from "../../utils/utils.js";
 import { LOCAL_BATCH_GATEWAY_URL } from "../../../deploy/constants.js";
 
@@ -111,6 +117,6 @@ export async function deployV1Fixture(
     }
     // set resolver on leaf
     await ensRegistry.write.setResolver([namehash(name), resolverAddress]);
-    return { labels };
+    return { name, labels, resolverAddress: getAddress(resolverAddress) };
   }
 }
