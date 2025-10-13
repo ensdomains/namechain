@@ -17,11 +17,6 @@ interface IStandardRegistry is IRegistry {
      */
     event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
 
-    /**
-     * @dev Event emitted when a name is burned.
-     */
-    event NameBurned(uint256 indexed tokenId, address burnedBy);
-
     ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////

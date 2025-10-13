@@ -36,10 +36,6 @@ contract PermissionedRegistry is
 
     event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
 
-    event SubregistryUpdate(uint256 indexed id, address subregistry);
-
-    event ResolverUpdate(uint256 indexed id, address resolver);
-
     ////////////////////////////////////////////////////////////////////////
     // Modifiers
     ////////////////////////////////////////////////////////////////////////

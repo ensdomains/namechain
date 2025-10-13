@@ -13,6 +13,21 @@ interface IRegistry is IERC1155Singleton {
      */
     event NewSubname(uint256 indexed tokenId, string label);
 
+    /**
+     * @dev Event emitted when a name is burned.
+     */
+    event NameBurned(uint256 indexed tokenId, address burnedBy);
+
+    /**
+     * @dev Event emitted when a subregistry is updated.
+     */
+    event SubregistryUpdate(uint256 indexed id, address subregistry);
+
+    /**
+     * @dev Event emitted when a resolver is updated.
+     */
+    event ResolverUpdate(uint256 indexed id, address resolver);
+
     ////////////////////////////////////////////////////////////////////////
     // Functions
     ////////////////////////////////////////////////////////////////////////
