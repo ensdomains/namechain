@@ -172,10 +172,10 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             REGISTRY.latestOwnerOf(tokenId),
             duration,
             paymentToken
-        ); // reverts if !isValid or !isPaymentToken
+        ); // reverts if !isValid or !isPaymentToken or duration is 0
         SafeERC20.safeTransferFrom(paymentToken, _msgSender(), BENEFICIARY, base); // reverts if payment failed
-        REGISTRY.renew(tokenId, expiry);
-        emit NameRenewed(tokenId, label, duration, expiry, paymentToken, referrer, base);
+        REGISTRY.renew(tokenId, expires);
+        emit NameRenewed(tokenId, label, duration, expires, paymentToken, referrer, base);
     }
 
     /// @inheritdoc IRentPriceOracle

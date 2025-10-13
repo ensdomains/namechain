@@ -508,6 +508,19 @@ contract ETHRegistrarTest is Test {
         this._renew(args);
     }
 
+    function test_Revert_renew_0duration() external {
+        RegisterArgs memory args = _defaultRegisterArgs();
+        this._register(args);
+        args.duration = 0;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IRentPriceOracle.NotValid.selector,
+                args.label
+            )
+        );
+        this._renew(args);
+    }
+
     function test_Revert_renew_insufficientAllowance() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         this._register(args);
