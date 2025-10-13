@@ -11,7 +11,7 @@ interface IRegistry is IERC1155Singleton {
     /**
      * @dev SHOULD be emitted when a new label is registered
      */
-    event NewSubname(uint256 indexed tokenId, string label);
+    event NameRegistered(uint256 indexed tokenId, string label, uint64 expiration, address registeredBy);
 
     /**
      * @dev Event emitted when a name is renewed.

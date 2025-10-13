@@ -350,7 +350,7 @@ contract PermissionedRegistry is
 
         emit ResolverUpdate(tokenId, resolver);
 
-        emit NewSubname(tokenId, label);
+        emit NameRegistered(tokenId, label, expires, owner);
 
         return tokenId;
     }
