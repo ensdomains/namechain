@@ -132,9 +132,9 @@ ENSv2 uses **Enhanced Access Control (EAC)**, a general-purpose access control m
 
 **Permission Inheritance**: When checking permissions for a resource, EAC combines (via bitwise OR) the roles from:
 - The specific resource (e.g., your name's permissions)
-- The root resource (global permissions set by registry owner)
+- The root resource (global permissions)
 
-This means root permissions are **unrevokable by name owners** - only the registry owner can remove them.
+In the case of registry, this means root permissions are **unrevokable by name owners** - only holders of admin roles in the root resource can remove those roles.
 
 #### EAC in Registry Contracts
 
@@ -142,7 +142,7 @@ In registry contracts, EAC is used with these specific behaviors:
 
 **Resource ID Generation**: Resource IDs are generated from token IDs to maintain key invariants:
 - Each time a name expires and is re-registered, it gets a new token ID and resource ID (clearing old permissions)
-- Each time a new role is granted on a name, the token ID changes (preventing frontrunning during sales/transfers)
+- Each time a new role is granted on a name, the token ID changes (preventing griefing attacks during sales/transfers)
 
 **Registry-Specific Roles**: From [`RegistryRolesLib.sol`](src/common/registry/libraries/RegistryRolesLib.sol):
 
@@ -163,7 +163,7 @@ In registry contracts, EAC is used with these specific behaviors:
 1. **Admin Role Capabilities**
    - Admin roles can grant/revoke both the base role and the admin role itself
    - In registries, **only the name owner can hold admin roles**
-   - Admin roles automatically transfer with ownership
+   - All roles currently held by an owner transfer with owernship
    - **Why this restriction?** To prevent granting admin rights to another account and retaining control after a transfer. While theoretically secure (auditable), this was judged too risky.
 
 2. **Transfer Behavior**
@@ -263,7 +263,8 @@ interface IRegistry is IERC1155Singleton {
 Universal storage contract for all registries. Reduces storage proof complexity for L2 resolution.
 
 **Key Functions**:
-- `getEntry(address registry, uint256 tokenId)`: Fetch subregistry and resolver
+- `getEntry(address registry, uint256 tokenId)`: Fetch an entry
+- `setEntry(address registry, uint256 id, Entry calldata entry)`: Set an entry
 - `setSubregistry(uint256 tokenId, address subregistry)`: Update subregistry (caller must be registry)
 - `setResolver(uint256 tokenId, address resolver)`: Update resolver
 
@@ -380,7 +381,7 @@ Exists in v1? → Use legacy resolver
 #### `L1BridgeController` - L1 Name Management
 [src/L1/bridge/L1BridgeController.sol](src/L1/bridge/L1BridgeController.sol)
 
-Manages ejected names on L1 and handles re-import to L2.
+Handles ejected names on L1 triggered by transferring name to bridge controller.
 
 #### Migration Controllers
 - `L1LockedMigrationController`: Handles ENSv1 → ENSv2 migration on L1 for locked names
