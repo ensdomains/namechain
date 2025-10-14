@@ -65,7 +65,7 @@ Token IDs regenerate on significant state changes (expiry, permission updates) t
 #### Key Properties
 
 1. **Token ID** (`uint256`): External id representing a name
-   - Different tokenIds can exist for the same name (e.g., after expiry/re-registration)
+   - tokenIds change as their access control rules change or the names have regenerated after expiry/re-registration
    - Lower 32 bits may encode version, timestamp, or other metadata
 
 2. **Canonical ID** (`uint256`): Internal stable storage key derived from token ID
