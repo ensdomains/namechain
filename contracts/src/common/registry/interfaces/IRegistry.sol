@@ -33,6 +33,12 @@ interface IRegistry is IERC1155Singleton {
      */
     event ResolverUpdate(uint256 indexed id, address resolver);
 
+    /**
+     * @dev Event emitted when a token is regenerated with a new token ID.
+     *      This occurs when roles are granted or revoked to maintain ERC1155 compliance.
+     */
+    event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
+
     ////////////////////////////////////////////////////////////////////////
     // Functions
     ////////////////////////////////////////////////////////////////////////
