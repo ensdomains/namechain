@@ -369,11 +369,13 @@ async function fetchRegistrations(
         first: $first
         skip: $skip
         orderBy: registrationDate
-        orderDirection: asc
+        orderDirection: desc
       ) {
         id
         labelName
-        registrant
+        registrant {
+          id
+        }
         expiryDate
         registrationDate
         domain {
