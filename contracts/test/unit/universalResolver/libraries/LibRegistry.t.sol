@@ -6,6 +6,7 @@ pragma solidity >=0.8.13;
 import {Test} from "forge-std/Test.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {
@@ -50,35 +51,44 @@ contract LibRegistryTest is Test, ERC1155Holder {
         rootRegistry = _createRegistry();
     }
 
-    function _expectFindResolver(
+    function _expectFind(
         bytes memory name,
         uint256 resolverOffset,
         address parentRegistry,
         IRegistry[] memory registries
     ) internal view {
-        (, address resolver, bytes32 node, uint256 offset) = LibRegistry.findResolver(
+        (, address resolver, bytes32 node, uint256 resolverOffset_) = LibRegistry.findResolver(
             rootRegistry,
             name,
             0
         );
         assertEq(resolver, resolverAddress, "resolver");
         assertEq(node, NameCoder.namehash(name, 0), "node");
-        assertEq(offset, resolverOffset, "offset");
+        assertEq(resolverOffset_, resolverOffset, "offset");
         assertEq(
             address(LibRegistry.findParentRegistry(rootRegistry, name, 0)),
             parentRegistry,
             "parent"
         );
-        uint256 i;
-        for (offset = 0; i < registries.length; i++) {
+        IRegistry[] memory regs = LibRegistry.findRegistries(rootRegistry, name, 0);
+        assertEq(registries.length, regs.length, "count");
+        for (uint256 i; i < regs.length; ++i) {
+            assertEq(
+                address(registries[i]),
+                address(regs[i]),
+                string.concat("registry[", Strings.toString(i), "]")
+            );
+        }
+        uint256 offset;
+        for (uint256 i; i < registries.length; ++i) {
             assertEq(
                 address(LibRegistry.findExactRegistry(rootRegistry, name, offset)),
-                address(registries[i]),
-                "exact"
+                address(registries[registries.length - 1 - i]),
+                string.concat("exact[", Strings.toString(i), "]")
             );
-            (, offset) = NameCoder.readLabel(name, offset);
+            (, offset) = NameCoder.nextLabel(name, offset);
         }
-        assertEq(i, registries.length, "count");
+        assertEq(offset, name.length, "length");
     }
 
     function test_findResolver_eth() external {
@@ -99,9 +109,9 @@ contract LibRegistryTest is Test, ERC1155Holder {
         vm.resumeGasMetering();
 
         IRegistry[] memory v = new IRegistry[](2);
-        v[0] = ethRegistry;
-        v[1] = rootRegistry;
-        _expectFindResolver(name, 0, address(rootRegistry), v);
+        v[0] = rootRegistry;
+        v[1] = ethRegistry;
+        _expectFind(name, 0, address(rootRegistry), v);
     }
 
     function test_findResolver_resolverOnParent() external {
@@ -117,10 +127,10 @@ contract LibRegistryTest is Test, ERC1155Holder {
         vm.resumeGasMetering();
 
         IRegistry[] memory v = new IRegistry[](3);
-        v[0] = testRegistry;
+        v[0] = rootRegistry;
         v[1] = ethRegistry;
-        v[2] = rootRegistry;
-        _expectFindResolver(name, 0, address(ethRegistry), v);
+        v[2] = testRegistry;
+        _expectFind(name, 0, address(ethRegistry), v);
     }
 
     function test_findResolver_resolverOnRoot() external {
@@ -136,10 +146,10 @@ contract LibRegistryTest is Test, ERC1155Holder {
         vm.resumeGasMetering();
 
         IRegistry[] memory v = new IRegistry[](4);
-        v[1] = testRegistry;
-        v[2] = ethRegistry;
-        v[3] = rootRegistry;
-        _expectFindResolver(name, 9, address(testRegistry), v); // 3sub4test
+        v[0] = rootRegistry;
+        v[1] = ethRegistry;
+        v[2] = testRegistry;
+        _expectFind(name, 9, address(testRegistry), v); // 3sub4test
     }
 
     function test_findResolver_virtual() external {
@@ -155,9 +165,9 @@ contract LibRegistryTest is Test, ERC1155Holder {
         vm.resumeGasMetering();
 
         IRegistry[] memory v = new IRegistry[](5);
+        v[0] = rootRegistry;
+        v[1] = ethRegistry;
         v[2] = testRegistry;
-        v[3] = ethRegistry;
-        v[4] = rootRegistry;
-        _expectFindResolver(name, 10, address(0), v); // 1a2bb4test
+        _expectFind(name, 10, address(0), v); // 1a2bb4test
     }
 }

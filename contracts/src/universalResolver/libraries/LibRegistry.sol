@@ -84,4 +84,39 @@ library LibRegistry {
             parentRegistry = findExactRegistry(rootRegistry, name, next);
         }
     }
+
+    /// @notice Find all registries in the ancestry of `name`.
+    ///
+    /// @param rootRegistry The root ENS registry.
+    /// @param name The DNS-encoded name.
+    /// @param offset The offset into `name` to begin the search.
+    ///
+    /// @return registries Array of registries in traversal order.
+    function findRegistries(
+        IRegistry rootRegistry,
+        bytes memory name,
+        uint256 offset
+    ) internal view returns (IRegistry[] memory registries) {
+        registries = new IRegistry[](1 + NameCoder.countLabels(name, offset));
+        registries[0] = rootRegistry;
+        _findRegistries(name, offset, registries, 1);
+    }
+
+    /// @dev Recursive function for building ancestory.
+    function _findRegistries(
+        bytes memory name,
+        uint256 offset,
+        IRegistry[] memory registries,
+        uint256 index
+    ) private view returns (IRegistry registry) {
+        (string memory label, uint256 nextOffset) = NameCoder.extractLabel(name, offset);
+        if (bytes(label).length == 0) {
+            return registries[0];
+        }
+        registry = _findRegistries(name, nextOffset, registries, index + 1);
+        if (address(registry) != address(0)) {
+            registry = registry.getSubregistry(label);
+            registries[registries.length - index] = registry;
+        }
+    }
 }
