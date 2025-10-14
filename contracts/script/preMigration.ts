@@ -2,7 +2,7 @@
 
 import { artifacts } from "@rocketh";
 import { Command } from "commander";
-import { writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
+import { writeFileSync, existsSync, readFileSync, rmSync, createReadStream } from "node:fs";
 import {
   createWalletClient,
   createPublicClient,
@@ -66,25 +66,7 @@ export class InvalidLabelNameError extends Error {
 
 // Types
 export interface ENSRegistration {
-  id: string;
   labelName: string;
-  registrant: string;
-  expiryDate: string;
-  registrationDate: string;
-  domain: {
-    name: string;
-    labelhash: string;
-    parent: {
-      id: string;
-    };
-  };
-}
-
-interface GraphQLResponse {
-  data: {
-    registrations: ENSRegistration[];
-  };
-  errors?: Array<{ message: string }>;
 }
 
 export interface PreMigrationConfig {
@@ -94,7 +76,7 @@ export interface PreMigrationConfig {
   registryAddress: Address;
   bridgeControllerAddress: Address;
   privateKey: `0x${string}`;
-  thegraphApiKey: string;
+  csvFilePath: string;
   batchSize: number;
   startIndex: number;
   limit: number | null;
@@ -125,17 +107,12 @@ interface RegistrationResult {
 }
 
 // Constants
-// ENS Subgraph ID (mainnet) - https://thegraph.com/explorer/subgraphs/5XqPmWe6gjyrJtFn9cLy237i4cWw2j9HcUJEXsP5qGtH
-const SUBGRAPH_ID = "5XqPmWe6gjyrJtFn9cLy237i4cWw2j9HcUJEXsP5qGtH";
-const GATEWAY_ENDPOINT = `https://gateway.thegraph.com/api/{API_KEY}/subgraphs/id/${SUBGRAPH_ID}`;
-
 const CHECKPOINT_FILE = "preMigration-checkpoint.json";
 const ERROR_LOG_FILE = "preMigration-errors.log";
 const INFO_LOG_FILE = "preMigration.log";
 const MAX_RETRIES = 3;
 
 // Configuration constants
-const RATE_LIMIT_DELAY_MS = 200;
 const RPC_TIMEOUT_MS = 30000;
 const RETRY_BASE_DELAY_MS = 1000;
 const PROGRESS_LOG_INTERVAL = 10;
@@ -354,137 +331,116 @@ export async function verifyNameOnMainnet(
   return { isRegistered, expiry };
 }
 
-// TheGraph queries
-async function fetchRegistrations(
-  config: PreMigrationConfig,
-  skip: number,
-  first: number,
-  fetchFn: typeof fetch = fetch
-): Promise<ENSRegistration[]> {
-  const endpoint = GATEWAY_ENDPOINT.replace("{API_KEY}", config.thegraphApiKey);
-
-  const query = `
-    query GetEthRegistrations($first: Int!, $skip: Int!) {
-      registrations(
-        first: $first
-        skip: $skip
-        orderBy: registrationDate
-        orderDirection: desc
-      ) {
-        id
-        labelName
-        registrant {
-          id
-        }
-        expiryDate
-        registrationDate
-        domain {
-          name
-          labelhash
-          parent {
-            id
-          }
-        }
-      }
-    }
-  `;
-
-  const response = await fetchFn(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      query,
-      variables: { first, skip },
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-  }
-
-  const result: GraphQLResponse = await response.json();
-
-  // Debug: Log the actual response structure
-  if (!result.data || !result.data.registrations) {
-    logger.error(`Unexpected TheGraph response structure: ${JSON.stringify(result, null, 2)}`);
-  }
-
-  if (result.errors) {
-    throw new Error(
-      `GraphQL error: ${result.errors.map((e) => e.message).join(", ")}`
-    );
-  }
-
-  if (!result.data || !result.data.registrations) {
-    throw new Error(`Invalid response structure from TheGraph: missing data.registrations`);
-  }
-
-  return result.data.registrations;
+// CSV reading utilities
+interface CSVRow {
+  node: string;
+  name: string;
+  labelHash: string;
+  owner: string;
+  parentName: string;
+  parentLabelHash: string;
+  labelName: string;
+  registrationDate: string;
+  expiryDate: string;
 }
 
 /**
- * Fetches all ENS registrations from TheGraph in paginated batches.
- * Loads all registrations into memory - use fetchAndRegisterInBatches for large datasets.
+ * Reads ENS registrations from a CSV file in batches.
+ * Returns an async generator that yields batches of registrations.
  *
- * @param config - Pre-migration configuration including API keys and limits
- * @param fetchFn - Fetch function for making HTTP requests (injectable for testing)
- * @returns Array of all fetched ENS registrations
+ * @param csvFilePath - Path to the CSV file
+ * @param batchSize - Number of registrations per batch
+ * @param startIndex - Skip this many rows before starting
+ * @param limit - Maximum total number of registrations to read
+ * @returns Async generator yielding batches of ENS registrations
  */
-export async function fetchAllRegistrations(
-  config: PreMigrationConfig,
-  fetchFn: typeof fetch = fetch
-): Promise<ENSRegistration[]> {
-  const allRegistrations: ENSRegistration[] = [];
-  let skip = config.startIndex;
-  let hasMore = true;
+async function* readCSVInBatches(
+  csvFilePath: string,
+  batchSize: number,
+  startIndex: number = 0,
+  limit: number | null = null
+): AsyncGenerator<ENSRegistration[]> {
+  const readline = await import("node:readline");
 
-  logger.info(`Fetching registrations from TheGraph Gateway...`);
+  const fileStream = createReadStream(csvFilePath);
+  const rl = readline.createInterface({
+    input: fileStream,
+    crlfDelay: Infinity,
+  });
 
-  while (hasMore) {
-    try {
-      const registrations = await fetchRegistrations(
-        config,
-        skip,
-        config.batchSize,
-        fetchFn
-      );
+  let lineNumber = 0;
+  let processedCount = 0;
+  let batch: ENSRegistration[] = [];
+  let headerSkipped = false;
 
-      if (registrations.length === 0) {
-        hasMore = false;
-        break;
+  for await (const line of rl) {
+    if (!headerSkipped) {
+      headerSkipped = true;
+      continue;
+    }
+
+    if (lineNumber < startIndex) {
+      lineNumber++;
+      continue;
+    }
+
+    if (limit && processedCount >= limit) {
+      break;
+    }
+
+    const parts = parseCSVLine(line);
+    if (parts.length >= 7) {
+      const labelName = parts[6].trim();
+      if (labelName && labelName !== '') {
+        batch.push({ labelName });
+        processedCount++;
+
+        if (batch.length >= batchSize) {
+          yield batch;
+          batch = [];
+        }
       }
+    }
 
-      // Include all registrations for accurate tracking and counting
-      allRegistrations.push(...registrations);
-      skip += registrations.length;
+    lineNumber++;
+  }
 
-      logger.info(
-        `Fetched ${registrations.length} registrations (total: ${allRegistrations.length})`
-      );
+  if (batch.length > 0) {
+    yield batch;
+  }
+}
 
-      // Check limit
-      if (config.limit && allRegistrations.length >= config.limit) {
-        allRegistrations.splice(config.limit);
-        hasMore = false;
-        break;
+/**
+ * Parses a CSV line handling quoted fields and commas within quotes.
+ */
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
       }
-
-      // Rate limiting
-      await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
-    } catch (error) {
-      logger.error(`Failed to fetch registrations at skip=${skip}: ${error}`);
-      throw error;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += char;
     }
   }
 
-  logger.info(`Total registrations fetched: ${allRegistrations.length}`);
-  return allRegistrations;
+  result.push(current);
+  return result;
 }
 
-// Streaming batch processing - fetches and registers one batch at a time
+// Streaming batch processing - reads from CSV and registers one batch at a time
 async function fetchAndRegisterInBatches(
   config: PreMigrationConfig,
 ): Promise<void> {
@@ -520,21 +476,18 @@ async function fetchAndRegisterInBatches(
     transport: http(config.mainnetRpcUrl, { retryCount: 3, timeout: RPC_TIMEOUT_MS }),
   });
 
-  let skip = config.startIndex;
-  let hasMore = true;
+  logger.info(`\nReading CSV file and registering in batches of ${config.batchSize}...`);
+  logger.info(`CSV file: ${config.csvFilePath}`);
 
-  logger.info(`\nFetching and registering in batches of ${config.batchSize}...`);
+  const batchGenerator = readCSVInBatches(
+    config.csvFilePath,
+    config.batchSize,
+    config.startIndex,
+    config.limit
+  );
 
-  while (hasMore) {
+  for await (const batch of batchGenerator) {
     try {
-      // Fetch one batch
-      const batch = await fetchRegistrations(config, skip, config.batchSize);
-
-      if (batch.length === 0) {
-        hasMore = false;
-        break;
-      }
-
       // Track expected total including all names in batch
       checkpoint.totalExpected += batch.length;
 
@@ -542,7 +495,7 @@ async function fetchAndRegisterInBatches(
       let invalidLabelsInBatch = 0;
       const validBatch = batch.filter((reg) => {
         if (!reg.labelName || typeof reg.labelName !== 'string' || reg.labelName.trim() === '') {
-          logger.skippingInvalidName(reg.domain?.name || 'unknown');
+          logger.skippingInvalidName(reg.labelName || 'unknown');
           invalidLabelsInBatch++;
           checkpoint!.invalidLabelCount++;
           checkpoint!.totalProcessed++;
@@ -556,7 +509,7 @@ async function fetchAndRegisterInBatches(
       }
 
       logger.info(
-        `\nFetched ${batch.length} registrations (${invalidLabelsInBatch} invalid labels filtered). ` +
+        `\nRead ${batch.length} registrations from CSV (${invalidLabelsInBatch} invalid labels filtered). ` +
         `Starting registration of ${validBatch.length} valid names...`
       );
 
@@ -572,8 +525,6 @@ async function fetchAndRegisterInBatches(
         );
       }
 
-      skip += batch.length;
-
       // Show batch summary
       logger.info(
         `Batch complete. Total: ${checkpoint.totalProcessed} processed ` +
@@ -581,17 +532,13 @@ async function fetchAndRegisterInBatches(
         `${checkpoint.invalidLabelCount} invalid, ${checkpoint.failureCount} failed)`
       );
 
-      // Check limit
+      // Check if we've reached the limit
       if (config.limit && checkpoint.totalProcessed >= config.limit) {
         logger.info(`\nReached limit of ${config.limit} names. Stopping.`);
-        hasMore = false;
         break;
       }
-
-      // Rate limiting between batches
-      await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
     } catch (error) {
-      logger.error(`Failed to fetch/process batch at skip=${skip}: ${error}`);
+      logger.error(`Failed to process batch: ${error}`);
       throw error;
     }
   }
@@ -609,8 +556,6 @@ async function processBatch(
   mainnetClient: any,
   checkpoint: Checkpoint
 ): Promise<Checkpoint> {
-  logger.info(`Processing ${registrations.length} names...`);
-
   for (let i = 0; i < registrations.length; i++) {
     const registration = registrations[i];
     const globalIndex = checkpoint.totalProcessed + 1;
@@ -847,7 +792,7 @@ export async function batchRegisterNames(
 
   logger.info(`\nStarting registration process...`);
   logger.info(`Total names to register: ${registrations.length}`);
-  logger.info(`TheGraph batch size: ${config.batchSize}`);
+  logger.info(`CSV batch size: ${config.batchSize}`);
   logger.info(`Dry run: ${config.dryRun}`);
 
   // Load checkpoint based on configuration
@@ -978,10 +923,10 @@ export async function main(argv = process.argv): Promise<void> {
     .requiredOption("--namechain-registry <address>", "ETH Registry contract address")
     .requiredOption("--namechain-bridge-controller <address>", "L2BridgeController address")
     .requiredOption("--private-key <key>", "Deployer private key (has REGISTRAR role)")
-    .requiredOption("--thegraph-api-key <key>", "TheGraph Gateway API key (get from https://thegraph.com/studio/apikeys/)")
-    .option("--batch-size <number>", "Number of names to fetch per TheGraph API request", "1000")
+    .requiredOption("--csv-file <path>", "Path to CSV file containing ENS registrations")
+    .option("--batch-size <number>", "Number of names to process per batch", "1000")
     .option("--start-index <number>", "Starting index for resuming partial migrations", "0")
-    .option("--limit <number>", "Maximum total number of names to fetch and register")
+    .option("--limit <number>", "Maximum total number of names to process and register")
     .option("--dry-run", "Simulate without executing transactions", false)
     .option("--continue", "Continue from previous checkpoint if it exists", false)
     .option("--role-bitmap <hex>", "Custom role bitmap (hex string) for when registering names");
@@ -995,7 +940,7 @@ export async function main(argv = process.argv): Promise<void> {
     registryAddress: opts.namechainRegistry as Address,
     bridgeControllerAddress: opts.namechainBridgeController as Address,
     privateKey: opts.privateKey as `0x${string}`,
-    thegraphApiKey: opts.thegraphApiKey,
+    csvFilePath: opts.csvFile,
     batchSize: parseInt(opts.batchSize) || 100,
     startIndex: parseInt(opts.startIndex) || 0,
     limit: opts.limit ? parseInt(opts.limit) : null,
@@ -1013,7 +958,7 @@ export async function main(argv = process.argv): Promise<void> {
     logger.config('Mainnet RPC URL', config.mainnetRpcUrl);
     logger.config('Registry', config.registryAddress);
     logger.config('Bridge Controller', config.bridgeControllerAddress);
-    logger.config('TheGraph API Key', `${config.thegraphApiKey.substring(0, 8)}...`);
+    logger.config('CSV File', config.csvFilePath);
     logger.config('Batch Size', config.batchSize);
     logger.config('Start Index', config.startIndex);
     logger.config('Limit', config.limit ?? "none");
@@ -1023,14 +968,13 @@ export async function main(argv = process.argv): Promise<void> {
       const cp = loadCheckpoint()!;
       const invalidCount = cp.invalidLabelCount ?? 0;
       logger.config('Checkpoint Found', `${cp.totalProcessed} processed, ${cp.skippedCount} skipped, ${invalidCount} invalid, ${cp.failureCount} failed`);
-      // Skip already-processed names in TheGraph query
       config.startIndex = cp.totalProcessed;
       logger.info(`Adjusted start index to ${config.startIndex} based on checkpoint`);
     }
     logger.config('Role Bitmap', `0x${config.roleBitmap.toString(16)}`);
     logger.info("");
 
-    // Fetch and register in streaming batches
+    // Read CSV and register in streaming batches
     await fetchAndRegisterInBatches(config);
 
     logger.success("\nPre-migration script completed successfully!");

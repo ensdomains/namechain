@@ -197,7 +197,7 @@ export async function main(argv = process.argv): Promise<void> {
     .option("--batch-size <number>", "Number of names to fetch per TheGraph API request", "1000")
     .option("--start-index <number>", "Starting index for pagination", "0")
     .option("--limit <number>", "Maximum total number of names to fetch")
-    .option("--output <file>", "Output CSV file path", `ens-registrations-${new Date().toISOString().split('T')[0]}.csv`);
+    .option("--output <file>", "Output CSV file path", `csv-data/ens-registrations-${new Date().toISOString().split('T')[0]}.csv`);
 
   program.parse(argv);
   const opts = program.opts();

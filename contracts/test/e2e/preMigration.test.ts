@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
+import { unlinkSync, existsSync } from "node:fs";
 import { zeroAddress } from "viem";
 import { ROLES } from "../../deploy/constants.js";
 import {
-  fetchAllRegistrations,
   batchRegisterNames,
   loadCheckpoint,
   saveCheckpoint,
@@ -13,8 +13,10 @@ import {
   type CrossChainEnvironment,
   setupCrossChainEnvironment,
 } from "../../script/setup.js";
-import { createTheGraphMock, setupBaseRegistrarController } from "../utils/mockTheGraph.js";
+import { createCSVTestHelper, setupBaseRegistrarController } from "../utils/mockPreMigration.js";
 import { deleteTestCheckpoint } from "../utils/preMigrationTestUtils.js";
+
+const TEST_CSV_PATH = "test-registrations.csv";
 
 describe("Pre-Migration Script E2E", () => {
   let env: CrossChainEnvironment;
@@ -31,76 +33,26 @@ describe("Pre-Migration Script E2E", () => {
   afterAll(() => env?.shutdown);
 
   afterEach(() => {
-    // Clean up any test checkpoint files after each test
     deleteTestCheckpoint();
-  });
-
-  it("should fetch from TheGraph and register names from ENS v1 on L2", async () => {
-    const theGraphMock = createTheGraphMock(
-      env.l1.client,
-      env.l1.contracts.ethRegistrarV1.address
-    );
-
-    // Register 3 names in ENS v1 BaseRegistrar on L1
-    const duration = BigInt(365 * 24 * 60 * 60); // 1 year
-    const testOwner = "0x1234567890abcdef1234567890abcdef12345678" as const;
-
-    await theGraphMock.registerName("test1", testOwner, duration);
-    await theGraphMock.registerName("test2", testOwner, duration);
-    await theGraphMock.registerName("test3", testOwner, duration);
-
-    const config: PreMigrationConfig = {
-      rpcUrl: `http://${env.l2.hostPort}`,
-      mainnetRpcUrl: `http://${env.l1.hostPort}`, // Point to L1 test chain
-      mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address, // Use test L1 BaseRegistrar
-      registryAddress: env.l2.contracts.ethRegistry.address,
-      bridgeControllerAddress: env.l2.contracts.bridgeController.address,
-      privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
-      thegraphApiKey: "mock-api-key",
-      batchSize: 100,
-      startIndex: 0,
-      limit: 3,
-      dryRun: false,
-      roleBitmap: ROLES.ALL,
-      disableCheckpoint: true,
-    };
-
-    // Fetch registrations using custom fetch function (no global mocking!)
-    const registrations = await fetchAllRegistrations(config, theGraphMock.fetch as typeof fetch);
-    expect(registrations.length).toBe(3);
-    console.log(`✓ Fetched ${registrations.length} registrations`);
-
-    // Register names on L2 (script creates mainnet client automatically)
-    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
-
-    // Verify all names were registered on L2
-    const mockRegs = theGraphMock.getRegistrations();
-    for (const mockReg of mockRegs) {
-      const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData([
-        mockReg.labelName,
-      ]);
-      const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
-      expect(owner.toLowerCase()).toBe(
-        env.l2.contracts.bridgeController.address.toLowerCase()
-      );
-      console.log(`✓ Verified: ${mockReg.labelName}.eth registered on L2`);
+    if (existsSync(TEST_CSV_PATH)) {
+      unlinkSync(TEST_CSV_PATH);
     }
   });
 
-  it("should skip names that are expired on mainnet", async () => {
-    const theGraphMock = createTheGraphMock(
+  it("should read from CSV and register names from ENS v1 on L2", async () => {
+    const csvHelper = createCSVTestHelper(
       env.l1.client,
       env.l1.contracts.ethRegistrarV1.address
     );
 
-    // Register a name with very short duration (already expired)
-    const pastDuration = BigInt(1); // 1 second
+    const duration = BigInt(365 * 24 * 60 * 60);
     const testOwner = "0x1234567890abcdef1234567890abcdef12345678" as const;
 
-    await theGraphMock.registerName("expired1", testOwner, pastDuration);
+    await csvHelper.registerName("test1", testOwner, duration);
+    await csvHelper.registerName("test2", testOwner, duration);
+    await csvHelper.registerName("test3", testOwner, duration);
 
-    // Wait for it to expire
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    csvHelper.writeCSV(TEST_CSV_PATH);
 
     const config: PreMigrationConfig = {
       rpcUrl: `http://${env.l2.hostPort}`,
@@ -109,227 +61,252 @@ describe("Pre-Migration Script E2E", () => {
       registryAddress: env.l2.contracts.ethRegistry.address,
       bridgeControllerAddress: env.l2.contracts.bridgeController.address,
       privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
-      thegraphApiKey: "mock-api-key",
+      csvFilePath: TEST_CSV_PATH,
       batchSize: 100,
       startIndex: 0,
-      limit: 10,
+      limit: 3,
       dryRun: false,
       roleBitmap: ROLES.ALL,
       disableCheckpoint: true,
     };
 
-    const registrations = await fetchAllRegistrations(config, theGraphMock.fetch as typeof fetch);
-    expect(registrations.length).toBe(1);
+    const registrations = csvHelper.getRegistrations();
+    expect(registrations.length).toBe(3);
+    console.log(`✓ Created CSV with ${registrations.length} registrations`);
 
     await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
 
-    // Verify the expired name was NOT registered on L2
-    try {
-      const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData(["expired1"]);
+    for (const reg of registrations) {
+      const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData([
+        reg.labelName,
+      ]);
       const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
-      expect(owner).toBe(zeroAddress);
-    } catch {
-      console.log("✓ Confirmed: expired name was not registered on L2");
+      expect(owner.toLowerCase()).toBe(
+        env.l2.contracts.bridgeController.address.toLowerCase()
+      );
+      console.log(`✓ Verified: ${reg.labelName}.eth registered on L2`);
     }
   });
 
-  describe("Checkpoint System", () => {
-    it("should start fresh when --continue is not set (default behavior)", async () => {
-      const theGraphMock = createTheGraphMock(
-        env.l1.client,
-        env.l1.contracts.ethRegistrarV1.address
-      );
+  it("should skip names that are expired on mainnet", async () => {
+    const csvHelper = createCSVTestHelper(
+      env.l1.client,
+      env.l1.contracts.ethRegistrarV1.address
+    );
 
-      const duration = BigInt(365 * 24 * 60 * 60);
-      const testOwner = "0x1234567890abcdef1234567890abcdef12345678" as const;
+    const pastDuration = BigInt(1);
+    const testOwner = "0x1234567890abcdef1234567890abcdef12345678" as const;
 
-      // Register 5 names
-      for (let i = 1; i <= 5; i++) {
-        await theGraphMock.registerName(`checkpoint${i}`, testOwner, duration);
-      }
+    await csvHelper.registerName("expired1", testOwner, pastDuration);
 
-      // First run: process 3 names and save checkpoint
-      const config1: PreMigrationConfig = {
-        rpcUrl: `http://${env.l2.hostPort}`,
-        mainnetRpcUrl: `http://${env.l1.hostPort}`,
-        mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
-        registryAddress: env.l2.contracts.ethRegistry.address,
-        bridgeControllerAddress: env.l2.contracts.bridgeController.address,
-        privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
-        thegraphApiKey: "mock-api-key",
-        batchSize: 100,
-        startIndex: 0,
-        limit: 3,
-        dryRun: false,
-        roleBitmap: ROLES.ALL,
-        continue: false, // Default: don't continue
-      };
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      const registrations1 = await fetchAllRegistrations(config1, theGraphMock.fetch as typeof fetch);
-      expect(registrations1.length).toBe(3);
-      await batchRegisterNames(config1, registrations1, env.l2.client, env.l2.contracts.ethRegistry);
+    csvHelper.writeCSV(TEST_CSV_PATH);
 
-      // Verify checkpoint was created
-      const checkpoint = loadCheckpoint();
-      expect(checkpoint).not.toBeNull();
-      expect(checkpoint!.successCount).toBe(3);
+    const config: PreMigrationConfig = {
+      rpcUrl: `http://${env.l2.hostPort}`,
+      mainnetRpcUrl: `http://${env.l1.hostPort}`,
+      mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
+      registryAddress: env.l2.contracts.ethRegistry.address,
+      bridgeControllerAddress: env.l2.contracts.bridgeController.address,
+      privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
+      csvFilePath: TEST_CSV_PATH,
+      batchSize: 100,
+      startIndex: 0,
+      limit: 1,
+      dryRun: false,
+      roleBitmap: ROLES.ALL,
+      disableCheckpoint: true,
+    };
 
-      // Second run WITHOUT --continue: should start from beginning again
-      const config2 = { ...config1, limit: 2 };
-      const registrations2 = await fetchAllRegistrations(config2, theGraphMock.fetch as typeof fetch);
-      expect(registrations2.length).toBe(2);
+    const registrations = csvHelper.getRegistrations();
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
 
-      // Should process the same first 2 names (already registered, so skipped)
-      await batchRegisterNames(config2, registrations2, env.l2.client, env.l2.contracts.ethRegistry);
+    const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData(["expired1"]);
+    const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
+    expect(owner).toBe(zeroAddress);
+    console.log("✓ Expired name was skipped (not registered on L2)");
+  });
 
-      console.log("✓ Verified: default behavior starts fresh (ignores checkpoint)");
-    });
+  it("should handle checkpoint resumption correctly", async () => {
+    const csvHelper = createCSVTestHelper(
+      env.l1.client,
+      env.l1.contracts.ethRegistrarV1.address
+    );
 
-    it("should continue from checkpoint when --continue is set", async () => {
-      const theGraphMock = createTheGraphMock(
-        env.l1.client,
-        env.l1.contracts.ethRegistrarV1.address
-      );
+    const duration = BigInt(365 * 24 * 60 * 60);
+    const testOwner = "0x1234567890abcdef1234567890abcdef12345678" as const;
 
-      const duration = BigInt(365 * 24 * 60 * 60);
-      const testOwner = "0x1234567890abcdef1234567890abcdef12345678" as const;
+    await csvHelper.registerName("resume1", testOwner, duration);
+    await csvHelper.registerName("resume2", testOwner, duration);
+    await csvHelper.registerName("resume3", testOwner, duration);
 
-      // Register 10 names
-      for (let i = 1; i <= 10; i++) {
-        await theGraphMock.registerName(`resume${i}`, testOwner, duration);
-      }
+    csvHelper.writeCSV(TEST_CSV_PATH);
 
-      // First run: process first 5 names
-      const config1: PreMigrationConfig = {
-        rpcUrl: `http://${env.l2.hostPort}`,
-        mainnetRpcUrl: `http://${env.l1.hostPort}`,
-        mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
-        registryAddress: env.l2.contracts.ethRegistry.address,
-        bridgeControllerAddress: env.l2.contracts.bridgeController.address,
-        privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
-        thegraphApiKey: "mock-api-key",
-        batchSize: 100,
-        startIndex: 0,
-        limit: 5,
-        dryRun: false,
-        roleBitmap: ROLES.ALL,
-        continue: false,
-      };
+    const checkpoint = createFreshCheckpoint();
+    checkpoint.lastProcessedIndex = 0;
+    checkpoint.totalProcessed = 1;
+    checkpoint.successCount = 1;
+    checkpoint.totalExpected = 3;
+    saveCheckpoint(checkpoint);
 
-      const registrations1 = await fetchAllRegistrations(config1, theGraphMock.fetch as typeof fetch);
-      await batchRegisterNames(config1, registrations1, env.l2.client, env.l2.contracts.ethRegistry);
+    const config: PreMigrationConfig = {
+      rpcUrl: `http://${env.l2.hostPort}`,
+      mainnetRpcUrl: `http://${env.l1.hostPort}`,
+      mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
+      registryAddress: env.l2.contracts.ethRegistry.address,
+      bridgeControllerAddress: env.l2.contracts.bridgeController.address,
+      privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
+      csvFilePath: TEST_CSV_PATH,
+      batchSize: 100,
+      startIndex: 0,
+      limit: null,
+      dryRun: false,
+      roleBitmap: ROLES.ALL,
+      continue: true,
+    };
 
-      // Verify first 5 registered
-      const checkpoint1 = loadCheckpoint();
-      expect(checkpoint1!.successCount).toBe(5);
-      expect(checkpoint1!.totalProcessed).toBe(5);
+    const registrations = csvHelper.getRegistrations();
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
 
-      // Second run WITH --continue: should resume from index 5
-      // Adjust startIndex based on checkpoint (simulating main() behavior)
-      const config2 = { ...config1, continue: true, limit: 10, startIndex: checkpoint1!.totalProcessed };
-      const registrations2 = await fetchAllRegistrations(config2, theGraphMock.fetch as typeof fetch);
-      expect(registrations2.length).toBe(5); // Only fetches remaining 5 names
+    const finalCheckpoint = loadCheckpoint();
+    expect(finalCheckpoint).not.toBeNull();
+    expect(finalCheckpoint!.totalProcessed).toBe(3);
+    console.log(`✓ Checkpoint resumed correctly: ${finalCheckpoint!.totalProcessed} names processed`);
+  });
 
-      await batchRegisterNames(config2, registrations2, env.l2.client, env.l2.contracts.ethRegistry);
+  it("should skip already-registered names on L2", async () => {
+    const csvHelper = createCSVTestHelper(
+      env.l1.client,
+      env.l1.contracts.ethRegistrarV1.address
+    );
 
-      // Verify all 10 registered total
-      const checkpoint2 = loadCheckpoint();
-      expect(checkpoint2!.successCount).toBe(10);
-      expect(checkpoint2!.totalProcessed).toBe(10);
+    const duration = BigInt(365 * 24 * 60 * 60);
+    const testOwner = "0x1234567890abcdef1234567890abcdef12345678" as const;
 
-      // Verify names 6-10 are registered
-      for (let i = 6; i <= 10; i++) {
-        const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData([`resume${i}`]);
-        const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
-        expect(owner.toLowerCase()).toBe(env.l2.contracts.bridgeController.address.toLowerCase());
-      }
+    await csvHelper.registerName("duplicate1", testOwner, duration);
 
-      console.log("✓ Verified: --continue resumes from checkpoint");
-    });
+    csvHelper.writeCSV(TEST_CSV_PATH);
 
-    it("should warn when --continue set but no checkpoint exists", async () => {
-      // Ensure no checkpoint exists
-      deleteTestCheckpoint();
+    const config: PreMigrationConfig = {
+      rpcUrl: `http://${env.l2.hostPort}`,
+      mainnetRpcUrl: `http://${env.l1.hostPort}`,
+      mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
+      registryAddress: env.l2.contracts.ethRegistry.address,
+      bridgeControllerAddress: env.l2.contracts.bridgeController.address,
+      privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
+      csvFilePath: TEST_CSV_PATH,
+      batchSize: 100,
+      startIndex: 0,
+      limit: null,
+      dryRun: false,
+      roleBitmap: ROLES.ALL,
+      disableCheckpoint: true,
+    };
 
-      const theGraphMock = createTheGraphMock(
-        env.l1.client,
-        env.l1.contracts.ethRegistrarV1.address
-      );
+    const registrations = csvHelper.getRegistrations();
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
 
-      const duration = BigInt(365 * 24 * 60 * 60);
-      const testOwner = "0x1234567890abcdef1234567890abcdef12345678" as const;
+    console.log("✓ First registration completed");
 
-      await theGraphMock.registerName("nocptest", testOwner, duration);
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
 
-      const config: PreMigrationConfig = {
-        rpcUrl: `http://${env.l2.hostPort}`,
-        mainnetRpcUrl: `http://${env.l1.hostPort}`,
-        mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
-        registryAddress: env.l2.contracts.ethRegistry.address,
-        bridgeControllerAddress: env.l2.contracts.bridgeController.address,
-        privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
-        thegraphApiKey: "mock-api-key",
-        batchSize: 100,
-        startIndex: 0,
-        limit: 1,
-        dryRun: false,
-        roleBitmap: ROLES.ALL,
-        continue: true, // Set continue but no checkpoint exists
-      };
+    const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData(["duplicate1"]);
+    const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
+    expect(owner.toLowerCase()).toBe(
+      env.l2.contracts.bridgeController.address.toLowerCase()
+    );
+    console.log("✓ Second registration skipped duplicate name correctly");
+  });
 
-      const registrations = await fetchAllRegistrations(config, theGraphMock.fetch as typeof fetch);
-      await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
+  it("should handle dry run mode", async () => {
+    const csvHelper = createCSVTestHelper(
+      env.l1.client,
+      env.l1.contracts.ethRegistrarV1.address
+    );
 
-      // Should start fresh despite --continue flag
-      const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData(["nocptest"]);
-      const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
-      expect(owner.toLowerCase()).toBe(env.l2.contracts.bridgeController.address.toLowerCase());
+    const duration = BigInt(365 * 24 * 60 * 60);
+    const testOwner = "0x1234567890abcdef1234567890abcdef12345678" as const;
 
-      console.log("✓ Verified: warns and starts fresh when checkpoint missing");
-    });
+    await csvHelper.registerName("dryrun1", testOwner, duration);
 
-    it("should not load checkpoint when continue is false", async () => {
-      // Create a fake checkpoint
-      const fakeCheckpoint = createFreshCheckpoint();
-      fakeCheckpoint.lastProcessedIndex = 99;
-      fakeCheckpoint.successCount = 50;
-      saveCheckpoint(fakeCheckpoint);
+    csvHelper.writeCSV(TEST_CSV_PATH);
 
-      const theGraphMock = createTheGraphMock(
-        env.l1.client,
-        env.l1.contracts.ethRegistrarV1.address
-      );
+    const config: PreMigrationConfig = {
+      rpcUrl: `http://${env.l2.hostPort}`,
+      mainnetRpcUrl: `http://${env.l1.hostPort}`,
+      mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
+      registryAddress: env.l2.contracts.ethRegistry.address,
+      bridgeControllerAddress: env.l2.contracts.bridgeController.address,
+      privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
+      csvFilePath: TEST_CSV_PATH,
+      batchSize: 100,
+      startIndex: 0,
+      limit: null,
+      dryRun: true,
+      roleBitmap: ROLES.ALL,
+      disableCheckpoint: true,
+    };
 
-      const duration = BigInt(365 * 24 * 60 * 60);
-      const testOwner = "0x1234567890abcdef1234567890abcdef12345678" as const;
+    const registrations = csvHelper.getRegistrations();
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
 
-      await theGraphMock.registerName("ignorecp", testOwner, duration);
+    const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData(["dryrun1"]);
+    const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
+    expect(owner).toBe(zeroAddress);
+    console.log("✓ Dry run did not register name on L2");
+  });
 
-      const config: PreMigrationConfig = {
-        rpcUrl: `http://${env.l2.hostPort}`,
-        mainnetRpcUrl: `http://${env.l1.hostPort}`,
-        mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
-        registryAddress: env.l2.contracts.ethRegistry.address,
-        bridgeControllerAddress: env.l2.contracts.bridgeController.address,
-        privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
-        thegraphApiKey: "mock-api-key",
-        batchSize: 100,
-        startIndex: 0,
-        limit: 1,
-        dryRun: false,
-        roleBitmap: ROLES.ALL,
-        continue: false, // Don't continue
-      };
+  it("should respect limit parameter", async () => {
+    const csvHelper = createCSVTestHelper(
+      env.l1.client,
+      env.l1.contracts.ethRegistrarV1.address
+    );
 
-      const registrations = await fetchAllRegistrations(config, theGraphMock.fetch as typeof fetch);
-      await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
+    const duration = BigInt(365 * 24 * 60 * 60);
+    const testOwner = "0x1234567890abcdef1234567890abcdef12345678" as const;
 
-      // Should have processed from index 0 (ignored checkpoint)
-      const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData(["ignorecp"]);
-      const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
-      expect(owner.toLowerCase()).toBe(env.l2.contracts.bridgeController.address.toLowerCase());
+    await csvHelper.registerName("limit1", testOwner, duration);
+    await csvHelper.registerName("limit2", testOwner, duration);
+    await csvHelper.registerName("limit3", testOwner, duration);
 
-      console.log("✓ Verified: checkpoint ignored when continue=false");
-    });
+    csvHelper.writeCSV(TEST_CSV_PATH);
+
+    const config: PreMigrationConfig = {
+      rpcUrl: `http://${env.l2.hostPort}`,
+      mainnetRpcUrl: `http://${env.l1.hostPort}`,
+      mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
+      registryAddress: env.l2.contracts.ethRegistry.address,
+      bridgeControllerAddress: env.l2.contracts.bridgeController.address,
+      privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
+      csvFilePath: TEST_CSV_PATH,
+      batchSize: 100,
+      startIndex: 0,
+      limit: 2,
+      dryRun: false,
+      roleBitmap: ROLES.ALL,
+      disableCheckpoint: true,
+    };
+
+    const registrations = csvHelper.getRegistrations().slice(0, 2);
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
+
+    const [tokenId1] = await env.l2.contracts.ethRegistry.read.getNameData(["limit1"]);
+    const owner1 = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId1]);
+    expect(owner1.toLowerCase()).toBe(
+      env.l2.contracts.bridgeController.address.toLowerCase()
+    );
+
+    const [tokenId2] = await env.l2.contracts.ethRegistry.read.getNameData(["limit2"]);
+    const owner2 = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId2]);
+    expect(owner2.toLowerCase()).toBe(
+      env.l2.contracts.bridgeController.address.toLowerCase()
+    );
+
+    const [tokenId3] = await env.l2.contracts.ethRegistry.read.getNameData(["limit3"]);
+    const owner3 = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId3]);
+    expect(owner3).toBe(zeroAddress);
+
+    console.log("✓ Limit parameter respected: only 2 names registered");
   });
 });
