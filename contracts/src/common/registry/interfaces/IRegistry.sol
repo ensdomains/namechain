@@ -11,7 +11,7 @@ interface IRegistry is IERC1155Singleton {
     /**
      * @dev SHOULD be emitted when a new label is registered
      */
-    event NewSubname(uint256 indexed labelHash, string label);
+    event NewSubname(uint256 indexed tokenId, string label);
 
     ////////////////////////////////////////////////////////////////////////
     // Functions
