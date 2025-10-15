@@ -3,15 +3,16 @@ description: "Sets up git, bun, forge, node"
 runs:
   using: composite
   steps:
-    - name: Cache git folder
-      uses: actions/cache@v4
-      with:
-        path: .git
-        key: git-folder
+    # - name: Cache git folder
+    #   uses: actions/cache@v4
+    #   with:
+    #     path: .git
+    #     key: git-folder
 
     - name: Checkout repo
-      uses: actions/checkout@v4
-      with:
+      uses: actions/checkout@v5
+      with: 
+        depth: 0
         submodules: "recursive"
 
     - name: Install Foundry
