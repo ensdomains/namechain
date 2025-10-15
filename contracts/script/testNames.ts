@@ -28,6 +28,28 @@ export async function showName(
     console.log(`\nFetching information for: ${name}`);
     console.log(`NameHash: ${nameHash}`);
 
+    // Get tokenId and owner from L2 registry (for .eth second-level names)
+    // Extract label from name (e.g., "test" from "test.eth")
+    const label = name.replace('.eth', '');
+    let owner = 'N/A';
+    let tokenId = 'N/A';
+
+    try {
+      const [tid, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+      tokenId = tid;
+      owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
+      console.log(`TokenId: ${tokenId}`);
+      console.log(`Owner: ${owner}`);
+    } catch (e) {
+      console.log(`Could not fetch owner from L2 registry (may be a subname)`);
+    }
+
+    // Get resolver address using L1 UniversalResolver
+    const [resolver] = await env.l1.contracts.UniversalResolverV2.read.findResolver([
+      dnsEncodeName(name),
+    ]);
+    console.log(`Resolver: ${resolver}`);
+
     // Get addr record (coin type 60 - ETH) using L1 UniversalResolver
     // L1 UR will use Unruggable Gateway to fetch from L2
     const addrCall = encodeFunctionData({
@@ -63,6 +85,8 @@ export async function showName(
     console.log(`\nName Information for ${name}:`);
     console.table({
       Name: name,
+      Owner: owner,
+      Resolver: resolver,
       "Address (coin type 60)": addrBytes,
       Description: description || "(not set)",
     });
