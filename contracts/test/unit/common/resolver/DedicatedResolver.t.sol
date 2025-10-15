@@ -22,11 +22,12 @@ import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
-import {DedicatedResolver} from "~src/common/resolver/DedicatedResolver.sol";
 import {
+    DedicatedResolver,
+    DedicatedResolverLib,
     IDedicatedResolverSetters,
     NODE_ANY
-} from "~src/common/resolver/interfaces/IDedicatedResolverSetters.sol";
+} from "~src/common/resolver/DedicatedResolver.sol";
 
 contract DedicatedResolverTest is Test {
     struct I {
@@ -52,7 +53,7 @@ contract DedicatedResolverTest is Test {
         assertEq(v.length, i);
     }
 
-    address owner;
+    address owner = makeAddr("owner");
     DedicatedResolver resolver;
 
     string testName = "test.eth";
@@ -62,15 +63,14 @@ contract DedicatedResolverTest is Test {
         VerifiableFactory factory = new VerifiableFactory();
         DedicatedResolver resolverImpl = new DedicatedResolver();
 
-        owner = makeAddr("owner");
         bytes memory initData = abi.encodeCall(DedicatedResolver.initialize, (owner));
         resolver = DedicatedResolver(
             factory.deployProxy(address(resolverImpl), uint256(keccak256(initData)), initData)
         );
     }
 
-    function test_owner() external view {
-        assertEq(resolver.owner(), owner);
+    function test_roles() external view {
+        assertTrue(resolver.hasRootRoles(DedicatedResolverLib.INITIAL_ROLES, owner));
     }
 
     function testFuzz_supportsInterface() external view {
