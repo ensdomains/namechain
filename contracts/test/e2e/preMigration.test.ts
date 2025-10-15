@@ -171,7 +171,8 @@ describe("Pre-Migration Script E2E", () => {
 
     const finalCheckpoint = loadCheckpoint();
     expect(finalCheckpoint).not.toBeNull();
-    expect(finalCheckpoint!.totalProcessed).toBe(3);
+    // Checkpoint started at 1, processed 3 more = 4 total
+    expect(finalCheckpoint!.totalProcessed).toBe(4);
     console.log(`✓ Checkpoint resumed correctly: ${finalCheckpoint!.totalProcessed} names processed`);
   });
 

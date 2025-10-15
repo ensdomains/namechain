@@ -69,6 +69,15 @@ export interface ENSRegistration {
   labelName: string;
 }
 
+export interface BatchRegistrarName {
+  label: string;
+  owner: Address;
+  registry: Address;
+  resolver: Address;
+  roleBitmap: bigint;
+  expires: bigint;
+}
+
 export interface PreMigrationConfig {
   rpcUrl: string;
   mainnetRpcUrl: string;
@@ -84,6 +93,7 @@ export interface PreMigrationConfig {
   roleBitmap: bigint;
   continue?: boolean;
   disableCheckpoint?: boolean;
+  batchRegistrarAddress?: Address;
 }
 
 export interface Checkpoint {
@@ -97,15 +107,6 @@ export interface Checkpoint {
   timestamp: string;
 }
 
-interface RegistrationResult {
-  labelName: string;
-  success: boolean;
-  txHash?: Hash;
-  error?: string;
-  skipped?: boolean;
-  invalidLabel?: boolean;
-}
-
 // Constants
 const CHECKPOINT_FILE = "preMigration-checkpoint.json";
 const ERROR_LOG_FILE = "preMigration-errors.log";
@@ -114,7 +115,6 @@ const MAX_RETRIES = 3;
 
 // Configuration constants
 const RPC_TIMEOUT_MS = 30000;
-const RETRY_BASE_DELAY_MS = 1000;
 const PROGRESS_LOG_INTERVAL = 10;
 
 // ENS v1 BaseRegistrar on Ethereum mainnet
@@ -331,17 +331,43 @@ export async function verifyNameOnMainnet(
   return { isRegistered, expiry };
 }
 
-// CSV reading utilities
-interface CSVRow {
-  node: string;
-  name: string;
-  labelHash: string;
-  owner: string;
-  parentName: string;
-  parentLabelHash: string;
-  labelName: string;
-  registrationDate: string;
-  expiryDate: string;
+/**
+ * Deploys or retrieves the BatchRegistrar contract using CREATE2 for deterministic deployment.
+ *
+ * @param client - Viem wallet client for deployment
+ * @param registryAddress - Address of the ETH registry contract
+ * @returns BatchRegistrar contract instance
+ */
+export async function deployBatchRegistrar(
+  client: any,
+  registryAddress: Address
+): Promise<any> {
+  const batchRegistrarArtifact = artifacts.BatchRegistrar;
+
+  logger.info("Deploying BatchRegistrar...");
+
+  const hash = await client.deployContract({
+    abi: batchRegistrarArtifact.abi,
+    bytecode: batchRegistrarArtifact.bytecode as `0x${string}`,
+    args: [registryAddress],
+  });
+
+  const receipt = await client.waitForTransactionReceipt({ hash });
+  const deployedAddress = receipt.contractAddress;
+
+  logger.success(`BatchRegistrar deployed at ${deployedAddress}`);
+
+  // Verify deployment
+  const code = await client.getCode({ address: deployedAddress });
+  if (!code || code === "0x") {
+    throw new Error(`BatchRegistrar deployment failed - no code at ${deployedAddress}`);
+  }
+
+  return getContract({
+    address: deployedAddress,
+    abi: batchRegistrarArtifact.abi,
+    client,
+  });
 }
 
 /**
@@ -476,6 +502,27 @@ async function fetchAndRegisterInBatches(
     transport: http(config.mainnetRpcUrl, { retryCount: 3, timeout: RPC_TIMEOUT_MS }),
   });
 
+  // Deploy or get BatchRegistrar
+  const batchRegistrar = await deployBatchRegistrar(client, config.registryAddress);
+
+  // Grant REGISTRAR role to BatchRegistrar if needed
+  const hasRole = await registry.read.hasRootRoles([
+    ROLES.OWNER.EAC.REGISTRAR,
+    batchRegistrar.address,
+  ]);
+
+  if (!hasRole) {
+    logger.info("Granting REGISTRAR role to BatchRegistrar...");
+    const hash = await (registry.write.grantRootRoles as any)([
+      ROLES.OWNER.EAC.REGISTRAR,
+      batchRegistrar.address,
+    ]);
+    await client.waitForTransactionReceipt({ hash });
+    logger.success("REGISTRAR role granted to BatchRegistrar");
+  } else {
+    logger.info("BatchRegistrar already has REGISTRAR role");
+  }
+
   logger.info(`\nReading CSV file and registering in batches of ${config.batchSize}...`);
   logger.info(`CSV file: ${config.csvFilePath}`);
 
@@ -520,6 +567,7 @@ async function fetchAndRegisterInBatches(
           validBatch,
           client,
           registry,
+          batchRegistrar,
           mainnetClient,
           checkpoint
         );
@@ -547,59 +595,130 @@ async function fetchAndRegisterInBatches(
   printFinalSummary(checkpoint);
 }
 
-// Process a single batch of registrations
+// Process a single batch of registrations using BatchRegistrar
 async function processBatch(
   config: PreMigrationConfig,
   registrations: ENSRegistration[],
   client: any,
   registry: any,
+  batchRegistrar: any,
   mainnetClient: any,
   checkpoint: Checkpoint
 ): Promise<Checkpoint> {
+  const batchNames: BatchRegistrarName[] = [];
+
+  // First pass: verify all names on mainnet and check if already registered
   for (let i = 0; i < registrations.length; i++) {
     const registration = registrations[i];
-    const globalIndex = checkpoint.totalProcessed + 1;
+    const globalIndex = checkpoint.totalProcessed + i + 1;
 
-    // Log start of processing
     logger.processingName(registration.labelName, globalIndex, checkpoint.totalExpected);
 
-    const result = await registerName(client, registry, config, registration, mainnetClient);
+    try {
+      // Check if name is already registered in namechain
+      try {
+        const [tokenId] = await registry.read.getNameData([registration.labelName]);
+        const owner = await registry.read.ownerOf([tokenId]);
 
-    // Determine result type and update checkpoint
-    let resultType: 'registered' | 'skipped' | 'failed';
-    if (result.skipped) {
-      checkpoint.skippedCount++;
-      resultType = 'skipped';
-    } else if (result.success) {
-      checkpoint.successCount++;
-      resultType = 'registered';
-    } else {
-      if (result.invalidLabel) {
-        checkpoint.invalidLabelCount++;
-      } else {
-        checkpoint.failureCount++;
+        if (owner !== zeroAddress) {
+          if (owner.toLowerCase() !== config.bridgeControllerAddress.toLowerCase()) {
+            logger.error(`Name ${registration.labelName}.eth is already registered but owned by unexpected address: ${owner}`);
+            checkpoint.failureCount++;
+            logger.finishedName(registration.labelName, 'failed');
+            continue;
+          }
+
+          logger.alreadyRegistered(owner.substring(0, 10));
+          checkpoint.skippedCount++;
+          logger.finishedName(registration.labelName, 'skipped');
+          continue;
+        }
+      } catch (error) {
+        // Name not found - proceed with mainnet verification
       }
-      resultType = 'failed';
+
+      // Verify name is still registered on mainnet
+      logger.verifyingMainnet(registration.labelName);
+      const mainnetResult = await verifyNameOnMainnet(
+        registration.labelName,
+        mainnetClient,
+        config.mainnetBaseRegistrarAddress
+      );
+
+      if (!mainnetResult.isRegistered) {
+        const reason = mainnetResult.expiry === 0n
+          ? "never registered or fully expired"
+          : "expired";
+        logger.mainnetNotRegistered(registration.labelName, reason);
+        checkpoint.skippedCount++;
+        logger.finishedName(registration.labelName, 'skipped');
+        continue;
+      }
+
+      const expiryDateFormatted = new Date(Number(mainnetResult.expiry) * 1000).toISOString().split('T')[0];
+      logger.mainnetVerified(registration.labelName, expiryDateFormatted);
+
+      // Add to batch
+      batchNames.push({
+        label: registration.labelName,
+        owner: config.bridgeControllerAddress,
+        registry: zeroAddress,
+        resolver: zeroAddress,
+        roleBitmap: config.roleBitmap,
+        expires: mainnetResult.expiry,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.failed(registration.labelName, errorMessage, undefined, MAX_RETRIES);
+      checkpoint.failureCount++;
+      logger.finishedName(registration.labelName, 'failed');
     }
+  }
 
-    checkpoint.totalProcessed++;
-    checkpoint.timestamp = new Date().toISOString();
+  // Update total processed count = all names we went through
+  checkpoint.totalProcessed += registrations.length;
 
-    logger.finishedName(registration.labelName, resultType);
+  // Second pass: batch register all valid names
+  if (batchNames.length > 0 && !config.dryRun) {
+    logger.info(`\nBatch registering ${batchNames.length} names...`);
 
-    // Save checkpoint after each name
-    if (!config.disableCheckpoint) {
-      saveCheckpoint(checkpoint);
+    try {
+      const hash = await batchRegistrar.write.batchRegister([batchNames]);
+      await client.waitForTransactionReceipt({ hash });
 
-      // Log progress periodically
-      if (checkpoint.totalProcessed % PROGRESS_LOG_INTERVAL === 0) {
-        logger.progress(checkpoint.totalProcessed, checkpoint.totalExpected, {
-          registered: checkpoint.successCount,
-          skipped: checkpoint.skippedCount,
-          failed: checkpoint.failureCount,
-        });
+      logger.success(`Batch registration successful (tx: ${hash})`);
+      checkpoint.successCount += batchNames.length;
+
+      // Log each registered name
+      for (const name of batchNames) {
+        logger.registered(hash);
+        logger.finishedName(name.label, 'registered');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Batch registration failed: ${errorMessage}`);
+      checkpoint.failureCount += batchNames.length;
+
+      for (const name of batchNames) {
+        logger.failed(name.label, errorMessage, undefined, MAX_RETRIES);
+        logger.finishedName(name.label, 'failed');
       }
     }
+  } else if (batchNames.length > 0 && config.dryRun) {
+    logger.info(`\nDry run: Would batch register ${batchNames.length} names`);
+    checkpoint.successCount += batchNames.length;
+
+    for (const name of batchNames) {
+      logger.dryRun();
+      logger.finishedName(name.label, 'registered');
+    }
+  }
+
+  checkpoint.timestamp = new Date().toISOString();
+
+  // Save checkpoint
+  if (!config.disableCheckpoint) {
+    saveCheckpoint(checkpoint);
   }
 
   return checkpoint;
@@ -639,123 +758,8 @@ function printFinalSummary(checkpoint: Checkpoint): void {
 }
 
 /**
- * Registers a single ENS name on the destination chain with mainnet verification.
- * Includes automatic retry logic for transient errors.
- *
- * @param client - Viem wallet client for transaction signing
- * @param registry - Registry contract instance
- * @param config - Pre-migration configuration
- * @param registration - ENS registration data from TheGraph
- * @param mainnetClient - Mainnet client for verification
- * @param retries - Current retry attempt count (internal use)
- * @returns Registration result with success status and transaction hash
- */
-export async function registerName(
-  client: any,
-  registry: any,
-  config: PreMigrationConfig,
-  registration: ENSRegistration,
-  mainnetClient: any,
-  retries = 0
-): Promise<RegistrationResult> {
-  const { labelName } = registration;
-
-  try {
-    // Check if name is already registered in namechain first
-    try {
-      const [tokenId] = await registry.read.getNameData([labelName]);
-      const owner = await registry.read.ownerOf([tokenId]);
-
-      if (owner !== zeroAddress) {
-        // Verify the owner is the bridge controller (from this migration)
-        if (owner.toLowerCase() !== config.bridgeControllerAddress.toLowerCase()) {
-          logger.error(`Name ${labelName}.eth is already registered but owned by unexpected address: ${owner}`);
-          throw new UnexpectedOwnerError(labelName, owner, config.bridgeControllerAddress);
-        }
-
-        logger.alreadyRegistered(owner.substring(0, 10));
-        return { labelName, success: true, skipped: true };
-      }
-    } catch (error) {
-      // Validation errors are permanent failures - re-throw them
-      if (error instanceof UnexpectedOwnerError) {
-        throw error;
-      }
-      // Name not found or read error - proceed with mainnet verification
-    }
-
-    // Verify name is still registered on mainnet
-    logger.verifyingMainnet(labelName);
-    const mainnetResult = await verifyNameOnMainnet(
-      labelName,
-      mainnetClient,
-      config.mainnetBaseRegistrarAddress
-    );
-
-    if (!mainnetResult.isRegistered) {
-      const reason = mainnetResult.expiry === 0n
-        ? "never registered or fully expired"
-        : "expired";
-      logger.mainnetNotRegistered(labelName, reason);
-      return { labelName, success: true, skipped: true };
-    }
-
-    const expiryDateFormatted = new Date(Number(mainnetResult.expiry) * 1000).toISOString().split('T')[0];
-    logger.mainnetVerified(labelName, expiryDateFormatted);
-
-    // Use mainnet expiry for registration
-    const expires = mainnetResult.expiry;
-
-    logger.registering(labelName, expiryDateFormatted);
-
-    if (config.dryRun) {
-      logger.dryRun();
-      return { labelName, success: true };
-    }
-
-    const hash = await registry.write.register([
-      labelName,
-      config.bridgeControllerAddress,
-      zeroAddress, // No subregistry for pre-migration
-      zeroAddress, // No resolver initially
-      config.roleBitmap,
-      expires,
-    ]);
-
-    await client.waitForTransactionReceipt({ hash });
-
-    logger.registered(hash);
-    return { labelName, success: true, txHash: hash };
-  } catch (error) {
-    // Don't retry validation errors - these are permanent failures
-    if (error instanceof UnexpectedOwnerError || error instanceof InvalidLabelNameError) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.failed(labelName, errorMessage, undefined, MAX_RETRIES);
-      return {
-        labelName,
-        success: false,
-        error: errorMessage,
-        invalidLabel: error instanceof InvalidLabelNameError
-      };
-    }
-
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    // Only retry if it's a retriable error
-    if (isRetriableError(error) && retries < MAX_RETRIES) {
-      logger.failed(labelName, errorMessage, retries + 1, MAX_RETRIES);
-      await new Promise((resolve) => setTimeout(resolve, RETRY_BASE_DELAY_MS * (retries + 1)));
-      return registerName(client, registry, config, registration, mainnetClient, retries + 1);
-    }
-
-    logger.failed(labelName, errorMessage, undefined, MAX_RETRIES);
-    return { labelName, success: false, error: errorMessage };
-  }
-}
-
-/**
- * Batch registers multiple ENS names with checkpoint support.
- * Processes a pre-fetched list of registrations sequentially.
+ * Batch registers multiple ENS names for testing purposes.
+ * Processes a pre-fetched list of registrations using BatchRegistrar.
  *
  * @param config - Pre-migration configuration
  * @param registrations - Pre-fetched array of registrations to process
@@ -790,122 +794,60 @@ export async function batchRegisterNames(
     }),
   });
 
-  logger.info(`\nStarting registration process...`);
-  logger.info(`Total names to register: ${registrations.length}`);
-  logger.info(`CSV batch size: ${config.batchSize}`);
-  logger.info(`Dry run: ${config.dryRun}`);
+  // Deploy or get BatchRegistrar
+  const batchRegistrar = await deployBatchRegistrar(client, config.registryAddress);
+
+  // Grant REGISTRAR role to BatchRegistrar if needed
+  const hasRole = await registry.read.hasRootRoles([
+    ROLES.OWNER.EAC.REGISTRAR,
+    batchRegistrar.address,
+  ]);
+
+  if (!hasRole) {
+    const hash = await (registry.write.grantRootRoles as any)([
+      ROLES.OWNER.EAC.REGISTRAR,
+      batchRegistrar.address,
+    ]);
+    await client.waitForTransactionReceipt({ hash });
+  }
 
   // Load checkpoint based on configuration
   let checkpoint: Checkpoint;
   if (config.disableCheckpoint) {
-    // Tests can disable checkpoints completely
     checkpoint = createFreshCheckpoint();
     checkpoint.totalExpected = registrations.length;
   } else if (config.continue) {
-    // Explicit opt-in: try to load checkpoint
     const loaded = loadCheckpoint();
     if (loaded) {
-      logger.info(`Resuming from checkpoint: ${loaded.totalProcessed} names already processed`);
-      // Handle legacy checkpoints without skippedCount, totalExpected, or invalidLabelCount
       checkpoint = {
         ...loaded,
         skippedCount: loaded.skippedCount ?? 0,
         invalidLabelCount: loaded.invalidLabelCount ?? 0,
         totalExpected: (loaded.totalExpected ?? loaded.totalProcessed) + registrations.length,
-        lastProcessedIndex: -1, // Reset since we're fetching from new offset
+        lastProcessedIndex: -1,
       };
     } else {
-      logger.warning("--continue flag set but no checkpoint found, starting fresh");
       checkpoint = createFreshCheckpoint();
       checkpoint.totalExpected = registrations.length;
     }
   } else {
-    // Default: always start fresh (ignore existing checkpoint)
     checkpoint = createFreshCheckpoint();
     checkpoint.totalExpected = registrations.length;
   }
 
-  const results: RegistrationResult[] = [];
-  const startIndex = checkpoint.lastProcessedIndex + 1;
+  // Process in a single batch
+  await processBatch(
+    config,
+    registrations,
+    client,
+    registry,
+    batchRegistrar,
+    mainnetClient,
+    checkpoint
+  );
 
-  for (let i = startIndex; i < registrations.length; i++) {
-    const registration = registrations[i];
-
-    // Log start of processing
-    logger.processingName(registration.labelName, i + 1, registrations.length);
-
-    const result = await registerName(client, registry, config, registration, mainnetClient);
-    results.push(result);
-
-    // Determine result type and log completion
-    let resultType: 'registered' | 'skipped' | 'failed';
-    if (result.skipped) {
-      checkpoint.skippedCount++;
-      resultType = 'skipped';
-    } else if (result.success) {
-      checkpoint.successCount++;
-      resultType = 'registered';
-    } else {
-      if (result.invalidLabel) {
-        checkpoint.invalidLabelCount++;
-      } else {
-        checkpoint.failureCount++;
-      }
-      resultType = 'failed';
-    }
-
-    checkpoint.totalProcessed++;
-
-    logger.finishedName(registration.labelName, resultType);
-
-    checkpoint.lastProcessedIndex = i;
-    checkpoint.timestamp = new Date().toISOString();
-
-    // Save checkpoint after each name (unless disabled)
-    if (!config.disableCheckpoint) {
-      saveCheckpoint(checkpoint);
-
-      // Log progress periodically
-      if (checkpoint.totalProcessed % PROGRESS_LOG_INTERVAL === 0) {
-        logger.progress(checkpoint.totalProcessed, checkpoint.totalExpected, {
-          registered: checkpoint.successCount,
-          skipped: checkpoint.skippedCount,
-          failed: checkpoint.failureCount,
-        });
-      }
-    }
-  }
-
-  // Final checkpoint save (unless disabled)
-  if (!config.disableCheckpoint) {
-    saveCheckpoint(checkpoint);
-  }
-
-  // Summary
-  const actualRegistrations = checkpoint.successCount + checkpoint.failureCount;
-
-  logger.info('');
-  logger.divider();
-  logger.header('Pre-Migration Complete');
-  logger.divider();
-
-  logger.config('Total names processed', checkpoint.totalProcessed);
-  logger.config('Successfully registered', green(checkpoint.successCount.toString()));
-  logger.config('Skipped (already registered/expired)', yellow(checkpoint.skippedCount.toString()));
-  logger.config('Invalid labels', yellow(checkpoint.invalidLabelCount.toString()));
-  logger.config('Failed (other errors)', checkpoint.failureCount > 0 ? red(checkpoint.failureCount.toString()) : checkpoint.failureCount);
-  logger.config('Actual registrations attempted', actualRegistrations);
-
-  const rate = calculateSuccessRate(checkpoint.successCount, actualRegistrations);
-  if (actualRegistrations > 0) {
-    logger.config('Registration success rate', `${rate}%`);
-  }
-
-  logger.divider();
-
-  if (checkpoint.failureCount > 0) {
-    logger.warning(`\nSome registrations failed. Check ${ERROR_LOG_FILE} for details.`);
-  }
+  // Print summary
+  printFinalSummary(checkpoint);
 }
 
 /**
@@ -924,7 +866,7 @@ export async function main(argv = process.argv): Promise<void> {
     .requiredOption("--namechain-bridge-controller <address>", "L2BridgeController address")
     .requiredOption("--private-key <key>", "Deployer private key (has REGISTRAR role)")
     .requiredOption("--csv-file <path>", "Path to CSV file containing ENS registrations")
-    .option("--batch-size <number>", "Number of names to process per batch", "1000")
+    .option("--batch-size <number>", "Number of names to process per batch", "50")
     .option("--start-index <number>", "Starting index for resuming partial migrations", "0")
     .option("--limit <number>", "Maximum total number of names to process and register")
     .option("--dry-run", "Simulate without executing transactions", false)
