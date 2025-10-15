@@ -26,7 +26,7 @@ describe("Pre-Migration Script E2E", () => {
 
     await setupBaseRegistrarController(
       env.l1.client,
-      env.l1.contracts.ethRegistrarV1.address
+      env.l1.contracts.ETHRegistrarV1.address
     );
   });
 
@@ -42,7 +42,7 @@ describe("Pre-Migration Script E2E", () => {
   it("should read from CSV and register names from ENS v1 on L2", async () => {
     const csvHelper = createCSVTestHelper(
       env.l1.client,
-      env.l1.contracts.ethRegistrarV1.address
+      env.l1.contracts.ETHRegistrarV1.address
     );
 
     const duration = BigInt(365 * 24 * 60 * 60);
@@ -57,9 +57,9 @@ describe("Pre-Migration Script E2E", () => {
     const config: PreMigrationConfig = {
       rpcUrl: `http://${env.l2.hostPort}`,
       mainnetRpcUrl: `http://${env.l1.hostPort}`,
-      mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
-      registryAddress: env.l2.contracts.ethRegistry.address,
-      bridgeControllerAddress: env.l2.contracts.bridgeController.address,
+      mainnetBaseRegistrarAddress: env.l1.contracts.ETHRegistrarV1.address,
+      registryAddress: env.l2.contracts.ETHRegistry.address,
+      bridgeControllerAddress: env.l2.contracts.BridgeController.address,
       privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
       csvFilePath: TEST_CSV_PATH,
       batchSize: 100,
@@ -74,15 +74,15 @@ describe("Pre-Migration Script E2E", () => {
     expect(registrations.length).toBe(3);
     console.log(`✓ Created CSV with ${registrations.length} registrations`);
 
-    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ETHRegistry);
 
     for (const reg of registrations) {
-      const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData([
+      const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
         reg.labelName,
       ]);
-      const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
+      const owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
       expect(owner.toLowerCase()).toBe(
-        env.l2.contracts.bridgeController.address.toLowerCase()
+        env.l2.contracts.BridgeController.address.toLowerCase()
       );
       console.log(`✓ Verified: ${reg.labelName}.eth registered on L2`);
     }
@@ -91,7 +91,7 @@ describe("Pre-Migration Script E2E", () => {
   it("should skip names that are expired on mainnet", async () => {
     const csvHelper = createCSVTestHelper(
       env.l1.client,
-      env.l1.contracts.ethRegistrarV1.address
+      env.l1.contracts.ETHRegistrarV1.address
     );
 
     const pastDuration = BigInt(1);
@@ -106,9 +106,9 @@ describe("Pre-Migration Script E2E", () => {
     const config: PreMigrationConfig = {
       rpcUrl: `http://${env.l2.hostPort}`,
       mainnetRpcUrl: `http://${env.l1.hostPort}`,
-      mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
-      registryAddress: env.l2.contracts.ethRegistry.address,
-      bridgeControllerAddress: env.l2.contracts.bridgeController.address,
+      mainnetBaseRegistrarAddress: env.l1.contracts.ETHRegistrarV1.address,
+      registryAddress: env.l2.contracts.ETHRegistry.address,
+      bridgeControllerAddress: env.l2.contracts.BridgeController.address,
       privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
       csvFilePath: TEST_CSV_PATH,
       batchSize: 100,
@@ -120,10 +120,10 @@ describe("Pre-Migration Script E2E", () => {
     };
 
     const registrations = csvHelper.getRegistrations();
-    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ETHRegistry);
 
-    const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData(["expired1"]);
-    const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
+    const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData(["expired1"]);
+    const owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
     expect(owner).toBe(zeroAddress);
     console.log("✓ Expired name was skipped (not registered on L2)");
   });
@@ -131,7 +131,7 @@ describe("Pre-Migration Script E2E", () => {
   it("should handle checkpoint resumption correctly", async () => {
     const csvHelper = createCSVTestHelper(
       env.l1.client,
-      env.l1.contracts.ethRegistrarV1.address
+      env.l1.contracts.ETHRegistrarV1.address
     );
 
     const duration = BigInt(365 * 24 * 60 * 60);
@@ -153,9 +153,9 @@ describe("Pre-Migration Script E2E", () => {
     const config: PreMigrationConfig = {
       rpcUrl: `http://${env.l2.hostPort}`,
       mainnetRpcUrl: `http://${env.l1.hostPort}`,
-      mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
-      registryAddress: env.l2.contracts.ethRegistry.address,
-      bridgeControllerAddress: env.l2.contracts.bridgeController.address,
+      mainnetBaseRegistrarAddress: env.l1.contracts.ETHRegistrarV1.address,
+      registryAddress: env.l2.contracts.ETHRegistry.address,
+      bridgeControllerAddress: env.l2.contracts.BridgeController.address,
       privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
       csvFilePath: TEST_CSV_PATH,
       batchSize: 100,
@@ -167,7 +167,7 @@ describe("Pre-Migration Script E2E", () => {
     };
 
     const registrations = csvHelper.getRegistrations();
-    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ETHRegistry);
 
     const finalCheckpoint = loadCheckpoint();
     expect(finalCheckpoint).not.toBeNull();
@@ -179,7 +179,7 @@ describe("Pre-Migration Script E2E", () => {
   it("should skip already-registered names on L2", async () => {
     const csvHelper = createCSVTestHelper(
       env.l1.client,
-      env.l1.contracts.ethRegistrarV1.address
+      env.l1.contracts.ETHRegistrarV1.address
     );
 
     const duration = BigInt(365 * 24 * 60 * 60);
@@ -192,9 +192,9 @@ describe("Pre-Migration Script E2E", () => {
     const config: PreMigrationConfig = {
       rpcUrl: `http://${env.l2.hostPort}`,
       mainnetRpcUrl: `http://${env.l1.hostPort}`,
-      mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
-      registryAddress: env.l2.contracts.ethRegistry.address,
-      bridgeControllerAddress: env.l2.contracts.bridgeController.address,
+      mainnetBaseRegistrarAddress: env.l1.contracts.ETHRegistrarV1.address,
+      registryAddress: env.l2.contracts.ETHRegistry.address,
+      bridgeControllerAddress: env.l2.contracts.BridgeController.address,
       privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
       csvFilePath: TEST_CSV_PATH,
       batchSize: 100,
@@ -206,16 +206,16 @@ describe("Pre-Migration Script E2E", () => {
     };
 
     const registrations = csvHelper.getRegistrations();
-    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ETHRegistry);
 
     console.log("✓ First registration completed");
 
-    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ETHRegistry);
 
-    const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData(["duplicate1"]);
-    const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
+    const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData(["duplicate1"]);
+    const owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
     expect(owner.toLowerCase()).toBe(
-      env.l2.contracts.bridgeController.address.toLowerCase()
+      env.l2.contracts.BridgeController.address.toLowerCase()
     );
     console.log("✓ Second registration skipped duplicate name correctly");
   });
@@ -223,7 +223,7 @@ describe("Pre-Migration Script E2E", () => {
   it("should handle dry run mode", async () => {
     const csvHelper = createCSVTestHelper(
       env.l1.client,
-      env.l1.contracts.ethRegistrarV1.address
+      env.l1.contracts.ETHRegistrarV1.address
     );
 
     const duration = BigInt(365 * 24 * 60 * 60);
@@ -236,9 +236,9 @@ describe("Pre-Migration Script E2E", () => {
     const config: PreMigrationConfig = {
       rpcUrl: `http://${env.l2.hostPort}`,
       mainnetRpcUrl: `http://${env.l1.hostPort}`,
-      mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
-      registryAddress: env.l2.contracts.ethRegistry.address,
-      bridgeControllerAddress: env.l2.contracts.bridgeController.address,
+      mainnetBaseRegistrarAddress: env.l1.contracts.ETHRegistrarV1.address,
+      registryAddress: env.l2.contracts.ETHRegistry.address,
+      bridgeControllerAddress: env.l2.contracts.BridgeController.address,
       privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
       csvFilePath: TEST_CSV_PATH,
       batchSize: 100,
@@ -250,10 +250,10 @@ describe("Pre-Migration Script E2E", () => {
     };
 
     const registrations = csvHelper.getRegistrations();
-    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ETHRegistry);
 
-    const [tokenId] = await env.l2.contracts.ethRegistry.read.getNameData(["dryrun1"]);
-    const owner = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId]);
+    const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData(["dryrun1"]);
+    const owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
     expect(owner).toBe(zeroAddress);
     console.log("✓ Dry run did not register name on L2");
   });
@@ -261,7 +261,7 @@ describe("Pre-Migration Script E2E", () => {
   it("should respect limit parameter", async () => {
     const csvHelper = createCSVTestHelper(
       env.l1.client,
-      env.l1.contracts.ethRegistrarV1.address
+      env.l1.contracts.ETHRegistrarV1.address
     );
 
     const duration = BigInt(365 * 24 * 60 * 60);
@@ -276,9 +276,9 @@ describe("Pre-Migration Script E2E", () => {
     const config: PreMigrationConfig = {
       rpcUrl: `http://${env.l2.hostPort}`,
       mainnetRpcUrl: `http://${env.l1.hostPort}`,
-      mainnetBaseRegistrarAddress: env.l1.contracts.ethRegistrarV1.address,
-      registryAddress: env.l2.contracts.ethRegistry.address,
-      bridgeControllerAddress: env.l2.contracts.bridgeController.address,
+      mainnetBaseRegistrarAddress: env.l1.contracts.ETHRegistrarV1.address,
+      registryAddress: env.l2.contracts.ETHRegistry.address,
+      bridgeControllerAddress: env.l2.contracts.BridgeController.address,
       privateKey: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as `0x${string}`,
       csvFilePath: TEST_CSV_PATH,
       batchSize: 100,
@@ -290,22 +290,22 @@ describe("Pre-Migration Script E2E", () => {
     };
 
     const registrations = csvHelper.getRegistrations().slice(0, 2);
-    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ethRegistry);
+    await batchRegisterNames(config, registrations, env.l2.client, env.l2.contracts.ETHRegistry);
 
-    const [tokenId1] = await env.l2.contracts.ethRegistry.read.getNameData(["limit1"]);
-    const owner1 = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId1]);
+    const [tokenId1] = await env.l2.contracts.ETHRegistry.read.getNameData(["limit1"]);
+    const owner1 = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId1]);
     expect(owner1.toLowerCase()).toBe(
-      env.l2.contracts.bridgeController.address.toLowerCase()
+      env.l2.contracts.BridgeController.address.toLowerCase()
     );
 
-    const [tokenId2] = await env.l2.contracts.ethRegistry.read.getNameData(["limit2"]);
-    const owner2 = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId2]);
+    const [tokenId2] = await env.l2.contracts.ETHRegistry.read.getNameData(["limit2"]);
+    const owner2 = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId2]);
     expect(owner2.toLowerCase()).toBe(
-      env.l2.contracts.bridgeController.address.toLowerCase()
+      env.l2.contracts.BridgeController.address.toLowerCase()
     );
 
-    const [tokenId3] = await env.l2.contracts.ethRegistry.read.getNameData(["limit3"]);
-    const owner3 = await env.l2.contracts.ethRegistry.read.ownerOf([tokenId3]);
+    const [tokenId3] = await env.l2.contracts.ETHRegistry.read.getNameData(["limit3"]);
+    const owner3 = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId3]);
     expect(owner3).toBe(zeroAddress);
 
     console.log("✓ Limit parameter respected: only 2 names registered");
