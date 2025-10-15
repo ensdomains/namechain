@@ -1,6 +1,73 @@
-import { zeroAddress } from "viem";
+import { zeroAddress, namehash, encodeFunctionData, decodeFunctionResult, parseAbi } from "viem";
 
 import type { CrossChainEnvironment } from "./setup.js";
+import { dnsEncodeName } from "../test/utils/utils.js";
+
+const RESOLVER_ABI = parseAbi([
+  "function addr(bytes32, uint256 coinType) external view returns (bytes)",
+  "function text(bytes32, string key) external view returns (string)",
+]);
+
+// DONE
+// - Register name
+// - Set resolver
+// - Set addr record
+// - Set text record
+// - Show a function that shows the owner of a name
+// - Show a function that shows the addr record of a name
+// - Show a function that shows the text record of a name
+
+// Display name information
+export async function showName(
+  env: CrossChainEnvironment,
+  names: string[],
+) {
+  for (const name of names) {
+    const nameHash = namehash(name); // This is already bytes32 (hex string)
+
+    console.log(`\nFetching information for: ${name}`);
+    console.log(`NameHash: ${nameHash}`);
+
+    // Get addr record (coin type 60 - ETH) using L1 UniversalResolver
+    // L1 UR will use Unruggable Gateway to fetch from L2
+    const addrCall = encodeFunctionData({
+      abi: RESOLVER_ABI,
+      functionName: "addr",
+      args: [nameHash, 60n],
+    });
+    const [addrResult] = await env.l1.contracts.UniversalResolverV2.read.resolve([
+      dnsEncodeName(name),
+      addrCall,
+    ]);
+    const addrBytes = decodeFunctionResult({
+      abi: RESOLVER_ABI,
+      functionName: "addr",
+      data: addrResult,
+    });
+
+    // Get text record (description) using L1 UniversalResolver
+    const textCall = encodeFunctionData({
+      abi: RESOLVER_ABI,
+      functionName: "text",
+      args: [nameHash, "description"],
+    });
+    const [textResult] = await env.l1.contracts.UniversalResolverV2.read.resolve([
+      dnsEncodeName(name),
+      textCall,
+    ]);
+    const description = decodeFunctionResult({
+      abi: RESOLVER_ABI,
+      functionName: "text",
+      data: textResult,
+    });
+    console.log(`\nName Information for ${name}:`);
+    console.table({
+      Name: name,
+      "Address (coin type 60)": addrBytes,
+      Description: description || "(not set)",
+    });
+  }
+}
 
 // Register default test names on L2
 export async function registerTestNames(
