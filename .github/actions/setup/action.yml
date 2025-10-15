@@ -12,7 +12,7 @@ runs:
     - name: Checkout repo
       uses: actions/checkout@v5
       with: 
-        depth: 0
+        fetch-depth: 0
         submodules: "recursive"
 
     - name: Install Foundry
