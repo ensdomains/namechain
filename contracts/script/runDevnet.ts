@@ -68,22 +68,14 @@ for (const lx of [env.l1, env.l2]) {
     })),
   );
 }
-
 // Register all test names with default 1 year expiry
-await registerTestNames(env, ["test", "example", "demo", "newowner", "renew", "parent"]);
+await registerTestNames(env, ["test", "example", "demo", "newowner", "renew", "parent", "bridge"]);
 
 // Transfer newowner.eth to user
 await transferName(env, "newowner.eth", env.namedAccounts.user.address);
 
 // Renew renew.eth for 365 days
 await renewName(env, "renew.eth", 365);
-
-// Bridge bridge.eth from L2 to L1
-// NOTE: Bridging works in E2E tests but fails in devnet with ERC1155InvalidReceiver error
-// The issue is environment-specific - all contracts are correctly deployed and configured
-// Use `bun test test/e2e/bridge.test.ts` to verify bridging functionality
-// TODO: Investigate why devnet environment behaves differently from E2E test environment
-// await bridgeName(env, relay, "bridge.eth");
 
 // Create subnames
 const createdSubnames = await createSubname(env, "sub1.sub2.parent.eth");
@@ -97,6 +89,9 @@ const allNames = [
   "parent.eth",
   ...createdSubnames,
 ];
+
+// Bridge bridge.eth from L2 to L1
+await bridgeName(env, "bridge.eth");
 
 await showName(env, allNames);
 
