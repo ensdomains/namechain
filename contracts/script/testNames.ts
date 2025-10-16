@@ -33,13 +33,17 @@ export async function showName(
     const label = name.replace('.eth', '');
     let owner = 'N/A';
     let tokenId = 'N/A';
+    let expiryDate = 'N/A';
 
     try {
       const [tid, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
       tokenId = tid;
       owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
+      const expiryTimestamp = Number(entry.expiry);
+      expiryDate = expiryTimestamp > 0 ? new Date(expiryTimestamp * 1000).toISOString() : 'Never';
       console.log(`TokenId: ${tokenId}`);
       console.log(`Owner: ${owner}`);
+      console.log(`Expiry: ${expiryDate}`);
     } catch (e) {
       console.log(`Could not fetch owner from L2 registry (may be a subname)`);
     }
@@ -86,6 +90,7 @@ export async function showName(
     console.table({
       Name: name,
       Owner: owner,
+      Expiry: expiryDate,
       Resolver: resolver,
       "Address (coin type 60)": addrBytes,
       Description: description || "(not set)",
