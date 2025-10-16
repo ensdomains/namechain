@@ -11,12 +11,11 @@ const RESOLVER_ABI = parseAbi([
 
 // TODO
 // add subname
-// transfer ownership
 // renew name
-
 
 // DONE
 // - Register name
+// - Transfer ownership
 // - Set resolver
 // - Set addr record
 // - Set text record
@@ -103,6 +102,66 @@ export async function showName(
       Description: description || "(not set)",
     });
   }
+}
+
+// Renew a name on L2
+export async function renewName(
+  env: CrossChainEnvironment,
+  name: string,
+  durationInDays: number,
+  account = env.namedAccounts.owner,
+) {
+  // Extract label from name
+  const label = name.replace('.eth', '');
+
+  // Get current expiry
+  const [tokenId, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+  const currentExpiry = Number(entry.expiry);
+
+  console.log(`\nRenewing ${name}...`);
+  console.log(`Current expiry: ${new Date(currentExpiry * 1000).toISOString()}`);
+  console.log(`Extending by: ${durationInDays} days`);
+
+  const duration = BigInt(durationInDays * 24 * 60 * 60); // Convert days to seconds
+  const paymentToken = env.l2.contracts.MockUSDC.address;
+  const referrer = '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+  // Approve payment token (get price first to know how much to approve)
+  const [price] = await env.l2.contracts.ETHRegistrar.read.rentPrice([
+    label,
+    account.address,
+    duration,
+    paymentToken,
+  ]);
+
+  console.log(`Renewal price: ${price}`);
+
+  // Mint tokens if needed
+  const balance = await env.l2.contracts.MockUSDC.read.balanceOf([account.address]);
+  console.log(`Current balance: ${balance}`);
+
+  if (balance < price) {
+    const amountToMint = price - balance + 1000000n; // Mint a bit extra
+    console.log(`Minting ${amountToMint} tokens...`);
+    await env.l2.contracts.MockUSDC.write.mint([account.address, amountToMint], { account });
+  }
+
+  // Approve the registrar to spend tokens
+  await env.l2.contracts.MockUSDC.write.approve(
+    [env.l2.contracts.ETHRegistrar.address, price],
+    { account },
+  );
+
+  // Renew the name
+  await env.l2.contracts.ETHRegistrar.write.renew(
+    [label, duration, paymentToken, referrer],
+    { account },
+  );
+
+  const [, newEntry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+  const newExpiry = Number(newEntry.expiry);
+  console.log(`New expiry: ${new Date(newExpiry * 1000).toISOString()}`);
+  console.log(`✓ Renewal completed`);
 }
 
 // Transfer a name to a new owner on L2
