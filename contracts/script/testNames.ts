@@ -2,11 +2,18 @@ import { zeroAddress, namehash, encodeFunctionData, decodeFunctionResult, parseA
 
 import type { CrossChainEnvironment } from "./setup.js";
 import { dnsEncodeName } from "../test/utils/utils.js";
+import { ROLES } from "../deploy/constants.js";
 
 const RESOLVER_ABI = parseAbi([
   "function addr(bytes32, uint256 coinType) external view returns (bytes)",
   "function text(bytes32, string key) external view returns (string)",
 ]);
+
+// TODO
+// add subname
+// transfer ownership
+// renew name
+
 
 // DONE
 // - Register name
@@ -98,6 +105,33 @@ export async function showName(
   }
 }
 
+// Transfer a name to a new owner on L2
+export async function transferName(
+  env: CrossChainEnvironment,
+  name: string,
+  newOwner: string,
+  account = env.namedAccounts.owner,
+) {
+  // Extract label from name
+  const label = name.replace('.eth', '');
+
+  // Get tokenId from registry
+  const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+
+  console.log(`\nTransferring ${name}...`);
+  console.log(`TokenId: ${tokenId}`);
+  console.log(`From: ${account.address}`);
+  console.log(`To: ${newOwner}`);
+
+  // Transfer the token (roles should already be granted during registration)
+  await env.l2.contracts.ETHRegistry.write.safeTransferFrom(
+    [account.address, newOwner, tokenId, 1n, '0x'],
+    { account },
+  );
+
+  console.log(`✓ Transfer completed`);
+}
+
 // Register default test names on L2
 export async function registerTestNames(
   env: CrossChainEnvironment,
@@ -109,13 +143,13 @@ export async function registerTestNames(
     // Deploy a dedicated resolver for this name (same as test)
     const resolver = await env.l2.deployDedicatedResolver(account);
 
-    // Register the name exactly like in urg.test.ts
+    // Register the name with all roles (including transfer role)
     await env.l2.contracts.ETHRegistry.write.register([
       label,
       account.address,
       zeroAddress,
       resolver.address,
-      0n,
+      ROLES.ALL,
       BigInt(Math.floor(Date.now() / 1000) + 86400),
     ]);
 

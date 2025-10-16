@@ -1,6 +1,6 @@
 import { getAddress, toHex } from "viem";
 import { setupCrossChainEnvironment } from "./setup.js";
-import { registerTestNames, showName } from "./testNames.js";
+import { registerTestNames, showName, transferName } from "./testNames.js";
 import { setupMockRelay } from "./mockRelay.js";
 import { createServer } from "node:http";
 import { parseArgs } from "node:util";
@@ -69,9 +69,12 @@ for (const lx of [env.l1, env.l2]) {
   );
 }
 
-await registerTestNames(env, ["test", "example", "demo"]);
+await registerTestNames(env, ["test", "example", "demo", "newowner"]);
 
-await showName(env, ["test.eth", "example.eth", "demo.eth"]);
+// Transfer newowner.eth to user
+await transferName(env, "newowner.eth", env.namedAccounts.user.address);
+
+await showName(env, ["test.eth", "example.eth", "demo.eth", "newowner.eth"]);
 
 console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);
 
