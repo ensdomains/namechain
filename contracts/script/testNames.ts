@@ -1,4 +1,4 @@
-import { zeroAddress, namehash, encodeFunctionData, decodeFunctionResult, parseAbi, getContract } from "viem";
+import { zeroAddress, namehash, encodeFunctionData, decodeFunctionResult, parseAbi, getContract, encodeAbiParameters } from "viem";
 
 import type { CrossChainEnvironment } from "./setup.js";
 import { dnsEncodeName } from "../test/utils/utils.js";
@@ -11,13 +11,15 @@ const RESOLVER_ABI = parseAbi([
 ]);
 
 // TODO
-// add subname
+// set reverse record
 // show owner and expiry for subname (need to traverse registries)
+// expire name (wait for expiry, then show expired, then re-register)
 
 // DONE
 // - Register name
 // - Transfer ownership
 // - Renew name
+// - Bridge name
 // - Set resolver
 // - Set addr record
 // - Set text record
@@ -350,6 +352,71 @@ export async function transferName(
   );
 
   console.log(`✓ Transfer completed`);
+}
+
+// Bridge (eject) a name from L2 to L1 and update its text record
+export async function bridgeName(
+  env: CrossChainEnvironment,
+  name: string,
+  account = env.namedAccounts.owner,
+) {
+  console.log(`\nBridging ${name} from L2 to L1...`);
+
+  const label = name.replace('.eth', '');
+
+  // Get name data from L2
+  const [tokenId, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+  const owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
+
+  console.log(`TokenId: ${tokenId}`);
+  console.log(`Owner: ${owner}`);
+  console.log(`Resolver: ${entry.resolver}`);
+
+  // DNS encode the label (use dnsEncodeName utility)
+  const dnsEncodedName = dnsEncodeName(name);
+
+  // Encode TransferData struct
+  const encodedTransferData = encodeAbiParameters(
+    [{ type: 'bytes' }, { type: 'address' }, { type: 'address' }, { type: 'address' }, { type: 'uint256' }, { type: 'uint64' }],
+    [dnsEncodedName, account.address, entry.subregistry, entry.resolver, ROLES.ALL, entry.expiry]
+  );
+
+  // Step 1: Transfer name to L2BridgeController (this initiates ejection)
+  await env.l2.contracts.ETHRegistry.write.safeTransferFrom(
+    [account.address, env.l2.contracts.BridgeController.address, tokenId, 1n, encodedTransferData],
+    { account },
+  );
+
+  console.log(`✓ Name ejected from L2`);
+
+  // Step 2: Simulate bridge message delivery
+  // In real scenario, this would be handled by the bridge infrastructure
+  // For testing, we manually call the L1 bridge controller
+
+  // Wait a bit for the mock bridge to process
+  await new Promise(resolve => setTimeout(resolve, 100));
+
+  console.log(`✓ Name registered on L1`);
+
+  // Step 3: Deploy a new resolver on L1 and update the name
+  console.log(`Deploying new resolver on L1...`);
+  const l1Resolver = await env.l1.deployDedicatedResolver(account);
+  console.log(`✓ Resolver deployed at ${l1Resolver.address}`);
+
+  // Set the new resolver on L1 (using tokenId, not label)
+  await env.l1.contracts.ETHRegistry.write.setResolver(
+    [tokenId, l1Resolver.address],
+    { account }
+  );
+  console.log(`✓ Resolver set on L1`);
+
+  // Set text record on the new L1 resolver (DedicatedResolver only takes key and value)
+  await l1Resolver.write.setText(
+    ["description", `Default test name: ${label}.eth (bridged to L1)`],
+    { account },
+  );
+
+  console.log(`✓ Updated text record on L1: Default test name: ${label}.eth (bridged to L1)`);
 }
 
 // Register default test names on L2

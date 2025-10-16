@@ -1,6 +1,6 @@
 import { getAddress, toHex } from "viem";
 import { setupCrossChainEnvironment } from "./setup.js";
-import { registerTestNames, showName, transferName, renewName, createSubname } from "./testNames.js";
+import { registerTestNames, showName, transferName, renewName, createSubname, bridgeName } from "./testNames.js";
 import { setupMockRelay } from "./mockRelay.js";
 import { createServer } from "node:http";
 import { parseArgs } from "node:util";
@@ -70,13 +70,16 @@ for (const lx of [env.l1, env.l2]) {
 }
 
 // Register all test names with default 1 year expiry
-await registerTestNames(env, ["test", "example", "demo", "newowner", "renew", "parent"]);
+await registerTestNames(env, ["test", "example", "demo", "newowner", "renew", "parent", "bridge"]);
 
 // Transfer newowner.eth to user
 await transferName(env, "newowner.eth", env.namedAccounts.user.address);
 
 // Renew renew.eth for 365 days
 await renewName(env, "renew.eth", 365);
+
+// Bridge bridge.eth from L2 to L1
+await bridgeName(env, "bridge.eth");
 
 // Create subnames
 const createdSubnames = await createSubname(env, "sub1.sub2.parent.eth");
@@ -87,6 +90,8 @@ const allNames = [
   "demo.eth",
   "newowner.eth",
   "renew.eth",
+  "bridge.eth",
+  "parent.eth",
   ...createdSubnames,
 ];
 
