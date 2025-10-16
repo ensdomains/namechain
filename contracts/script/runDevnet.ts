@@ -1,6 +1,6 @@
 import { getAddress, toHex } from "viem";
 import { setupCrossChainEnvironment } from "./setup.js";
-import { registerTestNames, showName, transferName, renewName } from "./testNames.js";
+import { registerTestNames, showName, transferName, renewName, createSubname } from "./testNames.js";
 import { setupMockRelay } from "./mockRelay.js";
 import { createServer } from "node:http";
 import { parseArgs } from "node:util";
@@ -69,7 +69,8 @@ for (const lx of [env.l1, env.l2]) {
   );
 }
 
-await registerTestNames(env, ["test", "example", "demo", "newowner", "renew"]);
+// Register all test names with default 1 year expiry
+await registerTestNames(env, ["test", "example", "demo", "newowner", "renew", "parent"]);
 
 // Transfer newowner.eth to user
 await transferName(env, "newowner.eth", env.namedAccounts.user.address);
@@ -77,7 +78,19 @@ await transferName(env, "newowner.eth", env.namedAccounts.user.address);
 // Renew renew.eth for 365 days
 await renewName(env, "renew.eth", 365);
 
-await showName(env, ["test.eth", "example.eth", "demo.eth", "newowner.eth", "renew.eth"]);
+// Create subnames
+const createdSubnames = await createSubname(env, "sub1.sub2.parent.eth");
+
+const allNames = [
+  "test.eth",
+  "example.eth",
+  "demo.eth",
+  "newowner.eth",
+  "renew.eth",
+  ...createdSubnames,
+];
+
+await showName(env, allNames);
 
 console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);
 
