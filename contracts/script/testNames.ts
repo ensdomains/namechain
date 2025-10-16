@@ -1,4 +1,13 @@
-import { zeroAddress, namehash, encodeFunctionData, decodeFunctionResult, parseAbi, getContract, encodeAbiParameters } from "viem";
+import {
+  zeroAddress,
+  namehash,
+  encodeFunctionData,
+  decodeFunctionResult,
+  parseAbi,
+  getContract,
+  encodeAbiParameters,
+  Address,
+} from "viem";
 
 import type { CrossChainEnvironment } from "./setup.js";
 import { dnsEncodeName } from "../test/utils/utils.js";
@@ -28,10 +37,8 @@ const RESOLVER_ABI = parseAbi([
 // - Show a function that shows the text record of a name
 
 // Display name information
-export async function showName(
-  env: CrossChainEnvironment,
-  names: string[],
-) {
+export async function showName(env: CrossChainEnvironment, names: string[]) {
+  await env.sync();
   for (const name of names) {
     const nameHash = namehash(name); // This is already bytes32 (hex string)
 
@@ -41,23 +48,22 @@ export async function showName(
     // Get owner and expiry info
     // For second-level names (e.g., "test.eth"), query ETHRegistry directly
     // For subnames (e.g., "sub.test.eth"), we'd need to traverse the registry hierarchy
-    const nameParts = name.split('.');
-    const isSecondLevel = nameParts.length === 2 && nameParts[1] === 'eth';
+    const nameParts = name.split(".");
+    const isSecondLevel = nameParts.length === 2 && nameParts[1] === "eth";
 
-    let owner = 'N/A';
-    let tokenId = 'N/A';
-    let expiryDate = 'N/A';
+    let owner: Address | undefined = undefined;
+    let expiryDate: string = "N/A";
 
     if (isSecondLevel) {
       try {
         const label = nameParts[0];
-        const [tid, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
-        tokenId = tid;
+        const [tokenId, entry] =
+          await env.l2.contracts.ETHRegistry.read.getNameData([label]);
         owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
         const expiryTimestamp = Number(entry.expiry);
         // MAX_EXPIRY is too large for JavaScript Date, treat as 'Never'
         if (entry.expiry === MAX_EXPIRY || expiryTimestamp === 0) {
-          expiryDate = 'Never';
+          expiryDate = "Never";
         } else {
           expiryDate = new Date(expiryTimestamp * 1000).toISOString();
         }
@@ -68,13 +74,16 @@ export async function showName(
         console.log(`Could not fetch owner from L2 registry`);
       }
     } else {
-      console.log(`Subname detected - owner info not shown (would require registry traversal)`);
+      console.log(
+        `Subname detected - owner info not shown (would require registry traversal)`,
+      );
     }
 
     // Get resolver address using L1 UniversalResolver
-    const [resolver] = await env.l1.contracts.UniversalResolverV2.read.findResolver([
-      dnsEncodeName(name),
-    ]);
+    const [resolver] =
+      await env.l1.contracts.UniversalResolverV2.read.findResolver([
+        dnsEncodeName(name),
+      ]);
     console.log(`Resolver: ${resolver}`);
 
     // Get addr record (coin type 60 - ETH) using L1 UniversalResolver
@@ -84,10 +93,11 @@ export async function showName(
       functionName: "addr",
       args: [nameHash, 60n],
     });
-    const [addrResult] = await env.l1.contracts.UniversalResolverV2.read.resolve([
-      dnsEncodeName(name),
-      addrCall,
-    ]);
+    const [addrResult] =
+      await env.l1.contracts.UniversalResolverV2.read.resolve([
+        dnsEncodeName(name),
+        addrCall,
+      ]);
     const addrBytes = decodeFunctionResult({
       abi: RESOLVER_ABI,
       functionName: "addr",
@@ -100,10 +110,11 @@ export async function showName(
       functionName: "text",
       args: [nameHash, "description"],
     });
-    const [textResult] = await env.l1.contracts.UniversalResolverV2.read.resolve([
-      dnsEncodeName(name),
-      textCall,
-    ]);
+    const [textResult] =
+      await env.l1.contracts.UniversalResolverV2.read.resolve([
+        dnsEncodeName(name),
+        textCall,
+      ]);
     const description = decodeFunctionResult({
       abi: RESOLVER_ABI,
       functionName: "text",
@@ -130,10 +141,10 @@ export async function createSubname(
   const createdNames: string[] = [];
 
   // Parse the name into parts (e.g., "sub1.sub2.parent.eth" -> ["sub1", "sub2", "parent", "eth"])
-  const parts = fullName.split('.');
+  const parts = fullName.split(".");
 
-  if (parts[parts.length - 1] !== 'eth') {
-    throw new Error('Name must end with .eth');
+  if (parts[parts.length - 1] !== "eth") {
+    throw new Error("Name must end with .eth");
   }
 
   // Start from the parent name (e.g., "parent.eth")
@@ -144,7 +155,9 @@ export async function createSubname(
   console.log(`Parent name: ${parentName}`);
 
   // Get parent tokenId (assumes parent.eth already exists)
-  const [parentTokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([parentLabel]);
+  const [parentTokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
+    parentLabel,
+  ]);
 
   // For each level of subnames, create UserRegistry and register
   let currentParentTokenId = parentTokenId;
@@ -164,7 +177,9 @@ export async function createSubname(
 
     if (currentRegistryAddress === env.l2.contracts.ETHRegistry.address) {
       // Parent is in ETHRegistry
-      const [, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([parts[i + 1]]);
+      const [, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([
+        parts[i + 1],
+      ]);
       subregistryAddress = entry.subregistry;
     } else {
       // Parent is in a UserRegistry
@@ -182,14 +197,18 @@ export async function createSubname(
       console.log(`Deploying UserRegistry for ${currentName}...`);
 
       // Deploy proxy using helper method
-      const userRegistry = await env.l2.deployUserRegistry(account, ROLES.ALL, account.address);
+      const userRegistry = await env.l2.deployUserRegistry(
+        account,
+        ROLES.ALL,
+        account.address,
+      );
       subregistryAddress = userRegistry.address;
 
       // Set as subregistry on parent
       if (currentRegistryAddress === env.l2.contracts.ETHRegistry.address) {
         await env.l2.contracts.ETHRegistry.write.setSubregistry(
           [currentParentTokenId, subregistryAddress],
-          { account }
+          { account },
         );
       } else {
         const parentRegistry = getContract({
@@ -199,7 +218,7 @@ export async function createSubname(
         });
         await parentRegistry.write.setSubregistry(
           [currentParentTokenId, subregistryAddress],
-          { account }
+          { account },
         );
       }
 
@@ -226,7 +245,9 @@ export async function createSubname(
       console.log(`✓ ${currentName} already exists and is not expired`);
     } else {
       if (isExpired) {
-        console.log(`${currentName} exists but is expired, re-registering with MAX_EXPIRY...`);
+        console.log(
+          `${currentName} exists but is expired, re-registering with MAX_EXPIRY...`,
+        );
       } else {
         console.log(`Registering ${currentName}...`);
       }
@@ -243,12 +264,14 @@ export async function createSubname(
           ROLES.ALL,
           MAX_EXPIRY,
         ],
-        { account }
+        { account },
       );
 
       // Set some default records
       await resolver.write.setAddr([60n, account.address], { account });
-      await resolver.write.setText(["description", `Subname: ${currentName}`], { account });
+      await resolver.write.setText(["description", `Subname: ${currentName}`], {
+        account,
+      });
 
       console.log(`✓ Registered ${currentName}`);
       createdNames.push(currentName);
@@ -271,23 +294,28 @@ export async function renewName(
   account = env.namedAccounts.owner,
 ) {
   // Extract label from name
-  const label = name.replace('.eth', '');
+  const label = name.replace(".eth", "");
 
   // Get current expiry
-  const [tokenId, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+  const [tokenId, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([
+    label,
+  ]);
 
   console.log(`\nRenewing ${name}...`);
   if (entry.expiry === MAX_EXPIRY) {
     console.log(`Current expiry: Never (MAX_EXPIRY)`);
   } else {
     const currentExpiry = Number(entry.expiry);
-    console.log(`Current expiry: ${new Date(currentExpiry * 1000).toISOString()}`);
+    console.log(
+      `Current expiry: ${new Date(currentExpiry * 1000).toISOString()}`,
+    );
   }
   console.log(`Extending by: ${durationInDays} days`);
 
   const duration = BigInt(durationInDays * 24 * 60 * 60); // Convert days to seconds
   const paymentToken = env.l2.contracts.MockUSDC.address;
-  const referrer = '0x0000000000000000000000000000000000000000000000000000000000000000';
+  const referrer =
+    "0x0000000000000000000000000000000000000000000000000000000000000000";
 
   // Approve payment token (get price first to know how much to approve)
   const [price] = await env.l2.contracts.ETHRegistrar.read.rentPrice([
@@ -300,13 +328,18 @@ export async function renewName(
   console.log(`Renewal price: ${price}`);
 
   // Mint tokens if needed
-  const balance = await env.l2.contracts.MockUSDC.read.balanceOf([account.address]);
+  const balance = await env.l2.contracts.MockUSDC.read.balanceOf([
+    account.address,
+  ]);
   console.log(`Current balance: ${balance}`);
 
   if (balance < price) {
     const amountToMint = price - balance + 1000000n; // Mint a bit extra
     console.log(`Minting ${amountToMint} tokens...`);
-    await env.l2.contracts.MockUSDC.write.mint([account.address, amountToMint], { account });
+    await env.l2.contracts.MockUSDC.write.mint(
+      [account.address, amountToMint],
+      { account },
+    );
   }
 
   // Approve the registrar to spend tokens
@@ -321,7 +354,9 @@ export async function renewName(
     { account },
   );
 
-  const [, newEntry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+  const [, newEntry] = await env.l2.contracts.ETHRegistry.read.getNameData([
+    label,
+  ]);
   const newExpiry = Number(newEntry.expiry);
   console.log(`New expiry: ${new Date(newExpiry * 1000).toISOString()}`);
   console.log(`✓ Renewal completed`);
@@ -335,10 +370,12 @@ export async function transferName(
   account = env.namedAccounts.owner,
 ) {
   // Extract label from name
-  const label = name.replace('.eth', '');
+  const label = name.replace(".eth", "");
 
   // Get tokenId from registry
-  const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+  const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
+    label,
+  ]);
 
   console.log(`\nTransferring ${name}...`);
   console.log(`TokenId: ${tokenId}`);
@@ -347,7 +384,7 @@ export async function transferName(
 
   // Transfer the token (roles should already be granted during registration)
   await env.l2.contracts.ETHRegistry.write.safeTransferFrom(
-    [account.address, newOwner, tokenId, 1n, '0x'],
+    [account.address, newOwner, tokenId, 1n, "0x"],
     { account },
   );
 
@@ -362,10 +399,12 @@ export async function bridgeName(
 ) {
   console.log(`\nBridging ${name} from L2 to L1...`);
 
-  const label = name.replace('.eth', '');
+  const label = name.replace(".eth", "");
 
   // Get name data from L2
-  const [tokenId, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+  const [tokenId, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([
+    label,
+  ]);
   const owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
 
   console.log(`TokenId: ${tokenId}`);
@@ -377,14 +416,44 @@ export async function bridgeName(
 
   // Encode TransferData struct
   const encodedTransferData = encodeAbiParameters(
-    [{ type: 'bytes' }, { type: 'address' }, { type: 'address' }, { type: 'address' }, { type: 'uint256' }, { type: 'uint64' }],
-    [dnsEncodedName, account.address, entry.subregistry, entry.resolver, ROLES.ALL, entry.expiry]
+    [
+      {
+        name: "transferData",
+        type: "tuple",
+        components: [
+          { name: "dnsEncodedName", type: "bytes" },
+          { name: "owner", type: "address" },
+          { name: "subregistry", type: "address" },
+          { name: "resolver", type: "address" },
+          { name: "roleBitmap", type: "uint256" },
+          { name: "expires", type: "uint64" },
+        ],
+      },
+    ],
+    [
+      {
+        dnsEncodedName,
+        owner: account.address,
+        subregistry: entry.subregistry,
+        resolver: entry.resolver,
+        roleBitmap: ROLES.ALL,
+        expires: entry.expiry,
+      },
+    ],
   );
 
   // Step 1: Transfer name to L2BridgeController (this initiates ejection)
-  await env.l2.contracts.ETHRegistry.write.safeTransferFrom(
-    [account.address, env.l2.contracts.BridgeController.address, tokenId, 1n, encodedTransferData],
-    { account },
+  await env.waitFor(
+    env.l2.contracts.ETHRegistry.write.safeTransferFrom(
+      [
+        account.address,
+        env.l2.contracts.BridgeController.address,
+        tokenId,
+        1n,
+        encodedTransferData,
+      ],
+      { account },
+    ),
   );
 
   console.log(`✓ Name ejected from L2`);
@@ -392,9 +461,6 @@ export async function bridgeName(
   // Step 2: Simulate bridge message delivery
   // In real scenario, this would be handled by the bridge infrastructure
   // For testing, we manually call the L1 bridge controller
-
-  // Wait a bit for the mock bridge to process
-  await new Promise(resolve => setTimeout(resolve, 100));
 
   console.log(`✓ Name registered on L1`);
 
@@ -406,7 +472,7 @@ export async function bridgeName(
   // Set the new resolver on L1 (using tokenId, not label)
   await env.l1.contracts.ETHRegistry.write.setResolver(
     [tokenId, l1Resolver.address],
-    { account }
+    { account },
   );
   console.log(`✓ Resolver set on L1`);
 
@@ -416,7 +482,9 @@ export async function bridgeName(
     { account },
   );
 
-  console.log(`✓ Updated text record on L1: Default test name: ${label}.eth (bridged to L1)`);
+  console.log(
+    `✓ Updated text record on L1: Default test name: ${label}.eth (bridged to L1)`,
+  );
 }
 
 // Register default test names on L2
