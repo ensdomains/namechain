@@ -1,23 +1,9 @@
-import { zeroAddress, namehash, encodeFunctionData, decodeFunctionResult, parseAbi, getContract, createWalletClient, publicActions, testActions } from "viem";
+import { zeroAddress, namehash, encodeFunctionData, decodeFunctionResult, parseAbi, getContract } from "viem";
 
 import type { CrossChainEnvironment } from "./setup.js";
 import { dnsEncodeName } from "../test/utils/utils.js";
 import { ROLES, MAX_EXPIRY } from "../deploy/constants.js";
 import { artifacts } from "@rocketh";
-import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
-
-// Helper to create wallet client (same as in setup.ts)
-function createClient(env: CrossChainEnvironment, account: any) {
-  return createWalletClient({
-    transport: env.l2.transport,
-    chain: env.l2.client.chain,
-    account,
-    pollingInterval: 0,
-    cacheTime: 0,
-  })
-    .extend(publicActions)
-    .extend(testActions({ mode: "anvil" }));
-}
 
 const RESOLVER_ABI = parseAbi([
   "function addr(bytes32, uint256 coinType) external view returns (bytes)",
@@ -158,9 +144,6 @@ export async function createSubname(
   // Get parent tokenId (assumes parent.eth already exists)
   const [parentTokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([parentLabel]);
 
-  // Deploy UserRegistry implementation once (will be reused for all subnames)
-  let userRegistryImplementation: `0x${string}` | null = null;
-
   // For each level of subnames, create UserRegistry and register
   let currentParentTokenId = parentTokenId;
   let currentRegistryAddress = env.l2.contracts.ETHRegistry.address;
@@ -196,40 +179,8 @@ export async function createSubname(
     if (subregistryAddress === zeroAddress) {
       console.log(`Deploying UserRegistry for ${currentName}...`);
 
-      const walletClient = createClient(env, account);
-
-      // Deploy the implementation contract only once
-      if (!userRegistryImplementation) {
-        console.log(`Deploying UserRegistry implementation (will be reused)...`);
-        const hash = await walletClient.deployContract({
-          abi: artifacts.UserRegistry.abi,
-          bytecode: artifacts.UserRegistry.bytecode as `0x${string}`,
-          args: [
-            env.l2.contracts.RegistryDatastore.address,
-            env.l2.contracts.SimpleRegistryMetadata.address,
-          ],
-        });
-
-        const receipt = await walletClient.waitForTransactionReceipt({ hash });
-        userRegistryImplementation = receipt.contractAddress!;
-        console.log(`✓ UserRegistry implementation deployed at ${userRegistryImplementation}`);
-      }
-
-      const implementationAddress = userRegistryImplementation;
-
-      // Deploy proxy
-      const userRegistry = await deployVerifiableProxy({
-        walletClient,
-        factoryAddress: env.l2.contracts.VerifiableFactory.address,
-        implAddress: implementationAddress,
-        implAbi: artifacts.UserRegistry.abi,
-        callData: encodeFunctionData({
-          abi: artifacts.UserRegistry.abi,
-          functionName: "initialize",
-          args: [ROLES.ALL, account.address],
-        }),
-      });
-
+      // Deploy proxy using helper method
+      const userRegistry = await env.l2.deployUserRegistry(account, ROLES.ALL, account.address);
       subregistryAddress = userRegistry.address;
 
       // Set as subregistry on parent
@@ -242,7 +193,7 @@ export async function createSubname(
         const parentRegistry = getContract({
           address: currentRegistryAddress as `0x${string}`,
           abi: artifacts.UserRegistry.abi,
-          client: { public: env.l2.client, wallet: walletClient },
+          client: env.l2.client,
         });
         await parentRegistry.write.setSubregistry(
           [currentParentTokenId, subregistryAddress],

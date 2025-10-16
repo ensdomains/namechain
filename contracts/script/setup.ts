@@ -7,6 +7,7 @@ import {
   publicActions,
   testActions,
   zeroAddress,
+  encodeFunctionData,
   type Account,
   type Chain,
   type GetContractReturnType,
@@ -52,6 +53,7 @@ const sharedContracts = {
   SimpleRegistryMetadata: artifacts.SimpleRegistryMetadata.abi,
   VerifiableFactory: artifacts.VerifiableFactory.abi,
   DedicatedResolverImpl: artifacts.DedicatedResolver.abi,
+  UserRegistryImpl: artifacts.UserRegistry.abi,
   // common
   MockBridge: artifacts.MockBridgeBase.abi,
   ETHRegistry: artifacts.PermissionedRegistry.abi,
@@ -208,6 +210,20 @@ export class ChainDeployment<
       factoryAddress: this.contracts.VerifiableFactory.address,
       implAddress: this.contracts.DedicatedResolverImpl.address,
       implAbi: this.contracts.DedicatedResolverImpl.abi,
+      salt,
+    });
+  }
+  deployUserRegistry(account: Account, roles: bigint, admin: string, salt?: bigint) {
+    return deployVerifiableProxy({
+      walletClient: createClient(this.transport, this.client.chain, account),
+      factoryAddress: this.contracts.VerifiableFactory.address,
+      implAddress: this.contracts.UserRegistryImpl.address,
+      implAbi: this.contracts.UserRegistryImpl.abi,
+      callData: encodeFunctionData({
+        abi: this.contracts.UserRegistryImpl.abi,
+        functionName: "initialize",
+        args: [roles, admin],
+      }),
       salt,
     });
   }
