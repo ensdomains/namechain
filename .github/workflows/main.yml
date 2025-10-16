@@ -13,8 +13,6 @@ jobs:
     steps:
       # setup
       - uses: actions/checkout@v5
-        with:
-          submodules: "recursive"
       - uses: ./.github/actions/setup
 
       - name: Compile and check types
@@ -26,12 +24,7 @@ jobs:
     steps:
       # setup
       - uses: actions/checkout@v5
-        with:
-          submodules: "recursive"
       - uses: ./.github/actions/setup
-
-      - name: Install Forge dependencies
-        run: cd contracts && forge install
 
       - uses: awalsh128/cache-apt-pkgs-action@v1.5.3
         with:
@@ -57,8 +50,6 @@ jobs:
     steps:
       # setup
       - uses: actions/checkout@v5
-        with:
-          submodules: "recursive"
       - uses: ./.github/actions/setup
 
       - uses: awalsh128/cache-apt-pkgs-action@v1.5.3
