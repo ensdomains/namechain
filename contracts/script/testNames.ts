@@ -19,6 +19,82 @@ const RESOLVER_ABI = parseAbi([
   "function text(bytes32, string key) external view returns (string)",
 ]);
 
+// ========== Helper Functions ==========
+
+/**
+ * Parse an ENS name into its components
+ */
+function parseName(name: string): {
+  label: string;
+  parentName: string;
+  parts: string[];
+  isSecondLevel: boolean;
+  tld: string;
+} {
+  const parts = name.split(".");
+  const tld = parts[parts.length - 1];
+
+  if (tld !== "eth") {
+    throw new Error(`Name must end with .eth, got: ${name}`);
+  }
+
+  return {
+    label: parts[0],
+    parentName: parts.slice(1).join("."),
+    parts,
+    isSecondLevel: parts.length === 2,
+    tld,
+  };
+}
+
+/**
+ * Create a UserRegistry contract instance
+ * @param chain - 'l1' or 'l2' (defaults to 'l2')
+ */
+function getRegistryContract(
+  env: CrossChainEnvironment,
+  registryAddress: Address,
+  chain: "l1" | "l2" = "l2",
+) {
+  const client = chain === "l2" ? env.l2.client : env.l1.client;
+  return getContract({
+    address: registryAddress as `0x${string}`,
+    abi: artifacts.UserRegistry.abi,
+    client,
+  });
+}
+
+/**
+ * Deploy a dedicated resolver and set default records
+ * @param chain - 'l1' or 'l2' to deploy on specific chain
+ */
+async function deployResolverWithRecords(
+  env: CrossChainEnvironment,
+  account: any,
+  records: {
+    description?: string;
+    address?: Address;
+  },
+  chain: "l1" | "l2" = "l2",
+) {
+  const chainEnv = chain === "l2" ? env.l2 : env.l1;
+  const resolver = await chainEnv.deployDedicatedResolver(account);
+
+  // Set ETH address (coin type 60)
+  if (records.address) {
+    await resolver.write.setAddr([60n, records.address], { account });
+  }
+
+  // Set description text record
+  if (records.description) {
+    await resolver.write.setText(["description", records.description], { account });
+  }
+
+  return resolver;
+}
+
+// ========== Main Functions ==========
+
 // Helper function to traverse L2 registry hierarchy and get name data
 async function traverseL2Registry(
   env: CrossChainEnvironment,
@@ -62,11 +138,7 @@ async function traverseL2Registry(
         }
       } else {
         // Query UserRegistry
-        const userRegistry = getContract({
-          address: currentRegistryAddress as `0x${string}`,
-          abi: artifacts.UserRegistry.abi,
-          client: env.l2.client,
-        });
+        const userRegistry = getRegistryContract(env, currentRegistryAddress);
         [tokenId, entry] = await userRegistry.read.getNameData([label]);
         if (i === 0) {
           // This is the final subname
@@ -115,44 +187,34 @@ export async function linkName(
 ) {
   console.log(`\nLinking name: ${sourceName} to parent: ${targetParentName}`);
 
-  // 1. Get source name data and its subregistry
+  // 1. Parse and validate source name
+  const { label: sourceLabel, parentName: sourceParentName, isSecondLevel } = parseName(sourceName);
+
+  if (isSecondLevel) {
+    throw new Error(`Cannot link second-level names directly. Source must be a subname.`);
+  }
+
+  // 2. Get source name data and registry
   const sourceData = await traverseL2Registry(env, sourceName);
   if (!sourceData || sourceData.owner === zeroAddress) {
     throw new Error(`Source name ${sourceName} does not exist or has no owner`);
   }
 
-  // 2. Find the registry containing the source name (where its tokenId lives)
-  const sourceNameParts = sourceName.split(".");
-  const sourceLabel = sourceNameParts[0];
-
-  // If source is second-level (e.g., "parent.eth"), can't link as it has no subregistry
-  if (sourceNameParts.length === 2) {
-    throw new Error(`Cannot link second-level names directly. Source must be a subname.`);
-  }
-
-  // Get the registry that contains the source name
-  const sourceParentName = sourceNameParts.slice(1).join(".");
   const sourceParentData = await traverseL2Registry(env, sourceParentName);
   if (!sourceParentData?.subregistry || sourceParentData.subregistry === zeroAddress) {
     throw new Error(`Source parent ${sourceParentName} has no subregistry`);
   }
 
-  const sourceRegistryAddress = sourceParentData.subregistry;
-  const sourceRegistry = getContract({
-    address: sourceRegistryAddress as `0x${string}`,
-    abi: artifacts.UserRegistry.abi,
-    client: env.l2.client,
-  });
-
-  // Get the source's tokenId and verify it has a subregistry
+  const sourceRegistry = getRegistryContract(env, sourceParentData.subregistry);
   const [sourceTokenId, sourceEntry] = await sourceRegistry.read.getNameData([sourceLabel]);
+
   if (sourceEntry.subregistry === zeroAddress) {
     throw new Error(`Source name ${sourceName} has no subregistry to link`);
   }
 
   console.log(`Source subregistry: ${sourceEntry.subregistry}`);
 
-  // 3. Get target parent data
+  // 3. Get target parent data and registry
   const targetParentData = await traverseL2Registry(env, targetParentName);
   if (!targetParentData || targetParentData.owner === zeroAddress) {
     throw new Error(`Target parent ${targetParentName} does not exist`);
@@ -162,12 +224,7 @@ export async function linkName(
     throw new Error(`Target parent ${targetParentName} has no subregistry`);
   }
 
-  const targetRegistryAddress = targetParentData.subregistry;
-  const targetRegistry = getContract({
-    address: targetRegistryAddress as `0x${string}`,
-    abi: artifacts.UserRegistry.abi,
-    client: env.l2.client,
-  });
+  const targetRegistry = getRegistryContract(env, targetParentData.subregistry);
 
   // 4. Determine the label for the linked name
   const label = linkLabel || sourceLabel;
@@ -181,13 +238,15 @@ export async function linkName(
 
   if (existingOwner !== zeroAddress) {
     console.log(`Warning: ${linkedName} already exists. Updating its subregistry...`);
-    // Update existing entry to point to source's subregistry
     await targetRegistry.write.setSubregistry([existingTokenId, sourceEntry.subregistry], { account });
     console.log(`✓ Updated ${linkedName} to point to shared subregistry`);
   } else {
     // 6. Register new entry in target registry with source's subregistry
     console.log(`Deploying resolver for ${linkedName}...`);
-    const resolver = await env.l2.deployDedicatedResolver(account);
+    const resolver = await deployResolverWithRecords(env, account, {
+      description: `Linked to ${sourceName}`,
+      address: account.address,
+    });
     console.log(`✓ Resolver deployed at ${resolver.address}`);
 
     await targetRegistry.write.register(
@@ -201,10 +260,6 @@ export async function linkName(
       ],
       { account },
     );
-
-    // Set some default records
-    await resolver.write.setAddr([60n, account.address], { account });
-    await resolver.write.setText(["description", `Linked to ${sourceName}`], { account });
 
     console.log(`✓ Registered ${linkedName} with shared subregistry`);
   }
@@ -359,12 +414,8 @@ export async function createSubname(
 ): Promise<string[]> {
   const createdNames: string[] = [];
 
-  // Parse the name into parts (e.g., "sub1.sub2.parent.eth" -> ["sub1", "sub2", "parent", "eth"])
-  const parts = fullName.split(".");
-
-  if (parts[parts.length - 1] !== "eth") {
-    throw new Error("Name must end with .eth");
-  }
+  // Parse the name
+  const { parts } = parseName(fullName);
 
   // Start from the parent name (e.g., "parent.eth")
   const parentLabel = parts[parts.length - 2];
@@ -402,11 +453,7 @@ export async function createSubname(
       subregistryAddress = entry.subregistry;
     } else {
       // Parent is in a UserRegistry
-      const parentRegistry = getContract({
-        address: currentRegistryAddress as `0x${string}`,
-        abi: artifacts.UserRegistry.abi,
-        client: env.l2.client,
-      });
+      const parentRegistry = getRegistryContract(env, currentRegistryAddress);
       const [, entry] = await parentRegistry.read.getNameData([parts[i + 1]]);
       subregistryAddress = entry.subregistry;
     }
@@ -430,11 +477,7 @@ export async function createSubname(
           { account },
         );
       } else {
-        const parentRegistry = getContract({
-          address: currentRegistryAddress as `0x${string}`,
-          abi: artifacts.UserRegistry.abi,
-          client: env.l2.client,
-        });
+        const parentRegistry = getRegistryContract(env, currentRegistryAddress);
         await parentRegistry.write.setSubregistry(
           [currentParentTokenId, subregistryAddress],
           { account },
@@ -445,11 +488,7 @@ export async function createSubname(
     }
 
     // Register the subname in the UserRegistry
-    const userRegistry = getContract({
-      address: subregistryAddress as `0x${string}`,
-      abi: artifacts.UserRegistry.abi,
-      client: env.l2.client,
-    });
+    const userRegistry = getRegistryContract(env, subregistryAddress);
 
     // Check if already registered and if it's expired
     const [tokenId, entry] = await userRegistry.read.getNameData([label]);
@@ -472,8 +511,12 @@ export async function createSubname(
       }
 
       // Deploy resolver for this subname
-      const resolver = await env.l2.deployDedicatedResolver(account);
+      const resolver = await deployResolverWithRecords(env, account, {
+        description: currentName,
+        address: account.address,
+      });
       console.log(`✓ Resolver deployed at ${resolver.address}`);
+
       await userRegistry.write.register(
         [
           label,
@@ -485,12 +528,6 @@ export async function createSubname(
         ],
         { account },
       );
-
-      // Set some default records
-      await resolver.write.setAddr([60n, account.address], { account });
-      await resolver.write.setText(["description", currentName], {
-        account,
-      });
 
       console.log(`✓ Registered ${currentName}`);
       createdNames.push(currentName);
