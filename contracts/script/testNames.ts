@@ -206,7 +206,7 @@ export async function linkName(
   }
 
   const sourceRegistry = getRegistryContract(env, sourceParentData.subregistry);
-  const [sourceTokenId, sourceEntry] = await sourceRegistry.read.getNameData([sourceLabel]);
+  const [, sourceEntry] = await sourceRegistry.read.getNameData([sourceLabel]);
 
   if (sourceEntry.subregistry === zeroAddress) {
     throw new Error(`Source name ${sourceName} has no subregistry to link`);
@@ -233,7 +233,7 @@ export async function linkName(
   console.log(`Creating linked name: ${linkedName}`);
 
   // 5. Check if the label already exists in the target registry
-  const [existingTokenId, existingEntry] = await targetRegistry.read.getNameData([label]);
+  const [existingTokenId] = await targetRegistry.read.getNameData([label]);
   const existingOwner = await targetRegistry.read.ownerOf([existingTokenId]);
 
   if (existingOwner !== zeroAddress) {
@@ -269,25 +269,6 @@ export async function linkName(
   console.log(`Example: wallet.${sourceName} and wallet.${linkedName} are the same token.`);
 }
 
-// TODO
-// set reverse record
-// expire name (wait for expiry, then show expired, then re-register)
-// dns names
-// migrated names
-
-// DONE
-// - Register name
-// - Transfer ownership
-// - Renew name
-// - Bridge name
-// - Change roles
-// - Set resolver
-// - Set addr record
-// - Set text record
-// - Show a function that shows the owner of a name
-// - Show a function that shows the addr record of a name
-// - Show a function that shows the text record of a name
-
 // Display name information
 export async function showName(env: CrossChainEnvironment, names: string[]) {
   await env.sync();
@@ -318,7 +299,6 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
     }
 
     // Check if name exists on L1 or L2 registry for resolver info
-    // NOTE: The logic may need adjustment for naames bridged back and forth between L1 and L2
     let actualResolver: string | undefined;
     let location: string = "L1";
 
