@@ -70,11 +70,81 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
       }
     }
 
-    // Get resolver address using L1 UniversalResolver
-    const [resolver] =
-      await env.l1.contracts.UniversalResolverV2.read.findResolver([
-        dnsEncodeName(name),
-      ]);
+    // Check if name exists on L1 or L2 registry
+    let actualResolver: string | undefined;
+    let location: string = "L1";
+
+    if (isSecondLevel) {
+      // Try L1 first - if name is on L1, it takes precedence (e.g., bridged names)
+      try {
+        const label = nameParts[0];
+        const [tokenId, entry] =
+          await env.l1.contracts.ETHRegistry.read.getNameData([label]);
+        const l1Owner = await env.l1.contracts.ETHRegistry.read.ownerOf([tokenId]);
+
+        // Check if it's actually owned on L1 (not zero address)
+        if (l1Owner !== zeroAddress) {
+          actualResolver = entry.resolver;
+          location = "L1";
+        } else {
+          throw new Error("Not on L1");
+        }
+      } catch (e) {
+        // Not on L1, try L2
+        try {
+          const label = nameParts[0];
+          const [, entry] =
+            await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+          actualResolver = entry.resolver;
+          location = "L2";
+        } catch (e) {
+          // Not found on either chain
+        }
+      }
+    } else {
+      // For subnames, traverse the registry hierarchy on L2
+      try {
+        let currentRegistryAddress = env.l2.contracts.ETHRegistry.address;
+
+        // Traverse from right to left: e.g., ["sub1", "sub2", "parent", "eth"]
+        for (let i = nameParts.length - 2; i >= 0; i--) {
+          const label = nameParts[i];
+
+          if (currentRegistryAddress === env.l2.contracts.ETHRegistry.address) {
+            // Query ETHRegistry
+            const [, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+            if (i === 0) {
+              // This is the final subname
+              actualResolver = entry.resolver;
+              location = "L2";
+              break;
+            } else {
+              // Move to the subregistry
+              currentRegistryAddress = entry.subregistry;
+            }
+          } else {
+            // Query UserRegistry
+            const userRegistry = getContract({
+              address: currentRegistryAddress as `0x${string}`,
+              abi: artifacts.UserRegistry.abi,
+              client: env.l2.client,
+            });
+            const [, entry] = await userRegistry.read.getNameData([label]);
+            if (i === 0) {
+              // This is the final subname
+              actualResolver = entry.resolver;
+              location = "L2";
+              break;
+            } else {
+              // Move to the next subregistry
+              currentRegistryAddress = entry.subregistry;
+            }
+          }
+        }
+      } catch (e) {
+        // Failed to traverse, leave as default
+      }
+    }
 
     // Get addr record (coin type 60 - ETH) using L1 UniversalResolver
     const addrCall = encodeFunctionData({
@@ -120,7 +190,7 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
       Name: name,
       Owner: truncateAddress(owner),
       Expiry: expiryDate === "Never" ? "Never" : expiryDate.split("T")[0], // Show only date part
-      Resolver: truncateAddress(resolver),
+      Resolver: `${truncateAddress(actualResolver)} (${location})`,
       Address: truncateAddress(addrBytes),
       Description: description || "-",
     });
@@ -252,7 +322,7 @@ export async function createSubname(
 
       // Deploy resolver for this subname
       const resolver = await env.l2.deployDedicatedResolver(account);
-
+      console.log(`✓ Resolver deployed at ${resolver.address}`);
       await userRegistry.write.register(
         [
           label,
@@ -488,7 +558,6 @@ export async function registerTestNames(
   for (const label of labels) {
     // Deploy a dedicated resolver for this name (same as test)
     const resolver = await env.l2.deployDedicatedResolver(account);
-
     // Register the name with all roles (including transfer role)
     await env.l2.contracts.ETHRegistry.write.register([
       label,
