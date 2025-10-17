@@ -208,13 +208,11 @@ export async function linkName(
   }
 
   const targetRegistry = getRegistryContract(env, targetParentData.subregistry);
-
-  // 4. Determine the label for the linked name
   const linkedName = `${label}.${targetParentName}`;
 
   console.log(`Creating linked name: ${linkedName}`);
 
-  // 5. Check if the label already exists in the target registry
+  // 4. Check if the label already exists in the target registry
   const [existingTokenId] = await targetRegistry.read.getNameData([label]);
   const existingOwner = await targetRegistry.read.ownerOf([existingTokenId]);
 
@@ -223,7 +221,7 @@ export async function linkName(
     await targetRegistry.write.setSubregistry([existingTokenId, sourceEntry.subregistry], { account });
     console.log(`✓ Updated ${linkedName} to point to shared subregistry`);
   } else {
-    // 6. Register new entry in target registry with source's subregistry
+    // 5. Register new entry in target registry with source's subregistry
     console.log(`Deploying resolver for ${linkedName}...`);
     const resolver = await deployResolverWithRecords(env, account, {
       description: `Linked to ${sourceName}`,
@@ -261,8 +259,7 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
     const nameHash = namehash(name);
 
     // Get owner and expiry info from L2
-    const nameParts = name.split(".");
-    const isSecondLevel = nameParts.length === 2 && nameParts[1] === "eth";
+    const { label, isSecondLevel } = parseName(name);
 
     let owner: Address | undefined = undefined;
     let expiryDate: string = "N/A";
@@ -287,7 +284,6 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
     if (isSecondLevel) {
       // Try L1 first - if name is on L1, it takes precedence (e.g., bridged names)
       try {
-        const label = nameParts[0];
         const [tokenId, entry] =
           await env.l1.contracts.ETHRegistry.read.getNameData([label]);
         const l1Owner = await env.l1.contracts.ETHRegistry.read.ownerOf([tokenId]);
