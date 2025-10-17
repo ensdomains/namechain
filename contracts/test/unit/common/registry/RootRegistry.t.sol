@@ -26,7 +26,7 @@ contract RootRegistryTest is Test, ERC1155Holder {
         uint256 value
     );
     event URI(string value, uint256 indexed id);
-    event NewSubname(uint256 indexed node, string label);
+    event NameRegistered(uint256 indexed tokenId, string label, uint64 expiration, address registeredBy);
 
     RegistryDatastore datastore;
     MockPermissionedRegistry registry;
@@ -289,7 +289,7 @@ contract RootRegistryTest is Test, ERC1155Holder {
 
         // Verify events - check each log
         bool foundTransferEvent = false;
-        bool foundNewSubnameEvent = false;
+        bool foundNameRegisteredEvent = false;
 
         for (uint256 i = 0; i < logs.length; i++) {
             bytes32 topic0 = logs[i].topics[0];
@@ -310,19 +310,21 @@ contract RootRegistryTest is Test, ERC1155Holder {
                 assertEq(id, tokenId);
                 assertEq(value, 1);
             }
-            // NewSubname event
-            else if (topic0 == keccak256("NewSubname(uint256,string)")) {
-                foundNewSubnameEvent = true;
+            // NameRegistered event
+            else if (topic0 == keccak256("NameRegistered(uint256,string,uint64,address)")) {
+                foundNameRegisteredEvent = true;
                 assertEq(logs[i].topics.length, 2);
                 assertEq(uint256(logs[i].topics[1]), tokenId);
 
-                string memory value = abi.decode(logs[i].data, (string));
-                assertEq(keccak256(bytes(value)), keccak256(bytes(label)));
+                (string memory labelValue, uint64 expirationValue, address registeredByValue) = abi.decode(logs[i].data, (string, uint64, address));
+                assertEq(keccak256(bytes(labelValue)), keccak256(bytes(label)));
+                assertEq(expirationValue, MAX_EXPIRY);
+                assertEq(registeredByValue, owner);
             }
         }
 
         assertTrue(foundTransferEvent, "No TransferSingle event found");
-        assertTrue(foundNewSubnameEvent, "No NewSubname event found");
+        assertTrue(foundNameRegisteredEvent, "No NameRegistered event found");
     }
 
     function test_Revert_register_without_permission() public {
