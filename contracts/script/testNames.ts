@@ -76,7 +76,6 @@ async function deployResolverWithRecords(
   const resolver = await chainEnv.deployDedicatedResolver(account);
   await resolver.write.setAddr([60n, records.address], { account });
   await resolver.write.setText(["description", records.description], { account });
-
   return resolver;
 }
 
@@ -310,18 +309,18 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
       }
     }
 
-    // Get addr record (coin type 60 - ETH) using L1 UniversalResolver
+    // Get addr record (ETH address) using L1 UniversalResolver
     const addrCall = encodeFunctionData({
       abi: artifacts.DedicatedResolver.abi,
       functionName: "addr",
-      args: [nameHash, 60n],
+      args: [nameHash],
     });
     const [addrResult] =
       await env.l1.contracts.UniversalResolverV2.read.resolve([
         dnsEncodeName(name),
         addrCall,
       ]);
-    const addrBytes = decodeFunctionResult({
+    const ethAddress = decodeFunctionResult({
       abi: artifacts.DedicatedResolver.abi,
       functionName: "addr",
       data: addrResult,
@@ -355,7 +354,7 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
       Owner: truncateAddress(owner),
       Expiry: expiryDate === "Never" ? "Never" : expiryDate.split("T")[0], // Show only date part
       Resolver: `${truncateAddress(actualResolver)} (${location})`,
-      Address: truncateAddress(addrBytes),
+      Address: truncateAddress(ethAddress),
       Description: description || "-",
     });
   }
