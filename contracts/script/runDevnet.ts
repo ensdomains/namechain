@@ -102,6 +102,7 @@ const allNames = [
   "newowner.eth",
   "renew.eth",
   "parent.eth",
+  "bridge.eth",
   ...createdSubnames,
 ];
 
