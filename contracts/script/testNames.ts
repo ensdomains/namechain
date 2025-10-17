@@ -39,15 +39,13 @@ const RESOLVER_ABI = parseAbi([
 // Display name information
 export async function showName(env: CrossChainEnvironment, names: string[]) {
   await env.sync();
-  for (const name of names) {
-    const nameHash = namehash(name); // This is already bytes32 (hex string)
 
-    console.log(`\nFetching information for: ${name}`);
-    console.log(`NameHash: ${nameHash}`);
+  const nameData = [];
+
+  for (const name of names) {
+    const nameHash = namehash(name);
 
     // Get owner and expiry info
-    // For second-level names (e.g., "test.eth"), query ETHRegistry directly
-    // For subnames (e.g., "sub.test.eth"), we'd need to traverse the registry hierarchy
     const nameParts = name.split(".");
     const isSecondLevel = nameParts.length === 2 && nameParts[1] === "eth";
 
@@ -67,16 +65,9 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
         } else {
           expiryDate = new Date(expiryTimestamp * 1000).toISOString();
         }
-        console.log(`TokenId: ${tokenId}`);
-        console.log(`Owner: ${owner}`);
-        console.log(`Expiry: ${expiryDate}`);
       } catch (e) {
-        console.log(`Could not fetch owner from L2 registry`);
+        // Name might be on L1 or not found
       }
-    } else {
-      console.log(
-        `Subname detected - owner info not shown (would require registry traversal)`,
-      );
     }
 
     // Get resolver address using L1 UniversalResolver
@@ -84,10 +75,8 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
       await env.l1.contracts.UniversalResolverV2.read.findResolver([
         dnsEncodeName(name),
       ]);
-    console.log(`Resolver: ${resolver}`);
 
     // Get addr record (coin type 60 - ETH) using L1 UniversalResolver
-    // L1 UR will use Unruggable Gateway to fetch from L2
     const addrCall = encodeFunctionData({
       abi: RESOLVER_ABI,
       functionName: "addr",
@@ -102,7 +91,7 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
       abi: RESOLVER_ABI,
       functionName: "addr",
       data: addrResult,
-    });
+    }) as string;
 
     // Get text record (description) using L1 UniversalResolver
     const textCall = encodeFunctionData({
@@ -119,17 +108,26 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
       abi: RESOLVER_ABI,
       functionName: "text",
       data: textResult,
-    });
-    console.log(`\nName Information for ${name}:`);
-    console.table({
+    }) as string;
+
+    // Truncate addresses to first 7 characters (0x + 5 chars)
+    const truncateAddress = (addr: string | undefined) => {
+      if (!addr || addr === "0x") return "-";
+      return addr.slice(0, 7);
+    };
+
+    nameData.push({
       Name: name,
-      Owner: owner,
-      Expiry: expiryDate,
-      Resolver: resolver,
-      "Address (coin type 60)": addrBytes,
-      Description: description || "(not set)",
+      Owner: truncateAddress(owner),
+      Expiry: expiryDate === "Never" ? "Never" : expiryDate.split("T")[0], // Show only date part
+      Resolver: truncateAddress(resolver),
+      Address: truncateAddress(addrBytes),
+      Description: description || "-",
     });
   }
+
+  console.log(`\nName Information:`);
+  console.table(nameData);
 }
 
 // Create a subname (and all parent names if they don't exist)
