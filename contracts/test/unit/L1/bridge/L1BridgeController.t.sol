@@ -455,22 +455,22 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
         bridgeController.completeEjectionToL1(transferData);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundNewSubname = false;
+        bool foundNameRegistered = false;
         bool foundNameEjectedToL1 = false;
 
-        bytes32 newSubnameSig = keccak256("NewSubname(uint256,string)");
+        bytes32 nameRegisteredSig = keccak256("NameRegistered(uint256,string,uint64,address)");
         bytes32 ejectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
 
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == newSubnameSig) {
-                foundNewSubname = true;
+            if (entries[i].topics[0] == nameRegisteredSig) {
+                foundNameRegistered = true;
             }
             if (entries[i].topics[0] == ejectedSig) {
                 foundNameEjectedToL1 = true;
             }
         }
 
-        assertTrue(foundNewSubname, "NewSubname event not found");
+        assertTrue(foundNameRegistered, "NameRegistered event not found");
         assertTrue(foundNameEjectedToL1, "NameEjectedToL1 event not found");
     }
 
