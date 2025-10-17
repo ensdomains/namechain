@@ -80,9 +80,6 @@ async function deployResolverWithRecords(
   return resolver;
 }
 
-// ========== Main Functions ==========
-
-// Helper function to traverse L2 registry hierarchy and get name data
 async function traverseL2Registry(
   env: CrossChainEnvironment,
   name: string,
@@ -150,18 +147,17 @@ async function traverseL2Registry(
   return null;
 }
 
+// ========== Main Functions ==========
+
 /**
  * Link a name to appear under a different parent by pointing to the same subregistry.
  * This creates multiple "entry points" into the same child namespace.
  *
  * @param sourceName - The existing name whose subregistry we want to link (e.g., "sub1.sub2.parent.eth")
  * @param targetParentName - The parent under which we want to create a linked entry (e.g., "parent.eth")
- * @param linkLabel - Optional label for the linked name. If not provided, uses the source's label.
+ * @param linkLabel - The label for the linked name
  *
  * Example:
- *   linkName(env, "sub1.sub2.parent.eth", "parent.eth")
- *   Creates "sub1.parent.eth" that shares children with "sub1.sub2.parent.eth"
- *
  *   linkName(env, "sub1.sub2.parent.eth", "parent.eth", "linked")
  *   Creates "linked.parent.eth" that shares children with "sub1.sub2.parent.eth"
  */
@@ -169,7 +165,7 @@ export async function linkName(
   env: CrossChainEnvironment,
   sourceName: string,
   targetParentName: string,
-  linkLabel?: string,
+  label: string,
   account = env.namedAccounts.owner,
 ) {
   console.log(`\nLinking name: ${sourceName} to parent: ${targetParentName}`);
@@ -214,7 +210,6 @@ export async function linkName(
   const targetRegistry = getRegistryContract(env, targetParentData.subregistry);
 
   // 4. Determine the label for the linked name
-  const label = linkLabel || sourceLabel;
   const linkedName = `${label}.${targetParentName}`;
 
   console.log(`Creating linked name: ${linkedName}`);
