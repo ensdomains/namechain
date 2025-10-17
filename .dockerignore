@@ -1,0 +1,34 @@
+# Node modules
+node_modules/
+
+# Build artifacts
+contracts/out/
+contracts/artifacts/
+contracts/cache/
+contracts/cache_hardhat/
+contracts/generated/
+contracts/typechain-types/
+
+# Deployments
+contracts/deployments/
+
+# ENS contracts build artifacts (will be regenerated)
+contracts/lib/ens-contracts/artifacts/
+contracts/lib/ens-contracts/generated/
+contracts/lib/ens-contracts/node_modules/
+contracts/lib/ens-contracts/cache/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+**/.DS_Store
+
+# Test coverage
+**/coverage/
+
+# Local environment files
+.env
+.env.local

@@ -11,7 +11,38 @@ interface IRegistry is IERC1155Singleton {
     /**
      * @dev SHOULD be emitted when a new label is registered
      */
-    event NewSubname(uint256 indexed tokenId, string label);
+    event NameRegistered(
+        uint256 indexed tokenId,
+        string label,
+        uint64 expiration,
+        address registeredBy
+    );
+
+    /**
+     * @dev Event emitted when a name is renewed.
+     */
+    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
+
+    /**
+     * @dev Event emitted when a name is burned.
+     */
+    event NameBurned(uint256 indexed tokenId, address burnedBy);
+
+    /**
+     * @dev Event emitted when a subregistry is updated.
+     */
+    event SubregistryUpdate(uint256 indexed id, address subregistry);
+
+    /**
+     * @dev Event emitted when a resolver is updated.
+     */
+    event ResolverUpdate(uint256 indexed id, address resolver);
+
+    /**
+     * @dev Event emitted when a token is regenerated with a new token ID.
+     *      This occurs when roles are granted or revoked to maintain ERC1155 compliance.
+     */
+    event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
 
     ////////////////////////////////////////////////////////////////////////
     // Functions
