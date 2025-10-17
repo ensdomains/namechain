@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
 import {MigrationData} from "../../common/bridge/types/TransferData.sol";
 import {UnauthorizedCaller} from "../../common/CommonErrors.sol";
@@ -19,16 +16,12 @@ import {L1BridgeController} from "../bridge/L1BridgeController.sol";
  * @title L1UnlockedMigrationController
  * @dev Base contract for the v1-to-v2 migration controller that only handles unlocked .eth 2LD names.
  */
-contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC165, Ownable {
+contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC165 {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
 
-    IBaseRegistrar public immutable ETH_REGISTRY_V1;
-
     INameWrapper public immutable NAME_WRAPPER;
-
-    IBridge public immutable BRIDGE;
 
     L1BridgeController public immutable L1_BRIDGE_CONTROLLER;
 
@@ -44,16 +37,9 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
-    constructor(
-        IBaseRegistrar ethRegistryV1_,
-        INameWrapper nameWrapper_,
-        IBridge bridge_,
-        L1BridgeController l1BridgeController_
-    ) Ownable(msg.sender) {
-        ETH_REGISTRY_V1 = ethRegistryV1_;
-        NAME_WRAPPER = nameWrapper_;
-        BRIDGE = bridge_;
-        L1_BRIDGE_CONTROLLER = l1BridgeController_;
+    constructor(INameWrapper nameWrapper, L1BridgeController l1BridgeController) {
+        NAME_WRAPPER = nameWrapper;
+        L1_BRIDGE_CONTROLLER = l1BridgeController;
     }
 
     /**
@@ -130,7 +116,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
         uint256 tokenId,
         bytes calldata data
     ) external virtual returns (bytes4) {
-        if (msg.sender != address(ETH_REGISTRY_V1)) {
+        if (msg.sender != address(NAME_WRAPPER.registrar())) {
             revert UnauthorizedCaller(msg.sender);
         }
 
@@ -193,7 +179,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
         // Handle L2 migration by sending ejection message across bridge
         else {
             bytes memory message = BridgeEncoderLib.encodeEjection(migrationData.transferData);
-            BRIDGE.sendMessage(message);
+            L1_BRIDGE_CONTROLLER.BRIDGE().sendMessage(message);
         }
     }
 }

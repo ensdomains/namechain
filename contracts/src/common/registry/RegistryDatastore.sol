@@ -16,8 +16,8 @@ contract RegistryDatastore is IRegistryDatastore {
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
-    function setEntry(address registry, uint256 id, Entry calldata entry) external {
-        _entries[registry][LibLabel.getCanonicalId(id)] = entry;
+    function setEntry(uint256 id, Entry calldata entry) external {
+        _entries[msg.sender][LibLabel.getCanonicalId(id)] = entry;
     }
 
     function setSubregistry(uint256 id, address subregistry) external {

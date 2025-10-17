@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
 # Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y nodejs \
+    && node --version \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -49,8 +50,23 @@ RUN git config --global init.defaultBranch main && \
     cd contracts && \
     forge i
 
+# Build ens-contracts submodule to generate artifacts
+WORKDIR /app/contracts/lib/ens-contracts
+RUN bun install && NODE_OPTIONS="--max-old-space-size=4096" bun run compile
+
 # Build Contracts
-RUN bun run compile:hardhat
+WORKDIR /app/contracts
+RUN bun run compile:forge && bun run compile:hardhat --quiet
+
+# Remove all node_modules and lockfiles after artifacts are generated (keep ens-contracts node_modules for runtime)
+RUN rm -rf /app/node_modules /app/contracts/node_modules /app/bun.lock /app/bun.lockb
+
+# Install only runtime dependencies
+WORKDIR /app/contracts
+RUN cd /app && bun install --production
+
+# Clean up other unnecessary files
+RUN rm -rf /app/.git /app/contracts/.git 2>/dev/null || true
 
 # Expose ports for L1 and L2
 EXPOSE 8545
@@ -60,4 +76,4 @@ EXPOSE 8547
 # Run devnet
 WORKDIR /app/contracts
 ENV FOUNDRY_DISABLE_NIGHTLY_WARNING=true
-CMD ["bun", "run", "devnet"]
+CMD ["bun", "./script/runDevnet.ts"]
