@@ -363,7 +363,7 @@ export async function createSubname(
 
       // Set some default records
       await resolver.write.setAddr([60n, account.address], { account });
-      await resolver.write.setText(["description", `Subname: ${currentName}`], {
+      await resolver.write.setText(["description", currentName], {
         account,
       });
 
@@ -633,7 +633,7 @@ export async function bridgeName(
 
   // Step 4: Set text record on the L1 resolver (DedicatedResolver only takes key and value)
   await l1Resolver.write.setText(
-    ["description", `Default test name: ${label}.eth (bridged to L1)`],
+    ["description", `${label}.eth (bridged to L1)`],
     { account },
   );
 
@@ -671,7 +671,7 @@ export async function registerTestNames(
       { account },
     );
     await resolver.write.setText(
-      ["description", `Default test name: ${label}.eth`],
+      ["description", `${label}.eth`],
       { account },
     );
 
