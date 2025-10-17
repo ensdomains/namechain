@@ -8,6 +8,7 @@ import {
   createSubname,
   bridgeName,
   changeRole,
+  linkName,
 } from "./testNames.js";
 import { setupMockRelay } from "./mockRelay.js";
 import { createServer } from "node:http";
@@ -94,8 +95,8 @@ await transferName(env, "newowner.eth", env.namedAccounts.user.address);
 // Renew renew.eth for 365 days
 await renewName(env, "renew.eth", 365);
 
-// Create subnames
-const createdSubnames = await createSubname(env, "sub1.sub2.parent.eth");
+// Create subnames - need to create children too so sub1.sub2.parent.eth has a subregistry
+const createdSubnames = await createSubname(env, "wallet.sub1.sub2.parent.eth");
 
 // Change roles on changerole.eth - grant ROLE_SET_RESOLVER to user, revoke ROLE_SET_TOKEN_OBSERVER
 await changeRole(
@@ -105,6 +106,10 @@ await changeRole(
   1n << 4n, // ROLE_SET_RESOLVER
   1n << 16n, // ROLE_SET_TOKEN_OBSERVER
 );
+
+// Link sub1.sub2.parent.eth to parent.eth with different label (creates linked.parent.eth with shared children)
+// Now wallet.linked.parent.eth and wallet.sub1.sub2.parent.eth will be the same token
+await linkName(env, "sub1.sub2.parent.eth", "parent.eth", "linked");
 
 const allNames = [
   "test.eth",
@@ -116,6 +121,8 @@ const allNames = [
   "bridge.eth",
   "changerole.eth",
   ...createdSubnames,
+  "linked.parent.eth",
+  "wallet.linked.parent.eth", // Should also be same as wallet.sub1.sub2.parent.eth
 ];
 
 // Bridge bridge.eth from L2 to L1

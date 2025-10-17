@@ -91,9 +91,134 @@ async function traverseL2Registry(
   return null;
 }
 
+/**
+ * Link a name to appear under a different parent by pointing to the same subregistry.
+ * This creates multiple "entry points" into the same child namespace.
+ *
+ * @param sourceName - The existing name whose subregistry we want to link (e.g., "sub1.sub2.parent.eth")
+ * @param targetParentName - The parent under which we want to create a linked entry (e.g., "parent.eth")
+ * @param linkLabel - Optional label for the linked name. If not provided, uses the source's label.
+ *
+ * Example:
+ *   linkName(env, "sub1.sub2.parent.eth", "parent.eth")
+ *   Creates "sub1.parent.eth" that shares children with "sub1.sub2.parent.eth"
+ *
+ *   linkName(env, "sub1.sub2.parent.eth", "parent.eth", "linked")
+ *   Creates "linked.parent.eth" that shares children with "sub1.sub2.parent.eth"
+ */
+export async function linkName(
+  env: CrossChainEnvironment,
+  sourceName: string,
+  targetParentName: string,
+  linkLabel?: string,
+  account = env.namedAccounts.owner,
+) {
+  console.log(`\nLinking name: ${sourceName} to parent: ${targetParentName}`);
+
+  // 1. Get source name data and its subregistry
+  const sourceData = await traverseL2Registry(env, sourceName);
+  if (!sourceData || sourceData.owner === zeroAddress) {
+    throw new Error(`Source name ${sourceName} does not exist or has no owner`);
+  }
+
+  // 2. Find the registry containing the source name (where its tokenId lives)
+  const sourceNameParts = sourceName.split(".");
+  const sourceLabel = sourceNameParts[0];
+
+  // If source is second-level (e.g., "parent.eth"), can't link as it has no subregistry
+  if (sourceNameParts.length === 2) {
+    throw new Error(`Cannot link second-level names directly. Source must be a subname.`);
+  }
+
+  // Get the registry that contains the source name
+  const sourceParentName = sourceNameParts.slice(1).join(".");
+  const sourceParentData = await traverseL2Registry(env, sourceParentName);
+  if (!sourceParentData?.subregistry || sourceParentData.subregistry === zeroAddress) {
+    throw new Error(`Source parent ${sourceParentName} has no subregistry`);
+  }
+
+  const sourceRegistryAddress = sourceParentData.subregistry;
+  const sourceRegistry = getContract({
+    address: sourceRegistryAddress as `0x${string}`,
+    abi: artifacts.UserRegistry.abi,
+    client: env.l2.client,
+  });
+
+  // Get the source's tokenId and verify it has a subregistry
+  const [sourceTokenId, sourceEntry] = await sourceRegistry.read.getNameData([sourceLabel]);
+  if (sourceEntry.subregistry === zeroAddress) {
+    throw new Error(`Source name ${sourceName} has no subregistry to link`);
+  }
+
+  console.log(`Source subregistry: ${sourceEntry.subregistry}`);
+
+  // 3. Get target parent data
+  const targetParentData = await traverseL2Registry(env, targetParentName);
+  if (!targetParentData || targetParentData.owner === zeroAddress) {
+    throw new Error(`Target parent ${targetParentName} does not exist`);
+  }
+
+  if (!targetParentData.subregistry || targetParentData.subregistry === zeroAddress) {
+    throw new Error(`Target parent ${targetParentName} has no subregistry`);
+  }
+
+  const targetRegistryAddress = targetParentData.subregistry;
+  const targetRegistry = getContract({
+    address: targetRegistryAddress as `0x${string}`,
+    abi: artifacts.UserRegistry.abi,
+    client: env.l2.client,
+  });
+
+  // 4. Determine the label for the linked name
+  const label = linkLabel || sourceLabel;
+  const linkedName = `${label}.${targetParentName}`;
+
+  console.log(`Creating linked name: ${linkedName}`);
+
+  // 5. Check if the label already exists in the target registry
+  const [existingTokenId, existingEntry] = await targetRegistry.read.getNameData([label]);
+  const existingOwner = await targetRegistry.read.ownerOf([existingTokenId]);
+
+  if (existingOwner !== zeroAddress) {
+    console.log(`Warning: ${linkedName} already exists. Updating its subregistry...`);
+    // Update existing entry to point to source's subregistry
+    await targetRegistry.write.setSubregistry([existingTokenId, sourceEntry.subregistry], { account });
+    console.log(`✓ Updated ${linkedName} to point to shared subregistry`);
+  } else {
+    // 6. Register new entry in target registry with source's subregistry
+    console.log(`Deploying resolver for ${linkedName}...`);
+    const resolver = await env.l2.deployDedicatedResolver(account);
+    console.log(`✓ Resolver deployed at ${resolver.address}`);
+
+    await targetRegistry.write.register(
+      [
+        label,
+        account.address,
+        sourceEntry.subregistry, // Key: point to source's subregistry!
+        resolver.address,
+        ROLES.ALL,
+        MAX_EXPIRY,
+      ],
+      { account },
+    );
+
+    // Set some default records
+    await resolver.write.setAddr([60n, account.address], { account });
+    await resolver.write.setText(["description", `Linked to ${sourceName}`], { account });
+
+    console.log(`✓ Registered ${linkedName} with shared subregistry`);
+  }
+
+  console.log(`\n✓ Link complete!`);
+  console.log(`Children of ${sourceName} and ${linkedName} now resolve to the same place.`);
+  console.log(`Example: wallet.${sourceName} and wallet.${linkedName} are the same token.`);
+}
+
 // TODO
 // set reverse record
 // expire name (wait for expiry, then show expired, then re-register)
+// dns names
+// migrated names
 
 // DONE
 // - Register name
