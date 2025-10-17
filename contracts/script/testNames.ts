@@ -19,6 +19,78 @@ const RESOLVER_ABI = parseAbi([
   "function text(bytes32, string key) external view returns (string)",
 ]);
 
+// Helper function to traverse L2 registry hierarchy and get name data
+async function traverseL2Registry(
+  env: CrossChainEnvironment,
+  name: string,
+): Promise<{
+  owner?: Address;
+  expiry?: bigint;
+  resolver?: Address;
+  subregistry?: Address;
+} | null> {
+  const nameParts = name.split(".");
+
+  if (nameParts[nameParts.length - 1] !== "eth") {
+    return null;
+  }
+
+  try {
+    let currentRegistryAddress = env.l2.contracts.ETHRegistry.address;
+    let tokenId: bigint | undefined;
+    let entry: any;
+
+    // Traverse from right to left: e.g., ["sub1", "sub2", "parent", "eth"]
+    for (let i = nameParts.length - 2; i >= 0; i--) {
+      const label = nameParts[i];
+
+      if (currentRegistryAddress === env.l2.contracts.ETHRegistry.address) {
+        // Query ETHRegistry
+        [tokenId, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+        if (i === 0) {
+          // This is the final name/subname
+          const owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
+          return {
+            owner,
+            expiry: entry.expiry,
+            resolver: entry.resolver,
+            subregistry: entry.subregistry,
+          };
+        } else {
+          // Move to the subregistry
+          currentRegistryAddress = entry.subregistry;
+        }
+      } else {
+        // Query UserRegistry
+        const userRegistry = getContract({
+          address: currentRegistryAddress as `0x${string}`,
+          abi: artifacts.UserRegistry.abi,
+          client: env.l2.client,
+        });
+        [tokenId, entry] = await userRegistry.read.getNameData([label]);
+        if (i === 0) {
+          // This is the final subname
+          const owner = await userRegistry.read.ownerOf([tokenId]);
+          return {
+            owner,
+            expiry: entry.expiry,
+            resolver: entry.resolver,
+            subregistry: entry.subregistry,
+          };
+        } else {
+          // Move to the next subregistry
+          currentRegistryAddress = entry.subregistry;
+        }
+      }
+    }
+  } catch (e) {
+    // Failed to traverse
+    return null;
+  }
+
+  return null;
+}
+
 // TODO
 // set reverse record
 // show owner and expiry for subname (need to traverse registries)
@@ -45,32 +117,28 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
   for (const name of names) {
     const nameHash = namehash(name);
 
-    // Get owner and expiry info
+    // Get owner and expiry info from L2
     const nameParts = name.split(".");
     const isSecondLevel = nameParts.length === 2 && nameParts[1] === "eth";
 
     let owner: Address | undefined = undefined;
     let expiryDate: string = "N/A";
 
-    if (isSecondLevel) {
-      try {
-        const label = nameParts[0];
-        const [tokenId, entry] =
-          await env.l2.contracts.ETHRegistry.read.getNameData([label]);
-        owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
-        const expiryTimestamp = Number(entry.expiry);
-        // MAX_EXPIRY is too large for JavaScript Date, treat as 'Never'
-        if (entry.expiry === MAX_EXPIRY || expiryTimestamp === 0) {
+    const l2Data = await traverseL2Registry(env, name);
+    if (l2Data?.owner && l2Data.owner !== zeroAddress) {
+      owner = l2Data.owner;
+      if (l2Data.expiry) {
+        const expiryTimestamp = Number(l2Data.expiry);
+        if (l2Data.expiry === MAX_EXPIRY || expiryTimestamp === 0) {
           expiryDate = "Never";
         } else {
           expiryDate = new Date(expiryTimestamp * 1000).toISOString();
         }
-      } catch (e) {
-        // Name might be on L1 or not found
       }
     }
 
-    // Check if name exists on L1 or L2 registry
+    // Check if name exists on L1 or L2 registry for resolver info
+    // NOTE: The logic may need adjustment for naames bridged back and forth between L1 and L2
     let actualResolver: string | undefined;
     let location: string = "L1";
 
@@ -90,59 +158,17 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
           throw new Error("Not on L1");
         }
       } catch (e) {
-        // Not on L1, try L2
-        try {
-          const label = nameParts[0];
-          const [, entry] =
-            await env.l2.contracts.ETHRegistry.read.getNameData([label]);
-          actualResolver = entry.resolver;
+        // Not on L1, use L2 data
+        if (l2Data?.resolver) {
+          actualResolver = l2Data.resolver;
           location = "L2";
-        } catch (e) {
-          // Not found on either chain
         }
       }
     } else {
-      // For subnames, traverse the registry hierarchy on L2
-      try {
-        let currentRegistryAddress = env.l2.contracts.ETHRegistry.address;
-
-        // Traverse from right to left: e.g., ["sub1", "sub2", "parent", "eth"]
-        for (let i = nameParts.length - 2; i >= 0; i--) {
-          const label = nameParts[i];
-
-          if (currentRegistryAddress === env.l2.contracts.ETHRegistry.address) {
-            // Query ETHRegistry
-            const [, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
-            if (i === 0) {
-              // This is the final subname
-              actualResolver = entry.resolver;
-              location = "L2";
-              break;
-            } else {
-              // Move to the subregistry
-              currentRegistryAddress = entry.subregistry;
-            }
-          } else {
-            // Query UserRegistry
-            const userRegistry = getContract({
-              address: currentRegistryAddress as `0x${string}`,
-              abi: artifacts.UserRegistry.abi,
-              client: env.l2.client,
-            });
-            const [, entry] = await userRegistry.read.getNameData([label]);
-            if (i === 0) {
-              // This is the final subname
-              actualResolver = entry.resolver;
-              location = "L2";
-              break;
-            } else {
-              // Move to the next subregistry
-              currentRegistryAddress = entry.subregistry;
-            }
-          }
-        }
-      } catch (e) {
-        // Failed to traverse, leave as default
+      // For subnames, use L2 traversal data
+      if (l2Data?.resolver) {
+        actualResolver = l2Data.resolver;
+        location = "L2";
       }
     }
 
