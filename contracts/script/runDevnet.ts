@@ -50,7 +50,6 @@ process.once("uncaughtException", async (err) => {
   throw err;
 });
 
-// Set up mock relay to watch for bridge messages between L1 and L2
 setupMockRelay(env);
 
 console.log();

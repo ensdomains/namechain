@@ -14,11 +14,6 @@ import { dnsEncodeName } from "../test/utils/utils.js";
 import { ROLES, MAX_EXPIRY } from "../deploy/constants.js";
 import { artifacts } from "@rocketh";
 
-const RESOLVER_ABI = parseAbi([
-  "function addr(bytes32, uint256 coinType) external view returns (bytes)",
-  "function text(bytes32, string key) external view returns (string)",
-]);
-
 // ========== Helper Functions ==========
 
 /**
@@ -79,16 +74,8 @@ async function deployResolverWithRecords(
 ) {
   const chainEnv = chain === "l2" ? env.l2 : env.l1;
   const resolver = await chainEnv.deployDedicatedResolver(account);
-
-  // Set ETH address (coin type 60)
-  if (records.address) {
-    await resolver.write.setAddr([60n, records.address], { account });
-  }
-
-  // Set description text record
-  if (records.description) {
-    await resolver.write.setText(["description", records.description], { account });
-  }
+  await resolver.write.setAddr([60n, records.address], { account });
+  await resolver.write.setText(["description", records.description], { account });
 
   return resolver;
 }
@@ -334,7 +321,7 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
 
     // Get addr record (coin type 60 - ETH) using L1 UniversalResolver
     const addrCall = encodeFunctionData({
-      abi: RESOLVER_ABI,
+      abi: artifacts.DedicatedResolver.abi,
       functionName: "addr",
       args: [nameHash, 60n],
     });
@@ -344,14 +331,14 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
         addrCall,
       ]);
     const addrBytes = decodeFunctionResult({
-      abi: RESOLVER_ABI,
+      abi: artifacts.DedicatedResolver.abi,
       functionName: "addr",
       data: addrResult,
     }) as string;
 
     // Get text record (description) using L1 UniversalResolver
     const textCall = encodeFunctionData({
-      abi: RESOLVER_ABI,
+      abi: artifacts.DedicatedResolver.abi,
       functionName: "text",
       args: [nameHash, "description"],
     });
@@ -361,7 +348,7 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
         textCall,
       ]);
     const description = decodeFunctionResult({
-      abi: RESOLVER_ABI,
+      abi: artifacts.DedicatedResolver.abi,
       functionName: "text",
       data: textResult,
     }) as string;
