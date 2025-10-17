@@ -7,6 +7,7 @@ import {
   renewName,
   createSubname,
   bridgeName,
+  changeRole,
 } from "./testNames.js";
 import { setupMockRelay } from "./mockRelay.js";
 import { createServer } from "node:http";
@@ -84,6 +85,7 @@ await registerTestNames(env, [
   "renew",
   "parent",
   "bridge",
+  "changerole",
 ]);
 
 // Transfer newowner.eth to user
@@ -95,6 +97,15 @@ await renewName(env, "renew.eth", 365);
 // Create subnames
 const createdSubnames = await createSubname(env, "sub1.sub2.parent.eth");
 
+// Change roles on changerole.eth - grant ROLE_SET_RESOLVER to user, revoke ROLE_SET_TOKEN_OBSERVER
+await changeRole(
+  env,
+  "changerole.eth",
+  env.namedAccounts.user.address,
+  1n << 4n, // ROLE_SET_RESOLVER
+  1n << 16n, // ROLE_SET_TOKEN_OBSERVER
+);
+
 const allNames = [
   "test.eth",
   "example.eth",
@@ -103,6 +114,7 @@ const allNames = [
   "renew.eth",
   "parent.eth",
   "bridge.eth",
+  "changerole.eth",
   ...createdSubnames,
 ];
 

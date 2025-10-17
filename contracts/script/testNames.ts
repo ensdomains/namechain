@@ -93,7 +93,6 @@ async function traverseL2Registry(
 
 // TODO
 // set reverse record
-// show owner and expiry for subname (need to traverse registries)
 // expire name (wait for expiry, then show expired, then re-register)
 
 // DONE
@@ -101,6 +100,7 @@ async function traverseL2Registry(
 // - Transfer ownership
 // - Renew name
 // - Bridge name
+// - Change roles
 // - Set resolver
 // - Set addr record
 // - Set text record
@@ -483,6 +483,74 @@ export async function transferName(
   );
 
   console.log(`✓ Transfer completed`);
+}
+
+// Change roles for a name on L2
+export async function changeRole(
+  env: CrossChainEnvironment,
+  name: string,
+  targetAccount: string,
+  rolesToGrant: bigint,
+  rolesToRevoke: bigint,
+  account = env.namedAccounts.owner,
+) {
+  // Extract label from name
+  const label = name.replace(".eth", "");
+
+  // Get tokenId from registry
+  const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
+    label,
+  ]);
+
+  console.log(`\nChanging roles for ${name}...`);
+  console.log(`TokenId (before): ${tokenId}`);
+  console.log(`Target Account: ${targetAccount}`);
+  console.log(`Roles to Grant: ${rolesToGrant}`);
+  console.log(`Roles to Revoke: ${rolesToRevoke}`);
+
+  // Get current roles
+  const currentRoles = await env.l2.contracts.ETHRegistry.read.roles([
+    tokenId,
+    targetAccount,
+  ]);
+  console.log(`Current Roles: ${currentRoles}`);
+
+  // Grant roles if specified
+  if (rolesToGrant > 0n) {
+    await env.l2.contracts.ETHRegistry.write.grantRoles(
+      [tokenId, rolesToGrant, targetAccount],
+      { account },
+    );
+    console.log(`✓ Granted roles: ${rolesToGrant}`);
+  }
+
+  // Revoke roles if specified
+  if (rolesToRevoke > 0n) {
+    await env.l2.contracts.ETHRegistry.write.revokeRoles(
+      [tokenId, rolesToRevoke, targetAccount],
+      { account },
+    );
+    console.log(`✓ Revoked roles: ${rolesToRevoke}`);
+  }
+
+  // Get new tokenId to check if it changed
+  const [newTokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
+    label,
+  ]);
+
+  // Get new roles
+  const newRoles = await env.l2.contracts.ETHRegistry.read.roles([
+    newTokenId,
+    targetAccount,
+  ]);
+
+  console.log(`TokenId (after): ${newTokenId}`);
+  console.log(`New Roles: ${newRoles}`);
+  console.log(
+    `TokenId changed: ${tokenId !== newTokenId ? "YES" : "NO"}`,
+  );
+
+  console.log(`✓ Role change completed`);
 }
 
 // Bridge (eject) a name from L2 to L1 and update its text record
