@@ -50,7 +50,8 @@ process.once("uncaughtException", async (err) => {
   throw err;
 });
 
-const relay = setupMockRelay(env);
+// Set up mock relay to watch for bridge messages between L1 and L2
+setupMockRelay(env);
 
 console.log();
 console.log("Available Named Accounts:");
