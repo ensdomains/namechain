@@ -810,7 +810,6 @@ export async function registerTestNames(
   labels: string[],
   account = env.namedAccounts.owner,
 ) {
-  const created = [];
   for (const label of labels) {
     // Deploy a dedicated resolver for this name (same as test)
     const resolver = await env.l2.deployDedicatedResolver(account);
@@ -836,9 +835,5 @@ export async function registerTestNames(
       ["description", `${label}.eth`],
       { account },
     );
-
-    created.push({ name: `${label}.eth`, resolver: resolver.address });
   }
-  console.log(`\nL2 Names for Owner: ${account.address}:`);
-  console.table(created);
 }
