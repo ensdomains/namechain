@@ -409,12 +409,17 @@ export async function bridgeName(
 
   console.log(`TokenId: ${tokenId}`);
   console.log(`Owner: ${owner}`);
-  console.log(`Resolver: ${entry.resolver}`);
+  console.log(`L2 Resolver: ${entry.resolver}`);
+
+  // Step 1: Deploy a new resolver on L1 FIRST (before bridging)
+  console.log(`Deploying new resolver on L1...`);
+  const l1Resolver = await env.l1.deployDedicatedResolver(account);
+  console.log(`✓ Resolver deployed at ${l1Resolver.address}`);
 
   // DNS encode the label (use dnsEncodeName utility)
   const dnsEncodedName = dnsEncodeName(name);
 
-  // Encode TransferData struct
+  // Encode TransferData struct - use the L1 resolver we just deployed
   const encodedTransferData = encodeAbiParameters(
     [
       {
@@ -435,14 +440,14 @@ export async function bridgeName(
         dnsEncodedName,
         owner: account.address,
         subregistry: entry.subregistry,
-        resolver: entry.resolver,
+        resolver: l1Resolver.address, // Use L1 resolver instead of L2 resolver
         roleBitmap: ROLES.ALL,
         expires: entry.expiry,
       },
     ],
   );
 
-  // Step 1: Transfer name to L2BridgeController (this initiates ejection)
+  // Step 2: Transfer name to L2BridgeController (this initiates ejection)
   await env.waitFor(
     env.l2.contracts.ETHRegistry.write.safeTransferFrom(
       [
@@ -458,25 +463,13 @@ export async function bridgeName(
 
   console.log(`✓ Name ejected from L2`);
 
-  // Step 2: Simulate bridge message delivery
+  // Step 3: Simulate bridge message delivery
   // In real scenario, this would be handled by the bridge infrastructure
   // For testing, we manually call the L1 bridge controller
 
   console.log(`✓ Name registered on L1`);
 
-  // Step 3: Deploy a new resolver on L1 and update the name
-  console.log(`Deploying new resolver on L1...`);
-  const l1Resolver = await env.l1.deployDedicatedResolver(account);
-  console.log(`✓ Resolver deployed at ${l1Resolver.address}`);
-
-  // Set the new resolver on L1 (using tokenId, not label)
-  await env.l1.contracts.ETHRegistry.write.setResolver(
-    [tokenId, l1Resolver.address],
-    { account },
-  );
-  console.log(`✓ Resolver set on L1`);
-
-  // Set text record on the new L1 resolver (DedicatedResolver only takes key and value)
+  // Step 4: Set text record on the L1 resolver (DedicatedResolver only takes key and value)
   await l1Resolver.write.setText(
     ["description", `Default test name: ${label}.eth (bridged to L1)`],
     { account },
