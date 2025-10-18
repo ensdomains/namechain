@@ -31,16 +31,6 @@ contract PermissionedRegistry is
     mapping(uint256 id => ITokenObserver observer) public tokenObservers;
 
     ////////////////////////////////////////////////////////////////////////
-    // Events
-    ////////////////////////////////////////////////////////////////////////
-
-    event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
-
-    event SubregistryUpdate(uint256 indexed id, address subregistry);
-
-    event ResolverUpdate(uint256 indexed id, address resolver);
-
-    ////////////////////////////////////////////////////////////////////////
     // Modifiers
     ////////////////////////////////////////////////////////////////////////
 
@@ -354,7 +344,7 @@ contract PermissionedRegistry is
 
         emit ResolverUpdate(tokenId, resolver);
 
-        emit NewSubname(tokenId, label);
+        emit NameRegistered(tokenId, label, expires, owner);
 
         return tokenId;
     }
