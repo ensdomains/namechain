@@ -252,6 +252,7 @@ export async function setupCrossChainEnvironment({
   }
   try {
     console.log("Deploying ENSv2...");
+    await patchArtifactsV1();
 
     const names = ["deployer", "owner", "bridger", "user", "user2"];
     extraAccounts += names.length;
@@ -375,7 +376,6 @@ export async function setupCrossChainEnvironment({
       const tags = [tag, "local"];
       const scripts = [`deploy/${tag}`, "deploy/shared"];
       if (isL1) {
-        await patchArtifactsV1();
         scripts.unshift("lib/ens-contracts/deploy");
         tags.push("use_root"); // deploy root contracts
         tags.push("allow_unsafe"); // tate hacks
