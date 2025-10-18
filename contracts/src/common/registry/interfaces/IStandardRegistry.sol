@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {IERC1155Singleton} from "../../erc1155/interfaces/IERC1155Singleton.sol";
+
 import {IRegistry} from "./IRegistry.sol";
 
 /**
  * @title IStandardRegistry
  * @dev Interface for the a standard registry.
  */
-interface IStandardRegistry is IRegistry {
+interface IStandardRegistry is IRegistry, IERC1155Singleton {
     ////////////////////////////////////////////////////////////////////////
     // Events
     ////////////////////////////////////////////////////////////////////////
