@@ -15,19 +15,17 @@ import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
+import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
+
 import {IDedicatedResolverSetters, NODE_ANY} from "./interfaces/IDedicatedResolverSetters.sol";
+import {DedicatedResolverLib} from "./libraries/DedicatedResolverLib.sol";
 
 /// @title DedicatedResolver
 /// @notice An owned resolver that provides the same results for any name.
 contract DedicatedResolver is
-    ERC165,
-    OwnableUpgradeable,
+    EnhancedAccessControl,
     IDedicatedResolverSetters,
     IERC7996,
     IExtendedResolver,
@@ -42,26 +40,6 @@ contract DedicatedResolver is
     IABIResolver,
     IInterfaceResolver
 {
-    ////////////////////////////////////////////////////////////////////////
-    // Storage
-    ////////////////////////////////////////////////////////////////////////
-
-    mapping(uint256 coinType => bytes addressBytes) internal _addresses;
-
-    mapping(string key => string value) internal _texts;
-
-    bytes internal _contenthash;
-
-    bytes32 internal _pubkeyX;
-
-    bytes32 internal _pubkeyY;
-
-    mapping(uint256 contentType => bytes data) internal _abis;
-
-    mapping(bytes4 interfaceId => address implementer) internal _interfaces;
-
-    string internal _primary;
-
     ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
@@ -80,12 +58,14 @@ contract DedicatedResolver is
 
     /// @dev Initialize the contract.
     /// @param owner The owner of the resolver.
-    function initialize(address owner) public initializer {
-        __Ownable_init(owner);
+    function initialize(address owner) public {
+        _grantRoles(ROOT_RESOURCE, DedicatedResolverLib.INITIAL_ROLES, owner, false);
     }
 
-    /// @inheritdoc ERC165
-    function supportsInterface(bytes4 interfaceId) public view override(ERC165) returns (bool) {
+    /// @inheritdoc EnhancedAccessControl
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(EnhancedAccessControl) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
             type(IDedicatedResolverSetters).interfaceId == interfaceId ||
@@ -114,53 +94,71 @@ contract DedicatedResolver is
     ////////////////////////////////////////////////////////////////////////
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setText(string calldata key, string calldata value) external onlyOwner {
-        _texts[key] = value;
+    function setText(
+        string calldata key,
+        string calldata value
+    ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_TEXT) {
+        _layout().texts[key] = value;
         emit TextChanged(NODE_ANY, key, key, value);
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setContenthash(bytes calldata hash) external onlyOwner {
-        _contenthash = hash;
+    function setContenthash(
+        bytes calldata hash
+    ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_CONTENTHASH) {
+        _layout().contenthash = hash;
         emit ContenthashChanged(NODE_ANY, hash);
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setPubkey(bytes32 x, bytes32 y) external onlyOwner {
-        _pubkeyX = x;
-        _pubkeyY = y;
+    function setPubkey(
+        bytes32 x,
+        bytes32 y
+    ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_PUBKEY) {
+        _layout().pubkey = [x, y];
         emit PubkeyChanged(NODE_ANY, x, y);
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setABI(uint256 contentType, bytes calldata data) external onlyOwner {
+    function setABI(
+        uint256 contentType,
+        bytes calldata data
+    ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_ABI) {
         if (!_isPowerOf2(contentType)) {
             revert InvalidContentType(contentType);
         }
-        _abis[contentType] = data;
+        _layout().abis[contentType] = data;
         emit ABIChanged(NODE_ANY, contentType);
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setInterface(bytes4 interfaceId, address implementer) external onlyOwner {
-        _interfaces[interfaceId] = implementer;
+    function setInterface(
+        bytes4 interfaceId,
+        address implementer
+    ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_INTERFACE) {
+        _layout().interfaces[interfaceId] = implementer;
         emit InterfaceChanged(NODE_ANY, interfaceId, implementer);
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setName(string calldata name_) external onlyOwner {
-        _primary = name_;
+    function setName(
+        string calldata name_
+    ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_NAME) {
+        _layout().name = name_;
         emit NameChanged(NODE_ANY, name_);
     }
 
     /// @inheritdoc IDedicatedResolverSetters
-    function setAddr(uint256 coinType, bytes calldata addressBytes) external onlyOwner {
+    function setAddr(
+        uint256 coinType,
+        bytes calldata addressBytes
+    ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_ADDR) {
         if (
             addressBytes.length != 0 && addressBytes.length != 20 && ENSIP19.isEVMCoinType(coinType)
         ) {
             revert InvalidEVMAddress(addressBytes);
         }
-        _addresses[coinType] = addressBytes;
+        _layout().addresses[coinType] = addressBytes;
         emit AddressChanged(NODE_ANY, coinType, addressBytes);
         if (coinType == COIN_TYPE_ETH) {
             emit AddrChanged(NODE_ANY, address(bytes20(addressBytes)));
@@ -187,7 +185,7 @@ contract DedicatedResolver is
     function resolve(bytes calldata, bytes calldata data) external view returns (bytes memory) {
         (bool ok, bytes memory v) = address(this).staticcall(data);
         if (!ok) {
-            assembly {
+            assembly ("memory-safe") {
                 revert(add(v, 32), mload(v))
             }
         } else if (v.length == 0) {
@@ -200,21 +198,21 @@ contract DedicatedResolver is
     /// @param key The key.
     /// @return The text value.
     function text(bytes32, string calldata key) external view returns (string memory) {
-        return _texts[key];
+        return _layout().texts[key];
     }
 
     /// @notice Get the content hash.
     /// @return The contenthash.
     function contenthash(bytes32) external view returns (bytes memory) {
-        return _contenthash;
+        return _layout().contenthash;
     }
 
     /// @dev Get the public key.
     /// @return x The x coordinate of the public key.
     /// @return y The y coordinate of the public key.
     function pubkey(bytes32) external view returns (bytes32 x, bytes32 y) {
-        x = _pubkeyX;
-        y = _pubkeyY;
+        x = _layout().pubkey[0];
+        y = _layout().pubkey[1];
     }
 
     /// @dev Get the first ABI for the specified content types.
@@ -227,7 +225,7 @@ contract DedicatedResolver is
     ) external view returns (uint256 contentType, bytes memory data) {
         for (contentType = 1; contentType > 0 && contentType <= contentTypes; contentType <<= 1) {
             if ((contentType & contentTypes) != 0) {
-                data = _abis[contentType];
+                data = _layout().abis[contentType];
                 if (data.length > 0) {
                     return (contentType, data);
                 }
@@ -243,7 +241,7 @@ contract DedicatedResolver is
         bytes32,
         bytes4 interfaceId
     ) external view returns (address implementer) {
-        implementer = _interfaces[interfaceId];
+        implementer = _layout().interfaces[interfaceId];
         if (
             implementer == address(0) &&
             ERC165Checker.supportsInterface(addr(NODE_ANY), interfaceId)
@@ -255,21 +253,21 @@ contract DedicatedResolver is
     /// @dev Get the primary name.
     /// @return The primary name.
     function name(bytes32) external view returns (string memory) {
-        return _primary;
+        return _layout().name;
     }
 
     /// @inheritdoc IHasAddressResolver
     function hasAddr(bytes32, uint256 coinType) external view returns (bool) {
-        return _addresses[coinType].length > 0;
+        return _layout().addresses[coinType].length > 0;
     }
 
     /// @notice Perform multiple read or write operations.
     /// @dev Reverts if any call fails.
     function multicall(bytes[] calldata calls) public returns (bytes[] memory results) {
         results = new bytes[](calls.length);
-        for (uint256 i; i < calls.length; i++) {
+        for (uint256 i; i < calls.length; ++i) {
             (bool ok, bytes memory v) = address(this).delegatecall(calls[i]);
-            require(ok);
+            require(ok); // TODO: type this?
             results[i] = v;
         }
         return results;
@@ -280,9 +278,9 @@ contract DedicatedResolver is
     /// @param coinType The coin type.
     /// @return addressBytes The address for the coin type.
     function addr(bytes32, uint256 coinType) public view returns (bytes memory addressBytes) {
-        addressBytes = _addresses[coinType];
+        addressBytes = _layout().addresses[coinType];
         if (addressBytes.length == 0 && ENSIP19.chainFromCoinType(coinType) > 0) {
-            addressBytes = _addresses[COIN_TYPE_DEFAULT];
+            addressBytes = _layout().addresses[COIN_TYPE_DEFAULT];
         }
     }
 
@@ -299,5 +297,13 @@ contract DedicatedResolver is
     /// @dev Returns true if `x` has a single bit set.
     function _isPowerOf2(uint256 x) internal pure returns (bool) {
         return x > 0 && (x - 1) & x == 0;
+    }
+
+    /// @dev Access layout storage pointer.
+    function _layout() internal pure returns (DedicatedResolverLib.Layout storage layout) {
+        uint256 slot = DedicatedResolverLib.NAMED_SLOT;
+        assembly {
+            layout.slot := slot
+        }
     }
 }
