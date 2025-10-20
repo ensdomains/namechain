@@ -91,15 +91,15 @@ library LibRegistry {
     /// @param name The DNS-encoded name.
     /// @param offset The offset into `name` to begin the search.
     ///
-    /// @return registries Array of registries in traversal order.
+    /// @return registries Array of registries in label-order.
     function findRegistries(
         IRegistry rootRegistry,
         bytes memory name,
         uint256 offset
     ) internal view returns (IRegistry[] memory registries) {
         registries = new IRegistry[](1 + NameCoder.countLabels(name, offset));
-        registries[0] = rootRegistry;
-        _findRegistries(name, offset, registries, 1);
+        registries[registries.length - 1] = rootRegistry;
+        _findRegistries(name, offset, registries, 0);
     }
 
     /// @dev Recursive function for building ancestory.
@@ -111,12 +111,12 @@ library LibRegistry {
     ) private view returns (IRegistry registry) {
         (string memory label, uint256 nextOffset) = NameCoder.extractLabel(name, offset);
         if (bytes(label).length == 0) {
-            return registries[0];
+            return registries[registries.length - 1];
         }
         registry = _findRegistries(name, nextOffset, registries, index + 1);
         if (address(registry) != address(0)) {
             registry = registry.getSubregistry(label);
-            registries[registries.length - index] = registry;
+            registries[index] = registry;
         }
     }
 }

@@ -83,7 +83,7 @@ contract LibRegistryTest is Test, ERC1155Holder {
         for (uint256 i; i < registries.length; ++i) {
             assertEq(
                 address(LibRegistry.findExactRegistry(rootRegistry, name, offset)),
-                address(registries[registries.length - 1 - i]),
+                address(registries[i]),
                 string.concat("exact[", Strings.toString(i), "]")
             );
             (, offset) = NameCoder.nextLabel(name, offset);
@@ -109,8 +109,8 @@ contract LibRegistryTest is Test, ERC1155Holder {
         vm.resumeGasMetering();
 
         IRegistry[] memory v = new IRegistry[](2);
-        v[0] = rootRegistry;
-        v[1] = ethRegistry;
+        v[0] = ethRegistry;
+        v[1] = rootRegistry;
         _expectFind(name, 0, address(rootRegistry), v);
     }
 
@@ -127,9 +127,9 @@ contract LibRegistryTest is Test, ERC1155Holder {
         vm.resumeGasMetering();
 
         IRegistry[] memory v = new IRegistry[](3);
-        v[0] = rootRegistry;
+        v[0] = testRegistry;
         v[1] = ethRegistry;
-        v[2] = testRegistry;
+        v[2] = rootRegistry;
         _expectFind(name, 0, address(ethRegistry), v);
     }
 
@@ -146,9 +146,9 @@ contract LibRegistryTest is Test, ERC1155Holder {
         vm.resumeGasMetering();
 
         IRegistry[] memory v = new IRegistry[](4);
-        v[0] = rootRegistry;
-        v[1] = ethRegistry;
-        v[2] = testRegistry;
+        v[1] = testRegistry;
+        v[2] = ethRegistry;
+        v[3] = rootRegistry;
         _expectFind(name, 9, address(testRegistry), v); // 3sub4test
     }
 
@@ -165,9 +165,9 @@ contract LibRegistryTest is Test, ERC1155Holder {
         vm.resumeGasMetering();
 
         IRegistry[] memory v = new IRegistry[](5);
-        v[0] = rootRegistry;
-        v[1] = ethRegistry;
         v[2] = testRegistry;
+        v[3] = ethRegistry;
+        v[4] = rootRegistry;
         _expectFind(name, 10, address(0), v); // 1a2bb4test
     }
 }
