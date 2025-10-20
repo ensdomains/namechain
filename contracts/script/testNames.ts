@@ -48,12 +48,12 @@ function parseName(name: string): {
  */
 function getRegistryContract(
   env: CrossChainEnvironment,
-  registryAddress: Address,
+  registryAddress: `0x${string}`,
   chain: "l1" | "l2" = "l2",
 ) {
   const client = chain === "l2" ? env.l2.client : env.l1.client;
   return getContract({
-    address: registryAddress as `0x${string}`,
+    address: registryAddress,
     abi: artifacts.UserRegistry.abi,
     client,
   });
@@ -114,11 +114,11 @@ async function traverseL2Registry(
   env: CrossChainEnvironment,
   name: string,
 ): Promise<{
-  owner?: Address;
+  owner?: `0x${string}`;
   expiry?: bigint;
-  resolver?: Address;
-  subregistry?: Address;
-  registry?: Address;
+  resolver?: `0x${string}`;
+  subregistry?: `0x${string}`;
+  registry?: `0x${string}`;
 } | null> {
   const nameParts = name.split(".");
 
@@ -147,7 +147,7 @@ async function traverseL2Registry(
     }
 
     // Move to the subregistry
-    currentRegistry = getRegistryContract(env, entry.subregistry);
+    currentRegistry = getRegistryContract(env, entry.subregistry) as any;
   }
 
   return null;
@@ -253,9 +253,9 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
     // Get owner and expiry info from L2
     const { label, isSecondLevel } = parseName(name);
 
-    let owner: Address | undefined = undefined;
+    let owner: `0x${string}` | undefined = undefined;
     let expiryDate: string = "N/A";
-    let registryAddress: Address | undefined = undefined;
+    let registryAddress: `0x${string}` | undefined = undefined;
 
     const l2Data = await traverseL2Registry(env, name);
     if (l2Data?.owner && l2Data.owner !== zeroAddress) {
@@ -403,7 +403,7 @@ export async function createSubname(
 
   // For each level of subnames, create UserRegistry and register
   let currentParentTokenId = parentTokenId;
-  let currentRegistryAddress = env.l2.contracts.ETHRegistry.address;
+  let currentRegistryAddress: `0x${string}` = env.l2.contracts.ETHRegistry.address;
   let currentName = parentName;
 
   // Process subname parts from right to left (parent to child)
@@ -415,7 +415,7 @@ export async function createSubname(
     console.log(`\nProcessing level: ${currentName}`);
 
     // Check if current parent has a subregistry
-    let subregistryAddress: string;
+    let subregistryAddress: `0x${string}`;
 
     if (currentRegistryAddress === env.l2.contracts.ETHRegistry.address) {
       // Parent is in ETHRegistry
@@ -592,7 +592,7 @@ export async function renewName(
 export async function transferName(
   env: CrossChainEnvironment,
   name: string,
-  newOwner: string,
+  newOwner: `0x${string}`,
   account = env.namedAccounts.owner,
 ) {
   // Extract label from name
@@ -621,7 +621,7 @@ export async function transferName(
 export async function changeRole(
   env: CrossChainEnvironment,
   name: string,
-  targetAccount: string,
+  targetAccount: `0x${string}`,
   rolesToGrant: bigint,
   rolesToRevoke: bigint,
   account = env.namedAccounts.owner,

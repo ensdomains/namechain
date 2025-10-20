@@ -228,7 +228,7 @@ export class ChainDeployment<
         abi: this.contracts.UserRegistryImpl.abi,
         functionName: "initialize",
         args: [roles, admin],
-      }),
+      } as any) as `0x${string}`,
       salt,
     });
   }
