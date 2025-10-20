@@ -334,27 +334,27 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
     // Decode the multicall result - returns array of bytes directly
     const results = result && result !== "0x"
       ? (decodeFunctionResult({
-          abi: artifacts.DedicatedResolver.abi,
-          functionName: "multicall",
-          data: result,
-        }) as readonly `0x${string}`[])
+        abi: artifacts.DedicatedResolver.abi,
+        functionName: "multicall",
+        data: result,
+      }) as readonly `0x${string}`[])
       : [];
 
     // Decode individual results
     const ethAddress = results[0] && results[0] !== "0x"
       ? (decodeFunctionResult({
-          abi: artifacts.DedicatedResolver.abi,
-          functionName: "addr",
-          data: results[0],
-        }) as string)
+        abi: artifacts.DedicatedResolver.abi,
+        functionName: "addr",
+        data: results[0],
+      }) as string)
       : undefined;
 
     const description = results[1] && results[1] !== "0x"
       ? (decodeFunctionResult({
-          abi: artifacts.DedicatedResolver.abi,
-          functionName: "text",
-          data: results[1],
-        }) as string)
+        abi: artifacts.DedicatedResolver.abi,
+        functionName: "text",
+        data: results[1],
+      }) as string)
       : undefined;
 
     // Truncate addresses to first 7 characters (0x + 5 chars)
@@ -509,8 +509,6 @@ export async function createSubname(
     currentParentTokenId = tokenId;
     currentRegistryAddress = subregistryAddress;
   }
-
-  console.log(`\n✓ Created ${createdNames.length} new name(s)`);
   return createdNames;
 }
 
@@ -636,18 +634,13 @@ export async function changeRole(
     label,
   ]);
 
-  console.log(`\nChanging roles for ${name}...`);
-  console.log(`TokenId (before): ${tokenId}`);
-  console.log(`Target Account: ${targetAccount}`);
-  console.log(`Roles to Grant: ${rolesToGrant}`);
-  console.log(`Roles to Revoke: ${rolesToRevoke}`);
+  console.log(`\nChanging roles for ${name} (TokenId: ${tokenId}, Target: ${targetAccount}, Grant: ${rolesToGrant}, Revoke: ${rolesToRevoke})`);
 
   // Get current roles
   const currentRoles = await env.l2.contracts.ETHRegistry.read.roles([
     tokenId,
     targetAccount,
   ]);
-  console.log(`Current Roles: ${currentRoles}`);
 
   // Grant roles if specified
   if (rolesToGrant > 0n) {
@@ -655,7 +648,6 @@ export async function changeRole(
       [tokenId, rolesToGrant, targetAccount],
       { account },
     );
-    console.log(`✓ Granted roles: ${rolesToGrant}`);
   }
 
   // Revoke roles if specified
@@ -664,7 +656,6 @@ export async function changeRole(
       [tokenId, rolesToRevoke, targetAccount],
       { account },
     );
-    console.log(`✓ Revoked roles: ${rolesToRevoke}`);
   }
 
   // Get new tokenId to check if it changed
@@ -678,13 +669,7 @@ export async function changeRole(
     targetAccount,
   ]);
 
-  console.log(`TokenId (after): ${newTokenId}`);
-  console.log(`New Roles: ${newRoles}`);
-  console.log(
-    `TokenId changed: ${tokenId !== newTokenId ? "YES" : "NO"}`,
-  );
-
-  console.log(`✓ Role change completed`);
+  console.log(`TokenId changed from ${tokenId} to ${newTokenId}`);
 }
 
 // Bridge (eject) a name from L2 to L1 and update its text record
