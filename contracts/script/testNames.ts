@@ -300,39 +300,57 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
       }
     }
 
-    // Get addr record (ETH address) using L1 UniversalResolver
-    const addrCall = encodeFunctionData({
-      abi: artifacts.DedicatedResolver.abi,
-      functionName: "addr",
-      args: [nameHash],
-    });
-    const [addrResult] =
-      await env.l1.contracts.UniversalResolverV2.read.resolve([
-        dnsEncodeName(name),
-        addrCall,
-      ]);
-    const ethAddress = decodeFunctionResult({
-      abi: artifacts.DedicatedResolver.abi,
-      functionName: "addr",
-      data: addrResult,
-    }) as string;
+    // Batch addr and text resolution using resolver multicall
+    const resolverCalls = [
+      encodeFunctionData({
+        abi: artifacts.DedicatedResolver.abi,
+        functionName: "addr",
+        args: [nameHash],
+      }),
+      encodeFunctionData({
+        abi: artifacts.DedicatedResolver.abi,
+        functionName: "text",
+        args: [nameHash, "description"],
+      }),
+    ];
 
-    // Get text record (description) using L1 UniversalResolver
-    const textCall = encodeFunctionData({
+    const multicallData = encodeFunctionData({
       abi: artifacts.DedicatedResolver.abi,
-      functionName: "text",
-      args: [nameHash, "description"],
+      functionName: "multicall",
+      args: [resolverCalls],
     });
-    const [textResult] =
-      await env.l1.contracts.UniversalResolverV2.read.resolve([
-        dnsEncodeName(name),
-        textCall,
-      ]);
-    const description = decodeFunctionResult({
-      abi: artifacts.DedicatedResolver.abi,
-      functionName: "text",
-      data: textResult,
-    }) as string;
+
+    // Single UniversalResolver call with multicall
+    const [result] = await env.l1.contracts.UniversalResolverV2.read.resolve([
+      dnsEncodeName(name),
+      multicallData,
+    ]);
+
+    // Decode the multicall result - returns array of bytes directly
+    const results = result && result !== "0x"
+      ? (decodeFunctionResult({
+          abi: artifacts.DedicatedResolver.abi,
+          functionName: "multicall",
+          data: result,
+        }) as readonly `0x${string}`[])
+      : [];
+
+    // Decode individual results
+    const ethAddress = results[0] && results[0] !== "0x"
+      ? (decodeFunctionResult({
+          abi: artifacts.DedicatedResolver.abi,
+          functionName: "addr",
+          data: results[0],
+        }) as string)
+      : undefined;
+
+    const description = results[1] && results[1] !== "0x"
+      ? (decodeFunctionResult({
+          abi: artifacts.DedicatedResolver.abi,
+          functionName: "text",
+          data: results[1],
+        }) as string)
+      : undefined;
 
     // Truncate addresses to first 7 characters (0x + 5 chars)
     const truncateAddress = (addr: string | undefined) => {
