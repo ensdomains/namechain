@@ -32,7 +32,7 @@ contract BatchRegistrarTest is Test {
         ethRegistry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, address(batchRegistrar));
     }
 
-    function test_Constructor() external {
+    function test_Constructor() external view {
         assertEq(address(batchRegistrar.ETH_REGISTRY()), address(ethRegistry));
     }
 
@@ -50,7 +50,7 @@ contract BatchRegistrarTest is Test {
         vm.recordLogs();
         batchRegistrar.batchRegister(names);
 
-        (uint256 tokenId,) = ethRegistry.getNameData("test");
+        (uint256 tokenId, ) = ethRegistry.getNameData("test");
         address nameOwner = ethRegistry.ownerOf(tokenId);
         assertEq(nameOwner, user);
     }
@@ -89,7 +89,7 @@ contract BatchRegistrarTest is Test {
         batchRegistrar.batchRegister(names);
 
         for (uint256 i = 0; i < names.length; i++) {
-            (uint256 tokenId,) = ethRegistry.getNameData(names[i].label);
+            (uint256 tokenId, ) = ethRegistry.getNameData(names[i].label);
             address nameOwner = ethRegistry.ownerOf(tokenId);
             assertEq(nameOwner, user);
         }
@@ -171,13 +171,13 @@ contract BatchRegistrarTest is Test {
 
         batchRegistrar.batchRegister(names);
 
-        (uint256 tokenId1,) = ethRegistry.getNameData("owner1");
+        (uint256 tokenId1, ) = ethRegistry.getNameData("owner1");
         assertEq(ethRegistry.ownerOf(tokenId1), user);
 
-        (uint256 tokenId2,) = ethRegistry.getNameData("owner2");
+        (uint256 tokenId2, ) = ethRegistry.getNameData("owner2");
         assertEq(ethRegistry.ownerOf(tokenId2), user2);
 
-        (uint256 tokenId3,) = ethRegistry.getNameData("owner3");
+        (uint256 tokenId3, ) = ethRegistry.getNameData("owner3");
         assertEq(ethRegistry.ownerOf(tokenId3), user3);
     }
 
@@ -207,10 +207,10 @@ contract BatchRegistrarTest is Test {
         batchRegistrar.batchRegister(names);
 
         // Verify events were emitted from registry
-        (uint256 tokenId1,) = ethRegistry.getNameData("event1");
+        (uint256 tokenId1, ) = ethRegistry.getNameData("event1");
         assertGt(tokenId1, 0);
 
-        (uint256 tokenId2,) = ethRegistry.getNameData("event2");
+        (uint256 tokenId2, ) = ethRegistry.getNameData("event2");
         assertGt(tokenId2, 0);
     }
 }

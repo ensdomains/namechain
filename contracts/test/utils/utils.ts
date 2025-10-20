@@ -1,4 +1,4 @@
-import { labelhash } from "viem";
+import { labelhash, stringToBytes, concat } from "viem";
 
 // import type { ccipRequest } from "viem";
 // export type CCIPReadOption =
@@ -8,19 +8,17 @@ import { labelhash } from "viem";
 
 export {
   dnsEncodeName,
-  encodeLabelhash,
-  packetToBytes,
 } from "../../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
 
-// export function packetToBytes(packet: string) {
-//   const m = splitName(packet).flatMap(s => {
-//   let v = stringToBytes(s);
-//   if (v.length > 255) v = stringToBytes(`[${labelhash(s).slice(2)}]`);
-//     return [Uint8Array.of(v.length), v];
-//   });
-//   m.push(Uint8Array.of(0));
-//   return concat(m);
-// }
+export function packetToBytes(packet: string) {
+  const m = splitName(packet).flatMap(s => {
+    let v = stringToBytes(s);
+    if (v.length > 255) v = stringToBytes(`[${labelhash(s).slice(2)}]`);
+    return [Uint8Array.of(v.length), v];
+  });
+  m.push(Uint8Array.of(0));
+  return concat(m);
+}
 
 // see: NameUtils.labelToCanonicalId()
 export function labelToCanonicalId(label: string) {
