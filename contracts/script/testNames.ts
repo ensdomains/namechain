@@ -118,6 +118,7 @@ async function traverseL2Registry(
   expiry?: bigint;
   resolver?: Address;
   subregistry?: Address;
+  registry?: Address;
 } | null> {
   const nameParts = name.split(".");
 
@@ -141,6 +142,7 @@ async function traverseL2Registry(
         expiry: entry.expiry,
         resolver: entry.resolver,
         subregistry: entry.subregistry,
+        registry: currentRegistry.address,
       };
     }
 
@@ -253,10 +255,12 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
 
     let owner: Address | undefined = undefined;
     let expiryDate: string = "N/A";
+    let registryAddress: Address | undefined = undefined;
 
     const l2Data = await traverseL2Registry(env, name);
     if (l2Data?.owner && l2Data.owner !== zeroAddress) {
       owner = l2Data.owner;
+      registryAddress = l2Data.registry;
       if (l2Data.expiry) {
         const expiryTimestamp = Number(l2Data.expiry);
         if (l2Data.expiry === MAX_EXPIRY || expiryTimestamp === 0) {
@@ -281,6 +285,7 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
         // Check if it's actually owned on L1 (not zero address)
         if (l1Owner !== zeroAddress) {
           actualResolver = entry.resolver;
+          registryAddress = env.l1.contracts.ETHRegistry.address;
           location = "L1";
         } else {
           throw new Error("Not on L1");
@@ -360,6 +365,7 @@ export async function showName(env: CrossChainEnvironment, names: string[]) {
 
     nameData.push({
       Name: name,
+      Registry: truncateAddress(registryAddress),
       Owner: truncateAddress(owner),
       Expiry: expiryDate === "Never" ? "Never" : expiryDate.split("T")[0], // Show only date part
       Resolver: `${truncateAddress(actualResolver)} (${location})`,
