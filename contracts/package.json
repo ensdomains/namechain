@@ -13,7 +13,8 @@
     "hardhat-deploy": "2.0.0-next.41",
     "prool": "^0.0.24",
     "rocketh": "0.14.5",
-    "viem": "^2.31.6"
+    "viem": "^2.31.6",
+    "yoctocolors": "^2.1.2"
   },
   "devDependencies": {
     "@ensdomains/address-encoder": "^1.1.3",
@@ -60,8 +61,5 @@
     "premigrate": "bun ./script/preMigration.ts",
     "check:types": "tsc --noEmit"
   },
-  "type": "module",
-  "dependencies": {
-    "yoctocolors": "^2.1.2"
-  }
+  "type": "module"
 }
