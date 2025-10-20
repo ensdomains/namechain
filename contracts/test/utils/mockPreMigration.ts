@@ -77,7 +77,10 @@ export function createCSVTestHelper(
     },
 
     getRegistrations() {
-      return Array.from(registeredNames.values()).map(({ labelName }) => ({ labelName }));
+      return Array.from(registeredNames.values()).map(({ labelName }, index) => ({
+        labelName,
+        lineNumber: index
+      }));
     },
   };
 }

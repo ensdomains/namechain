@@ -25,7 +25,7 @@ describe("Pre-Migration Script Unit Tests", () => {
     it("should create fresh checkpoint with correct initial values", () => {
       const checkpoint = createFreshCheckpoint();
 
-      expect(checkpoint.lastProcessedIndex).toBe(-1);
+      expect(checkpoint.lastProcessedLineNumber).toBe(-1);
       expect(checkpoint.totalProcessed).toBe(0);
       expect(checkpoint.successCount).toBe(0);
       expect(checkpoint.failureCount).toBe(0);
@@ -36,7 +36,7 @@ describe("Pre-Migration Script Unit Tests", () => {
 
     it("should save and load checkpoint correctly", () => {
       const original = createTestCheckpoint({
-        lastProcessedIndex: 42,
+        lastProcessedLineNumber: 42,
         totalProcessed: 30,
         successCount: 25,
         failureCount: 2,
@@ -48,7 +48,7 @@ describe("Pre-Migration Script Unit Tests", () => {
 
       const loaded = loadCheckpoint();
       expect(loaded).not.toBeNull();
-      expect(loaded!.lastProcessedIndex).toBe(42);
+      expect(loaded!.lastProcessedLineNumber).toBe(42);
       expect(loaded!.totalProcessed).toBe(30);
       expect(loaded!.successCount).toBe(25);
       expect(loaded!.failureCount).toBe(2);
@@ -69,22 +69,20 @@ describe("Pre-Migration Script Unit Tests", () => {
       expect(loaded).toBeDefined();
     });
 
-    it("should handle legacy checkpoints without skippedCount", () => {
+    it("should handle legacy checkpoints without skippedCount and lastProcessedLineNumber", () => {
       const legacyCheckpoint = {
-        lastProcessedIndex: 10,
         totalProcessed: 8,
         successCount: 7,
         failureCount: 1,
         timestamp: new Date().toISOString(),
-        // Missing skippedCount
+        // Missing skippedCount and lastProcessedLineNumber
       };
 
       writeTestCheckpoint(legacyCheckpoint as any);
       const loaded = loadCheckpoint();
 
       expect(loaded).not.toBeNull();
-      expect(loaded!.lastProcessedIndex).toBe(10);
-      // skippedCount might not be present in loaded object (handled in batchRegisterNames)
+      expect(loaded!.totalProcessed).toBe(8);
     });
   });
 
@@ -151,11 +149,11 @@ describe("Pre-Migration Script Unit Tests", () => {
   describe("Checkpoint Helper Functions", () => {
     it("should create checkpoint with custom values", () => {
       const checkpoint = createTestCheckpoint({
-        lastProcessedIndex: 99,
+        lastProcessedLineNumber: 99,
         successCount: 50,
       });
 
-      expect(checkpoint.lastProcessedIndex).toBe(99);
+      expect(checkpoint.lastProcessedLineNumber).toBe(99);
       expect(checkpoint.successCount).toBe(50);
       expect(checkpoint.failureCount).toBe(0); // default
     });
@@ -178,6 +176,124 @@ describe("Pre-Migration Script Unit Tests", () => {
     it("should not error when deleting non-existent checkpoint", () => {
       expect(existsSync(TEST_CHECKPOINT_FILE)).toBe(false);
       expect(() => deleteTestCheckpoint()).not.toThrow();
+    });
+  });
+
+  describe("Checkpoint Line Number Tracking", () => {
+    it("should initialize lastProcessedLineNumber to -1", () => {
+      const checkpoint = createFreshCheckpoint();
+      expect(checkpoint.lastProcessedLineNumber).toBe(-1);
+    });
+
+    it("should save lastProcessedLineNumber in checkpoint", () => {
+      const checkpoint = createTestCheckpoint({
+        lastProcessedLineNumber: 150,
+        totalProcessed: 100,
+      });
+
+      saveCheckpoint(checkpoint);
+      const loaded = loadCheckpoint();
+
+      expect(loaded).not.toBeNull();
+      expect(loaded!.lastProcessedLineNumber).toBe(150);
+      expect(loaded!.totalProcessed).toBe(100);
+    });
+
+    it("should handle checkpoint continuation with different line numbers than processed count", () => {
+      const checkpoint = createTestCheckpoint({
+        lastProcessedLineNumber: 200,
+        totalProcessed: 150,
+        skippedCount: 30,
+        invalidLabelCount: 20,
+      });
+
+      expect(checkpoint.lastProcessedLineNumber).toBe(200);
+      expect(checkpoint.totalProcessed).toBe(150);
+    });
+
+    it("should preserve lastProcessedLineNumber when loading legacy checkpoints", () => {
+      const legacyCheckpoint = {
+        totalProcessed: 50,
+        successCount: 40,
+        failureCount: 5,
+        skippedCount: 5,
+        invalidLabelCount: 0,
+        timestamp: new Date().toISOString(),
+      };
+
+      writeTestCheckpoint(legacyCheckpoint as any);
+      const loaded = loadCheckpoint();
+
+      expect(loaded).not.toBeNull();
+      expect(loaded!.lastProcessedLineNumber).toBeUndefined();
+    });
+  });
+
+  describe("Incremental Checkpoint Saving", () => {
+    it("should update totalProcessed incrementally", () => {
+      const checkpoint1 = createTestCheckpoint({
+        totalProcessed: 0,
+        lastProcessedLineNumber: -1,
+      });
+
+      checkpoint1.totalProcessed++;
+      checkpoint1.lastProcessedLineNumber = 5;
+      expect(checkpoint1.totalProcessed).toBe(1);
+      expect(checkpoint1.lastProcessedLineNumber).toBe(5);
+
+      checkpoint1.totalProcessed++;
+      checkpoint1.lastProcessedLineNumber = 10;
+      expect(checkpoint1.totalProcessed).toBe(2);
+      expect(checkpoint1.lastProcessedLineNumber).toBe(10);
+    });
+
+    it("should track line numbers independently from processed count", () => {
+      const checkpoint = createTestCheckpoint({
+        totalProcessed: 0,
+        lastProcessedLineNumber: -1,
+      });
+
+      checkpoint.totalProcessed = 5;
+      checkpoint.lastProcessedLineNumber = 20;
+
+      expect(checkpoint.totalProcessed).toBe(5);
+      expect(checkpoint.lastProcessedLineNumber).toBe(20);
+      expect(checkpoint.lastProcessedLineNumber).not.toBe(checkpoint.totalProcessed);
+    });
+
+    it("should maintain checkpoint consistency across multiple saves", () => {
+      let checkpoint = createTestCheckpoint();
+
+      for (let i = 0; i < 5; i++) {
+        checkpoint.totalProcessed++;
+        checkpoint.lastProcessedLineNumber = i * 10;
+        checkpoint.successCount++;
+        saveCheckpoint(checkpoint);
+
+        const loaded = loadCheckpoint();
+        expect(loaded).not.toBeNull();
+        expect(loaded!.totalProcessed).toBe(i + 1);
+        expect(loaded!.lastProcessedLineNumber).toBe(i * 10);
+        expect(loaded!.successCount).toBe(i + 1);
+      }
+    });
+
+    it("should handle interrupted processing with partial batch", () => {
+      const checkpoint = createTestCheckpoint({
+        totalProcessed: 7,
+        lastProcessedLineNumber: 15,
+        successCount: 5,
+        skippedCount: 2,
+      });
+
+      saveCheckpoint(checkpoint);
+      const loaded = loadCheckpoint();
+
+      expect(loaded).not.toBeNull();
+      expect(loaded!.totalProcessed).toBe(7);
+      expect(loaded!.lastProcessedLineNumber).toBe(15);
+      expect(loaded!.successCount).toBe(5);
+      expect(loaded!.skippedCount).toBe(2);
     });
   });
 });

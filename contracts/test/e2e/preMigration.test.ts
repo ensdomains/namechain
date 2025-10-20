@@ -144,7 +144,7 @@ describe("Pre-Migration Script E2E", () => {
     csvHelper.writeCSV(TEST_CSV_PATH);
 
     const checkpoint = createFreshCheckpoint();
-    checkpoint.lastProcessedIndex = 0;
+    checkpoint.lastProcessedLineNumber = 0;
     checkpoint.totalProcessed = 1;
     checkpoint.successCount = 1;
     checkpoint.totalExpected = 3;

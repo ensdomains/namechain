@@ -3,7 +3,7 @@ import type { Checkpoint, ENSRegistration } from "../../script/preMigration.js";
 
 export function createTestCheckpoint(overrides: Partial<Checkpoint> = {}): Checkpoint {
   return {
-    lastProcessedIndex: -1,
+    lastProcessedLineNumber: -1,
     totalProcessed: 0,
     totalExpected: 0,
     successCount: 0,

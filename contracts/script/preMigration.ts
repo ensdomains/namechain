@@ -67,6 +67,7 @@ export class InvalidLabelNameError extends Error {
 // Types
 export interface ENSRegistration {
   labelName: string;
+  lineNumber: number;
 }
 
 export interface BatchRegistrarName {
@@ -97,7 +98,7 @@ export interface PreMigrationConfig {
 }
 
 export interface Checkpoint {
-  lastProcessedIndex: number;
+  lastProcessedLineNumber: number;
   totalProcessed: number;
   totalExpected: number;
   successCount: number;
@@ -105,6 +106,7 @@ export interface Checkpoint {
   skippedCount: number;
   invalidLabelCount: number;
   timestamp: string;
+  batchRegistrarAddress?: Address;
 }
 
 // Constants
@@ -119,6 +121,7 @@ const PROGRESS_LOG_INTERVAL = 10;
 
 // ENS v1 BaseRegistrar on Ethereum mainnet
 const BASE_REGISTRAR_ADDRESS = "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85" as Address;
+const PRE_MIGRATION_RESOLVER = "0x0000000000000000000000000000000000000001" as Address;
 const BASE_REGISTRAR_ABI = [
   {
     inputs: [{ internalType: "uint256", name: "id", type: "uint256" }],
@@ -140,7 +143,7 @@ const BASE_REGISTRAR_ABI = [
  */
 export function createFreshCheckpoint(): Checkpoint {
   return {
-    lastProcessedIndex: -1,
+    lastProcessedLineNumber: -1,
     totalProcessed: 0,
     totalExpected: 0,
     successCount: 0,
@@ -332,17 +335,39 @@ export async function verifyNameOnMainnet(
 }
 
 /**
- * Deploys or retrieves the BatchRegistrar contract using CREATE2 for deterministic deployment.
+ * Deploys or retrieves the BatchRegistrar contract.
+ * If a checkpoint address is provided and has code deployed, reuses it.
+ * Otherwise deploys a new instance.
  *
  * @param client - Viem wallet client for deployment
  * @param registryAddress - Address of the ETH registry contract
- * @returns BatchRegistrar contract instance
+ * @param checkpointAddress - Previously deployed address from checkpoint (if any)
+ * @returns BatchRegistrar contract instance and its address
  */
 export async function deployBatchRegistrar(
   client: any,
-  registryAddress: Address
-): Promise<any> {
+  registryAddress: Address,
+  checkpointAddress?: Address
+): Promise<{ contract: any; address: Address }> {
   const batchRegistrarArtifact = artifacts.BatchRegistrar;
+
+  // Check if we can reuse a previously deployed BatchRegistrar from checkpoint
+  if (checkpointAddress) {
+    const existingCode = await client.getCode({ address: checkpointAddress });
+    if (existingCode && existingCode !== "0x") {
+      logger.success(`Reusing BatchRegistrar from checkpoint at ${checkpointAddress}`);
+      return {
+        contract: getContract({
+          address: checkpointAddress,
+          abi: batchRegistrarArtifact.abi,
+          client,
+        }),
+        address: checkpointAddress,
+      };
+    } else {
+      logger.warning(`Checkpoint address ${checkpointAddress} has no code, deploying new instance`);
+    }
+  }
 
   logger.info("Deploying BatchRegistrar...");
 
@@ -363,27 +388,30 @@ export async function deployBatchRegistrar(
     throw new Error(`BatchRegistrar deployment failed - no code at ${deployedAddress}`);
   }
 
-  return getContract({
+  return {
+    contract: getContract({
+      address: deployedAddress,
+      abi: batchRegistrarArtifact.abi,
+      client,
+    }),
     address: deployedAddress,
-    abi: batchRegistrarArtifact.abi,
-    client,
-  });
+  };
 }
 
 /**
  * Reads ENS registrations from a CSV file in batches.
- * Returns an async generator that yields batches of registrations.
+ * Returns an async generator that yields batches of registrations with line numbers.
  *
  * @param csvFilePath - Path to the CSV file
  * @param batchSize - Number of registrations per batch
- * @param startIndex - Skip this many rows before starting
+ * @param startLineNumber - Skip to this CSV line number before starting
  * @param limit - Maximum total number of registrations to read
- * @returns Async generator yielding batches of ENS registrations
+ * @returns Async generator yielding batches of ENS registrations with their CSV line numbers
  */
 async function* readCSVInBatches(
   csvFilePath: string,
   batchSize: number,
-  startIndex: number = 0,
+  startLineNumber: number = 0,
   limit: number | null = null
 ): AsyncGenerator<ENSRegistration[]> {
   const readline = await import("node:readline");
@@ -405,7 +433,7 @@ async function* readCSVInBatches(
       continue;
     }
 
-    if (lineNumber < startIndex) {
+    if (lineNumber <= startLineNumber) {
       lineNumber++;
       continue;
     }
@@ -418,7 +446,7 @@ async function* readCSVInBatches(
     if (parts.length >= 7) {
       const labelName = parts[6].trim();
       if (labelName && labelName !== '') {
-        batch.push({ labelName });
+        batch.push({ labelName, lineNumber });
         processedCount++;
 
         if (batch.length >= batchSize) {
@@ -476,8 +504,8 @@ async function fetchAndRegisterInBatches(
   if (config.continue) {
     checkpoint = loadCheckpoint();
     if (checkpoint) {
-      logger.info(`Resuming from checkpoint: ${checkpoint.totalProcessed} names already processed`);
-      config.startIndex = checkpoint.totalProcessed;
+      logger.info(`Resuming from checkpoint: ${checkpoint.totalProcessed} names already processed from line ${checkpoint.lastProcessedLineNumber}`);
+      config.startIndex = checkpoint.lastProcessedLineNumber;
     }
   }
 
@@ -503,19 +531,26 @@ async function fetchAndRegisterInBatches(
   });
 
   // Deploy or get BatchRegistrar
-  const batchRegistrar = await deployBatchRegistrar(client, config.registryAddress);
+  const { contract: batchRegistrar, address: batchRegistrarAddress } = await deployBatchRegistrar(
+    client,
+    config.registryAddress,
+    checkpoint.batchRegistrarAddress
+  );
+
+  // Update checkpoint with BatchRegistrar address
+  checkpoint.batchRegistrarAddress = batchRegistrarAddress;
 
   // Grant REGISTRAR role to BatchRegistrar if needed
   const hasRole = await registry.read.hasRootRoles([
     ROLES.OWNER.EAC.REGISTRAR,
-    batchRegistrar.address,
+    batchRegistrarAddress,
   ]);
 
   if (!hasRole) {
     logger.info("Granting REGISTRAR role to BatchRegistrar...");
     const hash = await (registry.write.grantRootRoles as any)([
       ROLES.OWNER.EAC.REGISTRAR,
-      batchRegistrar.address,
+      batchRegistrarAddress,
     ]);
     await client.waitForTransactionReceipt({ hash });
     logger.success("REGISTRAR role granted to BatchRegistrar");
@@ -540,19 +575,24 @@ async function fetchAndRegisterInBatches(
 
       // Separate valid from invalid registrations for processing
       let invalidLabelsInBatch = 0;
+      let lastInvalidLineNumber = checkpoint.lastProcessedLineNumber;
       const validBatch = batch.filter((reg) => {
         if (!reg.labelName || typeof reg.labelName !== 'string' || reg.labelName.trim() === '') {
           logger.skippingInvalidName(reg.labelName || 'unknown');
           invalidLabelsInBatch++;
           checkpoint!.invalidLabelCount++;
           checkpoint!.totalProcessed++;
+          lastInvalidLineNumber = reg.lineNumber;
           return false;
         }
         return true;
       });
 
-      if (invalidLabelsInBatch > 0 && !config.disableCheckpoint) {
-        saveCheckpoint(checkpoint);
+      if (invalidLabelsInBatch > 0) {
+        checkpoint.lastProcessedLineNumber = lastInvalidLineNumber;
+        if (!config.disableCheckpoint) {
+          saveCheckpoint(checkpoint);
+        }
       }
 
       logger.info(
@@ -606,11 +646,13 @@ async function processBatch(
   checkpoint: Checkpoint
 ): Promise<Checkpoint> {
   const batchNames: BatchRegistrarName[] = [];
+  let lastLineNumber = checkpoint.lastProcessedLineNumber;
 
   // First pass: verify all names on mainnet and check if already registered
   for (let i = 0; i < registrations.length; i++) {
     const registration = registrations[i];
     const globalIndex = checkpoint.totalProcessed + i + 1;
+    lastLineNumber = registration.lineNumber;
 
     logger.processingName(registration.labelName, globalIndex, checkpoint.totalExpected);
 
@@ -663,7 +705,7 @@ async function processBatch(
         label: registration.labelName,
         owner: config.bridgeControllerAddress,
         registry: zeroAddress,
-        resolver: zeroAddress,
+        resolver: PRE_MIGRATION_RESOLVER,
         roleBitmap: config.roleBitmap,
         expires: mainnetResult.expiry,
       });
@@ -673,10 +715,19 @@ async function processBatch(
       checkpoint.failureCount++;
       logger.finishedName(registration.labelName, 'failed');
     }
+
+    // Update and save checkpoint after each name to handle interruptions
+    checkpoint.totalProcessed++;
+    checkpoint.lastProcessedLineNumber = lastLineNumber;
+    checkpoint.timestamp = new Date().toISOString();
+
+    if (!config.disableCheckpoint) {
+      saveCheckpoint(checkpoint);
+    }
   }
 
-  // Update total processed count = all names we went through
-  checkpoint.totalProcessed += registrations.length;
+  // Final checkpoint update (counts already updated incrementally above)
+  checkpoint.lastProcessedLineNumber = lastLineNumber;
 
   // Second pass: batch register all valid names
   if (batchNames.length > 0 && !config.dryRun) {
@@ -795,18 +846,22 @@ export async function batchRegisterNames(
   });
 
   // Deploy or get BatchRegistrar
-  const batchRegistrar = await deployBatchRegistrar(client, config.registryAddress);
+  const { contract: batchRegistrar, address: batchRegistrarAddress } = await deployBatchRegistrar(
+    client,
+    config.registryAddress,
+    config.batchRegistrarAddress
+  );
 
   // Grant REGISTRAR role to BatchRegistrar if needed
   const hasRole = await registry.read.hasRootRoles([
     ROLES.OWNER.EAC.REGISTRAR,
-    batchRegistrar.address,
+    batchRegistrarAddress,
   ]);
 
   if (!hasRole) {
     const hash = await (registry.write.grantRootRoles as any)([
       ROLES.OWNER.EAC.REGISTRAR,
-      batchRegistrar.address,
+      batchRegistrarAddress,
     ]);
     await client.waitForTransactionReceipt({ hash });
   }
@@ -824,7 +879,6 @@ export async function batchRegisterNames(
         skippedCount: loaded.skippedCount ?? 0,
         invalidLabelCount: loaded.invalidLabelCount ?? 0,
         totalExpected: (loaded.totalExpected ?? loaded.totalProcessed) + registrations.length,
-        lastProcessedIndex: -1,
       };
     } else {
       checkpoint = createFreshCheckpoint();
@@ -902,16 +956,16 @@ export async function main(argv = process.argv): Promise<void> {
     logger.config('Bridge Controller', config.bridgeControllerAddress);
     logger.config('CSV File', config.csvFilePath);
     logger.config('Batch Size', config.batchSize);
-    logger.config('Start Index', config.startIndex);
     logger.config('Limit', config.limit ?? "none");
     logger.config('Dry Run', config.dryRun);
     logger.config('Continue Mode', config.continue ?? false);
     if (config.continue && loadCheckpoint()) {
       const cp = loadCheckpoint()!;
       const invalidCount = cp.invalidLabelCount ?? 0;
-      logger.config('Checkpoint Found', `${cp.totalProcessed} processed, ${cp.skippedCount} skipped, ${invalidCount} invalid, ${cp.failureCount} failed`);
-      config.startIndex = cp.totalProcessed;
-      logger.info(`Adjusted start index to ${config.startIndex} based on checkpoint`);
+      const lastLine = cp.lastProcessedLineNumber ?? -1;
+      logger.config('Checkpoint Found', `${cp.totalProcessed} processed, ${cp.skippedCount} skipped, ${invalidCount} invalid, ${cp.failureCount} failed (last line: ${lastLine})`);
+      config.startIndex = lastLine;
+      logger.info(`Resuming from CSV line ${config.startIndex}`);
     }
     logger.config('Role Bitmap', `0x${config.roleBitmap.toString(16)}`);
     logger.info("");
