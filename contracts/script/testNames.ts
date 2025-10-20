@@ -516,7 +516,7 @@ export async function renewName(
   account = env.namedAccounts.owner,
 ) {
   // Extract label from name
-  const label = name.replace(".eth", "");
+  const { label } = parseName(name);
 
   // Get current expiry
   const [tokenId, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([
@@ -592,7 +592,7 @@ export async function transferName(
   account = env.namedAccounts.owner,
 ) {
   // Extract label from name
-  const label = name.replace(".eth", "");
+  const { label } = parseName(name);
 
   // Get tokenId from registry
   const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
@@ -623,7 +623,7 @@ export async function changeRole(
   account = env.namedAccounts.owner,
 ) {
   // Extract label from name
-  const label = name.replace(".eth", "");
+  const { label } = parseName(name);
 
   // Get tokenId from registry
   const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
@@ -689,7 +689,7 @@ export async function bridgeName(
 ) {
   console.log(`\nBridging ${name} from L2 to L1...`);
 
-  const label = name.replace(".eth", "");
+  const { label } = parseName(name);
 
   // Get name data from L2
   const [tokenId, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([
