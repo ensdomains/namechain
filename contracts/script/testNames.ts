@@ -94,53 +94,27 @@ async function traverseL2Registry(
     return null;
   }
 
-  try {
-    let currentRegistryAddress = env.l2.contracts.ETHRegistry.address;
-    let tokenId: bigint | undefined;
-    let entry: any;
+  let currentRegistry = env.l2.contracts.ETHRegistry;
 
-    // Traverse from right to left: e.g., ["sub1", "sub2", "parent", "eth"]
-    for (let i = nameParts.length - 2; i >= 0; i--) {
-      const label = nameParts[i];
+  // Traverse from right to left: e.g., ["sub1", "sub2", "parent", "eth"]
+  for (let i = nameParts.length - 2; i >= 0; i--) {
+    const label = nameParts[i];
 
-      if (currentRegistryAddress === env.l2.contracts.ETHRegistry.address) {
-        // Query ETHRegistry
-        [tokenId, entry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
-        if (i === 0) {
-          // This is the final name/subname
-          const owner = await env.l2.contracts.ETHRegistry.read.ownerOf([tokenId]);
-          return {
-            owner,
-            expiry: entry.expiry,
-            resolver: entry.resolver,
-            subregistry: entry.subregistry,
-          };
-        } else {
-          // Move to the subregistry
-          currentRegistryAddress = entry.subregistry;
-        }
-      } else {
-        // Query UserRegistry
-        const userRegistry = getRegistryContract(env, currentRegistryAddress);
-        [tokenId, entry] = await userRegistry.read.getNameData([label]);
-        if (i === 0) {
-          // This is the final subname
-          const owner = await userRegistry.read.ownerOf([tokenId]);
-          return {
-            owner,
-            expiry: entry.expiry,
-            resolver: entry.resolver,
-            subregistry: entry.subregistry,
-          };
-        } else {
-          // Move to the next subregistry
-          currentRegistryAddress = entry.subregistry;
-        }
-      }
+    const [tokenId, entry] = await currentRegistry.read.getNameData([label]);
+
+    if (i === 0) {
+      // This is the final name/subname
+      const owner = await currentRegistry.read.ownerOf([tokenId]);
+      return {
+        owner,
+        expiry: entry.expiry,
+        resolver: entry.resolver,
+        subregistry: entry.subregistry,
+      };
     }
-  } catch (e) {
-    // Failed to traverse
-    return null;
+
+    // Move to the subregistry
+    currentRegistry = getRegistryContract(env, entry.subregistry);
   }
 
   return null;
