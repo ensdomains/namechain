@@ -13,6 +13,8 @@ jobs:
     steps:
       # setup
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup
 
       - name: Compile and check types
