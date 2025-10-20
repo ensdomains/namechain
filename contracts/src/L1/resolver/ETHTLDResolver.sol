@@ -33,13 +33,18 @@ import {
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
 
 import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
+import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
+import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
+import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {
     ICompositeExtendedResolver
 } from "../../common/resolver/interfaces/ICompositeExtendedResolver.sol";
+import {IUnruggableResolver} from "../../common/resolver/interfaces/IUnruggableResolver.sol";
 import {
     DedicatedResolverLayoutLib
 } from "../../common/resolver/libraries/DedicatedResolverLayoutLib.sol";
 import {LibLabel} from "../../common/utils/LibLabel.sol";
+import {LibRegistry} from "../../universalResolver/libraries/LibRegistry.sol";
 import {L1BridgeController} from "../bridge/L1BridgeController.sol";
 
 /// @notice Resolver that performs ".eth" resolutions for Namechain (via gateway) or V1 (via fallback).
@@ -51,6 +56,7 @@ import {L1BridgeController} from "../bridge/L1BridgeController.sol";
 /// 3. If no resolver is found, reverts `UnreachableName`.
 contract ETHTLDResolver is
     ICompositeExtendedResolver,
+    IUnruggableResolver,
     IERC7996,
     GatewayFetchTarget,
     ResolverCaller,
@@ -58,6 +64,17 @@ contract ETHTLDResolver is
     ERC165
 {
     using GatewayFetcher for GatewayRequest;
+
+    ////////////////////////////////////////////////////////////////////////
+    // Types
+    ////////////////////////////////////////////////////////////////////////
+
+    enum NameState {
+        NULL,
+        POST_MIGRATION,
+        POST_EJECTION,
+        NAMECHAIN
+    }
 
     ////////////////////////////////////////////////////////////////////////
     // Constants
@@ -72,6 +89,8 @@ contract ETHTLDResolver is
     INameWrapper public immutable NAME_WRAPPER;
 
     IBaseRegistrar public immutable ETH_REGISTRAR_V1;
+
+    IPermissionedRegistry public immutable ETH_REGISTRY;
 
     L1BridgeController public immutable L1_BRIDGE_CONTROLLER;
 
@@ -105,6 +124,7 @@ contract ETHTLDResolver is
     constructor(
         INameWrapper nameWrapper,
         IGatewayProvider batchGatewayProvider,
+        IPermissionedRegistry ethRegistry,
         L1BridgeController l1BridgeController,
         address ethResolver_,
         IGatewayVerifier namechainVerifier_,
@@ -114,6 +134,7 @@ contract ETHTLDResolver is
         NAME_WRAPPER = nameWrapper;
         ETH_REGISTRAR_V1 = nameWrapper.registrar();
         BATCH_GATEWAY_PROVIDER = batchGatewayProvider;
+        ETH_REGISTRY = ethRegistry;
         L1_BRIDGE_CONTROLLER = l1BridgeController;
         NAMECHAIN_DATASTORE = namechainDatastore;
         NAMECHAIN_ETH_REGISTRY = namechainEthRegistry;
@@ -129,6 +150,7 @@ contract ETHTLDResolver is
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
             type(ICompositeExtendedResolver).interfaceId == interfaceId ||
+            type(IUnruggableResolver).interfaceId == interfaceId ||
             type(IERC7996).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
@@ -160,7 +182,7 @@ contract ETHTLDResolver is
         bytes calldata name,
         bytes calldata data
     ) external view returns (bytes memory result) {
-        (address resolver, bool offchain) = _determineResolver(name);
+        (address resolver, bool offchain) = _determineMainnetResolver(name);
         if (offchain) {
             bytes[] memory calls;
             bool multi = bytes4(data) == IMulticallable.multicall.selector;
@@ -176,9 +198,20 @@ contract ETHTLDResolver is
         }
     }
 
+    /// @inheritdoc IUnruggableResolver
+    function unruggableGateway()
+        external
+        view
+        returns (uint256 coinType, IGatewayVerifier verifier, string[] memory gateways)
+    {
+        coinType = 0x80eeeeee; // TODO: namechain coinType
+        verifier = namechainVerifier;
+        // gateways = namechainVerifier.gatewayURLs();
+    }
+
     /// @inheritdoc ICompositeExtendedResolver
     function isResolverOffchain(bytes calldata name) external view returns (bool offchain) {
-        (, offchain) = _determineResolver(name);
+        (, offchain) = _determineMainnetResolver(name);
     }
 
     /// @inheritdoc ICompositeExtendedResolver
@@ -191,12 +224,14 @@ contract ETHTLDResolver is
     function getResolver(
         bytes calldata name
     ) external view returns (address resolver, bool offchain) {
-        (resolver, offchain) = _determineResolver(name);
+        (resolver, offchain) = _determineMainnetResolver(name);
         if (offchain) {
             fetch(
                 namechainVerifier,
                 _createRequest(0, name),
-                this.getResolverCallback.selector // ==> step 2
+                this.getResolverCallback.selector, // ==> step 2,
+                name,
+                new string[](0)
             );
         }
     }
@@ -205,10 +240,15 @@ contract ETHTLDResolver is
     function getResolverCallback(
         bytes[] calldata values,
         uint8 /*exitCode*/,
-        bytes calldata /*extraData*/
-    ) external pure returns (address resolver, bool offchain) {
-        resolver = address(uint160(uint256(bytes32(values[1]))));
-        offchain = true;
+        bytes calldata name
+    ) external view returns (address resolver, bool offchain) {
+        NameState state = _nameStateFrom(values[1]);
+        if (state == NameState.NAMECHAIN) {
+            resolver = address(uint160(uint256(bytes32(values[1]))));
+            offchain = true;
+        } else {
+            resolver = _determineInflightResolver(name, state);
+        }
     }
 
     /// @notice CCIP-Read callback for `resolve()`.
@@ -222,13 +262,22 @@ contract ETHTLDResolver is
         bytes[] calldata values,
         uint8 exitCode,
         bytes calldata extraData
-    ) external pure returns (bytes memory) {
+    ) external view returns (bytes memory) {
         (bytes memory name, bool multi, bytes[] memory m) = abi.decode(
             extraData,
             (bytes, bool, bytes[])
         );
         if (exitCode == _EXIT_CODE_NO_RESOLVER) {
-            revert UnreachableName(name);
+            address resolver = _determineInflightResolver(name, _nameStateFrom(values[1]));
+            if (address(resolver) == address(0)) {
+                revert UnreachableName(name);
+            }
+            callResolver(
+                resolver,
+                name,
+                multi ? abi.encodeCall(IMulticallable.multicall, (m)) : m[0],
+                BATCH_GATEWAY_PROVIDER.gateways()
+            );
         }
         bytes memory defaultAddress = values[m.length]; // stored at end
         if (multi) {
@@ -347,7 +396,10 @@ contract ETHTLDResolver is
         // output[-1] = default address
         uint8 max = uint8(m.length);
         GatewayRequest memory req = _createRequest(max + 1, name);
-        req.pushOutput(1).requireNonzero(_EXIT_CODE_NO_RESOLVER).target(); // target resolver
+        req.pushOutput(1).push(uint256(type(NameState).max)).gt().assertNonzero(
+            _EXIT_CODE_NO_RESOLVER
+        ); // is this a real resolver?
+        req.pushOutput(1).target(); // target resolver
         req.push(bytes("")).dup().setOutput(0).setOutput(1); // clear outputs
         uint8 errorCount; // number of errors
         for (uint8 i; i < m.length; ++i) {
@@ -430,7 +482,7 @@ contract ETHTLDResolver is
                 return abi.encode(m); // all calls failed
             } else {
                 bytes memory v = m[0];
-                assembly {
+                assembly ("memory-safe") {
                     revert(add(v, 32), mload(v)) // revert with the call that failed
                 }
             }
@@ -452,7 +504,7 @@ contract ETHTLDResolver is
     }
 
     /// @dev Determine underlying resolver and location for `name`.
-    function _determineResolver(
+    function _determineMainnetResolver(
         bytes memory name
     ) internal view returns (address resolver, bool offchain) {
         (bool matched, , uint256 prevOffset, uint256 offset) = NameCoder.matchSuffix(
@@ -472,6 +524,41 @@ contract ETHTLDResolver is
             return (resolver, false);
         }
         return (address(0), true);
+    }
+
+    /// @dev Determine underlying resolver while `name` is inflight to Namechain.
+    function _determineInflightResolver(
+        bytes memory name,
+        NameState state
+    ) internal view returns (address resolver) {
+        if (state == NameState.POST_MIGRATION) {
+            (resolver, , ) = RegistryUtils.findResolver(NAME_WRAPPER.ens(), name, 0);
+        } else if (state == NameState.POST_EJECTION) {
+            (, , uint256 offset, ) = NameCoder.matchSuffix(name, 0, NameCoder.ETH_NODE);
+            (string memory label, ) = NameCoder.extractLabel(name, offset);
+            (, IRegistryDatastore.Entry memory entry) = ETH_REGISTRY.getNameData(label);
+            if (entry.subregistry != address(0)) {
+                bytes memory prefix = BytesUtils.substring(name, 0, offset + 1);
+                prefix[offset] = 0;
+                (, resolver, , ) = LibRegistry.findResolver(
+                    IRegistry(entry.subregistry),
+                    prefix,
+                    0
+                );
+            }
+            if (resolver == address(0)) {
+                resolver = entry.resolver;
+            }
+        }
+        if (resolver == address(this)) {
+            resolver = address(0);
+        }
+    }
+
+    /// @dev Map an abi-encoded address from `GatewayRequest` to a `NameState`.
+    function _nameStateFrom(bytes memory value) internal pure returns (NameState) {
+        uint256 i = uint256(bytes32(value));
+        return i > uint256(type(NameState).max) ? NameState.NAMECHAIN : NameState(i);
     }
 
     /// @dev Prepare response based on the request.
@@ -511,7 +598,7 @@ contract ETHTLDResolver is
         } else if (selector == IABIResolver.ABI.selector) {
             uint256 contentType;
             if (value.length > 0) {
-                assembly {
+                assembly ("memory-safe") {
                     let ptr := add(value, 32)
                     contentType := mload(ptr) // extract contentType from first word
                     mstore(ptr, sub(mload(value), 32)) // reduce length

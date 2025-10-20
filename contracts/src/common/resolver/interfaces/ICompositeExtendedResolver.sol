@@ -3,6 +3,8 @@ pragma solidity >=0.8.13;
 
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 
+/// @notice A resolver that is composed of multiple resolvers.
+/// @dev Interface selector: `0xf686ea10`
 interface ICompositeExtendedResolver is IExtendedResolver {
     /// @notice Fetch the underlying resolver for `name`.
     ///         Callers should enable EIP-3668.
@@ -10,7 +12,7 @@ interface ICompositeExtendedResolver is IExtendedResolver {
     /// @param name The DNS-encoded name.
     ///
     /// @return resolver The underlying resolver address.
-    /// @return offchain `true` if required offchain data.
+    /// @return offchain `true` if `resolver` is offchain.
     function getResolver(bytes memory name) external view returns (address resolver, bool offchain);
 
     /// @notice Determine if resolving `name` requires offchain data.

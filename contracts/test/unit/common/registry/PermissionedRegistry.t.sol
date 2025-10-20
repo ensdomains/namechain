@@ -545,7 +545,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             roleBitmap,
             uint64(block.timestamp) + 86400
         );
-        registry.burn(tokenId);
+        registry.burn(tokenId, false);
         vm.assertEq(registry.ownerOf(tokenId), address(0), "owner");
         vm.assertEq(address(registry.getSubregistry("test2")), address(0), "registry");
         vm.assertEq(registry.latestOwnerOf(tokenId), address(0), "latest"); // does not survive burn
@@ -579,7 +579,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
 
         vm.prank(user1);
-        registry.burn(tokenId);
+        registry.burn(tokenId, false);
 
         // Verify roles are revoked after burning
         assertFalse(
@@ -610,7 +610,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
 
         vm.recordLogs();
-        registry.burn(tokenId);
+        registry.burn(tokenId, false);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 6);
@@ -639,7 +639,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             )
         );
         vm.prank(address(2));
-        registry.burn(tokenId);
+        registry.burn(tokenId, false);
 
         vm.assertEq(registry.ownerOf(tokenId), address(1));
         vm.assertEq(address(registry.getSubregistry("test2")), address(registry));
@@ -2723,7 +2723,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         // Burn should succeed even without ROLE_CAN_TRANSFER_ADMIN
         vm.prank(user1);
-        registry.burn(tokenId);
+        registry.burn(tokenId, false);
 
         assertEq(registry.ownerOf(tokenId), address(0));
     }

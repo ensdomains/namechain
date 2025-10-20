@@ -8,16 +8,6 @@ import { labelhash } from "viem";
 
 export { dnsEncodeName } from "../../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
 
-// export function packetToBytes(packet: string) {
-//   const m = splitName(packet).flatMap(s => {
-//   let v = stringToBytes(s);
-//   if (v.length > 255) v = stringToBytes(`[${labelhash(s).slice(2)}]`);
-//     return [Uint8Array.of(v.length), v];
-//   });
-//   m.push(Uint8Array.of(0));
-//   return concat(m);
-// }
-
 // see: NameUtils.labelToCanonicalId()
 export function labelToCanonicalId(label: string) {
   return getCanonicalId(BigInt(labelhash(label)));
@@ -27,18 +17,6 @@ export function labelToCanonicalId(label: string) {
 export function getCanonicalId(id: bigint) {
   return id ^ BigInt.asUintN(32, id);
 }
-
-// export function dnsEncodeName(name: string) {
-//   return bytesToHex(packetToBytes(name));
-// }
-
-// export const labelhashUint256 = (label: string): bigint => {
-//   return BigInt(labelhash(label));
-// };
-
-// export const namehashUint256 = (name: string): bigint => {
-//   return BigInt(namehash(name));
-// };
 
 //      "" => []
 // "a.b.c" => ["a", "b", "c"]

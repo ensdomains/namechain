@@ -15,6 +15,9 @@ export default execute(
       "BatchGatewayProvider",
     );
 
+    const ethRegistry =
+      get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
+
     const bridgeController =
       get<(typeof artifacts.L1BridgeController)["abi"]>("BridgeController");
 
@@ -62,6 +65,7 @@ export default execute(
       args: [
         nameWrapper.address,
         batchGatewayProvider.address,
+        ethRegistry.address,
         bridgeController.address,
         ethSelfResolver.address,
         args.verifierAddress,
@@ -81,9 +85,10 @@ export default execute(
     dependencies: [
       "NameWrapper",
       "BatchGatewayProvider",
+      "ETHRegistry",
+      "BridgeController",
       "VerifiableFactory",
       "DedicatedResolver",
-      "BridgeController",
     ],
   },
 );

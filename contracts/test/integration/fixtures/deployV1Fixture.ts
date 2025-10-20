@@ -1,5 +1,6 @@
 import type { NetworkConnection } from "hardhat/types/network";
 import {
+  Account,
   type Address,
   getAddress,
   labelhash,
@@ -93,30 +94,34 @@ export async function deployV1Fixture(
   async function setupName({
     name,
     resolverAddress = publicResolver.address,
+    account = walletClient.account,
   }: {
     name: string;
     resolverAddress?: Address;
+    account?: Account;
   }) {
+    resolverAddress = getAddress(resolverAddress); // fix checksum
     const labels = splitName(name);
     let i = labels.length;
     if (name.endsWith(".eth")) {
       await ethRegistrar.write.register([
         BigInt(labelhash(labels[(i -= 2)])),
-        walletClient.account.address,
+        account.address,
         (1n << 64n) - 1n,
       ]);
     }
     while (i > 0) {
       const parent = labels.slice(i).join(".");
       const child = labels[--i];
-      await ensRegistry.write.setSubnodeOwner([
-        namehash(parent),
-        labelhash(child),
-        walletClient.account.address,
-      ]);
+      await ensRegistry.write.setSubnodeOwner(
+        [namehash(parent), labelhash(child), account.address],
+        { account },
+      );
     }
     // set resolver on leaf
-    await ensRegistry.write.setResolver([namehash(name), resolverAddress]);
-    return { name, labels, resolverAddress: getAddress(resolverAddress) };
+    await ensRegistry.write.setResolver([namehash(name), resolverAddress], {
+      account,
+    });
+    return { name, labels, resolverAddress };
   }
 }

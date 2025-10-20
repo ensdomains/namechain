@@ -69,8 +69,9 @@ interface IStandardRegistry is IRegistry {
     /**
      * @dev Burns a name.
      * @param tokenId The token ID of the name to burn.
+     * @param retain If `true`, leaves registry and resolver unmodified.
      */
-    function burn(uint256 tokenId) external;
+    function burn(uint256 tokenId, bool retain) external;
 
     /**
      * @dev Sets a name.
