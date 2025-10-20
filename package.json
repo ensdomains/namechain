@@ -13,8 +13,8 @@
     "husky": "^9.1.7",
     "typescript": "^5.8.3"
   },
-  "engineStrict": true,
-  "scripts": {
-    "prepare": "husky"
-  }
+  "resolutions": {
+    "esbuild": "0.25.11"
+  },
+  "engineStrict": true
 }
