@@ -13,6 +13,7 @@ import {
 import { setupMockRelay } from "./mockRelay.js";
 import { createServer } from "node:http";
 import { parseArgs } from "node:util";
+import { ROLES } from "../deploy/constants.js";
 
 const t0 = Date.now();
 
@@ -103,8 +104,8 @@ await changeRole(
   env,
   "changerole.eth",
   env.namedAccounts.user.address,
-  1n << 4n, // ROLE_SET_RESOLVER
-  1n << 16n, // ROLE_SET_TOKEN_OBSERVER
+  ROLES.OWNER.EAC.SET_RESOLVER,
+  ROLES.OWNER.EAC.SET_TOKEN_OBSERVER,
 );
 
 // Link sub1.sub2.parent.eth to parent.eth with different label (creates linked.parent.eth with shared children)
