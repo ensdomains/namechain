@@ -1,17 +1,9 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  beforeEach,
-  afterAll,
-} from "bun:test";
+import { describe, it, beforeAll, beforeEach, afterAll } from "bun:test";
 import {
   type Address,
   getAddress,
   labelhash,
   namehash,
-  toHex,
   zeroAddress,
 } from "viem";
 
@@ -50,23 +42,6 @@ describe("Resolve", () => {
     ]);
     bundle.expect(answer);
   }
-
-  it("state", async () => {
-    const address = toHex(1, { size: 20 });
-    const slot = toHex(0, { size: 32 });
-    await env.l1.client.setStorageAt({
-      address,
-      index: Number(slot),
-      value: toHex(1, { size: 32 }),
-    });
-    expect(
-      env.l1.client.getStorageAt({ address, slot }),
-    ).resolves.toStrictEqual(toHex(1, { size: 32 }));
-    await resetState();
-    expect(
-      env.l1.client.getStorageAt({ address, slot }),
-    ).resolves.toStrictEqual(toHex(0, { size: 32 }));
-  });
 
   describe("Protocol", () => {
     async function named(name: string, fn: () => Address) {

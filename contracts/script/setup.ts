@@ -253,6 +253,7 @@ export async function setupCrossChainEnvironment({
   }
   try {
     console.log("Deploying ENSv2...");
+    await patchArtifactsV1();
 
     const names = ["deployer", "owner", "bridger", "user", "user2"];
     extraAccounts += names.length;
@@ -376,7 +377,6 @@ export async function setupCrossChainEnvironment({
       const tags = [tag, "local"];
       const scripts = [`deploy/${tag}`, "deploy/shared"];
       if (isL1) {
-        await patchArtifactsV1();
         scripts.unshift("lib/ens-contracts/deploy");
         tags.push("use_root"); // deploy root contracts
         tags.push("allow_unsafe"); // tate hacks
@@ -526,8 +526,21 @@ export async function setupCrossChainEnvironment({
         await Promise.all(fs.map((f) => f()));
       };
     }
-    async function sync(blocks = 1) {
-      await Promise.all([l1Client.mine({ blocks }), l2Client.mine({ blocks })]);
+    async function sync({
+      blocks = 1,
+      warpSec = 0,
+    }: { blocks?: number; warpSec?: number } = {}) {
+      const [b0, b1] = await Promise.all([
+        l1Client.getBlock(),
+        l2Client.getBlock(),
+      ]);
+      const dt = Number(b0.timestamp - b1.timestamp);
+      const interval = warpSec + Math.max(0, -dt);
+      await Promise.all([
+        l1Client.mine({ blocks, interval }),
+        l2Client.mine({ blocks, interval: warpSec + Math.max(0, +dt) }),
+      ]);
+      return b0.timestamp + BigInt(interval);
     }
   } catch (err) {
     await shutdown();
