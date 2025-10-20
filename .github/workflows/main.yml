@@ -13,8 +13,6 @@ jobs:
     steps:
       # setup
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
       - uses: ./.github/actions/setup
 
       - name: Compile and check types
@@ -26,8 +24,6 @@ jobs:
     steps:
       # setup
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
       - uses: ./.github/actions/setup
 
       - uses: awalsh128/cache-apt-pkgs-action@v1.5.3
@@ -54,8 +50,6 @@ jobs:
     steps:
       # setup
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
       - uses: ./.github/actions/setup
 
       - uses: awalsh128/cache-apt-pkgs-action@v1.5.3
@@ -83,8 +77,6 @@ jobs:
     steps:
       # setup
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
       - uses: ./.github/actions/setup
 
       - name: Lint
