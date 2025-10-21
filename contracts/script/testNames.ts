@@ -14,6 +14,10 @@ import { dnsEncodeName } from "../test/utils/utils.js";
 import { ROLES, MAX_EXPIRY } from "../deploy/constants.js";
 import { artifacts } from "@rocketh";
 
+// ========== Constants ==========
+
+const ONE_DAY_SECONDS = 86400;
+
 // ========== Helper Functions ==========
 
 /**
@@ -765,20 +769,39 @@ export async function bridgeName(
 export async function registerTestNames(
   env: CrossChainEnvironment,
   labels: string[],
-  account = env.namedAccounts.owner,
+  options: {
+    account?: any;
+    expiry?: bigint;
+    registrarAccount?: any;
+  } = {},
 ) {
+  const account = options.account ?? env.namedAccounts.owner;
+  const registrarAccount = options.registrarAccount ?? env.namedAccounts.deployer;
+
   for (const label of labels) {
     // Deploy a dedicated resolver for this name (same as test)
     const resolver = await env.l2.deployDedicatedResolver(account);
+
+    // Determine expiry: use provided value or default to 1 day from now
+    let expiry: bigint;
+    if (options.expiry !== undefined) {
+      expiry = options.expiry;
+    } else {
+      expiry = BigInt(Math.floor(Date.now() / 1000) + ONE_DAY_SECONDS);
+    }
+
     // Register the name with all roles (including transfer role)
-    await env.l2.contracts.ETHRegistry.write.register([
-      label,
-      account.address,
-      zeroAddress,
-      resolver.address,
-      ROLES.ALL,
-      BigInt(Math.floor(Date.now() / 1000) + 86400),
-    ]);
+    await env.l2.contracts.ETHRegistry.write.register(
+      [
+        label,
+        account.address,
+        zeroAddress,
+        resolver.address,
+        ROLES.ALL,
+        expiry,
+      ],
+      { account: registrarAccount },
+    );
 
     // Set some default records
     await resolver.write.setAddr(
@@ -795,17 +818,68 @@ export async function registerTestNames(
   }
 }
 
+// Test re-registration of an expired name
+export async function reregisterName(
+  env: CrossChainEnvironment,
+  label: string,
+  account = env.namedAccounts.owner,
+) {
+  console.log(`\n=== Testing Re-registration of Expired Name: ${label}.eth ===`);
+
+  // Get initial expiry
+  const [tokenId, initialEntry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+  const initialExpiry = initialEntry.expiry;
+  console.log(`Initial expiry: ${new Date(Number(initialExpiry) * 1000).toISOString()}`);
+
+  // Step 1: Time warp past expiry
+  const warpSeconds = ONE_DAY_SECONDS + 1; // 1 day + 1 second to ensure expiry
+  console.log(`\nTime warping ${warpSeconds} seconds...`);
+  await env.sync({ warpSec: warpSeconds });
+
+  // Step 2: Verify name is available for re-registration
+  const isAvailable = await env.l2.contracts.ETHRegistrar.read.isAvailable([label]);
+  console.log(`Name available for re-registration: ${isAvailable}`);
+
+  if (!isAvailable) {
+    throw new Error(`${label}.eth should be available after expiry`);
+  }
+
+  // Step 3: Re-register the name with proper expiry based on blockchain time
+  console.log(`\nRe-registering ${label}.eth...`);
+
+  // Get current blockchain time after warp
+  const currentBlock = await env.l2.client.getBlock();
+  const newExpiry = currentBlock.timestamp + BigInt(ONE_DAY_SECONDS); // 1 day from now (blockchain time)
+
+  // Reuse registerTestNames with custom expiry
+  await registerTestNames(env, [label], {
+    account,
+    expiry: newExpiry,
+  });
+
+  // Step 4: Verify re-registration succeeded
+  const [, reregisteredEntry] = await env.l2.contracts.ETHRegistry.read.getNameData([label]);
+  console.log(`New expiry: ${new Date(Number(reregisteredEntry.expiry) * 1000).toISOString()}`);
+
+  if (reregisteredEntry.expiry <= initialExpiry) {
+    throw new Error(`Re-registration failed: new expiry (${reregisteredEntry.expiry}) should be greater than initial expiry (${initialExpiry})`);
+  }
+
+  console.log(`✓ Re-registration successful! Expiry extended from ${initialExpiry} to ${reregisteredEntry.expiry}`);
+}
+
 /**
  * Set up test names with various states and configurations for development/testing
  */
 export async function testNames(env: CrossChainEnvironment) {
-  // Register all test names with default 1 year expiry
+  // Register all test names with default 1 day expiry
   await registerTestNames(env, [
     "test",
     "example",
     "demo",
     "newowner",
     "renew",
+    "reregister",
     "parent",
     "bridge",
     "changerole",
@@ -839,6 +913,7 @@ export async function testNames(env: CrossChainEnvironment) {
     "demo.eth",
     "newowner.eth",
     "renew.eth",
+    "reregister.eth",
     "parent.eth",
     "bridge.eth",
     "changerole.eth",
@@ -851,4 +926,7 @@ export async function testNames(env: CrossChainEnvironment) {
   await bridgeName(env, "bridge.eth");
 
   await showName(env, allNames);
+
+  // Test re-registration of expired name (run last to avoid expiring other names)
+  await reregisterName(env, "reregister");
 }
