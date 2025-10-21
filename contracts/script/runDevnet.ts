@@ -13,6 +13,9 @@ const args = parseArgs({
     procLog: {
       type: "boolean",
     },
+    testNames: {
+      type: "boolean",
+    },
   },
 });
 
@@ -69,7 +72,9 @@ for (const lx of [env.l1, env.l2]) {
   );
 }
 
-await testNames(env);
+if (args.values.testNames) {
+  await testNames(env);
+}
 
 console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);
 
