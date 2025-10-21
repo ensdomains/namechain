@@ -794,3 +794,61 @@ export async function registerTestNames(
     );
   }
 }
+
+/**
+ * Set up test names with various states and configurations for development/testing
+ */
+export async function testNames(env: CrossChainEnvironment) {
+  // Register all test names with default 1 year expiry
+  await registerTestNames(env, [
+    "test",
+    "example",
+    "demo",
+    "newowner",
+    "renew",
+    "parent",
+    "bridge",
+    "changerole",
+  ]);
+
+  // Transfer newowner.eth to user
+  await transferName(env, "newowner.eth", env.namedAccounts.user.address);
+
+  // Renew renew.eth for 365 days
+  await renewName(env, "renew.eth", 365);
+
+  // Create subnames - need to create children too so sub1.sub2.parent.eth has a subregistry
+  const createdSubnames = await createSubname(env, "wallet.sub1.sub2.parent.eth");
+
+  // Change roles on changerole.eth - grant ROLE_SET_RESOLVER to user, revoke ROLE_SET_TOKEN_OBSERVER
+  await changeRole(
+    env,
+    "changerole.eth",
+    env.namedAccounts.user.address,
+    ROLES.OWNER.EAC.SET_RESOLVER,
+    ROLES.OWNER.EAC.SET_TOKEN_OBSERVER,
+  );
+
+  // Link sub1.sub2.parent.eth to parent.eth with different label (creates linked.parent.eth with shared children)
+  // Now wallet.linked.parent.eth and wallet.sub1.sub2.parent.eth will be the same token
+  await linkName(env, "sub1.sub2.parent.eth", "parent.eth", "linked");
+
+  const allNames = [
+    "test.eth",
+    "example.eth",
+    "demo.eth",
+    "newowner.eth",
+    "renew.eth",
+    "parent.eth",
+    "bridge.eth",
+    "changerole.eth",
+    ...createdSubnames,
+    "linked.parent.eth",
+    "wallet.linked.parent.eth", // Should also be same as wallet.sub1.sub2.parent.eth
+  ];
+
+  // Bridge bridge.eth from L2 to L1
+  await bridgeName(env, "bridge.eth");
+
+  await showName(env, allNames);
+}
