@@ -36,6 +36,8 @@ const config = {
         "./lib/verifiable-factory/src/",
         "./lib/ens-contracts/contracts/",
         "./lib/openzeppelin-contracts/contracts/utils/introspection/",
+        "./lib/openzeppelin-contracts/contracts/token/ERC721",
+        "./lib/openzeppelin-contracts/contracts/token/ERC1155/",
       ],
     },
   },
