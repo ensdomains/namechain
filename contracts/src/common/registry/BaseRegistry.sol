@@ -50,7 +50,7 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     /// @inheritdoc IERC165
     function supportsInterface(
         bytes4 interfaceId
-    ) public view virtual override(ERC1155Singleton, IERC165) returns (bool) {
+    ) public view virtual override(ERC1155Singleton) returns (bool) {
         return
             interfaceId == type(IERC1155).interfaceId ||
             interfaceId == type(IERC1155MetadataURI).interfaceId ||
