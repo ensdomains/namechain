@@ -274,6 +274,7 @@ export async function setupCrossChainEnvironment({
   }
   try {
     console.log("Deploying ENSv2...");
+    await patchArtifactsV1();
 
     await patchArtifactsV1();
 
@@ -548,8 +549,21 @@ export async function setupCrossChainEnvironment({
         await Promise.all(fs.map((f) => f()));
       };
     }
-    async function sync(blocks = 1) {
-      await Promise.all([l1Client.mine({ blocks }), l2Client.mine({ blocks })]);
+    async function sync({
+      blocks = 1,
+      warpSec = 0,
+    }: { blocks?: number; warpSec?: number } = {}) {
+      const [b0, b1] = await Promise.all([
+        l1Client.getBlock(),
+        l2Client.getBlock(),
+      ]);
+      const dt = Number(b0.timestamp - b1.timestamp);
+      const interval = warpSec + Math.max(0, -dt);
+      await Promise.all([
+        l1Client.mine({ blocks, interval }),
+        l2Client.mine({ blocks, interval: warpSec + Math.max(0, +dt) }),
+      ]);
+      return b0.timestamp + BigInt(interval);
     }
   } catch (err) {
     await shutdown();
