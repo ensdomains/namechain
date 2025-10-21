@@ -8,6 +8,9 @@ import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {
+    ICompositeExtendedResolver
+} from "@ens/contracts/resolvers/profiles/ICompositeExtendedResolver.sol";
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IHasAddressResolver} from "@ens/contracts/resolvers/profiles/IHasAddressResolver.sol";
@@ -15,6 +18,7 @@ import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceRe
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
+import {IVerifiableResolver} from "@ens/contracts/resolvers/profiles/IVerifiableResolver.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {RegistryUtils} from "@ens/contracts/universalResolver/RegistryUtils.sol";
 import {ResolverCaller} from "@ens/contracts/universalResolver/ResolverCaller.sol";
@@ -37,10 +41,6 @@ import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissio
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {
-    ICompositeExtendedResolver
-} from "../../common/resolver/interfaces/ICompositeExtendedResolver.sol";
-import {IUnruggableResolver} from "../../common/resolver/interfaces/IUnruggableResolver.sol";
-import {
     DedicatedResolverLayoutLib
 } from "../../common/resolver/libraries/DedicatedResolverLayoutLib.sol";
 import {LibLabel} from "../../common/utils/LibLabel.sol";
@@ -56,7 +56,7 @@ import {L1BridgeController} from "../bridge/L1BridgeController.sol";
 /// 3. If no resolver is found, reverts `UnreachableName`.
 contract ETHTLDResolver is
     ICompositeExtendedResolver,
-    IUnruggableResolver,
+    IVerifiableResolver,
     IERC7996,
     GatewayFetchTarget,
     ResolverCaller,
@@ -70,10 +70,9 @@ contract ETHTLDResolver is
     ////////////////////////////////////////////////////////////////////////
 
     enum NameState {
-        NULL,
+        NAMECHAIN,
         POST_MIGRATION,
-        POST_EJECTION,
-        NAMECHAIN
+        POST_EJECTION
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -150,7 +149,7 @@ contract ETHTLDResolver is
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
             type(ICompositeExtendedResolver).interfaceId == interfaceId ||
-            type(IUnruggableResolver).interfaceId == interfaceId ||
+            type(IVerifiableResolver).interfaceId == interfaceId ||
             type(IERC7996).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
@@ -198,19 +197,19 @@ contract ETHTLDResolver is
         }
     }
 
-    /// @inheritdoc IUnruggableResolver
-    function unruggableGateway()
-        external
-        view
-        returns (uint256 coinType, IGatewayVerifier verifier, string[] memory gateways)
-    {
-        coinType = 0x80eeeeee; // TODO: namechain coinType
-        verifier = namechainVerifier;
-        // gateways = namechainVerifier.gatewayURLs();
+    /// @inheritdoc IVerifiableResolver
+    function verifierMetadata(
+        bytes calldata name
+    ) external view returns (address verifier, string[] memory gateways) {
+        (, bool offchain) = _determineMainnetResolver(name);
+        if (offchain) {
+            verifier = address(namechainVerifier);
+            gateways = namechainVerifier.gatewayURLs();
+        }
     }
 
     /// @inheritdoc ICompositeExtendedResolver
-    function isResolverOffchain(bytes calldata name) external view returns (bool offchain) {
+    function requiresOffchain(bytes calldata name) external view returns (bool offchain) {
         (, offchain) = _determineMainnetResolver(name);
     }
 
@@ -220,7 +219,7 @@ contract ETHTLDResolver is
     /// * `getResolver(<not .eth>)` reverts
     /// * `getResolver(<unmigrated .eth>) = (<L1 resolver>, false)`
     /// * `getResolver(<namechain .eth>) = (<L2 resolver>, true)`
-    /// * `getResolver(*.eth) = (address(0), true)`
+    /// * `getResolver(<unregistered .eth) = (address(0), true)`
     function getResolver(
         bytes calldata name
     ) external view returns (address resolver, bool offchain) {
