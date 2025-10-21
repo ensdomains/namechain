@@ -10,8 +10,8 @@ runs:
         key: git-folder
 
     - name: Checkout repo
-      uses: actions/checkout@v4
-      with:
+      uses: actions/checkout@v5
+      with: 
         submodules: "recursive"
 
     - name: Install Foundry
