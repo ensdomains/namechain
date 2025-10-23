@@ -12,7 +12,7 @@ import {
   CrossChainSnapshot,
   setupCrossChainEnvironment,
 } from "../../script/setup.js";
-import { dnsEncodeName } from "../utils/utils.js";
+import { dnsEncodeName, encodeLabelhash } from "../utils/utils.js";
 import {
   COIN_TYPE_ETH,
   COIN_TYPE_DEFAULT,
@@ -30,7 +30,6 @@ describe("Resolve", () => {
   beforeAll(async () => {
     env = await setupCrossChainEnvironment();
     resetState = await env.saveState();
-    console.log({env})
   });
   afterAll(() => env?.shutdown());
   beforeEach(() => resetState?.());
@@ -42,6 +41,26 @@ describe("Resolve", () => {
       bundle.call,
     ]);
     bundle.expect(answer);
+  }
+
+  async function expectReverse(
+    name: string,
+    address: Address,
+    coinType: bigint,
+  ) {
+    await expectResolve({
+      name: getReverseName(address, coinType),
+      primary: { value: name },
+    });
+    await expectResolve({
+      name,
+      addresses: [{ coinType, value: address }],
+    });
+    const [primary] = await env.l1.contracts.UniversalResolverV2.read.reverse([
+      address,
+      coinType,
+    ]);
+    expectVar({ primary }).toStrictEqual(name);
   }
 
   describe("Protocol", () => {
@@ -85,13 +104,12 @@ describe("Resolve", () => {
   });
 
   describe("Reverse", () => {
-    describe("addr.reverse", () => {
-      const label = "user";
-      const name = `${label}.eth`;
+    const label = "user";
+    const name = `${label}.eth`;
 
+    describe("addr.reverse", () => {
       it("addr.reverse w/fallback to v1", async () => {
         const { owner, user: account } = env.namedAccounts;
-
         // hack: eoa controller
         await env.l1.contracts.ETHRegistrarV1.write.addController(
           [owner.address],
@@ -116,184 +134,103 @@ describe("Resolve", () => {
         await env.l1.contracts.ReverseRegistrarV1.write.setName([name], {
           account,
         });
-
-        await expectResolve({
-          name: getReverseName(account.address),
-          primary: { value: name },
-        });
-        await expectResolve({
-          name,
-          addresses: [{ coinType: COIN_TYPE_ETH, value: account.address }],
-        });
-        const [primary] =
-          await env.l1.contracts.UniversalResolverV2.read.reverse([
-            account.address,
-            COIN_TYPE_ETH,
-          ]);
-        expectVar({ primary }).toStrictEqual(name);
+        await expectReverse(name, account.address, COIN_TYPE_ETH);
       });
 
       it("addr.reverse", async () => {
-        const { deployer, owner: account } = env.namedAccounts;
-
+        const { owner: account } = env.namedAccounts;
         // setup addr(default)
         const resolver = await env.l1.deployDedicatedResolver(account);
         await resolver.write.setAddr([COIN_TYPE_ETH, account.address]);
-        // hack: create name
-        await env.l1.contracts.ETHRegistry.write.register(
-          [
-            label,
-            account.address,
-            zeroAddress,
-            resolver.address,
-            0n,
-            MAX_EXPIRY,
-          ],
-          { account: deployer },
-        );
+        // hack: register()
+        await env.l1.contracts.ETHRegistry.write.register([
+          label,
+          account.address,
+          zeroAddress,
+          resolver.address,
+          0n,
+          MAX_EXPIRY,
+        ]);
         // setup name()
         await env.l1.contracts.ETHReverseRegistrar.write.setName([name], {
           account,
         });
-
-        await expectResolve({
-          name: getReverseName(account.address),
-          primary: { value: name },
-        });
-        await expectResolve({
-          name,
-          addresses: [{ coinType: COIN_TYPE_ETH, value: account.address }],
-        });
-        const [primary] =
-          await env.l1.contracts.UniversalResolverV2.read.reverse([
-            account.address,
-            COIN_TYPE_ETH,
-          ]);
-        expectVar({ primary }).toStrictEqual(name);
+        await expectReverse(name, account.address, COIN_TYPE_ETH);
       });
+    });
 
+    describe("default.reverse", () => {
       it("default.reverse", async () => {
-        const { deployer, owner: account } = env.namedAccounts;
-
+        const { owner: account } = env.namedAccounts;
         // setup addr(default)
         const resolver = await env.l1.deployDedicatedResolver(account);
         await resolver.write.setAddr([COIN_TYPE_DEFAULT, account.address]);
-        // hack: create name
-        await env.l1.contracts.ETHRegistry.write.register(
-          [
-            label,
-            account.address,
-            zeroAddress,
-            resolver.address,
-            0n,
-            MAX_EXPIRY,
-          ],
-          { account: deployer },
-        );
+        // hack: register()
+        await env.l1.contracts.ETHRegistry.write.register([
+          label,
+          account.address,
+          zeroAddress,
+          resolver.address,
+          0n,
+          MAX_EXPIRY,
+        ]);
         // setup name()
         await env.l1.contracts.DefaultReverseRegistrar.write.setName([name], {
           account,
         });
-
-        await expectResolve({
-          name: getReverseName(account.address, COIN_TYPE_DEFAULT),
-          primary: { value: name },
-        });
-        await expectResolve({
-          name,
-          addresses: [{ coinType: COIN_TYPE_ETH, value: account.address }],
-        });
-        const [primary] =
-          await env.l1.contracts.UniversalResolverV2.read.reverse([
-            account.address,
-            COIN_TYPE_ETH,
-          ]);
-        expectVar({ primary }).toStrictEqual(name);
+        await expectReverse(name, account.address, COIN_TYPE_ETH);
       });
     });
 
-    describe("L2 reverse", () => {
-      it("should set and retrieve L2 primary name", async () => {
-        const { owner } = env.namedAccounts;
-        const label = "l2primary";
-        const name = `${label}.eth`;
-
-        // Register name on L2
-        const resolver = await env.l2.deployDedicatedResolver(owner);
-        await resolver.write.setAddr([COIN_TYPE_ETH, owner.address]);
-
-        await env.l2.contracts.ETHRegistry.write.register([
-          label,
-          owner.address,
-          zeroAddress,
-          resolver.address,
-          0n,
-          MAX_EXPIRY,
-        ]);
-
-        // Set L2 primary name
-        await env.l2.setL2PrimaryName(owner, name);
-
-        // Verify via direct L2 contract call
-        const primaryName =
-          await env.l2.contracts.L2ReverseRegistrar.read.nameForAddr([
-            owner.address,
-          ]);
-        expectVar({ primaryName }).toStrictEqual(name);
-
-        // Get L2 coin type
-        const l2CoinType =
+    describe("<namechain>.reverse", () => {
+      it("coinType", async () => {
+        const coinType =
           await env.l2.contracts.L2ReverseRegistrar.read.coinType();
-        expectVar({ l2CoinType }).toStrictEqual(2163142382n);
+        expectVar({ coinType }).toStrictEqual(env.l2.coinType);
       });
 
-      it("should resolve L2 primary name from L1 via CCIP-read", async () => {
-        const { owner } = env.namedAccounts;
-        const label = "l2ccip";
-        const name = `${label}.eth`;
-        console.log(1)
-        // Register name on L2
-        const resolver = await env.l2.deployDedicatedResolver(owner);
-        await resolver.write.setAddr([COIN_TYPE_ETH, owner.address]);
-        console.log(2)
-        await env.l2.contracts.ETHRegistry.write.register([
+      it("forward on L1", async () => {
+        const { user: account } = env.namedAccounts;
+        // setup addr() on L1
+        const resolver = await env.l1.deployDedicatedResolver(account);
+        await resolver.write.setAddr([env.l2.coinType, account.address]);
+        // hack: register()
+        await env.l1.contracts.ETHRegistry.write.register([
           label,
-          owner.address,
+          account.address,
           zeroAddress,
           resolver.address,
           0n,
           MAX_EXPIRY,
         ]);
-        console.log(3)
-        // Set L2 primary name
-        await env.l2.setL2PrimaryName(owner, name);
-        console.log(4)
-        // Sync L1 and L2 state
+        // setup name() on L2
+        await env.l2.contracts.L2ReverseRegistrar.write.setName([name], {
+          account,
+        });
         await env.sync();
-        console.log(5)
-        // Get L2 coin type
-        const l2CoinType =
-          await env.l2.contracts.L2ReverseRegistrar.read.coinType();
-        console.log(6, owner.address, l2CoinType )
-        // ISSUE: This fails with "Encoded function signature 0x31c1980f not found on ABI"
-        // The UniversalResolverV2.reverse() call triggers CCIP-read through ChainReverseResolver
-        // which attempts to fetch L2 state via Unruggable Gateway, but something in the callback
-        // chain is failing.
-        //
-        // Expected flow:
-        // 1. UniversalResolverV2.reverse(owner.address, l2CoinType)
-        // 2. Finds NamechainReverseResolver registered at "{l2CoinType}.reverse"
-        // 3. ChainReverseResolver triggers CCIP-read (OffchainLookup error)
-        // 4. Gateway fetches storage proof from L2 for names[owner.address]
-        // 5. Callback verifies proof and returns name
-        //
-        // Actual: Reverts with function signature not found
-        const [primary] =
-          await env.l1.contracts.UniversalResolverV2.read.reverse([
-            owner.address,
-            l2CoinType,
-          ]);
-        expectVar({ primary }).toStrictEqual(name);
+        await expectReverse(name, account.address, env.l2.coinType);
+      });
+
+      it("forward on L2", async () => {
+        const { user: account } = env.namedAccounts;
+        // setup addr() on L2
+        const resolver = await env.l2.deployDedicatedResolver(account);
+        await resolver.write.setAddr([env.l2.coinType, account.address]);
+        // hack: register()
+        await env.l2.contracts.ETHRegistry.write.register([
+          label,
+          account.address,
+          zeroAddress,
+          resolver.address,
+          0n,
+          MAX_EXPIRY,
+        ]);
+        // setup name() on L2
+        await env.l2.contracts.L2ReverseRegistrar.write.setName([name], {
+          account,
+        });
+        await env.sync();
+        await expectReverse(name, account.address, env.l2.coinType);
       });
     });
   });

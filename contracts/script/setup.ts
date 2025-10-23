@@ -34,6 +34,7 @@ import {
   MAX_EXPIRY,
   ROLES,
 } from "../deploy/constants.js";
+import { coinTypeFromChain } from "../test/utils/resolutions.ts";
 
 type DeployedArtifacts = Record<string, Abi>;
 
@@ -187,6 +188,9 @@ export class ChainDeployment<
   get arrow() {
     return `${this.name}->${this.rx.name}`;
   }
+  get coinType() {
+    return coinTypeFromChain(this.client.chain.id);
+  }
   async deployPermissionedRegistry(account: Account, roles = ROLES.ALL) {
     const client = createClient(this.transport, this.client.chain, account);
     const { abi, bytecode } = artifacts.PermissionedRegistry;
@@ -235,15 +239,6 @@ export class ChainDeployment<
       salt,
     });
   }
-  async setL2PrimaryName(account: Account, name: string) {
-    const client = createClient(this.transport, this.client.chain, account);
-    const contract = getContract({
-      abi: this.contracts.L2ReverseRegistrar.abi,
-      address: this.contracts.L2ReverseRegistrar.address,
-      client,
-    });
-    return await contract.write.setName([name]);
-  }
 }
 
 export async function setupCrossChainEnvironment({
@@ -257,6 +252,7 @@ export async function setupCrossChainEnvironment({
   saveDeployments = false,
   quiet = !saveDeployments,
   procLog = false,
+  urgLog = true,
 }: {
   l1ChainId?: number;
   l2ChainId?: number;
@@ -268,6 +264,7 @@ export async function setupCrossChainEnvironment({
   saveDeployments?: boolean;
   quiet?: boolean;
   procLog?: boolean; // show anvil process logs
+  urgLog?: boolean;
 } = {}) {
   // shutdown functions for partial initialization
   const finalizers: (() => unknown | Promise<unknown>)[] = [];
@@ -459,6 +456,7 @@ export async function setupCrossChainEnvironment({
     const ccip = await serve(gateway, {
       protocol: "raw",
       port: urgPort,
+      log: urgLog,
     });
     finalizers.push(ccip.shutdown);
 
@@ -469,9 +467,10 @@ export async function setupCrossChainEnvironment({
     const hooksAddress = await deployArtifact(l1Client, {
       file: urgArtifact("UncheckedVerifierHooks"),
     });
+    const verifierGateways = [ccip.endpoint];
     const verifierAddress = await deployArtifact(l1Client, {
       file: urgArtifact("UncheckedVerifier"),
-      args: [[ccip.endpoint], 0, hooksAddress],
+      args: [verifierGateways, 0, hooksAddress],
       libs: { GatewayVM },
     });
 
@@ -479,6 +478,7 @@ export async function setupCrossChainEnvironment({
     const l1Deploy = await deployChain(l1Client.chain, {
       l2Deploy,
       verifierAddress,
+      verifierGateways,
     } satisfies RockethL1Arguments);
 
     const l1 = new ChainDeployment(
