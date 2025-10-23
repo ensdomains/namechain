@@ -40,11 +40,13 @@ async function trackGas(
   client: any,
 ): Promise<void> {
   const receipt = await client.waitForTransactionReceipt({ hash: txHash });
+  const gasUsed = BigInt(receipt.gasUsed);
+  const effectiveGasPrice = receipt.effectiveGasPrice ? BigInt(receipt.effectiveGasPrice) : 0n;
   gasTracker.push({
     operation,
-    gasUsed: receipt.gasUsed,
-    effectiveGasPrice: receipt.effectiveGasPrice,
-    totalCost: receipt.gasUsed * (receipt.effectiveGasPrice || 0n),
+    gasUsed,
+    effectiveGasPrice,
+    totalCost: gasUsed * effectiveGasPrice,
   });
 }
 
@@ -160,19 +162,14 @@ async function deployResolverWithRecords(
     address?: Address;
   },
   chain: "l1" | "l2" = "l2",
-  trackGas: boolean = false,
+  shouldTrackGas: boolean = false,
 ) {
   const chainEnv = chain === "l2" ? env.l2 : env.l1;
   const client = chain === "l2" ? env.l2.client : env.l1.client;
-  const resolver = await chainEnv.deployDedicatedResolver(account);
+  const resolver = (await chainEnv.deployDedicatedResolver(account)) as any;
 
-  if (trackGas) {
-    // Get deployment transaction from recent block
-    const block = await client.getBlock({ blockTag: "latest" });
-    if (block.transactions.length > 0) {
-      const lastTxHash = block.transactions[block.transactions.length - 1] as `0x${string}`;
-      await trackGas("deployResolver", lastTxHash, client);
-    }
+  if (shouldTrackGas && resolver.deploymentHash) {
+    await trackGas("deployResolver", resolver.deploymentHash, client);
   }
 
   // Set ETH address (coin type 60)
