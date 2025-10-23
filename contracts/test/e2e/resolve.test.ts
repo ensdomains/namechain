@@ -30,6 +30,7 @@ describe("Resolve", () => {
   beforeAll(async () => {
     env = await setupCrossChainEnvironment();
     resetState = await env.saveState();
+    console.log({env})
   });
   afterAll(() => env?.shutdown());
   beforeEach(() => resetState?.());
@@ -206,6 +207,91 @@ describe("Resolve", () => {
           await env.l1.contracts.UniversalResolverV2.read.reverse([
             account.address,
             COIN_TYPE_ETH,
+          ]);
+        expectVar({ primary }).toStrictEqual(name);
+      });
+    });
+
+    describe("L2 reverse", () => {
+      it("should set and retrieve L2 primary name", async () => {
+        const { owner } = env.namedAccounts;
+        const label = "l2primary";
+        const name = `${label}.eth`;
+
+        // Register name on L2
+        const resolver = await env.l2.deployDedicatedResolver(owner);
+        await resolver.write.setAddr([COIN_TYPE_ETH, owner.address]);
+
+        await env.l2.contracts.ETHRegistry.write.register([
+          label,
+          owner.address,
+          zeroAddress,
+          resolver.address,
+          0n,
+          MAX_EXPIRY,
+        ]);
+
+        // Set L2 primary name
+        await env.l2.setL2PrimaryName(owner, name);
+
+        // Verify via direct L2 contract call
+        const primaryName =
+          await env.l2.contracts.L2ReverseRegistrar.read.nameForAddr([
+            owner.address,
+          ]);
+        expectVar({ primaryName }).toStrictEqual(name);
+
+        // Get L2 coin type
+        const l2CoinType =
+          await env.l2.contracts.L2ReverseRegistrar.read.coinType();
+        expectVar({ l2CoinType }).toStrictEqual(2163142382n);
+      });
+
+      it("should resolve L2 primary name from L1 via CCIP-read", async () => {
+        const { owner } = env.namedAccounts;
+        const label = "l2ccip";
+        const name = `${label}.eth`;
+        console.log(1)
+        // Register name on L2
+        const resolver = await env.l2.deployDedicatedResolver(owner);
+        await resolver.write.setAddr([COIN_TYPE_ETH, owner.address]);
+        console.log(2)
+        await env.l2.contracts.ETHRegistry.write.register([
+          label,
+          owner.address,
+          zeroAddress,
+          resolver.address,
+          0n,
+          MAX_EXPIRY,
+        ]);
+        console.log(3)
+        // Set L2 primary name
+        await env.l2.setL2PrimaryName(owner, name);
+        console.log(4)
+        // Sync L1 and L2 state
+        await env.sync();
+        console.log(5)
+        // Get L2 coin type
+        const l2CoinType =
+          await env.l2.contracts.L2ReverseRegistrar.read.coinType();
+        console.log(6, owner.address, l2CoinType )
+        // ISSUE: This fails with "Encoded function signature 0x31c1980f not found on ABI"
+        // The UniversalResolverV2.reverse() call triggers CCIP-read through ChainReverseResolver
+        // which attempts to fetch L2 state via Unruggable Gateway, but something in the callback
+        // chain is failing.
+        //
+        // Expected flow:
+        // 1. UniversalResolverV2.reverse(owner.address, l2CoinType)
+        // 2. Finds NamechainReverseResolver registered at "{l2CoinType}.reverse"
+        // 3. ChainReverseResolver triggers CCIP-read (OffchainLookup error)
+        // 4. Gateway fetches storage proof from L2 for names[owner.address]
+        // 5. Callback verifies proof and returns name
+        //
+        // Actual: Reverts with function signature not found
+        const [primary] =
+          await env.l1.contracts.UniversalResolverV2.read.reverse([
+            owner.address,
+            l2CoinType,
           ]);
         expectVar({ primary }).toStrictEqual(name);
       });

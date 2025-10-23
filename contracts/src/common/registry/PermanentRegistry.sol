@@ -16,9 +16,6 @@ import {MetadataMixin} from "./MetadataMixin.sol";
 contract PermanentRegistry is IPermanentRegistry, EnhancedAccessControl, MetadataMixin {
     IRegistryDatastore public immutable DATASTORE;
 
-    event SubregistryUpdate(uint256 indexed id, IRegistry subregistry);
-    event ResolverUpdate(uint256 indexed id, address resolver);
-
     constructor(
         address owner,
         uint256 ownerRoles,
@@ -55,9 +52,9 @@ contract PermanentRegistry is IPermanentRegistry, EnhancedAccessControl, Metadat
         entry.resolver = resolver;
         DATASTORE.setEntry(id, entry);
         if (_grantRoles(id, roleBitmap, operator, false)) {
-            emit NewSubname(id, label);
+            emit NameRegistered(id, label, type(uint64).max, operator);
         }
-        emit SubregistryUpdate(id, subregistry);
+        emit SubregistryUpdate(id, address(subregistry));
         emit ResolverUpdate(id, resolver);
     }
 
@@ -67,7 +64,7 @@ contract PermanentRegistry is IPermanentRegistry, EnhancedAccessControl, Metadat
         id |= entry.eacVersionId;
         _checkRoles(id, RegistryRolesLib.ROLE_SET_SUBREGISTRY, _msgSender());
         DATASTORE.setSubregistry(id, address(subregistry));
-        emit SubregistryUpdate(id, subregistry);
+        emit SubregistryUpdate(id, address(subregistry));
     }
 
     function setResolver(string calldata label, address resolver) external {

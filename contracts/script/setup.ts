@@ -85,6 +85,8 @@ const l1Contracts = {
   RootRegistry: artifacts.PermissionedRegistry.abi,
   ETHReverseRegistrar: artifacts.L2ReverseRegistrar.abi,
   ETHReverseResolver: artifacts.ETHReverseResolver.abi,
+  NamechainReverseResolver: artifacts.ChainReverseResolver.abi,
+  ReverseRegistry: artifacts.PermissionedRegistry.abi,
   ETHSelfResolver: artifacts.DedicatedResolver.abi,
   ETHTLDResolver: artifacts.ETHTLDResolver.abi,
   DNSTLDResolver: artifacts.DNSTLDResolver.abi,
@@ -101,6 +103,7 @@ const l2Contracts = {
   StandardRentPriceOracle: artifacts.StandardRentPriceOracle.abi,
   MockUSDC: artifacts["test/mocks/MockERC20.sol/MockERC20"].abi,
   MockDAI: artifacts["test/mocks/MockERC20.sol/MockERC20"].abi,
+  L2ReverseRegistrar: artifacts.L2ReverseRegistrar.abi,
 } as const satisfies DeployedArtifacts;
 
 export type CrossChainSnapshot = () => Promise<void>;
@@ -232,6 +235,15 @@ export class ChainDeployment<
       salt,
     });
   }
+  async setL2PrimaryName(account: Account, name: string) {
+    const client = createClient(this.transport, this.client.chain, account);
+    const contract = getContract({
+      abi: this.contracts.L2ReverseRegistrar.abi,
+      address: this.contracts.L2ReverseRegistrar.address,
+      client,
+    });
+    return await contract.write.setName([name]);
+  }
 }
 
 export async function setupCrossChainEnvironment({
@@ -274,8 +286,6 @@ export async function setupCrossChainEnvironment({
   }
   try {
     console.log("Deploying ENSv2...");
-    await patchArtifactsV1();
-
     await patchArtifactsV1();
 
     const names = ["deployer", "owner", "bridger", "user", "user2"];
