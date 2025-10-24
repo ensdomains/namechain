@@ -262,11 +262,11 @@ export async function setupCrossChainEnvironment({
   async function shutdown() {
     await Promise.allSettled(finalizers.map((f) => f()));
   }
-  let unquiet = () => {};
+  let unquiet = () => { };
   if (quiet) {
     const { log, table } = console;
-    console.log = () => {};
-    console.table = () => {};
+    console.log = () => { };
+    console.table = () => { };
     unquiet = () => {
       console.log = log;
       console.table = table;
@@ -274,8 +274,6 @@ export async function setupCrossChainEnvironment({
   }
   try {
     console.log("Deploying ENSv2...");
-    await patchArtifactsV1();
-
     await patchArtifactsV1();
 
     const names = ["deployer", "owner", "bridger", "user", "user2"];
