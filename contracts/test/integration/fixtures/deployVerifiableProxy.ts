@@ -52,9 +52,15 @@ export async function deployVerifiableProxy({
     eventName: "ProxyDeployed",
     logs: receipt.logs,
   });
-  return getContract({
+  const contract = getContract({
     abi: implAbi,
     address: log.args.proxyAddress,
     client: walletClient,
+  });
+
+  // Attach deployment metadata for gas tracking
+  return Object.assign(contract, {
+    deploymentHash: hash,
+    deploymentReceipt: receipt
   });
 }
