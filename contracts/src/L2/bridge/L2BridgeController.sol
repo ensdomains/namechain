@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
 import {EjectionController} from "../../common/bridge/EjectionController.sol";
 import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
@@ -12,7 +14,6 @@ import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {ITokenObserver} from "../../common/registry/interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
-import {LibLabel} from "../../common/utils/LibLabel.sol";
 
 /**
  * @title L2BridgeController
@@ -65,7 +66,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     function completeEjectionToL2(
         TransferData memory transferData
     ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
-        string memory label = LibLabel.extractLabel(transferData.dnsEncodedName);
+        string memory label = NameCoder.firstLabel(transferData.dnsEncodedName);
         (uint256 tokenId, ) = REGISTRY.getNameData(label);
 
         // owner should be the bridge controller

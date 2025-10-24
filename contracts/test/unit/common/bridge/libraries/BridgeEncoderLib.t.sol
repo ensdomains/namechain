@@ -5,10 +5,11 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
 import {BridgeMessageType} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 
 // Wrapper contract to properly test library errors
 contract BridgeEncoderWrapper {
@@ -31,7 +32,7 @@ contract BridgeEncoderLibTest is Test {
     }
 
     function testEncodeEjection() public view {
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel("test");
+        bytes memory dnsEncodedName = NameCoder.ethName("test");
         TransferData memory transferData = TransferData({
             dnsEncodedName: dnsEncodedName,
             owner: address(0x123),
@@ -79,7 +80,7 @@ contract BridgeEncoderLibTest is Test {
     function testDecodeEjectionInvalidMessageType() public {
         // Create a message with wrong message type but correct structure
         // to test the custom error (not ABI decoding error)
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel("test");
+        bytes memory dnsEncodedName = NameCoder.ethName("test");
         TransferData memory transferData = TransferData({
             dnsEncodedName: dnsEncodedName,
             owner: address(0x123),
@@ -118,7 +119,7 @@ contract BridgeEncoderLibTest is Test {
     }
 
     function testGetMessageType() public view {
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel("test");
+        bytes memory dnsEncodedName = NameCoder.ethName("test");
         TransferData memory transferData = TransferData({
             dnsEncodedName: dnsEncodedName,
             owner: address(0x123),
@@ -143,7 +144,7 @@ contract BridgeEncoderLibTest is Test {
 
     function testEncodingStructure() public view {
         // Test that the new encoding structure works correctly
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel("structuretest");
+        bytes memory dnsEncodedName = NameCoder.ethName("structuretest");
         TransferData memory transferData = TransferData({
             dnsEncodedName: dnsEncodedName,
             owner: address(0x999),

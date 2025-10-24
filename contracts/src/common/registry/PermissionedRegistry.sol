@@ -14,6 +14,7 @@ import {IPermissionedRegistry} from "./interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "./interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "./interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "./interfaces/IRegistryMetadata.sol";
+import {IStandardRegistry} from "./interfaces/IStandardRegistry.sol";
 import {ITokenObserver} from "./interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "./libraries/RegistryRolesLib.sol";
 import {MetadataMixin} from "./MetadataMixin.sol";
@@ -67,31 +68,21 @@ contract PermissionedRegistry is
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
-    /**
-     * @dev Burn a name.
-     *      This will destroy the name and remove it from the registry.
-     *
-     * @param tokenId The token ID of the name to relinquish.
-     */
+    /// @inheritdoc IStandardRegistry
     function burn(
-        uint256 tokenId
+        uint256 tokenId,
+        bool retain
     ) external override onlyNonExpiredTokenRoles(tokenId, RegistryRolesLib.ROLE_BURN) {
         _burn(ownerOf(tokenId), tokenId, 1);
-
         (IRegistryDatastore.Entry memory entry, ) = _getEntry(tokenId);
-        _setEntry(
-            tokenId,
-            IRegistryDatastore.Entry({
-                subregistry: address(0),
-                expiry: 0,
-                tokenVersionId: entry.tokenVersionId,
-                resolver: address(0),
-                eacVersionId: entry.eacVersionId
-            })
-        );
-        emit SubregistryUpdate(tokenId, address(0));
-        emit ResolverUpdate(tokenId, address(0));
-
+        entry.expiry = 0;
+        if (!retain) {
+            entry.resolver = address(0);
+            entry.subregistry = address(0);
+            emit SubregistryUpdate(tokenId, address(0));
+            emit ResolverUpdate(tokenId, address(0));
+        }
+        _setEntry(tokenId, entry);
         emit NameBurned(tokenId, msg.sender);
     }
 
@@ -99,17 +90,7 @@ contract PermissionedRegistry is
         uint256 tokenId,
         IRegistry registry
     ) external override onlyNonExpiredTokenRoles(tokenId, RegistryRolesLib.ROLE_SET_SUBREGISTRY) {
-        (IRegistryDatastore.Entry memory entry, ) = _getEntry(tokenId);
-        _setEntry(
-            tokenId,
-            IRegistryDatastore.Entry({
-                subregistry: address(registry),
-                expiry: entry.expiry,
-                tokenVersionId: entry.tokenVersionId,
-                resolver: entry.resolver,
-                eacVersionId: entry.eacVersionId
-            })
-        );
+        DATASTORE.setSubregistry(LibLabel.getCanonicalId(tokenId), address(registry));
         emit SubregistryUpdate(tokenId, address(registry));
     }
 
@@ -175,15 +156,8 @@ contract PermissionedRegistry is
         if (expires < entry.expiry) {
             revert CannotReduceExpiration(entry.expiry, expires);
         }
-
-        IRegistryDatastore.Entry memory newEntry = IRegistryDatastore.Entry({
-            subregistry: entry.subregistry,
-            expiry: expires,
-            tokenVersionId: entry.tokenVersionId,
-            resolver: entry.resolver,
-            eacVersionId: entry.eacVersionId
-        });
-        _setEntry(tokenId, newEntry);
+        entry.expiry = expires;
+        _setEntry(tokenId, entry);
         emit SubregistryUpdate(tokenId, entry.subregistry);
 
         ITokenObserver observer = tokenObservers[tokenId];
