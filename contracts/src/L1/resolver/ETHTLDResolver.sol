@@ -181,8 +181,8 @@ contract ETHTLDResolver is
         bytes calldata name,
         bytes calldata data
     ) external view returns (bytes memory result) {
-        (address resolver, bool offchain) = _determineMainnetResolver(name);
-        if (offchain) {
+        address resolver = _determineMainnetResolver(name);
+        if (resolver == address(0)) {
             bytes[] memory calls;
             bool multi = bytes4(data) == IMulticallable.multicall.selector;
             if (multi) {
@@ -201,8 +201,7 @@ contract ETHTLDResolver is
     function verifierMetadata(
         bytes calldata name
     ) external view returns (address verifier, string[] memory gateways) {
-        (, bool offchain) = _determineMainnetResolver(name);
-        if (offchain) {
+        if (_determineMainnetResolver(name) == address(0)) {
             verifier = address(namechainVerifier);
             gateways = namechainVerifier.gatewayURLs();
         }
@@ -210,7 +209,7 @@ contract ETHTLDResolver is
 
     /// @inheritdoc ICompositeExtendedResolver
     function requiresOffchain(bytes calldata name) external view returns (bool offchain) {
-        (, offchain) = _determineMainnetResolver(name);
+        offchain = _determineMainnetResolver(name) == address(0);
     }
 
     /// @inheritdoc ICompositeExtendedResolver
@@ -220,19 +219,18 @@ contract ETHTLDResolver is
     /// * `getResolver(<unmigrated .eth>) = (<L1 resolver>, false)`
     /// * `getResolver(<namechain .eth>) = (<L2 resolver>, true)`
     /// * `getResolver(<unregistered .eth) = (address(0), true)`
-    function getResolver(
-        bytes calldata name
-    ) external view returns (address resolver, bool offchain) {
-        (resolver, offchain) = _determineMainnetResolver(name);
-        if (offchain) {
-            fetch(
-                namechainVerifier,
-                _createRequest(0, name),
-                this.getResolverCallback.selector, // ==> step 2,
-                name,
-                new string[](0)
-            );
+    function getResolver(bytes calldata name) external view returns (address, bool) {
+        address resolver = _determineMainnetResolver(name);
+        if (resolver != address(0)) {
+            return (resolver, false);
         }
+        fetch(
+            namechainVerifier,
+            _createRequest(0, name),
+            this.getResolverCallback.selector, // ==> step 2,
+            name,
+            new string[](0)
+        );
     }
 
     /// @notice CCIP-Read callback for `getResolver()`.
@@ -481,7 +479,7 @@ contract ETHTLDResolver is
                 return abi.encode(m); // all calls failed
             } else {
                 bytes memory v = m[0];
-                assembly ("memory-safe") {
+                assembly {
                     revert(add(v, 32), mload(v)) // revert with the call that failed
                 }
             }
@@ -502,10 +500,8 @@ contract ETHTLDResolver is
         );
     }
 
-    /// @dev Determine underlying resolver and location for `name`.
-    function _determineMainnetResolver(
-        bytes memory name
-    ) internal view returns (address resolver, bool offchain) {
+    /// @dev Determine underlying Mainnet resolver or null if offchain.
+    function _determineMainnetResolver(bytes memory name) internal view returns (address resolver) {
         (bool matched, , uint256 prevOffset, uint256 offset) = NameCoder.matchSuffix(
             name,
             0,
@@ -515,14 +511,15 @@ contract ETHTLDResolver is
             revert UnreachableName(name);
         }
         if (offset == prevOffset) {
-            return (ethResolver, false);
+            return ethResolver;
         }
         (bytes32 labelHash, ) = NameCoder.readLabel(name, prevOffset);
         if (isActiveRegistrationV1(labelHash)) {
             (resolver, , ) = RegistryUtils.findResolver(NAME_WRAPPER.ens(), name, 0);
-            return (resolver, false);
+            if (resolver == address(this)) {
+                resolver = address(0);
+            }
         }
-        return (address(0), true);
     }
 
     /// @dev Determine underlying resolver while `name` is inflight to Namechain.
@@ -597,7 +594,7 @@ contract ETHTLDResolver is
         } else if (selector == IABIResolver.ABI.selector) {
             uint256 contentType;
             if (value.length > 0) {
-                assembly ("memory-safe") {
+                assembly {
                     let ptr := add(value, 32)
                     contentType := mload(ptr) // extract contentType from first word
                     mstore(ptr, sub(mload(value), 32)) // reduce length
