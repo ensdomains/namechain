@@ -179,7 +179,7 @@ contract DNSTLDResolver is
     ) external view returns (bytes memory) {
         address resolver = _determineMainnetResolver(name);
         if (resolver != address(0)) {
-            return _callResolver(resolver, name, data, false, "");
+            return _callResolver(resolver, name, data, false, ""); // ==> step 2
         }
         revert OffchainLookup(
             address(this),
@@ -228,7 +228,7 @@ contract DNSTLDResolver is
             bytes[] memory m = new bytes[](lookups.length);
             for (uint256 i; i < lookups.length; ++i) {
                 Lookup memory lu = lookups[i];
-                bytes memory v = _canAnswerCalldata(lu.call, context);
+                bytes memory v = _canAnswerCall(lu.call, context);
                 if (v.length == 0) {
                     v = lu.data;
                     if (extended && (lu.flags & FLAGS_ANY_ERROR) == 0) {
@@ -240,7 +240,7 @@ contract DNSTLDResolver is
             return abi.encode(m);
         } else {
             Lookup memory lu = lookups[0];
-            bytes memory v = _canAnswerCalldata(lu.call, context);
+            bytes memory v = _canAnswerCall(lu.call, context);
             if (v.length == 0) {
                 v = lu.data;
                 if ((lu.flags & FLAGS_ANY_ERROR) != 0) {
@@ -289,7 +289,7 @@ contract DNSTLDResolver is
         }
     }
 
-    /// @dev Verify the DNSSEC TXT record.
+    /// @dev Verify DNSSEC TXT record.
     function _verifyDNSSEC(
         bytes memory name,
         bytes calldata oracleWitness
@@ -321,7 +321,7 @@ contract DNSTLDResolver is
 
     /// @dev Efficiently call another resolver with an optional DNS context.
     ///
-    /// 1. if `IExtendedDNSResolver` and `checkDNS`, `resolver.resolve(name, calldata, context)`.
+    /// 1. if `IExtendedDNSResolver` and `hasContext`, `resolver.resolve(name, calldata, context)`.
     /// 2. if `IExtendedResolver`, `resolver.resolve(name, calldata)`.
     /// 3. otherwise, `resolver.staticall(calldata)`.
     ///
@@ -337,13 +337,13 @@ contract DNSTLDResolver is
     /// @param resolver The resolver to call.
     /// @param name The name to resolve.
     /// @param call The resolver calldata.
-    /// @param checkDNS True if `IExtendedDNSResolver` should be considered.
+    /// @param hasContext True if `IExtendedDNSResolver` should be considered.
     /// @param context The context for `IExtendedDNSResolver`.
     function _callResolver(
         address resolver,
         bytes memory name,
         bytes memory call,
-        bool checkDNS,
+        bool hasContext,
         bytes memory context
     ) internal view returns (bytes memory result) {
         if (resolver.code.length == 0) {
@@ -354,6 +354,16 @@ contract DNSTLDResolver is
             resolver,
             type(IERC7996).interfaceId
         ) && (!multi || IERC7996(resolver).supportsFeature(ResolverFeatures.RESOLVE_MULTICALL));
+        bool extendedDNS = hasContext &&
+            ERC165Checker.supportsERC165InterfaceUnchecked(
+                resolver,
+                type(IExtendedDNSResolver).interfaceId
+            );
+        bool extended = extendedDNS ||
+            ERC165Checker.supportsERC165InterfaceUnchecked(
+                resolver,
+                type(IExtendedResolver).interfaceId
+            );
         bytes[] memory calls;
         if (multi) {
             calls = abi.decode(BytesUtils.substring(call, 4, call.length - 4), (bytes[]));
@@ -361,39 +371,22 @@ contract DNSTLDResolver is
             calls = new bytes[](1);
             calls[0] = call;
         }
-        bool extended;
-        if (
-            checkDNS &&
-            ERC165Checker.supportsERC165InterfaceUnchecked(
-                resolver,
-                type(IExtendedDNSResolver).interfaceId
-            )
-        ) {
+        if (extended) {
             if (direct) {
-                return _callResolverDirect(resolver, name, calls, multi, true, context);
+                if (hasContext) {
+                    return _callResolverDirect(resolver, name, calls, multi, extendedDNS, context);
+                } else {
+                    ccipRead(resolver, call);
+                }
             }
-            extended = true;
             for (uint256 i; i < calls.length; ++i) {
-                calls[i] = abi.encodeCall(IExtendedDNSResolver.resolve, (name, calls[i], context));
-            }
-        } else if (
-            ERC165Checker.supportsERC165InterfaceUnchecked(
-                resolver,
-                type(IExtendedResolver).interfaceId
-            )
-        ) {
-            if (direct) {
-                return _callResolverDirect(resolver, name, calls, multi, false, context);
-            }
-            extended = true;
-            for (uint256 i; i < calls.length; ++i) {
-                calls[i] = abi.encodeCall(IExtendedResolver.resolve, (name, calls[i]));
+                calls[i] = _makeExtendedCall(extendedDNS, name, calls[i], context);
             }
         }
         Batch memory batch = createBatch(resolver, calls, BATCH_GATEWAY_PROVIDER.gateways());
         // https://github.com/ensdomains/ens-contracts/pull/499
         // for (uint256 i; i < calls.length; ++i) {
-        //     bytes memory answer = _canAnswerCalldata(calls[i], context);
+        //     bytes memory answer = _canAnswerCall(calls[i], context);
         //     if (answer.length > 0) {
         //         Lookup memory lu = batch.lookup[i];
         //         lu.flags = FLAG_DONE;
@@ -409,13 +402,13 @@ contract DNSTLDResolver is
         );
     }
 
-    /// @dev Call extended ENSIP-22 resolver
+    /// @dev Call extended ENSIP-22 resolver.
     function _callResolverDirect(
         address resolver,
         bytes memory name,
         bytes[] memory calls,
         bool multi,
-        bool isDNS,
+        bool extendedDNS,
         bytes memory context
     ) internal view returns (bytes memory result) {
         bytes[] memory answers = new bytes[](calls.length);
@@ -424,17 +417,13 @@ contract DNSTLDResolver is
         uint256 missing;
         for (uint256 i; i < calls.length; ++i) {
             call = calls[i];
-            bytes memory answer = _canAnswerCalldata(call, context);
+            bytes memory answer = _canAnswerCall(call, context);
             if (answer.length > 0) {
                 answers[i] = answer;
                 continue;
             }
             bool ok;
-            (ok, answer) = resolver.staticcall(
-                isDNS
-                    ? abi.encodeCall(IExtendedDNSResolver.resolve, (name, call, context))
-                    : abi.encodeCall(IExtendedResolver.resolve, (name, call))
-            );
+            (ok, answer) = resolver.staticcall(_makeExtendedCall(extendedDNS, name, call, context));
             if (ok && answer.length >= 32) {
                 answers[i] = abi.decode(answer, (bytes)); // unwrap resolve()
                 continue;
@@ -457,9 +446,7 @@ contract DNSTLDResolver is
         call = multi ? abi.encodeCall(IMulticallable.multicall, (calls)) : calls[0];
         ccipRead(
             resolver,
-            isDNS
-                ? abi.encodeCall(IExtendedDNSResolver.resolve, (name, call, context))
-                : abi.encodeCall(IExtendedResolver.resolve, (name, call)),
+            _makeExtendedCall(extendedDNS, name, call, context),
             callback ? this.resolveDirectMulticallCallback.selector : IDENTITY_FUNCTION,
             IDENTITY_FUNCTION,
             callback ? abi.encode(answers, indexes) : bytes("")
@@ -554,8 +541,21 @@ contract DNSTLDResolver is
         if (off != end) revert InvalidTXT(); // overflow or junk at end
     }
 
+    /// @dev Create extended resolver calldata.
+    function _makeExtendedCall(
+        bool extendedDNS,
+        bytes memory name,
+        bytes memory call,
+        bytes memory context
+    ) internal pure returns (bytes memory) {
+        return
+            extendedDNS
+                ? abi.encodeCall(IExtendedDNSResolver.resolve, (name, call, context))
+                : abi.encodeCall(IExtendedResolver.resolve, (name, call));
+    }
+
     /// @dev Check if `call` should be answered by this resolver instead.
-    function _canAnswerCalldata(
+    function _canAnswerCall(
         bytes memory call,
         bytes memory context
     ) internal pure returns (bytes memory answer) {
