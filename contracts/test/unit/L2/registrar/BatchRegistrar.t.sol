@@ -29,7 +29,10 @@ contract BatchRegistrarTest is Test {
         batchRegistrar = new BatchRegistrar(ethRegistry);
 
         vm.prank(owner);
-        ethRegistry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, address(batchRegistrar));
+        ethRegistry.grantRootRoles(
+            RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_RENEW,
+            address(batchRegistrar)
+        );
     }
 
     function test_Constructor() external view {
@@ -100,21 +103,98 @@ contract BatchRegistrarTest is Test {
         batchRegistrar.batchRegister(names);
     }
 
-    function test_RevertWhen_BatchRegisterAlreadyRegisteredName() external {
+    function test_BatchRegisterAlreadyRegisteredNameDoesNotRevert() external {
         BatchRegistrarName[] memory names = new BatchRegistrarName[](1);
+        uint64 initialExpiry = uint64(block.timestamp + 365 days);
         names[0] = BatchRegistrarName({
             label: "duplicate",
             owner: user,
             registry: IRegistry(address(0)),
             resolver: address(0),
             roleBitmap: EACBaseRolesLib.ALL_ROLES,
-            expires: uint64(block.timestamp + 365 days)
+            expires: initialExpiry
         });
 
         batchRegistrar.batchRegister(names);
 
-        vm.expectRevert();
+        (uint256 tokenId, ) = ethRegistry.getNameData("duplicate");
+        uint64 expiryAfterFirst = ethRegistry.getExpiry(tokenId);
+        assertEq(expiryAfterFirst, initialExpiry);
+
+        // Should not revert when called again with same expiry
         batchRegistrar.batchRegister(names);
+
+        // Expiry should remain the same since it wasn't extended
+        uint64 expiryAfterSecond = ethRegistry.getExpiry(tokenId);
+        assertEq(expiryAfterSecond, initialExpiry);
+    }
+
+    function test_BatchRegisterRenewsAlreadyRegisteredName() external {
+        BatchRegistrarName[] memory names = new BatchRegistrarName[](1);
+        uint64 initialExpiry = uint64(block.timestamp + 365 days);
+        names[0] = BatchRegistrarName({
+            label: "renewable",
+            owner: user,
+            registry: IRegistry(address(0)),
+            resolver: address(0),
+            roleBitmap: EACBaseRolesLib.ALL_ROLES,
+            expires: initialExpiry
+        });
+
+        batchRegistrar.batchRegister(names);
+
+        (uint256 tokenId, ) = ethRegistry.getNameData("renewable");
+        uint64 expiryAfterFirst = ethRegistry.getExpiry(tokenId);
+        assertEq(expiryAfterFirst, initialExpiry);
+
+        // Register again with extended expiry
+        // Note: No need to grant RENEW role since renewAsRegistrar uses REGISTRAR role
+        uint64 extendedExpiry = uint64(block.timestamp + 730 days);
+        names[0].expires = extendedExpiry;
+        batchRegistrar.batchRegister(names);
+
+        // Get the potentially updated tokenId (in case it was regenerated)
+        (uint256 tokenIdAfterRenewal, ) = ethRegistry.getNameData("renewable");
+
+        // Expiry should be extended
+        uint64 expiryAfterRenewal = ethRegistry.getExpiry(tokenIdAfterRenewal);
+        assertEq(expiryAfterRenewal, extendedExpiry);
+
+        // Owner should remain the same
+        address ownerAfterRenewal = ethRegistry.ownerOf(tokenIdAfterRenewal);
+        assertEq(ownerAfterRenewal, user);
+    }
+
+    function test_BatchRegisterSkipsWhenExpiryNotExtended() external {
+        BatchRegistrarName[] memory names = new BatchRegistrarName[](1);
+        uint64 initialExpiry = uint64(block.timestamp + 365 days);
+        names[0] = BatchRegistrarName({
+            label: "skippable",
+            owner: user,
+            registry: IRegistry(address(0)),
+            resolver: address(0),
+            roleBitmap: EACBaseRolesLib.ALL_ROLES,
+            expires: initialExpiry
+        });
+
+        batchRegistrar.batchRegister(names);
+
+        (uint256 tokenId, ) = ethRegistry.getNameData("skippable");
+        uint64 expiryAfterFirst = ethRegistry.getExpiry(tokenId);
+        assertEq(expiryAfterFirst, initialExpiry);
+
+        // Register again with earlier expiry - should be skipped
+        uint64 earlierExpiry = uint64(block.timestamp + 180 days);
+        names[0].expires = earlierExpiry;
+        batchRegistrar.batchRegister(names);
+
+        // Expiry should remain unchanged
+        uint64 expiryAfterSecond = ethRegistry.getExpiry(tokenId);
+        assertEq(expiryAfterSecond, initialExpiry);
+
+        // Owner should remain the same
+        address ownerAfterSecond = ethRegistry.ownerOf(tokenId);
+        assertEq(ownerAfterSecond, user);
     }
 
     function test_RevertWhen_CallerLacksRegistrarRole() external {

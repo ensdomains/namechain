@@ -7,6 +7,7 @@ export function createTestCheckpoint(overrides: Partial<Checkpoint> = {}): Check
     totalProcessed: 0,
     totalExpected: 0,
     successCount: 0,
+    renewedCount: 0,
     failureCount: 0,
     skippedCount: 0,
     invalidLabelCount: 0,

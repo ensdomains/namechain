@@ -102,6 +102,7 @@ export interface Checkpoint {
   totalProcessed: number;
   totalExpected: number;
   successCount: number;
+  renewedCount: number;
   failureCount: number;
   skippedCount: number;
   invalidLabelCount: number;
@@ -147,6 +148,7 @@ export function createFreshCheckpoint(): Checkpoint {
     totalProcessed: 0,
     totalExpected: 0,
     successCount: 0,
+    renewedCount: 0,
     failureCount: 0,
     skippedCount: 0,
     invalidLabelCount: 0,
@@ -171,9 +173,9 @@ class PreMigrationLogger extends Logger {
     );
   }
 
-  finishedName(name: string, result: 'registered' | 'skipped' | 'failed'): void {
-    const icon = result === 'registered' ? '✓' : result === 'skipped' ? '⊘' : '✗';
-    const color = result === 'registered' ? green : result === 'skipped' ? yellow : red;
+  finishedName(name: string, result: 'registered' | 'renewed' | 'skipped' | 'failed'): void {
+    const icon = result === 'registered' ? '✓' : result === 'renewed' ? '↻' : result === 'skipped' ? '⊘' : '✗';
+    const color = result === 'registered' ? green : result === 'renewed' ? cyan : result === 'skipped' ? yellow : red;
     this.raw(
       color(`${icon} Done: ${bold(name)}.eth`) + dim(` (${result})`),
       `${icon} Done: ${name}.eth (${result})`
@@ -202,6 +204,21 @@ class PreMigrationLogger extends Logger {
     );
   }
 
+  renewing(name: string, currentExpiry: string, newExpiry: string): void {
+    this.raw(
+      blue(`  → Renewing on namechain`) +
+      dim(` (current: ${currentExpiry}, new: ${newExpiry})`),
+      `  → Renewing on namechain (current: ${currentExpiry}, new: ${newExpiry})`
+    );
+  }
+
+  renewed(tx: string): void {
+    this.raw(
+      green(`  → ✓ Renewed successfully`) + dim(` (tx: ${tx})`),
+      `  → ✓ Renewed successfully (tx: ${tx})`
+    );
+  }
+
   failed(
     name: string,
     error: string,
@@ -227,17 +244,18 @@ class PreMigrationLogger extends Logger {
   progress(
     current: number,
     total: number,
-    stats: { registered: number; skipped: number; failed: number }
+    stats: { registered: number; renewed: number; skipped: number; failed: number }
   ): void {
     const percent = Math.round((current / total) * 100);
     this.raw(
       magenta(
         `Progress: ${bold(`${current}/${total}`)} (${percent}%) - ` +
         `${green("Registered: " + stats.registered)}, ` +
+        `${cyan("Renewed: " + stats.renewed)}, ` +
         `${yellow("Skipped: " + stats.skipped)}, ` +
         `${red("Failed: " + stats.failed)}`
       ),
-      `Progress: ${current}/${total} (${percent}%) - Registered: ${stats.registered}, Skipped: ${stats.skipped}, Failed: ${stats.failed}`
+      `Progress: ${current}/${total} (${percent}%) - Registered: ${stats.registered}, Renewed: ${stats.renewed}, Skipped: ${stats.skipped}, Failed: ${stats.failed}`
     );
   }
 
@@ -540,22 +558,23 @@ async function fetchAndRegisterInBatches(
   // Update checkpoint with BatchRegistrar address
   checkpoint.batchRegistrarAddress = batchRegistrarAddress;
 
-  // Grant REGISTRAR role to BatchRegistrar if needed
+  // Grant REGISTRAR and RENEW roles to BatchRegistrar if needed
+  const requiredRoles = ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW;
   const hasRole = await registry.read.hasRootRoles([
-    ROLES.OWNER.EAC.REGISTRAR,
+    requiredRoles,
     batchRegistrarAddress,
   ]);
 
   if (!hasRole) {
-    logger.info("Granting REGISTRAR role to BatchRegistrar...");
+    logger.info("Granting REGISTRAR and RENEW roles to BatchRegistrar...");
     const hash = await (registry.write.grantRootRoles as any)([
-      ROLES.OWNER.EAC.REGISTRAR,
+      requiredRoles,
       batchRegistrarAddress,
     ]);
     await client.waitForTransactionReceipt({ hash });
-    logger.success("REGISTRAR role granted to BatchRegistrar");
+    logger.success("REGISTRAR and RENEW roles granted to BatchRegistrar");
   } else {
-    logger.info("BatchRegistrar already has REGISTRAR role");
+    logger.info("BatchRegistrar already has REGISTRAR and RENEW roles");
   }
 
   logger.info(`\nReading CSV file and registering in batches of ${config.batchSize}...`);
@@ -616,8 +635,9 @@ async function fetchAndRegisterInBatches(
       // Show batch summary
       logger.info(
         `Batch complete. Total: ${checkpoint.totalProcessed} processed ` +
-        `(${checkpoint.successCount} registered, ${checkpoint.skippedCount} skipped, ` +
-        `${checkpoint.invalidLabelCount} invalid, ${checkpoint.failureCount} failed)`
+        `(${checkpoint.successCount} registered, ${checkpoint.renewedCount} renewed, ` +
+        `${checkpoint.skippedCount} skipped, ${checkpoint.invalidLabelCount} invalid, ` +
+        `${checkpoint.failureCount} failed)`
       );
 
       // Check if we've reached the limit
@@ -646,6 +666,7 @@ async function processBatch(
   checkpoint: Checkpoint
 ): Promise<Checkpoint> {
   const batchNames: BatchRegistrarName[] = [];
+  const alreadyRegisteredNames = new Set<string>();
   let lastLineNumber = checkpoint.lastProcessedLineNumber;
 
   // First pass: verify all names on mainnet and check if already registered
@@ -658,6 +679,7 @@ async function processBatch(
 
     try {
       // Check if name is already registered in namechain
+      let isAlreadyRegistered = false;
       try {
         const [tokenId] = await registry.read.getNameData([registration.labelName]);
         const owner = await registry.read.ownerOf([tokenId]);
@@ -670,10 +692,9 @@ async function processBatch(
             continue;
           }
 
-          logger.alreadyRegistered(owner.substring(0, 10));
-          checkpoint.skippedCount++;
-          logger.finishedName(registration.labelName, 'skipped');
-          continue;
+          // Name is already registered by bridge controller - will be renewed if needed
+          isAlreadyRegistered = true;
+          alreadyRegisteredNames.add(registration.labelName);
         }
       } catch (error) {
         // Name not found - proceed with mainnet verification
@@ -738,12 +759,18 @@ async function processBatch(
       await client.waitForTransactionReceipt({ hash });
 
       logger.success(`Batch registration successful (tx: ${hash})`);
-      checkpoint.successCount += batchNames.length;
 
-      // Log each registered name
+      // Log and count each name based on whether it was registered or renewed
       for (const name of batchNames) {
-        logger.registered(hash);
-        logger.finishedName(name.label, 'registered');
+        if (alreadyRegisteredNames.has(name.label)) {
+          checkpoint.renewedCount++;
+          logger.renewed(hash);
+          logger.finishedName(name.label, 'renewed');
+        } else {
+          checkpoint.successCount++;
+          logger.registered(hash);
+          logger.finishedName(name.label, 'registered');
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -757,11 +784,16 @@ async function processBatch(
     }
   } else if (batchNames.length > 0 && config.dryRun) {
     logger.info(`\nDry run: Would batch register ${batchNames.length} names`);
-    checkpoint.successCount += batchNames.length;
 
     for (const name of batchNames) {
       logger.dryRun();
-      logger.finishedName(name.label, 'registered');
+      if (alreadyRegisteredNames.has(name.label)) {
+        checkpoint.renewedCount++;
+        logger.finishedName(name.label, 'renewed');
+      } else {
+        checkpoint.successCount++;
+        logger.finishedName(name.label, 'registered');
+      }
     }
   }
 
@@ -782,7 +814,7 @@ function calculateSuccessRate(successCount: number, totalAttempts: number): numb
 
 // Print final summary after all processing
 function printFinalSummary(checkpoint: Checkpoint): void {
-  const actualRegistrations = checkpoint.successCount + checkpoint.failureCount;
+  const actualRegistrations = checkpoint.successCount + checkpoint.renewedCount + checkpoint.failureCount;
 
   logger.info('');
   logger.divider();
@@ -791,14 +823,15 @@ function printFinalSummary(checkpoint: Checkpoint): void {
 
   logger.config('Total names processed', checkpoint.totalProcessed);
   logger.config('Successfully registered', green(checkpoint.successCount.toString()));
-  logger.config('Skipped (already registered/expired)', yellow(checkpoint.skippedCount.toString()));
+  logger.config('Successfully renewed', cyan(checkpoint.renewedCount.toString()));
+  logger.config('Skipped (already up-to-date/expired)', yellow(checkpoint.skippedCount.toString()));
   logger.config('Invalid labels', yellow(checkpoint.invalidLabelCount.toString()));
   logger.config('Failed (other errors)', checkpoint.failureCount > 0 ? red(checkpoint.failureCount.toString()) : checkpoint.failureCount);
-  logger.config('Actual registrations attempted', actualRegistrations);
+  logger.config('Actual registrations/renewals attempted', actualRegistrations);
 
-  const rate = calculateSuccessRate(checkpoint.successCount, actualRegistrations);
+  const rate = calculateSuccessRate(checkpoint.successCount + checkpoint.renewedCount, actualRegistrations);
   if (actualRegistrations > 0) {
-    logger.config('Registration success rate', `${rate}%`);
+    logger.config('Success rate', `${rate}%`);
   }
 
   logger.divider();
@@ -852,15 +885,16 @@ export async function batchRegisterNames(
     config.batchRegistrarAddress
   );
 
-  // Grant REGISTRAR role to BatchRegistrar if needed
+  // Grant REGISTRAR and RENEW roles to BatchRegistrar if needed
+  const requiredRoles = ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW;
   const hasRole = await registry.read.hasRootRoles([
-    ROLES.OWNER.EAC.REGISTRAR,
+    requiredRoles,
     batchRegistrarAddress,
   ]);
 
   if (!hasRole) {
     const hash = await (registry.write.grantRootRoles as any)([
-      ROLES.OWNER.EAC.REGISTRAR,
+      requiredRoles,
       batchRegistrarAddress,
     ]);
     await client.waitForTransactionReceipt({ hash });
@@ -876,6 +910,7 @@ export async function batchRegisterNames(
     if (loaded) {
       checkpoint = {
         ...loaded,
+        renewedCount: loaded.renewedCount ?? 0,
         skippedCount: loaded.skippedCount ?? 0,
         invalidLabelCount: loaded.invalidLabelCount ?? 0,
         totalExpected: (loaded.totalExpected ?? loaded.totalProcessed) + registrations.length,
@@ -961,9 +996,10 @@ export async function main(argv = process.argv): Promise<void> {
     logger.config('Continue Mode', config.continue ?? false);
     if (config.continue && loadCheckpoint()) {
       const cp = loadCheckpoint()!;
+      const renewedCount = cp.renewedCount ?? 0;
       const invalidCount = cp.invalidLabelCount ?? 0;
       const lastLine = cp.lastProcessedLineNumber ?? -1;
-      logger.config('Checkpoint Found', `${cp.totalProcessed} processed, ${cp.skippedCount} skipped, ${invalidCount} invalid, ${cp.failureCount} failed (last line: ${lastLine})`);
+      logger.config('Checkpoint Found', `${cp.totalProcessed} processed (${cp.successCount} registered, ${renewedCount} renewed, ${cp.skippedCount} skipped, ${invalidCount} invalid, ${cp.failureCount} failed) (last line: ${lastLine})`);
       config.startIndex = lastLine;
       logger.info(`Resuming from CSV line ${config.startIndex}`);
     }
