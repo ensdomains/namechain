@@ -3,7 +3,6 @@ pragma solidity >=0.8.13;
 
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
-import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 
 struct BatchRegistrarName {
     string label;
