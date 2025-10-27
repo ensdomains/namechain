@@ -33,8 +33,9 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
 
     modifier onlyTokenOwner(uint256 tokenId) {
         address owner = ownerOf(tokenId);
-        if (owner != msg.sender) {
-            revert AccessDenied(tokenId, owner, msg.sender);
+        address caller = _msgSender();
+        if (owner != caller) {
+            revert AccessDenied(tokenId, owner, caller);
         }
         _;
     }
