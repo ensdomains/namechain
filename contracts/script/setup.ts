@@ -7,6 +7,7 @@ import {
   publicActions,
   testActions,
   zeroAddress,
+  encodeFunctionData,
   type Account,
   type Chain,
   type GetContractReturnType,
@@ -52,6 +53,7 @@ const sharedContracts = {
   SimpleRegistryMetadata: artifacts.SimpleRegistryMetadata.abi,
   VerifiableFactory: artifacts.VerifiableFactory.abi,
   DedicatedResolverImpl: artifacts.DedicatedResolver.abi,
+  UserRegistryImpl: artifacts.UserRegistry.abi,
   // common
   MockBridge: artifacts.MockBridgeBase.abi,
   ETHRegistry: artifacts.PermissionedRegistry.abi,
@@ -211,6 +213,25 @@ export class ChainDeployment<
       salt,
     });
   }
+  deployUserRegistry(
+    account: Account,
+    roles: bigint,
+    admin: string,
+    salt?: bigint,
+  ) {
+    return deployVerifiableProxy({
+      walletClient: createClient(this.transport, this.client.chain, account),
+      factoryAddress: this.contracts.VerifiableFactory.address,
+      implAddress: this.contracts.UserRegistryImpl.address,
+      implAbi: this.contracts.UserRegistryImpl.abi,
+      callData: encodeFunctionData({
+        abi: this.contracts.UserRegistryImpl.abi,
+        functionName: "initialize",
+        args: [roles, admin],
+      } as any) as `0x${string}`,
+      salt,
+    });
+  }
 }
 
 export async function setupCrossChainEnvironment({
@@ -241,11 +262,11 @@ export async function setupCrossChainEnvironment({
   async function shutdown() {
     await Promise.allSettled(finalizers.map((f) => f()));
   }
-  let unquiet = () => {};
+  let unquiet = () => { };
   if (quiet) {
     const { log, table } = console;
-    console.log = () => {};
-    console.table = () => {};
+    console.log = () => { };
+    console.table = () => { };
     unquiet = () => {
       console.log = log;
       console.table = table;
@@ -253,6 +274,7 @@ export async function setupCrossChainEnvironment({
   }
   try {
     console.log("Deploying ENSv2...");
+    await patchArtifactsV1();
 
     const names = ["deployer", "owner", "bridger", "user", "user2"];
     extraAccounts += names.length;
@@ -376,7 +398,6 @@ export async function setupCrossChainEnvironment({
       const tags = [tag, "local"];
       const scripts = [`deploy/${tag}`, "deploy/shared"];
       if (isL1) {
-        await patchArtifactsV1();
         scripts.unshift("lib/ens-contracts/deploy");
         tags.push("use_root"); // deploy root contracts
         tags.push("allow_unsafe"); // tate hacks
@@ -526,8 +547,21 @@ export async function setupCrossChainEnvironment({
         await Promise.all(fs.map((f) => f()));
       };
     }
-    async function sync(blocks = 1) {
-      await Promise.all([l1Client.mine({ blocks }), l2Client.mine({ blocks })]);
+    async function sync({
+      blocks = 1,
+      warpSec = 0,
+    }: { blocks?: number; warpSec?: number } = {}) {
+      const [b0, b1] = await Promise.all([
+        l1Client.getBlock(),
+        l2Client.getBlock(),
+      ]);
+      const dt = Number(b0.timestamp - b1.timestamp);
+      const interval = warpSec + Math.max(0, -dt);
+      await Promise.all([
+        l1Client.mine({ blocks, interval }),
+        l2Client.mine({ blocks, interval: warpSec + Math.max(0, +dt) }),
+      ]);
+      return b0.timestamp + BigInt(interval);
     }
   } catch (err) {
     await shutdown();
