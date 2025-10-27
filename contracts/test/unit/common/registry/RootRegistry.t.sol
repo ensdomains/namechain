@@ -26,7 +26,12 @@ contract RootRegistryTest is Test, ERC1155Holder {
         uint256 value
     );
     event URI(string value, uint256 indexed id);
-    event NameRegistered(uint256 indexed tokenId, string label, uint64 expiration, address registeredBy);
+    event NameRegistered(
+        uint256 indexed tokenId,
+        string label,
+        uint64 expiration,
+        address registeredBy
+    );
 
     RegistryDatastore datastore;
     MockPermissionedRegistry registry;
@@ -316,10 +321,11 @@ contract RootRegistryTest is Test, ERC1155Holder {
                 assertEq(logs[i].topics.length, 2);
                 assertEq(uint256(logs[i].topics[1]), tokenId);
 
-                (string memory labelValue, uint64 expirationValue, address registeredByValue) = abi.decode(logs[i].data, (string, uint64, address));
+                (string memory labelValue, uint64 expirationValue, address registeredByValue) = abi
+                    .decode(logs[i].data, (string, uint64, address));
                 assertEq(keccak256(bytes(labelValue)), keccak256(bytes(label)));
                 assertEq(expirationValue, MAX_EXPIRY);
-                assertEq(registeredByValue, owner);
+                assertEq(registeredByValue, address(this));
             }
         }
 
