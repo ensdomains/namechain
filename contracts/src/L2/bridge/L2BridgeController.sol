@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
-
-import {EjectionController} from "../../common/bridge/EjectionController.sol";
+import {AbstractBridgeController} from "../../common/bridge/AbstractBridgeController.sol";
 import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
-import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "../../common/bridge/types/TransferData.sol";
-import {InvalidOwner} from "../../common/CommonErrors.sol";
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
-import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {ITokenObserver} from "../../common/registry/interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
@@ -19,7 +14,7 @@ import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib
  * @title L2BridgeController
  * @dev Combined controller that handles both ejection messages from L1 to L2 and ejection operations
  */
-contract L2BridgeController is EjectionController, ITokenObserver {
+contract L2BridgeController is AbstractBridgeController, ITokenObserver {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
@@ -39,17 +34,15 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        IBridge bridge_,
-        IPermissionedRegistry registry_,
-        IRegistryDatastore datastore_
-    ) EjectionController(registry_, bridge_) {
-        DATASTORE = datastore_;
+        IBridge bridge,
+        IPermissionedRegistry registry,
+        IRegistryDatastore datastore
+    ) AbstractBridgeController(registry, bridge) {
+        DATASTORE = datastore;
     }
 
-    /// @inheritdoc EjectionController
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(EjectionController) returns (bool) {
+    /// @inheritdoc AbstractBridgeController
+    function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
         return
             interfaceId == type(ITokenObserver).interfaceId || super.supportsInterface(interfaceId);
     }
@@ -59,111 +52,63 @@ contract L2BridgeController is EjectionController, ITokenObserver {
     ////////////////////////////////////////////////////////////////////////
 
     /**
-     * @dev Should be called when a name is being ejected to L2.
-     *
-     * @param transferData The transfer data for the name being migrated
+     * @dev Default implementation of onRenew that does nothing.
+     * Can be overridden in derived contracts for custom behavior.
      */
-    function completeEjectionToL2(
-        TransferData memory transferData
-    ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
-        string memory label = NameCoder.firstLabel(transferData.dnsEncodedName);
-        (uint256 tokenId, ) = REGISTRY.getNameData(label);
+    function onRenew(
+        uint256 tokenId,
+        uint64 expiry,
+        address /*renewedBy*/
+    ) external virtual onlyRegistry {
+        BRIDGE.sendMessage(BridgeEncoderLib.encodeRenewal(tokenId, expiry));
+    }
+
+    function _inject(TransferData memory td) internal override returns (uint256 tokenId) {
+        (tokenId, ) = REGISTRY.getNameData(td.label);
 
         // owner should be the bridge controller
         if (REGISTRY.ownerOf(tokenId) != address(this)) {
             revert NotTokenOwner(tokenId);
         }
 
-        REGISTRY.setSubregistry(tokenId, IRegistry(transferData.subregistry));
-        REGISTRY.setResolver(tokenId, transferData.resolver);
+        REGISTRY.setSubregistry(tokenId, td.subregistry);
+        REGISTRY.setResolver(tokenId, td.resolver);
 
         // Clear token observer and transfer ownership to recipient
         REGISTRY.setTokenObserver(tokenId, ITokenObserver(address(0)));
-        REGISTRY.safeTransferFrom(address(this), transferData.owner, tokenId, 1, "");
-
-        emit NameEjectedToL2(transferData.dnsEncodedName, tokenId);
+        REGISTRY.safeTransferFrom(address(this), td.owner, tokenId, 1, "");
     }
 
-    /**
-     * @dev Override onERC1155Received to handle minting scenarios
-     * When from is address(0), it's a mint operation and we should just return success
-     * Otherwise, delegate to the parent implementation for ejection processing
-     */
-    function onERC1155Received(
-        address /* operator */,
-        address from,
-        uint256 tokenId,
-        uint256 /* amount */,
-        bytes calldata data
-    ) external virtual override onlyRegistry returns (bytes4) {
-        // If from is not address(0), it's not a mint operation - process as ejection
-        if (from != address(0)) {
-            _processEjection(tokenId, data);
+    function _eject(uint256 tokenId, TransferData memory td) internal override {
+        /*
+        Check that there is no more than one holder of the token observer and subregistry setting roles.
+
+        This works by calculating the no. of assignees for each of the given roles as a bitmap `(counts & mask)` where each role's corresponding 
+        nybble is set to its assignee count.
+
+        Since the roles themselves are bitmaps where each role's nybble is set to 1, we can simply comparing the two values to 
+        check to see if each role has exactly one assignee.
+
+        We also don't need to check that we (the bridge controller) are the sole assignee of these roles since we exercise these 
+        roles further down below.
+        */
+        uint256 roleBitmap = RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
+            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN |
+            RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN;
+        (uint256 counts, uint256 mask) = REGISTRY.getAssigneeCount(tokenId, roleBitmap);
+        if (counts & mask != roleBitmap) {
+            revert TooManyRoleAssignees(tokenId, roleBitmap);
         }
 
-        return this.onERC1155Received.selector;
-    }
+        // set to special value which indicates this name is inflight to Namechain
+        // during L2 -> L1, injection will always? happen before L2 finality on L1.
+        // during L1 -> L2, ejection instantly will lookup this resolver, and then continue using L1, until L2 injection happens.
+        REGISTRY.setResolver(tokenId, address(2));
 
-    /**
-     * @dev Default implementation of onRenew that does nothing.
-     * Can be overridden in derived contracts for custom behavior.
-     */
-    function onRenew(
-        uint256 tokenId,
-        uint64 expires,
-        address /*renewedBy*/
-    ) external virtual onlyRegistry {
-        BRIDGE.sendMessage(BridgeEncoderLib.encodeRenewal(tokenId, expires));
-    }
+        REGISTRY.setTokenObserver(tokenId, this);
 
-    /**
-     * Overrides the EjectionController._onEject function.
-     */
-    function _onEject(
-        uint256[] memory tokenIds,
-        TransferData[] memory transferDataArray
-    ) internal virtual override {
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            uint256 tokenId = tokenIds[i];
-            TransferData memory transferData = transferDataArray[i];
-
-            // check that the owner is not null address
-            if (transferData.owner == address(0)) {
-                revert InvalidOwner();
-            }
-
-            // check that the label matches the token id
-            _assertTokenIdMatchesLabel(tokenId, transferData.dnsEncodedName);
-
-            /*
-            Check that there is no more than one holder of the token observer and subregistry setting roles.
-
-            This works by calculating the no. of assignees for each of the given roles as a bitmap `(counts & mask)` where each role's corresponding 
-            nybble is set to its assignee count.
-
-            Since the roles themselves are bitmaps where each role's nybble is set to 1, we can simply comparing the two values to 
-            check to see if each role has exactly one assignee.
-
-            We also don't need to check that we (the bridge controller) are the sole assignee of these roles since we exercise these 
-            roles further down below.
-            */
-            uint256 roleBitmap = RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
-                RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
-                RegistryRolesLib.ROLE_SET_SUBREGISTRY |
-                RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN |
-                RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN;
-            (uint256 counts, uint256 mask) = REGISTRY.getAssigneeCount(tokenId, roleBitmap);
-            if (counts & mask != roleBitmap) {
-                revert TooManyRoleAssignees(tokenId, roleBitmap);
-            }
-
-            // NOTE: we don't nullify the resolver here, so that there is no resolution downtime
-            REGISTRY.setSubregistry(tokenId, IRegistry(address(0)));
-            REGISTRY.setTokenObserver(tokenId, this);
-
-            // Send bridge message for ejection
-            BRIDGE.sendMessage(BridgeEncoderLib.encodeEjection(transferData));
-            emit NameEjectedToL1(transferData.dnsEncodedName, tokenId);
-        }
+        td.expiry = REGISTRY.getExpiry(tokenId);
     }
 }

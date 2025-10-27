@@ -395,17 +395,43 @@ contract PermissionedRegistry is
         }
     }
 
-    /**
-     * @dev Regenerate a token.
-     */
-    function _regenerateToken(uint256 tokenId, address owner) internal {
-        _burn(owner, tokenId, 1);
-        (IRegistryDatastore.Entry memory entry, uint256 canonicalId) = _getEntry(tokenId);
-        entry.tokenVersionId = entry.tokenVersionId + 1;
-        uint256 newTokenId = _generateTokenId(canonicalId, entry);
-        _mint(owner, newTokenId, 1, "");
+    function _isEmancipated(uint256 tokenResource, address owner) {
+        uint256 tokenCount = EACBaseRolesLib.adminRoles(super.roleCount(tokenResource));
+        uint256 tokenRoles = super.roles(tokenResource, owner);
+        return
+            // the token posesses all admin roles
+            tokenCount == tokenRoles &&
+            // and shares no admin roles w/root
+            (tokenRoles &
+                EACBaseRolesLib.rolesFromCount(
+                    EACBaseRolesLib.adminRoles(super.roleCount(ROOT_RESOURCE))
+                )) ==
+            0;
+    }
 
-        emit TokenRegenerated(tokenId, newTokenId);
+    function isEmancipated(uint256 tokenId) external view returns (bool) {
+        return _isEmancipated(_getResourceFromTokenId(tokenId), ownerOf(tokenId));
+    }
+
+    function resetOwnership(uint256 tokenId) onlyTokenOwner(tokenId) {
+        address owner = super.ownerOf(tokenId);
+        (IRegistryDatastore.Entry memory entry, uint256 canonicalId) = _getEntry(tokenId);
+        uint256 tokenResource = _constructTokenId(canonicalId, entry.eacVersionId);
+        require(_isEmancipated(tokenResource, owner)); // TODO: some kind of revert
+        entry.eacVersionId = entry.eacVersionId + 1;
+        _setEntry(tokenId, entry);
+    }
+
+    /// @dev Regenerate a token if needed.
+    function _regenerateToken(uint256 tokenId, address owner) internal {
+        (IRegistryDatastore.Entry memory entry, uint256 canonicalId) = _getEntry(tokenId);
+        if (!_isEmancipated(_constructTokenId(canonicalId, entry.eacVersionId), owner)) {
+            _burn(owner, tokenId, 1);
+            entry.tokenVersionId = entry.tokenVersionId + 1;
+            uint256 newTokenId = _generateTokenId(canonicalId, entry);
+            _mint(owner, newTokenId, 1, "");
+            emit TokenRegenerated(tokenId, newTokenId);
+        }
     }
 
     /**
