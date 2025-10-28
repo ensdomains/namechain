@@ -494,8 +494,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         assertEq(entries.length, 1);
         assertEq(entries[0].topics[0], keccak256("NameRenewed(uint256,uint64,address,bytes32)"));
         assertEq(entries[0].topics[1], bytes32(tokenId));
-        // topics[2] is the indexed resource parameter
-        (uint64 expiry, address renewedBy) = abi.decode(entries[0].data, (uint64, address));
+        (uint64 expiry, address renewedBy, bytes32 resourceValue) = abi.decode(entries[0].data, (uint64, address, bytes32));
         assertEq(expiry, newExpiry);
         assertEq(renewedBy, address(this));
     }
