@@ -316,13 +316,13 @@ contract RootRegistryTest is Test, ERC1155Holder {
                 assertEq(value, 1);
             }
             // NameRegistered event
-            else if (topic0 == keccak256("NameRegistered(uint256,string,uint64,address,bytes32)")) {
+            else if (topic0 == keccak256("NameRegistered(uint256,string,uint64,address,uint256)")) {
                 foundNameRegisteredEvent = true;
                 assertEq(logs[i].topics.length, 2);
                 assertEq(uint256(logs[i].topics[1]), tokenId);
 
-                (string memory labelValue, uint64 expirationValue, address registeredByValue, bytes32 resourceValue) = abi
-                    .decode(logs[i].data, (string, uint64, address, bytes32));
+                (string memory labelValue, uint64 expirationValue, address registeredByValue, uint256 resourceValue) = abi
+                    .decode(logs[i].data, (string, uint64, address, uint256));
                 assertEq(keccak256(bytes(labelValue)), keccak256(bytes(label)));
                 assertEq(expirationValue, MAX_EXPIRY);
                 assertEq(registeredByValue, address(this));

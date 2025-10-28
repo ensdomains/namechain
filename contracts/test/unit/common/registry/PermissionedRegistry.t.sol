@@ -492,9 +492,9 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("NameRenewed(uint256,uint64,address,bytes32)"));
+        assertEq(entries[0].topics[0], keccak256("NameRenewed(uint256,uint64,address,uint256)"));
         assertEq(entries[0].topics[1], bytes32(tokenId));
-        (uint64 expiry, address renewedBy, bytes32 resourceValue) = abi.decode(entries[0].data, (uint64, address, bytes32));
+        (uint64 expiry, address renewedBy, uint256 resourceValue) = abi.decode(entries[0].data, (uint64, address, uint256));
         assertEq(expiry, newExpiry);
         assertEq(renewedBy, address(this));
     }
@@ -1584,7 +1584,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         uint256 newTokenId;
 
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == keccak256("TokenRegenerated(uint256,uint256,bytes32)")) {
+            if (entries[i].topics[0] == keccak256("TokenRegenerated(uint256,uint256,uint256)")) {
                 foundEvent = true;
                 uint256 oldTokenIdFromEvent;
                 (oldTokenIdFromEvent, newTokenId) = abi.decode(entries[i].data, (uint256, uint256));
@@ -1647,7 +1647,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         uint256 newTokenId;
 
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == keccak256("TokenRegenerated(uint256,uint256,bytes32)")) {
+            if (entries[i].topics[0] == keccak256("TokenRegenerated(uint256,uint256,uint256)")) {
                 foundEvent = true;
                 uint256 oldTokenIdFromEvent;
                 (oldTokenIdFromEvent, newTokenId) = abi.decode(entries[i].data, (uint256, uint256));

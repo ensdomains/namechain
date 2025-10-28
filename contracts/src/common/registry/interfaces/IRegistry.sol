@@ -16,13 +16,13 @@ interface IRegistry is IERC1155Singleton {
         string label,
         uint64 expiration,
         address registeredBy,
-        bytes32 resource
+        uint256 resource
     );
 
     /**
      * @dev Event emitted when a name is renewed.
      */
-    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy, bytes32 resource);
+    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy, uint256 resource);
 
     /**
      * @dev Event emitted when a name is burned.
@@ -43,7 +43,7 @@ interface IRegistry is IERC1155Singleton {
      * @dev Event emitted when a token is regenerated with a new token ID.
      *      This occurs when roles are granted or revoked to maintain ERC1155 compliance.
      */
-    event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId, bytes32 resource);
+    event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId, uint256 resource);
 
     ////////////////////////////////////////////////////////////////////////
     // Functions

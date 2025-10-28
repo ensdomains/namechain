@@ -172,7 +172,7 @@ contract PermissionedRegistry is
             observer.onRenew(tokenId, expires, msg.sender);
         }
 
-        emit NameRenewed(tokenId, expires, msg.sender, bytes32(_getResourceFromTokenId(tokenId)));
+        emit NameRenewed(tokenId, expires, msg.sender, _getResourceFromTokenId(tokenId));
     }
 
     function grantRoles(
@@ -321,7 +321,7 @@ contract PermissionedRegistry is
         );
 
         // emit nameregistered before mint so we can determine this is a registry (in an indexer)
-        emit NameRegistered(tokenId, label, expires, msg.sender, bytes32(_getResourceFromTokenId(tokenId)));
+        emit NameRegistered(tokenId, label, expires, msg.sender, _getResourceFromTokenId(tokenId));
 
         _mint(owner, tokenId, 1, "");
         _grantRoles(_getResourceFromTokenId(tokenId), roleBitmap, owner, false);
@@ -414,7 +414,7 @@ contract PermissionedRegistry is
         uint256 newTokenId = _generateTokenId(canonicalId, entry);
         _mint(owner, newTokenId, 1, "");
 
-        emit TokenRegenerated(tokenId, newTokenId, bytes32(_getResourceFromTokenId(newTokenId)));
+        emit TokenRegenerated(tokenId, newTokenId, _getResourceFromTokenId(newTokenId));
     }
 
     /**
