@@ -8,9 +8,7 @@ import {IDNSGateway} from "@ens/contracts/dnssec-oracle/IDNSGateway.sol";
 import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
-import {
-    ICompositeExtendedResolver
-} from "@ens/contracts/resolvers/profiles/ICompositeExtendedResolver.sol";
+import {ICompositeResolver} from "@ens/contracts/resolvers/profiles/ICompositeResolver.sol";
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IVerifiableResolver} from "@ens/contracts/resolvers/profiles/IVerifiableResolver.sol";
@@ -51,13 +49,7 @@ string constant TEXT_KEY_DNSSEC_CONTEXT = "eth.ens.dnssec-context";
 /// 3. Verify TXT records, find ENS1 record, parse resolver and context.
 /// 4. Call the resolver and return the requested records.
 ///
-contract DNSTLDResolver is
-    IERC7996,
-    ICompositeExtendedResolver,
-    IVerifiableResolver,
-    CCIPBatcher,
-    ERC165
-{
+contract DNSTLDResolver is IERC7996, ICompositeResolver, IVerifiableResolver, CCIPBatcher, ERC165 {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
@@ -114,7 +106,7 @@ contract DNSTLDResolver is
     ) public view virtual override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
-            type(ICompositeExtendedResolver).interfaceId == interfaceId ||
+            type(ICompositeResolver).interfaceId == interfaceId ||
             type(IVerifiableResolver).interfaceId == interfaceId ||
             type(IERC7996).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
@@ -139,12 +131,12 @@ contract DNSTLDResolver is
         }
     }
 
-    /// @inheritdoc ICompositeExtendedResolver
+    /// @inheritdoc ICompositeResolver
     function requiresOffchain(bytes calldata name) external view returns (bool offchain) {
         offchain = _determineMainnetResolver(name) == address(0);
     }
 
-    /// @inheritdoc ICompositeExtendedResolver
+    /// @inheritdoc ICompositeResolver
     /// @dev This function executes over multiple steps.
     function getResolver(bytes calldata name) external view returns (address, bool) {
         address resolver = _determineMainnetResolver(name);
@@ -220,37 +212,28 @@ contract DNSTLDResolver is
         bytes calldata extraData
     ) external pure returns (bytes memory) {
         Lookup[] memory lookups = abi.decode(response, (Batch)).lookups;
-        (bool multi, bool extended, bytes memory context) = abi.decode(
-            extraData,
-            (bool, bool, bytes)
-        );
+        (bool multi, bool extended) = abi.decode(extraData, (bool, bool));
         if (multi) {
             bytes[] memory m = new bytes[](lookups.length);
             for (uint256 i; i < lookups.length; ++i) {
                 Lookup memory lu = lookups[i];
-                bytes memory v = _canAnswerCall(lu.call, context);
-                if (v.length == 0) {
-                    v = lu.data;
-                    if (extended && (lu.flags & FLAGS_ANY_ERROR) == 0) {
-                        v = abi.decode(v, (bytes)); // unwrap resolve()
-                    }
+                bytes memory v = lu.data;
+                if (extended && (lu.flags & FLAGS_ANY_ERROR) == 0) {
+                    v = abi.decode(v, (bytes)); // unwrap resolve()
                 }
                 m[i] = v;
             }
             return abi.encode(m);
         } else {
             Lookup memory lu = lookups[0];
-            bytes memory v = _canAnswerCall(lu.call, context);
-            if (v.length == 0) {
-                v = lu.data;
-                if ((lu.flags & FLAGS_ANY_ERROR) != 0) {
-                    assembly {
-                        revert(add(v, 32), mload(v))
-                    }
+            bytes memory v = lu.data;
+            if ((lu.flags & FLAGS_ANY_ERROR) != 0) {
+                assembly {
+                    revert(add(v, 32), mload(v))
                 }
-                if (extended) {
-                    v = abi.decode(v, (bytes)); // unwrap resolve()
-                }
+            }
+            if (extended) {
+                v = abi.decode(v, (bytes)); // unwrap resolve()
             }
             return v;
         }
@@ -384,21 +367,20 @@ contract DNSTLDResolver is
             }
         }
         Batch memory batch = createBatch(resolver, calls, BATCH_GATEWAY_PROVIDER.gateways());
-        // https://github.com/ensdomains/ens-contracts/pull/499
-        // for (uint256 i; i < calls.length; ++i) {
-        //     bytes memory answer = _canAnswerCall(calls[i], context);
-        //     if (answer.length > 0) {
-        //         Lookup memory lu = batch.lookup[i];
-        //         lu.flags = FLAG_DONE;
-        //         lu.data = answer;
-        //     }
-        // }
+        for (uint256 i; i < calls.length; ++i) {
+            Lookup memory lu = batch.lookups[i];
+            bytes memory answer = _canAnswerCall(lu.call, context);
+            if (answer.length > 0) {
+                lu.flags = FLAG_DONE;
+                lu.data = answer;
+            }
+        }
         ccipRead(
             address(this),
             abi.encodeCall(this.ccipBatch, (batch)),
             this.resolveBatchCallback.selector,
             IDENTITY_FUNCTION,
-            abi.encode(multi, extended, context)
+            abi.encode(multi, extended)
         );
     }
 

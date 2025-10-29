@@ -139,7 +139,7 @@ describe("DNSTLDResolver", () => {
       "IERC165",
       "IERC7996",
       "IExtendedResolver",
-      "ICompositeExtendedResolver",
+      "ICompositeResolver",
       "IVerifiableResolver",
     ],
   });

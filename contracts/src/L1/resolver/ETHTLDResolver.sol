@@ -8,9 +8,7 @@ import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
-import {
-    ICompositeExtendedResolver
-} from "@ens/contracts/resolvers/profiles/ICompositeExtendedResolver.sol";
+import {ICompositeResolver} from "@ens/contracts/resolvers/profiles/ICompositeResolver.sol";
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IHasAddressResolver} from "@ens/contracts/resolvers/profiles/IHasAddressResolver.sol";
@@ -55,7 +53,7 @@ import {L1BridgeController} from "../bridge/L1BridgeController.sol";
 /// 2. Otherwise, resolve using Namechain.
 /// 3. If no resolver is found, reverts `UnreachableName`.
 contract ETHTLDResolver is
-    ICompositeExtendedResolver,
+    ICompositeResolver,
     IVerifiableResolver,
     IERC7996,
     GatewayFetchTarget,
@@ -148,7 +146,7 @@ contract ETHTLDResolver is
     ) public view virtual override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
-            type(ICompositeExtendedResolver).interfaceId == interfaceId ||
+            type(ICompositeResolver).interfaceId == interfaceId ||
             type(IVerifiableResolver).interfaceId == interfaceId ||
             type(IERC7996).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
@@ -207,12 +205,12 @@ contract ETHTLDResolver is
         }
     }
 
-    /// @inheritdoc ICompositeExtendedResolver
+    /// @inheritdoc ICompositeResolver
     function requiresOffchain(bytes calldata name) external view returns (bool offchain) {
         offchain = _determineMainnetResolver(name) == address(0);
     }
 
-    /// @inheritdoc ICompositeExtendedResolver
+    /// @inheritdoc ICompositeResolver
     /// @dev This function executes over multiple steps.
     /// * `getResolver("eth") = (ethResolver, false)`
     /// * `getResolver(<not .eth>)` reverts
