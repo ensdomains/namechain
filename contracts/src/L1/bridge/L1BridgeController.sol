@@ -22,7 +22,7 @@ contract L1BridgeController is EjectionController {
     // Events
     ////////////////////////////////////////////////////////////////////////
 
-    event RenewalSynchronized(uint256 tokenId, uint64 newExpiry);
+    event RenewalSynchronized(uint256 indexed tokenId, uint64 indexed newExpiry);
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
@@ -51,7 +51,7 @@ contract L1BridgeController is EjectionController {
      * @param transferData The transfer data for the name being ejected
      */
     function completeEjectionToL1(
-        TransferData memory transferData
+        TransferData calldata transferData
     ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) returns (uint256 tokenId) {
         string memory label = LibLabel.extractLabel(transferData.dnsEncodedName);
 

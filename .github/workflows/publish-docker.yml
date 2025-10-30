@@ -20,9 +20,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          submodules: "recursive"
       - name: Log in to the Github Container registry
         uses: docker/login-action@v3
         with:

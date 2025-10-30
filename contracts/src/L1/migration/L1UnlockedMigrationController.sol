@@ -90,8 +90,8 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
     function onERC1155BatchReceived(
         address /*operator*/,
         address /*from*/,
-        uint256[] memory tokenIds,
-        uint256[] memory /*amounts*/,
+        uint256[] calldata tokenIds,
+        uint256[] calldata /*amounts*/,
         bytes calldata data
     ) external virtual returns (bytes4) {
         if (msg.sender != address(NAME_WRAPPER)) {

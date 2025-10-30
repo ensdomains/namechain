@@ -63,7 +63,7 @@ contract L2BridgeController is EjectionController, ITokenObserver {
      * @param transferData The transfer data for the name being migrated
      */
     function completeEjectionToL2(
-        TransferData memory transferData
+        TransferData calldata transferData
     ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
         string memory label = LibLabel.extractLabel(transferData.dnsEncodedName);
         (uint256 tokenId, ) = REGISTRY.getNameData(label);

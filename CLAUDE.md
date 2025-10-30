@@ -14,6 +14,12 @@ These are all to be run from within the contracts/ folder:
 * `bun run test:hardhat` - run hardhat tests
 * `bun run test:e2e` - run end-to-end tests
 
+# Lint command:
+
+Run this in the contracts/ folder:
+
+* `bun run lint`
+
 # Comment Guidelines
 
 When writing comments in code:

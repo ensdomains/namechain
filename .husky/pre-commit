@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# Navigate to repo root (where .git folder is)
+cd "$(dirname "$0")/.."
+
+# Run checks from contracts folder
+cd contracts && bun run check:types && bun run lint
