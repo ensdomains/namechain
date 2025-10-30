@@ -225,7 +225,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // Confirm roles derived from name configuration
@@ -516,7 +516,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // 2LDs should NOT have renewal roles even when no additional fuses are burnt (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs)
@@ -581,7 +581,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // Should NOT have renewal roles since CAN_EXTEND_EXPIRY is not set
@@ -632,7 +632,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // 2LDs should NOT have renewal roles even when CANNOT_CREATE_SUBDOMAIN is not burnt (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs)
@@ -696,7 +696,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // 2LDs should NOT have renewal roles (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs) but should have resolver roles

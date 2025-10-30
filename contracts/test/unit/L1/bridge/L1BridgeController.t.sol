@@ -431,7 +431,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
 
         assertEq(registry.getResolver(testLabel), MOCK_RESOLVER);
 
-        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
+        uint256 resource = registry.getResource(tokenId);
         assertTrue(
             registry.hasRoles(resource, expectedRoles, user),
             "Role bitmap should match the expected roles"

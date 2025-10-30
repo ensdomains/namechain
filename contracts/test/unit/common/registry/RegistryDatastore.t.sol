@@ -57,29 +57,6 @@ contract RegistryDatastoreTest is Test {
         vm.assertEq(returnedEntry.tokenVersionId, data);
     }
 
-    function test_SetSubregistry_Setters() public {
-        datastore.setSubregistry(id, address(this));
-        datastore.setResolver(id, address(this));
-
-        IRegistryDatastore.Entry memory returnedEntry = datastore.getEntry(address(this), id);
-        vm.assertEq(returnedEntry.subregistry, address(this));
-        vm.assertEq(returnedEntry.resolver, address(this));
-    }
-
-    function test_SetSubregistry_Resolver_OtherRegistry() public {
-        DummyRegistry r = new DummyRegistry(datastore);
-        r.setSubregistry(id, address(this));
-        r.setResolver(id, address(this));
-
-        IRegistryDatastore.Entry memory returnedEntry = datastore.getEntry(address(this), id);
-        vm.assertEq(returnedEntry.subregistry, address(0));
-        vm.assertEq(returnedEntry.resolver, address(0));
-
-        returnedEntry = datastore.getEntry(address(r), id);
-        vm.assertEq(returnedEntry.subregistry, address(this));
-        vm.assertEq(returnedEntry.resolver, address(this));
-    }
-
     /// @notice Test struct packing verification
     function test_EntryStructPacking() public {
         address registry = address(this);
@@ -140,13 +117,5 @@ contract DummyRegistry {
 
     function setEntry(uint256 id, IRegistryDatastore.Entry memory entry) public {
         datastore.setEntry(id, entry);
-    }
-
-    function setSubregistry(uint256 id, address subregistry) public {
-        datastore.setSubregistry(id, subregistry);
-    }
-
-    function setResolver(uint256 id, address resolver) public {
-        datastore.setResolver(id, resolver);
     }
 }
