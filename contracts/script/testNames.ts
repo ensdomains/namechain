@@ -18,6 +18,11 @@ import { dnsEncodeName } from "../test/utils/utils.js";
 import { ROLES, MAX_EXPIRY } from "../deploy/constants.js";
 import { artifacts } from "@rocketh";
 import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
+import {
+  initializeEventLogging,
+  collectAndWriteEvents,
+  displayEventSummary,
+} from "./watchEvents.js";
 
 // ========== Constants ==========
 
@@ -990,6 +995,9 @@ export async function testNames(env: CrossChainEnvironment) {
 
   console.log("\n========== Starting testNames with Gas Tracking ==========\n");
 
+  // Initialize event logging
+  await initializeEventLogging(env);
+
   // Register all test names with default 1 day expiry
   await registerTestNames(
     env,
@@ -1099,4 +1107,8 @@ export async function testNames(env: CrossChainEnvironment) {
 
   // Display gas report at the end
   displayGasReport();
+
+  // Collect all events and write to log files
+  await collectAndWriteEvents(env);
+  displayEventSummary();
 }
