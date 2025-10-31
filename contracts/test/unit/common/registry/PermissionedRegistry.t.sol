@@ -845,7 +845,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             )
         );
 
-        uint256 newTokenId = registry.testGetTokenIdFromResource(registry.getResource(tokenId));
+        uint256 newTokenId = registry.getTokenId(tokenId);
 
         // The non-owner with role should be able to set the token observer
         vm.prank(tokenObserverSetter);
@@ -1073,7 +1073,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_SET_RESOLVER, user2);
 
         // Get current tokenId and eacVersionId after role grants
-        uint256 currentTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 currentTokenId = registry.getTokenId(resourceId);
         uint32 initialEacVersionId = registry.getEntry(currentTokenId).eacVersionId;
 
         // Verify roles are set
@@ -1246,7 +1246,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.grantRoles(originalResourceId, RegistryRolesLib.ROLE_RENEW, owner1);
 
         // get the new token id
-        uint256 newTokenId = registry.testGetTokenIdFromResource(originalResourceId);
+        uint256 newTokenId = registry.getTokenId(originalResourceId);
 
         // Verify owner1 has roles
         assertTrue(
@@ -1617,7 +1617,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_RENEW, user2);
 
         // Get the new token ID after first regeneration
-        uint256 intermediateTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 intermediateTokenId = registry.getTokenId(resourceId);
 
         // revoke the role and check regeneration again
         vm.recordLogs();
@@ -1684,14 +1684,14 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_RENEW, owner1);
 
         // Get the new token ID after regeneration
-        uint256 intermediateTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 intermediateTokenId = registry.getTokenId(resourceId);
 
         // grant a role to another user, triggering another regeneration
         address user2 = makeAddr("user2");
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_RENEW, user2);
 
         // Get the final token ID
-        uint256 finalTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 finalTokenId = registry.getTokenId(resourceId);
 
         // Verify the token has been regenerated twice
         assertNotEq(tokenId, intermediateTokenId, "Token should be regenerated first time");
@@ -1722,7 +1722,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
         uint256 resourceId = registry.getResource(tokenId);
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_RENEW, user);
-        uint256 newTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 newTokenId = registry.getTokenId(resourceId);
         assertNotEq(tokenId, newTokenId, "token");
         vm.warp(_after(101));
         assertEq(registry.ownerOf(tokenId), address(0), "owner0");
@@ -1769,7 +1769,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_SET_RESOLVER, user3);
 
         // Get the updated token ID after regenerations
-        uint256 currentTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 currentTokenId = registry.getTokenId(resourceId);
 
         (uint256 counts, ) = registry.getAssigneeCount(
             currentTokenId,
@@ -1816,7 +1816,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_RENEW, user3);
 
         // Get the updated token ID after regenerations
-        uint256 currentTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 currentTokenId = registry.getTokenId(resourceId);
 
         // Query for SET_RESOLVER and RENEW roles
         uint256 queryBitmap = RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_RENEW;
@@ -1899,7 +1899,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
 
         // Get the updated token ID after regenerations
-        uint256 currentTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 currentTokenId = registry.getTokenId(resourceId);
 
         // Query for all three roles
         uint256 queryBitmap = RegistryRolesLib.ROLE_SET_RESOLVER |
@@ -1934,7 +1934,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         // Grant role to user2
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_SET_RESOLVER, user2);
-        uint256 tokenIdAfterGrant = registry.testGetTokenIdFromResource(resourceId);
+        uint256 tokenIdAfterGrant = registry.getTokenId(resourceId);
 
         // Check count before revocation - should have 2 assignees for SET_RESOLVER
         (uint256 countsBefore, ) = registry.getAssigneeCount(
@@ -1946,7 +1946,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         // Revoke role from user2
         registry.revokeRoles(resourceId, RegistryRolesLib.ROLE_SET_RESOLVER, user2);
-        uint256 tokenIdAfterRevoke = registry.testGetTokenIdFromResource(resourceId);
+        uint256 tokenIdAfterRevoke = registry.getTokenId(resourceId);
 
         // Check count after revocation - should have 1 assignee for SET_RESOLVER
         (uint256 countsAfter, ) = registry.getAssigneeCount(
@@ -1997,7 +1997,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         }
 
         // Get the current token ID after role grants (which may have triggered regeneration)
-        uint256 currentTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 currentTokenId = registry.getTokenId(resourceId);
 
         // Verify we have 15 assignees for ROLE_SET_RESOLVER (max allowed)
         (uint256 counts, ) = registry.getAssigneeCount(
@@ -2064,7 +2064,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         uint256 canonicalId = 0x123456789ABCDEF000000000000000000000000000000000;
         uint32 tokenVersionId = 42;
 
-        uint256 tokenId = registry.testConstructTokenId(canonicalId, tokenVersionId);
+        uint256 tokenId = registry.constructTokenId(canonicalId, tokenVersionId);
 
         // Verify the token ID contains the correct components
         uint256 extractedCanonicalId = LibLabel.getCanonicalId(tokenId);
@@ -2078,7 +2078,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         uint256 canonicalId = uint256(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF) << 32; // Upper bits set
         uint32 tokenVersionId = type(uint32).max;
 
-        uint256 tokenId = registry.testConstructTokenId(canonicalId, tokenVersionId);
+        uint256 tokenId = registry.constructTokenId(canonicalId, tokenVersionId);
 
         // Verify all components are preserved even at max values
         uint256 extractedCanonicalId = LibLabel.getCanonicalId(tokenId);
@@ -2096,7 +2096,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         uint256 canonicalId = 0x123456789ABCDEF000000000000000000000000000000000;
         uint32 tokenVersionId = 0;
 
-        uint256 tokenId = registry.testConstructTokenId(canonicalId, tokenVersionId);
+        uint256 tokenId = registry.constructTokenId(canonicalId, tokenVersionId);
 
         // Verify zero values are handled correctly
         uint256 extractedCanonicalId = LibLabel.getCanonicalId(tokenId);
@@ -2114,7 +2114,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         uint256 canonicalId = 0x123456789ABCDEF000000000000000000000000000000000;
         uint32 tokenVersionId = 0x12345678;
 
-        uint256 tokenId = registry.testConstructTokenId(canonicalId, tokenVersionId);
+        uint256 tokenId = registry.constructTokenId(canonicalId, tokenVersionId);
 
         // Verify bit layout manually
         // Lower 32 bits should be tokenVersionId
@@ -2168,7 +2168,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_RENEW, user2);
 
         // Get the new token ID
-        uint256 newTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 newTokenId = registry.getTokenId(resourceId);
         uint32 newTokenVersionId = _tokenVersionId(newTokenId);
 
         // Token version should increment
@@ -2199,17 +2199,17 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         // First regeneration
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_RENEW, user2);
-        uint256 tokenId1 = registry.testGetTokenIdFromResource(resourceId);
+        uint256 tokenId1 = registry.getTokenId(resourceId);
         uint32 tokenVersionId1 = _tokenVersionId(tokenId1);
 
         // Second regeneration
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_BURN, user3);
-        uint256 tokenId2 = registry.testGetTokenIdFromResource(resourceId);
+        uint256 tokenId2 = registry.getTokenId(resourceId);
         uint32 tokenVersionId2 = _tokenVersionId(tokenId2);
 
         // Third regeneration
         registry.revokeRoles(resourceId, RegistryRolesLib.ROLE_RENEW, user2);
-        uint256 tokenId3 = registry.testGetTokenIdFromResource(resourceId);
+        uint256 tokenId3 = registry.getTokenId(resourceId);
         uint32 tokenVersionId3 = _tokenVersionId(tokenId3);
 
         // Verify incremental progression
@@ -2248,7 +2248,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_RENEW, user2);
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_BURN, user2);
 
-        uint256 preExpiryTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 preExpiryTokenId = registry.getTokenId(resourceId);
         uint32 preExpiryTokenVersionId = _tokenVersionId(preExpiryTokenId);
 
         // Should have incremented
@@ -2339,7 +2339,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         address user2 = makeAddr("transferUser2");
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_RENEW, user2);
 
-        uint256 regeneratedTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 regeneratedTokenId = registry.getTokenId(resourceId);
         uint32 preTransferTokenVersionId = _tokenVersionId(regeneratedTokenId);
 
         // Transfer the token
@@ -2370,7 +2370,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         uint256 canonicalId = LibLabel.labelToCanonicalId("maxtest");
         uint32 maxTokenVersionId = type(uint32).max;
 
-        uint256 tokenId = registry.testConstructTokenId(canonicalId, maxTokenVersionId);
+        uint256 tokenId = registry.constructTokenId(canonicalId, maxTokenVersionId);
 
         // Verify extraction works correctly even at max values
         assertEq(
@@ -2385,10 +2385,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
 
         // Verify no bit overlap or corruption
-        uint256 reconstructed = registry.testConstructTokenId(
-            canonicalId,
-            _tokenVersionId(tokenId)
-        );
+        uint256 reconstructed = registry.constructTokenId(canonicalId, _tokenVersionId(tokenId));
         assertEq(tokenId, reconstructed, "Reconstructed token ID should match original");
     }
 
@@ -2431,11 +2428,11 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         // Start with specific values
         uint32 tokenVersionId1 = 0x12345678;
-        uint256 tokenId1 = registry.testConstructTokenId(canonicalId, tokenVersionId1);
+        uint256 tokenId1 = registry.constructTokenId(canonicalId, tokenVersionId1);
 
         // Change token version ID
         uint32 tokenVersionId2 = 0x87654321;
-        uint256 tokenId2 = registry.testConstructTokenId(canonicalId, tokenVersionId2);
+        uint256 tokenId2 = registry.constructTokenId(canonicalId, tokenVersionId2);
 
         // Verify canonical ID is same, versions are different
         assertEq(LibLabel.getCanonicalId(tokenId1), canonicalId, "Canonical ID 1 should match");
@@ -2453,7 +2450,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         uint256 zeroCanonicalId = 0;
         uint32 tokenVersionId = 42;
 
-        uint256 tokenId = registry.testConstructTokenId(zeroCanonicalId, tokenVersionId);
+        uint256 tokenId = registry.constructTokenId(zeroCanonicalId, tokenVersionId);
 
         // Verify extraction works with zero canonical ID
         assertEq(
@@ -2480,7 +2477,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
 
         uint256 resourceId = registry.getResource(tokenId);
-        uint256 reconstructedTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 reconstructedTokenId = registry.getTokenId(resourceId);
 
         // The reconstructed token ID should equal the original
         assertEq(reconstructedTokenId, tokenId, "Round-trip conversion should work");
@@ -2507,7 +2504,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.grantRoles(resourceId, RegistryRolesLib.ROLE_RENEW, user2);
 
         // Get current token ID after regeneration
-        uint256 currentTokenId = registry.testGetTokenIdFromResource(resourceId);
+        uint256 currentTokenId = registry.getTokenId(resourceId);
 
         // Use getNameData to retrieve token ID
         (uint256 retrievedTokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(
@@ -2600,7 +2597,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         // Revoke ROLE_CAN_TRANSFER_ADMIN from user2
         registry.revokeRoles(resource, RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN, user2);
-        uint256 newTokenId = registry.testGetTokenIdFromResource(resource);
+        uint256 newTokenId = registry.getTokenId(resource);
 
         // Transfer should now fail
         vm.expectRevert(
@@ -2699,7 +2696,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.grantRoles(resource, RegistryRolesLib.ROLE_RENEW, user1);
 
         // Token should regenerate successfully (internal burn + mint)
-        uint256 newTokenId = registry.testGetTokenIdFromResource(resource);
+        uint256 newTokenId = registry.getTokenId(resource);
         assertNotEq(tokenId, newTokenId);
         assertEq(registry.ownerOf(newTokenId), user1);
     }

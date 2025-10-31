@@ -174,13 +174,18 @@ contract PermissionedRegistry is
     }
 
     /// @dev Shorthand to get datastore expiry.
-    function getExpiry(uint256 tokenId) public view override returns (uint64) {
+    function getExpiry(uint256 tokenId) public view returns (uint64) {
         return getEntry(tokenId).expiry;
     }
 
-    /// @dev Shorthand to get resource from token.
+    /// @dev Shorthand to get resource from any id.
     function getResource(uint256 id) public view returns (uint256) {
         return _constructResource(id, getEntry(id));
+    }
+
+    /// @dev Shorthand to get token from any id.
+    function getTokenId(uint256 id) public view returns (uint256) {
+        return _constructTokenId(id, getEntry(id));
     }
 
     function getNameData(
@@ -198,11 +203,13 @@ contract PermissionedRegistry is
 
     /// @inheritdoc IERC1155Singleton
     function ownerOf(
-        uint256 id
+        uint256 tokenId
     ) public view virtual override(ERC1155Singleton, IERC1155Singleton) returns (address) {
-        IRegistryDatastore.Entry memory entry = getEntry(id);
-        uint256 tokenId = _constructTokenId(id, entry);
-        return tokenId != id || _isExpired(entry.expiry) ? address(0) : super.ownerOf(tokenId);
+        IRegistryDatastore.Entry memory entry = getEntry(tokenId);
+        return
+            tokenId != _constructTokenId(tokenId, entry) || _isExpired(entry.expiry)
+                ? address(0)
+                : super.ownerOf(tokenId);
     }
 
     // Enhanced access control methods adapted for token-based resources

@@ -18,23 +18,16 @@ import {
 contract MockPermissionedRegistry is PermissionedRegistry {
     // Pass through all constructor arguments
     constructor(
-        IRegistryDatastore datastore_,
-        IRegistryMetadata metadata_,
-        address ownerAddress_,
-        uint256 ownerRoles_
-    ) PermissionedRegistry(datastore_, metadata_, ownerAddress_, ownerRoles_) {}
-
-    /**
-     * @dev Public wrapper for getTokenIdFromResource - for testing only
-     */
-    function testGetTokenIdFromResource(uint256 resource) public view returns (uint256) {
-        return _constructTokenId(resource, getEntry(resource));
-    }
+        IRegistryDatastore datastore,
+        IRegistryMetadata metadata,
+        address ownerAddress,
+        uint256 ownerRoles
+    ) PermissionedRegistry(datastore, metadata, ownerAddress, ownerRoles) {}
 
     /**
      * @dev Public wrapper for _constructTokenId - for testing only
      */
-    function testConstructTokenId(uint256 id, uint32 tokenVersionId) public pure returns (uint256) {
+    function constructTokenId(uint256 id, uint32 tokenVersionId) public pure returns (uint256) {
         IRegistryDatastore.Entry memory entry;
         entry.tokenVersionId = tokenVersionId;
         return _constructTokenId(id, entry);
