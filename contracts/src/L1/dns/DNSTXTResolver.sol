@@ -157,6 +157,16 @@ contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
         uint256 coinType,
         bool useDefault
     ) internal pure returns (bytes memory v) {
+        if (context.length == 42 && bytes2(context) == "0x") {
+            (address a, bool valid) = HexUtils.hexToAddress(context, 2, 42);
+            if (valid) {
+                // support og version
+                if (coinType == COIN_TYPE_ETH) {
+                    v = abi.encodePacked(a);
+                }
+                return v;
+            }
+        }
         if (ENSIP19.isEVMCoinType(coinType)) {
             v = DNSTXTParserLib.find(
                 context,
@@ -194,7 +204,7 @@ contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
     function _parse0xString(bytes memory s) internal pure returns (bytes memory v) {
         if (s.length > 0) {
             bool valid;
-            if (s.length >= 2 && s[0] == "0" && s[1] == "x") {
+            if (s.length >= 2 && bytes2(s) == "0x") {
                 (v, valid) = HexUtils.hexToBytes(s, 2, s.length);
             }
             if (!valid) {
