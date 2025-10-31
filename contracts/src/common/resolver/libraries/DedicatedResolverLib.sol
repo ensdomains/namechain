@@ -74,7 +74,7 @@ library DedicatedResolverLib {
         return uint256(keccak256(bytes(key)));
     }
 
-    function coinTypeResource(uint256 coinType) internal pure returns (uint256 resource) {
+    function addrResource(uint256 coinType) internal pure returns (uint256 resource) {
         assembly {
             mstore(0, coinType)
             resource := keccak256(0, 32)

@@ -438,7 +438,7 @@ contract DedicatedResolverTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-                DedicatedResolverLib.coinTypeResource(60),
+                DedicatedResolverLib.addrResource(60),
                 DedicatedResolverLib.ROLE_SET_ADDR,
                 friend
             )
@@ -460,7 +460,7 @@ contract DedicatedResolverTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-                DedicatedResolverLib.coinTypeResource(COIN_TYPE_ETH),
+                DedicatedResolverLib.addrResource(COIN_TYPE_ETH),
                 DedicatedResolverLib.ROLE_SET_ADDR,
                 friend
             )
@@ -470,7 +470,7 @@ contract DedicatedResolverTest is Test {
 
         vm.prank(owner);
         resolver.grantRoles(
-            DedicatedResolverLib.coinTypeResource(COIN_TYPE_ETH),
+            DedicatedResolverLib.addrResource(COIN_TYPE_ETH),
             DedicatedResolverLib.ROLE_SET_ADDR,
             friend
         );
@@ -481,7 +481,7 @@ contract DedicatedResolverTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-                DedicatedResolverLib.coinTypeResource(COIN_TYPE_DEFAULT),
+                DedicatedResolverLib.addrResource(COIN_TYPE_DEFAULT),
                 DedicatedResolverLib.ROLE_SET_ADDR,
                 friend
             )

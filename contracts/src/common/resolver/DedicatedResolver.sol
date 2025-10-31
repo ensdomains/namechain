@@ -206,7 +206,7 @@ contract DedicatedResolver is
     )
         external
         rootOrResourceRoles(
-            DedicatedResolverLib.coinTypeResource(coinType),
+            DedicatedResolverLib.addrResource(coinType),
             DedicatedResolverLib.ROLE_SET_ADDR
         )
     {
