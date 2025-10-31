@@ -451,13 +451,16 @@ contract DedicatedResolverTest is Test {
 
         vm.prank(friend);
         resolver.setAddr(COIN_TYPE_ETH, testAddress);
+
+        vm.prank(friend);
+        resolver.setAddr(COIN_TYPE_DEFAULT, testAddress);
     }
 
-    function test_setAddr60_withResourceRole() external {
+    function test_setAddr_withResourceRole() external {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-                DedicatedResolverLib.coinTypeResource(60),
+                DedicatedResolverLib.coinTypeResource(COIN_TYPE_ETH),
                 DedicatedResolverLib.ROLE_SET_ADDR,
                 friend
             )
@@ -467,7 +470,7 @@ contract DedicatedResolverTest is Test {
 
         vm.prank(owner);
         resolver.grantRoles(
-            DedicatedResolverLib.coinTypeResource(60),
+            DedicatedResolverLib.coinTypeResource(COIN_TYPE_ETH),
             DedicatedResolverLib.ROLE_SET_ADDR,
             friend
         );
