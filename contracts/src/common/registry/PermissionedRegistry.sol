@@ -31,16 +31,6 @@ contract PermissionedRegistry is
     mapping(uint256 id => ITokenObserver observer) public tokenObservers;
 
     ////////////////////////////////////////////////////////////////////////
-    // Events
-    ////////////////////////////////////////////////////////////////////////
-
-    event TokenRegenerated(uint256 oldTokenId, uint256 newTokenId);
-
-    event SubregistryUpdate(uint256 indexed id, address subregistry);
-
-    event ResolverUpdate(uint256 indexed id, address resolver);
-
-    ////////////////////////////////////////////////////////////////////////
     // Modifiers
     ////////////////////////////////////////////////////////////////////////
 
@@ -99,9 +89,8 @@ contract PermissionedRegistry is
                 eacVersionId: entry.eacVersionId
             })
         );
-        emit SubregistryUpdate(tokenId, address(0));
-        emit ResolverUpdate(tokenId, address(0));
 
+        // NameBurned implies subregistry/resolver are set to address(0), we don't need to emit those explicitly
         emit NameBurned(tokenId, msg.sender);
     }
 
@@ -109,17 +98,7 @@ contract PermissionedRegistry is
         uint256 tokenId,
         IRegistry registry
     ) external override onlyNonExpiredTokenRoles(tokenId, RegistryRolesLib.ROLE_SET_SUBREGISTRY) {
-        (IRegistryDatastore.Entry memory entry, ) = _getEntry(tokenId);
-        _setEntry(
-            tokenId,
-            IRegistryDatastore.Entry({
-                subregistry: address(registry),
-                expiry: entry.expiry,
-                tokenVersionId: entry.tokenVersionId,
-                resolver: entry.resolver,
-                eacVersionId: entry.eacVersionId
-            })
-        );
+        DATASTORE.setSubregistry(tokenId, address(registry));
         emit SubregistryUpdate(tokenId, address(registry));
     }
 
@@ -127,7 +106,7 @@ contract PermissionedRegistry is
         uint256 tokenId,
         address resolver
     ) external override onlyNonExpiredTokenRoles(tokenId, RegistryRolesLib.ROLE_SET_RESOLVER) {
-        DATASTORE.setResolver(LibLabel.getCanonicalId(tokenId), resolver);
+        DATASTORE.setResolver(tokenId, resolver);
         emit ResolverUpdate(tokenId, resolver);
     }
 
@@ -186,15 +165,7 @@ contract PermissionedRegistry is
             revert CannotReduceExpiration(entry.expiry, expires);
         }
 
-        IRegistryDatastore.Entry memory newEntry = IRegistryDatastore.Entry({
-            subregistry: entry.subregistry,
-            expiry: expires,
-            tokenVersionId: entry.tokenVersionId,
-            resolver: entry.resolver,
-            eacVersionId: entry.eacVersionId
-        });
-        _setEntry(tokenId, newEntry);
-        emit SubregistryUpdate(tokenId, entry.subregistry);
+        DATASTORE.setExpiry(tokenId, expires);
 
         ITokenObserver observer = tokenObservers[tokenId];
         if (address(observer) != address(0)) {
@@ -295,7 +266,7 @@ contract PermissionedRegistry is
      * @param entry The entry data to set.
      */
     function _setEntry(uint256 tokenId, IRegistryDatastore.Entry memory entry) internal {
-        DATASTORE.setEntry(LibLabel.getCanonicalId(tokenId), entry);
+        DATASTORE.setEntry(tokenId, entry);
     }
 
     /**
@@ -349,12 +320,14 @@ contract PermissionedRegistry is
             })
         );
 
+        // emit nameregistered before mint so we can determine this is a registry (in an indexer)
+        emit NameRegistered(tokenId, label, expires, msg.sender);
+
         _mint(owner, tokenId, 1, "");
         _grantRoles(_getResourceFromTokenId(tokenId), roleBitmap, owner, false);
 
+        emit SubregistryUpdate(tokenId, address(registry));
         emit ResolverUpdate(tokenId, resolver);
-
-        emit NewSubname(tokenId, label);
 
         return tokenId;
     }
@@ -456,7 +429,6 @@ contract PermissionedRegistry is
     ) internal virtual returns (uint256 newTokenId) {
         newTokenId = _constructTokenId(canonicalId, entry.tokenVersionId);
         DATASTORE.setEntry(canonicalId, entry);
-        emit SubregistryUpdate(newTokenId, entry.subregistry);
     }
 
     /**
