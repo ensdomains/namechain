@@ -15,11 +15,11 @@ import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
-import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
-import {IOwnable} from "../access-control/interfaces/IOwnable.sol";
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
+import {IOwnable} from "../access-control/interfaces/IOwnable.sol";
 
 import {IDedicatedResolverSetters, NODE_ANY} from "./interfaces/IDedicatedResolverSetters.sol";
 import {DedicatedResolverLib} from "./libraries/DedicatedResolverLib.sol";
@@ -28,9 +28,9 @@ import {DedicatedResolverLib} from "./libraries/DedicatedResolverLib.sol";
 
 /// @notice An owned resolver that provides the same results for any name.
 contract DedicatedResolver is
+    EnhancedAccessControl,
     Initializable,
     IOwnable,
-    EnhancedAccessControl,
     IDedicatedResolverSetters,
     IERC7996,
     IExtendedResolver,
@@ -72,17 +72,6 @@ contract DedicatedResolver is
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
-    /// @dev Initialize the contract.
-    /// @param initialOwner The initial owner of the resolver.
-    function initialize(address initialOwner) external initializer {
-        if (initialOwner == address(0)) {
-            revert OwnableInvalidOwner(address(0));
-        }
-        _storage().owner = initialOwner;
-        emit OwnershipTransferred(address(0), initialOwner);
-        _grantRoles(ROOT_RESOURCE, DedicatedResolverLib.INITIAL_ROLES, initialOwner, false);
-    }
-
     /// @inheritdoc EnhancedAccessControl
     function supportsInterface(
         bytes4 interfaceId
@@ -115,9 +104,15 @@ contract DedicatedResolver is
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
-    /// @inheritdoc IOwnable
-    function owner() external view returns (address) {
-        return _storage().owner;
+    /// @dev Initialize the contract.
+    /// @param initialOwner The initial owner of the resolver.
+    function initialize(address initialOwner) external initializer {
+        if (initialOwner == address(0)) {
+            revert OwnableInvalidOwner(address(0));
+        }
+        _storage().owner = initialOwner;
+        emit OwnershipTransferred(address(0), initialOwner);
+        _grantRoles(ROOT_RESOURCE, DedicatedResolverLib.INITIAL_ROLES, initialOwner, false);
     }
 
     /// @inheritdoc IOwnable
@@ -323,6 +318,11 @@ contract DedicatedResolver is
     /// @inheritdoc IHasAddressResolver
     function hasAddr(bytes32, uint256 coinType) external view returns (bool) {
         return _storage().addresses[coinType].length > 0;
+    }
+
+    /// @inheritdoc IOwnable
+    function owner() external view returns (address) {
+        return _storage().owner;
     }
 
     /// @notice Perform multiple read or write operations.

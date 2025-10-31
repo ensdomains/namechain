@@ -478,12 +478,12 @@ contract DedicatedResolverTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-                DedicatedResolverLib.coinTypeResource(1),
+                DedicatedResolverLib.coinTypeResource(COIN_TYPE_DEFAULT),
                 DedicatedResolverLib.ROLE_SET_ADDR,
                 friend
             )
         );
         vm.prank(friend);
-        resolver.setAddr(1, testAddress);
+        resolver.setAddr(COIN_TYPE_DEFAULT, testAddress);
     }
 }

@@ -27,12 +27,12 @@ interface IOwnable {
     // Functions
     ////////////////////////////////////////////////////////////////////////
 
-    /// @notice Returns the address of the current owner.
-    function owner() external view returns (address);
-
     /// @notice Transfers ownership of the contract to a new account.
     function transferOwnership(address newOwner) external;
 
     /// @notice Leaves the contract without owner.
     function renounceOwnership() external;
+
+    /// @notice Returns the address of the current owner.
+    function owner() external view returns (address);
 }

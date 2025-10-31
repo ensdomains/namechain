@@ -14,7 +14,8 @@ library DedicatedResolverLib {
         address owner;
     }
 
-    uint256 public constant NAMED_SLOT = uint256(keccak256("ens.resolver.dedicated")) - 1;
+    uint256 public constant NAMED_SLOT =
+        uint256(keccak256("eth.ens.storage.DedicatedResolver")) - 1;
 
     uint256 public constant SLOT_ADDRESSES = NAMED_SLOT; // addresses
     uint256 public constant SLOT_TEXTS = NAMED_SLOT + 1; // texts
