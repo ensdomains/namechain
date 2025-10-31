@@ -15,7 +15,7 @@ import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
-import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
+import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 
 contract RootRegistryTest is Test, ERC1155Holder {
     event TransferSingle(
@@ -34,7 +34,7 @@ contract RootRegistryTest is Test, ERC1155Holder {
     );
 
     RegistryDatastore datastore;
-    MockPermissionedRegistry registry;
+    PermissionedRegistry registry;
     SimpleRegistryMetadata metadata;
 
     // Hardcoded role constants
@@ -57,7 +57,7 @@ contract RootRegistryTest is Test, ERC1155Holder {
         metadata = new SimpleRegistryMetadata();
         // Use the valid ALL_ROLES value for deployer roles
         uint256 deployerRoles = EACBaseRolesLib.ALL_ROLES;
-        registry = new MockPermissionedRegistry(datastore, metadata, address(this), deployerRoles);
+        registry = new PermissionedRegistry(datastore, metadata, address(this), deployerRoles);
         metadata.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, address(registry));
     }
 
@@ -72,21 +72,19 @@ contract RootRegistryTest is Test, ERC1155Holder {
         );
         assertTrue(
             registry.hasRoles(
-                registry.testGetResourceFromTokenId(tokenId),
+                registry.getResource(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 owner
             )
         );
         assertTrue(
             registry.hasRoles(
-                registry.testGetResourceFromTokenId(tokenId),
+                registry.getResource(tokenId),
                 RegistryRolesLib.ROLE_SET_RESOLVER,
                 owner
             )
         );
-        assertTrue(
-            registry.hasRoles(registry.testGetResourceFromTokenId(tokenId), ROLE_SET_FLAGS, owner)
-        );
+        assertTrue(registry.hasRoles(registry.getResource(tokenId), ROLE_SET_FLAGS, owner));
     }
 
     function test_register_locked_resolver_and_subregistry() public {
@@ -100,21 +98,19 @@ contract RootRegistryTest is Test, ERC1155Holder {
         );
         assertTrue(
             registry.hasRoles(
-                registry.testGetResourceFromTokenId(tokenId),
+                registry.getResource(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 owner
             )
         );
         assertTrue(
             registry.hasRoles(
-                registry.testGetResourceFromTokenId(tokenId),
+                registry.getResource(tokenId),
                 RegistryRolesLib.ROLE_SET_RESOLVER,
                 owner
             )
         );
-        assertFalse(
-            registry.hasRoles(registry.testGetResourceFromTokenId(tokenId), ROLE_SET_FLAGS, owner)
-        );
+        assertFalse(registry.hasRoles(registry.getResource(tokenId), ROLE_SET_FLAGS, owner));
     }
 
     function test_register_locked_subregistry() public {
@@ -128,21 +124,19 @@ contract RootRegistryTest is Test, ERC1155Holder {
         );
         assertFalse(
             registry.hasRoles(
-                registry.testGetResourceFromTokenId(tokenId),
+                registry.getResource(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 owner
             )
         );
         assertTrue(
             registry.hasRoles(
-                registry.testGetResourceFromTokenId(tokenId),
+                registry.getResource(tokenId),
                 RegistryRolesLib.ROLE_SET_RESOLVER,
                 owner
             )
         );
-        assertTrue(
-            registry.hasRoles(registry.testGetResourceFromTokenId(tokenId), ROLE_SET_FLAGS, owner)
-        );
+        assertTrue(registry.hasRoles(registry.getResource(tokenId), ROLE_SET_FLAGS, owner));
     }
 
     function test_register_locked_resolver() public {
@@ -156,21 +150,19 @@ contract RootRegistryTest is Test, ERC1155Holder {
         );
         assertTrue(
             registry.hasRoles(
-                registry.testGetResourceFromTokenId(tokenId),
+                registry.getResource(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 owner
             )
         );
         assertFalse(
             registry.hasRoles(
-                registry.testGetResourceFromTokenId(tokenId),
+                registry.getResource(tokenId),
                 RegistryRolesLib.ROLE_SET_RESOLVER,
                 owner
             )
         );
-        assertTrue(
-            registry.hasRoles(registry.testGetResourceFromTokenId(tokenId), ROLE_SET_FLAGS, owner)
-        );
+        assertTrue(registry.hasRoles(registry.getResource(tokenId), ROLE_SET_FLAGS, owner));
     }
 
     function test_set_subregistry() public {
@@ -201,7 +193,7 @@ contract RootRegistryTest is Test, ERC1155Holder {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-                registry.testGetResourceFromTokenId(tokenId),
+                registry.getResource(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 unauthorizedCaller
             )
@@ -238,7 +230,7 @@ contract RootRegistryTest is Test, ERC1155Holder {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-                registry.testGetResourceFromTokenId(tokenId),
+                registry.getResource(tokenId),
                 RegistryRolesLib.ROLE_SET_RESOLVER,
                 unauthorizedCaller
             )
@@ -273,21 +265,19 @@ contract RootRegistryTest is Test, ERC1155Holder {
         // Verify roles were granted
         assertTrue(
             registry.hasRoles(
-                registry.testGetResourceFromTokenId(tokenId),
+                registry.getResource(tokenId),
                 RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 owner
             )
         );
         assertTrue(
             registry.hasRoles(
-                registry.testGetResourceFromTokenId(tokenId),
+                registry.getResource(tokenId),
                 RegistryRolesLib.ROLE_SET_RESOLVER,
                 owner
             )
         );
-        assertTrue(
-            registry.hasRoles(registry.testGetResourceFromTokenId(tokenId), ROLE_SET_FLAGS, owner)
-        );
+        assertTrue(registry.hasRoles(registry.getResource(tokenId), ROLE_SET_FLAGS, owner));
 
         // Verify subregistry was set
         vm.assertEq(address(registry.getSubregistry(label)), address(registry));
