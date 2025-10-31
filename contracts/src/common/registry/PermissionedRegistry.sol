@@ -5,6 +5,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
 import {IEnhancedAccessControl} from "../access-control/interfaces/IEnhancedAccessControl.sol";
+import {EACBaseRolesLib} from "../access-control/libraries/EACBaseRolesLib.sol";
 import {ERC1155Singleton} from "../erc1155/ERC1155Singleton.sol";
 import {IERC1155Singleton} from "../erc1155/interfaces/IERC1155Singleton.sol";
 import {LibLabel} from "../utils/LibLabel.sol";
@@ -404,17 +405,53 @@ contract PermissionedRegistry is
         }
     }
 
-    /**
-     * @dev Regenerate a token.
-     */
-    function _regenerateToken(uint256 tokenId, address owner) internal {
-        _burn(owner, tokenId, 1);
-        (IRegistryDatastore.Entry memory entry, uint256 canonicalId) = _getEntry(tokenId);
-        entry.tokenVersionId = entry.tokenVersionId + 1;
-        uint256 newTokenId = _generateTokenId(canonicalId, entry);
-        _mint(owner, newTokenId, 1, "");
+    function _isUniqueControl(
+        uint256 tokenResource,
+        address owner
+    ) internal view returns (bool uniqueRoles, bool uniqueAdmin, bool emancipated) {
+        uint256 tokenCount = super.roleCount(tokenResource);
+        uint256 tokenRoles = super.roles(tokenResource, owner);
+        uniqueRoles = tokenCount == tokenRoles;
+        uniqueAdmin = EACBaseRolesLib.lower(tokenCount ^ tokenRoles) == 0;
+        emancipated =
+            uniqueAdmin &&
+            EACBaseRolesLib.lower(
+                tokenRoles & EACBaseRolesLib.fromCount(super.roleCount(ROOT_RESOURCE))
+            ) ==
+            0;
+    }
 
-        emit TokenRegenerated(tokenId, newTokenId);
+    function isUniqueControl(uint256 tokenId) external view returns (bool, bool, bool) {
+        return _isUniqueControl(_getResourceFromTokenId(tokenId), ownerOf(tokenId));
+    }
+
+    /// @dev Reset EAC, if possible.
+    function resetControl(uint256 tokenId) external onlyTokenOwner(tokenId) {
+        address owner = _msgSender();
+        (IRegistryDatastore.Entry memory entry, uint256 canonicalId) = _getEntry(tokenId);
+        uint256 tokenResource = _constructTokenId(canonicalId, entry.eacVersionId);
+        (bool uniqueRoles, bool uniqueAdmin, ) = _isUniqueControl(tokenResource, owner);
+        require(uniqueAdmin, "there are other admins");
+        require(uniqueRoles, "already unique");
+        ++entry.eacVersionId;
+        tokenResource = _constructTokenId(canonicalId, entry.eacVersionId);
+        _setEntry(tokenId, entry);
+        _grantRoles(tokenResource, super.roles(tokenResource, owner), owner, false);
+        emit EACReset(tokenId, tokenResource);
+    }
+
+    /// @dev Regenerate a token, if necessary.
+    function _regenerateToken(uint256 tokenId, address owner) internal {
+        (IRegistryDatastore.Entry memory entry, uint256 canonicalId) = _getEntry(tokenId);
+        uint256 tokenResource = _constructTokenId(canonicalId, entry.eacVersionId);
+        (, bool uniqueAdmin, ) = _isUniqueControl(tokenResource, owner);
+        if (!uniqueAdmin) {
+            _burn(owner, tokenId, 1);
+            ++entry.tokenVersionId;
+            uint256 newTokenId = _generateTokenId(canonicalId, entry);
+            _mint(owner, newTokenId, 1, "");
+            emit TokenRegenerated(newTokenId, tokenResource);
+        }
     }
 
     /**
