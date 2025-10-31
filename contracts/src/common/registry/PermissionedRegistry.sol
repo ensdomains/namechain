@@ -79,10 +79,9 @@ contract PermissionedRegistry is
         if (!retain) {
             entry.resolver = address(0);
             entry.subregistry = address(0);
-            emit SubregistryUpdate(tokenId, address(0));
-            emit ResolverUpdate(tokenId, address(0));
         }
         _setEntry(tokenId, entry);
+        // NameBurned implies subregistry/resolver are set to address(0), we don't need to emit those explicitly
         emit NameBurned(tokenId, msg.sender);
     }
 
@@ -90,7 +89,7 @@ contract PermissionedRegistry is
         uint256 tokenId,
         IRegistry registry
     ) external override onlyNonExpiredTokenRoles(tokenId, RegistryRolesLib.ROLE_SET_SUBREGISTRY) {
-        DATASTORE.setSubregistry(LibLabel.getCanonicalId(tokenId), address(registry));
+        DATASTORE.setSubregistry(tokenId, address(registry));
         emit SubregistryUpdate(tokenId, address(registry));
     }
 
@@ -98,7 +97,7 @@ contract PermissionedRegistry is
         uint256 tokenId,
         address resolver
     ) external override onlyNonExpiredTokenRoles(tokenId, RegistryRolesLib.ROLE_SET_RESOLVER) {
-        DATASTORE.setResolver(LibLabel.getCanonicalId(tokenId), resolver);
+        DATASTORE.setResolver(tokenId, resolver);
         emit ResolverUpdate(tokenId, resolver);
     }
 
@@ -156,9 +155,8 @@ contract PermissionedRegistry is
         if (expires < entry.expiry) {
             revert CannotReduceExpiration(entry.expiry, expires);
         }
-        entry.expiry = expires;
-        _setEntry(tokenId, entry);
-        emit SubregistryUpdate(tokenId, entry.subregistry);
+
+        DATASTORE.setExpiry(tokenId, expires);
 
         ITokenObserver observer = tokenObservers[tokenId];
         if (address(observer) != address(0)) {
@@ -259,7 +257,7 @@ contract PermissionedRegistry is
      * @param entry The entry data to set.
      */
     function _setEntry(uint256 tokenId, IRegistryDatastore.Entry memory entry) internal {
-        DATASTORE.setEntry(LibLabel.getCanonicalId(tokenId), entry);
+        DATASTORE.setEntry(tokenId, entry);
     }
 
     /**
@@ -313,12 +311,14 @@ contract PermissionedRegistry is
             })
         );
 
+        // emit nameregistered before mint so we can determine this is a registry (in an indexer)
+        emit NameRegistered(tokenId, label, expires, msg.sender);
+
         _mint(owner, tokenId, 1, "");
         _grantRoles(_getResourceFromTokenId(tokenId), roleBitmap, owner, false);
 
+        emit SubregistryUpdate(tokenId, address(registry));
         emit ResolverUpdate(tokenId, resolver);
-
-        emit NameRegistered(tokenId, label, expires, owner);
 
         return tokenId;
     }
@@ -420,7 +420,6 @@ contract PermissionedRegistry is
     ) internal virtual returns (uint256 newTokenId) {
         newTokenId = _constructTokenId(canonicalId, entry.tokenVersionId);
         DATASTORE.setEntry(canonicalId, entry);
-        emit SubregistryUpdate(newTokenId, entry.subregistry);
     }
 
     /**
