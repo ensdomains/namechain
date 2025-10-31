@@ -25,7 +25,7 @@ import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
-import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
+import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 
 // Mock implementation of IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -52,7 +52,7 @@ contract MockBridge is IBridge {
 
 contract TestL2BridgeController is Test, ERC1155Holder {
     L2BridgeController controller;
-    MockPermissionedRegistry ethRegistry;
+    PermissionedRegistry ethRegistry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
     MockBridge bridge;
@@ -81,7 +81,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         bridge = new MockBridge();
 
         // Deploy ETH registry
-        ethRegistry = new MockPermissionedRegistry(
+        ethRegistry = new PermissionedRegistry(
             datastore,
             registryMetadata,
             address(this),
@@ -634,12 +634,6 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         // Scenario 2: Grant the missing roles, then add extra assignees
         uint256 resource2 = ethRegistry.getResource(tokenId2);
         ethRegistry.grantRoles(resource2, RegistryRolesLib.ROLE_SET_SUBREGISTRY, user);
-        ethRegistry.grantRolesDirect(
-            resource2,
-            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN,
-            user
-        );
-        ethRegistry.grantRolesDirect(resource2, RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN, user);
         address secondUser = address(0x999);
         ethRegistry.grantRoles(resource2, RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER, secondUser);
 

@@ -29,7 +29,7 @@ contract PermissionedRegistry is
     // Storage
     ////////////////////////////////////////////////////////////////////////
 
-    mapping(uint256 id => ITokenObserver observer) public tokenObservers;
+    mapping(uint256 tokenId => ITokenObserver observer) public tokenObservers;
 
     ////////////////////////////////////////////////////////////////////////
     // Initialization
@@ -62,13 +62,13 @@ contract PermissionedRegistry is
             id,
             RegistryRolesLib.ROLE_BURN
         );
-        _burn(super.ownerOf(tokenId), tokenId, 1);
+        _burn(super.ownerOf(tokenId), tokenId, 1); // skip expiry check
         entry.expiry = 0;
         entry.resolver = address(0);
         entry.subregistry = address(0);
-        _setEntry(id, entry);
+        DATASTORE.setEntry(id, entry);
         // NameBurned implies subregistry/resolver are set to address(0), we don't need to emit those explicitly
-        emit NameBurned(tokenId, _msgSender());
+        emit NameBurned(tokenId, msg.sender);
     }
 
     function setSubregistry(uint256 id, IRegistry registry) external override {
@@ -77,7 +77,7 @@ contract PermissionedRegistry is
             RegistryRolesLib.ROLE_SET_SUBREGISTRY
         );
         entry.subregistry = address(registry);
-        _setEntry(tokenId, entry);
+        DATASTORE.setEntry(tokenId, entry);
         emit SubregistryUpdate(tokenId, address(registry));
     }
 
@@ -87,13 +87,8 @@ contract PermissionedRegistry is
             RegistryRolesLib.ROLE_SET_RESOLVER
         );
         entry.resolver = resolver;
-        _setEntry(tokenId, entry);
+        DATASTORE.setEntry(tokenId, entry);
         emit ResolverUpdate(tokenId, resolver);
-    }
-
-    /// @inheritdoc IPermissionedRegistry
-    function latestOwnerOf(uint256 tokenId) external view returns (address) {
-        return super.ownerOf(tokenId);
     }
 
     function getSubregistry(
@@ -145,12 +140,12 @@ contract PermissionedRegistry is
             revert CannotReduceExpiration(entry.expiry, expires);
         }
         entry.expiry = expires;
-        _setEntry(tokenId, entry);
+        DATASTORE.setEntry(tokenId, entry);
         ITokenObserver observer = tokenObservers[tokenId];
         if (address(observer) != address(0)) {
-            observer.onRenew(tokenId, expires, _msgSender());
+            observer.onRenew(tokenId, expires, msg.sender);
         }
-        emit NameRenewed(tokenId, expires, _msgSender());
+        emit NameRenewed(tokenId, expires, msg.sender);
     }
 
     function grantRoles(
@@ -196,6 +191,12 @@ contract PermissionedRegistry is
         tokenId = _constructTokenId(id, entry);
     }
 
+    /// @inheritdoc IPermissionedRegistry
+    function latestOwnerOf(uint256 tokenId) public view virtual returns (address) {
+        return super.ownerOf(tokenId);
+    }
+
+    /// @inheritdoc IERC1155Singleton
     function ownerOf(
         uint256 id
     ) public view virtual override(ERC1155Singleton, IERC1155Singleton) returns (address) {
@@ -207,35 +208,35 @@ contract PermissionedRegistry is
     // Enhanced access control methods adapted for token-based resources
 
     function roles(
-        uint256 tokenId,
+        uint256 id,
         address account
     ) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (uint256) {
-        return super.roles(getResource(tokenId), account);
+        return super.roles(getResource(id), account);
     }
 
     function roleCount(
-        uint256 tokenId
+        uint256 id
     ) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (uint256) {
-        return super.roleCount(getResource(tokenId));
+        return super.roleCount(getResource(id));
     }
 
     function hasRoles(
-        uint256 tokenId,
+        uint256 id,
         uint256 rolesBitmap,
         address account
     ) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (bool) {
-        return super.hasRoles(getResource(tokenId), rolesBitmap, account);
+        return super.hasRoles(getResource(id), rolesBitmap, account);
     }
 
     function hasAssignees(
-        uint256 tokenId,
+        uint256 id,
         uint256 roleBitmap
     ) public view override(EnhancedAccessControl, IEnhancedAccessControl) returns (bool) {
-        return super.hasAssignees(getResource(tokenId), roleBitmap);
+        return super.hasAssignees(getResource(id), roleBitmap);
     }
 
     function getAssigneeCount(
-        uint256 tokenId,
+        uint256 id,
         uint256 roleBitmap
     )
         public
@@ -243,21 +244,12 @@ contract PermissionedRegistry is
         override(EnhancedAccessControl, IEnhancedAccessControl)
         returns (uint256 counts, uint256 mask)
     {
-        return super.getAssigneeCount(getResource(tokenId), roleBitmap);
+        return super.getAssigneeCount(getResource(id), roleBitmap);
     }
 
     ////////////////////////////////////////////////////////////////////////
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
-
-    /**
-     * @dev Sets an entry in the datastore using a token ID.
-     * @param tokenId The token ID to set the entry for.
-     * @param entry The entry data to set.
-     */
-    function _setEntry(uint256 tokenId, IRegistryDatastore.Entry memory entry) internal {
-        DATASTORE.setEntry(tokenId, entry);
-    }
 
     /**
      * @dev Internal register method that takes string memory and performs the actual registration logic.
@@ -282,18 +274,12 @@ contract PermissionedRegistry is
         if (!_isExpired(entry.expiry)) {
             revert NameAlreadyRegistered(label);
         }
-
         if (_isExpired(expires)) {
             revert CannotSetPastExpiration(expires);
         }
-
-        // if there is a previous owner, burn the token and increment the acl version id
         tokenId = _constructTokenId(tokenId, entry);
         if (entry.expiry > 0) {
-            address previousOwner = super.ownerOf(tokenId);
-            if (previousOwner != address(0)) {
-                _burn(previousOwner, tokenId, 1);
-            }
+            _burn(super.ownerOf(tokenId), tokenId, 1); // nonzero by construction
             ++entry.eacVersionId;
             ++entry.tokenVersionId;
             tokenId = _constructTokenId(tokenId, entry);
@@ -319,33 +305,32 @@ contract PermissionedRegistry is
     function _update(
         address from,
         address to,
-        uint256[] memory ids,
+        uint256[] memory tokenIds,
         uint256[] memory values
     ) internal virtual override {
         // Check ROLE_CAN_TRANSFER for actual transfers only
         // Skip check for mints (from == address(0)) and burns (to == address(0))
         if (from != address(0) && to != address(0)) {
-            for (uint256 i = 0; i < ids.length; ++i) {
-                uint256 resource = getResource(ids[i]);
-                if (!hasRoles(resource, RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN, from)) {
-                    revert TransferDisallowed(ids[i], from);
+            for (uint256 i = 0; i < tokenIds.length; ++i) {
+                if (!hasRoles(tokenIds[i], RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN, from)) {
+                    revert TransferDisallowed(tokenIds[i], from);
                 }
             }
         }
 
-        super._update(from, to, ids, values);
+        super._update(from, to, tokenIds, values);
 
-        for (uint256 i = 0; i < ids.length; ++i) {
+        for (uint256 i = 0; i < tokenIds.length; ++i) {
             /*
             There are two use-cases for this logic:
 
             1) when transferring a name from one account to another we transfer all roles 
             from the old owner to the new owner.
 
-            2) in _regenerateTokenToken, we burn the token and then mint a new one. This flow below ensures 
+            2) in _regenerateToken, we burn the token and then mint a new one. This flow below ensures 
             the roles go from owner => zeroAddr => owner during this process.
             */
-            _transferRoles(getResource(ids[i]), from, to, false);
+            _transferRoles(getResource(tokenIds[i]), from, to, false);
         }
     }
 
@@ -375,14 +360,12 @@ contract PermissionedRegistry is
         _regenerateToken(resource);
     }
 
-    /**
-     * @dev Regenerate a token.
-     */
+    /// @dev Bump `tokenVersionId` via burn+mint if token is not expired.
     function _regenerateToken(uint256 id) internal {
         IRegistryDatastore.Entry memory entry = getEntry(id);
         if (!_isExpired(entry.expiry)) {
             uint256 tokenId = _constructTokenId(id, entry);
-            address owner = super.ownerOf(tokenId);
+            address owner = super.ownerOf(tokenId); // skip expiry check
             if (owner != address(0)) {
                 _burn(owner, tokenId, 1);
                 ++entry.tokenVersionId;
@@ -394,6 +377,7 @@ contract PermissionedRegistry is
         }
     }
 
+    /// @dev Assert caller has necessary roles and token is not expired.
     function _checkTokenRolesAndExpiry(
         uint256 id,
         uint256 roleBitmap
@@ -407,11 +391,12 @@ contract PermissionedRegistry is
     }
 
     /// @dev Internal logic for expired status.
-    /// @notice Only use of `block.timestamp`.
+    ///      Only use of `block.timestamp`.
     function _isExpired(uint64 expires) internal view returns (bool) {
         return block.timestamp >= expires;
     }
 
+    /// @dev Create `tokenId` from parts.
     function _constructTokenId(
         uint256 id,
         IRegistryDatastore.Entry memory entry
@@ -419,6 +404,7 @@ contract PermissionedRegistry is
         return LibLabel.getCanonicalId(id) | entry.tokenVersionId;
     }
 
+    /// @dev Create `resource` from parts.
     function _constructResource(
         uint256 id,
         IRegistryDatastore.Entry memory entry

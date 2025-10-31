@@ -35,7 +35,7 @@ import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1LockedMigrationController} from "~src/L1/migration/L1LockedMigrationController.sol";
 import {LockedNamesLib} from "~src/L1/migration/libraries/LockedNamesLib.sol";
 import {MigratedWrappedNameRegistry} from "~src/L1/registry/MigratedWrappedNameRegistry.sol";
-import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
+import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 
 contract MockNameWrapper {
     mapping(uint256 tokenId => uint32 fuses) public fuses;
@@ -99,7 +99,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
     L1BridgeController bridgeController;
     RegistryDatastore datastore;
     MockRegistryMetadata metadata;
-    MockPermissionedRegistry registry;
+    PermissionedRegistry registry;
     VerifiableFactory factory;
     MigratedWrappedNameRegistry implementation;
 
@@ -126,12 +126,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         );
 
         // Setup eth registry
-        registry = new MockPermissionedRegistry(
-            datastore,
-            metadata,
-            owner,
-            EACBaseRolesLib.ALL_ROLES
-        );
+        registry = new PermissionedRegistry(datastore, metadata, owner, EACBaseRolesLib.ALL_ROLES);
 
         // Setup bridge controller
         bridgeController = new L1BridgeController(registry, bridge);
