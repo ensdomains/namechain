@@ -18,6 +18,19 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
         ROOT_REGISTRY = root;
     }
 
+    /// @notice Find all registries in the ancestry of `name`.
+    /// * `findRegistries("") = [<root>]`
+    /// * `findRegistries("eth") = [<eth>, <root>]`
+    /// * `findRegistries("nick.eth") = [<nick>, <eth>, <root>]`
+    /// * `findRegistries("sub.nick.eth") = [null, <nick>, <eth>, <root>]`
+    ///
+    /// @param name The DNS-encoded name.
+    ///
+    /// @return Array of registries in label-order.
+    function findRegistries(bytes calldata name) external view returns (IRegistry[] memory) {
+        return LibRegistry.findRegistries(ROOT_REGISTRY, name, 0);
+    }
+
     /// @inheritdoc AbstractUniversalResolver
     function findResolver(
         bytes memory name

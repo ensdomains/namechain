@@ -34,7 +34,7 @@ library LibRegistry {
         (exactRegistry, resolver, node, resolverOffset) = findResolver(rootRegistry, name, next);
         // if there was a parent registry...
         if (address(exactRegistry) != address(0)) {
-            string memory label = readLabel(name, offset);
+            (string memory label, ) = NameCoder.extractLabel(name, offset);
             // remember the resolver (if it exists)
             address res = exactRegistry.getResolver(label);
             if (res != address(0)) {
@@ -63,7 +63,7 @@ library LibRegistry {
         }
         IRegistry parent = findExactRegistry(rootRegistry, name, next);
         if (address(parent) != address(0)) {
-            string memory label = readLabel(name, offset);
+            (string memory label, ) = NameCoder.extractLabel(name, offset);
             exactRegistry = parent.getSubregistry(label);
         }
     }
@@ -85,21 +85,38 @@ library LibRegistry {
         }
     }
 
-    /// @dev Read label at offset from a DNS-encoded name.
-    ///      eg. `readLabel("\x03abc\x00", 0) = "abc"`.
+    /// @notice Find all registries in the ancestry of `name`.
     ///
+    /// @param rootRegistry The root ENS registry.
     /// @param name The DNS-encoded name.
-    /// @param offset The offset into `name`.
+    /// @param offset The offset into `name` to begin the search.
     ///
-    /// @return label The label.
-    function readLabel(
+    /// @return registries Array of registries in label-order.
+    function findRegistries(
+        IRegistry rootRegistry,
         bytes memory name,
         uint256 offset
-    ) internal pure returns (string memory label) {
-        (uint8 size, ) = NameCoder.nextLabel(name, offset);
-        label = new string(size);
-        assembly {
-            mcopy(add(label, 32), add(add(name, 33), offset), size)
+    ) internal view returns (IRegistry[] memory registries) {
+        registries = new IRegistry[](1 + NameCoder.countLabels(name, offset));
+        registries[registries.length - 1] = rootRegistry;
+        _findRegistries(name, offset, registries, 0);
+    }
+
+    /// @dev Recursive function for building ancestory.
+    function _findRegistries(
+        bytes memory name,
+        uint256 offset,
+        IRegistry[] memory registries,
+        uint256 index
+    ) private view returns (IRegistry registry) {
+        (string memory label, uint256 nextOffset) = NameCoder.extractLabel(name, offset);
+        if (bytes(label).length == 0) {
+            return registries[registries.length - 1];
+        }
+        registry = _findRegistries(name, nextOffset, registries, index + 1);
+        if (address(registry) != address(0)) {
+            registry = registry.getSubregistry(label);
+            registries[index] = registry;
         }
     }
 }

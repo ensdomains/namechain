@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
 import {EjectionController} from "../../common/bridge/EjectionController.sol";
 import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
@@ -53,7 +55,7 @@ contract L1BridgeController is EjectionController {
     function completeEjectionToL1(
         TransferData memory transferData
     ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) returns (uint256 tokenId) {
-        string memory label = LibLabel.extractLabel(transferData.dnsEncodedName);
+        string memory label = NameCoder.firstLabel(transferData.dnsEncodedName);
 
         tokenId = REGISTRY.register(
             label,
@@ -113,8 +115,8 @@ contract L1BridgeController is EjectionController {
             // check that the label matches the token id
             _assertTokenIdMatchesLabel(tokenId, transferData.dnsEncodedName);
 
-            // burn the token
-            REGISTRY.burn(tokenId);
+            // burn the token but keep the registry/resolver
+            REGISTRY.burn(tokenId, true);
 
             // send the message to the bridge
             BRIDGE.sendMessage(BridgeEncoderLib.encodeEjection(transferData));

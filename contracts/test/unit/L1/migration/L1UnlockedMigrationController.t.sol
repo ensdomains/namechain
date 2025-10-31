@@ -5,6 +5,7 @@ pragma solidity >=0.8.13;
 
 import {Test, Vm} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
@@ -127,7 +128,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         return
             MigrationData({
                 transferData: TransferData({
-                    dnsEncodedName: LibLabel.dnsEncodeEthLabel(label),
+                    dnsEncodedName: NameCoder.ethName(label),
                     owner: address(0),
                     subregistry: address(0),
                     resolver: address(0),
@@ -149,7 +150,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         return
             MigrationData({
                 transferData: TransferData({
-                    dnsEncodedName: LibLabel.dnsEncodeEthLabel(label),
+                    dnsEncodedName: NameCoder.ethName(label),
                     owner: address(0x1111),
                     subregistry: address(0x2222),
                     resolver: address(0x3333),
@@ -188,7 +189,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
                 (TransferData memory decodedTransferData) = BridgeEncoderLib.decodeEjection(
                     message
                 );
-                string memory decodedLabel = LibLabel.extractLabel(
+                string memory decodedLabel = NameCoder.firstLabel(
                     decodedTransferData.dnsEncodedName
                 );
                 if (keccak256(bytes(decodedLabel)) == keccak256(bytes(expectedLabel))) {
@@ -232,7 +233,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
                 (TransferData memory decodedTransferData) = BridgeEncoderLib.decodeEjection(
                     message
                 );
-                string memory decodedLabel = LibLabel.extractLabel(
+                string memory decodedLabel = NameCoder.firstLabel(
                     decodedTransferData.dnsEncodedName
                 );
                 uint256 emittedTokenId = uint256(keccak256(bytes(decodedLabel)));

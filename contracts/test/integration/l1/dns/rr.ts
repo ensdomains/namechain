@@ -1,5 +1,5 @@
-import { type ByteArray, concat, stringToBytes, toHex } from "viem";
-import { packetToBytes } from "../../../utils/utils.js";
+import { type ByteArray, concat, hexToBytes, stringToBytes, toHex } from "viem";
+import { dnsEncodeName } from "../../../utils/utils.ts";
 
 export type RR = {
   name: ByteArray;
@@ -34,7 +34,7 @@ export function encodeRRs(rr: RR[]) {
 
 export function makeTXT(name: string, txt: string): RR {
   return {
-    name: packetToBytes(name),
+    name: hexToBytes(dnsEncodeName(name)),
     class: 1, // CLASS_INET
     type: 16, // QTYPE_TXT
     data: encodeTXT(txt),
