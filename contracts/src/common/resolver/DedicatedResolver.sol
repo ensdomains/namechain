@@ -16,15 +16,20 @@ import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
+import {IOwnable} from "../access-control/interfaces/IOwnable.sol";
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
 
 import {IDedicatedResolverSetters, NODE_ANY} from "./interfaces/IDedicatedResolverSetters.sol";
 import {DedicatedResolverLib} from "./libraries/DedicatedResolverLib.sol";
 
-/// @title DedicatedResolver
+// TODO: upgrades
+
 /// @notice An owned resolver that provides the same results for any name.
 contract DedicatedResolver is
+    Initializable,
+    IOwnable,
     EnhancedAccessControl,
     IDedicatedResolverSetters,
     IERC7996,
@@ -53,13 +58,29 @@ contract DedicatedResolver is
     error InvalidContentType(uint256 contentType);
 
     ////////////////////////////////////////////////////////////////////////
+    // Modifiers
+    ////////////////////////////////////////////////////////////////////////
+
+    modifier rootOrResourceRoles(uint256 resource, uint256 roleBitmap) {
+        if (!hasRoles(ROOT_RESOURCE, roleBitmap, _msgSender())) {
+            _checkRoles(resource, roleBitmap, _msgSender());
+        }
+        _;
+    }
+
+    ////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
     /// @dev Initialize the contract.
-    /// @param owner The owner of the resolver.
-    function initialize(address owner) public {
-        _grantRoles(ROOT_RESOURCE, DedicatedResolverLib.INITIAL_ROLES, owner, false);
+    /// @param initialOwner The initial owner of the resolver.
+    function initialize(address initialOwner) external initializer {
+        if (initialOwner == address(0)) {
+            revert OwnableInvalidOwner(address(0));
+        }
+        _storage().owner = initialOwner;
+        emit OwnershipTransferred(address(0), initialOwner);
+        _grantRoles(ROOT_RESOURCE, DedicatedResolverLib.INITIAL_ROLES, initialOwner, false);
     }
 
     /// @inheritdoc EnhancedAccessControl
@@ -80,6 +101,7 @@ contract DedicatedResolver is
             type(IABIResolver).interfaceId == interfaceId ||
             type(IInterfaceResolver).interfaceId == interfaceId ||
             type(IERC7996).interfaceId == interfaceId ||
+            type(IOwnable).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -93,12 +115,46 @@ contract DedicatedResolver is
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
+    /// @inheritdoc IOwnable
+    function owner() external view returns (address) {
+        return _storage().owner;
+    }
+
+    /// @inheritdoc IOwnable
+    function transferOwnership(
+        address newOwner
+    ) external onlyRootRoles(DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN) {
+        DedicatedResolverLib.Storage storage $ = _storage();
+        address oldOwner = $.owner;
+        $.owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
+        _transferRoles(ROOT_RESOURCE, oldOwner, newOwner, false);
+    }
+
+    /// @inheritdoc IOwnable
+    function renounceOwnership()
+        external
+        onlyRootRoles(DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN)
+    {
+        DedicatedResolverLib.Storage storage $ = _storage();
+        address oldOwner = $.owner;
+        $.owner = address(0);
+        emit OwnershipTransferred(oldOwner, address(0));
+        _revokeAllRoles(ROOT_RESOURCE, oldOwner, false);
+    }
+
     /// @inheritdoc IDedicatedResolverSetters
     function setText(
         string calldata key,
         string calldata value
-    ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_TEXT) {
-        _layout().texts[key] = value;
+    )
+        external
+        rootOrResourceRoles(
+            DedicatedResolverLib.textResource(key),
+            DedicatedResolverLib.ROLE_SET_TEXT
+        )
+    {
+        _storage().texts[key] = value;
         emit TextChanged(NODE_ANY, key, key, value);
     }
 
@@ -106,7 +162,7 @@ contract DedicatedResolver is
     function setContenthash(
         bytes calldata hash
     ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_CONTENTHASH) {
-        _layout().contenthash = hash;
+        _storage().contenthash = hash;
         emit ContenthashChanged(NODE_ANY, hash);
     }
 
@@ -115,7 +171,7 @@ contract DedicatedResolver is
         bytes32 x,
         bytes32 y
     ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_PUBKEY) {
-        _layout().pubkey = [x, y];
+        _storage().pubkey = [x, y];
         emit PubkeyChanged(NODE_ANY, x, y);
     }
 
@@ -127,7 +183,7 @@ contract DedicatedResolver is
         if (!_isPowerOf2(contentType)) {
             revert InvalidContentType(contentType);
         }
-        _layout().abis[contentType] = data;
+        _storage().abis[contentType] = data;
         emit ABIChanged(NODE_ANY, contentType);
     }
 
@@ -136,7 +192,7 @@ contract DedicatedResolver is
         bytes4 interfaceId,
         address implementer
     ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_INTERFACE) {
-        _layout().interfaces[interfaceId] = implementer;
+        _storage().interfaces[interfaceId] = implementer;
         emit InterfaceChanged(NODE_ANY, interfaceId, implementer);
     }
 
@@ -144,7 +200,7 @@ contract DedicatedResolver is
     function setName(
         string calldata name_
     ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_NAME) {
-        _layout().name = name_;
+        _storage().name = name_;
         emit NameChanged(NODE_ANY, name_);
     }
 
@@ -152,13 +208,19 @@ contract DedicatedResolver is
     function setAddr(
         uint256 coinType,
         bytes calldata addressBytes
-    ) external onlyRootRoles(DedicatedResolverLib.ROLE_SET_ADDR) {
+    )
+        external
+        rootOrResourceRoles(
+            DedicatedResolverLib.coinTypeResource(coinType),
+            DedicatedResolverLib.ROLE_SET_ADDR
+        )
+    {
         if (
             addressBytes.length != 0 && addressBytes.length != 20 && ENSIP19.isEVMCoinType(coinType)
         ) {
             revert InvalidEVMAddress(addressBytes);
         }
-        _layout().addresses[coinType] = addressBytes;
+        _storage().addresses[coinType] = addressBytes;
         emit AddressChanged(NODE_ANY, coinType, addressBytes);
         if (coinType == COIN_TYPE_ETH) {
             emit AddrChanged(NODE_ANY, address(bytes20(addressBytes)));
@@ -185,7 +247,7 @@ contract DedicatedResolver is
     function resolve(bytes calldata, bytes calldata data) external view returns (bytes memory) {
         (bool ok, bytes memory v) = address(this).staticcall(data);
         if (!ok) {
-            assembly ("memory-safe") {
+            assembly {
                 revert(add(v, 32), mload(v))
             }
         } else if (v.length == 0) {
@@ -198,21 +260,22 @@ contract DedicatedResolver is
     /// @param key The key.
     /// @return The text value.
     function text(bytes32, string calldata key) external view returns (string memory) {
-        return _layout().texts[key];
+        return _storage().texts[key];
     }
 
     /// @notice Get the content hash.
     /// @return The contenthash.
     function contenthash(bytes32) external view returns (bytes memory) {
-        return _layout().contenthash;
+        return _storage().contenthash;
     }
 
     /// @dev Get the public key.
     /// @return x The x coordinate of the public key.
     /// @return y The y coordinate of the public key.
     function pubkey(bytes32) external view returns (bytes32 x, bytes32 y) {
-        x = _layout().pubkey[0];
-        y = _layout().pubkey[1];
+        DedicatedResolverLib.Storage storage $ = _storage();
+        x = $.pubkey[0];
+        y = $.pubkey[1];
     }
 
     /// @dev Get the first ABI for the specified content types.
@@ -223,9 +286,10 @@ contract DedicatedResolver is
         bytes32,
         uint256 contentTypes
     ) external view returns (uint256 contentType, bytes memory data) {
+        DedicatedResolverLib.Storage storage $ = _storage();
         for (contentType = 1; contentType > 0 && contentType <= contentTypes; contentType <<= 1) {
             if ((contentType & contentTypes) != 0) {
-                data = _layout().abis[contentType];
+                data = $.abis[contentType];
                 if (data.length > 0) {
                     return (contentType, data);
                 }
@@ -241,7 +305,7 @@ contract DedicatedResolver is
         bytes32,
         bytes4 interfaceId
     ) external view returns (address implementer) {
-        implementer = _layout().interfaces[interfaceId];
+        implementer = _storage().interfaces[interfaceId];
         if (
             implementer == address(0) &&
             ERC165Checker.supportsInterface(addr(NODE_ANY), interfaceId)
@@ -253,12 +317,12 @@ contract DedicatedResolver is
     /// @dev Get the primary name.
     /// @return The primary name.
     function name(bytes32) external view returns (string memory) {
-        return _layout().name;
+        return _storage().name;
     }
 
     /// @inheritdoc IHasAddressResolver
     function hasAddr(bytes32, uint256 coinType) external view returns (bool) {
-        return _layout().addresses[coinType].length > 0;
+        return _storage().addresses[coinType].length > 0;
     }
 
     /// @notice Perform multiple read or write operations.
@@ -278,9 +342,10 @@ contract DedicatedResolver is
     /// @param coinType The coin type.
     /// @return addressBytes The address for the coin type.
     function addr(bytes32, uint256 coinType) public view returns (bytes memory addressBytes) {
-        addressBytes = _layout().addresses[coinType];
+        DedicatedResolverLib.Storage storage $ = _storage();
+        addressBytes = $.addresses[coinType];
         if (addressBytes.length == 0 && ENSIP19.chainFromCoinType(coinType) > 0) {
-            addressBytes = _layout().addresses[COIN_TYPE_DEFAULT];
+            addressBytes = $.addresses[COIN_TYPE_DEFAULT];
         }
     }
 
@@ -299,8 +364,8 @@ contract DedicatedResolver is
         return x > 0 && (x - 1) & x == 0;
     }
 
-    /// @dev Access layout storage pointer.
-    function _layout() internal pure returns (DedicatedResolverLib.Layout storage layout) {
+    /// @dev Access storage pointer.
+    function _storage() internal pure returns (DedicatedResolverLib.Storage storage layout) {
         uint256 slot = DedicatedResolverLib.NAMED_SLOT;
         assembly {
             layout.slot := slot

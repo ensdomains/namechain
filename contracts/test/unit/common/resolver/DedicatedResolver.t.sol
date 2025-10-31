@@ -26,8 +26,13 @@ import {
     DedicatedResolver,
     DedicatedResolverLib,
     IDedicatedResolverSetters,
+    IOwnable,
     NODE_ANY
 } from "~src/common/resolver/DedicatedResolver.sol";
+import {EACBaseRolesLib} from "~src/common/access-control/libraries/EACBaseRolesLib.sol";
+import {
+    IEnhancedAccessControl
+} from "~src/common/access-control/interfaces/IEnhancedAccessControl.sol";
 
 contract DedicatedResolverTest is Test {
     struct I {
@@ -36,7 +41,7 @@ contract DedicatedResolverTest is Test {
     }
     function _supportedInterfaces() internal pure returns (I[] memory v) {
         uint256 i;
-        v = new I[](13);
+        v = new I[](15);
         v[i++] = I(type(IExtendedResolver).interfaceId, "IExtendedResolver");
         v[i++] = I(type(IDedicatedResolverSetters).interfaceId, "IDedicatedResolverSetters");
         v[i++] = I(type(IMulticallable).interfaceId, "IMulticallable");
@@ -50,10 +55,13 @@ contract DedicatedResolverTest is Test {
         v[i++] = I(type(IABIResolver).interfaceId, "IABIResolver");
         v[i++] = I(type(IInterfaceResolver).interfaceId, "IInterfaceResolver");
         v[i++] = I(type(IERC7996).interfaceId, "IERC7996");
+        v[i++] = I(type(IOwnable).interfaceId, "IOwnable");
+        v[i++] = I(type(IEnhancedAccessControl).interfaceId, "IEnhancedAccessControl");
         assertEq(v.length, i);
     }
 
     address owner = makeAddr("owner");
+    address friend = makeAddr("friend");
     DedicatedResolver resolver;
 
     string testName = "test.eth";
@@ -69,11 +77,7 @@ contract DedicatedResolverTest is Test {
         );
     }
 
-    function test_roles() external view {
-        assertTrue(resolver.hasRootRoles(DedicatedResolverLib.INITIAL_ROLES, owner));
-    }
-
-    function testFuzz_supportsInterface() external view {
+    function test_supportsInterface() external view {
         assertTrue(ERC165Checker.supportsERC165(address(resolver)), "ERC165");
         I[] memory v = _supportedInterfaces();
         for (uint256 i; i < v.length; i++) {
@@ -92,13 +96,104 @@ contract DedicatedResolverTest is Test {
         assertTrue(resolver.supportsFeature(ResolverFeatures.SINGULAR), "SINGULAR");
     }
 
+    function test_roles() external view {
+        assertTrue(resolver.hasRootRoles(DedicatedResolverLib.INITIAL_ROLES, owner));
+    }
+
+    function test_owner() external view {
+        assertEq(resolver.owner(), owner);
+    }
+
+    function test_transferOwnership() external {
+        uint256 roles = resolver.roles(0, owner);
+        vm.prank(owner);
+        resolver.transferOwnership(address(this));
+        assertEq(resolver.owner(), address(this), "owner");
+        assertEq(resolver.roles(0, address(this)), roles, "roles");
+    }
+
+    function test_transferOwnership_noRole() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                0,
+                DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN,
+                address(this)
+            )
+        );
+        resolver.transferOwnership(address(1));
+    }
+
+    function test_revokeOwnership() external {
+        vm.prank(owner);
+        resolver.renounceOwnership();
+        assertEq(resolver.owner(), address(0), "owner");
+        assertFalse(resolver.hasAssignees(0, EACBaseRolesLib.ADMIN_ROLES), "admins");
+    }
+
+    function test_revokeOwnership_noRole() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                0,
+                DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN,
+                address(this)
+            )
+        );
+        resolver.renounceOwnership();
+    }
+
+    function test_cannotGrantAdmin() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACCannotGrantRoles.selector,
+                0,
+                DedicatedResolverLib.ROLE_SET_ADDR_ADMIN,
+                owner
+            )
+        );
+        vm.prank(owner);
+        resolver.grantRootRoles(DedicatedResolverLib.ROLE_SET_ADDR_ADMIN, friend);
+    }
+
+    function test_canRevokeAdmin() external {
+        vm.prank(owner);
+        resolver.revokeRootRoles(DedicatedResolverLib.ROLE_SET_ADDR_ADMIN, owner);
+    }
+
+    function test_cannotTransferAfterRevoke() external {
+        vm.prank(owner);
+        resolver.revokeRootRoles(DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN, owner);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                0,
+                DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN,
+                owner
+            )
+        );
+        vm.prank(owner);
+        resolver.transferOwnership(address(1));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                0,
+                DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN,
+                owner
+            )
+        );
+        vm.prank(owner);
+        resolver.renounceOwnership();
+    }
+
     function testFuzz_setAddr(uint256 coinType, bytes memory addressBytes) external {
         if (ENSIP19.isEVMCoinType(coinType)) {
             addressBytes = vm.randomBool() ? vm.randomBytes(20) : new bytes(0);
         }
-        vm.startPrank(owner);
+        vm.prank(owner);
         resolver.setAddr(coinType, addressBytes);
-        vm.stopPrank();
 
         assertEq(resolver.addr(NODE_ANY, coinType), addressBytes, "immediate");
         bytes memory result = resolver.resolve(
@@ -112,9 +207,8 @@ contract DedicatedResolverTest is Test {
         vm.assume(chain < COIN_TYPE_DEFAULT);
         bytes memory a = vm.randomBytes(20);
 
-        vm.startPrank(owner);
+        vm.prank(owner);
         resolver.setAddr(COIN_TYPE_DEFAULT, a);
-        vm.stopPrank();
 
         assertEq(
             resolver.addr(NODE_ANY, chain == 1 ? COIN_TYPE_ETH : COIN_TYPE_DEFAULT | chain),
@@ -123,9 +217,8 @@ contract DedicatedResolverTest is Test {
     }
 
     function test_setAddr_zeroEVM() external {
-        vm.startPrank(owner);
+        vm.prank(owner);
         resolver.setAddr(COIN_TYPE_ETH, abi.encodePacked(address(0)));
-        vm.stopPrank();
 
         assertTrue(resolver.hasAddr(NODE_ANY, COIN_TYPE_ETH), "null");
         assertFalse(resolver.hasAddr(NODE_ANY, COIN_TYPE_DEFAULT), "unset");
@@ -168,9 +261,8 @@ contract DedicatedResolverTest is Test {
     }
 
     function testFuzz_setText(string memory key, string memory value) external {
-        vm.startPrank(owner);
+        vm.prank(owner);
         resolver.setText(key, value);
-        vm.stopPrank();
 
         assertEq(resolver.text(NODE_ANY, key), value, "immediate");
         bytes memory result = resolver.resolve(
@@ -186,9 +278,8 @@ contract DedicatedResolverTest is Test {
     }
 
     function test_setName(string memory name) external {
-        vm.startPrank(owner);
+        vm.prank(owner);
         resolver.setName(name);
-        vm.stopPrank();
 
         assertEq(resolver.name(NODE_ANY), name, "immediate");
         bytes memory result = resolver.resolve("", abi.encodeCall(INameResolver.name, (NODE_ANY)));
@@ -201,9 +292,8 @@ contract DedicatedResolverTest is Test {
     }
 
     function testFuzz_setContenthash(bytes memory v) external {
-        vm.startPrank(owner);
+        vm.prank(owner);
         resolver.setContenthash(v);
-        vm.stopPrank();
 
         assertEq(resolver.contenthash(NODE_ANY), v, "immediate");
         bytes memory result = resolver.resolve(
@@ -219,9 +309,8 @@ contract DedicatedResolverTest is Test {
     }
 
     function testFuzz_setPubkey(bytes32 x, bytes32 y) external {
-        vm.startPrank(owner);
+        vm.prank(owner);
         resolver.setPubkey(x, y);
-        vm.stopPrank();
 
         (bytes32 x_, bytes32 y_) = resolver.pubkey(NODE_ANY);
         assertEq(abi.encode(x_, y_), abi.encode(x, y), "immediate");
@@ -240,9 +329,8 @@ contract DedicatedResolverTest is Test {
     function testFuzz_setABI(uint8 bit, bytes memory data) external {
         uint256 contentType = 1 << bit;
 
-        vm.startPrank(owner);
+        vm.prank(owner);
         resolver.setABI(contentType, data);
-        vm.stopPrank();
 
         uint256 contentTypes = ~uint256(0);
         (uint256 contentType_, bytes memory data_) = resolver.ABI(NODE_ANY, contentTypes);
@@ -272,9 +360,8 @@ contract DedicatedResolverTest is Test {
     function testFuzz_setInterface(bytes4 interfaceId, address impl) external {
         vm.assume(!resolver.supportsInterface(interfaceId));
 
-        vm.startPrank(owner);
+        vm.prank(owner);
         resolver.setInterface(interfaceId, impl);
-        vm.stopPrank();
 
         assertEq(resolver.interfaceImplementer(NODE_ANY, interfaceId), impl, "immediate");
         bytes memory result = resolver.resolve(
@@ -285,9 +372,8 @@ contract DedicatedResolverTest is Test {
     }
 
     function test_interfaceImplementer_overlap() external {
-        vm.startPrank(owner);
+        vm.prank(owner);
         resolver.setAddr(COIN_TYPE_ETH, abi.encodePacked(resolver));
-        vm.stopPrank();
 
         I[] memory v = _supportedInterfaces();
         for (uint256 i; i < v.length; i++) {
@@ -309,9 +395,8 @@ contract DedicatedResolverTest is Test {
         calls[0] = abi.encodeCall(DedicatedResolver.setName, (testName));
         calls[1] = abi.encodeCall(DedicatedResolver.setAddr, (COIN_TYPE_ETH, testAddress));
 
-        vm.startPrank(owner);
+        vm.prank(owner);
         resolver.multicall(calls);
-        vm.stopPrank();
 
         assertEq(resolver.name(NODE_ANY), testName, "name()");
         assertEq(resolver.addr(NODE_ANY, COIN_TYPE_ETH), testAddress, "addr()");
@@ -347,5 +432,58 @@ contract DedicatedResolverTest is Test {
             abi.encodeCall(DedicatedResolver.multicall, (calls))
         );
         assertEq(result, expect, "extended");
+    }
+
+    function test_setAddr_withRole() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                DedicatedResolverLib.coinTypeResource(60),
+                DedicatedResolverLib.ROLE_SET_ADDR,
+                friend
+            )
+        );
+        vm.prank(friend);
+        resolver.setAddr(COIN_TYPE_ETH, testAddress);
+
+        vm.prank(owner);
+        resolver.grantRootRoles(DedicatedResolverLib.ROLE_SET_ADDR, friend);
+
+        vm.prank(friend);
+        resolver.setAddr(COIN_TYPE_ETH, testAddress);
+    }
+
+    function test_setAddr60_withResourceRole() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                DedicatedResolverLib.coinTypeResource(60),
+                DedicatedResolverLib.ROLE_SET_ADDR,
+                friend
+            )
+        );
+        vm.prank(friend);
+        resolver.setAddr(COIN_TYPE_ETH, testAddress);
+
+        vm.prank(owner);
+        resolver.grantRoles(
+            DedicatedResolverLib.coinTypeResource(60),
+            DedicatedResolverLib.ROLE_SET_ADDR,
+            friend
+        );
+
+        vm.prank(friend);
+        resolver.setAddr(COIN_TYPE_ETH, testAddress);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                DedicatedResolverLib.coinTypeResource(1),
+                DedicatedResolverLib.ROLE_SET_ADDR,
+                friend
+            )
+        );
+        vm.prank(friend);
+        resolver.setAddr(1, testAddress);
     }
 }
