@@ -20,8 +20,6 @@ interface IEnhancedAccessControl is IERC165 {
 
     event EACRolesRevoked(uint256 indexed resource, uint256 roleBitmap, address indexed account);
 
-    event EACAllRolesRevoked(uint256 indexed resource, address indexed account);
-
     ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
