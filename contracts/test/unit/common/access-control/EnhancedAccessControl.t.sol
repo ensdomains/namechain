@@ -398,64 +398,24 @@ contract EnhancedAccessControlTest is Test, MockRoles {
 
         _revoke(RESOURCE_1, ROLE_A, user1);
 
-        // // Basic revocation test
-        // vm.recordLogs();
-        // bool success = access.revokeRoles(RESOURCE_1, ROLE_A, user1);
+        // // Other role shouldn't be affected
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_B, user1));
 
-        // // Verify success and role was revoked
-        // assertTrue(success);
-        // assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user1));
-        // assertTrue(access.hasRoles(RESOURCE_1, ROLE_B, user1)); // Other role shouldn't be affected
+        // Verify role in other resource was not affected
+        assertTrue(access.hasRoles(RESOURCE_2, ROLE_A, user1));
 
-        // // Verify role in other resource was not affected
-        // assertTrue(access.hasRoles(RESOURCE_2, ROLE_A, user1));
+        // Test revoking a non-existent role (should not emit events)
+        vm.recordLogs();
+        assertFalse(access.revokeRoles(RESOURCE_1, ROLE_C, user1), "noop");
+        assertEq(vm.getRecordedLogs().length, 0, "silent");
 
-        // // Verify event was emitted correctly
-        // Vm.Log[] memory entries = vm.getRecordedLogs();
-        // assertEq(entries.length, 1);
-        // assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(uint256,uint256,address)"));
-        // (uint256 resource, uint256 roles, address account) = abi.decode(
-        //     entries[0].data,
-        //     (uint256, uint256, address)
-        // );
-        // assertEq(resource, RESOURCE_1);
-        // assertEq(roles, ROLE_A);
-        // assertEq(account, user1);
+        // Test revoking a mix of existing and non-existing roles
+        // Create a bitmap for ROLE_B and ROLE_C with ADMIN_ROLE_B as admin
+        uint256 mixedRoleBitmap = ROLE_B | ROLE_C;
+        _revoke(RESOURCE_1, mixedRoleBitmap, user1);
 
-        // // Test revoking a non-existent role (should not emit events)
-        // vm.recordLogs();
-        // success = access.revokeRoles(RESOURCE_1, ROLE_C, user1);
-
-        // // Verify no changes and failure return
-        // assertFalse(success);
-        // assertFalse(access.hasRoles(RESOURCE_1, ROLE_C, user1));
-        // entries = vm.getRecordedLogs();
-        // assertEq(entries.length, 0);
-
-        // // Test revoking a mix of existing and non-existing roles
-        // vm.recordLogs();
-
-        // // Create a bitmap for ROLE_B and ROLE_C with ADMIN_ROLE_B as admin
-        // uint256 mixedRoleBitmap = ROLE_B | ROLE_C;
-
-        // success = access.revokeRoles(RESOURCE_1, mixedRoleBitmap, user1);
-
-        // // Verify success (at least one role was revoked)
-        // assertTrue(success);
-        // assertFalse(access.hasRoles(RESOURCE_1, ROLE_B, user1));
-        // assertFalse(access.hasRoles(RESOURCE_1, ROLE_C, user1));
-
-        // // Verify event was emitted correctly
-        // entries = vm.getRecordedLogs();
-        // assertEq(entries.length, 1);
-        // assertEq(entries[0].topics[0], keccak256("EACRolesRevoked(uint256,uint256,address)"));
-        // (resource, roles, account) = abi.decode(entries[0].data, (uint256, uint256, address));
-        // assertEq(resource, RESOURCE_1);
-        // assertEq(roles, mixedRoleBitmap);
-        // assertEq(account, user1);
-
-        // // Verify roles for RESOURCE_2 were still not affected
-        // assertTrue(access.hasRoles(RESOURCE_2, ROLE_A, user1));
+        // Verify roles for RESOURCE_2 were still not affected
+        assertTrue(access.hasRoles(RESOURCE_2, ROLE_A, user1));
     }
 
     // Test that unauthorized accounts cannot revoke roles
@@ -1786,31 +1746,6 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasRootRoles(ROLE_B, user1), "roleB");
     }
 
-    function _grant(uint256 resource, uint256 roles, address account) internal {
-        require((roles >> 128) == 0, "granting admin");
-        vm.expectEmit(true, true, false, true);
-        emit IEnhancedAccessControl.EACRolesGranted(resource, roles, account);
-        assertTrue(
-            resource == ROOT_RESOURCE
-                ? access.grantRootRoles(roles, account)
-                : access.grantRoles(resource, roles, account),
-            "grant"
-        );
-        assertTrue(access.hasRoles(resource, roles, account), "granted");
-    }
-
-    function _revoke(uint256 resource, uint256 roles, address account) internal {
-        vm.expectEmit(true, true, false, true);
-        emit IEnhancedAccessControl.EACRolesRevoked(resource, roles, account);
-        assertTrue(
-            resource == ROOT_RESOURCE
-                ? access.revokeRootRoles(roles, account)
-                : access.revokeRoles(resource, roles, account),
-            "revoke"
-        );
-        assertFalse(access.hasRoles(resource, roles, account), "revoked");
-    }
-
     function test_canRevokeRoles_unauthorized() public {
         // Grant roles to user2
         access.grantRoles(RESOURCE_1, ROLE_A, user2);
@@ -1894,5 +1829,30 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertFalse(access.hasRoles(RESOURCE_1, ADMIN_ROLE_A, user2));
 
         vm.stopPrank();
+    }
+
+    function _grant(uint256 resource, uint256 roles, address account) internal {
+        require((roles >> 128) == 0, "granting admin");
+        vm.expectEmit(true, true, false, true);
+        emit IEnhancedAccessControl.EACRolesGranted(resource, roles, account);
+        assertTrue(
+            resource == ROOT_RESOURCE
+                ? access.grantRootRoles(roles, account)
+                : access.grantRoles(resource, roles, account),
+            "grant"
+        );
+        assertTrue(access.hasRoles(resource, roles, account), "granted");
+    }
+
+    function _revoke(uint256 resource, uint256 roles, address account) internal {
+        vm.expectEmit(true, true, false, true);
+        emit IEnhancedAccessControl.EACRolesRevoked(resource, roles, account);
+        assertTrue(
+            resource == ROOT_RESOURCE
+                ? access.revokeRootRoles(roles, account)
+                : access.revokeRoles(resource, roles, account),
+            "revoke"
+        );
+        assertFalse(access.hasRoles(resource, roles, account), "revoked");
     }
 }
