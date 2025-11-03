@@ -277,6 +277,7 @@ contract DedicatedResolver is
     /// @param contentTypes Union of desired contents types.
     /// @return contentType The first matching content type (or 0 if no match).
     /// @return data The ABI data.
+    // solhint-disable-next-line func-name-mixedcase
     function ABI(
         bytes32,
         uint256 contentTypes
