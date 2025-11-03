@@ -491,10 +491,10 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.renew(tokenId, newExpiry);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        assertEq(entries.length, 2);
-        assertEq(entries[1].topics[0], keccak256("NameRenewed(uint256,uint64,address)"));
-        assertEq(entries[1].topics[1], bytes32(tokenId));
-        (uint64 expiry, address renewedBy) = abi.decode(entries[1].data, (uint64, address));
+        assertEq(entries.length, 1);
+        assertEq(entries[0].topics[0], keccak256("NameRenewed(uint256,uint64,address)"));
+        assertEq(entries[0].topics[1], bytes32(tokenId));
+        (uint64 expiry, address renewedBy) = abi.decode(entries[0].data, (uint64, address));
         assertEq(expiry, newExpiry);
         assertEq(renewedBy, address(this));
     }
@@ -613,10 +613,10 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.burn(tokenId);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        assertEq(entries.length, 6);
-        assertEq(entries[5].topics[0], keccak256("NameBurned(uint256,address)"));
-        assertEq(entries[5].topics[1], bytes32(tokenId));
-        address burnedBy = abi.decode(entries[5].data, (address));
+        assertEq(entries.length, 4);
+        assertEq(entries[3].topics[0], keccak256("NameBurned(uint256,address)"));
+        assertEq(entries[3].topics[1], bytes32(tokenId));
+        address burnedBy = abi.decode(entries[3].data, (address));
         assertEq(burnedBy, address(this));
     }
 
@@ -1132,7 +1132,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         address owner = makeAddr("owner");
 
         // Verify name has never been registered (entry.expiry should be 0)
-        ( /*uint256 tokenId*/, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        (, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
         assertEq(entry.expiry, 0, "Name should never have been registered before");
         assertEq(entry.eacVersionId, 0, "Initial eacVersionId should be 0");
 

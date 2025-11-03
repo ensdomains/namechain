@@ -1,5 +1,6 @@
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
 @openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
+@openzeppelin/contracts-v5/=lib/openzeppelin-contracts/contracts/
 @ens/contracts/=lib/ens-contracts/contracts/
 @ensdomains/buffer/=lib/buffer/
 @unruggable/gateways/=lib/unruggable-gateways/
