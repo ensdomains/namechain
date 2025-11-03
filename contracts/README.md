@@ -5,23 +5,6 @@
 
 This repository hosts the smart contracts for ENSv2 (Ethereum Name Service version 2), a next-generation naming system designed for scalability and cross-chain functionality. For comprehensive architectural details, see the [ENSv2 design doc](http://go.ens.xyz/ensv2).
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Architecture](#architecture)
-  - [Core Concepts](#core-concepts)
-  - [Token ID System](#token-id-system)
-  - [Access Control](#access-control)
-- [Contract Documentation](#contract-documentation)
-  - [Registry System](#registry-system)
-  - [L2 Components](#l2-components)
-  - [L1 Components](#l1-components)
-  - [Cross-Chain Bridge](#cross-chain-bridge)
-  - [Resolution](#resolution)
-- [Getting started](#getting-started)
-- [Running the Devnet](#running-the-devnet)
-- [Miscellaneous](#miscellaneous)
-
 ## Overview
 
 ENSv2 transitions from a flat registry to a hierarchical system that enables:
