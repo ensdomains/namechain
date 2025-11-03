@@ -5,6 +5,18 @@
   "lib/buffer": {
     "rev": "82cc81935de1d1a82e021cf1030d902c5248982b"
   },
+<<<<<<< HEAD
+=======
+  "lib/ens-contracts": {
+    "rev": "a392133a641f7a88dd8d08616e1113e1b6d0416a"
+  },
+  "lib/forge-std": {
+    "rev": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "e4f70216d759d8e6a64144a9e1f7bbeed78e7079"
+  },
+>>>>>>> main
   "lib/openzeppelin-contracts-upgradeable": {
     "rev": "5fc3fee14043035097ae718387200f4f4daaa982"
   },

@@ -31,9 +31,9 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     // Events
     ////////////////////////////////////////////////////////////////////////
 
-    event NameEjectedToL1(bytes dnsEncodedName, uint256 tokenId);
+    event NameEjectedToL1(bytes dnsEncodedName, uint256 indexed tokenId);
 
-    event NameEjectedToL2(bytes dnsEncodedName, uint256 tokenId);
+    event NameEjectedToL2(bytes dnsEncodedName, uint256 indexed tokenId);
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
@@ -94,8 +94,8 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     function onERC1155BatchReceived(
         address /*operator*/,
         address /* from */,
-        uint256[] memory tokenIds,
-        uint256[] memory /*amounts*/,
+        uint256[] calldata tokenIds,
+        uint256[] calldata /*amounts*/,
         bytes calldata data
     ) external virtual onlyRegistry returns (bytes4) {
         TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));

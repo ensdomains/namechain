@@ -29,14 +29,14 @@ library BridgeEncoderLib {
     function decodeEjection(bytes memory message) internal pure returns (TransferData memory data) {
         uint256 _messageType;
         (_messageType, data) = abi.decode(message, (uint256, TransferData));
-        if (_messageType != uint(BridgeMessageType.EJECTION)) {
+        if (_messageType != uint256(BridgeMessageType.EJECTION)) {
             revert InvalidEjectionMessageType();
         }
     }
 
     /// @dev Encode a renewal message.
     function encodeRenewal(uint256 tokenId, uint64 newExpiry) internal pure returns (bytes memory) {
-        return abi.encode(uint(BridgeMessageType.RENEWAL), tokenId, newExpiry);
+        return abi.encode(uint256(BridgeMessageType.RENEWAL), tokenId, newExpiry);
     }
 
     /// @dev Decode a renewal message.
@@ -45,7 +45,7 @@ library BridgeEncoderLib {
     ) internal pure returns (uint256 tokenId, uint64 newExpiry) {
         uint256 _messageType;
         (_messageType, tokenId, newExpiry) = abi.decode(message, (uint256, uint256, uint64));
-        if (_messageType != uint(BridgeMessageType.RENEWAL)) {
+        if (_messageType != uint256(BridgeMessageType.RENEWAL)) {
             revert InvalidRenewalMessageType();
         }
     }

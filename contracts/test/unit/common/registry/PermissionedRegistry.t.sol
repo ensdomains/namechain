@@ -609,15 +609,9 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             uint64(block.timestamp) + 100
         );
 
-        vm.recordLogs();
+        vm.expectEmit(true, false, false, true);
+        emit IRegistry.NameBurned(tokenId, address(this));
         registry.burn(tokenId, false);
-
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        assertEq(entries.length, 4);
-        assertEq(entries[3].topics[0], keccak256("NameBurned(uint256,address)"));
-        assertEq(entries[3].topics[1], bytes32(tokenId));
-        address burnedBy = abi.decode(entries[3].data, (address));
-        assertEq(burnedBy, address(this));
     }
 
     function test_Revert_cannot_burn_without_role() public {
@@ -1132,7 +1126,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         address owner = makeAddr("owner");
 
         // Verify name has never been registered (entry.expiry should be 0)
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        (, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
         assertEq(entry.expiry, 0, "Name should never have been registered before");
         assertEq(entry.eacVersionId, 0, "Initial eacVersionId should be 0");
 
