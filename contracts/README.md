@@ -455,6 +455,13 @@ bun run compile:hardhat
 
 ### Test
 
+Prior to running tests ensure you compile `lib/ens-contracts`:
+
+```sh
+cd lib/ens-contracts
+bun run compile
+```
+
 Testing is done using both Foundry and Hardhat.
 Run all test suites:
 

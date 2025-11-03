@@ -6,3 +6,10 @@ node_modules/
 .DS_Store
 
 .claude/settings.local.json
+
+.devdocs/
+
+# pre-migration
+preMigration-checkpoint.json
+preMigration-errors.log
+preMigration.log
