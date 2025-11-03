@@ -13,6 +13,8 @@ type EventLog = {
   blockNumber: bigint;
   logIndex: number;
   transactionHash: string;
+  topics: string[];
+  data: string;
   args: Record<string, any>;
   timestamp: string;
 };
@@ -81,6 +83,8 @@ function formatEventLog(log: Log, chain: "L1" | "L2", registryName: string): Eve
     blockNumber: log.blockNumber || 0n,
     logIndex: log.logIndex || 0,
     transactionHash: log.transactionHash || "",
+    topics: log.topics,
+    data: log.data,
     args,
     timestamp: new Date().toISOString(),
   });
@@ -180,20 +184,38 @@ async function collectRegistryEvents(
   return events;
 }
 
+/**
+ * Deduplicate registries by address, keeping the first occurrence (shortest path)
+ */
+function deduplicateRegistries(registries: RegistryInfo[]): RegistryInfo[] {
+  const seen = new Set<string>();
+  const deduplicated: RegistryInfo[] = [];
+
+  for (const registry of registries) {
+    const addressLower = registry.address.toLowerCase();
+    if (!seen.has(addressLower)) {
+      seen.add(addressLower);
+      deduplicated.push(registry);
+    }
+  }
+
+  return deduplicated;
+}
+
 // ========== Public API ==========
 
 /**
- * Initialize event logging - just records the starting block numbers
+ * Initialize event logging - starts from genesis to capture deployment events
  */
 export async function initializeEventLogging(env: CrossChainEnvironment) {
   console.log("\n========== Initializing Event Logging ==========\n");
 
-  // Record starting block numbers
-  startBlockL1 = await env.l1.client.getBlockNumber();
-  startBlockL2 = await env.l2.client.getBlockNumber();
+  // Start from block 0 to capture deployment events (including "eth" TLD registration on RootRegistry)
+  startBlockL1 = 0n;
+  startBlockL2 = 0n;
 
-  console.log(`L1 starting block: ${startBlockL1}`);
-  console.log(`L2 starting block: ${startBlockL2}`);
+  console.log(`L1 starting block: ${startBlockL1} (from genesis)`);
+  console.log(`L2 starting block: ${startBlockL2} (from genesis)`);
 
   // Ensure tmp directory exists
   if (!fs.existsSync("tmp")) {
@@ -219,25 +241,36 @@ export async function collectAndWriteEvents(env: CrossChainEnvironment) {
   console.log(`L1 block range: ${startBlockL1} → ${endBlockL1}`);
   console.log(`L2 block range: ${startBlockL2} → ${endBlockL2}\n`);
 
-  // Discover all registries on L1
+  // Discover all registries on L1 (both RootRegistry and ETHRegistry hierarchies)
   console.log("🔍 Discovering L1 registries...");
-  const l1Registries = await discoverAllSubregistries(
+  const l1RootRegistries = await discoverAllSubregistries(
+    env.l1.client,
+    env.l1.contracts.RootRegistry.address,
+    startBlockL1,
+    endBlockL1,
+    "RootRegistry",
+  );
+  const l1EthRegistries = await discoverAllSubregistries(
     env.l1.client,
     env.l1.contracts.ETHRegistry.address,
     startBlockL1,
     endBlockL1,
+    "ETHRegistry (.eth)",
   );
-  console.log(`Found ${l1Registries.length} L1 registries\n`);
+  const l1RegistriesRaw = [...l1RootRegistries, ...l1EthRegistries];
+  const l1Registries = deduplicateRegistries(l1RegistriesRaw);
+  console.log(`Found ${l1Registries.length} unique L1 registries (${l1RegistriesRaw.length} total discovered, ${l1RootRegistries.length} from Root, ${l1EthRegistries.length} from ETH)\n`);
 
   // Discover all registries on L2
   console.log("🔍 Discovering L2 registries...");
-  const l2Registries = await discoverAllSubregistries(
+  const l2RegistriesRaw = await discoverAllSubregistries(
     env.l2.client,
     env.l2.contracts.ETHRegistry.address,
     startBlockL2,
     endBlockL2,
   );
-  console.log(`Found ${l2Registries.length} L2 registries\n`);
+  const l2Registries = deduplicateRegistries(l2RegistriesRaw);
+  console.log(`Found ${l2Registries.length} unique L2 registries (${l2RegistriesRaw.length} total discovered)\n`);
 
   // Collect L1 events
   console.log("📝 Collecting L1 events...");
