@@ -42,12 +42,7 @@ library LibLabel {
         bytes memory dnsEncodedName,
         uint256 offset
     ) internal pure returns (string memory label, uint256 nextOffset) {
-        (, uint256 _nextOffset, uint8 size, ) = NameCoder.readLabel(dnsEncodedName, offset, false);
-        nextOffset = _nextOffset;
-        label = new string(size);
-        assembly {
-            mcopy(add(label, 32), add(add(dnsEncodedName, 33), offset), size)
-        }
+        return NameCoder.extractLabel(dnsEncodedName, offset);
     }
 
     /// @dev Extracts the first label from a DNS-encoded name.
