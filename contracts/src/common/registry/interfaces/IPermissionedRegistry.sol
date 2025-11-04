@@ -21,12 +21,10 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     // Functions
     ////////////////////////////////////////////////////////////////////////
 
-    /**
-     * @dev Sets a token observer for a token.
-     * @param tokenId The token ID of the token to set the observer for.
-     * @param observer The observer to set.
-     */
-    function setTokenObserver(uint256 tokenId, ITokenObserver observer) external;
+    /// @notice Sets a token observer for a token.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @param observer The observer to set.
+    function setTokenObserver(uint256 anyId, ITokenObserver observer) external;
 
     /// @notice Get the latest owner of a token.
     ///         If the token was burned, returns null.
