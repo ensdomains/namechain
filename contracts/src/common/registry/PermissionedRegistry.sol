@@ -174,8 +174,8 @@ contract PermissionedRegistry is
     }
 
     /// @dev Shorthand to get datastore expiry.
-    function getExpiry(uint256 tokenId) public view returns (uint64) {
-        return getEntry(tokenId).expiry;
+    function getExpiry(uint256 anyId) public view returns (uint64) {
+        return getEntry(anyId).expiry;
     }
 
     /// @dev Shorthand to get resource from any anyId.
