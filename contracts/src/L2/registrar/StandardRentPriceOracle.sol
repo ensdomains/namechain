@@ -156,7 +156,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     ///      - Discounts are relative to `type(uint128).max`.
     ///      - Given an average discount, solve for the corresponding interval:
     ///        * Assume: 1yr at 0% discount
-    ///        * Solve: 2yr @ 5% == 1yr @ 0% + 1yr @ x => x = 10.00%
+    ///        * Solve: 2yr * 5% == 1yr * 0% + 1yr * x => x = 10.00%
     //         * Point: (1yr, 10%) == (1 years, type(uint128).max / 10)
     ///      - Final discount is the derived from the weighted average over the intervals.
     ///      - Use empty array to disable.
