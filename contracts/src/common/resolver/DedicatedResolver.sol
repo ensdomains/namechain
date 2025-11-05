@@ -58,17 +58,6 @@ contract DedicatedResolver is
     error InvalidContentType(uint256 contentType);
 
     ////////////////////////////////////////////////////////////////////////
-    // Modifiers
-    ////////////////////////////////////////////////////////////////////////
-
-    modifier rootOrResourceRoles(uint256 resource, uint256 roleBitmap) {
-        if (!hasRoles(ROOT_RESOURCE, roleBitmap, _msgSender())) {
-            _checkRoles(resource, roleBitmap, _msgSender());
-        }
-        _;
-    }
-
-    ////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
@@ -144,10 +133,7 @@ contract DedicatedResolver is
         string calldata value
     )
         external
-        rootOrResourceRoles(
-            DedicatedResolverLib.textResource(key),
-            DedicatedResolverLib.ROLE_SET_TEXT
-        )
+        onlyRoles(DedicatedResolverLib.textResource(key), DedicatedResolverLib.ROLE_SET_TEXT)
     {
         _storage().texts[key] = value;
         emit TextChanged(NODE_ANY, key, key, value);
@@ -205,10 +191,7 @@ contract DedicatedResolver is
         bytes calldata addressBytes
     )
         external
-        rootOrResourceRoles(
-            DedicatedResolverLib.addrResource(coinType),
-            DedicatedResolverLib.ROLE_SET_ADDR
-        )
+        onlyRoles(DedicatedResolverLib.addrResource(coinType), DedicatedResolverLib.ROLE_SET_ADDR)
     {
         if (
             addressBytes.length != 0 && addressBytes.length != 20 && ENSIP19.isEVMCoinType(coinType)
