@@ -15,6 +15,7 @@ import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.so
 import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
 import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
+import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
@@ -23,13 +24,12 @@ import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
 import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
-import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
 
 contract BridgeTest is Test, EnhancedAccessControl {
     RegistryDatastore datastore;
 
-    MockPermissionedRegistry l1Registry;
-    MockPermissionedRegistry l2Registry;
+    PermissionedRegistry l1Registry;
+    PermissionedRegistry l2Registry;
     MockL1Bridge l1Bridge;
     MockL2Bridge l2Bridge;
     L1BridgeController l1Controller;
@@ -43,13 +43,13 @@ contract BridgeTest is Test, EnhancedAccessControl {
         // Deploy registries
         datastore = new RegistryDatastore();
         SimpleRegistryMetadata metadata = new SimpleRegistryMetadata();
-        l1Registry = new MockPermissionedRegistry(
+        l1Registry = new PermissionedRegistry(
             datastore,
             metadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES
         );
-        l2Registry = new MockPermissionedRegistry(
+        l2Registry = new PermissionedRegistry(
             datastore,
             metadata,
             address(this),
@@ -126,7 +126,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
         assertEq(l1Registry.getResolver("premiumname"), transferData.resolver);
         assertEq(l1Registry.getExpiry(tokenId), transferData.expires);
         assertEq(
-            l1Registry.roles(l1Registry.testGetResourceFromTokenId(tokenId), transferData.owner),
+            l1Registry.roles(l1Registry.getResource(tokenId), transferData.owner),
             transferData.roleBitmap
         );
     }

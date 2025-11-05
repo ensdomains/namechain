@@ -46,6 +46,48 @@ library LibRegistry {
         node = NameCoder.namehash(node, labelHash); // update namehash
     }
 
+    /// @notice Find (registry, resolver) for `name[offset:]` starting from
+    ///         (parentRegistry, parentRegistry) for `name[:parentOffset]`.
+    ///
+    /// @param name The DNS-encoded name to search.
+    /// @param offset The offset into `name` to begin the search.
+    /// @param parentOffset The offset into `name` to use parent values.
+    /// @param parentRegistry The registry at `name[length:]`.
+    /// @param parentResolver The resolver at `name[length:]`.
+    ///
+    /// @return registry The exact registry or null if not exact.
+    /// @return resolver The resolver or null if not found.
+    function findResolver(
+        bytes memory name,
+        uint256 offset,
+        uint256 parentOffset,
+        IRegistry parentRegistry,
+        address parentResolver
+    ) internal view returns (IRegistry registry, address resolver) {
+        if (offset > parentOffset) {
+            revert NameCoder.DNSDecodingFailed(name);
+        } else if (offset == parentOffset) {
+            return (parentRegistry, parentResolver);
+        } else {
+            string memory label;
+            (label, offset) = NameCoder.extractLabel(name, offset);
+            (registry, resolver) = findResolver(
+                name,
+                offset,
+                parentOffset,
+                parentRegistry,
+                parentResolver
+            );
+            if (address(registry) != address(0)) {
+                address res = registry.getResolver(label);
+                if (res != address(0)) {
+                    resolver = res;
+                }
+                registry = registry.getSubregistry(label);
+            }
+        }
+    }
+
     /// @dev Find the exact registry for `name[offset:]`.
     ///
     /// @param rootRegistry The root ENS registry.

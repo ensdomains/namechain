@@ -530,19 +530,26 @@ contract ETHTLDResolver is
         } else if (state == NameState.POST_EJECTION) {
             (, , uint256 offset, ) = NameCoder.matchSuffix(name, 0, NameCoder.ETH_NODE);
             (string memory label, ) = NameCoder.extractLabel(name, offset);
+            // circumvent ETH_REGISTRY.getResolver()
             (, IRegistryDatastore.Entry memory entry) = ETH_REGISTRY.getNameData(label);
-            if (entry.subregistry != address(0)) {
-                bytes memory prefix = BytesUtils.substring(name, 0, offset + 1);
-                prefix[offset] = 0;
-                (, resolver, , ) = LibRegistry.findResolver(
-                    IRegistry(entry.subregistry),
-                    prefix,
-                    0
-                );
-            }
-            if (resolver == address(0)) {
-                resolver = entry.resolver;
-            }
+            (, resolver) = LibRegistry.findResolver(
+                name,
+                0,
+                offset,
+                IRegistry(entry.subregistry),
+                entry.resolver
+            );
+            // IRegistry registry = IRegistry(entry.subregistry);
+            // resolver = entry.resolver;
+            // while (offset > 0 && address(registry) != address(0)) {
+            //     offset = NameCoder.prevLabel(name, offset);
+            //     (label, ) = NameCoder.extractLabel(name, offset);
+            //     address r = registry.getResolver(label);
+            //     if (r != address(0)) {
+            //         resolver = r;
+            //     }
+            //     registry = registry.getSubregistry(label);
+            // }
         }
         if (resolver == address(this)) {
             resolver = address(0);

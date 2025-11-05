@@ -544,7 +544,7 @@ describe("ETHTLDResolver", () => {
         const [tokenId] = await F.mainnetV2.ethRegistry.read.getNameData([
           label2LD,
         ]);
-        await F.mainnetV2.ethRegistry.write.burn([tokenId, true]);
+        await F.mainnetV2.ethRegistry.write.unregister([tokenId]);
         // setup faux ejected state
         await F.namechain.setupName({
           name: `${label2LD}.eth`,

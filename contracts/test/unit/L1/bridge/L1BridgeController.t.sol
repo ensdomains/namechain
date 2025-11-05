@@ -21,12 +21,12 @@ import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
 import {InvalidOwner} from "~src/common/CommonErrors.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
-import {IStandardRegistry} from "~src/common/registry/interfaces/IStandardRegistry.sol";
+import {IStandardRegistry, IRegistry} from "~src/common/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
-import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
+import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -40,7 +40,7 @@ contract MockBridge is IBridge {
 
 contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
     RegistryDatastore datastore;
-    MockPermissionedRegistry registry;
+    PermissionedRegistry registry;
     L1BridgeController bridgeController;
     MockRegistryMetadata registryMetadata;
     MockBridge bridge;
@@ -364,7 +364,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
         bridge = new MockBridge();
 
         // Deploy the eth registry
-        registry = new MockPermissionedRegistry(
+        registry = new PermissionedRegistry(
             datastore,
             registryMetadata,
             address(this),
@@ -432,7 +432,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
 
         assertEq(registry.getResolver(testLabel), MOCK_RESOLVER);
 
-        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
+        uint256 resource = registry.getResource(tokenId);
         assertTrue(
             registry.hasRoles(resource, expectedRoles, user),
             "Role bitmap should match the expected roles"
@@ -546,26 +546,12 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
 
         uint64 newExpiry = uint64(block.timestamp) + 200;
 
-        vm.recordLogs();
-
+        vm.expectEmit(true, false, false, true);
+        emit IRegistry.ExpiryUpdate(tokenId, newExpiry, address(bridgeController));
+        vm.expectEmit(true, true, false, true);
+        emit L1BridgeController.RenewalSynchronized(tokenId, newExpiry);
         vm.prank(address(bridge));
         bridgeController.syncRenewal(tokenId, newExpiry);
-
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundNameRenewed = false;
-        bool foundRenewalSynchronized = false;
-        bytes32 nameRenewedSig = keccak256("NameRenewed(uint256,uint64,address)");
-        bytes32 renewalSynchronizedSig = keccak256("RenewalSynchronized(uint256,uint64)");
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == nameRenewedSig) {
-                foundNameRenewed = true;
-            }
-            if (entries[i].topics[0] == renewalSynchronizedSig) {
-                foundRenewalSynchronized = true;
-            }
-        }
-        assertTrue(foundNameRenewed, "NameRenewed event not found");
-        assertTrue(foundRenewalSynchronized, "RenewalSynchronized event not found");
     }
 
     function test_Revert_updateExpiration_expired_name() public {

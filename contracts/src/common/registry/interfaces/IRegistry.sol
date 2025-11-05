@@ -18,15 +18,8 @@ interface IRegistry is IERC1155Singleton {
         address registeredBy
     );
 
-    /**
-     * @dev Event emitted when a name is renewed.
-     */
-    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
-
-    /**
-     * @dev Event emitted when a name is burned.
-     */
-    event NameBurned(uint256 indexed tokenId, address burnedBy);
+    /// @dev Expiry was updated.
+    event ExpiryUpdate(uint256 indexed tokenId, uint64 newExpiration, address changedBy);
 
     /**
      * @dev Event emitted when a subregistry is updated.
