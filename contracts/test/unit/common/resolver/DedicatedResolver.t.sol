@@ -489,4 +489,60 @@ contract DedicatedResolverTest is Test {
         vm.prank(friend);
         resolver.setAddr(COIN_TYPE_DEFAULT, testAddress);
     }
+
+    function test_setText_withRole() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                DedicatedResolverLib.textResource("a"),
+                DedicatedResolverLib.ROLE_SET_TEXT,
+                friend
+            )
+        );
+        vm.prank(friend);
+        resolver.setText("a", "A");
+
+        vm.prank(owner);
+        resolver.grantRootRoles(DedicatedResolverLib.ROLE_SET_TEXT, friend);
+
+        vm.prank(friend);
+        resolver.setText("a", "A");
+
+        vm.prank(friend);
+        resolver.setText("b", "B");
+    }
+
+    function test_setText_withResourceRole() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                DedicatedResolverLib.textResource("a"),
+                DedicatedResolverLib.ROLE_SET_TEXT,
+                friend
+            )
+        );
+        vm.prank(friend);
+        resolver.setText("a", "A");
+
+        vm.prank(owner);
+        resolver.grantRoles(
+            DedicatedResolverLib.textResource("a"),
+            DedicatedResolverLib.ROLE_SET_TEXT,
+            friend
+        );
+
+        vm.prank(friend);
+        resolver.setText("a", "A");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                DedicatedResolverLib.textResource("b"),
+                DedicatedResolverLib.ROLE_SET_TEXT,
+                friend
+            )
+        );
+        vm.prank(friend);
+        resolver.setText("b", "B");
+    }
 }
