@@ -24,11 +24,5 @@ interface IRegistryDatastore {
 
     function setEntry(uint256 id, Entry calldata entry) external;
 
-    function setSubregistry(uint256 id, address subregistry) external;
-
-    function setResolver(uint256 id, address resolver) external;
-
-    function setExpiry(uint256 id, uint64 expiry) external;
-
     function getEntry(address registry, uint256 id) external view returns (Entry calldata);
 }
