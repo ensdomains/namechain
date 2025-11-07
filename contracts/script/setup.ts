@@ -75,8 +75,8 @@ const l1Contracts = {
   DefaultReverseRegistrar: artifacts.DefaultReverseRegistrar.abi,
   DefaultReverseResolver: artifacts.DefaultReverseResolver.abi,
   //
-  MockL1Bridge: sharedContracts.MockBridge,
-  L1BridgeController: sharedContracts.BridgeController,
+  MockL1Bridge: artifacts.MockL1Bridge.abi,
+  L1BridgeController: artifacts.L1BridgeController.abi,
   UnlockedMigrationController: artifacts.L1UnlockedMigrationController.abi,
   LockedMigrationController: artifacts.L1LockedMigrationController.abi,
   MigratedWrappedNameRegistryImpl: artifacts.MigratedWrappedNameRegistry.abi,
@@ -94,8 +94,8 @@ const l1Contracts = {
 
 const l2Contracts = {
   ...sharedContracts,
-  MockL2Bridge: sharedContracts.MockBridge,
-  L2BridgeController: sharedContracts.BridgeController,
+  MockL2Bridge: artifacts.MockL2Bridge.abi,
+  L2BridgeController: artifacts.L2BridgeController.abi,
   //
   ETHRegistrar: artifacts.ETHRegistrar.abi,
   StandardRentPriceOracle: artifacts.StandardRentPriceOracle.abi,
