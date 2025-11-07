@@ -77,7 +77,7 @@ contract MockNameWrapper {
 contract MockBridge is IBridge {
     bytes public lastMessage;
 
-    function sendMessage(bytes memory message) external override {
+    function sendMessage(bytes memory message) external payable override {
         lastMessage = message;
     }
 

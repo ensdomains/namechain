@@ -57,7 +57,7 @@ const sharedContracts = {
   // common
   MockBridge: artifacts.MockBridgeBase.abi,
   ETHRegistry: artifacts.PermissionedRegistry.abi,
-  BridgeController: artifacts.EjectionController.abi,
+  BridgeController: artifacts.BridgeController.abi,
 } as const satisfies DeployedArtifacts;
 
 const l1Contracts = {

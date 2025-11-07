@@ -41,7 +41,7 @@ abstract contract MockBridgeBase is IBridge {
         receiverBridge = bridge;
     }
 
-    function sendMessage(bytes calldata message) external override {
+    function sendMessage(bytes calldata message) external payable override {
         lastMessage = message;
         emit MessageSent(message);
         if (address(receiverBridge) != address(0)) {

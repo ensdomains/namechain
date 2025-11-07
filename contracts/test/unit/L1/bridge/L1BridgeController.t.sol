@@ -14,7 +14,7 @@ import {
 import {
     IEnhancedAccessControl
 } from "~src/common/access-control/interfaces/IEnhancedAccessControl.sol";
-import {EjectionController} from "~src/common/bridge/EjectionController.sol";
+import {BridgeController} from "~src/common/bridge/BridgeController.sol";
 import {IBridge} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
@@ -34,7 +34,7 @@ contract MockRegistryMetadata is IRegistryMetadata {
 }
 
 contract MockBridge is IBridge {
-    function sendMessage(bytes memory) external override {}
+    function sendMessage(bytes memory) external payable override {}
 }
 
 contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
@@ -721,7 +721,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
 
         // Transfer should revert due to invalid label
         vm.expectRevert(
-            abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId, invalidLabel)
+            abi.encodeWithSelector(BridgeController.InvalidLabel.selector, tokenId, invalidLabel)
         );
         registry.safeTransferFrom(address(this), address(bridgeController), tokenId, 1, data);
     }
@@ -945,7 +945,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
 
         // Should revert due to invalid label for tokenId2
         vm.expectRevert(
-            abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId2, "invalid")
+            abi.encodeWithSelector(BridgeController.InvalidLabel.selector, tokenId2, "invalid")
         );
         registry.safeBatchTransferFrom(
             address(this),

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {EjectionController} from "../../common/bridge/EjectionController.sol";
+import {BridgeController} from "../../common/bridge/BridgeController.sol";
 import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
@@ -17,7 +17,7 @@ import {LibLabel} from "../../common/utils/LibLabel.sol";
  * @dev L1 contract for bridge controller that facilitates migrations of names
  * between L1 and L2, as well as handling renewals.
  */
-contract L1BridgeController is EjectionController {
+contract L1BridgeController is BridgeController {
     ////////////////////////////////////////////////////////////////////////
     // Events
     ////////////////////////////////////////////////////////////////////////
@@ -39,7 +39,7 @@ contract L1BridgeController is EjectionController {
     constructor(
         IPermissionedRegistry registry_,
         IBridge bridge_
-    ) EjectionController(registry_, bridge_) {}
+    ) BridgeController(registry_, bridge_) {}
 
     ////////////////////////////////////////////////////////////////////////
     // Implementation
