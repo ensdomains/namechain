@@ -16,6 +16,7 @@ import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
@@ -24,12 +25,11 @@ import {InvalidOwner} from "../CommonErrors.sol";
 import {IDedicatedResolverSetters, NODE_ANY} from "./interfaces/IDedicatedResolverSetters.sol";
 import {DedicatedResolverLib} from "./libraries/DedicatedResolverLib.sol";
 
-// TODO: upgrades
-
 /// @notice An owned resolver that provides the same results for any name.
 contract DedicatedResolver is
     EnhancedAccessControl,
     Initializable,
+    UUPSUpgradeable,
     IDedicatedResolverSetters,
     IERC7996,
     IExtendedResolver,
@@ -60,6 +60,10 @@ contract DedicatedResolver is
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
+    constructor() {
+        _disableInitializers();
+    }
+
     /// @inheritdoc EnhancedAccessControl
     function supportsInterface(
         bytes4 interfaceId
@@ -78,6 +82,7 @@ contract DedicatedResolver is
             type(IABIResolver).interfaceId == interfaceId ||
             type(IInterfaceResolver).interfaceId == interfaceId ||
             type(IERC7996).interfaceId == interfaceId ||
+            type(UUPSUpgradeable).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -311,6 +316,13 @@ contract DedicatedResolver is
     ////////////////////////////////////////////////////////////////////////
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
+
+    /// @dev Allow `ROLE_UPGRADE` to upgrade.
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyRootRoles(DedicatedResolverLib.ROLE_UPGRADE) {
+        //
+    }
 
     /// @dev Allow admins to grant admin roles.
     function _getSettableRoles(

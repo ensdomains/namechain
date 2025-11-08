@@ -21,6 +21,7 @@ import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/EN
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import {
     DedicatedResolver,
@@ -35,6 +36,7 @@ import {
 
 contract DedicatedResolverTest is Test {
     uint256 constant DEFAULT_ROLES = EACBaseRolesLib.ALL_ROLES;
+    uint256 constant ROOT_RESOURCE = 0;
 
     struct I {
         bytes4 interfaceId;
@@ -42,7 +44,7 @@ contract DedicatedResolverTest is Test {
     }
     function _supportedInterfaces() internal pure returns (I[] memory v) {
         uint256 i;
-        v = new I[](14);
+        v = new I[](15);
         v[i++] = I(type(IExtendedResolver).interfaceId, "IExtendedResolver");
         v[i++] = I(type(IDedicatedResolverSetters).interfaceId, "IDedicatedResolverSetters");
         v[i++] = I(type(IMulticallable).interfaceId, "IMulticallable");
@@ -57,6 +59,7 @@ contract DedicatedResolverTest is Test {
         v[i++] = I(type(IInterfaceResolver).interfaceId, "IInterfaceResolver");
         v[i++] = I(type(IERC7996).interfaceId, "IERC7996");
         v[i++] = I(type(IEnhancedAccessControl).interfaceId, "IEnhancedAccessControl");
+        v[i++] = I(type(UUPSUpgradeable).interfaceId, "UUPSUpgradeable");
         assertEq(v.length, i);
     }
 
@@ -83,6 +86,27 @@ contract DedicatedResolverTest is Test {
 
     function test_initialize() external view {
         assertTrue(resolver.hasRootRoles(DEFAULT_ROLES, owner));
+    }
+
+    function test_upgrade() external {
+        MockUpgrade upgrade = new MockUpgrade();
+        vm.prank(owner);
+        resolver.upgradeToAndCall(address(upgrade), "");
+        assertEq(resolver.addr(NODE_ANY), upgrade.addr(NODE_ANY));
+    }
+
+    function test_upgrade_noRole() external {
+        MockUpgrade upgrade = new MockUpgrade();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                ROOT_RESOURCE,
+                DedicatedResolverLib.ROLE_UPGRADE,
+                friend
+            )
+        );
+        vm.prank(friend);
+        resolver.upgradeToAndCall(address(upgrade), "");
     }
 
     function test_supportsInterface() external view {
@@ -117,15 +141,15 @@ contract DedicatedResolverTest is Test {
         resolver.grantRootRoles(DEFAULT_ROLES, friend);
         vm.prank(friend);
         resolver.revokeRootRoles(DEFAULT_ROLES, owner);
-        assertEq(resolver.roles(0, owner), 0, "owner");
-        assertEq(resolver.roles(0, friend), DEFAULT_ROLES, "friend");
+        assertEq(resolver.roles(ROOT_RESOURCE, owner), 0, "owner");
+        assertEq(resolver.roles(ROOT_RESOURCE, friend), DEFAULT_ROLES, "friend");
     }
 
     function test_grantRootRoles_notAdmin() external {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACCannotGrantRoles.selector,
-                0,
+                ROOT_RESOURCE,
                 DedicatedResolverLib.ROLE_SET_ADDR_ADMIN,
                 address(this)
             )
@@ -495,4 +519,11 @@ contract DedicatedResolverTest is Test {
         vm.prank(friend);
         resolver.setText("b", "B");
     }
+}
+
+contract MockUpgrade is UUPSUpgradeable {
+    function addr(bytes32) external pure returns (address) {
+        return address(1);
+    }
+    function _authorizeUpgrade(address) internal override {}
 }
