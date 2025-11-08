@@ -26,7 +26,6 @@ import {
     DedicatedResolver,
     DedicatedResolverLib,
     IDedicatedResolverSetters,
-    IOwnable,
     NODE_ANY
 } from "~src/common/resolver/DedicatedResolver.sol";
 import {EACBaseRolesLib} from "~src/common/access-control/libraries/EACBaseRolesLib.sol";
@@ -35,13 +34,15 @@ import {
 } from "~src/common/access-control/interfaces/IEnhancedAccessControl.sol";
 
 contract DedicatedResolverTest is Test {
+    uint256 constant DEFAULT_ROLES = EACBaseRolesLib.ALL_ROLES;
+
     struct I {
         bytes4 interfaceId;
         string name;
     }
     function _supportedInterfaces() internal pure returns (I[] memory v) {
         uint256 i;
-        v = new I[](15);
+        v = new I[](14);
         v[i++] = I(type(IExtendedResolver).interfaceId, "IExtendedResolver");
         v[i++] = I(type(IDedicatedResolverSetters).interfaceId, "IDedicatedResolverSetters");
         v[i++] = I(type(IMulticallable).interfaceId, "IMulticallable");
@@ -55,14 +56,14 @@ contract DedicatedResolverTest is Test {
         v[i++] = I(type(IABIResolver).interfaceId, "IABIResolver");
         v[i++] = I(type(IInterfaceResolver).interfaceId, "IInterfaceResolver");
         v[i++] = I(type(IERC7996).interfaceId, "IERC7996");
-        v[i++] = I(type(IOwnable).interfaceId, "IOwnable");
         v[i++] = I(type(IEnhancedAccessControl).interfaceId, "IEnhancedAccessControl");
         assertEq(v.length, i);
     }
 
+    DedicatedResolver resolver;
+
     address owner = makeAddr("owner");
     address friend = makeAddr("friend");
-    DedicatedResolver resolver;
 
     string testName = "test.eth";
     bytes testAddress = abi.encodePacked(address(0x123));
@@ -71,10 +72,17 @@ contract DedicatedResolverTest is Test {
         VerifiableFactory factory = new VerifiableFactory();
         DedicatedResolver resolverImpl = new DedicatedResolver();
 
-        bytes memory initData = abi.encodeCall(DedicatedResolver.initialize, (owner));
+        bytes memory initData = abi.encodeCall(
+            DedicatedResolver.initialize,
+            (owner, DEFAULT_ROLES)
+        );
         resolver = DedicatedResolver(
             factory.deployProxy(address(resolverImpl), uint256(keccak256(initData)), initData)
         );
+    }
+
+    function test_initialize() external view {
+        assertTrue(resolver.hasRootRoles(DEFAULT_ROLES, owner));
     }
 
     function test_supportsInterface() external view {
@@ -96,96 +104,38 @@ contract DedicatedResolverTest is Test {
         assertTrue(resolver.supportsFeature(ResolverFeatures.SINGULAR), "SINGULAR");
     }
 
-    function test_roles() external view {
-        assertTrue(resolver.hasRootRoles(DedicatedResolverLib.INITIAL_ROLES, owner));
-    }
-
-    function test_owner() external view {
-        assertEq(resolver.owner(), owner);
-    }
-
-    function test_transferOwnership() external {
-        uint256 roles = resolver.roles(0, owner);
+    function test_grantRootRoles_canGrantAdmin() external {
         vm.prank(owner);
-        resolver.transferOwnership(address(this));
-        assertEq(resolver.owner(), address(this), "owner");
-        assertEq(resolver.roles(0, address(this)), roles, "roles");
+        resolver.grantRootRoles(DedicatedResolverLib.ROLE_SET_ADDR_ADMIN, friend);
+        vm.prank(friend);
+        resolver.grantRootRoles(DedicatedResolverLib.ROLE_SET_ADDR, address(this));
+        assertTrue(resolver.hasRootRoles(DedicatedResolverLib.ROLE_SET_ADDR, address(this)));
     }
 
-    function test_transferOwnership_noRole() external {
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-                0,
-                DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN,
-                address(this)
-            )
-        );
-        resolver.transferOwnership(address(1));
-    }
-
-    function test_revokeOwnership() external {
+    function test_grantRootRoles_canTransferAdmin() external {
         vm.prank(owner);
-        resolver.renounceOwnership();
-        assertEq(resolver.owner(), address(0), "owner");
-        assertFalse(resolver.hasAssignees(0, EACBaseRolesLib.ADMIN_ROLES), "admins");
+        resolver.grantRootRoles(DEFAULT_ROLES, friend);
+        vm.prank(friend);
+        resolver.revokeRootRoles(DEFAULT_ROLES, owner);
+        assertEq(resolver.roles(0, owner), 0, "owner");
+        assertEq(resolver.roles(0, friend), DEFAULT_ROLES, "friend");
     }
 
-    function test_revokeOwnership_noRole() external {
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-                0,
-                DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN,
-                address(this)
-            )
-        );
-        resolver.renounceOwnership();
-    }
-
-    function test_cannotGrantAdmin() external {
+    function test_grantRootRoles_notAdmin() external {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACCannotGrantRoles.selector,
                 0,
                 DedicatedResolverLib.ROLE_SET_ADDR_ADMIN,
-                owner
+                address(this)
             )
         );
-        vm.prank(owner);
         resolver.grantRootRoles(DedicatedResolverLib.ROLE_SET_ADDR_ADMIN, friend);
     }
 
-    function test_canRevokeAdmin() external {
+    function test_revokeRootRoles_canRevokeAdmin() external {
         vm.prank(owner);
         resolver.revokeRootRoles(DedicatedResolverLib.ROLE_SET_ADDR_ADMIN, owner);
-    }
-
-    function test_cannotTransferAfterRevoke() external {
-        vm.prank(owner);
-        resolver.revokeRootRoles(DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN, owner);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-                0,
-                DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN,
-                owner
-            )
-        );
-        vm.prank(owner);
-        resolver.transferOwnership(address(1));
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
-                0,
-                DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN,
-                owner
-            )
-        );
-        vm.prank(owner);
-        resolver.renounceOwnership();
     }
 
     function testFuzz_setAddr(uint256 coinType, bytes memory addressBytes) external {
@@ -260,7 +210,7 @@ contract DedicatedResolverTest is Test {
         resolver.setAddr(0, "");
     }
 
-    function testFuzz_setText(string memory key, string memory value) external {
+    function testFuzz_setText(string calldata key, string calldata value) external {
         vm.prank(owner);
         resolver.setText(key, value);
 
@@ -277,7 +227,7 @@ contract DedicatedResolverTest is Test {
         resolver.setText("", "");
     }
 
-    function test_setName(string memory name) external {
+    function test_setName(string calldata name) external {
         vm.prank(owner);
         resolver.setName(name);
 
@@ -291,7 +241,7 @@ contract DedicatedResolverTest is Test {
         resolver.setName("");
     }
 
-    function testFuzz_setContenthash(bytes memory v) external {
+    function testFuzz_setContenthash(bytes calldata v) external {
         vm.prank(owner);
         resolver.setContenthash(v);
 
@@ -326,7 +276,7 @@ contract DedicatedResolverTest is Test {
         resolver.setPubkey(0, 0);
     }
 
-    function testFuzz_setABI(uint8 bit, bytes memory data) external {
+    function testFuzz_setABI(uint8 bit, bytes calldata data) external {
         uint256 contentType = 1 << bit;
 
         vm.prank(owner);

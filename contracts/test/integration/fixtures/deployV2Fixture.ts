@@ -40,9 +40,9 @@ export async function deployV2Fixture(
     ROLES.ALL,
     MAX_EXPIRY,
   ]);
-  const dedicatedResolverFactory =
+  const verifiableFactory =
     await network.viem.deployContract("VerifiableFactory");
-  const dedicatedResolverImpl =
+  const dedicatedResolver =
     await network.viem.deployContract("DedicatedResolver");
   return {
     network,
@@ -58,16 +58,20 @@ export async function deployV2Fixture(
   };
   async function deployDedicatedResolver({
     owner = walletClient.account.address,
+    roles = ROLES.ALL,
     salt = BigInt(labelhash(new Date().toISOString())),
   }: {
     owner?: Address;
+    roles?: bigint;
     salt?: bigint;
   } = {}) {
     return deployVerifiableProxy({
       walletClient: await network.viem.getWalletClient(owner),
-      factoryAddress: dedicatedResolverFactory.address,
-      implAddress: dedicatedResolverImpl.address,
-      implAbi: dedicatedResolverImpl.abi,
+      factoryAddress: verifiableFactory.address,
+      implAddress: dedicatedResolver.address,
+      implAbi: dedicatedResolver.abi,
+      functionName: "initialize",
+      args: [walletClient.account.address, roles],
       salt,
     });
   }

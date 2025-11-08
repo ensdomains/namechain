@@ -11,7 +11,6 @@ library DedicatedResolverLib {
         mapping(uint256 contentType => bytes data) abis;
         mapping(bytes4 interfaceId => address implementer) interfaces;
         string name;
-        address owner;
     }
 
     uint256 public constant NAMED_SLOT =
@@ -46,29 +45,8 @@ library DedicatedResolverLib {
     uint256 internal constant ROLE_SET_NAME = 1 << 24;
     uint256 internal constant ROLE_SET_NAME_ADMIN = ROLE_SET_NAME << 128;
 
-    uint256 internal constant ROLE_CAN_TRANSFER_ADMIN = ROLE_UPGRADE << 128;
-
-    uint256 internal constant ROLE_UPGRADE = 1 << 0;
+    uint256 internal constant ROLE_UPGRADE = 1 << 28;
     uint256 internal constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
-
-    uint256 internal constant INITIAL_ROLES =
-        ROLE_SET_ADDR |
-            ROLE_SET_ADDR_ADMIN |
-            ROLE_SET_TEXT |
-            ROLE_SET_TEXT_ADMIN |
-            ROLE_SET_CONTENTHASH |
-            ROLE_SET_CONTENTHASH_ADMIN |
-            ROLE_SET_PUBKEY |
-            ROLE_SET_PUBKEY_ADMIN |
-            ROLE_SET_ABI |
-            ROLE_SET_ABI_ADMIN |
-            ROLE_SET_INTERFACE |
-            ROLE_SET_INTERFACE_ADMIN |
-            ROLE_SET_NAME |
-            ROLE_SET_NAME_ADMIN |
-            ROLE_UPGRADE |
-            ROLE_UPGRADE_ADMIN |
-            ROLE_CAN_TRANSFER_ADMIN;
 
     function textResource(string memory key) internal pure returns (uint256) {
         return uint256(keccak256(bytes(key)));

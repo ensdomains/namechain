@@ -3,15 +3,17 @@ import {
   type Account,
   type Address,
   type Chain,
-  type Hex,
   type Transport,
   type WalletClient,
+  type ContractFunctionName,
+  type ContractFunctionArgs,
   keccak256,
   stringToBytes,
   parseEventLogs,
   getContract,
-  encodeFunctionData,
   parseAbi,
+  encodeFunctionData,
+  AbiStateMutability,
 } from "viem";
 import { waitForTransactionReceipt } from "viem/actions";
 
@@ -20,36 +22,45 @@ const verifiableFactoryAbi = parseAbi([
   "event ProxyDeployed(address indexed sender, address indexed proxyAddress, uint256 salt, address implementation)",
 ]);
 
-export async function deployVerifiableProxy({
+export async function deployVerifiableProxy<
+  const TAbi extends Abi,
+  TMut extends AbiStateMutability,
+  TFn extends ContractFunctionName<TAbi>,
+>({
   walletClient,
   factoryAddress,
   implAddress,
   implAbi,
-  callData,
+  functionName,
+  args,
   salt = BigInt(keccak256(stringToBytes(new Date().toISOString()))),
 }: {
   walletClient: WalletClient<Transport, Chain, Account>;
   factoryAddress: Address;
   implAddress: Address;
-  implAbi: Abi;
-  callData?: Hex;
+  implAbi: TAbi;
+  functionName: TFn;
+  args: ContractFunctionArgs<TAbi, TMut, TFn>;
   salt?: bigint;
 }) {
-  callData ??= encodeFunctionData({
-    abi: parseAbi(["function initialize(address)"]),
-    functionName: "initialize",
-    args: [walletClient.account.address],
-  });
   const hash = await walletClient.writeContract({
     address: factoryAddress,
     abi: verifiableFactoryAbi,
     functionName: "deployProxy",
-    args: [implAddress, salt, callData],
+    args: [
+      implAddress,
+      salt,
+      encodeFunctionData({
+        abi: implAbi as any, // typechecked at callsite
+        functionName,
+        args: args as any,
+      }),
+    ],
   });
   const receipt = await waitForTransactionReceipt(walletClient, { hash });
   const [log] = parseEventLogs({
     abi: verifiableFactoryAbi,
-	eventName: 'ProxyDeployed',
+    eventName: "ProxyDeployed",
     logs: receipt.logs,
   });
   const contract = getContract({
@@ -61,6 +72,6 @@ export async function deployVerifiableProxy({
   // Attach deployment metadata for gas tracking
   return Object.assign(contract, {
     deploymentHash: hash,
-    deploymentReceipt: receipt
+    deploymentReceipt: receipt,
   });
 }

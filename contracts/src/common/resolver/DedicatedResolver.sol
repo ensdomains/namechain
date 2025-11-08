@@ -19,7 +19,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
-import {IOwnable} from "../access-control/interfaces/IOwnable.sol";
+import {InvalidOwner} from "../CommonErrors.sol";
 
 import {IDedicatedResolverSetters, NODE_ANY} from "./interfaces/IDedicatedResolverSetters.sol";
 import {DedicatedResolverLib} from "./libraries/DedicatedResolverLib.sol";
@@ -30,7 +30,6 @@ import {DedicatedResolverLib} from "./libraries/DedicatedResolverLib.sol";
 contract DedicatedResolver is
     EnhancedAccessControl,
     Initializable,
-    IOwnable,
     IDedicatedResolverSetters,
     IERC7996,
     IExtendedResolver,
@@ -79,7 +78,6 @@ contract DedicatedResolver is
             type(IABIResolver).interfaceId == interfaceId ||
             type(IInterfaceResolver).interfaceId == interfaceId ||
             type(IERC7996).interfaceId == interfaceId ||
-            type(IOwnable).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -93,38 +91,14 @@ contract DedicatedResolver is
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
-    /// @dev Initialize the contract.
-    /// @param initialOwner The initial owner of the resolver.
-    function initialize(address initialOwner) external initializer {
-        if (initialOwner == address(0)) {
-            revert OwnableInvalidOwner(address(0));
+    /// @notice Initialize the contract.
+    /// @param admin The resolver owner.
+    /// @param roleBitmap The roles granted to `admin`.
+    function initialize(address admin, uint256 roleBitmap) external initializer {
+        if (admin == address(0)) {
+            revert InvalidOwner();
         }
-        _storage().owner = initialOwner;
-        emit OwnershipTransferred(address(0), initialOwner);
-        _grantRoles(ROOT_RESOURCE, DedicatedResolverLib.INITIAL_ROLES, initialOwner, false);
-    }
-
-    /// @inheritdoc IOwnable
-    function transferOwnership(
-        address newOwner
-    ) external onlyRootRoles(DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN) {
-        DedicatedResolverLib.Storage storage $ = _storage();
-        address oldOwner = $.owner;
-        $.owner = newOwner;
-        emit OwnershipTransferred(oldOwner, newOwner);
-        _transferRoles(ROOT_RESOURCE, oldOwner, newOwner, false);
-    }
-
-    /// @inheritdoc IOwnable
-    function renounceOwnership()
-        external
-        onlyRootRoles(DedicatedResolverLib.ROLE_CAN_TRANSFER_ADMIN)
-    {
-        DedicatedResolverLib.Storage storage $ = _storage();
-        address oldOwner = $.owner;
-        $.owner = address(0);
-        emit OwnershipTransferred(oldOwner, address(0));
-        _revokeAllRoles(ROOT_RESOURCE, oldOwner, false);
+        _grantRoles(ROOT_RESOURCE, roleBitmap, admin, false);
     }
 
     /// @inheritdoc IDedicatedResolverSetters
@@ -304,11 +278,6 @@ contract DedicatedResolver is
         return _storage().addresses[coinType].length > 0;
     }
 
-    /// @inheritdoc IOwnable
-    function owner() external view returns (address) {
-        return _storage().owner;
-    }
-
     /// @notice Perform multiple read or write operations.
     /// @dev Reverts if any call fails.
     function multicall(bytes[] calldata calls) public returns (bytes[] memory results) {
@@ -342,6 +311,18 @@ contract DedicatedResolver is
     ////////////////////////////////////////////////////////////////////////
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
+
+    /// @dev Allow admins to grant admin roles.
+    function _getSettableRoles(
+        uint256 resource,
+        address account
+    ) internal view override returns (uint256) {
+        if (resource == ROOT_RESOURCE) {
+            uint256 roles = this.roles(resource, account);
+            return roles | (roles >> 128);
+        }
+        return super._getSettableRoles(resource, account);
+    }
 
     /// @dev Returns true if `x` has a single bit set.
     function _isPowerOf2(uint256 x) internal pure returns (bool) {
