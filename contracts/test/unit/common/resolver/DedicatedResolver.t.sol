@@ -58,8 +58,8 @@ contract DedicatedResolverTest is Test {
         v[i++] = I(type(IABIResolver).interfaceId, "IABIResolver");
         v[i++] = I(type(IInterfaceResolver).interfaceId, "IInterfaceResolver");
         v[i++] = I(type(IERC7996).interfaceId, "IERC7996");
-        v[i++] = I(type(IEnhancedAccessControl).interfaceId, "IEnhancedAccessControl");
         v[i++] = I(type(UUPSUpgradeable).interfaceId, "UUPSUpgradeable");
+        v[i++] = I(type(IEnhancedAccessControl).interfaceId, "IEnhancedAccessControl");
         assertEq(v.length, i);
     }
 

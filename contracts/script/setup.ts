@@ -178,7 +178,7 @@ export class ChainDeployment<
         }) as unknown;
         return [name, contract];
       }),
-    ) as typeof this.contracts;
+    ) as ContractsOf<A>;
   }
   // get nameStr() {
   //   return nameForChain(this.isL1);
@@ -310,10 +310,11 @@ export async function setupCrossChainEnvironment({
     console.log("Deploying ENSv2...");
     await patchArtifactsV1();
 
+    // list of named wallets
     const names = ["deployer", "owner", "bridger", "user", "user2"];
     extraAccounts += names.length;
 
-    process.env["RUST_LOG"] = "info";
+    process.env["RUST_LOG"] = "info"; // required to capture console.log()
     const l1Anvil = createAnvil({
       chainId: l1ChainId,
       port: l1Port,
