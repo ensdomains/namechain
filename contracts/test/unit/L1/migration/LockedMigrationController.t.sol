@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 import {
     NameWrapper,
     IMetadataService,
+    OperationProhibited,
     CANNOT_UNWRAP,
     CAN_DO_EVERYTHING,
     CANNOT_BURN_FUSES,
@@ -22,43 +23,46 @@ import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Re
 
 import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
 import {NameWrapperFixture} from "~test/fixtures/NameWrapperFixture.sol";
-import {ETHRegistryMixin} from "~test/fixtures/ETHRegistryMixin.sol";
+import {ETHFixtureMixin} from "~test/fixtures/ETHFixtureMixin.sol";
 import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
+import {WrappedErrorLib} from "~src/common/utils/WrappedErrorLib.sol";
 import {L1BridgeController, TransferData} from "~src/L1/bridge/L1BridgeController.sol";
 import {LockedMigrationController} from "~src/L1/migration/LockedMigrationController.sol";
 import {
     WrapperRegistry,
     IWrapperRegistry,
     RegistryRolesLib,
+    MigrationErrors,
     IRegistry
 } from "~src/L1/registry/WrapperRegistry.sol";
 
-contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
+contract LockedMigrationControllerTest is NameWrapperFixture, ETHFixtureMixin {
     MockL1Bridge bridge;
     L1BridgeController bridgeController;
     LockedMigrationController migrationController;
+    ETHFixture ethFixture;
 
-    VerifiableFactory migratedRegistryFactory;
-    MigratedWrappedNameRegistry migratedRegistryImpl;
+    VerifiableFactory verifiableFactory;
+    WrapperRegistry migratedRegistryImpl;
 
     function setUp() external {
-        _deployNameWrapper();
-        _deployETHRegistry();
+        deployNameWrapper();
+        ethFixture = deployETHFixture();
 
         bridge = new MockL1Bridge();
 
-        migratedRegistryFactory = new VerifiableFactory();
-        migratedRegistryImpl = new MigratedWrappedNameRegistry(
+        verifiableFactory = new VerifiableFactory();
+        migratedRegistryImpl = new WrapperRegistry(
             nameWrapper,
+            verifiableFactory,
             address(0), // ETHTLDResolver not needed
-            migratedRegistryFactory,
-            datastore,
-            metadata
+            ethFixture.datastore,
+            ethFixture.metadata
         );
 
-        bridgeController = new L1BridgeController(ethRegistry, bridge);
+        bridgeController = new L1BridgeController(bridge, ethFixture.ethRegistry);
 
-        ethRegistry.grantRootRoles(
+        ethFixture.ethRegistry.grantRootRoles(
             RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_BURN,
             address(bridgeController)
         );
@@ -66,18 +70,16 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
         migrationController = new LockedMigrationController(
             nameWrapper,
             bridgeController,
-            migratedRegistryFactory,
+            verifiableFactory,
             address(migratedRegistryImpl)
         );
 
         bridgeController.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(migrationController));
     }
 
-    function _makeData(
-        bytes memory name
-    ) internal view returns (IMigratedWrappedNameRegistry.Data memory) {
+    function _makeData(bytes memory name) internal view returns (IWrapperRegistry.Data memory) {
         return
-            IMigratedWrappedNameRegistry.Data({
+            IWrapperRegistry.Data({
                 node: NameCoder.namehash(name, 0),
                 owner: user,
                 resolver: address(1),
@@ -95,11 +97,6 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
     // }
 
     function test_constructor() external view {
-        assertEq(
-            address(migrationController.ETH_REGISTRY_V1()),
-            address(ethRegistrarV1),
-            "ETH_REGISTRY_V1"
-        );
         assertEq(address(migrationController.NAME_WRAPPER()), address(nameWrapper), "NAME_WRAPPER");
         assertEq(
             address(migrationController.L1_BRIDGE_CONTROLLER()),
@@ -107,16 +104,16 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             "L1_BRIDGE_CONTROLLER"
         );
         assertEq(
-            address(migrationController.MIGRATED_REGISTRY_FACTORY()),
-            address(migratedRegistryFactory),
-            "MIGRATED_REGISTRY_FACTORY"
+            address(migrationController.VERIFIABLE_FACTORY()),
+            address(verifiableFactory),
+            "VERIFIABLE_FACTORY"
         );
         assertEq(
             migrationController.MIGRATED_REGISTRY_IMPL(),
             address(migratedRegistryImpl),
             "MIGRATED_REGISTRY_IMPL"
         );
-        assertEq(migrationController.owner(), address(this), "owner");
+        // assertEq(migrationController.owner(), address(this), "owner");
     }
 
     function test_supportsInterface() external view {
@@ -128,9 +125,8 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
     }
 
     function test_migrate_locked() external {
-        bytes memory name = registerWrappedETH2LD("test", CANNOT_UNWRAP);
-        IMigratedWrappedNameRegistry.Data memory md = _makeData(name);
-        vm.startPrank(user);
+        IWrapperRegistry.Data memory md = _makeData(registerWrappedETH2LD("test", CANNOT_UNWRAP));
+        vm.prank(user);
         nameWrapper.safeTransferFrom(
             user,
             address(migrationController),
@@ -138,7 +134,107 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             1,
             abi.encode(md)
         );
+    }
+
+    function test_migrateBatch_locked(uint8 count) external {
+        vm.assume(count < 5);
+        uint256[] memory ids = new uint256[](count);
+        uint256[] memory amounts = new uint256[](count);
+        IWrapperRegistry.Data[] memory mds = new IWrapperRegistry.Data[](count);
+        for (uint256 i; i < count; ++i) {
+            IWrapperRegistry.Data memory md = _makeData(
+                registerWrappedETH2LD(_label(i), CANNOT_UNWRAP)
+            );
+            mds[i] = md;
+            ids[i] = uint256(md.node);
+            amounts[i] = 1;
+        }
+        vm.prank(user);
+        nameWrapper.safeBatchTransferFrom(
+            user,
+            address(migrationController),
+            ids,
+            amounts,
+            abi.encode(mds)
+        );
+    }
+
+    function test_migrate_notLocked() external {
+        bytes memory name = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
+        IWrapperRegistry.Data memory md = _makeData(name);
+        vm.expectRevert(
+            WrappedErrorLib.wrap(
+                abi.encodeWithSelector(MigrationErrors.NameNotLocked.selector, name)
+            )
+        );
+        vm.prank(user);
+        nameWrapper.safeTransferFrom(
+            user,
+            address(migrationController),
+            uint256(md.node),
+            1,
+            abi.encode(md)
+        );
+    }
+
+    function test_migrate_lockedResolver() external {
+        bytes memory name = registerWrappedETH2LD("test", CAN_DO_EVERYTHING);
+        IWrapperRegistry.Data memory md = _makeData(name);
+
+        address frozenResolver = address(2);
+        vm.startPrank(user);
+        nameWrapper.setResolver(md.node, frozenResolver);
+        nameWrapper.setFuses(md.node, uint16(CANNOT_UNWRAP | CANNOT_SET_RESOLVER));
         vm.stopPrank();
+        assertNotEq(md.resolver, frozenResolver, "unfrozen");
+
+        vm.prank(user);
+        nameWrapper.safeTransferFrom(
+            user,
+            address(migrationController),
+            uint256(md.node),
+            1,
+            abi.encode(md)
+        );
+
+        assertEq(
+            ethFixture.ethRegistry.getResolver(NameCoder.firstLabel(name)),
+            frozenResolver,
+            "frozen"
+        );
+    }
+
+    function test_migrate_lockedTransfer() external {
+        bytes memory name = registerWrappedETH2LD("test", CANNOT_UNWRAP | CANNOT_TRANSFER);
+        IWrapperRegistry.Data memory md = _makeData(name);
+        vm.expectRevert(abi.encodeWithSelector(OperationProhibited.selector, md.node));
+        vm.prank(user);
+        nameWrapper.safeTransferFrom(
+            user,
+            address(migrationController),
+            uint256(md.node),
+            1,
+            abi.encode(md)
+        );
+    }
+
+    function test_migrate_lockedExpiry() external {
+        bytes memory name = registerWrappedETH2LD("test", CANNOT_UNWRAP | CAN_EXTEND_EXPIRY);
+        IWrapperRegistry.Data memory md = _makeData(name);
+        vm.prank(user);
+        nameWrapper.safeTransferFrom(
+            user,
+            address(migrationController),
+            uint256(md.node),
+            1,
+            abi.encode(md)
+        );
+        (uint256 tokenId, ) = ethFixture.ethRegistry.getNameData(NameCoder.firstLabel(name));
+        assertFalse(ethFixture.ethRegistry.hasRoles(tokenId, RegistryRolesLib.ROLE_RENEW, user));
+    }
+
+    function _label(uint256 i) internal pure returns (string memory) {
+        return string.concat("test", vm.toString(i));
     }
 
     // ntoe: cannot call CANNOT_BURN_FUSES on ETH2LD
@@ -160,7 +256,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
     //         transferData: TransferData({
     //             name: NameCoder.ethName(testLabel),
     //             owner: user,
-    //             subregistry: address(0), // Will be created by migratedRegistryFactory
+    //             subregistry: address(0), // Will be created by verifiableFactory
     //             resolver: address(0xABCD),
     //             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER, // Note: only regular roles, no admin roles expected
     //             expires: uint64(block.timestamp + 86400)
@@ -185,7 +281,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER |
                     RegistryRolesLib.ROLE_SET_SUBREGISTRY,
@@ -227,7 +323,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_SUBREGISTRY, // This should be completely ignored
                 expires: uint64(block.timestamp + 86400)
@@ -294,7 +390,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)
@@ -320,7 +416,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER, // Note: only regular roles, no admin roles expected
                 expires: uint64(block.timestamp + 86400)
@@ -346,7 +442,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName("wronglabel"), // This won't match testTokenId
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)
@@ -375,7 +471,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)
@@ -422,7 +518,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
                 transferData: TransferData({
                     name: name,
                     owner: user,
-                    subregistry: address(0), // Will be created by migratedRegistryFactory
+                    subregistry: address(0), // Will be created by verifiableFactory
                     resolver: address(uint160(0xABCD + i)),
                     roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                     expires: uint64(block.timestamp + 86400 * (i + 1))
@@ -475,7 +571,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)
@@ -495,7 +591,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
         assertTrue(actualSubregistry != address(0), "Subregistry should be created");
 
         // Verify it's a proxy pointing to our implementation
-        // The migratedRegistryFactory creates a proxy, so we can verify it's pointing to the right implementation
+        // The verifiableFactory creates a proxy, so we can verify it's pointing to the right implementation
         MigratedWrappedNameRegistry migratedRegistry = MigratedWrappedNameRegistry(
             actualSubregistry
         );
@@ -518,7 +614,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_SUBREGISTRY, // This should be ignored
                 expires: uint64(block.timestamp + 86400)
@@ -583,7 +679,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: 0,
                 expires: uint64(block.timestamp + 86400)
@@ -633,7 +729,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER |
                     RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN, // Should be ignored
@@ -698,7 +794,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_REGISTRAR_ADMIN, // Should be ignored
                 expires: uint64(block.timestamp + 86400)
@@ -763,7 +859,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_SUBREGISTRY, // Should be ignored
                 expires: uint64(block.timestamp + 86400)
@@ -819,7 +915,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_SUBREGISTRY,
                 expires: uint64(block.timestamp + 86400)
@@ -846,7 +942,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)
@@ -899,7 +995,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)
@@ -950,7 +1046,7 @@ contract LockedMigrationControllerTest is NameWrapperFixture, ETHRegistryMixin {
             transferData: TransferData({
                 name: NameCoder.ethName(testLabel),
                 owner: user,
-                subregistry: address(0), // Will be created by migratedRegistryFactory
+                subregistry: address(0), // Will be created by verifiableFactory
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)

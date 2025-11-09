@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
 import {UnauthorizedCaller} from "../CommonErrors.sol";
@@ -23,8 +24,6 @@ abstract contract AbstractBridgeController is IERC1155Receiver, EnhancedAccessCo
     // Constants
     ////////////////////////////////////////////////////////////////////////
 
-    uint256 public constant MIN_TRANSFER_DURATION = 6 * 60 * 60; // 6 hours
-
     IPermissionedRegistry public immutable REGISTRY;
 
     IBridge public immutable BRIDGE;
@@ -41,10 +40,8 @@ abstract contract AbstractBridgeController is IERC1155Receiver, EnhancedAccessCo
     ////////////////////////////////////////////////////////////////////////
 
     error InvalidTransferData();
-    error InvalidOwner(string label, address owner);
     error LabelTokenMismatch(string label, uint256 tokenId);
-    error InvalidRoleBitmap(uint256 tokenId, uint256 roleBitmap);
-    error InsufficientDuration(uint256 tokenId, uint64 expiry);
+    error InvalidOwner(string label, address owner);
 
     ////////////////////////////////////////////////////////////////////////
     // Modifiers
@@ -57,20 +54,13 @@ abstract contract AbstractBridgeController is IERC1155Receiver, EnhancedAccessCo
         _;
     }
 
-    modifier onlyDataSize(bytes calldata data, uint256 minSize) {
-        if (data.length < minSize) {
-            revert InvalidTransferData();
-        }
-        _;
-    }
-
     ////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
-    constructor(IPermissionedRegistry registry, IBridge bridge) {
-        REGISTRY = registry;
+    constructor(IBridge bridge, IPermissionedRegistry registry) {
         BRIDGE = bridge;
+        REGISTRY = registry;
 
         // Grant admin roles to the deployer so they can manage bridge roles
         _grantRoles(ROOT_RESOURCE, BridgeRolesLib.ROLE_EJECTOR_ADMIN, msg.sender, true);
@@ -93,6 +83,8 @@ abstract contract AbstractBridgeController is IERC1155Receiver, EnhancedAccessCo
     function completeEjection(
         TransferData calldata td
     ) external onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) returns (uint256 tokenId) {
+        // perform idiot checks?
+        NameCoder.assertLabelSize(td.label); // where does this go?
         if (td.owner == address(this)) {
             revert InvalidOwner(td.label, td.owner);
         }
@@ -107,8 +99,17 @@ abstract contract AbstractBridgeController is IERC1155Receiver, EnhancedAccessCo
         uint256 id,
         uint256 /*amount*/,
         bytes calldata data
-    ) public virtual onlyRegistry onlyDataSize(data, TRANSFER_DATA_MIN_SIZE) returns (bytes4) {
-        TransferData memory td = abi.decode(data, (TransferData));
+    ) public virtual onlyRegistry returns (bytes4) {
+        uint256 offset = uint256(bytes32(data));
+        if (data.length > offset && uint256(bytes32(data[offset:])) == 1) {
+            offset += 32; // this was a batch of 1
+        } else {
+            offset = 0;
+        }
+        if (data.length < offset + TRANSFER_DATA_MIN_SIZE) {
+            revert InvalidTransferData();
+        }
+        TransferData memory td = abi.decode(data[offset:], (TransferData));
         _tryEjection(id, td);
         return this.onERC1155Received.selector;
     }
@@ -120,13 +121,10 @@ abstract contract AbstractBridgeController is IERC1155Receiver, EnhancedAccessCo
         uint256[] calldata ids,
         uint256[] calldata /*amounts*/,
         bytes calldata data
-    )
-        public
-        virtual
-        onlyRegistry
-        onlyDataSize(data, 64 + ids.length * TRANSFER_DATA_MIN_SIZE)
-        returns (bytes4)
-    {
+    ) public virtual onlyRegistry returns (bytes4) {
+        if (data.length < 64 + ids.length * TRANSFER_DATA_MIN_SIZE) {
+            revert InvalidTransferData();
+        }
         TransferData[] memory tds = abi.decode(data, (TransferData[]));
         if (ids.length != tds.length) {
             revert IERC1155Errors.ERC1155InvalidArrayLength(ids.length, tds.length);

@@ -14,8 +14,12 @@ import {IETHRegistrar} from "./interfaces/IETHRegistrar.sol";
 import {IRentPriceOracle} from "./interfaces/IRentPriceOracle.sol";
 
 uint256 constant REGISTRATION_ROLE_BITMAP = 0 |
-    RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN |
+    RegistryRolesLib.ROLE_SET_RESOLVER |
     RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN |
+    RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+    RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN |
+    RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
+    RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
     RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN;
 
 uint256 constant ROLE_SET_ORACLE = 1 << 0;

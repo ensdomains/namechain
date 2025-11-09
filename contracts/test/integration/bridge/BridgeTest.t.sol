@@ -61,8 +61,8 @@ contract BridgeTest is Test, EnhancedAccessControl {
         l2Bridge = new MockL2Bridge();
 
         // Deploy controllers
-        l1Controller = new L1BridgeController(l1Registry, l1Bridge);
-        l2Controller = new L2BridgeController(l2Bridge, l2Registry, datastore);
+        l1Controller = new L1BridgeController(l1Bridge, l1Registry);
+        l2Controller = new L2BridgeController(l2Bridge, l2Registry);
 
         // Set the controller contracts as targets for the bridges
         l1Bridge.setBridgeController(l1Controller);
@@ -87,47 +87,42 @@ contract BridgeTest is Test, EnhancedAccessControl {
 
     function testNameEjectionFromL2ToL1() public {
         // Register using just the label, as would be done in an .eth registry
-        uint256 tokenId = l2Registry.register(
-            "premiumname",
-            user2,
-            IRegistry(address(0x456)),
-            address(0x789),
-            EACBaseRolesLib.ALL_ROLES,
-            uint64(block.timestamp + 365 days)
-        );
 
-        TransferData memory transferData = TransferData({
-            dnsEncodedName: NameCoder.ethName("premiumname"),
+        TransferData memory td = TransferData({
+            label: "premiumname",
             owner: user2,
-            subregistry: address(0x123),
+            subregistry: IRegistry(address(0x123)),
             resolver: address(0x456),
             roleBitmap: RegistryRolesLib.ROLE_RENEW,
-            expires: uint64(block.timestamp + 123 days)
+            expiry: uint64(block.timestamp + 123 days)
         });
+
+        uint256 tokenId = l2Registry.register(
+            td.label,
+            td.owner,
+            td.subregistry,
+            td.resolver,
+            EACBaseRolesLib.ALL_ROLES, // why are these
+            uint64(block.timestamp + 365 days) // diff?
+        );
 
         // Step 1: Initiate ejection on L2
         vm.startPrank(user2);
-        l2Registry.safeTransferFrom(
-            user2,
-            address(l2Controller),
-            tokenId,
-            1,
-            abi.encode(transferData)
-        );
+        l2Registry.safeTransferFrom(user2, address(l2Controller), tokenId, 1, abi.encode(td));
         vm.stopPrank();
 
         // Step 2: Simulate receiving the message on L1
-        bytes memory bridgeMessage = BridgeEncoderLib.encodeEjection(transferData);
+        bytes memory bridgeMessage = BridgeEncoderLib.encodeEjection(td);
         l1Bridge.receiveMessage(bridgeMessage);
 
         // Step 3: Verify the name is registered on L1
-        assertEq(l1Registry.ownerOf(tokenId), transferData.owner);
-        assertEq(address(l1Registry.getSubregistry("premiumname")), transferData.subregistry);
-        assertEq(l1Registry.getResolver("premiumname"), transferData.resolver);
-        assertEq(l1Registry.getExpiry(tokenId), transferData.expires);
+        assertEq(l1Registry.ownerOf(tokenId), td.owner);
+        assertEq(address(l1Registry.getSubregistry("premiumname")), address(td.subregistry));
+        assertEq(l1Registry.getResolver("premiumname"), td.resolver);
+        assertEq(l1Registry.getExpiry(tokenId), td.expiry);
         assertEq(
-            l1Registry.roles(l1Registry.testGetResourceFromTokenId(tokenId), transferData.owner),
-            transferData.roleBitmap
+            l1Registry.roles(l1Registry.testGetResourceFromTokenId(tokenId), td.owner),
+            td.roleBitmap
         );
     }
 }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import "forge-std/console.sol";
+
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {
     INameWrapper,
@@ -21,14 +23,14 @@ import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC16
 
 import {TransferData} from "../../common/bridge/types/TransferData.sol";
 import {UnauthorizedCaller} from "../../common/CommonErrors.sol";
+import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
 import {WrappedErrorLib} from "../../common/utils/WrappedErrorLib.sol";
 import {IWrapperRegistry, DATA_SIZE} from "../registry/interfaces/IWrapperRegistry.sol";
 
 import {MigrationErrors} from "./MigrationErrors.sol";
 
-uint32 constant FUSES_TO_BURN = CANNOT_UNWRAP |
-    CANNOT_BURN_FUSES |
+uint32 constant FUSES_TO_BURN = CANNOT_BURN_FUSES |
     CANNOT_TRANSFER |
     CANNOT_SET_RESOLVER |
     CANNOT_SET_TTL |
@@ -49,7 +51,7 @@ abstract contract WrapperReceiver is ERC165, IERC1155Receiver {
 
     /// @dev Restrict `msg.sender` to `NAME_WRAPPER`.
     ///      Avoid `abi.decode()` failure for obviously invalid data.
-    ///      Reverts wrapped for use inside of legacy IERC1155Receiver handler.
+    ///      Reverts wrapped errors for use inside of legacy IERC1155Receiver handler.
     modifier onlyWrapperDuringTransfer(bytes calldata data, uint256 expectedSize) {
         if (msg.sender != address(NAME_WRAPPER)) {
             WrappedErrorLib.wrapAndRevert(
@@ -187,6 +189,7 @@ abstract contract WrapperReceiver is ERC165, IERC1155Receiver {
             if ((fuses & CANNOT_SET_RESOLVER) != 0) {
                 td.resolver = NAME_WRAPPER.ens().resolver(md.node); // copy V1 resolver
             } else {
+                td.resolver = md.resolver; // accepts any value
                 NAME_WRAPPER.setResolver(md.node, address(0)); // clear V1 resolver
             }
 
@@ -197,22 +200,23 @@ abstract contract WrapperReceiver is ERC165, IERC1155Receiver {
             // configure transfer
             td.label = label; // safe by construction
             td.owner = md.owner; // checked above
-            td.resolver = md.resolver; // accepts any value
             td.roleBitmap = tokenRoles; // safe by construction
 
             // create subregistry
-            td.subregistry = VERIFIABLE_FACTORY.deployProxy(
-                MIGRATED_REGISTRY_IMPL,
-                md.salt,
-                abi.encodeCall(
-                    IWrapperRegistry.initialize,
-                    (
-                        IWrapperRegistry.ConstructorArgs({
-                            node: md.node, // safe by construction
-                            owner: md.owner, // safe by construction
-                            ownerRoles: subRegistryRoles, // safe by construction
-                            registrar: address(0) // TODO: md.registry?
-                        })
+            td.subregistry = IRegistry(
+                VERIFIABLE_FACTORY.deployProxy(
+                    MIGRATED_REGISTRY_IMPL,
+                    md.salt,
+                    abi.encodeCall(
+                        IWrapperRegistry.initialize,
+                        (
+                            IWrapperRegistry.ConstructorArgs({
+                                node: md.node, // safe by construction
+                                owner: md.owner, // safe by construction
+                                ownerRoles: subRegistryRoles, // safe by construction
+                                registrar: address(0) // TODO: md.registry?
+                            })
+                        )
                     )
                 )
             );

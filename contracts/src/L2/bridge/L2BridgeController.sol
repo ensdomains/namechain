@@ -10,24 +10,37 @@ import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryData
 import {ITokenObserver} from "../../common/registry/interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
 
+/// @dev A subset of the roles assigned by `ETHRegistrar.register()` required to bridge.
+uint256 constant REQUIRED_EJECTION_ROLES = 0 |
+    RegistryRolesLib.ROLE_SET_RESOLVER |
+    // RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN | // technically, not required
+    RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+    RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN |
+    RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
+    RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+    RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN;
+
+uint256 constant ASSIGNED_INJECTION_ROLES = 0 |
+    RegistryRolesLib.ROLE_SET_RESOLVER |
+    RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN |
+    RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+    RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN |
+    RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN;
+
+address constant POST_MIGRATION_RESOLVER = address(2); // ETHTLDResolver.NameState.POST_MIGRATION
+
 /**
  * @title L2BridgeController
  * @dev Combined controller that handles both ejection messages from L1 to L2 and ejection operations
  */
 contract L2BridgeController is AbstractBridgeController, ITokenObserver {
     ////////////////////////////////////////////////////////////////////////
-    // Constants
-    ////////////////////////////////////////////////////////////////////////
-
-    IRegistryDatastore public immutable DATASTORE;
-
-    ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
 
     error NotTokenOwner(uint256 tokenId);
 
-    error TooManyRoleAssignees(uint256 tokenId, uint256 roleBitmap);
+    error TooManyRoleAssignees(uint256 tokenId, uint256 roleBitmap, uint256 counts);
 
     ////////////////////////////////////////////////////////////////////////
     // Initialization
@@ -35,11 +48,8 @@ contract L2BridgeController is AbstractBridgeController, ITokenObserver {
 
     constructor(
         IBridge bridge,
-        IPermissionedRegistry registry,
-        IRegistryDatastore datastore
-    ) AbstractBridgeController(registry, bridge) {
-        DATASTORE = datastore;
-    }
+        IPermissionedRegistry registry
+    ) AbstractBridgeController(bridge, registry) {}
 
     /// @inheritdoc AbstractBridgeController
     function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
@@ -66,16 +76,16 @@ contract L2BridgeController is AbstractBridgeController, ITokenObserver {
     function _inject(TransferData memory td) internal override returns (uint256 tokenId) {
         (tokenId, ) = REGISTRY.getNameData(td.label);
 
-        // owner should be the bridge controller
         if (REGISTRY.ownerOf(tokenId) != address(this)) {
-            revert NotTokenOwner(tokenId);
+            revert NotTokenOwner(tokenId); // likely expired inflight
         }
 
-        REGISTRY.setSubregistry(tokenId, td.subregistry);
         REGISTRY.setResolver(tokenId, td.resolver);
-
-        // Clear token observer and transfer ownership to recipient
+        REGISTRY.setSubregistry(tokenId, td.subregistry);
         REGISTRY.setTokenObserver(tokenId, ITokenObserver(address(0)));
+        // td.expiry is ignored
+        // td.roleBitmap is ignored
+
         REGISTRY.safeTransferFrom(address(this), td.owner, tokenId, 1, "");
     }
 
@@ -92,23 +102,24 @@ contract L2BridgeController is AbstractBridgeController, ITokenObserver {
         We also don't need to check that we (the bridge controller) are the sole assignee of these roles since we exercise these 
         roles further down below.
         */
-        uint256 roleBitmap = RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
-            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
-            RegistryRolesLib.ROLE_SET_SUBREGISTRY |
-            RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN |
-            RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN;
-        (uint256 counts, uint256 mask) = REGISTRY.getAssigneeCount(tokenId, roleBitmap);
-        if (counts & mask != roleBitmap) {
-            revert TooManyRoleAssignees(tokenId, roleBitmap);
+        (uint256 counts, uint256 mask) = REGISTRY.getAssigneeCount(
+            tokenId,
+            REQUIRED_EJECTION_ROLES
+        );
+        counts &= mask;
+        if (counts != REQUIRED_EJECTION_ROLES) {
+            revert TooManyRoleAssignees(tokenId, REQUIRED_EJECTION_ROLES, counts);
         }
 
         // set to special value which indicates this name is inflight to Namechain
         // during L2 -> L1, injection will always? happen before L2 finality on L1.
         // during L1 -> L2, ejection instantly will lookup this resolver, and then continue using L1, until L2 injection happens.
-        REGISTRY.setResolver(tokenId, address(2));
+        REGISTRY.setResolver(tokenId, POST_MIGRATION_RESOLVER);
 
+        // relay renews to L1
         REGISTRY.setTokenObserver(tokenId, this);
 
         td.expiry = REGISTRY.getExpiry(tokenId);
+        td.roleBitmap = ASSIGNED_INJECTION_ROLES;
     }
 }

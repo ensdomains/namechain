@@ -6,7 +6,7 @@ import {NameWrapperFixture, NameCoder} from "./NameWrapperFixture.sol";
 // TODO: add more NameWrapper quirks and invariant tests.
 contract TestNameWrapperFixture is NameWrapperFixture {
     function setUp() external {
-        _deployNameWrapper();
+        deployNameWrapper();
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -44,12 +44,12 @@ contract TestNameWrapperFixture is NameWrapperFixture {
     // NameWrapper Quirks
     ////////////////////////////////////////////////////////////////////////
 
-    function test_Revert_nameWrapper_wrapRoot() external {
+    function test_nameWrapper_wrapRootReverts() external {
         vm.expectRevert(abi.encodeWithSignature("Error(string)", "readLabel: Index out of bounds"));
         nameWrapper.wrap(hex"00", address(1), address(0));
     }
 
-    function test_Revert_nameWrapper_expiryForETH2LD() external {
+    function test_nameWrapper_expiryForETH2LD() external {
         bytes memory name = registerWrappedETH2LD("test", 0);
         uint256 unwrappedExpiry = ethRegistrarV1.nameExpires(
             uint256(keccak256(bytes(NameCoder.firstLabel(name))))
@@ -58,7 +58,7 @@ contract TestNameWrapperFixture is NameWrapperFixture {
         assertEq(unwrappedExpiry + ethRegistrarV1.GRACE_PERIOD(), wrappedExpiry);
     }
 
-    function test_Revert_ethRegistrarV1_ownerOfUnregistered() external {
+    function test_ethRegistrarV1_ownerOfUnregisteredReverts() external {
         vm.expectRevert();
         ethRegistrarV1.ownerOf(0);
     }

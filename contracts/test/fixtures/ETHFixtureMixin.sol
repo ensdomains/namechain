@@ -7,31 +7,33 @@ import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.so
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 
 /// @dev Reusable testing fixture for a simplified ENSv2 ".eth" deployment.
-contract ETHRegistryMixin {
-    RegistryDatastore datastore;
-    BaseUriRegistryMetadata metadata;
-    PermissionedRegistry rootRegistry;
-    PermissionedRegistry ethRegistry;
+contract ETHFixtureMixin {
+    struct ETHFixture {
+        RegistryDatastore datastore;
+        BaseUriRegistryMetadata metadata;
+        PermissionedRegistry rootRegistry;
+        PermissionedRegistry ethRegistry;
+    }
 
-    function _deployETHRegistry() internal {
-        datastore = new RegistryDatastore();
-        metadata = new BaseUriRegistryMetadata();
-        rootRegistry = new PermissionedRegistry(
-            datastore,
-            metadata,
+    function deployETHFixture() internal returns (ETHFixture memory f) {
+        f.datastore = new RegistryDatastore();
+        f.metadata = new BaseUriRegistryMetadata();
+        f.rootRegistry = new PermissionedRegistry(
+            f.datastore,
+            f.metadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES
         );
-        ethRegistry = new PermissionedRegistry(
-            datastore,
-            metadata,
+        f.ethRegistry = new PermissionedRegistry(
+            f.datastore,
+            f.metadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES
         );
-        rootRegistry.register(
+        f.rootRegistry.register(
             "eth",
             address(this),
-            ethRegistry,
+            f.ethRegistry,
             address(0),
             EACBaseRolesLib.ALL_ROLES,
             type(uint64).max

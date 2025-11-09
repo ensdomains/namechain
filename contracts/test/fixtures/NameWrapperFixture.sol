@@ -22,7 +22,7 @@ contract NameWrapperFixture is Test, ERC721Holder, ERC1155Holder {
     address user = makeAddr("user");
     address ensV1Controller = makeAddr("ensV1Controller");
 
-    function _deployNameWrapper() internal {
+    function deployNameWrapper() public {
         ensV1 = new ENSRegistry();
         ethRegistrarV1 = new BaseRegistrarImplementation(ensV1, NameCoder.ETH_NODE);
         ethRegistrarV1.addController(ensV1Controller);

@@ -6,9 +6,7 @@ import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "../../common/bridge/types/TransferData.sol";
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
-import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
-import {LibLabel} from "../../common/utils/LibLabel.sol";
 
 /**
  * @title L1BridgeController
@@ -28,16 +26,16 @@ contract L1BridgeController is AbstractBridgeController {
 
     //error NotTokenOwner(uint256 tokenId);
 
-    error LockedNameCannotBeEjected(uint256 tokenId);
+    error NameNotBridgeable(uint256 tokenId);
 
     ////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        IPermissionedRegistry registry,
-        IBridge bridge
-    ) AbstractBridgeController(registry, bridge) {}
+        IBridge bridge,
+        IPermissionedRegistry registry
+    ) AbstractBridgeController(bridge, registry) {}
 
     ////////////////////////////////////////////////////////////////////////
     // Implementation
@@ -52,7 +50,7 @@ contract L1BridgeController is AbstractBridgeController {
     function syncRenewal(
         uint256 tokenId,
         uint64 newExpiry
-    ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
+    ) external onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
         REGISTRY.renew(tokenId, newExpiry);
         emit RenewalSynchronized(tokenId, newExpiry);
     }
@@ -64,11 +62,11 @@ contract L1BridgeController is AbstractBridgeController {
     function _inject(TransferData memory td) internal override returns (uint256 tokenId) {
         tokenId = REGISTRY.register(
             td.label,
-            td.owner,
+            td.owner, // reverts if null
             td.subregistry,
             td.resolver,
-            td.roleBitmap,
-            td.expiry
+            td.roleBitmap, // reverts if not role bits
+            td.expiry // reverts if past
         );
     }
 
@@ -76,10 +74,11 @@ contract L1BridgeController is AbstractBridgeController {
         // we're in the middle of a transfer
         // we currently own the token
         // we need to block locked wrapped names
+        // we need to block names with emancipated
         if (
-            REGISTRY.hasRoles(tokenId, RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN, address(this))
+            !REGISTRY.hasRoles(tokenId, RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN, address(this))
         ) {
-            revert LockedNameCannotBeEjected(tokenId);
+            revert NameNotBridgeable(tokenId);
         }
         // burn the token but keep the registry/resolver
         REGISTRY.burn(tokenId, true);

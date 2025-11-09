@@ -35,7 +35,7 @@ contract LockedMigrationController is WrapperReceiver {
     ////////////////////////////////////////////////////////////////////////
 
     function _inject(TransferData memory td) internal override returns (uint256 tokenId) {
-        return L1_BRIDGE_CONTROLLER.completeEjectionToL1(td);
+        return L1_BRIDGE_CONTROLLER.completeEjection(td);
     }
 
     function _parentNode() internal pure override returns (bytes32) {
