@@ -3,17 +3,16 @@ import {
   type Account,
   type Address,
   type Chain,
+  type ContractFunctionName,
+  encodeFunctionData,
+  type EncodeFunctionDataParameters,
+  getContract,
+  keccak256,
+  parseAbi,
+  parseEventLogs,
+  stringToBytes,
   type Transport,
   type WalletClient,
-  type ContractFunctionName,
-  type ContractFunctionArgs,
-  keccak256,
-  stringToBytes,
-  parseEventLogs,
-  getContract,
-  parseAbi,
-  encodeFunctionData,
-  AbiStateMutability,
 } from "viem";
 import { waitForTransactionReceipt } from "viem/actions";
 
@@ -23,26 +22,20 @@ const verifiableFactoryAbi = parseAbi([
 ]);
 
 export async function deployVerifiableProxy<
-  const TAbi extends Abi,
-  TMut extends AbiStateMutability,
-  TFn extends ContractFunctionName<TAbi>,
+  const abi extends Abi | readonly unknown[],
+  const functionName extends ContractFunctionName<abi> | undefined = undefined,
 >({
   walletClient,
   factoryAddress,
   implAddress,
-  implAbi,
-  functionName,
-  args,
   salt = BigInt(keccak256(stringToBytes(new Date().toISOString()))),
+  ...functionDataParameters
 }: {
   walletClient: WalletClient<Transport, Chain, Account>;
   factoryAddress: Address;
   implAddress: Address;
-  implAbi: TAbi;
-  functionName: TFn;
-  args: ContractFunctionArgs<TAbi, TMut, TFn>;
   salt?: bigint;
-}) {
+} & EncodeFunctionDataParameters<abi, functionName>) {
   const hash = await walletClient.writeContract({
     address: factoryAddress,
     abi: verifiableFactoryAbi,
@@ -50,11 +43,9 @@ export async function deployVerifiableProxy<
     args: [
       implAddress,
       salt,
-      encodeFunctionData({
-        abi: implAbi as any, // typechecked at callsite
-        functionName,
-        args: args as any,
-      }),
+      encodeFunctionData(
+        functionDataParameters as EncodeFunctionDataParameters,
+      ),
     ],
   });
   const receipt = await waitForTransactionReceipt(walletClient, { hash });
@@ -64,7 +55,7 @@ export async function deployVerifiableProxy<
     logs: receipt.logs,
   });
   const contract = getContract({
-    abi: implAbi,
+    abi: functionDataParameters.abi,
     address: log.args.proxyAddress,
     client: walletClient,
   });

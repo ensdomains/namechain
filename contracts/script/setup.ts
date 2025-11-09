@@ -1,13 +1,14 @@
+import { artifacts } from "@rocketh";
+import { rm } from "node:fs/promises";
 import { anvil as createAnvil } from "prool/instances";
-import { type Environment, executeDeployScripts, resolveConfig } from "rocketh";
+import { executeDeployScripts, resolveConfig, type Environment } from "rocketh";
 import {
   createWalletClient,
   getContract,
-  webSocket,
   publicActions,
   testActions,
+  webSocket,
   zeroAddress,
-  encodeFunctionData,
   type Abi,
   type Account,
   type Address,
@@ -17,24 +18,22 @@ import {
   type Transport,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
-import { artifacts } from "@rocketh";
-import { rm } from "node:fs/promises";
 
 import { serve } from "@namestone/ezccip/serve";
 import { WebSocketProvider } from "ethers/providers";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 
-import type { RockethL1Arguments, RockethArguments } from "./types.js";
-import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
-import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
-import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
-import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 import {
   LOCAL_BATCH_GATEWAY_URL,
   MAX_EXPIRY,
   ROLES,
 } from "../deploy/constants.js";
+import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
+import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
+import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
+import { patchArtifactsV1 } from "./patchArtifactsV1.js";
+import type { RockethArguments, RockethL1Arguments } from "./types.js";
 
 type DeployedArtifacts = Record<string, Abi>;
 
@@ -230,7 +229,7 @@ export class ChainDeployment<
       walletClient: createClient(this.transport, this.client.chain, account),
       factoryAddress: this.contracts.VerifiableFactory.address,
       implAddress: this.contracts.DedicatedResolver.address,
-      implAbi: this.contracts.DedicatedResolver.abi,
+      abi: this.contracts.DedicatedResolver.abi,
       functionName: "initialize",
       args: [admin, roles],
       salt,
@@ -254,7 +253,7 @@ export class ChainDeployment<
       walletClient: createClient(this.transport, this.client.chain, account),
       factoryAddress: this.contracts.VerifiableFactory.address,
       implAddress: this.contracts.UserRegistry.address,
-      implAbi: this.contracts.UserRegistry.abi,
+      abi: this.contracts.UserRegistry.abi,
       functionName: "initialize",
       args: [admin, roles],
       salt,

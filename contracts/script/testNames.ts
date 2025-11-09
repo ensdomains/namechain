@@ -1,23 +1,17 @@
 import {
-  zeroAddress,
-  namehash,
-  encodeFunctionData,
-  decodeFunctionResult,
-  parseAbi,
-  getContract,
-  encodeAbiParameters,
   Address,
-  createWalletClient,
-  webSocket,
-  publicActions,
-  type Account,
+  decodeFunctionResult,
+  encodeAbiParameters,
+  encodeFunctionData,
+  getContract,
+  namehash,
+  zeroAddress,
 } from "viem";
 
-import type { CrossChainEnvironment } from "./setup.js";
-import { dnsEncodeName } from "../test/utils/utils.js";
-import { ROLES, MAX_EXPIRY } from "../deploy/constants.js";
 import { artifacts } from "@rocketh";
-import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
+import { MAX_EXPIRY, ROLES } from "../deploy/constants.js";
+import { dnsEncodeName } from "../test/utils/utils.js";
+import type { CrossChainEnvironment } from "./setup.js";
 
 // ========== Constants ==========
 

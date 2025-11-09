@@ -69,7 +69,7 @@ export async function deployV2Fixture(
       walletClient: await network.viem.getWalletClient(owner),
       factoryAddress: verifiableFactory.address,
       implAddress: dedicatedResolver.address,
-      implAbi: dedicatedResolver.abi,
+      abi: dedicatedResolver.abi,
       functionName: "initialize",
       args: [walletClient.account.address, roles],
       salt,
