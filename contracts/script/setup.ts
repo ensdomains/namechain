@@ -180,12 +180,6 @@ export class ChainDeployment<
       }),
     ) as ContractsOf<A>;
   }
-  // get nameStr() {
-  //   return nameForChain(this.isL1);
-  // }
-  // get name() {
-  //   return ansi(ansiForChain(this.isL1), this.nameStr);
-  // }
   get name() {
     return nameForChain(this.isL1);
   }

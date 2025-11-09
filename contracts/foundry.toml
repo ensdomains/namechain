@@ -15,5 +15,3 @@ runs = 4096
 
 [lint]
 lint_on_build = false
-
-# forge i ensdomains/ens-contracts@branch=feature-fet-1938/fixed-deploy-scripts
