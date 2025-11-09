@@ -147,8 +147,10 @@ type ContractsOf<A extends DeployedArtifacts> = {
 };
 
 export class ChainDeployment<
-  const A extends DeployedArtifacts & typeof sharedContracts,
-  const B extends DeployedArtifacts & typeof sharedContracts,
+  const A extends DeployedArtifacts &
+    typeof sharedContracts = typeof sharedContracts,
+  const B extends DeployedArtifacts &
+    typeof sharedContracts = typeof sharedContracts,
 > {
   readonly contracts: ContractsOf<A>;
   readonly rx!: ChainDeployment<B, A>;
