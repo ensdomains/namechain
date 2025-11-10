@@ -19,11 +19,28 @@ jobs:
       packages: write
 
     steps:
+      - name: Get commit from workflow run
+        id: commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          WORKFLOW_RUN_ID="${{ github.event.workflow_run.id }}"
+
+          COMMIT_SHA=$(gh api /repos/${{ github.repository }}/actions/runs/$WORKFLOW_RUN_ID --jq '.head_sha')
+          BRANCH_NAME=$(gh api /repos/${{ github.repository }}/actions/runs/$WORKFLOW_RUN_ID --jq '.head_branch')
+
+          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "CI Run ID: $WORKFLOW_RUN_ID"
+          echo "Commit: $COMMIT_SHA"
+          echo "Branch: $BRANCH_NAME"
+
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ steps.commit.outputs.sha }}
           submodules: "recursive"
+
       - name: Log in to the Github Container registry
         uses: docker/login-action@v3
         with:
@@ -37,8 +54,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,event=branch,prefix=${{ github.event.workflow_run.head_branch }}-
-            type=raw,value=latest,enable=${{ github.event.workflow_run.head_branch == github.event.repository.default_branch }}
+            type=raw,value=${{ steps.commit.outputs.branch }}-${{ steps.commit.outputs.sha }}
+            type=raw,value=latest,enable=${{ steps.commit.outputs.branch == github.event.repository.default_branch }}
             type=ref,event=tag
 
       - name: Build and push Docker image
@@ -47,5 +64,5 @@ jobs:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          build-args: GITHUB_SHA=${{ github.event.workflow_run.head_sha }}
+          build-args: GITHUB_SHA=${{ steps.commit.outputs.sha }}
           labels: ${{ steps.meta.outputs.labels }}
