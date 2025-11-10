@@ -102,14 +102,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get branch name
+      - name: Get branch name and short SHA for tagging
         id: branch
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "name=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+            SHORT_SHA=$(echo "${{ github.event.pull_request.head.sha }}" | cut -c1-7)
           else
             echo "name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           fi
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
 
       - name: Extract metadata for Docker
         id: meta
@@ -117,7 +120,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=${{ steps.branch.outputs.name }}-${{ github.sha }}
+            type=raw,value=${{ steps.branch.outputs.name }}-${{ steps.branch.outputs.short_sha }}
             type=raw,value=latest,enable=${{ github.ref_name == github.event.repository.default_branch }}
             type=ref,event=tag
 
