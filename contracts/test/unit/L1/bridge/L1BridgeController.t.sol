@@ -382,7 +382,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
         registry.grantRootRoles(
             RegistryRolesLib.ROLE_REGISTRAR |
                 RegistryRolesLib.ROLE_RENEW |
-                RegistryRolesLib.ROLE_BURN,
+                RegistryRolesLib.ROLE_UNREGISTER,
             address(bridgeController)
         );
 
@@ -515,7 +515,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
         (uint256 tokenId, ) = registry.getNameData(testLabel);
 
         // Verify initial expiry was set
-        uint64 initialExpiry = datastore.getEntry(address(registry), tokenId).expiry;
+        uint64 initialExpiry = datastore.getEntry(registry, tokenId).expiry;
         assertEq(initialExpiry, expiryTime, "Initial expiry not set correctly");
 
         uint64 newExpiry = uint64(block.timestamp) + 200;
@@ -524,7 +524,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
         bridgeController.syncRenewal(tokenId, newExpiry);
 
         // Verify new expiry was set
-        uint64 updatedExpiry = datastore.getEntry(address(registry), tokenId).expiry;
+        uint64 updatedExpiry = datastore.getEntry(registry, tokenId).expiry;
         assertEq(updatedExpiry, newExpiry, "Expiry was not updated correctly");
     }
 

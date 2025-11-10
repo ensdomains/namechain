@@ -66,10 +66,6 @@ interface IStandardRegistry is IRegistry {
      */
     function renew(uint256 tokenId, uint64 expires) external;
 
-    /// @notice Unregister name, burn token, and clear registry and resolver.
-    /// @param tokenId The token ID.
-    function burn(uint256 tokenId) external;
-
     /// @notice Unregister name, inactivate token, and leave registry and resolver unchanged.
     /// @param tokenId The token ID.
     function unregister(uint256 tokenId) external;

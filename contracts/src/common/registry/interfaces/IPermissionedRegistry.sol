@@ -15,16 +15,21 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     /**
      * @dev Event emitted when a token observer is set.
      */
-    event TokenObserverSet(uint256 indexed tokenId, address observer);
+    event TokenObserverSet(uint256 indexed tokenId, ITokenObserver observer);
 
     ////////////////////////////////////////////////////////////////////////
     // Functions
     ////////////////////////////////////////////////////////////////////////
 
-    /// @notice Sets a token observer for a token.
+    /// @notice Sets a token observer.
     /// @param anyId The labelhash, token ID, or resource.
-    /// @param observer The observer to set.
+    /// @param observer The new observer.
     function setTokenObserver(uint256 anyId, ITokenObserver observer) external;
+
+    /// @notice Get a token observer.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @return observer The current observer.
+    function getTokenObserver(uint256 anyId) external view returns (ITokenObserver);
 
     /// @notice Get the latest owner of a token.
     ///         If the token was burned, returns null.
