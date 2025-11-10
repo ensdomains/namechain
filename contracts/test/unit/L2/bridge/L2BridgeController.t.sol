@@ -181,7 +181,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
 
         // Verify token observer is set
         assertEq(
-            address(ethRegistry.tokenObservers(tokenId)),
+            address(ethRegistry.getTokenObserver(tokenId)),
             address(controller),
             "Token observer not set"
         );
@@ -375,7 +375,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             "Controller should own the token"
         );
         assertEq(
-            address(ethRegistry.tokenObservers(tokenId)),
+            address(ethRegistry.getTokenObserver(tokenId)),
             address(controller),
             "Controller should be the observer"
         );
@@ -480,7 +480,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             "Controller should own the token"
         );
         assertEq(
-            address(ethRegistry.tokenObservers(tokenId)),
+            address(ethRegistry.getTokenObserver(tokenId)),
             address(controller),
             "Controller should be the observer"
         );
@@ -699,7 +699,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             "Token should be owned by controller after ejection"
         );
         assertEq(
-            address(ethRegistry.tokenObservers(tokenId3)),
+            address(ethRegistry.getTokenObserver(tokenId3)),
             address(controller),
             "Token observer should be set to controller"
         );
@@ -832,7 +832,11 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             "Controller should own the pre-migrated token"
         );
 
-        assertEq(bridge.sendMessageCallCount(), 0, "No bridge message should be sent on direct mint");
+        assertEq(
+            bridge.sendMessageCallCount(),
+            0,
+            "No bridge message should be sent on direct mint"
+        );
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bytes32 ejectionEventSig = keccak256("NameEjectedToL1(bytes,uint256)");
@@ -844,13 +848,19 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         }
 
         assertEq(
-            address(ethRegistry.tokenObservers(preMigrationTokenId)),
+            address(ethRegistry.getTokenObserver(preMigrationTokenId)),
             address(0),
             "Token observer should not be set on direct mint"
         );
 
-        address subregAddr = datastore.getEntry(address(ethRegistry), preMigrationTokenId).subregistry;
-        assertEq(subregAddr, address(ethRegistry), "Subregistry should not be cleared on direct mint");
+        address subregAddr = datastore
+            .getEntry(address(ethRegistry), preMigrationTokenId)
+            .subregistry;
+        assertEq(
+            subregAddr,
+            address(ethRegistry),
+            "Subregistry should not be cleared on direct mint"
+        );
     }
 
     function test_preMigration_mintThenTransfer_shouldEject() public {
@@ -872,7 +882,11 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             expiryTime
         );
 
-        assertEq(ethRegistry.ownerOf(mintedTokenId), user, "User should own the newly minted token");
+        assertEq(
+            ethRegistry.ownerOf(mintedTokenId),
+            user,
+            "User should own the newly minted token"
+        );
 
         bytes memory ejectionData = _createEjectionData(
             mintThenTransferLabel,
@@ -913,7 +927,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertTrue(foundEjectionEvent, "NameEjectedToL1 should be emitted on transfer from user");
 
         assertEq(
-            address(ethRegistry.tokenObservers(mintedTokenId)),
+            address(ethRegistry.getTokenObserver(mintedTokenId)),
             address(controller),
             "Token observer should be set after ejection"
         );
@@ -968,7 +982,9 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             "L2 owner should now own the token after migration"
         );
 
-        address subregAddr = datastore.getEntry(address(ethRegistry), preMigrationTokenId).subregistry;
+        address subregAddr = datastore
+            .getEntry(address(ethRegistry), preMigrationTokenId)
+            .subregistry;
         assertEq(
             subregAddr,
             l2Subregistry,
@@ -979,7 +995,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertEq(resolverAddr, l2Resolver, "Resolver should be set to L2 resolver after migration");
 
         assertEq(
-            address(ethRegistry.tokenObservers(preMigrationTokenId)),
+            address(ethRegistry.getTokenObserver(preMigrationTokenId)),
             address(0),
             "Token observer should be cleared after migration"
         );

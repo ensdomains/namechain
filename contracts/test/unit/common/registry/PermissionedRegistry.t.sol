@@ -9,7 +9,9 @@ import {Vm} from "forge-std/Vm.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
-import {IEnhancedAccessControl} from "~src/common/access-control/interfaces/IEnhancedAccessControl.sol";
+import {
+    IEnhancedAccessControl
+} from "~src/common/access-control/interfaces/IEnhancedAccessControl.sol";
 import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "~src/common/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
@@ -850,7 +852,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.setTokenObserver(newTokenId, observer);
 
         // Verify observer was set
-        assertEq(address(registry.tokenObservers(newTokenId)), address(observer));
+        assertEq(address(registry.getTokenObserver(newTokenId)), address(observer));
     }
 
     function test_Revert_renew_when_token_observer_reverts() public {
@@ -1436,7 +1438,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         vm.prank(user1);
         registry.setTokenObserver(tokenId, observer);
 
-        assertEq(address(registry.tokenObservers(tokenId)), address(observer));
+        assertEq(address(registry.getTokenObserver(tokenId)), address(observer));
     }
 
     function test_setSubregistry_with_role_when_not_expired() public {
