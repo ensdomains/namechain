@@ -8,8 +8,10 @@ import {IDNSGateway} from "@ens/contracts/dnssec-oracle/IDNSGateway.sol";
 import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
 import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {ICompositeResolver} from "@ens/contracts/resolvers/profiles/ICompositeResolver.sol";
 import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IVerifiableResolver} from "@ens/contracts/resolvers/profiles/IVerifiableResolver.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {
     RegistryUtils as RegistryUtilsV1,
@@ -22,6 +24,10 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
+import {ArrayLengthMismatch} from "../../common/CommonErrors.sol";
+import {
+    ResolverProfileDecoderLib
+} from "../../common/resolver/libraries/ResolverProfileDecoderLib.sol";
 import {LibRegistry, IRegistry} from "../../universalResolver/libraries/LibRegistry.sol";
 
 /// @dev DNS class for the "Internet" according to RFC-1035.
@@ -33,18 +39,20 @@ uint16 constant QTYPE_TXT = 16;
 /// @dev DNS TXT record prefix for ENS data.
 bytes constant TXT_PREFIX = "ENS1 ";
 
+/// @dev The hash of text() key to access "context" from `ENS1 <resolver> <context>`.
+string constant TEXT_KEY_DNSSEC_CONTEXT = "eth.ens.dnssec-context";
+
 /// @notice Resolver that performs imported DNS fallback to V1 and gasless DNS resolution.
 ///
-///         1. If there exists a resolver in V1, go to 4.
-///         2. Query the DNSSEC oracle for TXT records.
-///         3. Verify TXT records, find ENS1 record, parse resolver and context.
-///         4. Call the resolver and return the requested records.
+/// 1. If there exists a resolver in V1, go to 4.
+/// 2. Query the DNSSEC oracle for TXT records.
+/// 3. Verify TXT records, find ENS1 record, parse resolver and context.
+/// 4. Call the resolver and return the requested records.
 ///
-contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
+contract DNSTLDResolver is IERC7996, ICompositeResolver, IVerifiableResolver, CCIPBatcher, ERC165 {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
-
     ENS public immutable ENS_REGISTRY_V1;
 
     address public immutable DNS_TLD_RESOLVER_V1;
@@ -63,13 +71,13 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
     // Errors
     ////////////////////////////////////////////////////////////////////////
 
-    /// @dev `name` does not exist.
-    ///      Error selector: `0x5fe9a5df`
+    /// @notice `name` does not exist.
+    /// @dev Error selector: `0x5fe9a5df`
     /// @param name The DNS-encoded ENS name.
     error UnreachableName(bytes name);
 
-    /// @dev Some raw TXT data was incorrectly encoded.
-    ///      Error selector: `0xf4ba19b7`
+    /// @notice Some raw TXT data was incorrectly encoded.
+    /// @dev Error selector: `0xf4ba19b7`
     error InvalidTXT();
 
     ////////////////////////////////////////////////////////////////////////
@@ -77,19 +85,19 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        ENS ensRegistryV1_,
-        address dnsTLDResolverV1_,
-        IRegistry rootRegistry_,
-        DNSSEC dnssecOracle_,
-        IGatewayProvider oracleGatewayProvider_,
-        IGatewayProvider batchGatewayProvider_
+        ENS ensRegistryV1,
+        address dnsTLDResolverV1,
+        IRegistry rootRegistry,
+        DNSSEC dnssecOracle,
+        IGatewayProvider oracleGatewayProvider,
+        IGatewayProvider batchGatewayProvider
     ) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
-        ENS_REGISTRY_V1 = ensRegistryV1_;
-        DNS_TLD_RESOLVER_V1 = dnsTLDResolverV1_;
-        ROOT_REGISTRY = rootRegistry_;
-        DNSSEC_ORACLE = dnssecOracle_;
-        ORACLE_GATEWAY_PROVIDER = oracleGatewayProvider_;
-        BATCH_GATEWAY_PROVIDER = batchGatewayProvider_;
+        ENS_REGISTRY_V1 = ensRegistryV1;
+        DNS_TLD_RESOLVER_V1 = dnsTLDResolverV1;
+        ROOT_REGISTRY = rootRegistry;
+        DNSSEC_ORACLE = dnssecOracle;
+        ORACLE_GATEWAY_PROVIDER = oracleGatewayProvider;
+        BATCH_GATEWAY_PROVIDER = batchGatewayProvider;
     }
 
     /// @inheritdoc ERC165
@@ -98,6 +106,8 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
     ) public view virtual override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
+            type(ICompositeResolver).interfaceId == interfaceId ||
+            type(IVerifiableResolver).interfaceId == interfaceId ||
             type(IERC7996).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
@@ -111,6 +121,46 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
+    /// @inheritdoc IVerifiableResolver
+    function verifierMetadata(
+        bytes calldata name
+    ) external view returns (address verifier, string[] memory gateways) {
+        if (_determineMainnetResolver(name) == address(0)) {
+            verifier = address(DNSSEC_ORACLE);
+            gateways = ORACLE_GATEWAY_PROVIDER.gateways();
+        }
+    }
+
+    /// @inheritdoc ICompositeResolver
+    function requiresOffchain(bytes calldata name) external view returns (bool offchain) {
+        offchain = _determineMainnetResolver(name) == address(0);
+    }
+
+    /// @inheritdoc ICompositeResolver
+    /// @dev This function executes over multiple steps.
+    function getResolver(bytes calldata name) external view returns (address, bool) {
+        address resolver = _determineMainnetResolver(name);
+        if (resolver != address(0)) {
+            return (resolver, false);
+        }
+        revert OffchainLookup(
+            address(this),
+            ORACLE_GATEWAY_PROVIDER.gateways(),
+            abi.encodeCall(IDNSGateway.resolve, (name, QTYPE_TXT)),
+            this.getResolverCallback.selector, // ==> step 2
+            name
+        );
+    }
+
+    /// @notice CCIP-Read callback for `getResolver()`.
+    function getResolverCallback(
+        bytes calldata response,
+        bytes calldata name
+    ) external view returns (address, bool) {
+        (address resolver, ) = _verifyDNSSEC(name, response);
+        return (resolver, true);
+    }
+
     /// @notice Resolve `name` using V1 or DNSSEC.
     ///         Caller should enable EIP-3668.
     ///
@@ -119,9 +169,9 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
         bytes calldata name,
         bytes calldata data
     ) external view returns (bytes memory) {
-        (address resolver, , ) = RegistryUtilsV1.findResolver(ENS_REGISTRY_V1, name, 0);
-        if (resolver != address(0) && resolver != DNS_TLD_RESOLVER_V1) {
-            _callResolver(resolver, name, data, false, "");
+        address resolver = _determineMainnetResolver(name);
+        if (resolver != address(0)) {
+            return _callResolver(resolver, name, data, false, ""); // ==> step 2
         }
         revert OffchainLookup(
             address(this),
@@ -132,8 +182,8 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
         );
     }
 
-    /// @dev CCIP-Read callback for `resolve()` from calling the DNSSEC oracle.
-    ///      Reverts `UnreachableName` if no "ENS1" TXT record is found.
+    /// @notice CCIP-Read callback for `resolve()` from calling the DNSSEC oracle.
+    ///         Reverts `UnreachableName` if no "ENS1" TXT record is found.
     ///
     /// @param response The response data.
     /// @param extraData The contextual data passed from `resolve()`.
@@ -144,33 +194,14 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
         bytes calldata extraData
     ) external view returns (bytes memory) {
         (bytes memory name, bytes memory call) = abi.decode(extraData, (bytes, bytes));
-        DNSSEC.RRSetWithSignature[] memory rrsets = abi.decode(
-            response,
-            (DNSSEC.RRSetWithSignature[])
-        );
-        (bytes memory data, ) = DNSSEC_ORACLE.verifyRRSet(rrsets);
-        for (
-            RRUtils.RRIterator memory iter = RRUtils.iterateRRs(data, 0);
-            !RRUtils.done(iter);
-            RRUtils.next(iter)
-        ) {
-            if (
-                iter.class == CLASS_INET &&
-                iter.dnstype == QTYPE_TXT &&
-                BytesUtils.equals(iter.data, iter.offset, name, 0, name.length)
-            ) {
-                (address resolver, bytes memory context) = _parseTXT(
-                    _readTXT(iter.data, iter.rdataOffset, iter.nextOffset)
-                );
-                if (resolver != address(0)) {
-                    _callResolver(resolver, name, call, true, context); // ==> step 3
-                }
-            }
+        (address resolver, bytes memory context) = _verifyDNSSEC(name, response);
+        if (resolver == address(0)) {
+            revert UnreachableName(name);
         }
-        revert UnreachableName(name);
+        return _callResolver(resolver, name, call, true, context); // ==> step 3
     }
 
-    /// @dev CCIP-Read callback for `_callResolver()` from batch calling the gasless DNS resolver.
+    /// @notice CCIP-Read callback for `_callResolver()` from batch calling the gasless DNS resolver.
     ///
     /// @param response The response data from the batch gateway.
     /// @param extraData The abi-encoded properties of the call.
@@ -208,37 +239,96 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
         }
     }
 
+    /// @notice CCIP-Read callback for `_callResolverDirect()`.
+    function resolveDirectMulticallCallback(
+        bytes calldata response,
+        bytes calldata extraData
+    ) external pure returns (bytes memory) {
+        (bytes[] memory answers, uint256[] memory indexes) = abi.decode(
+            extraData,
+            (bytes[], uint256[])
+        );
+        // this is the encoded response of a function that returns (bytes)
+        // this callback is only invoked if the calldata was a multicall
+        bytes[] memory indexedAnswers = abi.decode(abi.decode(response, (bytes)), (bytes[]));
+        if (indexes.length != indexedAnswers.length) {
+            revert ArrayLengthMismatch(indexes.length, indexedAnswers.length);
+        }
+        for (uint256 i; i < indexes.length; ++i) {
+            answers[indexes[i]] = indexedAnswers[i];
+        }
+        return abi.encode(answers);
+    }
+
     ////////////////////////////////////////////////////////////////////////
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
 
-    /// @notice Efficiently call another resolver with an optional DNS context.
+    /// @dev Determine underlying Mainnet resolver or null if not found.
+    function _determineMainnetResolver(bytes memory name) internal view returns (address resolver) {
+        (resolver, , ) = RegistryUtilsV1.findResolver(ENS_REGISTRY_V1, name, 0);
+        if (resolver == DNS_TLD_RESOLVER_V1 || resolver == address(this)) {
+            resolver = address(0);
+        }
+    }
+
+    /// @dev Verify DNSSEC TXT record.
+    function _verifyDNSSEC(
+        bytes memory name,
+        bytes calldata oracleWitness
+    ) internal view returns (address resolver, bytes memory context) {
+        DNSSEC.RRSetWithSignature[] memory rrsets = abi.decode(
+            oracleWitness,
+            (DNSSEC.RRSetWithSignature[])
+        );
+        (bytes memory data, ) = DNSSEC_ORACLE.verifyRRSet(rrsets);
+        for (
+            RRUtils.RRIterator memory iter = RRUtils.iterateRRs(data, 0);
+            !RRUtils.done(iter);
+            RRUtils.next(iter)
+        ) {
+            if (
+                iter.class == CLASS_INET &&
+                iter.dnstype == QTYPE_TXT &&
+                BytesUtils.equals(iter.data, iter.offset, name, 0, name.length)
+            ) {
+                (resolver, context) = _parseTXT(
+                    _readTXT(iter.data, iter.rdataOffset, iter.nextOffset)
+                );
+                if (resolver != address(0)) {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// @dev Efficiently call another resolver with an optional DNS context.
     ///
-    ///         1. if `IExtendedDNSResolver` and `checkDNS`, `resolver.resolve(name, calldata, context)`.
-    ///         2. if `IExtendedResolver`, `resolver.resolve(name, calldata)`.
-    ///         3. otherwise, `resolver.staticall(calldata)`.
+    /// 1. if `IExtendedDNSResolver` and `hasContext`, `resolver.resolve(name, calldata, context)`.
+    /// 2. if `IExtendedResolver`, `resolver.resolve(name, calldata)`.
+    /// 3. otherwise, `resolver.staticall(calldata)`.
     ///
-    ///         - If (1) or (2), the calldata is not `multicall()`, and the resolver supports features,
-    ///           the call is performed directly without the batch gateway.
-    ///         - If (1) or (2), the calldata is `multicall()`, and the resolver supports `RESOLVE_MULTICALL` feature,
-    ///           the call is performed directly without the batch gateway.
-    ///         - Otherwise, the call is performed with the batch gateway.
-    ///           If the calldata is `multicall()` it is disassembled, called separately, and reassembled.
+    /// - If (1) or (2), the calldata is not `multicall()`, and the resolver supports features,
+    ///   the call is performed directly without the batch gateway.
+    /// - If (1) or (2), the calldata is `multicall()`, and the resolver supports `RESOLVE_MULTICALL` feature,
+    ///   the call is performed directly without the batch gateway.
+    /// - Otherwise, the call is performed with the batch gateway.
+    ///   If the calldata is `multicall()` it is disassembled, called separately, and reassembled.
     ///
-    /// @dev Reverts `UnreachableName` if resolver is not a contract.
+    /// Reverts `UnreachableName` if resolver is not a contract.
     ///
     /// @param resolver The resolver to call.
     /// @param name The name to resolve.
     /// @param call The resolver calldata.
-    /// @param checkDNS True if `IExtendedDNSResolver` should be considered.
+    /// @param hasContext True if `IExtendedDNSResolver` should be considered.
     /// @param context The context for `IExtendedDNSResolver`.
     function _callResolver(
         address resolver,
         bytes memory name,
         bytes memory call,
-        bool checkDNS,
+        bool hasContext,
         bytes memory context
-    ) internal view {
+    ) internal view returns (bytes memory result) {
         if (resolver.code.length == 0) {
             revert UnreachableName(name);
         }
@@ -247,6 +337,16 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
             resolver,
             type(IERC7996).interfaceId
         ) && (!multi || IERC7996(resolver).supportsFeature(ResolverFeatures.RESOLVE_MULTICALL));
+        bool extendedDNS = hasContext &&
+            ERC165Checker.supportsERC165InterfaceUnchecked(
+                resolver,
+                type(IExtendedDNSResolver).interfaceId
+            );
+        bool extended = extendedDNS ||
+            ERC165Checker.supportsERC165InterfaceUnchecked(
+                resolver,
+                type(IExtendedResolver).interfaceId
+            );
         bytes[] memory calls;
         if (multi) {
             calls = abi.decode(BytesUtils.substring(call, 4, call.length - 4), (bytes[]));
@@ -254,52 +354,84 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
             calls = new bytes[](1);
             calls[0] = call;
         }
-        bool extended;
-        if (
-            checkDNS &&
-            ERC165Checker.supportsERC165InterfaceUnchecked(
-                resolver,
-                type(IExtendedDNSResolver).interfaceId
-            )
-        ) {
+        if (extended) {
             if (direct) {
-                ccipRead(
-                    resolver,
-                    abi.encodeCall(IExtendedDNSResolver.resolve, (name, call, context))
-                );
-            } else {
-                extended = true;
-                for (uint256 i; i < calls.length; ++i) {
-                    calls[i] = abi.encodeCall(
-                        IExtendedDNSResolver.resolve,
-                        (name, calls[i], context)
-                    );
+                if (hasContext) {
+                    return _callResolverDirect(resolver, name, calls, multi, extendedDNS, context);
+                } else {
+                    ccipRead(resolver, call);
                 }
             }
-        } else if (
-            ERC165Checker.supportsERC165InterfaceUnchecked(
-                resolver,
-                type(IExtendedResolver).interfaceId
-            )
-        ) {
-            if (direct) {
-                ccipRead(resolver, abi.encodeCall(IExtendedResolver.resolve, (name, call)));
-            } else {
-                extended = true;
-                for (uint256 i; i < calls.length; ++i) {
-                    calls[i] = abi.encodeCall(IExtendedResolver.resolve, (name, calls[i]));
-                }
+            for (uint256 i; i < calls.length; ++i) {
+                calls[i] = _makeExtendedCall(extendedDNS, name, calls[i], context);
+            }
+        }
+        Batch memory batch = createBatch(resolver, calls, BATCH_GATEWAY_PROVIDER.gateways());
+        for (uint256 i; i < calls.length; ++i) {
+            Lookup memory lu = batch.lookups[i];
+            bytes memory answer = _canAnswerCall(lu.call, context);
+            if (answer.length > 0) {
+                lu.flags = FLAG_DONE;
+                lu.data = answer;
             }
         }
         ccipRead(
             address(this),
-            abi.encodeCall(
-                this.ccipBatch,
-                (createBatch(resolver, calls, BATCH_GATEWAY_PROVIDER.gateways()))
-            ),
+            abi.encodeCall(this.ccipBatch, (batch)),
             this.resolveBatchCallback.selector,
             IDENTITY_FUNCTION,
             abi.encode(multi, extended)
+        );
+    }
+
+    /// @dev Call extended ENSIP-22 resolver.
+    function _callResolverDirect(
+        address resolver,
+        bytes memory name,
+        bytes[] memory calls,
+        bool multi,
+        bool extendedDNS,
+        bytes memory context
+    ) internal view returns (bytes memory result) {
+        bytes[] memory answers = new bytes[](calls.length);
+        uint256[] memory indexes = new uint256[](calls.length);
+        bytes memory call;
+        uint256 missing;
+        for (uint256 i; i < calls.length; ++i) {
+            call = calls[i];
+            bytes memory answer = _canAnswerCall(call, context);
+            if (answer.length > 0) {
+                answers[i] = answer;
+                continue;
+            }
+            bool ok;
+            (ok, answer) = resolver.staticcall(_makeExtendedCall(extendedDNS, name, call, context));
+            if (ok && answer.length >= 32) {
+                answers[i] = abi.decode(answer, (bytes)); // unwrap resolve()
+                continue;
+            }
+            indexes[missing++] = i;
+        }
+        if (missing == 0) {
+            return multi ? abi.encode(answers) : answers[0]; // answer immediately
+        }
+        bool callback = missing < calls.length;
+        if (callback) {
+            for (uint256 i; i < missing; ++i) {
+                calls[i] = calls[indexes[i]];
+            }
+            assembly {
+                mstore(calls, missing) // truncate
+                mstore(indexes, missing)
+            }
+        }
+        call = multi ? abi.encodeCall(IMulticallable.multicall, (calls)) : calls[0];
+        ccipRead(
+            resolver,
+            _makeExtendedCall(extendedDNS, name, call, context),
+            callback ? this.resolveDirectMulticallCallback.selector : IDENTITY_FUNCTION,
+            IDENTITY_FUNCTION,
+            callback ? abi.encode(answers, indexes) : bytes("")
         );
     }
 
@@ -389,5 +521,28 @@ contract DNSTLDResolver is IERC7996, IExtendedResolver, CCIPBatcher, ERC165 {
             mstore(txt, sub(ptr, add(txt, 32))) // truncate
         }
         if (off != end) revert InvalidTXT(); // overflow or junk at end
+    }
+
+    /// @dev Create extended resolver calldata.
+    function _makeExtendedCall(
+        bool extendedDNS,
+        bytes memory name,
+        bytes memory call,
+        bytes memory context
+    ) internal pure returns (bytes memory) {
+        return
+            extendedDNS
+                ? abi.encodeCall(IExtendedDNSResolver.resolve, (name, call, context))
+                : abi.encodeCall(IExtendedResolver.resolve, (name, call));
+    }
+
+    /// @dev Check if `call` should be answered by this resolver instead.
+    function _canAnswerCall(
+        bytes memory call,
+        bytes memory context
+    ) internal pure returns (bytes memory answer) {
+        if (ResolverProfileDecoderLib.isText(call, keccak256(bytes(TEXT_KEY_DNSSEC_CONTEXT)))) {
+            return abi.encode(context);
+        }
     }
 }

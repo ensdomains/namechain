@@ -15,7 +15,7 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     /**
      * @dev Event emitted when a token observer is set.
      */
-    event TokenObserverSet(uint256 indexed tokenId, address observer);
+    event TokenObserverSet(uint256 indexed tokenId, ITokenObserver observer);
 
     ////////////////////////////////////////////////////////////////////////
     // Functions

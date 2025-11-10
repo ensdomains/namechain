@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {IRegistry} from "./IRegistry.sol";
+
 /**
  * @dev Interface for the ENSv2 registry datastore, which stores subregistry and resolver addresses and other data
  *      for all names, keyed by registry address and label hash.
@@ -13,7 +15,7 @@ interface IRegistryDatastore {
     struct Entry {
         uint64 expiry;
         uint32 tokenVersionId;
-        address subregistry;
+        IRegistry subregistry;
         uint32 eacVersionId;
         address resolver;
     }
@@ -22,7 +24,7 @@ interface IRegistryDatastore {
     // Functions
     ////////////////////////////////////////////////////////////////////////
 
-    function setEntry(uint256 id, Entry calldata entry) external;
+    function setEntry(uint256 anyId, Entry calldata entry) external;
 
-    function getEntry(address registry, uint256 id) external view returns (Entry calldata);
+    function getEntry(IRegistry registry, uint256 anyId) external view returns (Entry calldata);
 }

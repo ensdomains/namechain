@@ -19,6 +19,6 @@ library RegistryRolesLib {
 
     uint256 internal constant ROLE_CAN_TRANSFER_ADMIN = (1 << 20) << 128;
 
-    uint256 internal constant ROLE_BURN = 1 << 24;
-    uint256 internal constant ROLE_BURN_ADMIN = ROLE_BURN << 128;
+    uint256 internal constant ROLE_UNREGISTER = 1 << 24;
+    uint256 internal constant ROLE_UNREGISTER_ADMIN = ROLE_UNREGISTER << 128;
 }

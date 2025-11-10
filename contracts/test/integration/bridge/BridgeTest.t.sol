@@ -5,6 +5,8 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
 import {
     EnhancedAccessControl,
     EACBaseRolesLib
@@ -70,7 +72,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
         l1Registry.grantRootRoles(
             RegistryRolesLib.ROLE_REGISTRAR |
                 RegistryRolesLib.ROLE_RENEW |
-                RegistryRolesLib.ROLE_BURN,
+                RegistryRolesLib.ROLE_UNREGISTER,
             address(l1Controller)
         );
         l2Registry.grantRootRoles(
@@ -95,7 +97,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
         );
 
         TransferData memory transferData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel("premiumname"),
+            dnsEncodedName: NameCoder.ethName("premiumname"),
             owner: user2,
             subregistry: address(0x123),
             resolver: address(0x456),
