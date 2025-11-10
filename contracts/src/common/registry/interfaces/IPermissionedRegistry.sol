@@ -47,6 +47,11 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
         string calldata label
     ) external view returns (uint256 tokenId, IRegistryDatastore.Entry memory entry);
 
+    /// @notice Get datastore `Entry` from `anyId`.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @return The datastore entry.
+    function getEntry(uint256 anyId) external view returns (IRegistryDatastore.Entry memory);
+
     /// @notice Get `resource` from `anyId`.
     /// @param anyId The labelhash, token ID, or resource.
     /// @return The resource.

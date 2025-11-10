@@ -10,7 +10,6 @@ import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC16
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
 import {MigrationData} from "../../common/bridge/types/TransferData.sol";
 import {UnauthorizedCaller} from "../../common/CommonErrors.sol";
-import {LibLabel} from "../../common/utils/LibLabel.sol";
 import {L1BridgeController} from "../bridge/L1BridgeController.sol";
 
 /**

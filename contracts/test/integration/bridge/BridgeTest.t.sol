@@ -123,7 +123,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
         assertEq(l1Registry.ownerOf(tokenId), transferData.owner);
         assertEq(address(l1Registry.getSubregistry("premiumname")), transferData.subregistry);
         assertEq(l1Registry.getResolver("premiumname"), transferData.resolver);
-        assertEq(l1Registry.getExpiry(tokenId), transferData.expires);
+        assertEq(l1Registry.getEntry(tokenId).expiry, transferData.expires);
         assertEq(
             l1Registry.roles(l1Registry.getResource(tokenId), transferData.owner),
             transferData.roleBitmap
