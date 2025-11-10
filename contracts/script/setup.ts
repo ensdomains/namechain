@@ -142,17 +142,28 @@ function createClient(transport: Transport, chain: Chain, account: Account) {
     .extend(testActions({ mode: "anvil" }));
 }
 
-type ContractsOf<A extends DeployedArtifacts> = {
-  [K in keyof A]: GetContractReturnType<A[K], CrossChainClient>;
+type SharedContracts = {
+  [K in keyof typeof sharedContracts]: (typeof sharedContracts)[K] extends
+    | Abi
+    | readonly unknown[]
+    ? GetContractReturnType<(typeof sharedContracts)[K], CrossChainClient>
+    : never;
+};
+type ContractsOf<A> = {
+  [K in keyof A as Exclude<K, keyof typeof sharedContracts>]: A[K] extends
+    | Abi
+    | readonly unknown[]
+    ? GetContractReturnType<A[K], CrossChainClient>
+    : never;
 };
 
 export class ChainDeployment<
-  const A extends DeployedArtifacts &
-    typeof sharedContracts = typeof sharedContracts,
-  const B extends DeployedArtifacts &
-    typeof sharedContracts = typeof sharedContracts,
+  const A extends typeof sharedContracts &
+    DeployedArtifacts = typeof sharedContracts,
+  const B extends typeof sharedContracts &
+    DeployedArtifacts = typeof sharedContracts,
 > {
-  readonly contracts: ContractsOf<A>;
+  readonly contracts: SharedContracts & ContractsOf<A>;
   readonly rx!: ChainDeployment<B, A>;
   constructor(
     readonly isL1: boolean,
@@ -179,7 +190,7 @@ export class ChainDeployment<
         }) as unknown;
         return [name, contract];
       }),
-    ) as ContractsOf<A>;
+    ) as SharedContracts & ContractsOf<A>;
   }
   get name() {
     return nameForChain(this.isL1);
@@ -213,20 +224,17 @@ export class ChainDeployment<
       client,
     });
   }
-  async deployDedicatedResolver(
-    this: ChainDeployment<typeof sharedContracts, B>,
-    {
-      account,
-      admin = account.address,
-      roles = ROLES.ALL,
-      salt,
-    }: {
-      account: Account;
-      admin?: Address;
-      roles?: bigint;
-      salt?: bigint;
-    },
-  ) {
+  async deployDedicatedResolver({
+    account,
+    admin = account.address,
+    roles = ROLES.ALL,
+    salt,
+  }: {
+    account: Account;
+    admin?: Address;
+    roles?: bigint;
+    salt?: bigint;
+  }) {
     return deployVerifiableProxy({
       walletClient: createClient(this.transport, this.client.chain, account),
       factoryAddress: this.contracts.VerifiableFactory.address,
@@ -237,20 +245,17 @@ export class ChainDeployment<
       salt,
     });
   }
-  deployUserRegistry(
-    this: ChainDeployment<typeof sharedContracts, B>,
-    {
-      account,
-      admin = account.address,
-      roles = ROLES.ALL,
-      salt,
-    }: {
-      account: Account;
-      admin?: Address;
-      roles?: bigint;
-      salt?: bigint;
-    },
-  ) {
+  deployUserRegistry({
+    account,
+    admin = account.address,
+    roles = ROLES.ALL,
+    salt,
+  }: {
+    account: Account;
+    admin?: Address;
+    roles?: bigint;
+    salt?: bigint;
+  }) {
     return deployVerifiableProxy({
       walletClient: createClient(this.transport, this.client.chain, account),
       factoryAddress: this.contracts.VerifiableFactory.address,
