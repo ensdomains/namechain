@@ -303,12 +303,12 @@ contract PermissionedRegistry is
         entry.subregistry = address(registry);
         entry.resolver = resolver;
         DATASTORE.setEntry(tokenId, entry);
-
+        uint256 resourceId = _constructResource(tokenId, entry);
         // emit NameRegistered before mint so we can determine this is a registry (in an indexer)
-        emit NameRegistered(tokenId, label, expires, msg.sender);
+        emit NameRegistered(tokenId, label, expires, msg.sender, resourceId);
 
         _mint(owner, tokenId, 1, "");
-        _grantRoles(_constructResource(tokenId, entry), roleBitmap, owner, false);
+        _grantRoles(resourceId, roleBitmap, owner, false);
 
         emit SubregistryUpdated(tokenId, address(registry));
         emit ResolverUpdated(tokenId, resolver);
@@ -388,7 +388,7 @@ contract PermissionedRegistry is
                 DATASTORE.setEntry(tokenId, entry);
                 uint256 newTokenId = _constructTokenId(tokenId, entry);
                 _mint(owner, newTokenId, 1, "");
-                emit TokenRegenerated(tokenId, newTokenId);
+                emit TokenRegenerated(tokenId, newTokenId, _constructResource(newTokenId, entry));
             }
         }
     }
