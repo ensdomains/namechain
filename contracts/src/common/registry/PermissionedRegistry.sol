@@ -78,7 +78,7 @@ contract PermissionedRegistry is
         );
         entry.subregistry = address(registry);
         DATASTORE.setEntry(tokenId, entry);
-        emit SubregistryUpdate(tokenId, address(registry));
+        emit SubregistryUpdated(tokenId, address(registry));
     }
 
     function setResolver(uint256 anyId, address resolver) external override {
@@ -88,7 +88,7 @@ contract PermissionedRegistry is
         );
         entry.resolver = resolver;
         DATASTORE.setEntry(tokenId, entry);
-        emit ResolverUpdate(tokenId, resolver);
+        emit ResolverUpdated(tokenId, resolver);
     }
 
     /// @inheritdoc IRegistry
@@ -152,7 +152,7 @@ contract PermissionedRegistry is
         if (address(observer) != address(0)) {
             observer.onRenew(tokenId, expires, msg.sender);
         }
-        emit NameRenewed(tokenId, expires, msg.sender);
+        emit ExpiryUpdated(tokenId, expires, msg.sender);
     }
 
     function grantRoles(
@@ -310,8 +310,8 @@ contract PermissionedRegistry is
         _mint(owner, tokenId, 1, "");
         _grantRoles(_constructResource(tokenId, entry), roleBitmap, owner, false);
 
-        emit SubregistryUpdate(tokenId, address(registry));
-        emit ResolverUpdate(tokenId, resolver);
+        emit SubregistryUpdated(tokenId, address(registry));
+        emit ResolverUpdated(tokenId, resolver);
     }
 
     /**
