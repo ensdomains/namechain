@@ -7,7 +7,6 @@ library LibMem {
     bool public constant REMAPPED = true;
 
     /// @dev Copy `mem[src:src+len]` to `mem[dst:dst+len]`.
-    ///      Equivalent to `mcopy()`.
     ///
     /// @param src The source memory offset.
     /// @param dst The destination memory offset.

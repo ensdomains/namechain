@@ -10,7 +10,7 @@ import {LibMem} from "~src/common/utils/LibMem.sol";
 /// Note: Forge does not recompile changes to file remappings as expected.
 /// You must induce a recompile via clean or file change.
 ///
-/// 1. Check UnsafeCopyLib is remapped to get `mcopy`.
+/// 1. Check `LibMem` is remapped to get `mcopy`.
 ///
 contract RemappingsTest is Test {
     function test_LibMem() external pure {
