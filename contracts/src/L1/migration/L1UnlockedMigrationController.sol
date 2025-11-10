@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
@@ -166,10 +167,9 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
      */
     function _migrateNameViaBridge(uint256 tokenId, MigrationData memory migrationData) internal {
         // Validate that tokenId matches the label hash
-        string memory label = LibLabel.extractLabel(migrationData.transferData.dnsEncodedName);
-        uint256 expectedTokenId = uint256(keccak256(bytes(label)));
-        if (tokenId != expectedTokenId) {
-            revert TokenIdMismatch(tokenId, expectedTokenId);
+        (bytes32 labelHash, ) = NameCoder.readLabel(migrationData.transferData.dnsEncodedName, 0);
+        if (tokenId != uint256(labelHash)) {
+            revert TokenIdMismatch(tokenId, uint256(labelHash));
         }
 
         // Handle L1 migration by setting up the name locally
