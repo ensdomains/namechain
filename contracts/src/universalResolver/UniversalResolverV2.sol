@@ -24,4 +24,17 @@ contract UniversalResolverV2 is AbstractUniversalResolver {
     ) public view override returns (address resolver, bytes32 node, uint256 offset) {
         (, resolver, node, offset) = LibRegistry.findResolver(ROOT_REGISTRY, name, 0);
     }
+
+    /// @notice Find all registries in the ancestry of `name`.
+    /// * `findRegistries("") = [<root>]`
+    /// * `findRegistries("eth") = [<eth>, <root>]`
+    /// * `findRegistries("nick.eth") = [<nick>, <eth>, <root>]`
+    /// * `findRegistries("sub.nick.eth") = [null, <nick>, <eth>, <root>]`
+    ///
+    /// @param name The DNS-encoded name.
+    ///
+    /// @return Array of registries in label-order.
+    function findRegistries(bytes calldata name) external view returns (IRegistry[] memory) {
+        return LibRegistry.findRegistries(ROOT_REGISTRY, name, 0);
+    }
 }
