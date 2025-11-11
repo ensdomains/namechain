@@ -22,7 +22,7 @@ interface IRegistry is IERC1155Singleton {
     /**
      * @dev Event emitted when a name is renewed.
      */
-    event ExpiryUpdated(uint256 indexed tokenId, uint64 newExpiration, address updatedBy);
+    event ExpiryUpdated(uint256 indexed tokenId, uint64 newExpiration);
 
     /**
      * @dev Event emitted when a name is burned.

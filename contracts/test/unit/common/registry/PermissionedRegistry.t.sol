@@ -488,7 +488,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
         assertEq(entries.length, 1);
-        assertEq(entries[0].topics[0], keccak256("ExpiryUpdated(uint256,uint64,address)"));
+        assertEq(entries[0].topics[0], keccak256("ExpiryUpdated(uint256,uint64)"));
         assertEq(entries[0].topics[1], bytes32(tokenId));
         (uint64 expiry, address renewedBy) = abi.decode(entries[0].data, (uint64, address));
         assertEq(expiry, newExpiry);
@@ -1570,7 +1570,10 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
                 foundEvent = true;
                 uint256 oldTokenIdFromEvent;
                 uint256 context;
-                (oldTokenIdFromEvent, newTokenId, context) = abi.decode(entries[i].data, (uint256, uint256, uint256));
+                (oldTokenIdFromEvent, newTokenId, context) = abi.decode(
+                    entries[i].data,
+                    (uint256, uint256, uint256)
+                );
                 assertEq(oldTokenIdFromEvent, tokenId, "Old token ID in event doesn't match");
                 assertEq(context, resourceId, "Context should match resource ID");
                 break;
@@ -1635,7 +1638,10 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
                 foundEvent = true;
                 uint256 oldTokenIdFromEvent;
                 uint256 context;
-                (oldTokenIdFromEvent, newTokenId, context) = abi.decode(entries[i].data, (uint256, uint256, uint256));
+                (oldTokenIdFromEvent, newTokenId, context) = abi.decode(
+                    entries[i].data,
+                    (uint256, uint256, uint256)
+                );
                 assertEq(
                     oldTokenIdFromEvent,
                     intermediateTokenId,

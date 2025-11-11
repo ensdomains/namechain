@@ -458,7 +458,9 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
         bool foundNameRegistered = false;
         bool foundNameEjectedToL1 = false;
 
-        bytes32 nameRegisteredSig = keccak256("NameRegistered(uint256,string,uint64,address,uint256)");
+        bytes32 nameRegisteredSig = keccak256(
+            "NameRegistered(uint256,string,uint64,address,uint256)"
+        );
         bytes32 ejectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
 
         for (uint256 i = 0; i < entries.length; i++) {
@@ -553,7 +555,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         bool foundExpiryUpdated = false;
         bool foundRenewalSynchronized = false;
-        bytes32 expiryUpdatedSig = keccak256("ExpiryUpdated(uint256,uint64,address)");
+        bytes32 expiryUpdatedSig = keccak256("ExpiryUpdated(uint256,uint64)");
         bytes32 renewalSynchronizedSig = keccak256("RenewalSynchronized(uint256,uint64)");
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].topics[0] == expiryUpdatedSig) {

@@ -152,7 +152,7 @@ contract PermissionedRegistry is
         if (address(observer) != address(0)) {
             observer.onRenew(tokenId, expires, msg.sender);
         }
-        emit ExpiryUpdated(tokenId, expires, msg.sender);
+        emit ExpiryUpdated(tokenId, expires);
     }
 
     function grantRoles(
