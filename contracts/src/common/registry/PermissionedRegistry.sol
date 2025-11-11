@@ -175,26 +175,27 @@ contract PermissionedRegistry is
         return _tokenURI(tokenId);
     }
 
-    /// @dev Shorthand to get datastore entry.
+    /// @inheritdoc IPermissionedRegistry
     function getEntry(uint256 anyId) public view returns (IRegistryDatastore.Entry memory) {
         return DATASTORE.getEntry(address(this), anyId);
     }
 
-    /// @dev Shorthand to get datastore expiry.
+    /// @inheritdoc IStandardRegistry
     function getExpiry(uint256 anyId) public view returns (uint64) {
         return getEntry(anyId).expiry;
     }
 
-    /// @dev Shorthand to get resource from any anyId.
+    /// @inheritdoc IPermissionedRegistry
     function getResource(uint256 anyId) public view returns (uint256) {
         return _constructResource(anyId, getEntry(anyId));
     }
 
-    /// @dev Shorthand to get token from any anyId.
+    /// @inheritdoc IPermissionedRegistry
     function getTokenId(uint256 anyId) public view returns (uint256) {
         return _constructTokenId(anyId, getEntry(anyId));
     }
 
+    /// @inheritdoc IPermissionedRegistry
     function getNameData(
         string memory label
     ) public view returns (uint256 tokenId, IRegistryDatastore.Entry memory entry) {
