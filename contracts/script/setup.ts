@@ -193,6 +193,7 @@ export class ChainDeployment<
       bytecode,
       args: [
         this.contracts.RegistryDatastore.address,
+        this.contracts.HCAFactory.address,
         this.contracts.SimpleRegistryMetadata.address,
         account.address,
         roles,
