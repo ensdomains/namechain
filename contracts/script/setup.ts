@@ -1,39 +1,39 @@
+import { artifacts } from "@rocketh";
+import { rm } from "node:fs/promises";
 import { anvil as createAnvil } from "prool/instances";
 import { type Environment, executeDeployScripts, resolveConfig } from "rocketh";
 import {
-  createWalletClient,
-  getContract,
-  webSocket,
-  publicActions,
-  testActions,
-  zeroAddress,
-  encodeFunctionData,
+  type Abi,
   type Account,
   type Chain,
+  createWalletClient,
+  encodeFunctionData,
+  getContract,
   type GetContractReturnType,
-  type Transport,
-  type Abi,
   Hex,
+  publicActions,
+  testActions,
+  type Transport,
+  webSocket,
+  zeroAddress,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
-import { artifacts } from "@rocketh";
-import { rm } from "node:fs/promises";
 
 import { serve } from "@namestone/ezccip/serve";
 import { WebSocketProvider } from "ethers/providers";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 
-import type { RockethL1Arguments, RockethArguments } from "./types.js";
-import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
-import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
-import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
-import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 import {
   LOCAL_BATCH_GATEWAY_URL,
   MAX_EXPIRY,
   ROLES,
 } from "../deploy/constants.js";
+import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
+import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
+import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
+import { patchArtifactsV1 } from "./patchArtifactsV1.js";
+import type { RockethArguments, RockethL1Arguments } from "./types.js";
 
 type DeployedArtifacts = Record<string, Abi>;
 
@@ -51,6 +51,7 @@ const renames: Record<string, string> = {
 const sharedContracts = {
   RegistryDatastore: artifacts.RegistryDatastore.abi,
   SimpleRegistryMetadata: artifacts.SimpleRegistryMetadata.abi,
+  HCAFactory: artifacts.MockHCAFactoryBasic.abi,
   VerifiableFactory: artifacts.VerifiableFactory.abi,
   DedicatedResolverImpl: artifacts.DedicatedResolver.abi,
   UserRegistryImpl: artifacts.UserRegistry.abi,
@@ -192,6 +193,7 @@ export class ChainDeployment<
       bytecode,
       args: [
         this.contracts.RegistryDatastore.address,
+        this.contracts.HCAFactory.address,
         this.contracts.SimpleRegistryMetadata.address,
         account.address,
         roles,
@@ -262,11 +264,11 @@ export async function setupCrossChainEnvironment({
   async function shutdown() {
     await Promise.allSettled(finalizers.map((f) => f()));
   }
-  let unquiet = () => { };
+  let unquiet = () => {};
   if (quiet) {
     const { log, table } = console;
-    console.log = () => { };
-    console.table = () => { };
+    console.log = () => {};
+    console.table = () => {};
     unquiet = () => {
       console.log = log;
       console.table = table;

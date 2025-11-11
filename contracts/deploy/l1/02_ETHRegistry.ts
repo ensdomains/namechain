@@ -1,7 +1,7 @@
 import { artifacts, execute } from "@rocketh";
 import { MAX_EXPIRY, ROLES } from "../constants.js";
 
- // TODO: ownership
+// TODO: ownership
 export default execute(
   async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
     const rootRegistry =
@@ -9,6 +9,9 @@ export default execute(
 
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
+
+    const hcaFactory =
+      get<(typeof artifacts.MockHCAFactoryBasic)["abi"]>("HCAFactory");
 
     const registryMetadata = get<
       (typeof artifacts.SimpleRegistryMetadata)["abi"]
@@ -22,6 +25,7 @@ export default execute(
       artifact: artifacts.PermissionedRegistry,
       args: [
         registryDatastore.address,
+        hcaFactory.address,
         registryMetadata.address,
         deployer,
         ROLES.ALL,
@@ -33,7 +37,7 @@ export default execute(
       functionName: "register",
       args: [
         "eth",
-        deployer, 
+        deployer,
         ethRegistry.address,
         ethTLDResolver.address,
         0n,
@@ -46,6 +50,7 @@ export default execute(
     dependencies: [
       "RootRegistry",
       "RegistryDatastore",
+      "HCAFactory",
       "RegistryMetadata",
       "ETHTLDResolver",
     ],

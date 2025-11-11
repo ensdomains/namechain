@@ -17,6 +17,7 @@ import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {MockBridgeBase} from "~test/mocks/MockBridgeBase.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
 import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
 
@@ -34,6 +35,7 @@ contract BridgeMessagesTest is Test {
     PermissionedRegistry registry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
+    MockHCAFactoryBasic hcaFactory;
 
     string testLabel = "test";
     address testOwner = address(0x1234);
@@ -44,11 +46,13 @@ contract BridgeMessagesTest is Test {
     function setUp() public {
         // Deploy dependencies
         datastore = new RegistryDatastore();
+        hcaFactory = new MockHCAFactoryBasic();
         registryMetadata = new MockRegistryMetadata();
 
         // Deploy registry
         registry = new PermissionedRegistry(
             datastore,
+            hcaFactory,
             registryMetadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES

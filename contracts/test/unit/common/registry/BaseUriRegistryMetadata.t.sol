@@ -17,9 +17,11 @@ import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetada
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
+    MockHCAFactoryBasic hcaFactory;
     PermissionedRegistry registry;
     PermissionedRegistry parentRegistry;
     BaseUriRegistryMetadata metadata;
@@ -33,11 +35,18 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
 
     function setUp() public {
         datastore = new RegistryDatastore();
-        metadata = new BaseUriRegistryMetadata();
+        hcaFactory = new MockHCAFactoryBasic();
+        metadata = new BaseUriRegistryMetadata(hcaFactory);
 
         // Use the valid ALL_ROLES value for deployer roles
         uint256 deployerRoles = EACBaseRolesLib.ALL_ROLES;
-        registry = new PermissionedRegistry(datastore, metadata, address(this), deployerRoles);
+        registry = new PermissionedRegistry(
+            datastore,
+            hcaFactory,
+            metadata,
+            address(this),
+            deployerRoles
+        );
     }
 
     function test_registry_metadata_base_uri() public {

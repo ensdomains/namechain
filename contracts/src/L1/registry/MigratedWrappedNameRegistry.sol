@@ -13,6 +13,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {MigrationData} from "../../common/bridge/types/TransferData.sol";
 import {UnauthorizedCaller} from "../../common/CommonErrors.sol";
+import {IHCAFactoryBasic} from "../../common/hca/interfaces/IHCAFactoryBasic.sol";
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
@@ -74,8 +75,9 @@ contract MigratedWrappedNameRegistry is
         IPermissionedRegistry ethRegistry,
         VerifiableFactory factory,
         IRegistryDatastore datastore,
+        IHCAFactoryBasic hcaFactory,
         IRegistryMetadata metadataProvider
-    ) PermissionedRegistry(datastore, metadataProvider, _msgSender(), 0) {
+    ) PermissionedRegistry(datastore, hcaFactory, metadataProvider, _msgSender(), 0) {
         NAME_WRAPPER = nameWrapper;
         ETH_REGISTRY = ethRegistry;
         FACTORY = factory;

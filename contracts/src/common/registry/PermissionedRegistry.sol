@@ -7,6 +7,8 @@ import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol
 import {IEnhancedAccessControl} from "../access-control/interfaces/IEnhancedAccessControl.sol";
 import {ERC1155Singleton} from "../erc1155/ERC1155Singleton.sol";
 import {IERC1155Singleton} from "../erc1155/interfaces/IERC1155Singleton.sol";
+import {HCAEquivalence} from "../hca/HCAEquivalence.sol";
+import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 import {LibLabel} from "../utils/LibLabel.sol";
 
 import {BaseRegistry} from "./BaseRegistry.sol";
@@ -37,10 +39,11 @@ contract PermissionedRegistry is
 
     constructor(
         IRegistryDatastore datastore,
+        IHCAFactoryBasic hcaFactory,
         IRegistryMetadata metadata,
         address ownerAddress,
         uint256 ownerRoles
-    ) BaseRegistry(datastore) MetadataMixin(metadata) {
+    ) BaseRegistry(datastore) HCAEquivalence(hcaFactory) MetadataMixin(metadata) {
         _grantRoles(ROOT_RESOURCE, ownerRoles, ownerAddress, false);
     }
 
@@ -68,7 +71,7 @@ contract PermissionedRegistry is
         entry.subregistry = address(0);
         DATASTORE.setEntry(anyId, entry);
         // NameBurned implies subregistry/resolver are set to address(0), we don't need to emit those explicitly
-        emit NameBurned(tokenId, msg.sender);
+        emit NameBurned(tokenId, _msgSender());
     }
 
     function setSubregistry(uint256 anyId, IRegistry registry) external override {
@@ -150,9 +153,11 @@ contract PermissionedRegistry is
         DATASTORE.setEntry(tokenId, entry);
         ITokenObserver observer = _tokenObservers[LibLabel.getCanonicalId(tokenId)];
         if (address(observer) != address(0)) {
-            observer.onRenew(tokenId, expires, msg.sender);
+            // TODO(tate): clarify if the observer will be HCA aware or not
+            observer.onRenew(tokenId, expires, _msgSender());
         }
-        emit NameRenewed(tokenId, expires, msg.sender);
+
+        emit NameRenewed(tokenId, expires, _msgSender());
     }
 
     function grantRoles(
@@ -305,7 +310,7 @@ contract PermissionedRegistry is
         DATASTORE.setEntry(tokenId, entry);
 
         // emit NameRegistered before mint so we can determine this is a registry (in an indexer)
-        emit NameRegistered(tokenId, label, expires, msg.sender);
+        emit NameRegistered(tokenId, label, expires, _msgSender());
 
         _mint(owner, tokenId, 1, "");
         _grantRoles(_constructResource(tokenId, entry), roleBitmap, owner, false);
