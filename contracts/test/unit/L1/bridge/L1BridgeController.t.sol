@@ -19,11 +19,11 @@ import {InvalidOwner} from "~src/common/CommonErrors.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {IStandardRegistry} from "~src/common/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
+import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
-import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
-import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -37,7 +37,7 @@ contract MockBridge is IBridge {
 
 contract L1BridgeControllerTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
-    MockPermissionedRegistry registry;
+    PermissionedRegistry registry;
     MockHCAFactoryBasic hcaFactory;
     L1BridgeController bridgeController;
     MockRegistryMetadata registryMetadata;
@@ -363,7 +363,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder {
         bridge = new MockBridge();
 
         // Deploy the eth registry
-        registry = new MockPermissionedRegistry(
+        registry = new PermissionedRegistry(
             datastore,
             hcaFactory,
             registryMetadata,
@@ -432,7 +432,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder {
 
         assertEq(registry.getResolver(testLabel), MOCK_RESOLVER);
 
-        uint256 resource = registry.testGetResourceFromTokenId(tokenId);
+        uint256 resource = registry.getResource(tokenId);
         assertTrue(
             registry.hasRoles(resource, expectedRoles, user),
             "Role bitmap should match the expected roles"
@@ -456,22 +456,22 @@ contract L1BridgeControllerTest is Test, ERC1155Holder {
         bridgeController.completeEjectionToL1(transferData);
 
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundNewSubname = false;
+        bool foundNameRegistered = false;
         bool foundNameEjectedToL1 = false;
 
-        bytes32 newSubnameSig = keccak256("NewSubname(uint256,string)");
+        bytes32 nameRegisteredSig = keccak256("NameRegistered(uint256,string,uint64,address)");
         bytes32 ejectedSig = keccak256("NameEjectedToL1(bytes,uint256)");
 
         for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == newSubnameSig) {
-                foundNewSubname = true;
+            if (entries[i].topics[0] == nameRegisteredSig) {
+                foundNameRegistered = true;
             }
             if (entries[i].topics[0] == ejectedSig) {
                 foundNameEjectedToL1 = true;
             }
         }
 
-        assertTrue(foundNewSubname, "NewSubname event not found");
+        assertTrue(foundNameRegistered, "NameRegistered event not found");
         assertTrue(foundNameEjectedToL1, "NameEjectedToL1 event not found");
     }
 

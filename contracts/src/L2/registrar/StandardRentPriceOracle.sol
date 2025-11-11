@@ -71,7 +71,11 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     event BaseRatesChanged(uint256[] ratePerCp);
 
     /// @notice Premium pricing was changed.
-    event PremiumPricingChanged(uint256 initialPrice, uint64 halvingPeriod, uint64 period);
+    event PremiumPricingChanged(
+        uint256 indexed initialPrice,
+        uint64 indexed halvingPeriod,
+        uint64 indexed period
+    );
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
@@ -141,7 +145,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     ///      - Emits `BaseRatesChanged`.
     ///
     /// @param ratePerCp The base rates, in base units per second.
-    function updateBaseRates(uint256[] memory ratePerCp) external onlyOwner {
+    function updateBaseRates(uint256[] calldata ratePerCp) external onlyOwner {
         _baseRatePerCp = ratePerCp;
         emit BaseRatesChanged(ratePerCp);
     }
@@ -152,12 +156,12 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     ///      - Discounts are relative to `type(uint128).max`.
     ///      - Given an average discount, solve for the corresponding interval:
     ///        * Assume: 1yr at 0% discount
-    ///        * Solve: 2yr @ 5% == 1yr @ 0% + 1yr @ x => x = 10.00%
+    ///        * Solve: 2yr * 5% == 1yr * 0% + 1yr * x => x = 10.00%
     //         * Point: (1yr, 10%) == (1 years, type(uint128).max / 10)
     ///      - Final discount is the derived from the weighted average over the intervals.
     ///      - Use empty array to disable.
     ///      - Emits `DiscountPointsChanged`.
-    function updateDiscountPoints(DiscountPoint[] memory points) external onlyOwner {
+    function updateDiscountPoints(DiscountPoint[] calldata points) external onlyOwner {
         _setDiscountPoints(points);
     }
 
@@ -222,7 +226,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
 
     /// @inheritdoc IRentPriceOracle
     /// @notice Does not check if normalized.
-    function isValid(string memory label) external view returns (bool) {
+    function isValid(string calldata label) external view returns (bool) {
         return baseRate(label) > 0;
     }
 

@@ -27,7 +27,7 @@ import {
     IDedicatedResolverSetters,
     NODE_ANY
 } from "~src/common/resolver/interfaces/IDedicatedResolverSetters.sol";
-import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract DedicatedResolverTest is Test {
     struct I {

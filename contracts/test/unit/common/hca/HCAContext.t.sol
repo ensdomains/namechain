@@ -8,7 +8,7 @@ import {Test} from "forge-std/Test.sol";
 import {HCAContext} from "~src/common/hca/HCAContext.sol";
 import {HCAEquivalence} from "~src/common/hca/HCAEquivalence.sol";
 import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
-import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract HCAContextHarness is HCAContext {
     constructor(IHCAFactoryBasic factory) HCAEquivalence(factory) {}

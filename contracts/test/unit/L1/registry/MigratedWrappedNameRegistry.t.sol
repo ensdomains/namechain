@@ -5,7 +5,6 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {
@@ -36,7 +35,7 @@ import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {LockedNamesLib} from "~src/L1/migration/libraries/LockedNamesLib.sol";
 import {ParentNotMigrated, LabelNotMigrated} from "~src/L1/migration/MigrationErrors.sol";
 import {MigratedWrappedNameRegistry} from "~src/L1/registry/MigratedWrappedNameRegistry.sol";
-import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -63,6 +62,12 @@ contract MockNameWrapper {
     mapping(uint256 tokenId => uint32 fuses) public fuses;
     mapping(uint256 tokenId => uint64 expiry) public expiries;
     mapping(uint256 tokenId => address resolver) public resolvers;
+
+    MockENS public ens;
+
+    constructor(MockENS _ens) {
+        ens = _ens;
+    }
 
     function setOwner(uint256 tokenId, address owner) external {
         owners[tokenId] = owner;
@@ -144,15 +149,14 @@ contract MigratedWrappedNameRegistryTest is Test {
         hcaFactory = new MockHCAFactoryBasic();
         metadata = new MockRegistryMetadata();
         ensRegistry = new MockENS();
-        nameWrapper = new MockNameWrapper();
+        nameWrapper = new MockNameWrapper(ensRegistry);
         factory = new VerifiableFactory();
 
         // Deploy implementation
         implementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)), // mock nameWrapper
-            ENS(address(ensRegistry)), // mock ENS registry
-            factory,
             IPermissionedRegistry(address(0)), // mock ethRegistry
+            factory,
             datastore,
             hcaFactory,
             metadata
@@ -566,9 +570,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy implementation with real factory
         MigratedWrappedNameRegistry impl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            realFactory,
             IPermissionedRegistry(address(0)),
+            realFactory,
             datastore,
             hcaFactory,
             metadata
@@ -594,9 +597,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy new implementation instance
         MigratedWrappedNameRegistry impl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             hcaFactory,
             metadata
@@ -1308,9 +1310,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy a new implementation
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             hcaFactory,
             metadata
@@ -1336,9 +1337,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy a new implementation
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             hcaFactory,
             metadata
@@ -1359,9 +1359,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy a new implementation
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             hcaFactory,
             metadata
@@ -1394,9 +1393,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy a new implementation
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             hcaFactory,
             metadata
@@ -1462,9 +1460,8 @@ contract MigratedWrappedNameRegistryTest is Test {
     function test_initialize_zero_address_owner() public {
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             hcaFactory,
             metadata
@@ -1485,9 +1482,8 @@ contract MigratedWrappedNameRegistryTest is Test {
     function test_initialize_with_registrar_address() public {
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             hcaFactory,
             metadata
@@ -1519,9 +1515,8 @@ contract MigratedWrappedNameRegistryTest is Test {
     function test_initialize_with_custom_owner_roles() public {
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             hcaFactory,
             metadata
@@ -1553,9 +1548,8 @@ contract MigratedWrappedNameRegistryTest is Test {
     function test_initialize_different_parent_dns_name() public {
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             hcaFactory,
             metadata
@@ -1597,9 +1591,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy new registry with mock ethRegistry
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(mockEthRegistry)),
+            VerifiableFactory(address(0)),
             datastore,
             hcaFactory,
             metadata

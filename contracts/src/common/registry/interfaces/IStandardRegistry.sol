@@ -9,20 +9,6 @@ import {IRegistry} from "./IRegistry.sol";
  */
 interface IStandardRegistry is IRegistry {
     ////////////////////////////////////////////////////////////////////////
-    // Events
-    ////////////////////////////////////////////////////////////////////////
-
-    /**
-     * @dev Event emitted when a name is renewed.
-     */
-    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
-
-    /**
-     * @dev Event emitted when a name is burned.
-     */
-    event NameBurned(uint256 indexed tokenId, address burnedBy);
-
-    ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
 

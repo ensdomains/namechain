@@ -12,6 +12,7 @@ env:
 
 jobs:
   build-and-push:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -19,8 +20,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          submodules: "recursive"
       - name: Log in to the Github Container registry
         uses: docker/login-action@v3
         with:
@@ -34,8 +37,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,event=branch,prefix=
-            type=raw,value=latest
+            type=sha,event=branch,prefix=${{ github.event.workflow_run.head_branch }}-
+            type=raw,value=latest,enable=${{ github.event.workflow_run.head_branch == github.event.repository.default_branch }}
             type=ref,event=tag
 
       - name: Build and push Docker image
@@ -44,5 +47,5 @@ jobs:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          build-args: GITHUB_SHA=${{ github.sha }}
+          build-args: GITHUB_SHA=${{ github.event.workflow_run.head_sha }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -27,7 +27,7 @@ contract RegistryDatastoreTest is Test {
             resolver: address(0),
             eacVersionId: 0
         });
-        datastore.setEntry(address(this), id, entry);
+        datastore.setEntry(id, entry);
 
         IRegistryDatastore.Entry memory returnedEntry = datastore.getEntry(address(this), id);
         vm.assertEq(returnedEntry.subregistry, address(this));
@@ -57,29 +57,6 @@ contract RegistryDatastoreTest is Test {
         vm.assertEq(returnedEntry.tokenVersionId, data);
     }
 
-    function test_SetSubregistry_Setters() public {
-        datastore.setSubregistry(id, address(this));
-        datastore.setResolver(id, address(this));
-
-        IRegistryDatastore.Entry memory returnedEntry = datastore.getEntry(address(this), id);
-        vm.assertEq(returnedEntry.subregistry, address(this));
-        vm.assertEq(returnedEntry.resolver, address(this));
-    }
-
-    function test_SetSubregistry_Resolver_OtherRegistry() public {
-        DummyRegistry r = new DummyRegistry(datastore);
-        r.setSubregistry(id, address(this));
-        r.setResolver(id, address(this));
-
-        IRegistryDatastore.Entry memory returnedEntry = datastore.getEntry(address(this), id);
-        vm.assertEq(returnedEntry.subregistry, address(0));
-        vm.assertEq(returnedEntry.resolver, address(0));
-
-        returnedEntry = datastore.getEntry(address(r), id);
-        vm.assertEq(returnedEntry.subregistry, address(this));
-        vm.assertEq(returnedEntry.resolver, address(this));
-    }
-
     /// @notice Test struct packing verification
     function test_EntryStructPacking() public {
         address registry = address(this);
@@ -95,7 +72,7 @@ contract RegistryDatastoreTest is Test {
             resolver: 0xaBcDef1234567890123456789012345678901234 // 160-bit address
         });
 
-        datastore.setEntry(registry, tokenId, entry);
+        datastore.setEntry(tokenId, entry);
 
         // Calculate storage slot for entries[registry][canonicalId]
         bytes32 slot0 = keccak256(
@@ -139,14 +116,6 @@ contract DummyRegistry {
     }
 
     function setEntry(uint256 id, IRegistryDatastore.Entry memory entry) public {
-        datastore.setEntry(address(this), id, entry);
-    }
-
-    function setSubregistry(uint256 id, address subregistry) public {
-        datastore.setSubregistry(id, subregistry);
-    }
-
-    function setResolver(uint256 id, address resolver) public {
-        datastore.setResolver(id, resolver);
+        datastore.setEntry(id, entry);
     }
 }

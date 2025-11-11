@@ -17,7 +17,7 @@ import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
-import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;

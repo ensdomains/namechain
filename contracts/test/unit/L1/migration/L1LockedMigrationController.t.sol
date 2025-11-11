@@ -5,7 +5,6 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {
     INameWrapper,
@@ -30,20 +29,22 @@ import {IPermissionedRegistry} from "~src/common/registry/interfaces/IPermission
 import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
+import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1LockedMigrationController} from "~src/L1/migration/L1LockedMigrationController.sol";
 import {LockedNamesLib} from "~src/L1/migration/libraries/LockedNamesLib.sol";
 import {MigratedWrappedNameRegistry} from "~src/L1/registry/MigratedWrappedNameRegistry.sol";
-import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
-import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract MockNameWrapper {
     mapping(uint256 tokenId => uint32 fuses) public fuses;
     mapping(uint256 tokenId => uint64 expiry) public expiries;
     mapping(uint256 tokenId => address owner) public owners;
     mapping(uint256 tokenId => address resolver) public resolvers;
+
+    ENS public ens;
 
     function setFuseData(uint256 tokenId, uint32 _fuses, uint64 _expiry) external {
         fuses[tokenId] = _fuses;
@@ -74,10 +75,6 @@ contract MockNameWrapper {
     }
 }
 
-contract MockBaseRegistrar {
-    // Empty mock - we'll force cast it to IBaseRegistrar
-}
-
 contract MockBridge is IBridge {
     bytes public lastMessage;
 
@@ -99,12 +96,11 @@ contract MockRegistryMetadata is IRegistryMetadata {
 contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
     L1LockedMigrationController controller;
     MockNameWrapper nameWrapper;
-    MockBaseRegistrar baseRegistrar;
     MockBridge bridge;
     L1BridgeController bridgeController;
     RegistryDatastore datastore;
     MockRegistryMetadata metadata;
-    MockPermissionedRegistry registry;
+    PermissionedRegistry registry;
     VerifiableFactory factory;
     MigratedWrappedNameRegistry implementation;
     MockHCAFactoryBasic hcaFactory;
@@ -117,7 +113,6 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
     function setUp() public {
         nameWrapper = new MockNameWrapper();
-        baseRegistrar = new MockBaseRegistrar();
         bridge = new MockBridge();
         datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
@@ -127,16 +122,15 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         factory = new VerifiableFactory();
         implementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(0)), // mock ENS registry
-            factory,
             IPermissionedRegistry(address(registry)), // ethRegistry
+            factory,
             datastore,
             hcaFactory,
             metadata
         );
 
         // Setup eth registry
-        registry = new MockPermissionedRegistry(
+        registry = new PermissionedRegistry(
             datastore,
             hcaFactory,
             metadata,
@@ -155,9 +149,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         bridgeController.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(controller));
 
         controller = new L1LockedMigrationController(
-            IBaseRegistrar(address(baseRegistrar)),
             INameWrapper(address(nameWrapper)),
-            bridge,
             bridgeController,
             factory,
             address(implementation)
@@ -238,7 +230,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // Confirm roles derived from name configuration
@@ -529,7 +521,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // 2LDs should NOT have renewal roles even when no additional fuses are burnt (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs)
@@ -594,7 +586,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // Should NOT have renewal roles since CAN_EXTEND_EXPIRY is not set
@@ -645,7 +637,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // 2LDs should NOT have renewal roles even when CANNOT_CREATE_SUBDOMAIN is not burnt (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs)
@@ -709,7 +701,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // 2LDs should NOT have renewal roles (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs) but should have resolver roles

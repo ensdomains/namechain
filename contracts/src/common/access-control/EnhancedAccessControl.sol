@@ -389,7 +389,9 @@ abstract contract EnhancedAccessControl is HCAContext, ERC165, IEnhancedAccessCo
         uint256 oldRoles,
         uint256 newRoles,
         uint256 roleBitmap
-    ) internal virtual {}
+    ) internal virtual {
+        // solhint-disable-previous-line no-empty-blocks
+    }
 
     /**
      * @dev Callback for when roles are revoked.
@@ -406,7 +408,9 @@ abstract contract EnhancedAccessControl is HCAContext, ERC165, IEnhancedAccessCo
         uint256 oldRoles,
         uint256 newRoles,
         uint256 roleBitmap
-    ) internal virtual {}
+    ) internal virtual {
+        // solhint-disable-previous-line no-empty-blocks
+    }
 
     /**
      * @dev Reverts if `account` does not have all the given roles.

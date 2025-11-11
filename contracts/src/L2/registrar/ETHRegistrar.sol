@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {EnhancedAccessControl} from "../../common/access-control/EnhancedAccessControl.sol";
 import {EACBaseRolesLib} from "../../common/access-control/libraries/EACBaseRolesLib.sol";
@@ -15,7 +15,8 @@ import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib
 import {IETHRegistrar} from "./interfaces/IETHRegistrar.sol";
 import {IRentPriceOracle} from "./interfaces/IRentPriceOracle.sol";
 
-uint256 constant REGISTRATION_ROLE_BITMAP = RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+uint256 constant REGISTRATION_ROLE_BITMAP = 0 |
+    RegistryRolesLib.ROLE_SET_SUBREGISTRY |
     RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN |
     RegistryRolesLib.ROLE_SET_RESOLVER |
     RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN |
@@ -44,7 +45,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     IRentPriceOracle public rentPriceOracle;
 
-    mapping(bytes32 commitment => uint64 commitTime) private _commitTime;
+    /// @inheritdoc IETHRegistrar
+    mapping(bytes32 commitment => uint64 commitTime) public commitmentAt;
 
     ////////////////////////////////////////////////////////////////////////
     // Events
@@ -57,24 +59,24 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        IPermissionedRegistry registry_,
-        IHCAFactoryBasic hcaFactory_,
-        address beneficiary_,
-        uint64 minCommitmentAge_,
-        uint64 maxCommitmentAge_,
-        uint64 minRegisterDuration_,
+        IPermissionedRegistry registry,
+        IHCAFactoryBasic hcaFactory,
+        address beneficiary,
+        uint64 minCommitmentAge,
+        uint64 maxCommitmentAge,
+        uint64 minRegisterDuration,
         IRentPriceOracle rentPriceOracle_
-    ) HCAEquivalence(hcaFactory_) {
-        if (maxCommitmentAge_ <= minCommitmentAge_) {
+    ) HCAEquivalence(hcaFactory) {
+        if (maxCommitmentAge <= minCommitmentAge) {
             revert MaxCommitmentAgeTooLow();
         }
         _grantRoles(ROOT_RESOURCE, EACBaseRolesLib.ALL_ROLES, _msgSender(), true);
 
-        REGISTRY = registry_;
-        BENEFICIARY = beneficiary_;
-        MIN_COMMITMENT_AGE = minCommitmentAge_;
-        MAX_COMMITMENT_AGE = maxCommitmentAge_;
-        MIN_REGISTER_DURATION = minRegisterDuration_;
+        REGISTRY = registry;
+        BENEFICIARY = beneficiary;
+        MIN_COMMITMENT_AGE = minCommitmentAge;
+        MAX_COMMITMENT_AGE = maxCommitmentAge;
+        MIN_REGISTER_DURATION = minRegisterDuration;
 
         rentPriceOracle = rentPriceOracle_;
         emit RentPriceOracleChanged(rentPriceOracle_);
@@ -102,16 +104,16 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     /// @inheritdoc IETHRegistrar
     function commit(bytes32 commitment) external {
-        if (_commitTime[commitment] + MAX_COMMITMENT_AGE > block.timestamp) {
+        if (commitmentAt[commitment] + MAX_COMMITMENT_AGE > block.timestamp) {
             revert UnexpiredCommitmentExists(commitment);
         }
-        _commitTime[commitment] = uint64(block.timestamp);
+        commitmentAt[commitment] = uint64(block.timestamp);
         emit CommitmentMade(commitment);
     }
 
     /// @inheritdoc IETHRegistrar
     function register(
-        string memory label,
+        string calldata label,
         address owner,
         bytes32 secret,
         IRegistry subregistry,
@@ -132,8 +134,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             makeCommitment(label, owner, secret, subregistry, resolver, duration, referrer)
         );
         (uint256 base, uint256 premium) = rentPrice(label, owner, duration, paymentToken); // reverts if !isValid or !isPaymentToken
-        // TODO: custom error
-        require(paymentToken.transferFrom(_msgSender(), BENEFICIARY, base + premium)); // reverts if payment failed
+        SafeERC20.safeTransferFrom(paymentToken, _msgSender(), BENEFICIARY, base + premium); // reverts if payment failed
         tokenId = REGISTRY.register(
             label,
             owner,
@@ -158,7 +159,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     /// @inheritdoc IETHRegistrar
     function renew(
-        string memory label,
+        string calldata label,
         uint64 duration,
         IERC20 paymentToken,
         bytes32 referrer
@@ -168,17 +169,16 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         if (_isAvailable(oldExpiry)) {
             revert NameNotRegistered(label);
         }
-        uint64 expires = oldExpiry + duration;
+        uint64 expiry = oldExpiry + duration;
         (uint256 base, ) = rentPrice(
             label,
             REGISTRY.latestOwnerOf(tokenId),
             duration,
             paymentToken
-        ); // reverts if !isValid or !isPaymentToken
-        // TODO: custom error
-        require(paymentToken.transferFrom(_msgSender(), BENEFICIARY, base)); // reverts if payment failed
-        REGISTRY.renew(tokenId, expires);
-        emit NameRenewed(tokenId, label, duration, expires, paymentToken, referrer, base);
+        ); // reverts if !isValid or !isPaymentToken or duration is 0
+        SafeERC20.safeTransferFrom(paymentToken, _msgSender(), BENEFICIARY, base); // reverts if payment failed
+        REGISTRY.renew(tokenId, expiry);
+        emit NameRenewed(tokenId, label, duration, expiry, paymentToken, referrer, base);
     }
 
     /// @inheritdoc IRentPriceOracle
@@ -187,21 +187,16 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     }
 
     /// @inheritdoc IRentPriceOracle
-    function isValid(string memory label) external view returns (bool) {
+    function isValid(string calldata label) external view returns (bool) {
         return rentPriceOracle.isValid(label);
     }
 
     /// @inheritdoc IETHRegistrar
     /// @dev Does not check if normalized or valid.
-    function isAvailable(string memory label) external view returns (bool) {
+    function isAvailable(string calldata label) external view returns (bool) {
         (, IRegistryDatastore.Entry memory entry) = REGISTRY.getNameData(label);
         uint64 expiry = entry.expiry;
         return _isAvailable(expiry);
-    }
-
-    /// @inheritdoc IETHRegistrar
-    function commitmentAt(bytes32 commitment) external view returns (uint64) {
-        return _commitTime[commitment];
     }
 
     /// @inheritdoc IRentPriceOracle
@@ -216,7 +211,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     /// @inheritdoc IETHRegistrar
     function makeCommitment(
-        string memory label,
+        string calldata label,
         address owner,
         bytes32 secret,
         IRegistry subregistry,
@@ -235,7 +230,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     /// @dev Assert `commitment` is timely, then delete it.
     function _consumeCommitment(bytes32 commitment) internal {
         uint64 t = uint64(block.timestamp);
-        uint64 t0 = _commitTime[commitment];
+        uint64 t0 = commitmentAt[commitment];
         uint64 tMin = t0 + MIN_COMMITMENT_AGE;
         if (t < tMin) {
             revert CommitmentTooNew(commitment, tMin, t);
@@ -244,7 +239,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         if (t >= tMax) {
             revert CommitmentTooOld(commitment, tMax, t);
         }
-        delete _commitTime[commitment];
+        delete commitmentAt[commitment];
     }
 
     /// @dev Internal logic for registration availability.

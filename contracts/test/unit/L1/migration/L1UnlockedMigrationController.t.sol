@@ -25,9 +25,9 @@ import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1UnlockedMigrationController} from "~src/L1/migration/L1UnlockedMigrationController.sol";
-import {MockL1Bridge} from "~src/mocks/MockL1Bridge.sol";
-import {MockBaseRegistrar} from "~src/mocks/v1/MockBaseRegistrar.sol";
-import {MockHCAFactoryBasic} from "~src/mocks/MockHCAFactoryBasic.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
+import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
+import {MockBaseRegistrar} from "~test/mocks/v1/MockBaseRegistrar.sol";
 
 // Simple mock that implements IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -41,7 +41,11 @@ contract MockNameWrapper is ERC1155 {
     mapping(uint256 tokenId => address owner) private _tokenOwners;
     mapping(uint256 tokenId => uint32 fuses) private _tokenFuses;
 
-    constructor() ERC1155("https://metadata.ens.domains/") {}
+    MockBaseRegistrar public registrar;
+
+    constructor(MockBaseRegistrar _registrar) ERC1155("https://metadata.ens.domains/") {
+        registrar = _registrar;
+    }
 
     function wrapETH2LD(string memory label, address owner, uint16, address) external {
         uint256 tokenId = uint256(keccak256(bytes(label)));
@@ -98,7 +102,7 @@ contract MockNameWrapper is ERC1155 {
 }
 
 contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder {
-    MockBaseRegistrar ethRegistryV1;
+    MockBaseRegistrar ethRegistrarV1;
     MockNameWrapper nameWrapper;
     L1UnlockedMigrationController migrationController;
     MockL1Bridge mockBridge;
@@ -160,7 +164,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     }
 
     /**
-     * Helper method to verify that a NameBridgedToL2 event was emitted with correct data
+     * Helper method to verify that a MessageSent event was emitted with correct data
      */
     function _assertBridgeMigrationEvent(string memory expectedLabel) internal {
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -168,18 +172,18 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     }
 
     /**
-     * Helper method to verify that a NameBridgedToL2 event was emitted with correct data using provided logs
+     * Helper method to verify that a MessageSent event was emitted with correct data using provided logs
      */
     function _assertBridgeMigrationEventWithLogs(
         string memory expectedLabel,
         Vm.Log[] memory entries
     ) internal view {
         bool foundMigrationEvent = false;
-        bytes32 expectedSig = keccak256("NameBridgedToL2(bytes)");
+        bytes32 expectedSig = keccak256("MessageSent(bytes)");
 
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].emitter == address(mockBridge) && entries[i].topics[0] == expectedSig) {
-                // For NameBridgedToL2(bytes message) - single parameter is NOT indexed
+                // For MessageSent(bytes message) - single parameter is NOT indexed
                 // so the message is in the data field
                 (bytes memory message) = abi.decode(entries[i].data, (bytes));
                 // Decode the ejection message to get the transfer data
@@ -197,12 +201,12 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         }
         assertTrue(
             foundMigrationEvent,
-            string(abi.encodePacked("NameBridgedToL2 event not found for token: ", expectedLabel))
+            string(abi.encodePacked("MessageSent event not found for token: ", expectedLabel))
         );
     }
 
     /**
-     * Helper method to count NameBridgedToL2 events for multiple tokens
+     * Helper method to count MessageSent events for multiple tokens
      */
     function _countBridgeMigrationEvents(
         uint256[] memory expectedTokenIds
@@ -212,18 +216,18 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     }
 
     /**
-     * Helper method to count NameBridgedToL2 events for multiple tokens using provided logs
+     * Helper method to count MessageSent events for multiple tokens using provided logs
      */
     function _countBridgeMigrationEventsWithLogs(
         uint256[] memory expectedTokenIds,
         Vm.Log[] memory entries
     ) internal view returns (uint256) {
         uint256 migratedEventCount = 0;
-        bytes32 expectedSig = keccak256("NameBridgedToL2(bytes)");
+        bytes32 expectedSig = keccak256("MessageSent(bytes)");
 
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].emitter == address(mockBridge) && entries[i].topics[0] == expectedSig) {
-                // For NameBridgedToL2(bytes message) - single parameter is NOT indexed
+                // For MessageSent(bytes message) - single parameter is NOT indexed
                 // so the message is in the data field
                 (bytes memory message) = abi.decode(entries[i].data, (bytes));
                 // Decode the ejection message to get the transfer data
@@ -299,9 +303,9 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         );
 
         // Deploy mock base registrar and name wrapper (keep these as mocks)
-        ethRegistryV1 = new MockBaseRegistrar();
-        ethRegistryV1.addController(controller);
-        nameWrapper = new MockNameWrapper();
+        ethRegistrarV1 = new MockBaseRegistrar();
+        ethRegistrarV1.addController(controller);
+        nameWrapper = new MockNameWrapper(ethRegistrarV1);
 
         // Deploy mock bridge
         mockBridge = new MockL1Bridge();
@@ -319,9 +323,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
 
         // Deploy migration controller with the REAL ejection controller
         migrationController = new L1UnlockedMigrationController(
-            ethRegistryV1,
             INameWrapper(address(nameWrapper)),
-            mockBridge,
             realL1BridgeController
         );
 
@@ -335,23 +337,20 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     }
 
     function test_constructor() public view {
-        assertEq(address(migrationController.ETH_REGISTRY_V1()), address(ethRegistryV1));
         assertEq(address(migrationController.NAME_WRAPPER()), address(nameWrapper));
-        assertEq(address(migrationController.BRIDGE()), address(mockBridge));
         assertEq(
             address(migrationController.L1_BRIDGE_CONTROLLER()),
             address(realL1BridgeController)
         );
-        assertEq(migrationController.owner(), address(this));
     }
 
     function test_migrateUnwrappedEthName() public {
         // Register a name in the v1 registrar
         vm.prank(controller);
-        ethRegistryV1.register(testTokenId, user, 86400);
+        ethRegistrarV1.register(testTokenId, user, 86400);
 
         // Verify user owns the token
-        assertEq(ethRegistryV1.ownerOf(testTokenId), user);
+        assertEq(ethRegistrarV1.ownerOf(testTokenId), user);
 
         // Create migration data
         MigrationData memory migrationData = _createMigrationData(testLabel);
@@ -361,10 +360,10 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
 
         // Transfer to migration controller (simulating migration)
         vm.prank(user);
-        ethRegistryV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
+        ethRegistrarV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
 
         // Verify the migration controller owns the token
-        assertEq(ethRegistryV1.ownerOf(testTokenId), address(migrationController));
+        assertEq(ethRegistrarV1.ownerOf(testTokenId), address(migrationController));
 
         // Get logs for assertions
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -390,10 +389,10 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     function test_migrateUnwrappedEthName_toL1() public {
         // Register a name in the v1 registrar
         vm.prank(controller);
-        ethRegistryV1.register(testTokenId, user, 86400);
+        ethRegistrarV1.register(testTokenId, user, 86400);
 
         // Verify user owns the token
-        assertEq(ethRegistryV1.ownerOf(testTokenId), user);
+        assertEq(ethRegistrarV1.ownerOf(testTokenId), user);
 
         // Create migration data with toL1 flag set to true
         MigrationData memory migrationData = _createMigrationDataWithL1Flag(testLabel, true);
@@ -403,10 +402,10 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
 
         // Transfer to migration controller (simulating migration)
         vm.prank(user);
-        ethRegistryV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
+        ethRegistrarV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
 
         // Verify the migration controller owns the token
-        assertEq(ethRegistryV1.ownerOf(testTokenId), address(migrationController));
+        assertEq(ethRegistrarV1.ownerOf(testTokenId), address(migrationController));
 
         // Get logs once and use for assertions
         Vm.Log[] memory entries = vm.getRecordedLogs();
@@ -424,7 +423,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     function test_Revert_migrateUnwrappedEthName_wrong_caller() public {
         // Register a name in the v1 registrar
         vm.prank(controller);
-        ethRegistryV1.register(testTokenId, user, 86400);
+        ethRegistrarV1.register(testTokenId, user, 86400);
 
         // Create migration data
         MigrationData memory migrationData = _createMigrationData(testLabel);
@@ -438,7 +437,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     function test_Revert_migrateUnwrappedEthName_not_owner() public {
         // Register a name in the v1 registrar
         vm.prank(controller);
-        ethRegistryV1.register(testTokenId, user, 86400);
+        ethRegistrarV1.register(testTokenId, user, 86400);
 
         // Create migration data
         MigrationData memory migrationData = _createMigrationData(testLabel);
@@ -446,7 +445,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
 
         // Try to call onERC721Received directly when migration controller doesn't own the token
         // This should fail with UnauthorizedCaller because we're calling it directly
-        // and msg.sender is not ethRegistryV1
+        // and msg.sender is not ethRegistrarV1
         vm.expectRevert(abi.encodeWithSelector(UnauthorizedCaller.selector, address(this)));
         migrationController.onERC721Received(address(this), user, testTokenId, data);
     }
@@ -794,7 +793,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     function test_Revert_migrateUnwrappedEthName_tokenId_mismatch() public {
         // Register a name in the v1 registrar
         vm.prank(controller);
-        ethRegistryV1.register(testTokenId, user, 86400);
+        ethRegistrarV1.register(testTokenId, user, 86400);
 
         // Create migration data with wrong label
         MigrationData memory migrationData = _createMigrationData("wronglabel");
@@ -812,7 +811,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
             )
         );
         vm.prank(user);
-        ethRegistryV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
+        ethRegistrarV1.safeTransferFrom(user, address(migrationController), testTokenId, data);
     }
 
     function test_Revert_migrateWrappedEthName_tokenId_mismatch() public {
