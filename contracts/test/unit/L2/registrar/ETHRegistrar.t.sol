@@ -82,6 +82,7 @@ contract ETHRegistrarTest is Test {
 
         ethRegistrar = new ETHRegistrar(
             ethRegistry,
+            hcaFactory,
             beneficiary,
             1 minutes, // minCommitmentAge
             1 days, // maxCommitmentAge
@@ -108,6 +109,7 @@ contract ETHRegistrarTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IETHRegistrar.MaxCommitmentAgeTooLow.selector));
         new ETHRegistrar(
             ethRegistry,
+            hcaFactory,
             beneficiary,
             1, // minCommitmentAge
             1, // maxCommitmentAge
@@ -120,6 +122,7 @@ contract ETHRegistrarTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IETHRegistrar.MaxCommitmentAgeTooLow.selector));
         new ETHRegistrar(
             ethRegistry,
+            hcaFactory,
             beneficiary,
             1, // minCommitmentAge
             0, // maxCommitmentAge

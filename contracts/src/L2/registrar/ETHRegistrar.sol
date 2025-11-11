@@ -58,12 +58,13 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     constructor(
         IPermissionedRegistry registry_,
+        IHCAFactoryBasic hcaFactory_,
         address beneficiary_,
         uint64 minCommitmentAge_,
         uint64 maxCommitmentAge_,
         uint64 minRegisterDuration_,
         IRentPriceOracle rentPriceOracle_
-    ) HCAEquivalence(IHCAFactoryBasic(address(0))) {
+    ) HCAEquivalence(hcaFactory_) {
         if (maxCommitmentAge_ <= minCommitmentAge_) {
             revert MaxCommitmentAgeTooLow();
         }
