@@ -5,6 +5,7 @@ pragma solidity >=0.8.13;
 
 import {Test, Vm} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
@@ -121,7 +122,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 roleBitmap
     ) internal pure returns (bytes memory) {
         TransferData memory transferData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(nameLabel),
+            dnsEncodedName: NameCoder.ethName(nameLabel),
             owner: _owner,
             subregistry: subregistry,
             resolver: _resolver,
@@ -237,7 +238,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 differentRoles = RegistryRolesLib.ROLE_RENEW | RegistryRolesLib.ROLE_REGISTRAR;
         vm.recordLogs();
         TransferData memory migrationData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(label2),
+            dnsEncodedName: NameCoder.ethName(label2),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
@@ -312,7 +313,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NotTokenOwner.selector, tokenId));
         // Call the external method which should revert
         TransferData memory migrationData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+            dnsEncodedName: NameCoder.ethName(testLabel),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
@@ -327,7 +328,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_Revert_completeEjectionToL2_not_bridge() public {
         // Try to call completeEjectionToL2 directly (without proper role)
         TransferData memory transferData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+            dnsEncodedName: NameCoder.ethName(testLabel),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
@@ -962,7 +963,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         );
 
         TransferData memory migrationData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(preMigrationLabel),
+            dnsEncodedName: NameCoder.ethName(preMigrationLabel),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
