@@ -90,9 +90,7 @@ abstract contract BridgeController is IERC1155Receiver, ERC165, EnhancedAccessCo
      * @param newBridge The new bridge contract address
      * @dev Only callable by addresses with ROLE_SET_BRIDGE
      */
-    function setBridge(
-        IBridge newBridge
-    ) external onlyRootRoles(BridgeRolesLib.ROLE_SET_BRIDGE) {
+    function setBridge(IBridge newBridge) external onlyRootRoles(BridgeRolesLib.ROLE_SET_BRIDGE) {
         if (address(newBridge) == address(0)) {
             revert InvalidBridgeAddress();
         }

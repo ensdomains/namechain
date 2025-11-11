@@ -15,12 +15,6 @@ export default execute(
       args: [l1EthRegistry.address, l1Bridge.address],
     });
 
-    // Set the bridge controller on the bridge
-    await write(l1Bridge, {
-      functionName: "setBridgeController",
-      args: [l1BridgeController.address],
-      account: deployer,
-    });
 
     // Grant registrar and renew roles to the bridge controller on the eth registry
     await write(l1EthRegistry, {

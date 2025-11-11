@@ -25,7 +25,9 @@ import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1UnlockedMigrationController} from "~src/L1/migration/L1UnlockedMigrationController.sol";
+import {ISurgeBridge} from "~src/common/bridge/interfaces/ISurgeBridge.sol";
 import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
+import {MockSurgeBridge} from "~test/mocks/MockSurgeBridge.sol";
 import {MockBaseRegistrar} from "~test/mocks/v1/MockBaseRegistrar.sol";
 
 // Simple mock that implements IRegistryMetadata
@@ -104,6 +106,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     MockBaseRegistrar ethRegistrarV1;
     MockNameWrapper nameWrapper;
     L1UnlockedMigrationController migrationController;
+    MockSurgeBridge surgeBridge;
     MockL1Bridge mockBridge;
 
     // Real components for testing
@@ -111,6 +114,10 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     RegistryDatastore datastore;
     PermissionedRegistry registry;
     MockRegistryMetadata registryMetadata;
+    
+    // Chain IDs for testing
+    uint64 constant L1_CHAIN_ID = 1;
+    uint64 constant L2_CHAIN_ID = 42;
 
     address user = address(0x1234);
     address controller = address(0x5678);
@@ -303,10 +310,19 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         ethRegistrarV1.addController(controller);
         nameWrapper = new MockNameWrapper(ethRegistrarV1);
 
-        // Deploy mock bridge
-        mockBridge = new MockL1Bridge();
+        // Deploy Surge bridge mock
+        surgeBridge = new MockSurgeBridge();
+
+        // Deploy mock bridge with Surge integration
+        mockBridge = new MockL1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(0));
 
         // Deploy REAL L1BridgeController with real dependencies
+        realL1BridgeController = new L1BridgeController(registry, mockBridge);
+
+        // Re-deploy bridge with correct controller address
+        mockBridge = new MockL1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(realL1BridgeController));
+
+        // Re-deploy controller with final bridge
         realL1BridgeController = new L1BridgeController(registry, mockBridge);
 
         // Grant necessary roles to the ejection controller

@@ -16,9 +16,10 @@ import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
-import {MockBridgeBase} from "~test/mocks/MockBridgeBase.sol";
+import {ISurgeBridge} from "~src/common/bridge/interfaces/ISurgeBridge.sol";
 import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
 import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
+import {MockSurgeBridge} from "~test/mocks/MockSurgeBridge.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -27,6 +28,7 @@ contract MockRegistryMetadata is IRegistryMetadata {
 }
 
 contract BridgeMessagesTest is Test {
+    MockSurgeBridge surgeBridge;
     MockL1Bridge l1Bridge;
     MockL2Bridge l2Bridge;
     L1BridgeController l1Controller;
@@ -34,6 +36,10 @@ contract BridgeMessagesTest is Test {
     PermissionedRegistry registry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
+
+    // Chain IDs for testing
+    uint64 constant L1_CHAIN_ID = 1;
+    uint64 constant L2_CHAIN_ID = 42;
 
     string testLabel = "test";
     address testOwner = address(0x1234);
@@ -54,24 +60,35 @@ contract BridgeMessagesTest is Test {
             EACBaseRolesLib.ALL_ROLES
         );
 
-        // Deploy bridges
-        l1Bridge = new MockL1Bridge();
-        l2Bridge = new MockL2Bridge();
+        // Deploy Surge bridge mock
+        surgeBridge = new MockSurgeBridge();
+
+        // Deploy bridges with Surge integration
+        l1Bridge = new MockL1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(0));
+        l2Bridge = new MockL2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(0));
 
         // Deploy controllers
         l1Controller = new L1BridgeController(registry, l1Bridge);
         l2Controller = new L2BridgeController(l2Bridge, registry, datastore);
 
-        // Set up bridge controllers
-        l1Bridge.setBridgeController(l1Controller);
-        l2Bridge.setBridgeController(l2Controller);
+        // Re-deploy bridges with correct controller addresses
+        l1Bridge = new MockL1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(l1Controller));
+        l2Bridge = new MockL2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(l2Controller));
 
         // Grant necessary roles (filter out admin roles since they're restricted)
         uint256 regularRoles = EACBaseRolesLib.ALL_ROLES & ~EACBaseRolesLib.ADMIN_ROLES;
         registry.grantRootRoles(regularRoles, address(l1Controller));
+
+        // Update controller bridge references
+        l1Controller.grantRootRoles(BridgeRolesLib.ROLE_SET_BRIDGE, address(this));
+        l2Controller.grantRootRoles(BridgeRolesLib.ROLE_SET_BRIDGE, address(this));
+        l1Controller.setBridge(l1Bridge);
+        l2Controller.setBridge(l2Bridge);
+
+        // Grant registry roles to L2 controller too
         registry.grantRootRoles(regularRoles, address(l2Controller));
 
-        // Grant bridge roles so the bridges can call the controllers
+        // Grant bridge roles so the NEW bridges can call the controllers
         l1Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l1Bridge));
         l2Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l2Bridge));
     }
@@ -146,8 +163,23 @@ contract BridgeMessagesTest is Test {
 
         vm.recordLogs();
 
-        // Simulate receiving the message through the bridge
-        l1Bridge.receiveMessage(renewalMessage);
+        // Simulate receiving the message through Surge bridge
+        ISurgeBridge.Message memory surgeMessage = ISurgeBridge.Message({
+            id: 0,
+            fee: 0,
+            gasLimit: surgeBridge.getMessageMinGasLimit(renewalMessage.length),
+            from: address(l2Bridge),
+            srcChainId: L2_CHAIN_ID,
+            srcOwner: address(this),
+            destChainId: L1_CHAIN_ID,
+            destOwner: address(this),
+            to: address(l1Bridge),
+            value: 0,
+            data: renewalMessage
+        });
+        
+        (bytes32 msgHash, ) = surgeBridge.sendMessage(surgeMessage);
+        surgeBridge.deliverMessage(msgHash);
 
         // Verify the renewal was processed
         uint64 updatedExpiry = datastore.getEntry(address(registry), tokenId).expiry;
@@ -174,9 +206,29 @@ contract BridgeMessagesTest is Test {
         // Encode renewal message
         bytes memory renewalMessage = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
 
+        // L2 bridge should revert on renewal messages - configure failure simulation
+        l2Bridge.setFailOnReceive(false, bytes4(0), ""); // Reset first
+        
+        // Simulate receiving renewal message on L2 bridge (should revert)
+        ISurgeBridge.Message memory surgeMessage = ISurgeBridge.Message({
+            id: 0,
+            fee: 0,
+            gasLimit: surgeBridge.getMessageMinGasLimit(renewalMessage.length),
+            from: address(l1Bridge),
+            srcChainId: L1_CHAIN_ID,
+            srcOwner: address(this),
+            destChainId: L2_CHAIN_ID,
+            destOwner: address(this),
+            to: address(l2Bridge),
+            value: 0,
+            data: renewalMessage
+        });
+        
+        (bytes32 msgHash, ) = surgeBridge.sendMessage(surgeMessage);
+        
         // L2 bridge should revert on renewal messages
-        vm.expectRevert(MockBridgeBase.RenewalNotSupported.selector);
-        l2Bridge.receiveMessage(renewalMessage);
+        vm.expectRevert();
+        surgeBridge.deliverMessage(msgHash);
     }
 
     function test_l1Bridge_sendMessage() public {

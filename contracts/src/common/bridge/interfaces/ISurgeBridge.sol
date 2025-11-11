@@ -42,10 +42,9 @@ interface ISurgeBridge {
     /// @param _message The message to be sent.
     /// @return msgHash_ The hash of the sent message.
     /// @return message_ The updated message sent.
-    function sendMessage(Message calldata _message)
-        external
-        payable
-        returns (bytes32 msgHash_, Message memory message_);
+    function sendMessage(
+        Message calldata message
+    ) external payable returns (bytes32 msgHash_, Message memory message_);
 
     /// @notice Get the minimum gas limit required for a message
     /// @param dataLength The length of the message data
@@ -60,5 +59,5 @@ interface ISurgeBridgeMessageInvocable {
     /// @notice Called when this contract is the bridge target.
     /// @param _data The data for this contract to interpret.
     /// @dev This method should be guarded with `onlyFromNamed("bridge")`.
-    function onMessageInvocation(bytes calldata _data) external payable;
+    function onMessageInvocation(bytes calldata data) external payable;
 }

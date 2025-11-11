@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {Bridge} from "../../common/bridge/Bridge.sol";
 import {ISurgeBridge} from "../../common/bridge/interfaces/ISurgeBridge.sol";
 import {TransferData} from "../../common/bridge/types/TransferData.sol";
+
 import {L2BridgeController} from "./L2BridgeController.sol";
 
 /**
@@ -23,11 +24,11 @@ contract L2Bridge is Bridge {
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        ISurgeBridge _surgeBridge,
-        uint64 _l2ChainId,
-        uint64 _l1ChainId,
-        address _l2BridgeController
-    ) Bridge(_surgeBridge, _l2ChainId, _l1ChainId, _l2BridgeController) {}
+        ISurgeBridge surgeBridge_,
+        uint64 l2ChainId_,
+        uint64 l1ChainId_,
+        address l2BridgeController_
+    ) Bridge(surgeBridge_, l2ChainId_, l1ChainId_, l2BridgeController_) {}
 
     ////////////////////////////////////////////////////////////////////////
     // Internal Methods
@@ -41,7 +42,7 @@ contract L2Bridge is Bridge {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        L2BridgeController(bridgeController).completeEjectionToL2(transferData);
+        L2BridgeController(BRIDGE_CONTROLLER).completeEjectionToL2(transferData);
     }
 
     /**

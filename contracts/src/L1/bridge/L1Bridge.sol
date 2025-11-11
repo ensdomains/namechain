@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {Bridge} from "../../common/bridge/Bridge.sol";
 import {ISurgeBridge} from "../../common/bridge/interfaces/ISurgeBridge.sol";
 import {TransferData} from "../../common/bridge/types/TransferData.sol";
+
 import {L1BridgeController} from "./L1BridgeController.sol";
 
 /**
@@ -17,11 +18,11 @@ contract L1Bridge is Bridge {
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        ISurgeBridge _surgeBridge,
-        uint64 _l1ChainId,
-        uint64 _l2ChainId,
-        address _l1BridgeController
-    ) Bridge(_surgeBridge, _l1ChainId, _l2ChainId, _l1BridgeController) {}
+        ISurgeBridge surgeBridge_,
+        uint64 l1ChainId_,
+        uint64 l2ChainId_,
+        address l1BridgeController_
+    ) Bridge(surgeBridge_, l1ChainId_, l2ChainId_, l1BridgeController_) {}
 
     ////////////////////////////////////////////////////////////////////////
     // Internal Methods
@@ -35,7 +36,7 @@ contract L1Bridge is Bridge {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        L1BridgeController(bridgeController).completeEjectionToL1(transferData);
+        L1BridgeController(BRIDGE_CONTROLLER).completeEjectionToL1(transferData);
     }
 
     /**
@@ -44,6 +45,6 @@ contract L1Bridge is Bridge {
      * @param newExpiry The new expiry timestamp
      */
     function _handleRenewalMessage(uint256 tokenId, uint64 newExpiry) internal override {
-        L1BridgeController(bridgeController).syncRenewal(tokenId, newExpiry);
+        L1BridgeController(BRIDGE_CONTROLLER).syncRenewal(tokenId, newExpiry);
     }
 }

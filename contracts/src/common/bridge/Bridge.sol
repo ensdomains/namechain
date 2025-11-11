@@ -16,10 +16,10 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable {
     // Storage
     ////////////////////////////////////////////////////////////////////////
 
-    ISurgeBridge public immutable surgeBridge;
-    uint64 public immutable sourceChainId;
-    uint64 public immutable destChainId;
-    address public immutable bridgeController;
+    ISurgeBridge public immutable SURGE_BRIDGE;
+    uint64 public immutable SOURCE_CHAIN_ID;
+    uint64 public immutable DEST_CHAIN_ID;
+    address public immutable BRIDGE_CONTROLLER;
 
     ////////////////////////////////////////////////////////////////////////
     // Events
@@ -41,15 +41,15 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable {
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        ISurgeBridge _surgeBridge,
-        uint64 _sourceChainId,
-        uint64 _destChainId,
-        address _bridgeController
+        ISurgeBridge surgeBridge_,
+        uint64 sourceChainId_,
+        uint64 destChainId_,
+        address bridgeController_
     ) {
-        surgeBridge = _surgeBridge;
-        sourceChainId = _sourceChainId;
-        destChainId = _destChainId;
-        bridgeController = _bridgeController;
+        SURGE_BRIDGE = surgeBridge_;
+        SOURCE_CHAIN_ID = sourceChainId_;
+        DEST_CHAIN_ID = destChainId_;
+        BRIDGE_CONTROLLER = bridgeController_;
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -60,11 +60,11 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable {
      * @notice Send a message to the destination chain via Surge bridge
      * @param message The encoded bridge message (ejection or renewal)
      */
-    function sendMessage(bytes calldata message) external payable override {
+    function sendMessage(bytes calldata message) external payable virtual override {
         emit MessageSent(message);
 
         // Calculate required gas limit based on message data length
-        uint32 gasLimit = surgeBridge.getMessageMinGasLimit(message.length);
+        uint32 gasLimit = SURGE_BRIDGE.getMessageMinGasLimit(message.length);
 
         // Build Surge Message struct
         ISurgeBridge.Message memory surgeMessage = ISurgeBridge.Message({
@@ -72,17 +72,17 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable {
             fee: uint64(msg.value), // Use provided ETH as fee
             gasLimit: gasLimit,
             from: address(0), // Auto-assigned by Surge bridge
-            srcChainId: sourceChainId,
+            srcChainId: SOURCE_CHAIN_ID,
             srcOwner: msg.sender,
-            destChainId: destChainId,
+            destChainId: DEST_CHAIN_ID,
             destOwner: msg.sender,
-            to: bridgeController, // Target is the bridge controller on destination chain
+            to: BRIDGE_CONTROLLER, // Target is the bridge controller on destination chain
             value: 0,
             data: message
         });
 
         // Send message through Surge bridge
-        surgeBridge.sendMessage{value: msg.value}(surgeMessage);
+        SURGE_BRIDGE.sendMessage{value: msg.value}(surgeMessage);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -94,21 +94,21 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable {
      * @param _data The encoded bridge message data
      * @dev This is called by the Surge bridge on the destination chain
      */
-    function onMessageInvocation(bytes calldata _data) external payable override {
-        if (msg.sender != address(surgeBridge)) {
+    function onMessageInvocation(bytes calldata data) external payable virtual override {
+        if (msg.sender != address(SURGE_BRIDGE)) {
             revert OnlySurgeBridge();
         }
 
-        emit MessageReceived(_data);
+        emit MessageReceived(data);
 
         // Decode message type and route to appropriate handler
-        BridgeMessageType messageType = BridgeEncoderLib.getMessageType(_data);
+        BridgeMessageType messageType = BridgeEncoderLib.getMessageType(data);
 
         if (messageType == BridgeMessageType.EJECTION) {
-            TransferData memory transferData = BridgeEncoderLib.decodeEjection(_data);
+            TransferData memory transferData = BridgeEncoderLib.decodeEjection(data);
             _handleEjectionMessage(transferData.dnsEncodedName, transferData);
         } else if (messageType == BridgeMessageType.RENEWAL) {
-            (uint256 tokenId, uint64 newExpiry) = BridgeEncoderLib.decodeRenewal(_data);
+            (uint256 tokenId, uint64 newExpiry) = BridgeEncoderLib.decodeRenewal(data);
             _handleRenewalMessage(tokenId, newExpiry);
         }
     }
