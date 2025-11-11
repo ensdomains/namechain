@@ -286,7 +286,7 @@ contract MigratedWrappedNameRegistry is
     ) internal view returns (string memory label) {
         // Extract the current label (leftmost, at offset 0)
         uint256 parentOffset;
-        (label, parentOffset) = LibLabel.extractLabel(dnsEncodedName, offset);
+        (label, parentOffset) = NameCoder.extractLabel(dnsEncodedName, offset);
 
         // Check if there's no parent (trying to migrate TLD)
         if (dnsEncodedName[parentOffset] == 0) {
@@ -294,7 +294,7 @@ contract MigratedWrappedNameRegistry is
         }
 
         // Extract the parent label
-        (string memory parentLabel, uint256 grandparentOffset) = LibLabel.extractLabel(
+        (string memory parentLabel, uint256 grandparentOffset) = NameCoder.extractLabel(
             dnsEncodedName,
             parentOffset
         );
