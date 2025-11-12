@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
 import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import {IRegistryDatastore} from "~src/common/registry/interfaces/IRegistryDatastore.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
@@ -55,6 +56,178 @@ contract RegistryDatastoreTest is Test {
         vm.assertEq(returnedEntry.subregistry, address(this));
         vm.assertEq(returnedEntry.expiry, expiryTime);
         vm.assertEq(returnedEntry.tokenVersionId, data);
+    }
+
+    function test_NewRegistry_EmitsWhenSubregistrySet() public {
+        address newSubregistry = address(0x1234);
+        IRegistryDatastore.Entry memory entry = IRegistryDatastore.Entry({
+            subregistry: newSubregistry,
+            expiry: expiryTime,
+            tokenVersionId: data,
+            resolver: address(0),
+            eacVersionId: 0
+        });
+
+        // Setting a new subregistry should emit event
+        vm.recordLogs();
+        datastore.setEntry(id, entry);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1, "Expected event when setting subregistry");
+        assertEq(logs[0].topics[0], keccak256("NewRegistry(address)"), "Wrong event signature");
+        assertEq(
+            address(uint160(uint256(logs[0].topics[1]))),
+            newSubregistry,
+            "Wrong subregistry address"
+        );
+    }
+
+    function test_NewRegistry_DoesNotEmitOnResolverUpdate() public {
+        // First set a subregistry
+        address subregistry = address(0x1234);
+        IRegistryDatastore.Entry memory entry = IRegistryDatastore.Entry({
+            subregistry: subregistry,
+            expiry: expiryTime,
+            tokenVersionId: data,
+            resolver: address(0),
+            eacVersionId: 0
+        });
+        datastore.setEntry(id, entry);
+
+        // Now update only the resolver
+        entry.resolver = address(0x5678);
+        vm.recordLogs();
+        datastore.setEntry(id, entry);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 0, "Should not emit event when only updating resolver");
+    }
+
+    function test_NewRegistry_DoesNotEmitOnRenew() public {
+        // First set a subregistry
+        address subregistry = address(0x1234);
+        IRegistryDatastore.Entry memory entry = IRegistryDatastore.Entry({
+            subregistry: subregistry,
+            expiry: expiryTime,
+            tokenVersionId: data,
+            resolver: address(0),
+            eacVersionId: 0
+        });
+        datastore.setEntry(id, entry);
+
+        // Now update only the expiry
+        entry.expiry = expiryTime + 100;
+        vm.recordLogs();
+        datastore.setEntry(id, entry);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 0, "Should not emit event when only updating expiry");
+    }
+
+    function test_NewRegistry_DoesNotEmitForZeroAddress() public {
+        IRegistryDatastore.Entry memory entry = IRegistryDatastore.Entry({
+            subregistry: address(0),
+            expiry: expiryTime,
+            tokenVersionId: data,
+            resolver: address(0),
+            eacVersionId: 0
+        });
+
+        vm.recordLogs();
+        datastore.setEntry(id, entry);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 0, "Should not emit event for zero address subregistry");
+    }
+
+    function test_NewRegistry_EmitsOnlyOncePerSubregistry() public {
+        address subregistry = address(0x1234);
+        IRegistryDatastore.Entry memory entry = IRegistryDatastore.Entry({
+            subregistry: subregistry,
+            expiry: expiryTime,
+            tokenVersionId: data,
+            resolver: address(0),
+            eacVersionId: 0
+        });
+
+        // First time setting this subregistry should emit
+        vm.recordLogs();
+        datastore.setEntry(id, entry);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1, "Expected event on first occurrence");
+
+        // Second time setting the same subregistry should not emit
+        vm.recordLogs();
+        datastore.setEntry(id + 1, entry);
+        logs = vm.getRecordedLogs();
+        assertEq(logs.length, 0, "Expected no event on second occurrence of same subregistry");
+    }
+
+    function test_NewRegistry_EmitsForDifferentSubregistries() public {
+        address subregistry1 = address(0x1234);
+        address subregistry2 = address(0x5678);
+
+        IRegistryDatastore.Entry memory entry1 = IRegistryDatastore.Entry({
+            subregistry: subregistry1,
+            expiry: expiryTime,
+            tokenVersionId: data,
+            resolver: address(0),
+            eacVersionId: 0
+        });
+
+        IRegistryDatastore.Entry memory entry2 = IRegistryDatastore.Entry({
+            subregistry: subregistry2,
+            expiry: expiryTime,
+            tokenVersionId: data,
+            resolver: address(0),
+            eacVersionId: 0
+        });
+
+        // First subregistry should emit event
+        vm.recordLogs();
+        datastore.setEntry(id, entry1);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1, "Expected event for first subregistry");
+        assertEq(
+            address(uint160(uint256(logs[0].topics[1]))),
+            subregistry1,
+            "Wrong address for subregistry1"
+        );
+
+        // Second different subregistry should also emit event
+        vm.recordLogs();
+        datastore.setEntry(id + 1, entry2);
+        logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1, "Expected event for second subregistry");
+        assertEq(
+            address(uint160(uint256(logs[0].topics[1]))),
+            subregistry2,
+            "Wrong address for subregistry2"
+        );
+    }
+
+    function test_NewRegistry_EmitsWhenSubregistryChanges() public {
+        address subregistry1 = address(0x1234);
+        address subregistry2 = address(0x5678);
+        vm.recordLogs();
+        // Set first subregistry
+        IRegistryDatastore.Entry memory entry = IRegistryDatastore.Entry({
+            subregistry: subregistry1,
+            expiry: expiryTime,
+            tokenVersionId: data,
+            resolver: address(0),
+            eacVersionId: 0
+        });
+
+        datastore.setEntry(id, entry);
+
+        // Change to a different subregistry should emit
+        entry.subregistry = subregistry2;
+        datastore.setEntry(id, entry);
+
+        // Change back to the original subregistry should NOT emit
+        entry.subregistry = subregistry1;
+        datastore.setEntry(id, entry);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 2, "Expected event when subregistry changes");
     }
 
     /// @notice Test struct packing verification
