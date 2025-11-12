@@ -480,8 +480,10 @@ export async function createSubname(
   env: CrossChainEnvironment,
   fullName: string,
   account = env.namedAccounts.owner,
+  options: { trackGas?: boolean } = {},
 ): Promise<string[]> {
   const createdNames: string[] = [];
+  const shouldTrackGas = options.trackGas ?? false;
 
   // Parse the name
   const { parts } = parseName(fullName);
@@ -536,8 +538,13 @@ export async function createSubname(
         account,
         ROLES.ALL,
         account.address,
-      );
+      ) as any;
       subregistryAddress = userRegistry.address;
+
+      // Track deployment gas if enabled
+      if (shouldTrackGas && userRegistry.deploymentHash) {
+        await trackGas("deployUserRegistry", userRegistry.deploymentHash, env.l2.client);
+      }
 
       // Set as subregistry on parent
       if (currentRegistryAddress === env.l2.contracts.ETHRegistry.address) {
@@ -1054,7 +1061,7 @@ export async function testNames(env: CrossChainEnvironment) {
   await trackGas("renew(renew)", renewHash, env.l2.client);
 
   // Create subnames - need to create children too so sub1.sub2.parent.eth has a subregistry
-  const createdSubnames = await createSubname(env, "wallet.sub1.sub2.parent.eth");
+  const createdSubnames = await createSubname(env, "wallet.sub1.sub2.parent.eth", env.namedAccounts.owner, { trackGas: true });
 
   // Change roles on changerole.eth - grant ROLE_SET_RESOLVER to user, revoke ROLE_SET_TOKEN_OBSERVER
   const [changeRoleTokenId] = await env.l2.contracts.ETHRegistry.read.getNameData(["changerole"]);
