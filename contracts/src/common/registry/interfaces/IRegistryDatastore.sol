@@ -19,8 +19,20 @@ interface IRegistryDatastore {
     }
 
     ////////////////////////////////////////////////////////////////////////
+    // Events
+    ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @dev Emitted when a Registry is created and newRegistry function is called.
+     * @param registry The address of the new subregistry
+     */
+    event NewRegistry(address indexed registry);
+
+    ////////////////////////////////////////////////////////////////////////
     // Functions
     ////////////////////////////////////////////////////////////////////////
+
+    function newRegistry(address registry) external;
 
     function setEntry(uint256 id, Entry calldata entry) external;
 

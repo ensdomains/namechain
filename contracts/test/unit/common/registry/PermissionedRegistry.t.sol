@@ -68,6 +68,41 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         assertTrue(registry.hasRoles(registry.ROOT_RESOURCE(), expectedRoles, address(this)));
     }
 
+    function test_constructor_emits_NewRegistry_event() public {
+        // Create new datastore and metadata for this test
+        RegistryDatastore newDatastore = new RegistryDatastore();
+        IRegistryMetadata newMetadata = new SimpleRegistryMetadata();
+
+        // Record logs to capture events
+        vm.recordLogs();
+
+        // Deploy new registry (should emit NewRegistry event)
+        MockPermissionedRegistry newRegistry = new MockPermissionedRegistry(
+            newDatastore,
+            newMetadata,
+            address(this),
+            deployerRoles
+        );
+
+        // Get the logs and verify NewRegistry event was emitted
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        // Find the NewRegistry event (may be multiple events during construction)
+        bool foundEvent = false;
+        address emittedAddress;
+
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == keccak256("NewRegistry(address)")) {
+                foundEvent = true;
+                emittedAddress = address(uint160(uint256(logs[i].topics[1])));
+                break;
+            }
+        }
+
+        assertTrue(foundEvent, "NewRegistry event was not emitted during construction");
+        assertEq(emittedAddress, address(newRegistry), "Wrong registry address in event");
+    }
+
     function test_Revert_register_without_registrar_role() public {
         address nonRegistrar = makeAddr("nonRegistrar");
 

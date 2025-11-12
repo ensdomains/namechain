@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
 import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import {IRegistryDatastore} from "~src/common/registry/interfaces/IRegistryDatastore.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
@@ -55,6 +56,22 @@ contract RegistryDatastoreTest is Test {
         vm.assertEq(returnedEntry.subregistry, address(this));
         vm.assertEq(returnedEntry.expiry, expiryTime);
         vm.assertEq(returnedEntry.tokenVersionId, data);
+    }
+
+    function test_NewRegistry_EmitsWhenCalled() public {
+        address registryAddress = address(0x1234);
+
+        vm.recordLogs();
+        datastore.newRegistry(registryAddress);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1, "Expected event when newRegistry is called");
+        assertEq(logs[0].topics[0], keccak256("NewRegistry(address)"), "Wrong event signature");
+        assertEq(
+            address(uint160(uint256(logs[0].topics[1]))),
+            registryAddress,
+            "Wrong registry address"
+        );
     }
 
     /// @notice Test struct packing verification
