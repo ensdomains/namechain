@@ -32,6 +32,8 @@ interface IRegistryDatastore {
     // Functions
     ////////////////////////////////////////////////////////////////////////
 
+    function newRegistry(address registry) external;
+
     function setEntry(uint256 id, Entry calldata entry) external;
 
     function getEntry(address registry, uint256 id) external view returns (Entry calldata);

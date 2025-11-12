@@ -41,6 +41,7 @@ contract PermissionedRegistry is
         address ownerAddress,
         uint256 ownerRoles
     ) BaseRegistry(datastore) MetadataMixin(metadata) {
+        datastore.newRegistry(address(this));
         _grantRoles(ROOT_RESOURCE, ownerRoles, ownerAddress, false);
     }
 
