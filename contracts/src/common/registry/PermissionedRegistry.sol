@@ -57,38 +57,36 @@ contract PermissionedRegistry is
     ////////////////////////////////////////////////////////////////////////
 
     /// @inheritdoc IStandardRegistry
-    function burn(uint256 anyId) external override {
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = _checkTokenRolesAndExpiry(
+    function unregister(uint256 anyId) external override {
+        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = _checkExpiryAndTokenRoles(
             anyId,
-            RegistryRolesLib.ROLE_BURN
+            RegistryRolesLib.ROLE_UNREGISTER
         );
-        _burn(super.ownerOf(tokenId), tokenId, 1); // skip expiry check
         entry.expiry = 0;
-        entry.resolver = address(0);
-        entry.subregistry = address(0);
-        DATASTORE.setEntry(anyId, entry);
-        // NameBurned implies subregistry/resolver are set to address(0), we don't need to emit those explicitly
-        emit NameBurned(tokenId, msg.sender);
+        // registry and resolver are not cleared
+        // token is not burned
+        DATASTORE.setEntry(tokenId, entry);
+        emit ExpiryUpdated(tokenId, 0, _msgSender());
     }
 
     function setSubregistry(uint256 anyId, IRegistry registry) external override {
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = _checkTokenRolesAndExpiry(
+        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = _checkExpiryAndTokenRoles(
             anyId,
             RegistryRolesLib.ROLE_SET_SUBREGISTRY
         );
-        entry.subregistry = address(registry);
+        entry.subregistry = registry;
         DATASTORE.setEntry(tokenId, entry);
-        emit SubregistryUpdate(tokenId, address(registry));
+        emit SubregistryUpdated(tokenId, registry);
     }
 
     function setResolver(uint256 anyId, address resolver) external override {
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = _checkTokenRolesAndExpiry(
+        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = _checkExpiryAndTokenRoles(
             anyId,
             RegistryRolesLib.ROLE_SET_RESOLVER
         );
         entry.resolver = resolver;
         DATASTORE.setEntry(tokenId, entry);
-        emit ResolverUpdate(tokenId, resolver);
+        emit ResolverUpdated(tokenId, resolver);
     }
 
     /// @inheritdoc IRegistry
@@ -96,7 +94,7 @@ contract PermissionedRegistry is
         string calldata label
     ) external view virtual override(BaseRegistry, IRegistry) returns (IRegistry) {
         IRegistryDatastore.Entry memory entry = getEntry(LibLabel.labelToCanonicalId(label));
-        return IRegistry(_isExpired(entry.expiry) ? address(0) : entry.subregistry);
+        return _isExpired(entry.expiry) ? IRegistry(address(0)) : entry.subregistry;
     }
 
     /// @inheritdoc IRegistry
@@ -112,6 +110,7 @@ contract PermissionedRegistry is
         return _tokenObservers[LibLabel.getCanonicalId(anyId)];
     }
 
+    /// @inheritdoc IStandardRegistry
     function register(
         string calldata label,
         address owner,
@@ -129,32 +128,35 @@ contract PermissionedRegistry is
         return _register(label, owner, registry, resolver, roleBitmap, expires);
     }
 
+    /// @inheritdoc IStandardRegistry
+    function renew(uint256 anyId, uint64 newExpiry) public override {
+        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = _checkExpiryAndTokenRoles(
+            anyId,
+            RegistryRolesLib.ROLE_RENEW
+        );
+        if (newExpiry < entry.expiry) {
+            revert CannotReduceExpiration(entry.expiry, newExpiry);
+        }
+        entry.expiry = newExpiry;
+        DATASTORE.setEntry(tokenId, entry);
+        ITokenObserver observer = _tokenObservers[LibLabel.getCanonicalId(tokenId)];
+        if (address(observer) != address(0)) {
+            observer.onRenew(tokenId, newExpiry, _msgSender());
+        }
+        emit ExpiryUpdated(tokenId, newExpiry, _msgSender());
+    }
+
+    /// @inheritdoc IPermissionedRegistry
     function setTokenObserver(uint256 anyId, ITokenObserver observer) public override {
-        (uint256 tokenId, ) = _checkTokenRolesAndExpiry(
+        (uint256 tokenId, ) = _checkExpiryAndTokenRoles(
             anyId,
             RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER
         );
         _tokenObservers[LibLabel.getCanonicalId(tokenId)] = observer;
-        emit TokenObserverSet(tokenId, address(observer));
+        emit TokenObserverUpdated(tokenId, observer);
     }
 
-    function renew(uint256 anyId, uint64 expires) public override {
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = _checkTokenRolesAndExpiry(
-            anyId,
-            RegistryRolesLib.ROLE_RENEW
-        );
-        if (expires < entry.expiry) {
-            revert CannotReduceExpiration(entry.expiry, expires);
-        }
-        entry.expiry = expires;
-        DATASTORE.setEntry(tokenId, entry);
-        ITokenObserver observer = _tokenObservers[LibLabel.getCanonicalId(tokenId)];
-        if (address(observer) != address(0)) {
-            observer.onRenew(tokenId, expires, msg.sender);
-        }
-        emit NameRenewed(tokenId, expires, msg.sender);
-    }
-
+    /// @inheritdoc IEnhancedAccessControl
     function grantRoles(
         uint256 anyId,
         uint256 roleBitmap,
@@ -163,6 +165,7 @@ contract PermissionedRegistry is
         return super.grantRoles(getResource(anyId), roleBitmap, account);
     }
 
+    /// @inheritdoc IEnhancedAccessControl
     function revokeRoles(
         uint256 anyId,
         uint256 roleBitmap,
@@ -171,13 +174,14 @@ contract PermissionedRegistry is
         return super.revokeRoles(getResource(anyId), roleBitmap, account);
     }
 
+    /// @inheritdoc ERC1155Singleton
     function uri(uint256 tokenId) public view override returns (string memory) {
         return _tokenURI(tokenId);
     }
 
     /// @inheritdoc IPermissionedRegistry
     function getEntry(uint256 anyId) public view returns (IRegistryDatastore.Entry memory) {
-        return DATASTORE.getEntry(address(this), anyId);
+        return DATASTORE.getEntry(this, anyId);
     }
 
     /// @inheritdoc IStandardRegistry
@@ -293,26 +297,27 @@ contract PermissionedRegistry is
             revert CannotSetPastExpiration(expires);
         }
         tokenId = _constructTokenId(tokenId, entry);
-        if (entry.expiry > 0) {
-            _burn(super.ownerOf(tokenId), tokenId, 1); // nonzero by construction
+        address prevOwner = super.ownerOf(tokenId);
+        if (prevOwner != address(0)) {
+            _burn(prevOwner, tokenId, 1);
             delete _tokenObservers[LibLabel.getCanonicalId(tokenId)];
             ++entry.eacVersionId;
             ++entry.tokenVersionId;
             tokenId = _constructTokenId(tokenId, entry);
         }
         entry.expiry = expires;
-        entry.subregistry = address(registry);
+        entry.subregistry = registry;
         entry.resolver = resolver;
         DATASTORE.setEntry(tokenId, entry);
 
         // emit NameRegistered before mint so we can determine this is a registry (in an indexer)
-        emit NameRegistered(tokenId, label, expires, msg.sender);
+        emit NameRegistered(tokenId, label, expires, _msgSender());
 
         _mint(owner, tokenId, 1, "");
         _grantRoles(_constructResource(tokenId, entry), roleBitmap, owner, false);
 
-        emit SubregistryUpdate(tokenId, address(registry));
-        emit ResolverUpdate(tokenId, resolver);
+        emit SubregistryUpdated(tokenId, registry);
+        emit ResolverUpdated(tokenId, resolver);
     }
 
     /**
@@ -389,22 +394,22 @@ contract PermissionedRegistry is
                 DATASTORE.setEntry(tokenId, entry);
                 uint256 newTokenId = _constructTokenId(tokenId, entry);
                 _mint(owner, newTokenId, 1, "");
-                emit TokenRegenerated(tokenId, newTokenId);
+                emit TokenRegenerated(tokenId, newTokenId, _constructResource(tokenId, entry));
             }
         }
     }
 
-    /// @dev Assert caller has necessary roles and token is not expired.
-    function _checkTokenRolesAndExpiry(
+    /// @dev Assert token is not expired and caller has necessary roles.
+    function _checkExpiryAndTokenRoles(
         uint256 anyId,
         uint256 roleBitmap
     ) internal view returns (uint256 tokenId, IRegistryDatastore.Entry memory entry) {
         entry = getEntry(anyId);
-        _checkRoles(_constructResource(anyId, entry), roleBitmap, _msgSender());
         tokenId = _constructTokenId(anyId, entry);
         if (_isExpired(entry.expiry)) {
             revert NameExpired(tokenId);
         }
+        _checkRoles(_constructResource(anyId, entry), roleBitmap, _msgSender());
     }
 
     /// @dev Internal logic for expired status.
@@ -413,19 +418,22 @@ contract PermissionedRegistry is
         return block.timestamp >= expires;
     }
 
+    /// @dev Create `resource` from parts.
+    ///      Returns next resource if token is expired.
+    function _constructResource(
+        uint256 anyId,
+        IRegistryDatastore.Entry memory entry
+    ) internal view returns (uint256) {
+        return
+            LibLabel.getCanonicalId(anyId) |
+            (_isExpired(entry.expiry) ? entry.eacVersionId + 1 : entry.eacVersionId);
+    }
+
     /// @dev Create `tokenId` from parts.
     function _constructTokenId(
         uint256 anyId,
         IRegistryDatastore.Entry memory entry
     ) internal pure returns (uint256) {
         return LibLabel.getCanonicalId(anyId) | entry.tokenVersionId;
-    }
-
-    /// @dev Create `resource` from parts.
-    function _constructResource(
-        uint256 anyId,
-        IRegistryDatastore.Entry memory entry
-    ) internal pure returns (uint256) {
-        return LibLabel.getCanonicalId(anyId) | entry.eacVersionId;
     }
 }
