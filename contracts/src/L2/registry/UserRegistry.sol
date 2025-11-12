@@ -44,6 +44,9 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
 
         // Datastore and metadata provider are set immutably in constructor
 
+        // Emit NewRegistry event for the proxy address
+        DATASTORE.newRegistry(address(this));
+
         // Grant deployer roles to the admin
         _grantRoles(ROOT_RESOURCE, deployerRoles_, admin_, false);
     }

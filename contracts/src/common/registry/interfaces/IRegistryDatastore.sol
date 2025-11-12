@@ -11,7 +11,7 @@ interface IRegistryDatastore {
     ////////////////////////////////////////////////////////////////////////
 
     /**
-     * @dev Emitted when a new unique subregistry address is set in the datastore
+     * @dev Emitted when a Registry is created and newRegistry function is called.
      * @param registry The address of the new subregistry
      */
     event NewRegistry(address indexed registry);

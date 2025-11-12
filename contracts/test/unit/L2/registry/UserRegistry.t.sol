@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
 import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
@@ -66,6 +67,51 @@ contract UserRegistryTest is Test, ERC1155Holder {
 
         // Get the proxy contract
         proxy = UserRegistry(proxyAddress);
+    }
+
+    function test_initialization_emits_NewRegistry_event() public {
+        // Create new datastore for this test
+        RegistryDatastore newDatastore = new RegistryDatastore();
+        SimpleRegistryMetadata newMetadata = new SimpleRegistryMetadata();
+
+        // Deploy new implementation
+        UserRegistry newImplementation = new UserRegistry(newDatastore, newMetadata);
+
+        // Create initialization data
+        bytes memory initData = abi.encodeWithSelector(
+            UserRegistry.initialize.selector,
+            EACBaseRolesLib.ALL_ROLES,
+            admin
+        );
+
+        // Record logs to capture events during proxy deployment
+        vm.recordLogs();
+
+        // Deploy proxy with different salt to avoid collision
+        vm.prank(admin);
+        address proxyAddress = factory.deployProxy(address(newImplementation), SALT + 999, initData);
+
+        // Get all logs
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        // Find the NewRegistry event
+        bool foundEvent = false;
+        address emittedAddress;
+
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == keccak256("NewRegistry(address)")) {
+                // Skip the event from implementation deployment
+                address eventAddress = address(uint160(uint256(logs[i].topics[1])));
+                if (eventAddress == proxyAddress) {
+                    foundEvent = true;
+                    emittedAddress = eventAddress;
+                    break;
+                }
+            }
+        }
+
+        assertTrue(foundEvent, "NewRegistry event was not emitted for proxy during initialization");
+        assertEq(emittedAddress, proxyAddress, "Wrong registry address in event");
     }
 
     function test_initialization() public view {
