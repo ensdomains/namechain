@@ -48,12 +48,11 @@ contract MockSurgeBridge is ISurgeBridge {
 
     /**
      * @notice Simulate message delivery by calling the target's onMessageInvocation
-     * @param msgHash The hash of the message to deliver
+     * @param message The message to deliver
      * @dev This simulates what the real Surge bridge would do on the destination chain
      */
-    function deliverMessage(bytes32 msgHash) external {
-        Message memory message = messages[msgHash];
-        require(message.to != address(0), "Message not found");
+    function deliverMessage(Message calldata message) external {
+        require(message.to != address(0), "Invalid message target");
 
         // Call the target contract's onMessageInvocation method
         ISurgeBridgeMessageInvocable(message.to).onMessageInvocation{value: message.value}(message.data);

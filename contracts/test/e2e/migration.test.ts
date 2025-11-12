@@ -43,7 +43,7 @@ describe("Migration", () => {
   let resetState: CrossChainSnapshot;
   beforeAll(async () => {
     env = await setupCrossChainEnvironment({ procLog: true }); // show anvil logs
-    relay = setupMockRelay(env);
+    relay = await setupMockRelay(env);
 
     // add owner as controller so we can register() directly
     const { owner } = env.namedAccounts;
@@ -54,7 +54,10 @@ describe("Migration", () => {
     resetState = await env.saveState();
   });
 
-  afterAll(() => env?.shutdown());
+  afterAll(() => {
+    relay?.removeListeners();
+    env?.shutdown();
+  });
   beforeEach(() => resetState?.());
 
   const SUBREGISTRY = "0x1111111111111111111111111111111111111111";

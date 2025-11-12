@@ -182,8 +182,8 @@ contract BridgeMessagesTest is Test {
             data: renewalMessage
         });
         
-        (bytes32 msgHash, ) = surgeBridge.sendMessage(surgeMessage);
-        surgeBridge.deliverMessage(msgHash);
+        (bytes32 msgHash, ISurgeBridge.Message memory sentMessage) = surgeBridge.sendMessage(surgeMessage);
+        surgeBridge.deliverMessage(sentMessage);
 
         // Verify the renewal was processed
         uint64 updatedExpiry = datastore.getEntry(address(registry), tokenId).expiry;
@@ -227,11 +227,11 @@ contract BridgeMessagesTest is Test {
             data: renewalMessage
         });
         
-        (bytes32 msgHash, ) = surgeBridge.sendMessage(surgeMessage);
+        (bytes32 msgHash, ISurgeBridge.Message memory sentMessage) = surgeBridge.sendMessage(surgeMessage);
         
         // L2 bridge should revert on renewal messages with RenewalNotSupported
         vm.expectRevert(L2Bridge.RenewalNotSupported.selector);
-        surgeBridge.deliverMessage(msgHash);
+        surgeBridge.deliverMessage(sentMessage);
     }
 
     function test_l1Bridge_sendMessage() public {

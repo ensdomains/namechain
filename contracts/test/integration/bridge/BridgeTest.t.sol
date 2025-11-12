@@ -153,8 +153,8 @@ contract BridgeTest is Test, EnhancedAccessControl {
         });
         
         // Send message through Surge bridge and deliver it
-        (bytes32 msgHash, ) = surgeBridge.sendMessage(surgeMessage);
-        surgeBridge.deliverMessage(msgHash);
+        (bytes32 msgHash, ISurgeBridge.Message memory sentMessage) = surgeBridge.sendMessage(surgeMessage);
+        surgeBridge.deliverMessage(sentMessage);
 
         // Step 3: Verify the name is registered on L1
         assertEq(l1Registry.ownerOf(tokenId), transferData.owner);

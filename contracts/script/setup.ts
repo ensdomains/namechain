@@ -134,7 +134,7 @@ function createClient(transport: Transport, chain: Chain, account: Account) {
     transport,
     chain,
     account,
-    pollingInterval: 0,
+    pollingInterval: 100,
     cacheTime: 0, // must be 0 due to client caching
   })
     .extend(publicActions)
@@ -358,9 +358,10 @@ export async function setupCrossChainEnvironment({
     });
 
     const transportOptions = {
-      retryCount: 0,
-      keepAlive: true, // these prevent error
-      reconnect: false, // spam on shutdown
+      retryCount: 1,
+      keepAlive: true,
+      reconnect: false,
+      timeout: 10000,
     } as const;
     const l1Transport = webSocket(`ws://${l1HostPort}`, transportOptions);
     const l2Transport = webSocket(`ws://${l2HostPort}`, transportOptions);

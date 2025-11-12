@@ -9,41 +9,55 @@ function pluralize(n: number) {
   return `${n} message${n == 1 ? "" : "s"}`;
 }
 
-export type MockRelay = ReturnType<typeof setupMockRelay>;
+function isShutdownError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const errorStr = error.toString();
+  return (
+    errorStr.includes('SocketClosedError') ||
+    errorStr.includes('WebSocket connection') ||
+    errorStr.includes('Failed to connect') ||
+    errorStr.includes('socket has been closed') ||
+    (error as any).code === 'ECONNREFUSED'
+  );
+}
+
+async function waitForConnection(chain: ChainDeployment, maxAttempts = 5): Promise<void> {
+  let attempt = 0;
+  
+  while (attempt < maxAttempts) {
+    try {
+      // Simple connection test by trying to get block number
+      await chain.client.getBlockNumber();
+      return; // Connection successful
+    } catch (error) {
+      attempt++;
+      if (attempt >= maxAttempts) {
+        throw new Error(`Failed to establish connection to ${chain.name} after ${maxAttempts} attempts`);
+      }
+      // Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
+      const delay = 100 * Math.pow(2, attempt - 1);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
+export type MockRelay = Awaited<ReturnType<typeof setupMockRelay>>;
 
 export type MockRelayReceipt =
   | TransactionReceipt
   | { status: "error"; error: unknown };
 
-async function send(chain: ChainDeployment, message: Hex, expected = false) {
-  const errorPrefix = `onMessageInvocation() failed ${chain.arrow}:`;
-  try {
-    // Get the appropriate bridge contract for the destination chain
-    const bridgeContract = chain.isL1 ? (chain.contracts as any).L1Bridge : (chain.contracts as any).L2Bridge;
-    
-    // this will simulate the tx to estimate gas and fail if it reverts
-    const hash = await bridgeContract.write.onMessageInvocation([message]);
-    print(`wait for ${chain.name} tx: ${hash}`);
-    const receipt = await chain.client.waitForTransactionReceipt({ hash });
-    if (receipt.status !== "success") {
-      throw Object.assign(new Error(errorPrefix), { receipt }); // rare
-    }
-    return receipt;
-  } catch (err) {
-    if (!expected) {
-      console.error(errorPrefix, err);
-    }
-    throw err;
-  }
-}
 
-async function deliverSurgeMessage(chain: ChainDeployment, msgHash: Hex, expected = false) {
+async function deliverSurgeMessage(chain: ChainDeployment, message: any, expected = false) {
   const errorPrefix = `deliverMessage() failed ${chain.arrow}:`;
   try {
-    // Call deliverMessage on the destination chain's MockSurgeBridge
-    const hash = await chain.contracts.MockSurgeBridge.write.deliverMessage([msgHash]);
+    // Call deliverMessage on the destination chain's MockSurgeBridge with the full message
+    const hash = await chain.contracts.MockSurgeBridge.write.deliverMessage([message]);
     print(`wait for ${chain.name} tx: ${hash}`);
-    const receipt = await chain.client.waitForTransactionReceipt({ hash });
+    const receipt = await chain.client.waitForTransactionReceipt({ 
+      hash, 
+      timeout: 30000 // 30 second timeout
+    });
     if (receipt.status !== "success") {
       throw Object.assign(new Error(errorPrefix), { receipt }); // rare
     }
@@ -56,11 +70,16 @@ async function deliverSurgeMessage(chain: ChainDeployment, msgHash: Hex, expecte
   }
 }
 
-export function setupMockRelay(env: CrossChainEnvironment) {
+export async function setupMockRelay(env: CrossChainEnvironment) {
+  // Wait for connections to be ready before setting up event listeners
+  await Promise.all([
+    waitForConnection(env.l1),
+    waitForConnection(env.l2)
+  ]);
+
   const pending = new Map<Hex, (v: MockRelayReceipt[]) => void>();
 
   async function relay(chain: ChainDeployment, logs: Log[]) {
-    console.log(`Processing ${logs.length} logs from ${chain.name}`);
     const buckets = new Map<Hex, MockRelayReceipt[]>();
     // Use MockSurgeBridge ABI for parsing events
     const surgeBridgeAbi = chain.contracts.MockSurgeBridge.abi;
@@ -69,10 +88,8 @@ export function setupMockRelay(env: CrossChainEnvironment) {
       abi: surgeBridgeAbi,
       logs,
     });
-    console.log(`Parsed ${parsedLogs.length} events from MockSurgeBridge`);
     
     for (const log of parsedLogs) {
-      console.log(`Event: ${log.eventName}, msgHash: ${log.args?.msgHash}`);
       // Only process MessageSent events
       if (log.eventName === 'MessageSent') {
         const tx = log.transactionHash;
@@ -83,8 +100,8 @@ export function setupMockRelay(env: CrossChainEnvironment) {
         }
         // process sequentially to avoid nonce issues
         try {
-          console.log(`Delivering message to ${chain.rx.name} with msgHash: ${log.args.msgHash}`);
-          bucket.push(await deliverSurgeMessage(chain.rx, log.args.msgHash, pending.has(tx)));
+          const message = log.args.message;
+          bucket.push(await deliverSurgeMessage(chain.rx, message, pending.has(tx)));
         } catch (error: unknown) {
           console.error(`Failed to deliver message: ${error}`);
           bucket.push({ status: "error", error });
@@ -99,14 +116,34 @@ export function setupMockRelay(env: CrossChainEnvironment) {
 
   const unwatchL1 = env.l1.contracts.MockSurgeBridge.watchEvent.MessageSent({}, {
     onLogs: (logs: Log[]) => {
-      console.log(`Mock relay received ${logs.length} MockSurgeBridge events from L1`);
-      relay(env.l1, logs);
+      relay(env.l1, logs).catch(error => {
+        // Only log if it's not a shutdown-related error
+        if (!isShutdownError(error)) {
+          console.error(`Error in L1 relay processing:`, error);
+        }
+      });
+    },
+    onError: (error) => {
+      // Only log if it's not a shutdown-related error
+      if (!isShutdownError(error)) {
+        console.error(`L1 event watching error:`, error);
+      }
     },
   });
   const unwatchL2 = env.l2.contracts.MockSurgeBridge.watchEvent.MessageSent({}, {
     onLogs: (logs: Log[]) => {
-      console.log(`Mock relay received ${logs.length} MockSurgeBridge events from L2`);
-      relay(env.l2, logs);
+      relay(env.l2, logs).catch(error => {
+        // Only log if it's not a shutdown-related error
+        if (!isShutdownError(error)) {
+          console.error(`Error in L2 relay processing:`, error);
+        }
+      });
+    },
+    onError: (error) => {
+      // Only log if it's not a shutdown-related error
+      if (!isShutdownError(error)) {
+        console.error(`L2 event watching error:`, error);
+      }
     },
   });
 
