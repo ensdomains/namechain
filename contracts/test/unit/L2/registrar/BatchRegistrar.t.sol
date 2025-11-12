@@ -6,6 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
@@ -21,6 +22,7 @@ contract BatchRegistrarTest is Test {
     function setUp() external {
         ethRegistry = new PermissionedRegistry(
             new RegistryDatastore(),
+            new RegistryCrier(),
             new SimpleRegistryMetadata(),
             owner,
             EACBaseRolesLib.ALL_ROLES

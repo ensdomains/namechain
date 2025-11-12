@@ -8,6 +8,7 @@ import {
     IRegistryDatastore,
     IRegistryMetadata
 } from "~src/common/registry/PermissionedRegistry.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 
 /**
  * @title MockPermissionedRegistry
@@ -19,10 +20,11 @@ contract MockPermissionedRegistry is PermissionedRegistry {
     // Pass through all constructor arguments
     constructor(
         IRegistryDatastore datastore,
+        RegistryCrier crier,
         IRegistryMetadata metadata,
         address ownerAddress,
         uint256 ownerRoles
-    ) PermissionedRegistry(datastore, metadata, ownerAddress, ownerRoles) {}
+    ) PermissionedRegistry(datastore, crier, metadata, ownerAddress, ownerRoles) {}
 
     /**
      * @dev Public wrapper for _constructTokenId - for testing only

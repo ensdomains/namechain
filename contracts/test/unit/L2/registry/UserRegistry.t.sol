@@ -18,6 +18,7 @@ import {IRegistryDatastore} from "~src/common/registry/interfaces/IRegistryDatas
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
 import {UserRegistry} from "~src/L2/registry/UserRegistry.sol";
 
@@ -32,6 +33,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
     // Contracts
     VerifiableFactory factory;
     RegistryDatastore datastore;
+    RegistryCrier crier;
     SimpleRegistryMetadata metadata;
     UserRegistry implementation;
     UserRegistry proxy;
@@ -48,11 +50,14 @@ contract UserRegistryTest is Test, ERC1155Holder {
         // Deploy the datastore
         datastore = new RegistryDatastore();
 
+        // Deploy crier
+        crier = new RegistryCrier();
+
         // Deploy metadata provider
         metadata = new SimpleRegistryMetadata();
 
         // Deploy the implementation
-        implementation = new UserRegistry(datastore, metadata);
+        implementation = new UserRegistry(datastore, crier, metadata);
 
         // Create initialization data
         bytes memory initData = abi.encodeWithSelector(
@@ -72,10 +77,11 @@ contract UserRegistryTest is Test, ERC1155Holder {
     function test_initialization_emits_NewRegistry_event() public {
         // Create new datastore for this test
         RegistryDatastore newDatastore = new RegistryDatastore();
+        RegistryCrier newCrier = new RegistryCrier();
         SimpleRegistryMetadata newMetadata = new SimpleRegistryMetadata();
 
         // Deploy new implementation
-        UserRegistry newImplementation = new UserRegistry(newDatastore, newMetadata);
+        UserRegistry newImplementation = new UserRegistry(newDatastore, newCrier, newMetadata);
 
         // Create initialization data
         bytes memory initData = abi.encodeWithSelector(
@@ -304,7 +310,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
     // Test for contract upgradeability
     function test_upgrade() public {
         // Deploy a new implementation
-        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(datastore, metadata);
+        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(datastore, crier, metadata);
 
         // Upgrade the proxy
         vm.prank(admin);
@@ -317,7 +323,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
 
     function test_Revert_unauthorized_upgrade() public {
         // Deploy a new implementation
-        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(datastore, metadata);
+        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(datastore, crier, metadata);
 
         // User1 tries to upgrade without permission
         vm.expectRevert(
@@ -378,8 +384,9 @@ contract UserRegistryTest is Test, ERC1155Holder {
 contract UserRegistryV2Mock is UserRegistry {
     constructor(
         IRegistryDatastore _datastore,
+        RegistryCrier _crier,
         IRegistryMetadata _metadataProvider
-    ) UserRegistry(_datastore, _metadataProvider) {}
+    ) UserRegistry(_datastore, _crier, _metadataProvider) {}
     function version() public pure returns (uint256) {
         return 2;
     }

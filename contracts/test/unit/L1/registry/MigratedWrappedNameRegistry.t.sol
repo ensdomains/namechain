@@ -32,6 +32,7 @@ import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetada
 import {IStandardRegistry} from "~src/common/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {LockedNamesLib} from "~src/L1/migration/libraries/LockedNamesLib.sol";
 import {ParentNotMigrated, LabelNotMigrated} from "~src/L1/migration/MigrationErrors.sol";
@@ -130,6 +131,7 @@ contract MigratedWrappedNameRegistryTest is Test {
     MigratedWrappedNameRegistry implementation;
     MigratedWrappedNameRegistry registry;
     RegistryDatastore datastore;
+    RegistryCrier crier;
     MockRegistryMetadata metadata;
     MockENS ensRegistry;
     MockNameWrapper nameWrapper;
@@ -145,6 +147,7 @@ contract MigratedWrappedNameRegistryTest is Test {
 
     function setUp() public {
         datastore = new RegistryDatastore();
+        crier = new RegistryCrier();
         metadata = new MockRegistryMetadata();
         ensRegistry = new MockENS();
         nameWrapper = new MockNameWrapper(ensRegistry);
@@ -156,6 +159,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)), // mock ethRegistry
             factory,
             datastore,
+            crier,
             metadata
         );
 
@@ -570,6 +574,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             realFactory,
             datastore,
+            crier,
             metadata
         );
 
@@ -596,6 +601,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            crier,
             metadata
         );
 
@@ -1308,6 +1314,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            crier,
             metadata
         );
 
@@ -1334,6 +1341,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            crier,
             metadata
         );
 
@@ -1355,6 +1363,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            crier,
             metadata
         );
 
@@ -1388,6 +1397,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            crier,
             metadata
         );
 
@@ -1454,6 +1464,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            crier,
             metadata
         );
 
@@ -1475,6 +1486,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            crier,
             metadata
         );
 
@@ -1507,6 +1519,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            crier,
             metadata
         );
 
@@ -1539,6 +1552,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            crier,
             metadata
         );
 
@@ -1581,6 +1595,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(mockEthRegistry)),
             VerifiableFactory(address(0)),
             datastore,
+            crier,
             metadata
         );
 

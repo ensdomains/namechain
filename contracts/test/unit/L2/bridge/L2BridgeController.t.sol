@@ -24,6 +24,7 @@ import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetada
 import {ITokenObserver} from "~src/common/registry/interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
@@ -55,6 +56,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     L2BridgeController controller;
     PermissionedRegistry ethRegistry;
     RegistryDatastore datastore;
+    RegistryCrier crier;
     MockRegistryMetadata registryMetadata;
     MockBridge bridge;
 
@@ -78,12 +80,14 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function setUp() public {
         // Deploy dependencies
         datastore = new RegistryDatastore();
+        crier = new RegistryCrier();
         registryMetadata = new MockRegistryMetadata();
         bridge = new MockBridge();
 
         // Deploy ETH registry
         ethRegistry = new PermissionedRegistry(
             datastore,
+            crier,
             registryMetadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES

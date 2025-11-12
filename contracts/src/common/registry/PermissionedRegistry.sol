@@ -13,6 +13,7 @@ import {BaseRegistry} from "./BaseRegistry.sol";
 import {IPermissionedRegistry} from "./interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "./interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "./interfaces/IRegistryDatastore.sol";
+import {IRegistryCrier} from "./interfaces/IRegistryCrier.sol";
 import {IRegistryMetadata} from "./interfaces/IRegistryMetadata.sol";
 import {IStandardRegistry} from "./interfaces/IStandardRegistry.sol";
 import {ITokenObserver} from "./interfaces/ITokenObserver.sol";
@@ -37,11 +38,12 @@ contract PermissionedRegistry is
 
     constructor(
         IRegistryDatastore datastore,
+        IRegistryCrier crier,
         IRegistryMetadata metadata,
         address ownerAddress,
         uint256 ownerRoles
-    ) BaseRegistry(datastore) MetadataMixin(metadata) {
-        datastore.newRegistry(address(this));
+    ) BaseRegistry(datastore, crier) MetadataMixin(metadata) {
+        crier.newRegistry(address(this));
         _grantRoles(ROOT_RESOURCE, ownerRoles, ownerAddress, false);
     }
 

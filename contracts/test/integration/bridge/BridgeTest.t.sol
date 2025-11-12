@@ -18,6 +18,7 @@ import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
@@ -26,6 +27,7 @@ import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
 
 contract BridgeTest is Test, EnhancedAccessControl {
     RegistryDatastore datastore;
+    RegistryCrier crier;
 
     PermissionedRegistry l1Registry;
     PermissionedRegistry l2Registry;
@@ -41,15 +43,18 @@ contract BridgeTest is Test, EnhancedAccessControl {
     function setUp() public {
         // Deploy registries
         datastore = new RegistryDatastore();
+        crier = new RegistryCrier();
         SimpleRegistryMetadata metadata = new SimpleRegistryMetadata();
         l1Registry = new PermissionedRegistry(
             datastore,
+            crier,
             metadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES
         );
         l2Registry = new PermissionedRegistry(
             datastore,
+            crier,
             metadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES

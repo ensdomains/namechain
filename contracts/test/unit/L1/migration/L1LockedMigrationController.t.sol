@@ -31,6 +31,7 @@ import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1LockedMigrationController} from "~src/L1/migration/L1LockedMigrationController.sol";
 import {LockedNamesLib} from "~src/L1/migration/libraries/LockedNamesLib.sol";
@@ -98,6 +99,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
     MockBridge bridge;
     L1BridgeController bridgeController;
     RegistryDatastore datastore;
+    RegistryCrier crier;
     MockRegistryMetadata metadata;
     PermissionedRegistry registry;
     VerifiableFactory factory;
@@ -113,6 +115,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         nameWrapper = new MockNameWrapper();
         bridge = new MockBridge();
         datastore = new RegistryDatastore();
+        crier = new RegistryCrier();
         metadata = new MockRegistryMetadata();
 
         // Deploy factory and implementation
@@ -122,11 +125,12 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
             IPermissionedRegistry(address(registry)), // ethRegistry
             factory,
             datastore,
+            crier,
             metadata
         );
 
         // Setup eth registry
-        registry = new PermissionedRegistry(datastore, metadata, owner, EACBaseRolesLib.ALL_ROLES);
+        registry = new PermissionedRegistry(datastore, crier, metadata, owner, EACBaseRolesLib.ALL_ROLES);
 
         // Setup bridge controller
         bridgeController = new L1BridgeController(registry, bridge);

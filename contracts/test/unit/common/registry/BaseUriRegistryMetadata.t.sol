@@ -17,9 +17,11 @@ import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetada
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 
 contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
+    RegistryCrier crier;
     PermissionedRegistry registry;
     PermissionedRegistry parentRegistry;
     BaseUriRegistryMetadata metadata;
@@ -33,11 +35,12 @@ contract BaseUriRegistryMetadataTest is Test, ERC1155Holder {
 
     function setUp() public {
         datastore = new RegistryDatastore();
+        crier = new RegistryCrier();
         metadata = new BaseUriRegistryMetadata();
 
         // Use the valid ALL_ROLES value for deployer roles
         uint256 deployerRoles = EACBaseRolesLib.ALL_ROLES;
-        registry = new PermissionedRegistry(datastore, metadata, address(this), deployerRoles);
+        registry = new PermissionedRegistry(datastore, crier, metadata, address(this), deployerRoles);
     }
 
     function test_registry_metadata_base_uri() public {

@@ -15,6 +15,7 @@ import {
     IRegistryMetadata
 } from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {DNSTLDResolver, ENS, IRegistry, DNSSEC, HexUtils} from "~src/L1/dns/DNSTLDResolver.sol";
 
 // coverage:ignore-next-line
@@ -51,13 +52,16 @@ contract MockDNS is DNSTLDResolver {
 
 contract DNSTLDResolverTest is Test, ERC1155Holder, IAddrResolver {
     RegistryDatastore datastore;
+    RegistryCrier crier;
     PermissionedRegistry rootRegistry;
     MockDNS dns;
 
     function setUp() external {
         datastore = new RegistryDatastore();
+        crier = new RegistryCrier();
         rootRegistry = new PermissionedRegistry(
             datastore,
+            crier,
             IRegistryMetadata(address(0)),
             address(this),
             EACBaseRolesLib.ALL_ROLES

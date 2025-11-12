@@ -19,6 +19,7 @@ import {IStandardRegistry} from "~src/common/registry/interfaces/IStandardRegist
 import {ITokenObserver} from "~src/common/registry/interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
@@ -33,6 +34,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     );
 
     RegistryDatastore datastore;
+    RegistryCrier crier;
     MockPermissionedRegistry registry;
     MockTokenObserver observer;
     RevertingTokenObserver revertingObserver;
@@ -57,8 +59,9 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
     function setUp() public {
         datastore = new RegistryDatastore();
+        crier = new RegistryCrier();
         metadata = new SimpleRegistryMetadata();
-        registry = new MockPermissionedRegistry(datastore, metadata, address(this), deployerRoles);
+        registry = new MockPermissionedRegistry(datastore, crier, metadata, address(this), deployerRoles);
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
     }
@@ -69,8 +72,9 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     }
 
     function test_constructor_emits_NewRegistry_event() public {
-        // Create new datastore and metadata for this test
+        // Create new datastore, crier and metadata for this test
         RegistryDatastore newDatastore = new RegistryDatastore();
+        RegistryCrier newCrier = new RegistryCrier();
         IRegistryMetadata newMetadata = new SimpleRegistryMetadata();
 
         // Record logs to capture events
@@ -79,6 +83,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         // Deploy new registry (should emit NewRegistry event)
         MockPermissionedRegistry newRegistry = new MockPermissionedRegistry(
             newDatastore,
+            newCrier,
             newMetadata,
             address(this),
             deployerRoles

@@ -23,6 +23,7 @@ import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetada
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1UnlockedMigrationController} from "~src/L1/migration/L1UnlockedMigrationController.sol";
 import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
@@ -109,6 +110,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     // Real components for testing
     L1BridgeController realL1BridgeController;
     RegistryDatastore datastore;
+    RegistryCrier crier;
     PermissionedRegistry registry;
     MockRegistryMetadata registryMetadata;
 
@@ -288,11 +290,13 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     function setUp() public {
         // Set up real registry infrastructure
         datastore = new RegistryDatastore();
+        crier = new RegistryCrier();
         registryMetadata = new MockRegistryMetadata();
 
         // Deploy the real registry
         registry = new PermissionedRegistry(
             datastore,
+            crier,
             registryMetadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES

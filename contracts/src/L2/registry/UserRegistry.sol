@@ -5,6 +5,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
+import {IRegistryCrier} from "../../common/registry/interfaces/IRegistryCrier.sol";
 import {IRegistryMetadata} from "../../common/registry/interfaces/IRegistryMetadata.sol";
 import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.sol";
 
@@ -27,8 +28,9 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
 
     constructor(
         IRegistryDatastore datastore_,
+        IRegistryCrier crier_,
         IRegistryMetadata metadataProvider_
-    ) PermissionedRegistry(datastore_, metadataProvider_, _msgSender(), 0) {
+    ) PermissionedRegistry(datastore_, crier_, metadataProvider_, _msgSender(), 0) {
         // This disables initialization for the implementation contract
         _disableInitializers();
     }
@@ -42,10 +44,10 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
         // TODO: custom error
         require(admin_ != address(0), "Admin cannot be zero address");
 
-        // Datastore and metadata provider are set immutably in constructor
+        // Datastore, crier, and metadata provider are set immutably in constructor
 
         // Emit NewRegistry event for the proxy address
-        DATASTORE.newRegistry(address(this));
+        CRIER.newRegistry(address(this));
 
         // Grant deployer roles to the admin
         _grantRoles(ROOT_RESOURCE, deployerRoles_, admin_, false);

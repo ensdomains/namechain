@@ -58,22 +58,6 @@ contract RegistryDatastoreTest is Test {
         vm.assertEq(returnedEntry.tokenVersionId, data);
     }
 
-    function test_NewRegistry_EmitsWhenCalled() public {
-        address registryAddress = address(0x1234);
-
-        vm.recordLogs();
-        datastore.newRegistry(registryAddress);
-
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        assertEq(logs.length, 1, "Expected event when newRegistry is called");
-        assertEq(logs[0].topics[0], keccak256("NewRegistry(address)"), "Wrong event signature");
-        assertEq(
-            address(uint160(uint256(logs[0].topics[1]))),
-            registryAddress,
-            "Wrong registry address"
-        );
-    }
-
     /// @notice Test struct packing verification
     function test_EntryStructPacking() public {
         address registry = address(this);
