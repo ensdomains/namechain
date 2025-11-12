@@ -11,8 +11,10 @@ import {TransferData} from "~src/common/bridge/types/TransferData.sol";
 import {L1Bridge} from "~src/L1/bridge/L1Bridge.sol";
 import {L2Bridge} from "~src/L2/bridge/L2Bridge.sol";
 import {MockSurgeBridge} from "~test/mocks/MockSurgeBridge.sol";
+import {ISurgeBridge} from "~src/common/bridge/interfaces/ISurgeBridge.sol";
 
 contract BridgeTest is Test {
+    address admin = address(this); // Test contract is the admin
     MockSurgeBridge surgeBridge;
     L1Bridge l1Bridge;
     L2Bridge l2Bridge;
@@ -27,9 +29,14 @@ contract BridgeTest is Test {
         // Deploy Surge bridge mock
         surgeBridge = new MockSurgeBridge();
 
-        // Deploy bridges with mock controller addresses
+        // Deploy bridges with surge bridge and controller addresses (admin is deployer by default)
         l1Bridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, mockL2Controller);
         l2Bridge = new L2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, mockL1Controller);
+        
+        // Set up bridges with destination addresses
+        // Test contract is admin by default since it deployed the bridges
+        l1Bridge.setDestBridgeAddress(address(l2Bridge));
+        l2Bridge.setDestBridgeAddress(address(l1Bridge));
     }
 
     function test_L1Bridge_SendMessage_EmitsEvent() public {
@@ -127,15 +134,110 @@ contract BridgeTest is Test {
 
     function test_L1Bridge_ImmutableValues() public view {
         assertEq(address(l1Bridge.surgeBridge()), address(surgeBridge));
-        assertEq(l1Bridge.sourceChainId(), L1_CHAIN_ID);
-        assertEq(l1Bridge.destChainId(), L2_CHAIN_ID);
-        assertEq(l1Bridge.bridgeController(), mockL2Controller);
+        assertEq(l1Bridge.SOURCE_CHAIN_ID(), L1_CHAIN_ID);
+        assertEq(l1Bridge.DEST_CHAIN_ID(), L2_CHAIN_ID);
+        assertEq(l1Bridge.BRIDGE_CONTROLLER(), mockL2Controller);
     }
 
     function test_L2Bridge_ImmutableValues() public view {
         assertEq(address(l2Bridge.surgeBridge()), address(surgeBridge));
-        assertEq(l2Bridge.sourceChainId(), L2_CHAIN_ID);
-        assertEq(l2Bridge.destChainId(), L1_CHAIN_ID);
-        assertEq(l2Bridge.bridgeController(), mockL1Controller);
+        assertEq(l2Bridge.SOURCE_CHAIN_ID(), L2_CHAIN_ID);
+        assertEq(l2Bridge.DEST_CHAIN_ID(), L1_CHAIN_ID);
+        assertEq(l2Bridge.BRIDGE_CONTROLLER(), mockL1Controller);
+    }
+
+    // Access Control Tests
+    
+    function test_setSurgeBridge_OnlyAdmin() public {
+        MockSurgeBridge newSurgeBridge = new MockSurgeBridge();
+        
+        // Should work for deployer (has admin role)
+        vm.recordLogs();
+        l1Bridge.setSurgeBridge(newSurgeBridge);
+        
+        // Verify event was emitted
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].topics[0], keccak256("SurgeBridgeUpdated(address,address)"));
+        
+        // Verify address was updated
+        assertEq(address(l1Bridge.surgeBridge()), address(newSurgeBridge));
+    }
+    
+    function test_setSurgeBridge_RevertNonAdmin() public {
+        MockSurgeBridge newSurgeBridge = new MockSurgeBridge();
+        address nonAdmin = address(0x9999);
+        
+        vm.expectRevert();
+        vm.prank(nonAdmin);
+        l1Bridge.setSurgeBridge(newSurgeBridge);
+    }
+    
+    function test_setDestBridgeAddress_OnlyAdmin() public {
+        address newDestAddress = address(0x1234);
+        
+        // Should work for deployer (has admin role)
+        vm.recordLogs();
+        l1Bridge.setDestBridgeAddress(newDestAddress);
+        
+        // Verify event was emitted
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertEq(logs.length, 1);
+        assertEq(logs[0].topics[0], keccak256("DestBridgeAddressUpdated(address,address)"));
+        
+        // Verify address was updated
+        assertEq(l1Bridge.destBridgeAddress(), newDestAddress);
+    }
+    
+    function test_setDestBridgeAddress_RevertNonAdmin() public {
+        address newDestAddress = address(0x1234);
+        address nonAdmin = address(0x9999);
+        
+        vm.expectRevert();
+        vm.prank(nonAdmin);
+        l1Bridge.setDestBridgeAddress(newDestAddress);
+    }
+    
+    function test_sendMessage_RevertWhenSurgeBridgeNotSet() public {
+        // Deploy a new bridge with zero address for surge bridge
+        L1Bridge newBridge = new L1Bridge(ISurgeBridge(address(0)), L1_CHAIN_ID, L2_CHAIN_ID, mockL2Controller);
+        newBridge.setDestBridgeAddress(address(l2Bridge));
+        
+        bytes memory testData = hex"1234567890";
+        
+        vm.expectRevert();
+        newBridge.sendMessage{value: 0.01 ether}(testData);
+    }
+    
+    function test_sendMessage_RevertWhenDestBridgeNotSet() public {
+        // Deploy a new bridge without setting dest bridge
+        L1Bridge newBridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, mockL2Controller);
+        
+        bytes memory testData = hex"1234567890";
+        
+        vm.expectRevert();
+        newBridge.sendMessage{value: 0.01 ether}(testData);
+    }
+    
+    function test_sendMessage_WorksAfterProperSetup() public {
+        bytes memory testData = hex"1234567890";
+        
+        // Should work after proper setup
+        l1Bridge.sendMessage{value: 0.01 ether}(testData);
+        
+        // Verify message was sent (by checking surge bridge state)
+        assertEq(surgeBridge.nextMessageId(), 1);
+    }
+    
+    function test_adminCanSetMultipleValues() public {
+        MockSurgeBridge newSurgeBridge = new MockSurgeBridge();
+        address newDestAddress = address(0x1234);
+        
+        // Admin should be able to set both surge bridge and dest address
+        l1Bridge.setSurgeBridge(newSurgeBridge);
+        l1Bridge.setDestBridgeAddress(newDestAddress);
+        
+        assertEq(address(l1Bridge.surgeBridge()), address(newSurgeBridge));
+        assertEq(l1Bridge.destBridgeAddress(), newDestAddress);
     }
 }

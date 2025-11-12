@@ -25,6 +25,12 @@ import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 
 import type { RockethL1Arguments, RockethArguments } from "./types.js";
+
+/**
+ * Default chain IDs for devnet environment
+ */
+export const DEFAULT_L2_CHAIN_ID = 0xeeeeee;
+export const DEFAULT_L1_CHAIN_ID = DEFAULT_L2_CHAIN_ID - 1;
 import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
 import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
 import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
@@ -42,8 +48,6 @@ type Future<T> = T | Promise<T>;
 // typescript key (see below) mapped to rocketh deploy name
 const renames: Record<string, string> = {
   ETHRegistrarV1: "BaseRegistrarImplementation",
-  MockL1Bridge: "MockBridge",
-  MockL2Bridge: "MockBridge",
   L1BridgeController: "BridgeController",
   L2BridgeController: "BridgeController",
 };
@@ -55,7 +59,7 @@ const sharedContracts = {
   DedicatedResolverImpl: artifacts.DedicatedResolver.abi,
   UserRegistryImpl: artifacts.UserRegistry.abi,
   // common
-  MockBridge: artifacts.MockBridgeBase.abi,
+  MockSurgeBridge: artifacts.MockSurgeBridge.abi,
   ETHRegistry: artifacts.PermissionedRegistry.abi,
   BridgeController: artifacts.BridgeController.abi,
 } as const satisfies DeployedArtifacts;
@@ -75,7 +79,7 @@ const l1Contracts = {
   DefaultReverseRegistrar: artifacts.DefaultReverseRegistrar.abi,
   DefaultReverseResolver: artifacts.DefaultReverseResolver.abi,
   //
-  MockL1Bridge: artifacts.MockL1Bridge.abi,
+  L1Bridge: artifacts.L1Bridge.abi,
   L1BridgeController: artifacts.L1BridgeController.abi,
   UnlockedMigrationController: artifacts.L1UnlockedMigrationController.abi,
   LockedMigrationController: artifacts.L1LockedMigrationController.abi,
@@ -94,7 +98,7 @@ const l1Contracts = {
 
 const l2Contracts = {
   ...sharedContracts,
-  MockL2Bridge: artifacts.MockL2Bridge.abi,
+  L2Bridge: artifacts.L2Bridge.abi,
   L2BridgeController: artifacts.L2BridgeController.abi,
   //
   ETHRegistrar: artifacts.ETHRegistrar.abi,
@@ -235,7 +239,7 @@ export class ChainDeployment<
 }
 
 export async function setupCrossChainEnvironment({
-  l2ChainId = 0xeeeeee,
+  l2ChainId = DEFAULT_L2_CHAIN_ID,
   l1ChainId = l2ChainId - 1,
   l1Port = 0,
   l2Port = 0,
@@ -497,6 +501,9 @@ export async function setupCrossChainEnvironment({
 
     //await setupBridgeBlacklists(l1, l2);
 
+    await setupBridgeConfiguration(l1, l2, deployer);
+    console.log("Setup bridge configuration");
+
     await sync();
     console.log("Deployed ENSv2");
 
@@ -625,4 +632,45 @@ async function setupEnsDotEth(l1: L1Deployment, owner: Account) {
     0n,
     MAX_EXPIRY,
   ]);
+}
+
+async function setupBridgeConfiguration(l1: L1Deployment, l2: L2Deployment, deployer: Account) {
+  // Configure bridge relationships for cross-chain messaging
+  console.log("Configuring bridge relationships...");
+  console.log("L1Bridge:", l1.contracts.L1Bridge.address);
+  console.log("L2Bridge:", l2.contracts.L2Bridge.address);
+  console.log("L1BridgeController:", l1.contracts.L1BridgeController.address);
+  console.log("L2BridgeController:", l2.contracts.L2BridgeController.address);
+  
+  // Grant ROLE_SET_BRIDGE to deployer so they can call setBridge
+  // ROLE_SET_BRIDGE = 1 << 4 = 16 (from BridgeRolesLib.sol)
+  const ROLE_SET_BRIDGE = 1n << 4n;
+  await l1.contracts.L1BridgeController.write.grantRootRoles([
+    ROLE_SET_BRIDGE,
+    deployer.address
+  ]);
+  await l2.contracts.L2BridgeController.write.grantRootRoles([
+    ROLE_SET_BRIDGE,
+    deployer.address
+  ]);
+  
+  // Configure bridge controllers to point to their respective bridges
+  await l1.contracts.L1BridgeController.write.setBridge([l1.contracts.L1Bridge.address]);
+  await l2.contracts.L2BridgeController.write.setBridge([l2.contracts.L2Bridge.address]);
+  
+  // Grant bridge roles to the bridges on their respective bridge controllers
+  await l1.contracts.L1BridgeController.write.grantRootRoles([
+    ROLES.OWNER.BRIDGE.EJECTOR,
+    l1.contracts.L1Bridge.address
+  ]);
+  await l2.contracts.L2BridgeController.write.grantRootRoles([
+    ROLES.OWNER.BRIDGE.EJECTOR,
+    l2.contracts.L2Bridge.address
+  ]);
+  
+  // Configure destination bridge addresses for cross-chain messaging
+  await l1.contracts.L1Bridge.write.setDestBridgeAddress([l2.contracts.L2Bridge.address]);
+  await l2.contracts.L2Bridge.write.setDestBridgeAddress([l1.contracts.L1Bridge.address]);
+  
+  console.log("✓ Bridge configuration complete");
 }

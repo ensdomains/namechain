@@ -21,8 +21,8 @@ import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {ISurgeBridge} from "~src/common/bridge/interfaces/ISurgeBridge.sol";
-import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
-import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
+import {L1Bridge} from "~src/L1/bridge/L1Bridge.sol";
+import {L2Bridge} from "~src/L2/bridge/L2Bridge.sol";
 import {MockSurgeBridge} from "~test/mocks/MockSurgeBridge.sol";
 
 contract BridgeTest is Test, EnhancedAccessControl {
@@ -31,8 +31,8 @@ contract BridgeTest is Test, EnhancedAccessControl {
     PermissionedRegistry l1Registry;
     PermissionedRegistry l2Registry;
     MockSurgeBridge surgeBridge;
-    MockL1Bridge l1Bridge;
-    MockL2Bridge l2Bridge;
+    L1Bridge l1Bridge;
+    L2Bridge l2Bridge;
     L1BridgeController l1Controller;
     L2BridgeController l2Controller;
 
@@ -65,16 +65,20 @@ contract BridgeTest is Test, EnhancedAccessControl {
         surgeBridge = new MockSurgeBridge();
 
         // Deploy bridges with Surge integration (controllers will be set later)
-        l1Bridge = new MockL1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(0));
-        l2Bridge = new MockL2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(0));
+        l1Bridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(0));
+        l2Bridge = new L2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(0));
 
         // Deploy controllers with initial bridges
         l1Controller = new L1BridgeController(l1Registry, l1Bridge);
         l2Controller = new L2BridgeController(l2Bridge, l2Registry, datastore);
 
         // Re-deploy bridges with correct controller addresses
-        l1Bridge = new MockL1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(l1Controller));
-        l2Bridge = new MockL2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(l2Controller));
+        l1Bridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(l1Controller));
+        l2Bridge = new L2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(l2Controller));
+        
+        // Set up bridges with destination addresses
+        l1Bridge.setDestBridgeAddress(address(l2Bridge));
+        l2Bridge.setDestBridgeAddress(address(l1Bridge));
 
         // Grant necessary roles to controllers
         l1Registry.grantRootRoles(

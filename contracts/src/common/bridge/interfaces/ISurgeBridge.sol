@@ -39,7 +39,7 @@ interface ISurgeBridge {
 
     /// @notice Sends a message to the destination chain and takes custody
     /// of Ether required in this contract.
-    /// @param _message The message to be sent.
+    /// @param message The message to be sent.
     /// @return msgHash_ The hash of the sent message.
     /// @return message_ The updated message sent.
     function sendMessage(
@@ -57,7 +57,7 @@ interface ISurgeBridge {
 /// @dev This interface must be implemented by contracts that receive bridge messages
 interface ISurgeBridgeMessageInvocable {
     /// @notice Called when this contract is the bridge target.
-    /// @param _data The data for this contract to interpret.
+    /// @param data The data for this contract to interpret.
     /// @dev This method should be guarded with `onlyFromNamed("bridge")`.
     function onMessageInvocation(bytes calldata data) external payable;
 }

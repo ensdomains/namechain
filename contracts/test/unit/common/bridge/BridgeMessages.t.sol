@@ -17,8 +17,8 @@ import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {ISurgeBridge} from "~src/common/bridge/interfaces/ISurgeBridge.sol";
-import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
-import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
+import {L1Bridge} from "~src/L1/bridge/L1Bridge.sol";
+import {L2Bridge} from "~src/L2/bridge/L2Bridge.sol";
 import {MockSurgeBridge} from "~test/mocks/MockSurgeBridge.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -29,8 +29,8 @@ contract MockRegistryMetadata is IRegistryMetadata {
 
 contract BridgeMessagesTest is Test {
     MockSurgeBridge surgeBridge;
-    MockL1Bridge l1Bridge;
-    MockL2Bridge l2Bridge;
+    L1Bridge l1Bridge;
+    L2Bridge l2Bridge;
     L1BridgeController l1Controller;
     L2BridgeController l2Controller;
     PermissionedRegistry registry;
@@ -64,16 +64,20 @@ contract BridgeMessagesTest is Test {
         surgeBridge = new MockSurgeBridge();
 
         // Deploy bridges with Surge integration
-        l1Bridge = new MockL1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(0));
-        l2Bridge = new MockL2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(0));
+        l1Bridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(0));
+        l2Bridge = new L2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(0));
 
         // Deploy controllers
         l1Controller = new L1BridgeController(registry, l1Bridge);
         l2Controller = new L2BridgeController(l2Bridge, registry, datastore);
 
         // Re-deploy bridges with correct controller addresses
-        l1Bridge = new MockL1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(l1Controller));
-        l2Bridge = new MockL2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(l2Controller));
+        l1Bridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(l1Controller));
+        l2Bridge = new L2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(l2Controller));
+        
+        // Set up bridges with destination addresses
+        l1Bridge.setDestBridgeAddress(address(l2Bridge));
+        l2Bridge.setDestBridgeAddress(address(l1Bridge));
 
         // Grant necessary roles (filter out admin roles since they're restricted)
         uint256 regularRoles = EACBaseRolesLib.ALL_ROLES & ~EACBaseRolesLib.ADMIN_ROLES;
@@ -206,8 +210,7 @@ contract BridgeMessagesTest is Test {
         // Encode renewal message
         bytes memory renewalMessage = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
 
-        // L2 bridge should revert on renewal messages - configure failure simulation
-        l2Bridge.setFailOnReceive(false, bytes4(0), ""); // Reset first
+        // L2 bridge should revert on renewal messages with RenewalNotSupported
         
         // Simulate receiving renewal message on L2 bridge (should revert)
         ISurgeBridge.Message memory surgeMessage = ISurgeBridge.Message({
@@ -226,8 +229,8 @@ contract BridgeMessagesTest is Test {
         
         (bytes32 msgHash, ) = surgeBridge.sendMessage(surgeMessage);
         
-        // L2 bridge should revert on renewal messages
-        vm.expectRevert();
+        // L2 bridge should revert on renewal messages with RenewalNotSupported
+        vm.expectRevert(L2Bridge.RenewalNotSupported.selector);
         surgeBridge.deliverMessage(msgHash);
     }
 
