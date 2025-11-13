@@ -29,7 +29,7 @@ contract PermissionedRegistry is
     // Storage
     ////////////////////////////////////////////////////////////////////////
 
-    mapping(uint256 tokenId => ITokenObserver observer) public tokenObservers;
+    mapping(uint256 canonicalId => ITokenObserver observer) _tokenObservers;
 
     ////////////////////////////////////////////////////////////////////////
     // Initialization
@@ -91,6 +91,7 @@ contract PermissionedRegistry is
         emit ResolverUpdate(tokenId, resolver);
     }
 
+    /// @inheritdoc IRegistry
     function getSubregistry(
         string calldata label
     ) external view virtual override(BaseRegistry, IRegistry) returns (IRegistry) {
@@ -98,11 +99,17 @@ contract PermissionedRegistry is
         return IRegistry(_isExpired(entry.expiry) ? address(0) : entry.subregistry);
     }
 
+    /// @inheritdoc IRegistry
     function getResolver(
         string calldata label
     ) external view virtual override(BaseRegistry, IRegistry) returns (address) {
         IRegistryDatastore.Entry memory entry = getEntry(LibLabel.labelToCanonicalId(label));
         return _isExpired(entry.expiry) ? address(0) : entry.resolver;
+    }
+
+    /// @inheritdoc IPermissionedRegistry
+    function getTokenObserver(uint256 anyId) external view returns (ITokenObserver) {
+        return _tokenObservers[LibLabel.getCanonicalId(anyId)];
     }
 
     function register(
@@ -127,7 +134,7 @@ contract PermissionedRegistry is
             anyId,
             RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER
         );
-        tokenObservers[tokenId] = observer;
+        _tokenObservers[LibLabel.getCanonicalId(tokenId)] = observer;
         emit TokenObserverSet(tokenId, address(observer));
     }
 
@@ -141,7 +148,7 @@ contract PermissionedRegistry is
         }
         entry.expiry = expires;
         DATASTORE.setEntry(tokenId, entry);
-        ITokenObserver observer = tokenObservers[tokenId];
+        ITokenObserver observer = _tokenObservers[LibLabel.getCanonicalId(tokenId)];
         if (address(observer) != address(0)) {
             observer.onRenew(tokenId, expires, msg.sender);
         }
@@ -168,26 +175,27 @@ contract PermissionedRegistry is
         return _tokenURI(tokenId);
     }
 
-    /// @dev Shorthand to get datastore entry.
+    /// @inheritdoc IPermissionedRegistry
     function getEntry(uint256 anyId) public view returns (IRegistryDatastore.Entry memory) {
         return DATASTORE.getEntry(address(this), anyId);
     }
 
-    /// @dev Shorthand to get datastore expiry.
+    /// @inheritdoc IStandardRegistry
     function getExpiry(uint256 anyId) public view returns (uint64) {
         return getEntry(anyId).expiry;
     }
 
-    /// @dev Shorthand to get resource from any anyId.
+    /// @inheritdoc IPermissionedRegistry
     function getResource(uint256 anyId) public view returns (uint256) {
         return _constructResource(anyId, getEntry(anyId));
     }
 
-    /// @dev Shorthand to get token from any anyId.
+    /// @inheritdoc IPermissionedRegistry
     function getTokenId(uint256 anyId) public view returns (uint256) {
         return _constructTokenId(anyId, getEntry(anyId));
     }
 
+    /// @inheritdoc IPermissionedRegistry
     function getNameData(
         string memory label
     ) public view returns (uint256 tokenId, IRegistryDatastore.Entry memory entry) {
@@ -287,6 +295,7 @@ contract PermissionedRegistry is
         tokenId = _constructTokenId(tokenId, entry);
         if (entry.expiry > 0) {
             _burn(super.ownerOf(tokenId), tokenId, 1); // nonzero by construction
+            delete _tokenObservers[LibLabel.getCanonicalId(tokenId)];
             ++entry.eacVersionId;
             ++entry.tokenVersionId;
             tokenId = _constructTokenId(tokenId, entry);
@@ -375,6 +384,7 @@ contract PermissionedRegistry is
             address owner = super.ownerOf(tokenId); // skip expiry check
             if (owner != address(0)) {
                 _burn(owner, tokenId, 1);
+                // keep _tokenObservers
                 ++entry.tokenVersionId;
                 DATASTORE.setEntry(tokenId, entry);
                 uint256 newTokenId = _constructTokenId(tokenId, entry);
