@@ -2,6 +2,7 @@
 pragma solidity >=0.8.13;
 
 import {BridgeController} from "../../common/bridge/BridgeController.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
@@ -12,7 +13,6 @@ import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {ITokenObserver} from "../../common/registry/interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
-import {LibLabel} from "../../common/utils/LibLabel.sol";
 
 /**
  * @title L2BridgeController
@@ -65,8 +65,8 @@ contract L2BridgeController is BridgeController, ITokenObserver {
     function completeEjectionToL2(
         TransferData calldata transferData
     ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
-        string memory label = LibLabel.extractLabel(transferData.dnsEncodedName);
-        (uint256 tokenId, ) = REGISTRY.getNameData(label);
+        (bytes32 labelHash, ) = NameCoder.readLabel(transferData.dnsEncodedName, 0);
+        uint256 tokenId = REGISTRY.getTokenId(uint256(labelHash));
 
         // owner should be the bridge controller
         if (REGISTRY.ownerOf(tokenId) != address(this)) {

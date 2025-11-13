@@ -21,10 +21,15 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     // Functions
     ////////////////////////////////////////////////////////////////////////
 
-    /// @notice Sets a token observer for a token.
+    /// @notice Sets a token observer.
     /// @param anyId The labelhash, token ID, or resource.
-    /// @param observer The observer to set.
+    /// @param observer The new observer.
     function setTokenObserver(uint256 anyId, ITokenObserver observer) external;
+
+    /// @notice Get a token observer.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @return observer The current observer.
+    function getTokenObserver(uint256 anyId) external view returns (ITokenObserver);
 
     /// @notice Get the latest owner of a token.
     ///         If the token was burned, returns null.
@@ -41,4 +46,19 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     function getNameData(
         string calldata label
     ) external view returns (uint256 tokenId, IRegistryDatastore.Entry memory entry);
+
+    /// @notice Get datastore `Entry` from `anyId`.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @return The datastore entry.
+    function getEntry(uint256 anyId) external view returns (IRegistryDatastore.Entry memory);
+
+    /// @notice Get `resource` from `anyId`.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @return The resource.
+    function getResource(uint256 anyId) external view returns (uint256);
+
+    /// @notice Get `tokenId` from `anyId`.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @return The token ID.
+    function getTokenId(uint256 anyId) external view returns (uint256);
 }

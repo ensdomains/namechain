@@ -3,6 +3,7 @@ pragma solidity >=0.8.13;
 
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
+import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 
 struct BatchRegistrarName {
     string label;
@@ -25,11 +26,12 @@ contract BatchRegistrar {
             BatchRegistrarName calldata name = names[i];
 
             // Check if name is already registered
-            (uint256 tokenId, ) = ETH_REGISTRY.getNameData(name.label);
-            uint64 currentExpiry = ETH_REGISTRY.getExpiry(tokenId);
+            (uint256 tokenId, IRegistryDatastore.Entry memory entry) = ETH_REGISTRY.getNameData(
+                name.label
+            );
 
             // If name has never been registered or has expired, register it
-            if (currentExpiry == 0 || currentExpiry <= block.timestamp) {
+            if (entry.expiry == 0 || entry.expiry <= block.timestamp) {
                 ETH_REGISTRY.register(
                     name.label,
                     name.owner,
@@ -40,7 +42,7 @@ contract BatchRegistrar {
                 );
             } else {
                 // Name is still valid - renew if new expiry is later
-                if (name.expires > currentExpiry) {
+                if (name.expires > entry.expiry) {
                     ETH_REGISTRY.renew(tokenId, name.expires);
                 }
                 // If expires <= currentExpiry, skip (no action needed)

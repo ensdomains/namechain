@@ -53,7 +53,7 @@ contract L1BridgeController is BridgeController {
     function completeEjectionToL1(
         TransferData calldata transferData
     ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) returns (uint256 tokenId) {
-        string memory label = LibLabel.extractLabel(transferData.dnsEncodedName);
+        string memory label = NameCoder.firstLabel(transferData.dnsEncodedName);
 
         tokenId = REGISTRY.register(
             label,
