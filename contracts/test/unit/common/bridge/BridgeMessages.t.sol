@@ -75,7 +75,7 @@ contract BridgeMessagesTest is Test {
         // Re-deploy bridges with correct controller addresses
         l1Bridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(l1Controller));
         l2Bridge = new L2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(l2Controller));
-        
+
         // Set up bridges with destination addresses
         l1Bridge.setDestBridgeAddress(address(l2Bridge));
         l2Bridge.setDestBridgeAddress(address(l1Bridge));
@@ -182,8 +182,8 @@ contract BridgeMessagesTest is Test {
             value: 0,
             data: renewalMessage
         });
-        
-        (bytes32 msgHash, ISurgeBridge.Message memory sentMessage) = surgeBridge.sendMessage(surgeMessage);
+
+        (, ISurgeBridge.Message memory sentMessage) = surgeBridge.sendMessage(surgeMessage);
         surgeBridge.deliverMessage(sentMessage);
 
         // Verify the renewal was processed
@@ -212,7 +212,7 @@ contract BridgeMessagesTest is Test {
         bytes memory renewalMessage = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
 
         // L2 bridge should revert on renewal messages with RenewalNotSupported
-        
+
         // Simulate receiving renewal message on L2 bridge (should revert)
         ISurgeBridge.Message memory surgeMessage = ISurgeBridge.Message({
             id: 0,
@@ -227,9 +227,9 @@ contract BridgeMessagesTest is Test {
             value: 0,
             data: renewalMessage
         });
-        
-        (bytes32 msgHash, ISurgeBridge.Message memory sentMessage) = surgeBridge.sendMessage(surgeMessage);
-        
+
+        (, ISurgeBridge.Message memory sentMessage) = surgeBridge.sendMessage(surgeMessage);
+
         // L2 bridge should revert on renewal messages with RenewalNotSupported
         vm.expectRevert(L2Bridge.RenewalNotSupported.selector);
         surgeBridge.deliverMessage(sentMessage);

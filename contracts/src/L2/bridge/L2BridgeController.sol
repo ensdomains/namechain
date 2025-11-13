@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {BridgeController} from "../../common/bridge/BridgeController.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
+import {BridgeController} from "../../common/bridge/BridgeController.sol";
 import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";

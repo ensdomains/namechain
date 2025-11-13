@@ -76,7 +76,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
         // Re-deploy bridges with correct controller addresses
         l1Bridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(l1Controller));
         l2Bridge = new L2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(l2Controller));
-        
+
         // Set up bridges with destination addresses
         l1Bridge.setDestBridgeAddress(address(l2Bridge));
         l2Bridge.setDestBridgeAddress(address(l1Bridge));
@@ -137,7 +137,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
 
         // Step 2: Simulate cross-chain message via Surge bridge
         bytes memory bridgeMessage = BridgeEncoderLib.encodeEjection(transferData);
-        
+
         // Create Surge message to simulate L2->L1 message
         ISurgeBridge.Message memory surgeMessage = ISurgeBridge.Message({
             id: 0,
@@ -152,9 +152,9 @@ contract BridgeTest is Test, EnhancedAccessControl {
             value: 0,
             data: bridgeMessage
         });
-        
+
         // Send message through Surge bridge and deliver it
-        (bytes32 msgHash, ISurgeBridge.Message memory sentMessage) = surgeBridge.sendMessage(surgeMessage);
+        (, ISurgeBridge.Message memory sentMessage) = surgeBridge.sendMessage(surgeMessage);
         surgeBridge.deliverMessage(sentMessage);
 
         // Step 3: Verify the name is registered on L1
