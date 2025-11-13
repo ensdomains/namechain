@@ -16,6 +16,7 @@ import {UnauthorizedCaller} from "../../common/CommonErrors.sol";
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
+import {IRegistryCrier} from "../../common/registry/interfaces/IRegistryCrier.sol";
 import {IRegistryMetadata} from "../../common/registry/interfaces/IRegistryMetadata.sol";
 import {IStandardRegistry} from "../../common/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
@@ -74,8 +75,9 @@ contract MigratedWrappedNameRegistry is
         IPermissionedRegistry ethRegistry,
         VerifiableFactory factory,
         IRegistryDatastore datastore,
+        IRegistryCrier crier,
         IRegistryMetadata metadataProvider
-    ) PermissionedRegistry(datastore, metadataProvider, _msgSender(), 0) {
+    ) PermissionedRegistry(datastore, crier, metadataProvider, _msgSender(), 0) {
         NAME_WRAPPER = nameWrapper;
         ETH_REGISTRY = ethRegistry;
         FACTORY = factory;

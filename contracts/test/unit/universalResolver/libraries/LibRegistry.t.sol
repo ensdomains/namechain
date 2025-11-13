@@ -14,10 +14,12 @@ import {
     IRegistryMetadata
 } from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {LibRegistry, IRegistry, NameCoder} from "~src/universalResolver/libraries/LibRegistry.sol";
 
 contract LibRegistryTest is Test, ERC1155Holder {
     RegistryDatastore datastore;
+    RegistryCrier crier;
     PermissionedRegistry rootRegistry;
     address resolverAddress = makeAddr("resolver");
 
@@ -25,6 +27,7 @@ contract LibRegistryTest is Test, ERC1155Holder {
         return
             new PermissionedRegistry(
                 datastore,
+                crier,
                 IRegistryMetadata(address(0)),
                 address(this),
                 EACBaseRolesLib.ALL_ROLES
@@ -48,6 +51,7 @@ contract LibRegistryTest is Test, ERC1155Holder {
 
     function setUp() external {
         datastore = new RegistryDatastore();
+        crier = new RegistryCrier();
         rootRegistry = _createRegistry();
     }
 

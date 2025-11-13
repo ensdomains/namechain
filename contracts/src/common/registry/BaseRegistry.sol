@@ -13,6 +13,7 @@ import {LibLabel} from "../utils/LibLabel.sol";
 
 import {IRegistry} from "./interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "./interfaces/IRegistryDatastore.sol";
+import {IRegistryCrier} from "./interfaces/IRegistryCrier.sol";
 
 abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     ////////////////////////////////////////////////////////////////////////
@@ -20,6 +21,7 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     ////////////////////////////////////////////////////////////////////////
 
     IRegistryDatastore public immutable DATASTORE;
+    IRegistryCrier public immutable CRIER;
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
@@ -43,8 +45,9 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
-    constructor(IRegistryDatastore datastore_) {
+    constructor(IRegistryDatastore datastore_, IRegistryCrier crier_) {
         DATASTORE = datastore_;
+        CRIER = crier_;
     }
 
     /// @inheritdoc IERC165

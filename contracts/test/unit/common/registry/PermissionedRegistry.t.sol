@@ -19,6 +19,7 @@ import {IStandardRegistry} from "~src/common/registry/interfaces/IStandardRegist
 import {ITokenObserver} from "~src/common/registry/interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
@@ -33,6 +34,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     );
 
     RegistryDatastore datastore;
+    RegistryCrier crier;
     MockPermissionedRegistry registry;
     MockTokenObserver observer;
     RevertingTokenObserver revertingObserver;
@@ -57,8 +59,9 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
     function setUp() public {
         datastore = new RegistryDatastore();
+        crier = new RegistryCrier();
         metadata = new SimpleRegistryMetadata();
-        registry = new MockPermissionedRegistry(datastore, metadata, address(this), deployerRoles);
+        registry = new MockPermissionedRegistry(datastore, crier, metadata, address(this), deployerRoles);
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
     }
@@ -66,6 +69,43 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     function test_constructor_sets_roles() public view {
         uint256 expectedRoles = deployerRoles;
         assertTrue(registry.hasRoles(registry.ROOT_RESOURCE(), expectedRoles, address(this)));
+    }
+
+    function test_constructor_emits_NewRegistry_event() public {
+        // Create new datastore, crier and metadata for this test
+        RegistryDatastore newDatastore = new RegistryDatastore();
+        RegistryCrier newCrier = new RegistryCrier();
+        IRegistryMetadata newMetadata = new SimpleRegistryMetadata();
+
+        // Record logs to capture events
+        vm.recordLogs();
+
+        // Deploy new registry (should emit NewRegistry event)
+        MockPermissionedRegistry newRegistry = new MockPermissionedRegistry(
+            newDatastore,
+            newCrier,
+            newMetadata,
+            address(this),
+            deployerRoles
+        );
+
+        // Get the logs and verify NewRegistry event was emitted
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        // Find the NewRegistry event (may be multiple events during construction)
+        bool foundEvent = false;
+        address emittedAddress;
+
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == keccak256("NewRegistry(address)")) {
+                foundEvent = true;
+                emittedAddress = address(uint160(uint256(logs[i].topics[1])));
+                break;
+            }
+        }
+
+        assertTrue(foundEvent, "NewRegistry event was not emitted during construction");
+        assertEq(emittedAddress, address(newRegistry), "Wrong registry address in event");
     }
 
     function test_Revert_register_without_registrar_role() public {

@@ -50,6 +50,7 @@ const renames: Record<string, string> = {
 
 const sharedContracts = {
   RegistryDatastore: artifacts.RegistryDatastore.abi,
+  RegistryCrier: artifacts.RegistryCrier.abi,
   SimpleRegistryMetadata: artifacts.SimpleRegistryMetadata.abi,
   VerifiableFactory: artifacts.VerifiableFactory.abi,
   DedicatedResolverImpl: artifacts.DedicatedResolver.abi,
@@ -192,6 +193,7 @@ export class ChainDeployment<
       bytecode,
       args: [
         this.contracts.RegistryDatastore.address,
+        this.contracts.RegistryCrier.address,
         this.contracts.SimpleRegistryMetadata.address,
         account.address,
         roles,

@@ -11,6 +11,9 @@ export default execute(
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
 
+    const registryCrier =
+      get<(typeof artifacts.RegistryCrier)["abi"]>("RegistryCrier");
+
     const registryMetadata = get<
       (typeof artifacts.SimpleRegistryMetadata)["abi"]
     >("SimpleRegistryMetadata");
@@ -26,12 +29,13 @@ export default execute(
         ethRegistry.address,
         verifiableFactory.address,
         registryDatastore.address,
+        registryCrier.address,
         registryMetadata.address,
       ],
     });
   },
   {
     tags: ["MigratedWrappedNameRegistry", "l1"],
-    dependencies: ["NameWrapper", "ETHRegistry", "VerifiableFactory"],
+    dependencies: ["NameWrapper", "ETHRegistry", "VerifiableFactory", "RegistryDatastore", "RegistryCrier", "RegistryMetadata"],
   },
 );

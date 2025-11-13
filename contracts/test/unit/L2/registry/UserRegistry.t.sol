@@ -4,6 +4,7 @@ pragma solidity >=0.8.13;
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
 import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
@@ -17,6 +18,7 @@ import {IRegistryDatastore} from "~src/common/registry/interfaces/IRegistryDatas
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
 import {UserRegistry} from "~src/L2/registry/UserRegistry.sol";
 
@@ -31,6 +33,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
     // Contracts
     VerifiableFactory factory;
     RegistryDatastore datastore;
+    RegistryCrier crier;
     SimpleRegistryMetadata metadata;
     UserRegistry implementation;
     UserRegistry proxy;
@@ -47,11 +50,14 @@ contract UserRegistryTest is Test, ERC1155Holder {
         // Deploy the datastore
         datastore = new RegistryDatastore();
 
+        // Deploy crier
+        crier = new RegistryCrier();
+
         // Deploy metadata provider
         metadata = new SimpleRegistryMetadata();
 
         // Deploy the implementation
-        implementation = new UserRegistry(datastore, metadata);
+        implementation = new UserRegistry(datastore, crier, metadata);
 
         // Create initialization data
         bytes memory initData = abi.encodeWithSelector(
@@ -66,6 +72,52 @@ contract UserRegistryTest is Test, ERC1155Holder {
 
         // Get the proxy contract
         proxy = UserRegistry(proxyAddress);
+    }
+
+    function test_initialization_emits_NewRegistry_event() public {
+        // Create new datastore for this test
+        RegistryDatastore newDatastore = new RegistryDatastore();
+        RegistryCrier newCrier = new RegistryCrier();
+        SimpleRegistryMetadata newMetadata = new SimpleRegistryMetadata();
+
+        // Deploy new implementation
+        UserRegistry newImplementation = new UserRegistry(newDatastore, newCrier, newMetadata);
+
+        // Create initialization data
+        bytes memory initData = abi.encodeWithSelector(
+            UserRegistry.initialize.selector,
+            EACBaseRolesLib.ALL_ROLES,
+            admin
+        );
+
+        // Record logs to capture events during proxy deployment
+        vm.recordLogs();
+
+        // Deploy proxy with different salt to avoid collision
+        vm.prank(admin);
+        address proxyAddress = factory.deployProxy(address(newImplementation), SALT + 999, initData);
+
+        // Get all logs
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        // Find the NewRegistry event
+        bool foundEvent = false;
+        address emittedAddress;
+
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics[0] == keccak256("NewRegistry(address)")) {
+                // Skip the event from implementation deployment
+                address eventAddress = address(uint160(uint256(logs[i].topics[1])));
+                if (eventAddress == proxyAddress) {
+                    foundEvent = true;
+                    emittedAddress = eventAddress;
+                    break;
+                }
+            }
+        }
+
+        assertTrue(foundEvent, "NewRegistry event was not emitted for proxy during initialization");
+        assertEq(emittedAddress, proxyAddress, "Wrong registry address in event");
     }
 
     function test_initialization() public view {
@@ -258,7 +310,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
     // Test for contract upgradeability
     function test_upgrade() public {
         // Deploy a new implementation
-        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(datastore, metadata);
+        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(datastore, crier, metadata);
 
         // Upgrade the proxy
         vm.prank(admin);
@@ -271,7 +323,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
 
     function test_Revert_unauthorized_upgrade() public {
         // Deploy a new implementation
-        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(datastore, metadata);
+        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(datastore, crier, metadata);
 
         // User1 tries to upgrade without permission
         vm.expectRevert(
@@ -332,8 +384,9 @@ contract UserRegistryTest is Test, ERC1155Holder {
 contract UserRegistryV2Mock is UserRegistry {
     constructor(
         IRegistryDatastore _datastore,
+        RegistryCrier _crier,
         IRegistryMetadata _metadataProvider
-    ) UserRegistry(_datastore, _metadataProvider) {}
+    ) UserRegistry(_datastore, _crier, _metadataProvider) {}
     function version() public pure returns (uint256) {
         return 2;
     }

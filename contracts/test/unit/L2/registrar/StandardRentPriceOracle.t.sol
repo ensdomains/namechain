@@ -16,6 +16,7 @@ import {StandardPricing} from "./StandardPricing.sol";
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {PermissionedRegistry, IRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
 import {LibHalving} from "~src/L2/registrar/libraries/LibHalving.sol";
 import {
@@ -39,6 +40,7 @@ contract StandardRentPriceOracleTest is Test, ERC1155Holder {
     function setUp() external {
         ethRegistry = new PermissionedRegistry(
             new RegistryDatastore(),
+            new RegistryCrier(),
             new SimpleRegistryMetadata(),
             address(this),
             EACBaseRolesLib.ALL_ROLES

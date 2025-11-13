@@ -24,6 +24,7 @@ import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetada
 import {IStandardRegistry} from "~src/common/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
@@ -40,6 +41,7 @@ contract MockBridge is IBridge {
 
 contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
     RegistryDatastore datastore;
+    RegistryCrier crier;
     PermissionedRegistry registry;
     L1BridgeController bridgeController;
     MockRegistryMetadata registryMetadata;
@@ -360,12 +362,14 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
 
     function setUp() public {
         datastore = new RegistryDatastore();
+        crier = new RegistryCrier();
         registryMetadata = new MockRegistryMetadata();
         bridge = new MockBridge();
 
         // Deploy the eth registry
         registry = new PermissionedRegistry(
             datastore,
+            crier,
             registryMetadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES

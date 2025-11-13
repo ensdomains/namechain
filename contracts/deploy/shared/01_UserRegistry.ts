@@ -5,6 +5,9 @@ export default execute(
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
 
+    const registryCrier =
+      get<(typeof artifacts.RegistryCrier)["abi"]>("RegistryCrier");
+
     const registryMetadata = get<
       (typeof artifacts.SimpleRegistryMetadata)["abi"]
     >("SimpleRegistryMetadata");
@@ -14,12 +17,13 @@ export default execute(
       artifact: artifacts.UserRegistry,
       args: [
         registryDatastore.address,
+        registryCrier.address,
         registryMetadata.address,
       ],
     });
   },
   {
     tags: ["UserRegistry", "shared"],
-    dependencies: ["RegistryDatastore", "RegistryMetadata"],
+    dependencies: ["RegistryDatastore", "RegistryCrier", "RegistryMetadata"],
   },
 );

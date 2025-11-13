@@ -18,6 +18,7 @@ import {
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+import {RegistryCrier} from "~src/common/registry/RegistryCrier.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {
@@ -58,6 +59,7 @@ contract ETHRegistrarTest is Test {
     function setUp() external {
         ethRegistry = new PermissionedRegistry(
             new RegistryDatastore(),
+            new RegistryCrier(),
             new SimpleRegistryMetadata(),
             address(this),
             EACBaseRolesLib.ALL_ROLES
