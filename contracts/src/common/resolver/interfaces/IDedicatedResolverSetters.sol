@@ -15,6 +15,10 @@ interface IDedicatedResolverSetters {
     /// @dev Error selector: `0x8d666f60`
     error InvalidEVMAddress(bytes addressBytes);
 
+    /// @notice The coin type is not a power of 2.
+    /// @dev Error selector: `0xe7cf0ac4`
+    error InvalidContentType(uint256 contentType);
+
     ////////////////////////////////////////////////////////////////////////
     // Functions
     ////////////////////////////////////////////////////////////////////////

@@ -18,7 +18,7 @@ import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetada
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
-import {UserRegistry} from "~src/L2/registry/UserRegistry.sol";
+import {UserRegistry} from "~src/common/registry/UserRegistry.sol";
 
 contract UserRegistryTest is Test, ERC1155Holder {
     // Test constants
@@ -54,10 +54,9 @@ contract UserRegistryTest is Test, ERC1155Holder {
         implementation = new UserRegistry(datastore, metadata);
 
         // Create initialization data
-        bytes memory initData = abi.encodeWithSelector(
-            UserRegistry.initialize.selector,
-            EACBaseRolesLib.ALL_ROLES,
-            admin
+        bytes memory initData = abi.encodeCall(
+            UserRegistry.initialize,
+            (admin, EACBaseRolesLib.ALL_ROLES)
         );
 
         // Deploy the proxy using the factory

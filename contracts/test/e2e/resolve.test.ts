@@ -136,7 +136,7 @@ describe("Resolve", () => {
         const { deployer, owner: account } = env.namedAccounts;
 
         // setup addr(default)
-        const resolver = await env.l1.deployDedicatedResolver(account);
+        const resolver = await env.l1.deployDedicatedResolver({ account });
         await resolver.write.setAddr([COIN_TYPE_ETH, account.address]);
         // hack: create name
         await env.l1.contracts.ETHRegistry.write.register(
@@ -175,7 +175,7 @@ describe("Resolve", () => {
         const { deployer, owner: account } = env.namedAccounts;
 
         // setup addr(default)
-        const resolver = await env.l1.deployDedicatedResolver(account);
+        const resolver = await env.l1.deployDedicatedResolver({ account });
         await resolver.write.setAddr([COIN_TYPE_DEFAULT, account.address]);
         // hack: create name
         await env.l1.contracts.ETHRegistry.write.register(
@@ -262,14 +262,14 @@ describe("Resolve", () => {
         title = `${title} => ${gets.map((x) => x.desc)}`;
       }
       it(title, async () => {
-        const { owner } = env.namedAccounts;
+        const { owner: account } = env.namedAccounts;
 
-        const resolver = await env.l2.deployDedicatedResolver(owner);
+        const resolver = await env.l2.deployDedicatedResolver({ account });
         await resolver.write.multicall([sets.map((x) => x.writeDedicated)]);
 
         await env.l2.contracts.ETHRegistry.write.register([
           label,
-          owner.address,
+          account.address,
           zeroAddress,
           resolver.address,
           0n,
