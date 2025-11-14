@@ -233,16 +233,35 @@ contract DedicatedResolverTest is StorageTester {
         );
     }
 
-    function test_setAddr_invalidEVM() external {
-        vm.expectRevert();
-        resolver.setAddr(COIN_TYPE_ETH, new bytes(1));
-        vm.expectRevert();
-        resolver.setAddr(COIN_TYPE_DEFAULT, new bytes(21));
+    function test_setAddr_invalidEVM_tooShort() external {
+        bytes memory v = new bytes(1);
+        vm.expectRevert(
+            abi.encodeWithSelector(IDedicatedResolverSetters.InvalidEVMAddress.selector, v)
+        );
+        vm.prank(owner);
+        resolver.setAddr(COIN_TYPE_ETH, v);
+    }
+
+    function test_setAddr_invalidEVM_tooLong() external {
+        bytes memory v = new bytes(21);
+        vm.expectRevert(
+            abi.encodeWithSelector(IDedicatedResolverSetters.InvalidEVMAddress.selector, v)
+        );
+        vm.prank(owner);
+        resolver.setAddr(COIN_TYPE_ETH, v);
     }
 
     function test_setAddr_notOwner() external {
-        vm.expectRevert();
-        resolver.setAddr(0, "");
+        uint256 coinType;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                DedicatedResolverLib.addrResource(coinType),
+                DedicatedResolverLib.ROLE_SET_ADDR,
+                address(this)
+            )
+        );
+        resolver.setAddr(coinType, "");
     }
 
     function testFuzz_setText(string calldata key, string calldata value) external {
@@ -264,8 +283,16 @@ contract DedicatedResolverTest is StorageTester {
     }
 
     function test_setText_notOwner() external {
-        vm.expectRevert();
-        resolver.setText("", "");
+        string memory key = "abc";
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                DedicatedResolverLib.textResource(key),
+                DedicatedResolverLib.ROLE_SET_TEXT,
+                address(this)
+            )
+        );
+        resolver.setText(key, "");
     }
 
     function testFuzz_setName(string calldata name) external {
@@ -284,7 +311,14 @@ contract DedicatedResolverTest is StorageTester {
     }
 
     function test_setName_notOwner() external {
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                ROOT_RESOURCE,
+                DedicatedResolverLib.ROLE_SET_NAME,
+                address(this)
+            )
+        );
         resolver.setName("");
     }
 
@@ -303,7 +337,14 @@ contract DedicatedResolverTest is StorageTester {
     }
 
     function test_setContenthash_notOwner() external {
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                ROOT_RESOURCE,
+                DedicatedResolverLib.ROLE_SET_CONTENTHASH,
+                address(this)
+            )
+        );
         resolver.setContenthash("");
     }
 
@@ -332,7 +373,14 @@ contract DedicatedResolverTest is StorageTester {
     }
 
     function test_setPubkey_notOwner() external {
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                ROOT_RESOURCE,
+                DedicatedResolverLib.ROLE_SET_PUBKEY,
+                address(this)
+            )
+        );
         resolver.setPubkey(0, 0);
     }
 
@@ -362,17 +410,31 @@ contract DedicatedResolverTest is StorageTester {
         );
     }
 
-    function test_setABI_invalidContentType() external {
-        vm.startPrank(owner);
-        vm.expectRevert();
+    function test_setABI_invalidContentType_noBits() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(IDedicatedResolverSetters.InvalidContentType.selector, 0)
+        );
+        vm.prank(owner);
         resolver.setABI(0, "");
-        vm.expectRevert();
+    }
+
+    function test_setABI_invalidContentType_manyBits() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(IDedicatedResolverSetters.InvalidContentType.selector, 3)
+        );
+        vm.prank(owner);
         resolver.setABI(3, "");
-        vm.stopPrank();
     }
 
     function test_setABI_notOwner() external {
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                ROOT_RESOURCE,
+                DedicatedResolverLib.ROLE_SET_ABI,
+                address(this)
+            )
+        );
         resolver.setABI(1, "");
     }
 
@@ -414,7 +476,14 @@ contract DedicatedResolverTest is StorageTester {
     }
 
     function test_setInterface_notOwner() external {
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                ROOT_RESOURCE,
+                DedicatedResolverLib.ROLE_SET_INTERFACE,
+                address(this)
+            )
+        );
         resolver.setInterface(bytes4(0), address(0));
     }
 
@@ -435,7 +504,14 @@ contract DedicatedResolverTest is StorageTester {
         calls[0] = abi.encodeCall(DedicatedResolver.setName, (testName));
         calls[1] = abi.encodeCall(DedicatedResolver.setAddr, (COIN_TYPE_ETH, testAddress));
 
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                ROOT_RESOURCE,
+                DedicatedResolverLib.ROLE_SET_NAME, // first error
+                address(this)
+            )
+        );
         resolver.multicall(calls);
     }
 

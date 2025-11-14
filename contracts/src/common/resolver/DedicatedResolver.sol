@@ -52,10 +52,6 @@ contract DedicatedResolver is
     /// @dev Error selector: `0x7b1c461b`
     error UnsupportedResolverProfile(bytes4 selector);
 
-    /// @notice The coin type is not a power of 2.
-    /// @dev Error selector: `0xe7cf0ac4`
-    error InvalidContentType(uint256 contentType);
-
     ////////////////////////////////////////////////////////////////////////
     // Initialization
     ////////////////////////////////////////////////////////////////////////
@@ -289,7 +285,11 @@ contract DedicatedResolver is
         results = new bytes[](calls.length);
         for (uint256 i; i < calls.length; ++i) {
             (bool ok, bytes memory v) = address(this).delegatecall(calls[i]);
-            require(ok); // TODO: type this?
+            if (!ok) {
+                assembly {
+                    revert(add(v, 32), v) // propagate the first error
+                }
+            }
             results[i] = v;
         }
         return results;
