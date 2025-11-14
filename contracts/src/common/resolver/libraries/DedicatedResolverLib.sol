@@ -13,16 +13,15 @@ library DedicatedResolverLib {
         string name;
     }
 
-    uint256 public constant NAMED_SLOT =
-        uint256(keccak256("eth.ens.storage.DedicatedResolver")) - 1;
+    uint256 internal constant NAMED_SLOT = uint256(keccak256("eth.ens.storage.DedicatedResolver"));
 
-    uint256 public constant SLOT_ADDRESSES = NAMED_SLOT; // addresses
-    uint256 public constant SLOT_TEXTS = NAMED_SLOT + 1; // texts
-    uint256 public constant SLOT_CONTENTHASH = NAMED_SLOT + 2; // contenthash
-    uint256 public constant SLOT_PUBKEY = NAMED_SLOT + 3; // pubkey[2]
-    uint256 public constant SLOT_ABIS = NAMED_SLOT + 5; // abis
-    uint256 public constant SLOT_INTERFACES = NAMED_SLOT + 6; // interfaces
-    uint256 public constant SLOT_NAME = NAMED_SLOT + 7; // name
+    uint256 internal constant SLOT_ADDRESSES = NAMED_SLOT; // addresses
+    uint256 internal constant SLOT_TEXTS = NAMED_SLOT + 1; // texts
+    uint256 internal constant SLOT_CONTENTHASH = NAMED_SLOT + 2; // contenthash
+    uint256 internal constant SLOT_PUBKEY = NAMED_SLOT + 3; // pubkey[2]
+    uint256 internal constant SLOT_ABIS = NAMED_SLOT + 5; // abis
+    uint256 internal constant SLOT_INTERFACES = NAMED_SLOT + 6; // interfaces
+    uint256 internal constant SLOT_NAME = NAMED_SLOT + 7; // name
 
     uint256 internal constant ROLE_SET_ADDR = 1 << 0;
     uint256 internal constant ROLE_SET_ADDR_ADMIN = ROLE_SET_ADDR << 128;
@@ -53,7 +52,7 @@ library DedicatedResolverLib {
     }
 
     function addrResource(uint256 coinType) internal pure returns (uint256 resource) {
-        assembly {
+        assembly ("memory-safe") {
             mstore(0, coinType)
             resource := keccak256(0, 32)
         }

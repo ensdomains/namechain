@@ -20,21 +20,22 @@ import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
-import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
+import {
+    IEnhancedAccessControl
+} from "~src/common/access-control/interfaces/IEnhancedAccessControl.sol";
+import {EACBaseRolesLib} from "~src/common/access-control/libraries/EACBaseRolesLib.sol";
 import {
     DedicatedResolver,
     DedicatedResolverLib,
     IDedicatedResolverSetters,
     NODE_ANY
 } from "~src/common/resolver/DedicatedResolver.sol";
-import {EACBaseRolesLib} from "~src/common/access-control/libraries/EACBaseRolesLib.sol";
-import {
-    IEnhancedAccessControl
-} from "~src/common/access-control/interfaces/IEnhancedAccessControl.sol";
+import {StorageTester} from "~test/unit/common/utils/StorageTester.sol";
 
-contract DedicatedResolverTest is Test {
+contract DedicatedResolverTest is StorageTester {
     uint256 constant DEFAULT_ROLES = EACBaseRolesLib.ALL_ROLES;
     uint256 constant ROOT_RESOURCE = 0;
 
@@ -69,7 +70,8 @@ contract DedicatedResolverTest is Test {
     address friend = makeAddr("friend");
 
     string testName = "test.eth";
-    bytes testAddress = abi.encodePacked(address(0x123));
+    address testAddr = 0x8000000000000000000000000000000000000001;
+    bytes testAddress = abi.encodePacked(testAddr);
 
     function setUp() external {
         VerifiableFactory factory = new VerifiableFactory();
@@ -175,6 +177,15 @@ contract DedicatedResolverTest is Test {
             abi.encodeCall(IAddressResolver.addr, (NODE_ANY, coinType))
         );
         assertEq(abi.decode(result, (bytes)), addressBytes, "extended");
+
+        assertEq(
+            addressBytes,
+            readBytes(
+                address(resolver),
+                follow(DedicatedResolverLib.SLOT_ADDRESSES, abi.encode(coinType))
+            ),
+            "storage"
+        );
     }
 
     function test_setAddr_fallback(uint32 chain) external {
@@ -244,6 +255,12 @@ contract DedicatedResolverTest is Test {
             abi.encodeCall(ITextResolver.text, (NODE_ANY, key))
         );
         assertEq(abi.decode(result, (string)), value, "extended");
+
+        assertEq(
+            bytes(value),
+            readBytes(address(resolver), follow(DedicatedResolverLib.SLOT_TEXTS, bytes(key))),
+            "storage"
+        );
     }
 
     function test_setText_notOwner() external {
@@ -251,13 +268,19 @@ contract DedicatedResolverTest is Test {
         resolver.setText("", "");
     }
 
-    function test_setName(string calldata name) external {
+    function testFuzz_setName(string calldata name) external {
         vm.prank(owner);
         resolver.setName(name);
 
         assertEq(resolver.name(NODE_ANY), name, "immediate");
         bytes memory result = resolver.resolve("", abi.encodeCall(INameResolver.name, (NODE_ANY)));
         assertEq(abi.decode(result, (string)), name, "extended");
+
+        assertEq(
+            bytes(name),
+            readBytes(address(resolver), DedicatedResolverLib.SLOT_NAME),
+            "storage"
+        );
     }
 
     function test_setName_notOwner() external {
@@ -275,6 +298,8 @@ contract DedicatedResolverTest is Test {
             abi.encodeCall(IContentHashResolver.contenthash, (NODE_ANY))
         );
         assertEq(abi.decode(result, (bytes)), v, "extended");
+
+        assertEq(v, readBytes(address(resolver), DedicatedResolverLib.SLOT_CONTENTHASH), "storage");
     }
 
     function test_setContenthash_notOwner() external {
@@ -293,6 +318,17 @@ contract DedicatedResolverTest is Test {
             abi.encodeCall(IPubkeyResolver.pubkey, (NODE_ANY))
         );
         assertEq(result, abi.encode(x, y), "extended");
+
+        assertEq(
+            x,
+            vm.load(address(resolver), bytes32(DedicatedResolverLib.SLOT_PUBKEY)),
+            "storage[0]"
+        );
+        assertEq(
+            y,
+            vm.load(address(resolver), bytes32(DedicatedResolverLib.SLOT_PUBKEY + 1)),
+            "storage[1]"
+        );
     }
 
     function test_setPubkey_notOwner() external {
@@ -315,6 +351,15 @@ contract DedicatedResolverTest is Test {
             abi.encodeCall(IABIResolver.ABI, (NODE_ANY, contentTypes))
         );
         assertEq(result, expect, "extended");
+
+        assertEq(
+            data,
+            readBytes(
+                address(resolver),
+                follow(DedicatedResolverLib.SLOT_ABIS, abi.encode(contentType))
+            ),
+            "storage"
+        );
     }
 
     function test_setABI_invalidContentType() external {
@@ -343,6 +388,15 @@ contract DedicatedResolverTest is Test {
             abi.encodeCall(IInterfaceResolver.interfaceImplementer, (NODE_ANY, interfaceId))
         );
         assertEq(abi.decode(result, (address)), impl, "extended");
+
+        assertEq(
+            bytes32(uint256(uint160(impl))),
+            vm.load(
+                address(resolver),
+                bytes32(follow(DedicatedResolverLib.SLOT_INTERFACES, abi.encode(interfaceId)))
+            ),
+            "storage"
+        );
     }
 
     function test_interfaceImplementer_overlap() external {
@@ -519,6 +573,35 @@ contract DedicatedResolverTest is Test {
         vm.prank(friend);
         resolver.setText("b", "B");
     }
+
+    // function testFuzz_storage_addr(uint256 coinType, bytes memory addr) external {
+
+    // }
+
+    //     string memory name = string(vm.randomBytes(34));
+    //     bytes memory contentHash = vm.randomBytes(35);
+    //     bytes memory abiData = vm.randomBytes(36);
+    //     bytes4 interfaceId = 0x12345678;
+    //     uint256 contentType = 1;
+    //     bytes32 x = keccak256("a");
+    //     bytes32 y = keccak256("b");
+
+    //     vm.startPrank(owner);
+    //     resolver.setText(text, text);
+    //     resolver.setAddr(COIN_TYPE_ETH, testAddress);
+    //     resolver.setContenthash(contentHash);
+    //     resolver.setPubkey(x, y);
+    //     resolver.setInterface(interfaceId, testAddr);
+    //     resolver.setABI(contentType, abiData);
+    //     resolver.setName(name);
+    //     vm.stopPrank();
+
+    //     assertEq(
+    //         text,
+    //         string(readBytes(follow(DedicatedResolverLib.SLOT_TEXTS, bytes(text)))),
+    //         "text"
+    //     );
+    // }
 }
 
 contract MockUpgrade is UUPSUpgradeable {
