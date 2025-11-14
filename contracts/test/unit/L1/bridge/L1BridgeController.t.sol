@@ -36,6 +36,9 @@ contract MockRegistryMetadata is IRegistryMetadata {
 
 contract MockBridge is IBridge {
     function sendMessage(bytes memory) external payable override {}
+    function getMinGasLimit(bytes calldata) external pure override returns (uint32) {
+        return 100000;
+    }
 }
 
 contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {

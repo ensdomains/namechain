@@ -37,12 +37,17 @@ contract BridgeTest is Test {
         // Test contract is admin by default since it deployed the bridges
         l1Bridge.setDestBridgeAddress(address(l2Bridge));
         l2Bridge.setDestBridgeAddress(address(l1Bridge));
+
+        // Fund the mock controllers with ETH for testing
+        vm.deal(mockL2Controller, 10 ether);
+        vm.deal(mockL1Controller, 10 ether);
     }
 
     function test_L1Bridge_SendMessage_EmitsEvent() public {
         bytes memory testData = hex"1234567890";
 
         vm.recordLogs();
+        vm.prank(mockL2Controller);
         l1Bridge.sendMessage{value: 0.01 ether}(testData);
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -62,6 +67,7 @@ contract BridgeTest is Test {
         bytes memory testData = hex"abcdef";
 
         vm.recordLogs();
+        vm.prank(mockL1Controller);
         l2Bridge.sendMessage{value: 0.005 ether}(testData);
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -82,6 +88,7 @@ contract BridgeTest is Test {
 
         uint64 msgIdBefore = surgeBridge.nextMessageId();
 
+        vm.prank(mockL2Controller);
         l1Bridge.sendMessage{value: 0.01 ether}(testData);
 
         uint64 msgIdAfter = surgeBridge.nextMessageId();
@@ -198,17 +205,6 @@ contract BridgeTest is Test {
         l1Bridge.setDestBridgeAddress(newDestAddress);
     }
     
-    function test_sendMessage_RevertWhenSurgeBridgeNotSet() public {
-        // Deploy a new bridge with zero address for surge bridge
-        L1Bridge newBridge = new L1Bridge(ISurgeBridge(address(0)), L1_CHAIN_ID, L2_CHAIN_ID, mockL2Controller);
-        newBridge.setDestBridgeAddress(address(l2Bridge));
-        
-        bytes memory testData = hex"1234567890";
-        
-        vm.expectRevert();
-        newBridge.sendMessage{value: 0.01 ether}(testData);
-    }
-    
     function test_sendMessage_RevertWhenDestBridgeNotSet() public {
         // Deploy a new bridge without setting dest bridge
         L1Bridge newBridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, mockL2Controller);
@@ -216,6 +212,7 @@ contract BridgeTest is Test {
         bytes memory testData = hex"1234567890";
         
         vm.expectRevert();
+        vm.prank(mockL2Controller);
         newBridge.sendMessage{value: 0.01 ether}(testData);
     }
     
@@ -223,6 +220,7 @@ contract BridgeTest is Test {
         bytes memory testData = hex"1234567890";
         
         // Should work after proper setup
+        vm.prank(mockL2Controller);
         l1Bridge.sendMessage{value: 0.01 ether}(testData);
         
         // Verify message was sent (by checking surge bridge state)
@@ -239,5 +237,85 @@ contract BridgeTest is Test {
         
         assertEq(address(l1Bridge.surgeBridge()), address(newSurgeBridge));
         assertEq(l1Bridge.destBridgeAddress(), newDestAddress);
+    }
+
+    // New access control tests for sendMessage
+    function test_sendMessage_OnlyBridgeController() public {
+        bytes memory testData = hex"1234567890";
+        
+        // Should work when called by bridge controller
+        vm.prank(mockL2Controller);
+        l1Bridge.sendMessage{value: 0.01 ether}(testData);
+        
+        assertEq(surgeBridge.nextMessageId(), 1);
+    }
+    
+    function test_sendMessage_RevertNonBridgeController() public {
+        bytes memory testData = hex"1234567890";
+        address nonController = address(0x9999);
+        vm.deal(nonController, 1 ether);
+        
+        // Should revert when called by non-controller
+        vm.expectRevert();
+        vm.prank(nonController);
+        l1Bridge.sendMessage{value: 0.01 ether}(testData);
+    }
+    
+    function test_L2Bridge_sendMessage_OnlyBridgeController() public {
+        bytes memory testData = hex"abcdef";
+        
+        // Should work when called by bridge controller
+        vm.prank(mockL1Controller);
+        l2Bridge.sendMessage{value: 0.005 ether}(testData);
+        
+        assertEq(surgeBridge.nextMessageId(), 1);
+    }
+    
+    function test_L2Bridge_sendMessage_RevertNonBridgeController() public {
+        bytes memory testData = hex"abcdef";
+        address nonController = address(0x9999);
+        vm.deal(nonController, 1 ether);
+        
+        // Should revert when called by non-controller
+        vm.expectRevert();
+        vm.prank(nonController);
+        l2Bridge.sendMessage{value: 0.005 ether}(testData);
+    }
+
+    // New tests for getMinGasLimit method
+    function test_getMinGasLimit_L1Bridge() public view {
+        bytes memory shortData = hex"1234";
+        bytes memory longData = new bytes(1000);
+        
+        uint32 shortGasLimit = l1Bridge.getMinGasLimit(shortData);
+        uint32 longGasLimit = l1Bridge.getMinGasLimit(longData);
+        
+        assertTrue(longGasLimit > shortGasLimit, "Gas limit should increase with data length");
+        
+        // Verify it matches the expected calculation
+        uint32 expectedShortGas = surgeBridge.getMessageMinGasLimit(shortData.length);
+        uint32 expectedLongGas = surgeBridge.getMessageMinGasLimit(longData.length);
+        
+        assertEq(shortGasLimit, expectedShortGas, "Short gas limit should match surge bridge calculation");
+        assertEq(longGasLimit, expectedLongGas, "Long gas limit should match surge bridge calculation");
+    }
+    
+    function test_getMinGasLimit_L2Bridge() public view {
+        bytes memory testData = hex"abcdef123456";
+        
+        uint32 gasLimit = l2Bridge.getMinGasLimit(testData);
+        uint32 expectedGas = surgeBridge.getMessageMinGasLimit(testData.length);
+        
+        assertEq(gasLimit, expectedGas, "Gas limit should match surge bridge calculation");
+    }
+    
+    function test_getMinGasLimit_EmptyData() public view {
+        bytes memory emptyData = "";
+        
+        uint32 gasLimit = l1Bridge.getMinGasLimit(emptyData);
+        uint32 expectedGas = surgeBridge.getMessageMinGasLimit(0);
+        
+        assertEq(gasLimit, expectedGas, "Gas limit should handle empty data correctly");
+        assertTrue(gasLimit > 0, "Gas limit should be greater than zero even for empty data");
     }
 }

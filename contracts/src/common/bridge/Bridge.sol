@@ -48,8 +48,18 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
     error OnlyBridgeController();
     error OnlySurgeBridge();
     error InsufficientFee(uint256 required, uint256 provided);
-    error SurgeBridgeNotSet();
     error DestBridgeAddressNotSet();
+
+    ////////////////////////////////////////////////////////////////////////
+    // Modifiers
+    ////////////////////////////////////////////////////////////////////////
+
+    modifier onlyBridgeController() {
+        if (msg.sender != BRIDGE_CONTROLLER) {
+            revert OnlyBridgeController();
+        }
+        _;
+    }
 
     ////////////////////////////////////////////////////////////////////////
     // Constructor
@@ -108,10 +118,9 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
      * @notice Send a message to the destination chain via Surge bridge
      * @param message The encoded bridge message (ejection or renewal)
      */
-    function sendMessage(bytes calldata message) external payable virtual override {
-        if (address(surgeBridge) == address(0)) {
-            revert SurgeBridgeNotSet();
-        }
+    function sendMessage(
+        bytes calldata message
+    ) external payable virtual override onlyBridgeController {
         if (destBridgeAddress == address(0)) {
             revert DestBridgeAddressNotSet();
         }
@@ -166,6 +175,17 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
         }
 
         emit MessageReceived(data);
+    }
+
+    /**
+     * @notice Get the minimum gas limit required for sending a message
+     * @param message The message bytes to calculate gas limit for
+     * @return The minimum gas limit
+     */
+    function getMinGasLimit(
+        bytes calldata message
+    ) external view virtual override returns (uint32) {
+        return surgeBridge.getMessageMinGasLimit(message.length);
     }
 
     ////////////////////////////////////////////////////////////////////////

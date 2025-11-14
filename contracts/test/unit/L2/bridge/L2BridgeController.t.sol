@@ -45,6 +45,10 @@ contract MockBridge is IBridge {
         lastMessage = message;
     }
 
+    function getMinGasLimit(bytes calldata) external pure override returns (uint32) {
+        return 100000;
+    }
+
     function resetCounters() external {
         sendMessageCallCount = 0;
         lastMessage = "";

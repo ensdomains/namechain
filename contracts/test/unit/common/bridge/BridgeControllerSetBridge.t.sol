@@ -29,6 +29,10 @@ contract MockBridge is IBridge {
     function sendMessage(bytes memory message) external payable override {
         lastMessage = message;
     }
+
+    function getMinGasLimit(bytes calldata) external pure override returns (uint32) {
+        return 100000;
+    }
 }
 
 contract BridgeControllerSetBridgeTest is Test {
