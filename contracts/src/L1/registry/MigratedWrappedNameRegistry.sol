@@ -171,7 +171,7 @@ contract MigratedWrappedNameRegistry is
 
     function getResolver(string calldata label) external view override returns (address) {
         uint256 canonicalId = LibLabel.labelToCanonicalId(label);
-        IRegistryDatastore.Entry memory entry = DATASTORE.getEntry(address(this), canonicalId);
+        IRegistryDatastore.Entry memory entry = this.getEntry(canonicalId);
         uint64 expires = entry.expiry;
 
         // Use fallback resolver for unregistered names

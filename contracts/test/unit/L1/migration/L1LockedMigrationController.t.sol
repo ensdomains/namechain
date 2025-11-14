@@ -133,7 +133,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Grant necessary roles
         registry.grantRootRoles(
-            RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_BURN,
+            RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_UNREGISTER,
             address(bridgeController)
         );
         bridgeController.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(controller));

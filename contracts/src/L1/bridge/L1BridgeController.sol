@@ -115,8 +115,7 @@ contract L1BridgeController is EjectionController {
             // check that the label matches the token id
             _assertTokenIdMatchesLabel(tokenId, transferData.dnsEncodedName);
 
-            // burn the token
-            REGISTRY.burn(tokenId);
+            REGISTRY.unregister(tokenId);
 
             // send the message to the bridge
             BRIDGE.sendMessage(BridgeEncoderLib.encodeEjection(transferData));
