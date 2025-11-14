@@ -7,7 +7,6 @@ import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Re
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
 import {MigrationData} from "../../common/bridge/types/TransferData.sol";
 import {UnauthorizedCaller} from "../../common/CommonErrors.sol";
 import {L1BridgeController} from "../bridge/L1BridgeController.sol";
@@ -177,8 +176,7 @@ contract L1UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC
         }
         // Handle L2 migration by sending ejection message across bridge
         else {
-            bytes memory message = BridgeEncoderLib.encodeEjection(migrationData.transferData);
-            L1_BRIDGE_CONTROLLER.BRIDGE().sendMessage(message);
+            L1_BRIDGE_CONTROLLER.performMigrationEjection(tokenId, migrationData.transferData);
         }
     }
 }

@@ -6,20 +6,11 @@ export default execute(
     const l1EthRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
-    // TODO: real bridge
-    const l1Bridge = get<(typeof artifacts.MockL1Bridge)["abi"]>("MockBridge");
-
+    // Deploy bridge controller with dummy bridge address first to break circular dependency
     const l1BridgeController = await deploy("BridgeController", {
       account: deployer,
       artifact: artifacts.L1BridgeController,
-      args: [l1EthRegistry.address, l1Bridge.address],
-    });
-
-    // Set the bridge controller on the bridge
-    await write(l1Bridge, {
-      functionName: "setBridgeController",
-      args: [l1BridgeController.address],
-      account: deployer,
+      args: [l1EthRegistry.address, "0x0000000000000000000000000000000000000000"], // Dummy bridge address
     });
 
     // Grant registrar and renew roles to the bridge controller on the eth registry
@@ -33,16 +24,9 @@ export default execute(
       ],
       account: deployer,
     });
-
-    // Grant bridge roles to the bridge on the bridge controller
-    await write(l1BridgeController, {
-      functionName: "grantRootRoles",
-      args: [ROLES.OWNER.BRIDGE.EJECTOR, l1Bridge.address],
-      account: deployer,
-    });
   },
   {
     tags: ["L1BridgeController", "registry", "l1"],
-    dependencies: ["L1ETHRegistry", "MockL1Bridge"],
+    dependencies: ["ETHRegistry"], // Remove L1Bridge dependency
   },
 );
