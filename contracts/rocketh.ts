@@ -51,7 +51,7 @@ import * as viemFunctions from "@rocketh/viem";
 
 // ------------------------------------------------------------------------------------------------
 // we re-export the artifacts, so they are easily available from the alias
-import artifacts from "./generated/artifacts.js";
+import artifacts from "./generated/artifacts.ts";
 export { artifacts };
 // ------------------------------------------------------------------------------------------------
 
