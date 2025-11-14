@@ -47,11 +47,22 @@ import {L1BridgeController} from "../bridge/L1BridgeController.sol";
 
 /// @notice Resolver that performs ".eth" resolutions for Namechain (via gateway) or V1 (via fallback).
 ///
-/// Mainnet ".eth" resolutions do not reach this resolver unless there are no resolvers set.
-///
-/// 1. If there is an active V1 registration, resolve using V1 Registry.
+/// 0. Mainnet ".eth" resolutions do not reach this resolver unless set directly or there are no resolvers.
+/// 1. If there is an active V1 registration (unmigrated), resolve using V1 Registry.
 /// 2. Otherwise, resolve using Namechain.
 /// 3. If no resolver is found, reverts `UnreachableName`.
+///
+///                       *** Mainnet (L1) ***                |            *** Namechain (L2) ***
+///                                                           |
+///                             <root> (RootRegistry)         |   Gateway
+///                                |                          |      |
+///                              <eth> (ETHRegistry) - - - - -|- - - + - - - -> <eth> (ETHRegistry)
+///             ____________ETHTLDResolver____________        |             (null resolver)
+///            /                   |                  \       |             /             \
+///    0.) <alice>        1.) <unmigrated>             *      |      2.) <bob>           3. ??? ==> UnreachableName
+///  DedicatedResolver       PublicResolver                   |   DedicatedResolver
+///   => Mainnet (V2)        => Mainnet (V1)                  |   => Namechain (V2)
+///
 contract ETHTLDResolver is
     ICompositeResolver,
     IVerifiableResolver,
