@@ -44,6 +44,7 @@ string constant TEXT_KEY_DNSSEC_CONTEXT = "eth.ens.dnssec-context";
 
 /// @notice Resolver that performs imported DNS fallback to V1 and gasless DNS resolution.
 ///
+/// 0. Note: an imported DNS name will not reach this resolver unless set specifically.
 /// 1. If there exists a resolver in V1, go to 4.
 /// 2. Query the DNSSEC oracle for TXT records.
 /// 3. Verify TXT records, find ENS1 record, parse resolver and context.
