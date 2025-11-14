@@ -78,7 +78,7 @@ contract PermissionedRegistry is
         );
         entry.subregistry = address(registry);
         DATASTORE.setEntry(tokenId, entry);
-        emit SubregistryUpdate(tokenId, address(registry));
+        emit SubregistryUpdated(tokenId, address(registry));
     }
 
     function setResolver(uint256 anyId, address resolver) external override {
@@ -88,7 +88,7 @@ contract PermissionedRegistry is
         );
         entry.resolver = resolver;
         DATASTORE.setEntry(tokenId, entry);
-        emit ResolverUpdate(tokenId, resolver);
+        emit ResolverUpdated(tokenId, resolver);
     }
 
     /// @inheritdoc IRegistry
@@ -152,7 +152,7 @@ contract PermissionedRegistry is
         if (address(observer) != address(0)) {
             observer.onRenew(tokenId, expires, msg.sender);
         }
-        emit NameRenewed(tokenId, expires, msg.sender);
+        emit ExpiryUpdated(tokenId, expires);
     }
 
     function grantRoles(
@@ -304,15 +304,15 @@ contract PermissionedRegistry is
         entry.subregistry = address(registry);
         entry.resolver = resolver;
         DATASTORE.setEntry(tokenId, entry);
-
+        uint256 resourceId = _constructResource(tokenId, entry);
         // emit NameRegistered before mint so we can determine this is a registry (in an indexer)
-        emit NameRegistered(tokenId, label, expires, msg.sender);
+        emit NameRegistered(tokenId, label, expires, msg.sender, resourceId);
 
         _mint(owner, tokenId, 1, "");
-        _grantRoles(_constructResource(tokenId, entry), roleBitmap, owner, false);
+        _grantRoles(resourceId, roleBitmap, owner, false);
 
-        emit SubregistryUpdate(tokenId, address(registry));
-        emit ResolverUpdate(tokenId, resolver);
+        emit SubregistryUpdated(tokenId, address(registry));
+        emit ResolverUpdated(tokenId, resolver);
     }
 
     /**
@@ -389,7 +389,7 @@ contract PermissionedRegistry is
                 DATASTORE.setEntry(tokenId, entry);
                 uint256 newTokenId = _constructTokenId(tokenId, entry);
                 _mint(owner, newTokenId, 1, "");
-                emit TokenRegenerated(tokenId, newTokenId);
+                emit TokenRegenerated(tokenId, newTokenId, _constructResource(newTokenId, entry));
             }
         }
     }
