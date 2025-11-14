@@ -49,7 +49,7 @@ export async function deployVerifiableProxy({
   const receipt = await waitForTransactionReceipt(walletClient, { hash });
   const [log] = parseEventLogs({
     abi: verifiableFactoryAbi,
-	eventName: 'ProxyDeployed',
+    eventName: "ProxyDeployed",
     logs: receipt.logs,
   });
   const contract = getContract({
@@ -61,6 +61,6 @@ export async function deployVerifiableProxy({
   // Attach deployment metadata for gas tracking
   return Object.assign(contract, {
     deploymentHash: hash,
-    deploymentReceipt: receipt
+    deploymentReceipt: receipt,
   });
 }

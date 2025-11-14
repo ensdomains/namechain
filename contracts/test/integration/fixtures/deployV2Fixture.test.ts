@@ -1,9 +1,9 @@
 import hre from "hardhat";
-import { type Address, zeroAddress } from "viem";
+import { type Address, getAddress, zeroAddress } from "viem";
 import { describe, expect, it } from "vitest";
 
 import { expectVar } from "../../utils/expectVar.js";
-import { labelToCanonicalId } from "../../utils/utils.js";
+import { dnsEncodeName, labelToCanonicalId } from "../../utils/utils.js";
 import { deployV2Fixture } from "./deployV2Fixture.js";
 import { ROLES } from "../../../deploy/constants.js";
 
@@ -73,6 +73,22 @@ describe("deployV2Fixture", () => {
       resolverAddress: zeroAddress,
     });
     expectVar({ dedicatedResolver }).toBeUndefined();
+  });
+
+  it("setupName() matches findRegistries()", async () => {
+    const F = await loadFixture();
+    const name = "a.b.c.d";
+    const { registries } = await F.setupName({
+      name,
+      resolverAddress: zeroAddress,
+    });
+    const regs1 = registries.map((x) =>
+      x ? getAddress(x.address) : zeroAddress,
+    );
+    const regs2 = await F.universalResolver.read.findRegistries([
+      dnsEncodeName(name),
+    ]);
+    expect(regs1).toStrictEqual(regs2);
   });
 
   it("overlapping names", async () => {

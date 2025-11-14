@@ -13,6 +13,7 @@ import {
   namehash,
   parseAbi,
   toHex,
+  zeroAddress,
 } from "viem";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 
@@ -21,9 +22,9 @@ import { UncheckedRollup } from "../../../lib/unruggable-gateways/src/UncheckedR
 import { expectVar } from "../../utils/expectVar.js";
 import { injectRPCCounter } from "../../utils/hardhat-counter.js";
 import {
+  type KnownProfile,
   COIN_TYPE_DEFAULT,
   COIN_TYPE_ETH,
-  type KnownProfile,
   PROFILE_ABI,
   bundleCalls,
   makeResolutions,
@@ -84,19 +85,23 @@ async function fixture() {
   const hooksAddress = await deployArtifact(mainnetV2.walletClient, {
     file: urgArtifact("UncheckedVerifierHooks"),
   });
+  const verifierGateways = [ccip.endpoint];
   const verifierAddress = await deployArtifact(mainnetV2.walletClient, {
     file: urgArtifact("UncheckedVerifier"),
-    args: [[ccip.endpoint], 0, hooksAddress],
+    args: [verifierGateways, 0, hooksAddress],
     libs: { GatewayVM },
   });
   const ethResolver = await mainnetV2.deployDedicatedResolver();
-  const burnAddressV1 = "0x000000000000000000000000000000000000FadE";
+  const mockBridgeController = await chain1.viem.deployContract(
+    "MockBridgeController",
+  );
   const ethTLDResolver = await chain1.viem.deployContract(
     "ETHTLDResolver",
     [
-      mainnetV1.ensRegistry.address,
+      mainnetV1.nameWrapper.address,
       mainnetV1.batchGatewayProvider.address,
-      burnAddressV1,
+      mainnetV2.ethRegistry.address,
+      mockBridgeController.address,
       ethResolver.address,
       verifierAddress,
       namechain.datastore.address,
@@ -112,11 +117,12 @@ async function fixture() {
     ethTLDResolver,
     ethResolver,
     mainnetV1,
-    burnAddressV1,
+    mockBridgeController,
     mainnetV2,
     namechain,
     gateway,
     verifierAddress,
+    verifierGateways,
   } as const;
 }
 
@@ -127,7 +133,7 @@ const loadFixture = async () => {
 
 const dummySelector = "0x12345678";
 const testAddress = "0x8000000000000000000000000000000000000001";
-const testNames = ["test.eth", "a.b.c.test.eth"];
+const ethNames = ["test.eth", "a.b.c.test.eth"] as const;
 
 describe("ETHTLDResolver", () => {
   const rpcs: Record<string, any> = {};
@@ -150,7 +156,8 @@ describe("ETHTLDResolver", () => {
       "IERC165",
       "IERC7996",
       "IExtendedResolver",
-      "IRegistryResolver",
+      "ICompositeResolver",
+      "IVerifiableResolver",
     ],
   });
 
@@ -207,9 +214,17 @@ describe("ETHTLDResolver", () => {
       const address = await F.ethTLDResolver.read.namechainVerifier();
       expectVar({ address }).toEqualAddress(testAddress);
     });
+    it("verifierMetadata", async () => {
+      const F = await loadFixture();
+      const [verifier, gateways] = await F.ethTLDResolver.read.verifierMetadata(
+        [dnsEncodeName("any.eth")],
+      );
+      expectVar({ verifier }).toStrictEqual(F.verifierAddress);
+      expectVar({ gateways }).toStrictEqual(F.verifierGateways);
+    });
   });
 
-  describe("eth", () => {
+  describe("<self>", () => {
     it("ethResolver", async () => {
       const F = await loadFixture();
       const address = await F.ethTLDResolver.read.ethResolver();
@@ -241,8 +256,104 @@ describe("ETHTLDResolver", () => {
     });
   });
 
+  describe("introspection", () => {
+    it("<self>", async () => {
+      const F = await loadFixture();
+      const resolverAddress = await F.ethTLDResolver.read.ethResolver();
+      const dns = dnsEncodeName("eth");
+      await expect(
+        F.ethTLDResolver.read.requiresOffchain([dns]),
+        "requiresOffchain",
+      ).resolves.toStrictEqual(false);
+      await expect(
+        F.ethTLDResolver.read.getResolver([dns]),
+        "getResolver",
+      ).resolves.toStrictEqual([resolverAddress, false]);
+    });
+    it("not .eth", async () => {
+      const F = await loadFixture();
+      const dns = dnsEncodeName("com");
+      await expect(F.ethTLDResolver.read.requiresOffchain([dns]))
+        .toBeRevertedWithCustomError("UnreachableName")
+        .withArgs([dns]);
+      await expect(F.ethTLDResolver.read.getResolver([dns]))
+        .toBeRevertedWithCustomError("UnreachableName")
+        .withArgs([dns]);
+    });
+    describe("unregistered", () => {
+      for (const name of ethNames) {
+        it(name, async () => {
+          const F = await loadFixture();
+          const dns = dnsEncodeName(name);
+          await expect(
+            F.ethTLDResolver.read.isActiveRegistrationV1([
+              labelhash(getLabelAt(name, -2)),
+            ]),
+            "isActiveRegistrationV1",
+          ).resolves.toStrictEqual(false);
+          await expect(
+            F.ethTLDResolver.read.requiresOffchain([dns]),
+            "requiresOffchain",
+          ).resolves.toStrictEqual(true);
+          await sync();
+          await expect(
+            F.ethTLDResolver.read.getResolver([dns]),
+            "getResolver",
+          ).resolves.toStrictEqual([zeroAddress, true]);
+        });
+      }
+    });
+    describe("Mainnet V1", () => {
+      for (const name of ethNames) {
+        it(name, async () => {
+          const F = await loadFixture();
+          const dns = dnsEncodeName(name);
+          const { resolverAddress } = await F.mainnetV1.setupName({ name });
+          await expect(
+            F.ethTLDResolver.read.isActiveRegistrationV1([
+              labelhash(getLabelAt(name, -2)),
+            ]),
+            "isActiveRegistrationV1",
+          ).resolves.toStrictEqual(true);
+          await expect(
+            F.ethTLDResolver.read.requiresOffchain([dns]),
+            "requiresOffchain",
+          ).resolves.toStrictEqual(false);
+          await expect(
+            F.ethTLDResolver.read.getResolver([dns]),
+            "getResolver",
+          ).resolves.toStrictEqual([resolverAddress, false]);
+        });
+      }
+    });
+    describe("Namechain", () => {
+      for (const name of ethNames) {
+        it(name, async () => {
+          const F = await loadFixture();
+          const dns = dnsEncodeName(name);
+          const { resolverAddress } = await F.namechain.setupName({ name });
+          await sync();
+          await expect(
+            F.ethTLDResolver.read.isActiveRegistrationV1([
+              labelhash(getLabelAt(name)),
+            ]),
+            "isActiveRegistrationV1",
+          ).resolves.toStrictEqual(false);
+          await expect(
+            F.ethTLDResolver.read.requiresOffchain([dns]),
+            "requiresOffchain",
+          ).resolves.toStrictEqual(true);
+          await expect(
+            F.ethTLDResolver.read.getResolver([dns]),
+            "getResolver",
+          ).resolves.toStrictEqual([resolverAddress, true]);
+        });
+      }
+    });
+  });
+
   describe("unregistered", () => {
-    for (const name of testNames) {
+    for (const name of ethNames) {
       it(name, async () => {
         const F = await loadFixture();
         const [res] = makeResolutions({
@@ -277,8 +388,8 @@ describe("ETHTLDResolver", () => {
     }
   });
 
-  describe("still registered on V1", () => {
-    for (const name of testNames) {
+  describe("on V1", () => {
+    for (const name of ethNames) {
       it(name, async () => {
         const F = await loadFixture();
         const kp: KnownProfile = {
@@ -300,8 +411,91 @@ describe("ETHTLDResolver", () => {
     }
   });
 
-  describe("migrated from V1", () => {
-    for (const name of testNames) {
+  describe("migrating to L1", () => {
+    for (const name of ethNames) {
+      it(name, async () => {
+        const F = await loadFixture();
+        const kp: KnownProfile = {
+          name,
+          addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
+        };
+        const [res] = makeResolutions(kp);
+        await F.mainnetV1.setupName(kp);
+        await F.mainnetV1.publicResolver.write.multicall([[res.write]]);
+        const label2LD = getLabelAt(name, -2);
+        await expect(
+          F.ethTLDResolver.read.isActiveRegistrationV1([labelhash(label2LD)]),
+          "active.before",
+        ).resolves.toStrictEqual(true);
+        // "burn" for post-migration state
+        await F.mainnetV1.ethRegistrar.write.safeTransferFrom([
+          F.mainnetV1.walletClient.account.address,
+          F.mockBridgeController.address,
+          BigInt(labelhash(label2LD)),
+        ]);
+        // setup post-migration state
+        const { dedicatedResolver } = await F.mainnetV2.setupName({ name });
+        await dedicatedResolver.write.multicall([[res.writeDedicated]]);
+        await expect(
+          F.ethTLDResolver.read.isActiveRegistrationV1([labelhash(label2LD)]),
+          "active.after",
+        ).resolves.toStrictEqual(false);
+        const [answer, resolver] =
+          await F.mainnetV2.universalResolver.read.resolve([
+            dnsEncodeName(kp.name),
+            res.call,
+          ]);
+        expectVar({ resolver }).toEqualAddress(dedicatedResolver.address);
+        res.expect(answer);
+      });
+    }
+  });
+
+  describe("migrating to L2", () => {
+    for (const name of ethNames) {
+      it(name, async () => {
+        const F = await loadFixture();
+        const kp: KnownProfile = {
+          name,
+          addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
+        };
+        const [res] = makeResolutions(kp);
+        await F.mainnetV1.setupName(kp);
+        await F.mainnetV1.publicResolver.write.multicall([[res.write]]);
+        const label2LD = getLabelAt(name, -2);
+        await expect(
+          F.ethTLDResolver.read.isActiveRegistrationV1([labelhash(label2LD)]),
+          "active.before",
+        ).resolves.toStrictEqual(true);
+        // "burn" for post-migration state
+        await F.mainnetV1.ethRegistrar.write.safeTransferFrom([
+          F.mainnetV1.walletClient.account.address,
+          F.mockBridgeController.address,
+          BigInt(labelhash(label2LD)),
+        ]);
+        // setup faux premigrated state
+        await F.namechain.setupName({
+          name: `${label2LD}.eth`,
+          resolverAddress: toHex(1, { size: 20 }),
+        });
+        await sync();
+        await expect(
+          F.ethTLDResolver.read.isActiveRegistrationV1([labelhash(label2LD)]),
+          "active.after",
+        ).resolves.toStrictEqual(false);
+        const [answer, resolver] =
+          await F.mainnetV2.universalResolver.read.resolve([
+            dnsEncodeName(kp.name),
+            res.call,
+          ]);
+        expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
+        res.expect(answer);
+      });
+    }
+  });
+
+  describe("on L2", () => {
+    for (const name of ethNames) {
       it(name, async () => {
         const F = await loadFixture();
         const kp: KnownProfile = {
@@ -313,7 +507,7 @@ describe("ETHTLDResolver", () => {
         const tokenId = BigInt(labelhash(getLabelAt(kp.name, -2)));
         await F.mainnetV1.ethRegistrar.write.safeTransferFrom([
           F.mainnetV1.walletClient.account.address,
-          F.burnAddressV1,
+          F.mockBridgeController.address,
           tokenId,
         ]);
         const available = await F.mainnetV1.ethRegistrar.read.available([
@@ -334,8 +528,43 @@ describe("ETHTLDResolver", () => {
     }
   });
 
-  describe("ejected from Namechain", () => {
-    for (const name of testNames) {
+  // TODO: enable this test after burn() => unregister()
+  // describe("ejecting L1 -> L2", () => {
+  //   for (const name of ethNames) {
+  //     it(name, async () => {
+  //       const F = await loadFixture();
+  //       const kp: KnownProfile = {
+  //         name,
+  //         addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
+  //       };
+  //       const [res] = makeResolutions(kp);
+  //       const { dedicatedResolver } = await F.mainnetV2.setupName(kp);
+  //       await dedicatedResolver.write.multicall([[res.writeDedicated]]);
+  //       // "burn" for post-ejection state
+  //       const label2LD = getLabelAt(name, -2);
+  //       const [tokenId] = await F.mainnetV2.ethRegistry.read.getNameData([
+  //         label2LD,
+  //       ]);
+  //       await F.mainnetV2.ethRegistry.write.unregister([tokenId]);
+  //       // setup faux ejected state
+  //       await F.namechain.setupName({
+  //         name: `${label2LD}.eth`,
+  //         resolverAddress: toHex(2, { size: 20 }),
+  //       });
+  //       await sync();
+  //       const [answer, resolver] =
+  //         await F.mainnetV2.universalResolver.read.resolve([
+  //           dnsEncodeName(kp.name),
+  //           res.call,
+  //         ]);
+  //       expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
+  //       res.expect(answer);
+  //     });
+  //   }
+  // });
+
+  describe("on L1", () => {
+    for (const name of ethNames) {
       it(name, async () => {
         const F = await loadFixture();
         const kp: KnownProfile = {
@@ -357,31 +586,53 @@ describe("ETHTLDResolver", () => {
     }
   });
 
-  describe("registered on Namechain", () => {
-    for (const name of testNames) {
+  describe("expired on L1", () => {
+    for (const name of ethNames) {
       it(name, async () => {
         const F = await loadFixture();
         const kp: KnownProfile = {
           name,
           addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
         };
+        const interval = 1000n;
+        //await sync();
+        const { timestamp } = await F.mainnetV2.publicClient.getBlock();
         const [res] = makeResolutions(kp);
-        const { dedicatedResolver } = await F.namechain.setupName(kp);
+        const { dedicatedResolver } = await F.mainnetV2.setupName({
+          name: kp.name,
+          expiry: timestamp + interval,
+        });
         await dedicatedResolver.write.multicall([[res.writeDedicated]]);
-        await sync();
+        //await sync();
         const [answer, resolver] =
           await F.mainnetV2.universalResolver.read.resolve([
             dnsEncodeName(kp.name),
             res.call,
           ]);
-        expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
+        expectVar({ resolver }).toEqualAddress(dedicatedResolver.address);
         res.expect(answer);
+        await chain1.networkHelpers.mine(2, { interval }); // wait for the name to expire
+        await sync(); // expired => checks namechain
+        await expect(
+          F.mainnetV2.universalResolver.read.resolve([
+            dnsEncodeName(kp.name),
+            res.call,
+          ]),
+        )
+          .toBeRevertedWithCustomError("ResolverError")
+          .withArgs([
+            encodeErrorResult({
+              abi: F.ethTLDResolver.abi,
+              errorName: "UnreachableName",
+              args: [dnsEncodeName(kp.name)],
+            }),
+          ]);
       });
     }
   });
 
-  describe("expired", () => {
-    for (const name of testNames) {
+  describe("expired on L2", () => {
+    for (const name of ethNames) {
       it(name, async () => {
         const F = await loadFixture();
         const kp: KnownProfile = {
@@ -406,30 +657,27 @@ describe("ETHTLDResolver", () => {
         await chain2.networkHelpers.mine(2, { interval }); // wait for the name to expire
         await sync();
         await expect(
-          F.ethTLDResolver.read.resolve([dnsEncodeName(kp.name), res.call]),
-        ).toBeRevertedWithCustomError("UnreachableName");
-        // await expect(
-        //   F.mainnetV2.universalResolver.read.resolve([
-        //     dnsEncodeName(kp.name),
-        //     res.call,
-        //   ]),
-        // )
-        //   .toBeRevertedWithCustomError("ResolverError")
-        //   .withArgs(
-        //     encodeErrorResult({
-        //       abi: F.ETHTLDResolver.abi,
-        //       errorName: "UnreachableName",
-        //       args: [dnsEncodeName(kp.name)],
-        //     }),
-        //   );
+          F.mainnetV2.universalResolver.read.resolve([
+            dnsEncodeName(kp.name),
+            res.call,
+          ]),
+        )
+          .toBeRevertedWithCustomError("ResolverError")
+          .withArgs([
+            encodeErrorResult({
+              abi: F.ethTLDResolver.abi,
+              errorName: "UnreachableName",
+              args: [dnsEncodeName(kp.name)],
+            }),
+          ]);
       });
     }
   });
 
   describe("profile support", () => {
     const kp: KnownProfile = {
-      name: testNames[0],
-      primary: { value: testNames[0] },
+      name: ethNames[0],
+      primary: { value: ethNames[0] },
       addresses: [
         { coinType: COIN_TYPE_ETH, value: testAddress },
         { coinType: COIN_TYPE_DEFAULT, value: testAddress },
@@ -481,7 +729,7 @@ describe("ETHTLDResolver", () => {
     it("hasAddr()", async () => {
       const F = await loadFixture();
       const kp: KnownProfile = {
-        name: testNames[0],
+        name: ethNames[0],
         hasAddresses: [
           { coinType: COIN_TYPE_ETH, exists: false },
           { coinType: COIN_TYPE_DEFAULT, exists: true },
@@ -504,7 +752,7 @@ describe("ETHTLDResolver", () => {
     it("addr() w/fallback", async () => {
       const F = await loadFixture();
       const kp: KnownProfile = {
-        name: testNames[0],
+        name: ethNames[0],
         addresses: [
           { coinType: COIN_TYPE_ETH, value: testAddress },
           { coinType: COIN_TYPE_DEFAULT, value: testAddress },
@@ -524,7 +772,7 @@ describe("ETHTLDResolver", () => {
     });
     describe("ABI()", () => {
       const kp: KnownProfile = {
-        name: testNames[0],
+        name: ethNames[0],
         abis: [
           { contentType: 0n, value: "0x" },
           { contentType: 1n << 0n, value: "0x11" },
@@ -589,7 +837,7 @@ describe("ETHTLDResolver", () => {
       const F = await loadFixture();
       const max = 10;
       const kp: KnownProfile = {
-        name: testNames[0],
+        name: ethNames[0],
         addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }], // 1 proof
       };
       try {
@@ -622,7 +870,7 @@ describe("ETHTLDResolver", () => {
     });
     it("every multicall failed", async () => {
       const kp: KnownProfile = {
-        name: testNames[0],
+        name: ethNames[0],
         errors: Array.from({ length: 2 }, (_, i) => {
           const call = toHex(i, { size: 4 });
           return {
@@ -652,7 +900,7 @@ describe("ETHTLDResolver", () => {
     // bytes-like: text(*), addr(*), contenthash()
     // complex: ABI()
 
-    for (const name of testNames) {
+    for (const name of ethNames) {
       // see: RegistryDatastore.test.ts
       // to target exact resolver of "x.y.eth"
       // 1. AccountProof(registry)
