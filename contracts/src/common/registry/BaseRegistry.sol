@@ -33,8 +33,8 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
 
     modifier onlyTokenOwner(uint256 tokenId) {
         address owner = ownerOf(tokenId);
-        if (owner != msg.sender) {
-            revert AccessDenied(tokenId, owner, msg.sender);
+        if (owner != _msgSender()) {
+            revert AccessDenied(tokenId, owner, _msgSender());
         }
         _;
     }
@@ -68,11 +68,7 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     ///
     /// @return The address of the registry for this subdomain, or `address(0)` if none exists.
     function getSubregistry(string calldata label) external view virtual returns (IRegistry) {
-        IRegistryDatastore.Entry memory entry = DATASTORE.getEntry(
-            address(this),
-            LibLabel.labelToCanonicalId(label)
-        );
-        return IRegistry(entry.subregistry);
+        return DATASTORE.getEntry(this, LibLabel.labelToCanonicalId(label)).subregistry;
     }
 
     /// @notice Fetches the resolver responsible for the specified label.
@@ -81,10 +77,6 @@ abstract contract BaseRegistry is IRegistry, ERC1155Singleton {
     ///
     /// @return resolver The address of a resolver responsible for this name, or `address(0)` if none exists.
     function getResolver(string calldata label) external view virtual returns (address resolver) {
-        IRegistryDatastore.Entry memory entry = DATASTORE.getEntry(
-            address(this),
-            LibLabel.labelToCanonicalId(label)
-        );
-        resolver = entry.resolver;
+        return DATASTORE.getEntry(this, LibLabel.labelToCanonicalId(label)).resolver;
     }
 }
