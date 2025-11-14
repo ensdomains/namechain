@@ -96,6 +96,10 @@ contract BridgeMessagesTest is Test {
         // Grant bridge roles so the NEW bridges can call the controllers
         l1Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l1Bridge));
         l2Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l2Bridge));
+
+        // Fund the controllers for bridge operations
+        vm.deal(address(l1Controller), 10 ether);
+        vm.deal(address(l2Controller), 10 ether);
     }
 
     function test_encodeDecodeEjection() public view {
@@ -239,6 +243,7 @@ contract BridgeMessagesTest is Test {
         bytes memory testMessage = "test message";
 
         vm.recordLogs();
+        vm.prank(address(l1Controller));
         l1Bridge.sendMessage(testMessage);
 
         // Check for MessageSent event
@@ -269,6 +274,7 @@ contract BridgeMessagesTest is Test {
         );
 
         vm.recordLogs();
+        vm.prank(address(l2Controller));
         l2Bridge.sendMessage(ejectionMessage);
 
         // Check for MessageSent event

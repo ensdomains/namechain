@@ -48,6 +48,29 @@ contract L1BridgeController is BridgeController {
     ////////////////////////////////////////////////////////////////////////
 
     /**
+     * @notice Perform an ejection for migration scenarios (bypasses locking checks)
+     * @param tokenId The token ID of the name being migrated
+     * @param transferData The transfer data for the migration
+     * @dev This is specifically for migration controllers that handle v1->v2 migrations
+     */
+    function performMigrationEjection(
+        uint256 tokenId,
+        TransferData calldata transferData
+    ) external onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
+        // Check that the owner is not null address
+        if (transferData.owner == address(0)) {
+            revert InvalidOwner();
+        }
+
+        // Check that the label matches the token id
+        _assertTokenIdMatchesLabel(tokenId, transferData.dnsEncodedName);
+
+        // Send the message to the bridge (without the locking check for migrations)
+        BRIDGE.sendMessage(BridgeEncoderLib.encodeEjection(transferData));
+        emit NameEjectedToL2(transferData.dnsEncodedName, tokenId);
+    }
+
+    /**
      * @dev Should be called when a name is being ejected to L1.
      *
      * @param transferData The transfer data for the name being ejected

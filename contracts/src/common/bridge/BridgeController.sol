@@ -130,6 +130,28 @@ abstract contract BridgeController is IERC1155Receiver, ERC165, EnhancedAccessCo
     }
 
     ////////////////////////////////////////////////////////////////////////
+    // External Functions
+    ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @notice Perform an ejection for external callers (e.g., migration controllers)
+     * @param tokenId The token ID of the name being ejected
+     * @param transferData The transfer data for the ejection
+     */
+    function performEjection(
+        uint256 tokenId,
+        TransferData calldata transferData
+    ) external onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
+        TransferData[] memory transferDataArray = new TransferData[](1);
+        transferDataArray[0] = transferData;
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenId;
+
+        _onEject(tokenIds, transferDataArray);
+    }
+
+    ////////////////////////////////////////////////////////////////////////
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
 

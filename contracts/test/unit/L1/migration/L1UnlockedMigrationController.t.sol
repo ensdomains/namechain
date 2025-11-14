@@ -15,6 +15,7 @@ import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Hol
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
+import {IBridge} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData, MigrationData} from "~src/common/bridge/types/TransferData.sol";
@@ -317,15 +318,20 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         mockBridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(0));
         mockBridge.setDestBridgeAddress(address(0x1234)); // Mock destination bridge
 
-        // Deploy REAL L1BridgeController with real dependencies
-        realL1BridgeController = new L1BridgeController(registry, mockBridge);
+        // Deploy REAL L1BridgeController with temporary mock bridge
+        IBridge tempBridge = IBridge(address(0));
+        realL1BridgeController = new L1BridgeController(registry, tempBridge);
 
-        // Re-deploy bridge with correct controller address
+        // Deploy the real bridge with the correct controller address
         mockBridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(realL1BridgeController));
         mockBridge.setDestBridgeAddress(address(0x1234)); // Mock destination bridge
 
-        // Re-deploy controller with final bridge
-        realL1BridgeController = new L1BridgeController(registry, mockBridge);
+        // Update the bridge reference in the controller
+        realL1BridgeController.grantRootRoles(BridgeRolesLib.ROLE_SET_BRIDGE, address(this));
+        realL1BridgeController.setBridge(mockBridge);
+        
+        // Fund the bridge controller for operations
+        vm.deal(address(realL1BridgeController), 10 ether);
 
         // Grant necessary roles to the ejection controller
         registry.grantRootRoles(
@@ -366,8 +372,10 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         // Verify user owns the token
         assertEq(ethRegistrarV1.ownerOf(testTokenId), user);
 
-        // Create migration data
-        MigrationData memory migrationData = _createMigrationData(testLabel);
+        // Create migration data with proper owner
+        MigrationData memory migrationData = _createMigrationDataWithL1Flag(testLabel, false);
+        // Update owner to match the actual token owner for this test
+        migrationData.transferData.owner = user;
         bytes memory data = abi.encode(migrationData);
 
         vm.recordLogs();
@@ -473,8 +481,9 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         // Verify user owns the wrapped token
         assertEq(nameWrapper.balanceOf(user, testTokenId), 1);
 
-        // Create migration data
-        MigrationData memory migrationData = _createMigrationData(testLabel);
+        // Create migration data with proper owner
+        MigrationData memory migrationData = _createMigrationDataWithL1Flag(testLabel, false);
+        migrationData.transferData.owner = user;
         bytes memory data = abi.encode(migrationData);
 
         vm.recordLogs();
@@ -560,8 +569,10 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         amounts[1] = 1;
 
         MigrationData[] memory migrationDataArray = new MigrationData[](2);
-        migrationDataArray[0] = _createMigrationData(label1);
-        migrationDataArray[1] = _createMigrationData(label2);
+        migrationDataArray[0] = _createMigrationDataWithL1Flag(label1, false);
+        migrationDataArray[0].transferData.owner = user;
+        migrationDataArray[1] = _createMigrationDataWithL1Flag(label2, false);
+        migrationDataArray[1].transferData.owner = user;
 
         bytes memory data = abi.encode(migrationDataArray);
 
@@ -875,10 +886,12 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         amounts[0] = 1;
         amounts[1] = 1;
 
-        // Create migration data with one wrong label
+        // Create migration data with one wrong label  
         MigrationData[] memory migrationDataArray = new MigrationData[](2);
-        migrationDataArray[0] = _createMigrationData(label1); // correct
-        migrationDataArray[1] = _createMigrationData(wrongLabel2); // wrong label for tokenId2
+        migrationDataArray[0] = _createMigrationDataWithL1Flag(label1, false); // correct
+        migrationDataArray[0].transferData.owner = user;
+        migrationDataArray[1] = _createMigrationDataWithL1Flag(wrongLabel2, false); // wrong label for tokenId2
+        migrationDataArray[1].transferData.owner = user;
 
         bytes memory data = abi.encode(migrationDataArray);
 
