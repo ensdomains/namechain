@@ -67,7 +67,7 @@ contract BridgeControllerSetBridgeTest is Test {
         registry.grantRootRoles(
             RegistryRolesLib.ROLE_REGISTRAR |
                 RegistryRolesLib.ROLE_RENEW |
-                RegistryRolesLib.ROLE_BURN,
+                RegistryRolesLib.ROLE_UNREGISTER,
             address(bridgeController)
         );
 
@@ -121,7 +121,6 @@ contract BridgeControllerSetBridgeTest is Test {
         vm.expectRevert();
         bridgeController.setBridge(IBridge(address(0)));
     }
-
 
     function test_setBridge_admin_role_can_grant_permission() public {
         bridge2 = new MockBridge();
