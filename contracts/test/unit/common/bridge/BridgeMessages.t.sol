@@ -191,7 +191,7 @@ contract BridgeMessagesTest is Test {
         surgeBridge.deliverMessage(sentMessage);
 
         // Verify the renewal was processed
-        uint64 updatedExpiry = datastore.getEntry(address(registry), tokenId).expiry;
+        uint64 updatedExpiry = registry.getExpiry(tokenId);
         assertEq(updatedExpiry, newExpiry, "Expiry should be updated");
 
         // Check for RenewalSynchronized event

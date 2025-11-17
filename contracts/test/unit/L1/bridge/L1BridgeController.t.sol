@@ -21,7 +21,7 @@ import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
 import {InvalidOwner} from "~src/common/CommonErrors.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
-import {IStandardRegistry} from "~src/common/registry/interfaces/IStandardRegistry.sol";
+import {IStandardRegistry, IRegistry} from "~src/common/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
@@ -385,7 +385,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
         registry.grantRootRoles(
             RegistryRolesLib.ROLE_REGISTRAR |
                 RegistryRolesLib.ROLE_RENEW |
-                RegistryRolesLib.ROLE_BURN,
+                RegistryRolesLib.ROLE_UNREGISTER,
             address(bridgeController)
         );
 
@@ -518,7 +518,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
         (uint256 tokenId, ) = registry.getNameData(testLabel);
 
         // Verify initial expiry was set
-        uint64 initialExpiry = datastore.getEntry(address(registry), tokenId).expiry;
+        uint64 initialExpiry = datastore.getEntry(registry, tokenId).expiry;
         assertEq(initialExpiry, expiryTime, "Initial expiry not set correctly");
 
         uint64 newExpiry = uint64(block.timestamp) + 200;
@@ -527,7 +527,7 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
         bridgeController.syncRenewal(tokenId, newExpiry);
 
         // Verify new expiry was set
-        uint64 updatedExpiry = datastore.getEntry(address(registry), tokenId).expiry;
+        uint64 updatedExpiry = datastore.getEntry(registry, tokenId).expiry;
         assertEq(updatedExpiry, newExpiry, "Expiry was not updated correctly");
     }
 
@@ -549,26 +549,12 @@ contract L1BridgeControllerTest is Test, ERC1155Holder, EnhancedAccessControl {
 
         uint64 newExpiry = uint64(block.timestamp) + 200;
 
-        vm.recordLogs();
-
+        vm.expectEmit(true, false, false, true);
+        emit IRegistry.ExpiryUpdated(tokenId, newExpiry, address(bridgeController));
+        vm.expectEmit(true, true, false, true);
+        emit L1BridgeController.RenewalSynchronized(tokenId, newExpiry);
         vm.prank(address(bridge));
         bridgeController.syncRenewal(tokenId, newExpiry);
-
-        Vm.Log[] memory entries = vm.getRecordedLogs();
-        bool foundNameRenewed = false;
-        bool foundRenewalSynchronized = false;
-        bytes32 nameRenewedSig = keccak256("NameRenewed(uint256,uint64,address)");
-        bytes32 renewalSynchronizedSig = keccak256("RenewalSynchronized(uint256,uint64)");
-        for (uint256 i = 0; i < entries.length; i++) {
-            if (entries[i].topics[0] == nameRenewedSig) {
-                foundNameRenewed = true;
-            }
-            if (entries[i].topics[0] == renewalSynchronizedSig) {
-                foundRenewalSynchronized = true;
-            }
-        }
-        assertTrue(foundNameRenewed, "NameRenewed event not found");
-        assertTrue(foundRenewalSynchronized, "RenewalSynchronized event not found");
     }
 
     function test_Revert_updateExpiration_expired_name() public {

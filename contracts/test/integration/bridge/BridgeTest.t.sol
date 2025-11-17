@@ -85,7 +85,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
         l1Registry.grantRootRoles(
             RegistryRolesLib.ROLE_REGISTRAR |
                 RegistryRolesLib.ROLE_RENEW |
-                RegistryRolesLib.ROLE_BURN,
+                RegistryRolesLib.ROLE_UNREGISTER,
             address(l1Controller)
         );
         l2Registry.grantRootRoles(

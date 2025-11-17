@@ -24,7 +24,6 @@ import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetada
 import {ITokenObserver} from "~src/common/registry/interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 
@@ -181,8 +180,11 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertTrue(foundEvent, "NameEjectedToL1 event not found");
 
         // Verify subregistry is cleared after ejection
-        address subregAddr = datastore.getEntry(address(ethRegistry), tokenId).subregistry;
-        assertEq(subregAddr, address(0), "Subregistry not cleared after ejection");
+        assertEq(
+            address(ethRegistry.getSubregistry(testLabel)),
+            address(0),
+            "Subregistry not cleared after ejection"
+        );
 
         // Verify token observer is set
         assertEq(
@@ -858,11 +860,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             "Token observer should not be set on direct mint"
         );
 
-        address subregAddr = datastore
-            .getEntry(address(ethRegistry), preMigrationTokenId)
-            .subregistry;
         assertEq(
-            subregAddr,
+            address(datastore.getEntry(ethRegistry, preMigrationTokenId).subregistry),
             address(ethRegistry),
             "Subregistry should not be cleared on direct mint"
         );
@@ -937,8 +936,11 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             "Token observer should be set after ejection"
         );
 
-        address subregAddr = datastore.getEntry(address(ethRegistry), mintedTokenId).subregistry;
-        assertEq(subregAddr, address(0), "Subregistry should be cleared after ejection");
+        assertEq(
+            address(datastore.getEntry(ethRegistry, mintedTokenId).subregistry),
+            address(0),
+            "Subregistry should be cleared after ejection"
+        );
     }
 
     function test_preMigration_directMintThenCompleteEjectionToL2() public {
@@ -987,17 +989,17 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             "L2 owner should now own the token after migration"
         );
 
-        address subregAddr = datastore
-            .getEntry(address(ethRegistry), preMigrationTokenId)
-            .subregistry;
         assertEq(
-            subregAddr,
+            address(ethRegistry.getSubregistry(preMigrationLabel)),
             l2Subregistry,
             "Subregistry should be set to L2 subregistry after migration"
         );
 
-        address resolverAddr = ethRegistry.getResolver(preMigrationLabel);
-        assertEq(resolverAddr, l2Resolver, "Resolver should be set to L2 resolver after migration");
+        assertEq(
+            ethRegistry.getResolver(preMigrationLabel),
+            l2Resolver,
+            "Resolver should be set to L2 resolver after migration"
+        );
 
         assertEq(
             address(ethRegistry.getTokenObserver(preMigrationTokenId)),
