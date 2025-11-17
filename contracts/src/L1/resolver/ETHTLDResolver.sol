@@ -50,16 +50,18 @@ import {L1BridgeController} from "../bridge/L1BridgeController.sol";
 /// 0. Mainnet ".eth" resolutions do not reach this resolver unless set directly or there are no resolvers.
 /// 1. If there is an active V1 registration (unmigrated), resolve using V1 Registry.
 /// 2. Otherwise, resolve using Namechain.
-/// 3. If no resolver is found, reverts `UnreachableName`.
+/// 3. If Namechain resolver is 0x1 (pre-migration), use V1.
+/// 4. If Namechain resolver is 0x2 (post-ejection), use V2 on Mainnet (w/expiry circumvention).
+/// 5. If no resolver is found, reverts `UnreachableName`.
 ///
-///                       *** Mainnet (L1) ***                |            *** Namechain (L2) ***
+///                       *** Mainnet (L1) ***                |                *** Namechain (L2) ***
 ///                                                           |
 ///                             <root> (RootRegistry)         |   Gateway
 ///                                |                          |      |
 ///                              <eth> (ETHRegistry) - - - - -|- - - + - - - -> <eth> (ETHRegistry)
 ///             ____________ETHTLDResolver____________        |             (null resolver)
 ///            /                   |                  \       |             /             \
-///    0.) <alice>        1.) <unmigrated>             *      |      2.) <bob>           3. ??? ==> UnreachableName
+///    0.) <alice>        1.) <unmigrated>             *      |      2.) <bob>           5. ??? ==> UnreachableName
 ///  DedicatedResolver       PublicResolver                   |   DedicatedResolver
 ///   => Mainnet (V2)        => Mainnet (V1)                  |   => Namechain (V2)
 ///
@@ -80,8 +82,8 @@ contract ETHTLDResolver is
 
     enum NameState {
         NAMECHAIN,
-        POST_MIGRATION,
-        POST_EJECTION
+        PRE_MIGRATION, // = address(0x1)
+        POST_EJECTION //  = address(0x2)
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -536,7 +538,7 @@ contract ETHTLDResolver is
         bytes memory name,
         NameState state
     ) internal view returns (address resolver) {
-        if (state == NameState.POST_MIGRATION) {
+        if (state == NameState.PRE_MIGRATION) {
             (resolver, , ) = RegistryUtils.findResolver(NAME_WRAPPER.ens(), name, 0);
         } else if (state == NameState.POST_EJECTION) {
             (, , uint256 offset, ) = NameCoder.matchSuffix(name, 0, NameCoder.ETH_NODE);
