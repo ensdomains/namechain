@@ -324,18 +324,6 @@ contract DedicatedResolver is
         //
     }
 
-    /// @dev Allow admins to grant admin roles.
-    function _getSettableRoles(
-        uint256 resource,
-        address account
-    ) internal view override returns (uint256) {
-        if (resource == ROOT_RESOURCE) {
-            uint256 roles = this.roles(resource, account);
-            return roles | (roles >> 128);
-        }
-        return super._getSettableRoles(resource, account);
-    }
-
     /// @dev Returns true if `x` has a single bit set.
     function _isPowerOf2(uint256 x) internal pure returns (bool) {
         return x > 0 && (x - 1) & x == 0;
