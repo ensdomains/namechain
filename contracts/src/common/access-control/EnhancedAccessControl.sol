@@ -100,7 +100,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      *
      * The caller must have all the necessary admin roles for the roles being granted.
      * Cannot be used with ROOT_RESOURCE directly, use grantRootRoles instead.
-     * Cannot be used to grant admin roles, admin roles must be granted through other mechanisms.
      *
      * @param resource The resource to grant roles within.
      * @param roleBitmap The roles bitmap to grant.
@@ -122,7 +121,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @dev Grants all roles in the given role bitmap to `account` in the ROOT_RESOURCE.
      *
      * The caller must have all the necessary admin roles for the roles being granted.
-     * Cannot be used to grant admin roles, admin roles must be granted through other mechanisms.
      *
      * @param roleBitmap The roles bitmap to grant.
      * @param account The account to grant roles to.
@@ -140,7 +138,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      *
      * The caller must have all the necessary admin roles for the roles being revoked.
      * Cannot be used with ROOT_RESOURCE directly, use revokeRootRoles instead.
-     * Cannot be used to revoke admin roles, admin roles must be revoked through other mechanisms.
      *
      * @param resource The resource to revoke roles within.
      * @param roleBitmap The roles bitmap to revoke.
@@ -162,7 +159,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @dev Revokes all roles in the given role bitmap from `account` in the ROOT_RESOURCE.
      *
      * The caller must have all the necessary admin roles for the roles being revoked.
-     * Cannot be used to revoke admin roles, admin roles must be revoked through other mechanisms.
      *
      * @param roleBitmap The roles bitmap to revoke.
      * @param account The account to revoke roles from.
@@ -455,7 +451,9 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     /**
      * @dev Returns the settable roles for `account` within `resource`.
      *
-     * The settable roles are the roles that the account can grant/revoke.
+     * The settable roles are the roles (both regular and admin) that the account can grant.
+     * An account can grant a regular role if they have the corresponding admin role.
+     * An account can grant an admin role if they have that same admin role.
      *
      * @param resource The resource to get settable roles for.
      * @param account The account to get settable roles for.
@@ -467,7 +465,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     ) internal view virtual returns (uint256) {
         uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) &
             EACBaseRolesLib.ADMIN_ROLES;
-        return adminRoleBitmap >> 128;
+        return (adminRoleBitmap >> 128) | adminRoleBitmap;
     }
 
     /**

@@ -5,6 +5,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
 import {IEnhancedAccessControl} from "../access-control/interfaces/IEnhancedAccessControl.sol";
+import {EACBaseRolesLib} from "../access-control/libraries/EACBaseRolesLib.sol";
 import {ERC1155Singleton} from "../erc1155/ERC1155Singleton.sol";
 import {IERC1155Singleton} from "../erc1155/interfaces/IERC1155Singleton.sol";
 import {LibLabel} from "../utils/LibLabel.sol";
@@ -397,6 +398,27 @@ contract PermissionedRegistry is
                 emit TokenRegenerated(tokenId, newTokenId, _constructResource(tokenId, entry));
             }
         }
+    }
+
+    /**
+     * @dev Override to prevent admin roles from being granted in the registry.
+     *
+     * In the registry context, admin roles are only assigned during name registration
+     * to maintain controlled permission management. This ensures that role delegation
+     * follows the intended security model where admin privileges are granted at
+     * registration time and cannot be arbitrarily granted afterward.
+     *
+     * @param resource The resource to get settable roles for.
+     * @param account The account to get settable roles for.
+     * @return The settable roles (regular roles only, not admin roles).
+     */
+    function _getSettableRoles(
+        uint256 resource,
+        address account
+    ) internal view virtual override returns (uint256) {
+        uint256 allRoles = super.roles(resource, account) | super.roles(ROOT_RESOURCE, account);
+        uint256 adminRoleBitmap = allRoles & EACBaseRolesLib.ADMIN_ROLES;
+        return adminRoleBitmap >> 128;
     }
 
     /// @dev Assert token is not expired and caller has necessary roles.

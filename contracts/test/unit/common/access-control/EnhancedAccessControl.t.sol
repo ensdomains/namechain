@@ -151,23 +151,6 @@ contract MockEnhancedAccessControl is EnhancedAccessControl, MockRoles {
     ) external returns (bool) {
         return _revokeAllRoles(resource, account, false);
     }
-
-    // Test helpers that bypass all authorization checks to test core logic
-    function grantRolesDirect(
-        uint256 resource,
-        uint256 roleBitmap,
-        address account
-    ) external returns (bool) {
-        return _grantRoles(resource, roleBitmap, account, false);
-    }
-
-    function revokeRolesDirect(
-        uint256 resource,
-        uint256 roleBitmap,
-        address account
-    ) external returns (bool) {
-        return _revokeRoles(resource, roleBitmap, account, false);
-    }
 }
 
 contract EnhancedAccessControlTest is Test, MockRoles {
@@ -265,9 +248,9 @@ contract EnhancedAccessControlTest is Test, MockRoles {
 
     // Test that authorized accounts can grant roles
     function test_grant_roles_authorized_admin() public {
-        // Grant regular role via grantRoles and admin role via direct method
+        // Grant regular role and admin role to user1
         access.grantRoles(RESOURCE_1, ROLE_A, user1);
-        access.grantRolesDirect(access.ROOT_RESOURCE(), ADMIN_ROLE_A, user1);
+        access.grantRootRoles(ADMIN_ROLE_A, user1);
 
         // Verify user1 has the roles
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
@@ -520,8 +503,8 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         // Verify user2 has ROLE_A
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user2));
 
-        // Grant admin role to user1 via direct method
-        access.grantRolesDirect(access.ROOT_RESOURCE(), ADMIN_ROLE_A, user1);
+        // Grant admin role to user1
+        access.grantRootRoles(ADMIN_ROLE_A, user1);
         // user1 attempts to revoke ROLE_A from user2, which should succeed since user1 has ADMIN_ROLE_A
         vm.prank(user1);
         access.revokeRoles(RESOURCE_1, ROLE_A, user2);
@@ -624,7 +607,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertTrue(access.hasRootRoles(ROLE_A, user2));
 
         // Grant admin role to user1 in root resource
-        access.grantRolesDirect(access.ROOT_RESOURCE(), ADMIN_ROLE_A, user1);
+        access.grantRootRoles(ADMIN_ROLE_A, user1);
 
         // user1 attempts to revoke ROLE_A from user2
         vm.prank(user1);
@@ -800,18 +783,13 @@ contract EnhancedAccessControlTest is Test, MockRoles {
 
     function test_transfer_roles_with_admin_roles() public {
         // Setup: Grant roles including admin roles to user1
-        // Regular roles must be granted via grantRoles
         access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
-        // Admin roles must be granted via direct method (due to our new restrictions)
-        access.grantRolesDirect(access.ROOT_RESOURCE(), ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
-
-        // Grant admin roles directly in the specific resource for testing transfer
-        // We need to use the internal method since public grantRoles blocks admin roles
-        access.grantRolesDirect(RESOURCE_1, ADMIN_ROLE_C, user1);
+        access.grantRootRoles(ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
+        access.grantRoles(RESOURCE_1, ADMIN_ROLE_C, user1);
 
         // Setup user2 with some existing roles
         access.grantRoles(RESOURCE_1, ROLE_C, user2);
-        access.grantRolesDirect(RESOURCE_1, ADMIN_ROLE_D, user2);
+        access.grantRoles(RESOURCE_1, ADMIN_ROLE_D, user2);
 
         // Verify initial state
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
@@ -1210,7 +1188,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user16));
 
         // Grant to 16th user should still fail even with admin role
-        access.grantRolesDirect(access.ROOT_RESOURCE(), ADMIN_ROLE_A, user16);
+        access.grantRootRoles(ADMIN_ROLE_A, user16);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACMaxAssignees.selector,
@@ -1447,23 +1425,6 @@ contract EnhancedAccessControlTest is Test, MockRoles {
             )
         );
         access.hasAssignees(RESOURCE_1, invalidRoleB);
-
-        // Test validation through direct helper functions (these bypass authorization)
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IEnhancedAccessControl.EACInvalidRoleBitmap.selector,
-                invalidRoleA
-            )
-        );
-        access.grantRolesDirect(RESOURCE_1, invalidRoleA, user1);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IEnhancedAccessControl.EACInvalidRoleBitmap.selector,
-                invalidRoleB
-            )
-        );
-        access.revokeRolesDirect(RESOURCE_1, invalidRoleB, user1);
 
         // Grant valid roles to verify the system still works correctly
         access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
@@ -1848,51 +1809,90 @@ contract EnhancedAccessControlTest is Test, MockRoles {
 
     // Tests for admin role restrictions
 
-    function test_grantRoles_rejects_admin_roles() public {
-        // Test that grantRoles reverts when trying to grant admin roles
+    function test_grantRoles_allows_admin_roles() public {
+        // Verify that accounts WITH proper admin privileges CAN grant admin roles
+
+        // Test granting a single admin role
+        vm.recordLogs();
+        access.grantRoles(RESOURCE_1, ADMIN_ROLE_A, user1);
+        assertTrue(access.hasRoles(RESOURCE_1, ADMIN_ROLE_A, user1));
+
+        // Verify event was emitted correctly
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        assertEq(entries[0].topics[0], keccak256("EACRolesGranted(uint256,uint256,address)"));
+        (uint256 resource, uint256 roles, address account) = abi.decode(
+            entries[0].data,
+            (uint256, uint256, address)
+        );
+        assertEq(resource, RESOURCE_1);
+        assertEq(roles, ADMIN_ROLE_A);
+        assertEq(account, user1);
+
+        // Test with a mix of regular and admin roles
+        uint256 mixedRoles = ROLE_A | ADMIN_ROLE_B;
+        vm.recordLogs();
+        access.grantRoles(RESOURCE_1, mixedRoles, user2);
+        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user2));
+        assertTrue(access.hasRoles(RESOURCE_1, ADMIN_ROLE_B, user2));
+
+        entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        (resource, roles, account) = abi.decode(entries[0].data, (uint256, uint256, address));
+        assertEq(resource, RESOURCE_1);
+        assertEq(roles, mixedRoles);
+        assertEq(account, user2);
+
+        // Test with multiple admin roles
+        uint256 multipleAdminRoles = ADMIN_ROLE_C | ADMIN_ROLE_D;
+        vm.recordLogs();
+        access.grantRoles(RESOURCE_1, multipleAdminRoles, superuser);
+        assertTrue(access.hasRoles(RESOURCE_1, ADMIN_ROLE_C, superuser));
+        assertTrue(access.hasRoles(RESOURCE_1, ADMIN_ROLE_D, superuser));
+
+        entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        (resource, roles, account) = abi.decode(entries[0].data, (uint256, uint256, address));
+        assertEq(resource, RESOURCE_1);
+        assertEq(roles, multipleAdminRoles);
+        assertEq(account, superuser);
+    }
+
+    function test_grantRoles_rejects_unauthorized_admin_roles() public {
+        // Verify that accounts WITHOUT proper admin privileges CANNOT grant admin roles
+
+        vm.startPrank(user1);
+
+        // user1 has no admin roles, so should not be able to grant admin roles
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACCannotGrantRoles.selector,
                 RESOURCE_1,
                 ADMIN_ROLE_A,
-                admin
+                user1
             )
         );
-        access.grantRoles(RESOURCE_1, ADMIN_ROLE_A, user1);
+        access.grantRoles(RESOURCE_1, ADMIN_ROLE_A, user2);
 
-        // Test with a mix of regular and admin roles
-        uint256 mixedRoles = ROLE_A | ADMIN_ROLE_A;
+        // Same for mixed roles
+        uint256 mixedRoles = ROLE_A | ADMIN_ROLE_B;
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACCannotGrantRoles.selector,
                 RESOURCE_1,
                 mixedRoles,
-                admin
+                user1
             )
         );
-        access.grantRoles(RESOURCE_1, mixedRoles, user1);
+        access.grantRoles(RESOURCE_1, mixedRoles, user2);
 
-        // Test with multiple admin roles
-        uint256 multipleAdminRoles = ADMIN_ROLE_A | ADMIN_ROLE_B;
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IEnhancedAccessControl.EACCannotGrantRoles.selector,
-                RESOURCE_1,
-                multipleAdminRoles,
-                admin
-            )
-        );
-        access.grantRoles(RESOURCE_1, multipleAdminRoles, user1);
-
-        // Test that regular roles still work
-        access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
-        assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
+        vm.stopPrank();
     }
 
     function test_canRevokeRoles_allows_admin_roles() public {
-        // First grant some roles (including admin roles via direct method)
+        // First grant some roles including admin roles
         access.grantRoles(RESOURCE_1, ROLE_A, user1);
-        access.grantRolesDirect(RESOURCE_1, ADMIN_ROLE_A, user1);
+        access.grantRoles(RESOURCE_1, ADMIN_ROLE_A, user1);
 
         // Verify roles were granted
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
@@ -1917,7 +1917,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertEq(account, user1);
 
         // Grant both admin roles and test revoking multiple admin roles
-        access.grantRolesDirect(RESOURCE_1, ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
+        access.grantRoles(RESOURCE_1, ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
         uint256 multipleAdminRoles = ADMIN_ROLE_A | ADMIN_ROLE_B;
 
         vm.recordLogs();
@@ -1937,38 +1937,78 @@ contract EnhancedAccessControlTest is Test, MockRoles {
         assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user1));
     }
 
-    function test_grantRootRoles_rejects_admin_roles() public {
-        // Test that grantRootRoles rejects admin roles
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IEnhancedAccessControl.EACCannotGrantRoles.selector,
-                access.ROOT_RESOURCE(),
-                ADMIN_ROLE_A | ADMIN_ROLE_B,
-                admin
-            )
-        );
-        access.grantRootRoles(ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
+    function test_grantRootRoles_allows_admin_roles() public {
+        // Verify that accounts WITH proper admin privileges CAN grant admin roles in ROOT_RESOURCE
 
-        // Test single admin role rejection
+        // Test granting multiple admin roles
+        vm.recordLogs();
+        access.grantRootRoles(ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
+        assertTrue(access.hasRootRoles(ADMIN_ROLE_A, user1));
+        assertTrue(access.hasRootRoles(ADMIN_ROLE_B, user1));
+
+        // Verify event was emitted correctly
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        assertEq(entries[0].topics[0], keccak256("EACRolesGranted(uint256,uint256,address)"));
+        (uint256 resource, uint256 roles, address account) = abi.decode(
+            entries[0].data,
+            (uint256, uint256, address)
+        );
+        assertEq(resource, access.ROOT_RESOURCE());
+        assertEq(roles, ADMIN_ROLE_A | ADMIN_ROLE_B);
+        assertEq(account, user1);
+
+        // Test single admin role grant
+        vm.recordLogs();
+        access.grantRootRoles(ADMIN_ROLE_C, user2);
+        assertTrue(access.hasRootRoles(ADMIN_ROLE_C, user2));
+
+        entries = vm.getRecordedLogs();
+        assertEq(entries.length, 1);
+        (resource, roles, account) = abi.decode(entries[0].data, (uint256, uint256, address));
+        assertEq(resource, access.ROOT_RESOURCE());
+        assertEq(roles, ADMIN_ROLE_C);
+        assertEq(account, user2);
+
+        // Test that regular roles still work
+        access.grantRootRoles(ROLE_A | ROLE_B, superuser);
+        assertTrue(access.hasRootRoles(ROLE_A | ROLE_B, superuser));
+    }
+
+    function test_grantRootRoles_rejects_unauthorized_admin_roles() public {
+        // Verify that accounts WITHOUT proper admin privileges CANNOT grant admin roles in ROOT_RESOURCE
+
+        vm.startPrank(user1);
+
+        // user1 has no admin roles in ROOT_RESOURCE, so should not be able to grant admin roles
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACCannotGrantRoles.selector,
                 access.ROOT_RESOURCE(),
                 ADMIN_ROLE_A,
-                admin
+                user1
             )
         );
-        access.grantRootRoles(ADMIN_ROLE_A, user1);
+        access.grantRootRoles(ADMIN_ROLE_A, user2);
 
-        // Test that regular roles still work
-        access.grantRootRoles(ROLE_A | ROLE_B, user1);
-        assertTrue(access.hasRootRoles(ROLE_A | ROLE_B, user1));
+        // Test with multiple admin roles
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACCannotGrantRoles.selector,
+                access.ROOT_RESOURCE(),
+                ADMIN_ROLE_A | ADMIN_ROLE_B,
+                user1
+            )
+        );
+        access.grantRootRoles(ADMIN_ROLE_A | ADMIN_ROLE_B, user2);
+
+        vm.stopPrank();
     }
 
     function test_canRevokeRoles_allows_root_admin_roles() public {
-        // First grant regular roles via grantRootRoles and admin roles via direct method
+        // First grant regular roles and admin roles via grantRootRoles
         access.grantRootRoles(ROLE_A | ROLE_B, user1);
-        access.grantRolesDirect(access.ROOT_RESOURCE(), ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
+        access.grantRootRoles(ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
 
         assertTrue(access.hasRootRoles(ROLE_A | ROLE_B, user1));
         assertTrue(access.hasRootRoles(ADMIN_ROLE_A | ADMIN_ROLE_B, user1));
@@ -2013,7 +2053,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
     function test_canRevokeRoles_unauthorized() public {
         // Grant roles to user2
         access.grantRoles(RESOURCE_1, ROLE_A, user2);
-        access.grantRolesDirect(RESOURCE_1, ADMIN_ROLE_A, user2);
+        access.grantRoles(RESOURCE_1, ADMIN_ROLE_A, user2);
 
         // Verify user2 has the roles
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user2));
@@ -2054,7 +2094,7 @@ contract EnhancedAccessControlTest is Test, MockRoles {
     function test_canRevokeRoles_mixed_roles() public {
         // Grant regular and admin roles to user1
         access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
-        access.grantRolesDirect(RESOURCE_1, ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
+        access.grantRoles(RESOURCE_1, ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
 
         // Verify roles were granted
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
@@ -2089,11 +2129,11 @@ contract EnhancedAccessControlTest is Test, MockRoles {
 
     function test_canRevokeRoles_with_root_admin_privileges() public {
         // Grant admin role in ROOT_RESOURCE to user1
-        access.grantRolesDirect(access.ROOT_RESOURCE(), ADMIN_ROLE_A, user1);
+        access.grantRootRoles(ADMIN_ROLE_A, user1);
 
         // Grant roles to user2
         access.grantRoles(RESOURCE_1, ROLE_A, user2);
-        access.grantRolesDirect(RESOURCE_1, ADMIN_ROLE_A, user2);
+        access.grantRoles(RESOURCE_1, ADMIN_ROLE_A, user2);
 
         // Verify initial state
         assertTrue(access.hasRootRoles(ADMIN_ROLE_A, user1));
