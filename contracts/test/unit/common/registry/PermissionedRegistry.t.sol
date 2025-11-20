@@ -2464,6 +2464,127 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.safeTransferFrom(user1, user2, tokenId, 1, "");
     }
 
+    function test_grantRoles_rejects_admin_roles_in_registry() public {
+        // Register a name with roles including admin roles
+        uint256 roleBitmap = RegistryRolesLib.ROLE_SET_RESOLVER |
+            RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN |
+            RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN;
+        uint256 tokenId = registry.register(
+            "admintest",
+            user1,
+            registry,
+            address(0),
+            roleBitmap,
+            _after(86400)
+        );
+        uint256 resource = registry.getResource(tokenId);
+
+        // Verify that attempting to grant admin roles reverts
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACCannotGrantRoles.selector,
+                resource,
+                RegistryRolesLib.ROLE_RENEW_ADMIN,
+                address(this)
+            )
+        );
+        registry.grantRoles(resource, RegistryRolesLib.ROLE_RENEW_ADMIN, user2);
+
+        // Test with multiple admin roles
+        uint256 multipleAdminRoles = RegistryRolesLib.ROLE_RENEW_ADMIN |
+            RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACCannotGrantRoles.selector,
+                resource,
+                multipleAdminRoles,
+                address(this)
+            )
+        );
+        registry.grantRoles(resource, multipleAdminRoles, user2);
+
+        // Test with mixed regular and admin roles
+        uint256 mixedRoles = RegistryRolesLib.ROLE_RENEW | RegistryRolesLib.ROLE_RENEW_ADMIN;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACCannotGrantRoles.selector,
+                resource,
+                mixedRoles,
+                address(this)
+            )
+        );
+        registry.grantRoles(resource, mixedRoles, user2);
+
+        // Verify that regular roles can still be granted
+        registry.grantRoles(resource, RegistryRolesLib.ROLE_RENEW, user2);
+        assertTrue(registry.hasRoles(resource, RegistryRolesLib.ROLE_RENEW, user2));
+    }
+
+    function test_grantRootRoles_rejects_admin_roles_in_registry() public {
+        // Verify that attempting to grant admin roles in ROOT_RESOURCE reverts
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACCannotGrantRoles.selector,
+                registry.ROOT_RESOURCE(),
+                RegistryRolesLib.ROLE_REGISTRAR_ADMIN,
+                address(this)
+            )
+        );
+        registry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR_ADMIN, user1);
+
+        // Test with multiple admin roles
+        uint256 multipleAdminRoles = RegistryRolesLib.ROLE_REGISTRAR_ADMIN |
+            RegistryRolesLib.ROLE_RENEW_ADMIN;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACCannotGrantRoles.selector,
+                registry.ROOT_RESOURCE(),
+                multipleAdminRoles,
+                address(this)
+            )
+        );
+        registry.grantRootRoles(multipleAdminRoles, user1);
+
+        // Verify that regular roles can still be granted
+        registry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, user1);
+        assertTrue(registry.hasRootRoles(RegistryRolesLib.ROLE_REGISTRAR, user1));
+    }
+
+    function test_admin_roles_can_be_revoked_in_registry() public {
+        // Register a name with admin roles (granted during registration)
+        uint256 roleBitmap = RegistryRolesLib.ROLE_SET_RESOLVER |
+            RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN |
+            RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN;
+        uint256 tokenId = registry.register(
+            "revokeadmintest",
+            user1,
+            registry,
+            address(0),
+            roleBitmap,
+            _after(86400)
+        );
+        uint256 resource = registry.getResource(tokenId);
+
+        // Verify user1 has admin roles from registration
+        assertTrue(
+            registry.hasRoles(
+                resource,
+                RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN,
+                user1
+            )
+        );
+
+        // Verify that admin roles CAN be revoked (this should work)
+        registry.revokeRoles(resource, RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN, user1);
+        assertFalse(
+            registry.hasRoles(
+                resource,
+                RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN,
+                user1
+            )
+        );
+    }
+
     function _tokenVersionId(uint256 id) internal pure returns (uint32) {
         return uint32(id);
     }
