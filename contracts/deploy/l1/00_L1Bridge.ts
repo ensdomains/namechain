@@ -3,8 +3,8 @@ import { DEFAULT_L1_CHAIN_ID, DEFAULT_L2_CHAIN_ID } from "../../script/setup.js"
 
 export default execute(
   async ({ deploy, get, network, namedAccounts: { deployer } }) => {
-    // Get MockSurgeBridge deployment
-    const mockSurgeBridge = get<(typeof artifacts.MockSurgeBridge)["abi"]>("MockSurgeBridge");
+    // Get MockSurgeNativeBridge deployment
+    const mockSurgeNativeBridge = get<(typeof artifacts.MockSurgeNativeBridge)["abi"]>("MockSurgeNativeBridge");
     
     // Get chain IDs from network or use defaults
     const l1ChainId = network.chain?.id ? BigInt(network.chain.id) : BigInt(DEFAULT_L1_CHAIN_ID);
@@ -13,11 +13,11 @@ export default execute(
     // Get the BridgeController deployment (L1BridgeController)
     const bridgeController = get<(typeof artifacts.L1BridgeController)["abi"]>("BridgeController");
 
-    await deploy("L1Bridge", {
+    await deploy("L1SurgeBridge", {
       account: deployer,
-      artifact: artifacts.L1Bridge,
+      artifact: artifacts.L1SurgeBridge,
       args: [
-        mockSurgeBridge.address, // Surge bridge address
+        mockSurgeNativeBridge.address, // Surge native bridge address
         l1ChainId, // L1 Chain ID
         l2ChainId, // L2 Chain ID
         bridgeController.address, // L1BridgeController address
@@ -25,7 +25,7 @@ export default execute(
     });
   },
   {
-    tags: ["L1Bridge", "bridge", "l1"],
-    dependencies: ["MockSurgeBridge", "L1BridgeController"],
+    tags: ["L1SurgeBridge", "bridge", "l1"],
+    dependencies: ["MockSurgeNativeBridge", "L1BridgeController"],
   },
 );

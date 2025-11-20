@@ -2,13 +2,13 @@ import { artifacts, execute } from "@rocketh";
 
 export default execute(
   async ({ deploy, namedAccounts: { deployer } }) => {
-    await deploy("MockSurgeBridge", {
+    await deploy("MockSurgeNativeBridge", {
       account: deployer,
-      artifact: artifacts.MockSurgeBridge,
+      artifact: artifacts.MockSurgeNativeBridge,
       args: [],
     });
   },
   {
-    tags: ["MockSurgeBridge", "mocks", "shared"],
+    tags: ["MockSurgeNativeBridge", "mocks", "shared"],
   },
 );

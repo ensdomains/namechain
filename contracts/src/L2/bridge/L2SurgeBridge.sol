@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {Bridge} from "../../common/bridge/Bridge.sol";
-import {ISurgeBridge} from "../../common/bridge/interfaces/ISurgeBridge.sol";
+import {ISurgeNativeBridge} from "../../common/bridge/interfaces/ISurgeNativeBridge.sol";
+import {SurgeBridge} from "../../common/bridge/SurgeBridge.sol";
 import {TransferData} from "../../common/bridge/types/TransferData.sol";
 
 import {L2BridgeController} from "./L2BridgeController.sol";
 
 /**
- * @title L2Bridge
+ * @title L2SurgeBridge
  * @notice L2 bridge implementation that integrates with Surge bridge
  * @dev Handles ejections from L1 to L2. Renewals are not supported (they go L2→L1 only)
  */
-contract L2Bridge is Bridge {
+contract L2SurgeBridge is SurgeBridge {
     ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
@@ -24,11 +24,11 @@ contract L2Bridge is Bridge {
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        ISurgeBridge surgeBridge_,
+        ISurgeNativeBridge surgeNativeBridge_,
         uint64 l2ChainId_,
         uint64 l1ChainId_,
         address l2BridgeController_
-    ) Bridge(surgeBridge_, l2ChainId_, l1ChainId_, l2BridgeController_) {}
+    ) SurgeBridge(surgeNativeBridge_, l2ChainId_, l1ChainId_, l2BridgeController_) {}
 
     ////////////////////////////////////////////////////////////////////////
     // Internal Methods

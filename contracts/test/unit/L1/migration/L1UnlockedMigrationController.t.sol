@@ -26,9 +26,9 @@ import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.so
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1UnlockedMigrationController} from "~src/L1/migration/L1UnlockedMigrationController.sol";
-import {ISurgeBridge} from "~src/common/bridge/interfaces/ISurgeBridge.sol";
-import {L1Bridge} from "~src/L1/bridge/L1Bridge.sol";
-import {MockSurgeBridge} from "~test/mocks/MockSurgeBridge.sol";
+import {ISurgeNativeBridge} from "~src/common/bridge/interfaces/ISurgeNativeBridge.sol";
+import {L1SurgeBridge} from "~src/L1/bridge/L1SurgeBridge.sol";
+import {MockSurgeNativeBridge} from "~test/mocks/MockSurgeNativeBridge.sol";
 import {MockBaseRegistrar} from "~test/mocks/v1/MockBaseRegistrar.sol";
 
 // Simple mock that implements IRegistryMetadata
@@ -107,8 +107,8 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     MockBaseRegistrar ethRegistrarV1;
     MockNameWrapper nameWrapper;
     L1UnlockedMigrationController migrationController;
-    MockSurgeBridge surgeBridge;
-    L1Bridge mockBridge;
+    MockSurgeNativeBridge surgeNativeBridge;
+    L1SurgeBridge mockBridge;
 
     // Real components for testing
     L1BridgeController realL1BridgeController;
@@ -312,10 +312,10 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         nameWrapper = new MockNameWrapper(ethRegistrarV1);
 
         // Deploy Surge bridge mock
-        surgeBridge = new MockSurgeBridge();
+        surgeNativeBridge = new MockSurgeNativeBridge();
 
         // Deploy mock bridge with Surge integration
-        mockBridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(0));
+        mockBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(0));
         mockBridge.setDestBridgeAddress(address(0x1234)); // Mock destination bridge
 
         // Deploy REAL L1BridgeController with temporary mock bridge
@@ -323,7 +323,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         realL1BridgeController = new L1BridgeController(registry, tempBridge);
 
         // Deploy the real bridge with the correct controller address
-        mockBridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(realL1BridgeController));
+        mockBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(realL1BridgeController));
         mockBridge.setDestBridgeAddress(address(0x1234)); // Mock destination bridge
 
         // Update the bridge reference in the controller

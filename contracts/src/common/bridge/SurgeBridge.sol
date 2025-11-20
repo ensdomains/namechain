@@ -4,16 +4,23 @@ pragma solidity ^0.8.13;
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
 
 import {IBridge, BridgeMessageType} from "./interfaces/IBridge.sol";
-import {ISurgeBridge, ISurgeBridgeMessageInvocable} from "./interfaces/ISurgeBridge.sol";
+import {
+    ISurgeNativeBridge,
+    ISurgeNativeBridgeMessageInvocable
+} from "./interfaces/ISurgeNativeBridge.sol";
 import {BridgeEncoderLib} from "./libraries/BridgeEncoderLib.sol";
 import {TransferData} from "./types/TransferData.sol";
 
 /**
- * @title Bridge
+ * @title SurgeBridge
  * @notice Abstract base class for bridge contracts that integrate with Surge bridge
- * @dev Implements both sending messages via Surge and receiving messages through ISurgeBridgeMessageInvocable
+ * @dev Implements both sending messages via Surge and receiving messages through ISurgeNativeBridgeMessageInvocable
  */
-abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAccessControl {
+abstract contract SurgeBridge is
+    IBridge,
+    ISurgeNativeBridgeMessageInvocable,
+    EnhancedAccessControl
+{
     ////////////////////////////////////////////////////////////////////////
     // Role Constants
     ////////////////////////////////////////////////////////////////////////
@@ -29,7 +36,7 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
     uint64 public immutable DEST_CHAIN_ID;
     address public immutable BRIDGE_CONTROLLER;
 
-    ISurgeBridge public surgeBridge;
+    ISurgeNativeBridge public surgeNativeBridge;
     address public destBridgeAddress;
 
     ////////////////////////////////////////////////////////////////////////
@@ -38,7 +45,7 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
 
     event MessageSent(bytes message);
     event MessageReceived(bytes message);
-    event SurgeBridgeUpdated(ISurgeBridge oldBridge, ISurgeBridge newBridge);
+    event SurgeNativeBridgeUpdated(ISurgeNativeBridge oldBridge, ISurgeNativeBridge newBridge);
     event DestBridgeAddressUpdated(address oldAddress, address newAddress);
 
     ////////////////////////////////////////////////////////////////////////
@@ -46,7 +53,7 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
     ////////////////////////////////////////////////////////////////////////
 
     error OnlyBridgeController();
-    error OnlySurgeBridge();
+    error OnlySurgeNativeBridge();
     error InsufficientFee(uint256 required, uint256 provided);
     error DestBridgeAddressNotSet();
 
@@ -66,12 +73,12 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        ISurgeBridge surgeBridge_,
+        ISurgeNativeBridge surgeNativeBridge_,
         uint64 sourceChainId_,
         uint64 destChainId_,
         address bridgeController_
     ) {
-        surgeBridge = surgeBridge_;
+        surgeNativeBridge = surgeNativeBridge_;
         SOURCE_CHAIN_ID = sourceChainId_;
         DEST_CHAIN_ID = destChainId_;
         BRIDGE_CONTROLLER = bridgeController_;
@@ -85,16 +92,16 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
     ////////////////////////////////////////////////////////////////////////
 
     /**
-     * @notice Set the Surge bridge address
-     * @param newSurgeBridge The new Surge bridge address
+     * @notice Set the Surge native bridge address
+     * @param newSurgeNativeBridge The new Surge native bridge address
      */
-    function setSurgeBridge(
-        ISurgeBridge newSurgeBridge
+    function setSurgeNativeBridge(
+        ISurgeNativeBridge newSurgeNativeBridge
     ) external onlyRoles(ROOT_RESOURCE, ROLE_BRIDGE_MANAGER_ADMIN) {
-        ISurgeBridge oldBridge = surgeBridge;
-        surgeBridge = newSurgeBridge;
+        ISurgeNativeBridge oldBridge = surgeNativeBridge;
+        surgeNativeBridge = newSurgeNativeBridge;
 
-        emit SurgeBridgeUpdated(oldBridge, newSurgeBridge);
+        emit SurgeNativeBridgeUpdated(oldBridge, newSurgeNativeBridge);
     }
 
     /**
@@ -126,10 +133,10 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
         }
 
         // Calculate required gas limit based on message data length
-        uint32 gasLimit = surgeBridge.getMessageMinGasLimit(message.length);
+        uint32 gasLimit = surgeNativeBridge.getMessageMinGasLimit(message.length);
 
         // Build Surge Message struct
-        ISurgeBridge.Message memory surgeMessage = ISurgeBridge.Message({
+        ISurgeNativeBridge.Message memory surgeMessage = ISurgeNativeBridge.Message({
             id: 0, // Auto-assigned by Surge bridge
             fee: uint64(msg.value), // Use provided ETH as fee
             gasLimit: gasLimit,
@@ -144,7 +151,7 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
         });
 
         // Send message through Surge bridge
-        surgeBridge.sendMessage{value: msg.value}(surgeMessage);
+        surgeNativeBridge.sendMessage{value: msg.value}(surgeMessage);
 
         emit MessageSent(message);
     }
@@ -159,8 +166,8 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
      * @dev This is called by the Surge bridge on the destination chain
      */
     function onMessageInvocation(bytes calldata data) external payable virtual override {
-        if (msg.sender != address(surgeBridge)) {
-            revert OnlySurgeBridge();
+        if (msg.sender != address(surgeNativeBridge)) {
+            revert OnlySurgeNativeBridge();
         }
 
         // Decode message type and route to appropriate handler
@@ -185,7 +192,7 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
     function getMinGasLimit(
         bytes calldata message
     ) external view virtual override returns (uint32) {
-        return surgeBridge.getMessageMinGasLimit(message.length);
+        return surgeNativeBridge.getMessageMinGasLimit(message.length);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -196,7 +203,7 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
      * @notice Handle an ejection message
      * @param dnsEncodedName The DNS-encoded name being ejected
      * @param transferData The transfer data for the ejection
-     * @dev Must be implemented by concrete bridge contracts (L1Bridge, L2Bridge)
+     * @dev Must be implemented by concrete bridge contracts (L1SurgeBridge, L2SurgeBridge)
      */
     function _handleEjectionMessage(
         bytes memory dnsEncodedName,
@@ -207,7 +214,7 @@ abstract contract Bridge is IBridge, ISurgeBridgeMessageInvocable, EnhancedAcces
      * @notice Handle a renewal message
      * @param tokenId The token ID being renewed
      * @param newExpiry The new expiry timestamp
-     * @dev Must be implemented by concrete bridge contracts (L1Bridge, L2Bridge)
+     * @dev Must be implemented by concrete bridge contracts (L1SurgeBridge, L2SurgeBridge)
      */
     function _handleRenewalMessage(uint256 tokenId, uint64 newExpiry) internal virtual;
 }

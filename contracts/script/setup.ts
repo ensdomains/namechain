@@ -59,7 +59,7 @@ const sharedContracts = {
   DedicatedResolverImpl: artifacts.DedicatedResolver.abi,
   UserRegistryImpl: artifacts.UserRegistry.abi,
   // common
-  MockSurgeBridge: artifacts.MockSurgeBridge.abi,
+  MockSurgeNativeBridge: artifacts.MockSurgeNativeBridge.abi,
   ETHRegistry: artifacts.PermissionedRegistry.abi,
   BridgeController: artifacts.BridgeController.abi,
 } as const satisfies DeployedArtifacts;
@@ -79,7 +79,7 @@ const l1Contracts = {
   DefaultReverseRegistrar: artifacts.DefaultReverseRegistrar.abi,
   DefaultReverseResolver: artifacts.DefaultReverseResolver.abi,
   //
-  L1Bridge: artifacts.L1Bridge.abi,
+  L1SurgeBridge: artifacts.L1SurgeBridge.abi,
   L1BridgeController: artifacts.L1BridgeController.abi,
   UnlockedMigrationController: artifacts.L1UnlockedMigrationController.abi,
   LockedMigrationController: artifacts.L1LockedMigrationController.abi,
@@ -98,7 +98,7 @@ const l1Contracts = {
 
 const l2Contracts = {
   ...sharedContracts,
-  L2Bridge: artifacts.L2Bridge.abi,
+  L2SurgeBridge: artifacts.L2SurgeBridge.abi,
   L2BridgeController: artifacts.L2BridgeController.abi,
   //
   ETHRegistrar: artifacts.ETHRegistrar.abi,
@@ -638,8 +638,8 @@ async function setupEnsDotEth(l1: L1Deployment, owner: Account) {
 async function setupBridgeConfiguration(l1: L1Deployment, l2: L2Deployment, deployer: Account) {
   // Configure bridge relationships for cross-chain messaging
   console.log("Configuring bridge relationships...");
-  console.log("L1Bridge:", l1.contracts.L1Bridge.address);
-  console.log("L2Bridge:", l2.contracts.L2Bridge.address);
+  console.log("L1SurgeBridge:", l1.contracts.L1SurgeBridge.address);
+  console.log("L2SurgeBridge:", l2.contracts.L2SurgeBridge.address);
   console.log("L1BridgeController:", l1.contracts.L1BridgeController.address);
   console.log("L2BridgeController:", l2.contracts.L2BridgeController.address);
   
@@ -656,22 +656,22 @@ async function setupBridgeConfiguration(l1: L1Deployment, l2: L2Deployment, depl
   ]);
   
   // Configure bridge controllers to point to their respective bridges
-  await l1.contracts.L1BridgeController.write.setBridge([l1.contracts.L1Bridge.address]);
-  await l2.contracts.L2BridgeController.write.setBridge([l2.contracts.L2Bridge.address]);
+  await l1.contracts.L1BridgeController.write.setBridge([l1.contracts.L1SurgeBridge.address]);
+  await l2.contracts.L2BridgeController.write.setBridge([l2.contracts.L2SurgeBridge.address]);
   
   // Grant bridge roles to the bridges on their respective bridge controllers
   await l1.contracts.L1BridgeController.write.grantRootRoles([
     ROLES.OWNER.BRIDGE.EJECTOR,
-    l1.contracts.L1Bridge.address
+    l1.contracts.L1SurgeBridge.address
   ]);
   await l2.contracts.L2BridgeController.write.grantRootRoles([
     ROLES.OWNER.BRIDGE.EJECTOR,
-    l2.contracts.L2Bridge.address
+    l2.contracts.L2SurgeBridge.address
   ]);
   
   // Configure destination bridge addresses for cross-chain messaging
-  await l1.contracts.L1Bridge.write.setDestBridgeAddress([l2.contracts.L2Bridge.address]);
-  await l2.contracts.L2Bridge.write.setDestBridgeAddress([l1.contracts.L1Bridge.address]);
+  await l1.contracts.L1SurgeBridge.write.setDestBridgeAddress([l2.contracts.L2SurgeBridge.address]);
+  await l2.contracts.L2SurgeBridge.write.setDestBridgeAddress([l1.contracts.L1SurgeBridge.address]);
   
   console.log("✓ Bridge configuration complete");
 }

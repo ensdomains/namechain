@@ -8,16 +8,16 @@ import {Test, Vm} from "forge-std/Test.sol";
 import {BridgeMessageType} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
-import {L1Bridge} from "~src/L1/bridge/L1Bridge.sol";
-import {L2Bridge} from "~src/L2/bridge/L2Bridge.sol";
-import {MockSurgeBridge} from "~test/mocks/MockSurgeBridge.sol";
-import {ISurgeBridge} from "~src/common/bridge/interfaces/ISurgeBridge.sol";
+import {L1SurgeBridge} from "~src/L1/bridge/L1SurgeBridge.sol";
+import {L2SurgeBridge} from "~src/L2/bridge/L2SurgeBridge.sol";
+import {MockSurgeNativeBridge} from "~test/mocks/MockSurgeNativeBridge.sol";
+import {ISurgeNativeBridge} from "~src/common/bridge/interfaces/ISurgeNativeBridge.sol";
 
 contract BridgeTest is Test {
     address admin = address(this); // Test contract is the admin
-    MockSurgeBridge surgeBridge;
-    L1Bridge l1Bridge;
-    L2Bridge l2Bridge;
+    MockSurgeNativeBridge surgeNativeBridge;
+    L1SurgeBridge l1SurgeBridge;
+    L2SurgeBridge l2SurgeBridge;
 
     address mockL1Controller = address(0x1111);
     address mockL2Controller = address(0x2222);
@@ -27,32 +27,32 @@ contract BridgeTest is Test {
 
     function setUp() public {
         // Deploy Surge bridge mock
-        surgeBridge = new MockSurgeBridge();
+        surgeNativeBridge = new MockSurgeNativeBridge();
 
         // Deploy bridges with surge bridge and controller addresses (admin is deployer by default)
-        l1Bridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, mockL2Controller);
-        l2Bridge = new L2Bridge(surgeBridge, L2_CHAIN_ID, L1_CHAIN_ID, mockL1Controller);
-        
+        l1SurgeBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, mockL2Controller);
+        l2SurgeBridge = new L2SurgeBridge(surgeNativeBridge, L2_CHAIN_ID, L1_CHAIN_ID, mockL1Controller);
+
         // Set up bridges with destination addresses
         // Test contract is admin by default since it deployed the bridges
-        l1Bridge.setDestBridgeAddress(address(l2Bridge));
-        l2Bridge.setDestBridgeAddress(address(l1Bridge));
+        l1SurgeBridge.setDestBridgeAddress(address(l2SurgeBridge));
+        l2SurgeBridge.setDestBridgeAddress(address(l1SurgeBridge));
 
         // Fund the mock controllers with ETH for testing
         vm.deal(mockL2Controller, 10 ether);
         vm.deal(mockL1Controller, 10 ether);
     }
 
-    function test_L1Bridge_SendMessage_EmitsEvent() public {
+    function test_L1SurgeBridge_SendMessage_EmitsEvent() public {
         bytes memory testData = hex"1234567890";
 
         vm.recordLogs();
         vm.prank(mockL2Controller);
-        l1Bridge.sendMessage{value: 0.01 ether}(testData);
+        l1SurgeBridge.sendMessage{value: 0.01 ether}(testData);
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
-        // Verify MessageSent event from L1Bridge
+        // Verify MessageSent event from L1SurgeBridge
         bool foundBridgeEvent = false;
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == keccak256("MessageSent(bytes)")) {
@@ -63,12 +63,12 @@ contract BridgeTest is Test {
         assertTrue(foundBridgeEvent, "MessageSent event not emitted");
     }
 
-    function test_L2Bridge_SendMessage_EmitsEvent() public {
+    function test_L2SurgeBridge_SendMessage_EmitsEvent() public {
         bytes memory testData = hex"abcdef";
 
         vm.recordLogs();
         vm.prank(mockL1Controller);
-        l2Bridge.sendMessage{value: 0.005 ether}(testData);
+        l2SurgeBridge.sendMessage{value: 0.005 ether}(testData);
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
@@ -83,29 +83,29 @@ contract BridgeTest is Test {
         assertTrue(foundEvent, "MessageSent event not emitted");
     }
 
-    function test_L1Bridge_SendMessage_CallsSurgeBridge() public {
+    function test_L1SurgeBridge_SendMessage_CallsSurgeBridge() public {
         bytes memory testData = hex"1234567890";
 
-        uint64 msgIdBefore = surgeBridge.nextMessageId();
+        uint64 msgIdBefore = surgeNativeBridge.nextMessageId();
 
         vm.prank(mockL2Controller);
-        l1Bridge.sendMessage{value: 0.01 ether}(testData);
+        l1SurgeBridge.sendMessage{value: 0.01 ether}(testData);
 
-        uint64 msgIdAfter = surgeBridge.nextMessageId();
+        uint64 msgIdAfter = surgeNativeBridge.nextMessageId();
 
         // Verify Surge bridge was called (message ID incremented)
         assertEq(msgIdAfter, msgIdBefore + 1, "Surge bridge not called");
     }
 
-    function test_L1Bridge_OnMessageInvocation_OnlySurgeBridge() public {
+    function test_L1SurgeBridge_OnMessageInvocation_OnlySurgeBridge() public {
         bytes memory testData = BridgeEncoderLib.encodeRenewal(123, uint64(block.timestamp + 86400));
 
         vm.expectRevert();
         vm.prank(address(0x9999));
-        l1Bridge.onMessageInvocation(testData);
+        l1SurgeBridge.onMessageInvocation(testData);
     }
 
-    function test_L2Bridge_OnMessageInvocation_OnlySurgeBridge() public {
+    function test_L2SurgeBridge_OnMessageInvocation_OnlySurgeBridge() public {
         TransferData memory transferData = TransferData({
             dnsEncodedName: hex"04746573740365746800",
             owner: address(0x1234),
@@ -118,66 +118,66 @@ contract BridgeTest is Test {
 
         vm.expectRevert();
         vm.prank(address(0x9999));
-        l2Bridge.onMessageInvocation(testData);
+        l2SurgeBridge.onMessageInvocation(testData);
     }
 
-    function test_L2Bridge_OnMessageInvocation_RenewalNotSupported() public {
+    function test_L2SurgeBridge_OnMessageInvocation_RenewalNotSupported() public {
         bytes memory testData = BridgeEncoderLib.encodeRenewal(123, uint64(block.timestamp + 86400));
 
         vm.expectRevert();
-        vm.prank(address(surgeBridge));
-        l2Bridge.onMessageInvocation(testData);
+        vm.prank(address(surgeNativeBridge));
+        l2SurgeBridge.onMessageInvocation(testData);
     }
 
     function test_GasLimitCalculation() public view {
         bytes memory shortData = hex"1234";
         bytes memory longData = new bytes(10000);
 
-        uint32 shortGasLimit = surgeBridge.getMessageMinGasLimit(shortData.length);
-        uint32 longGasLimit = surgeBridge.getMessageMinGasLimit(longData.length);
+        uint32 shortGasLimit = surgeNativeBridge.getMessageMinGasLimit(shortData.length);
+        uint32 longGasLimit = surgeNativeBridge.getMessageMinGasLimit(longData.length);
 
         assertTrue(longGasLimit > shortGasLimit, "Gas limit should increase with data length");
     }
 
-    function test_L1Bridge_ImmutableValues() public view {
-        assertEq(address(l1Bridge.surgeBridge()), address(surgeBridge));
-        assertEq(l1Bridge.SOURCE_CHAIN_ID(), L1_CHAIN_ID);
-        assertEq(l1Bridge.DEST_CHAIN_ID(), L2_CHAIN_ID);
-        assertEq(l1Bridge.BRIDGE_CONTROLLER(), mockL2Controller);
+    function test_L1SurgeBridge_ImmutableValues() public view {
+        assertEq(address(l1SurgeBridge.surgeNativeBridge()), address(surgeNativeBridge));
+        assertEq(l1SurgeBridge.SOURCE_CHAIN_ID(), L1_CHAIN_ID);
+        assertEq(l1SurgeBridge.DEST_CHAIN_ID(), L2_CHAIN_ID);
+        assertEq(l1SurgeBridge.BRIDGE_CONTROLLER(), mockL2Controller);
     }
 
-    function test_L2Bridge_ImmutableValues() public view {
-        assertEq(address(l2Bridge.surgeBridge()), address(surgeBridge));
-        assertEq(l2Bridge.SOURCE_CHAIN_ID(), L2_CHAIN_ID);
-        assertEq(l2Bridge.DEST_CHAIN_ID(), L1_CHAIN_ID);
-        assertEq(l2Bridge.BRIDGE_CONTROLLER(), mockL1Controller);
+    function test_L2SurgeBridge_ImmutableValues() public view {
+        assertEq(address(l2SurgeBridge.surgeNativeBridge()), address(surgeNativeBridge));
+        assertEq(l2SurgeBridge.SOURCE_CHAIN_ID(), L2_CHAIN_ID);
+        assertEq(l2SurgeBridge.DEST_CHAIN_ID(), L1_CHAIN_ID);
+        assertEq(l2SurgeBridge.BRIDGE_CONTROLLER(), mockL1Controller);
     }
 
     // Access Control Tests
     
-    function test_setSurgeBridge_OnlyAdmin() public {
-        MockSurgeBridge newSurgeBridge = new MockSurgeBridge();
+    function test_setSurgeNativeBridge_OnlyAdmin() public {
+        MockSurgeNativeBridge newSurgeBridge = new MockSurgeNativeBridge();
         
         // Should work for deployer (has admin role)
         vm.recordLogs();
-        l1Bridge.setSurgeBridge(newSurgeBridge);
+        l1SurgeBridge.setSurgeNativeBridge(newSurgeBridge);
         
         // Verify event was emitted
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
-        assertEq(logs[0].topics[0], keccak256("SurgeBridgeUpdated(address,address)"));
+        assertEq(logs[0].topics[0], keccak256("SurgeNativeBridgeUpdated(address,address)"));
         
         // Verify address was updated
-        assertEq(address(l1Bridge.surgeBridge()), address(newSurgeBridge));
+        assertEq(address(l1SurgeBridge.surgeNativeBridge()), address(newSurgeBridge));
     }
     
-    function test_setSurgeBridge_RevertNonAdmin() public {
-        MockSurgeBridge newSurgeBridge = new MockSurgeBridge();
+    function test_setSurgeNativeBridge_RevertNonAdmin() public {
+        MockSurgeNativeBridge newSurgeBridge = new MockSurgeNativeBridge();
         address nonAdmin = address(0x9999);
         
         vm.expectRevert();
         vm.prank(nonAdmin);
-        l1Bridge.setSurgeBridge(newSurgeBridge);
+        l1SurgeBridge.setSurgeNativeBridge(newSurgeBridge);
     }
     
     function test_setDestBridgeAddress_OnlyAdmin() public {
@@ -185,7 +185,7 @@ contract BridgeTest is Test {
         
         // Should work for deployer (has admin role)
         vm.recordLogs();
-        l1Bridge.setDestBridgeAddress(newDestAddress);
+        l1SurgeBridge.setDestBridgeAddress(newDestAddress);
         
         // Verify event was emitted
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -193,7 +193,7 @@ contract BridgeTest is Test {
         assertEq(logs[0].topics[0], keccak256("DestBridgeAddressUpdated(address,address)"));
         
         // Verify address was updated
-        assertEq(l1Bridge.destBridgeAddress(), newDestAddress);
+        assertEq(l1SurgeBridge.destBridgeAddress(), newDestAddress);
     }
     
     function test_setDestBridgeAddress_RevertNonAdmin() public {
@@ -202,12 +202,12 @@ contract BridgeTest is Test {
         
         vm.expectRevert();
         vm.prank(nonAdmin);
-        l1Bridge.setDestBridgeAddress(newDestAddress);
+        l1SurgeBridge.setDestBridgeAddress(newDestAddress);
     }
     
     function test_sendMessage_RevertWhenDestBridgeNotSet() public {
         // Deploy a new bridge without setting dest bridge
-        L1Bridge newBridge = new L1Bridge(surgeBridge, L1_CHAIN_ID, L2_CHAIN_ID, mockL2Controller);
+        L1SurgeBridge newBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, mockL2Controller);
         
         bytes memory testData = hex"1234567890";
         
@@ -221,22 +221,22 @@ contract BridgeTest is Test {
         
         // Should work after proper setup
         vm.prank(mockL2Controller);
-        l1Bridge.sendMessage{value: 0.01 ether}(testData);
+        l1SurgeBridge.sendMessage{value: 0.01 ether}(testData);
         
         // Verify message was sent (by checking surge bridge state)
-        assertEq(surgeBridge.nextMessageId(), 1);
+        assertEq(surgeNativeBridge.nextMessageId(), 1);
     }
     
     function test_adminCanSetMultipleValues() public {
-        MockSurgeBridge newSurgeBridge = new MockSurgeBridge();
+        MockSurgeNativeBridge newSurgeBridge = new MockSurgeNativeBridge();
         address newDestAddress = address(0x1234);
         
         // Admin should be able to set both surge bridge and dest address
-        l1Bridge.setSurgeBridge(newSurgeBridge);
-        l1Bridge.setDestBridgeAddress(newDestAddress);
+        l1SurgeBridge.setSurgeNativeBridge(newSurgeBridge);
+        l1SurgeBridge.setDestBridgeAddress(newDestAddress);
         
-        assertEq(address(l1Bridge.surgeBridge()), address(newSurgeBridge));
-        assertEq(l1Bridge.destBridgeAddress(), newDestAddress);
+        assertEq(address(l1SurgeBridge.surgeNativeBridge()), address(newSurgeBridge));
+        assertEq(l1SurgeBridge.destBridgeAddress(), newDestAddress);
     }
 
     // New access control tests for sendMessage
@@ -245,9 +245,9 @@ contract BridgeTest is Test {
         
         // Should work when called by bridge controller
         vm.prank(mockL2Controller);
-        l1Bridge.sendMessage{value: 0.01 ether}(testData);
+        l1SurgeBridge.sendMessage{value: 0.01 ether}(testData);
         
-        assertEq(surgeBridge.nextMessageId(), 1);
+        assertEq(surgeNativeBridge.nextMessageId(), 1);
     }
     
     function test_sendMessage_RevertNonBridgeController() public {
@@ -258,20 +258,20 @@ contract BridgeTest is Test {
         // Should revert when called by non-controller
         vm.expectRevert();
         vm.prank(nonController);
-        l1Bridge.sendMessage{value: 0.01 ether}(testData);
+        l1SurgeBridge.sendMessage{value: 0.01 ether}(testData);
     }
     
-    function test_L2Bridge_sendMessage_OnlyBridgeController() public {
+    function test_L2SurgeBridge_sendMessage_OnlyBridgeController() public {
         bytes memory testData = hex"abcdef";
         
         // Should work when called by bridge controller
         vm.prank(mockL1Controller);
-        l2Bridge.sendMessage{value: 0.005 ether}(testData);
+        l2SurgeBridge.sendMessage{value: 0.005 ether}(testData);
         
-        assertEq(surgeBridge.nextMessageId(), 1);
+        assertEq(surgeNativeBridge.nextMessageId(), 1);
     }
     
-    function test_L2Bridge_sendMessage_RevertNonBridgeController() public {
+    function test_L2SurgeBridge_sendMessage_RevertNonBridgeController() public {
         bytes memory testData = hex"abcdef";
         address nonController = address(0x9999);
         vm.deal(nonController, 1 ether);
@@ -279,32 +279,32 @@ contract BridgeTest is Test {
         // Should revert when called by non-controller
         vm.expectRevert();
         vm.prank(nonController);
-        l2Bridge.sendMessage{value: 0.005 ether}(testData);
+        l2SurgeBridge.sendMessage{value: 0.005 ether}(testData);
     }
 
     // New tests for getMinGasLimit method
-    function test_getMinGasLimit_L1Bridge() public view {
+    function test_getMinGasLimit_L1SurgeBridge() public view {
         bytes memory shortData = hex"1234";
         bytes memory longData = new bytes(1000);
         
-        uint32 shortGasLimit = l1Bridge.getMinGasLimit(shortData);
-        uint32 longGasLimit = l1Bridge.getMinGasLimit(longData);
+        uint32 shortGasLimit = l1SurgeBridge.getMinGasLimit(shortData);
+        uint32 longGasLimit = l1SurgeBridge.getMinGasLimit(longData);
         
         assertTrue(longGasLimit > shortGasLimit, "Gas limit should increase with data length");
         
         // Verify it matches the expected calculation
-        uint32 expectedShortGas = surgeBridge.getMessageMinGasLimit(shortData.length);
-        uint32 expectedLongGas = surgeBridge.getMessageMinGasLimit(longData.length);
+        uint32 expectedShortGas = surgeNativeBridge.getMessageMinGasLimit(shortData.length);
+        uint32 expectedLongGas = surgeNativeBridge.getMessageMinGasLimit(longData.length);
         
         assertEq(shortGasLimit, expectedShortGas, "Short gas limit should match surge bridge calculation");
         assertEq(longGasLimit, expectedLongGas, "Long gas limit should match surge bridge calculation");
     }
     
-    function test_getMinGasLimit_L2Bridge() public view {
+    function test_getMinGasLimit_L2SurgeBridge() public view {
         bytes memory testData = hex"abcdef123456";
         
-        uint32 gasLimit = l2Bridge.getMinGasLimit(testData);
-        uint32 expectedGas = surgeBridge.getMessageMinGasLimit(testData.length);
+        uint32 gasLimit = l2SurgeBridge.getMinGasLimit(testData);
+        uint32 expectedGas = surgeNativeBridge.getMessageMinGasLimit(testData.length);
         
         assertEq(gasLimit, expectedGas, "Gas limit should match surge bridge calculation");
     }
@@ -312,8 +312,8 @@ contract BridgeTest is Test {
     function test_getMinGasLimit_EmptyData() public view {
         bytes memory emptyData = "";
         
-        uint32 gasLimit = l1Bridge.getMinGasLimit(emptyData);
-        uint32 expectedGas = surgeBridge.getMessageMinGasLimit(0);
+        uint32 gasLimit = l1SurgeBridge.getMinGasLimit(emptyData);
+        uint32 expectedGas = surgeNativeBridge.getMessageMinGasLimit(0);
         
         assertEq(gasLimit, expectedGas, "Gas limit should handle empty data correctly");
         assertTrue(gasLimit > 0, "Gas limit should be greater than zero even for empty data");

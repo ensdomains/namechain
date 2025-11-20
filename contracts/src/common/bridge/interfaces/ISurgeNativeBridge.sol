@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title ISurgeBridge
+/// @title ISurgeNativeBridge
 /// @notice Subset of Surge protocol's IBridge interface with modifications to facilitate bridge calls
 /// @dev This interface includes only the essential methods and types needed for ENS bridging.
 ///      It extends Surge's IBridge with a helper method for gas limit calculation.
 /// @custom:security-contact security@taiko.xyz
-interface ISurgeBridge {
+interface ISurgeNativeBridge {
     struct Message {
         // Message ID whose value is automatically assigned.
         uint64 id;
@@ -52,10 +52,10 @@ interface ISurgeBridge {
     function getMessageMinGasLimit(uint256 dataLength) external pure returns (uint32);
 }
 
-/// @title ISurgeBridgeMessageInvocable
+/// @title ISurgeNativeBridgeMessageInvocable
 /// @notice Clone of Surge protocol's IMessageInvocable interface
 /// @dev This interface must be implemented by contracts that receive bridge messages
-interface ISurgeBridgeMessageInvocable {
+interface ISurgeNativeBridgeMessageInvocable {
     /// @notice Called when this contract is the bridge target.
     /// @param data The data for this contract to interpret.
     /// @dev This method should be guarded with `onlyFromNamed("bridge")`.

@@ -51,8 +51,8 @@ export type MockRelayReceipt =
 async function deliverSurgeMessage(chain: ChainDeployment, message: any, expected = false) {
   const errorPrefix = `deliverMessage() failed ${chain.arrow}:`;
   try {
-    // Call deliverMessage on the destination chain's MockSurgeBridge with the full message
-    const hash = await chain.contracts.MockSurgeBridge.write.deliverMessage([message]);
+    // Call deliverMessage on the destination chain's MockSurgeNativeBridge with the full message
+    const hash = await chain.contracts.MockSurgeNativeBridge.write.deliverMessage([message]);
     print(`wait for ${chain.name} tx: ${hash}`);
     const receipt = await chain.client.waitForTransactionReceipt({ 
       hash, 
@@ -81,11 +81,11 @@ export async function setupMockRelay(env: CrossChainEnvironment) {
 
   async function relay(chain: ChainDeployment, logs: Log[]) {
     const buckets = new Map<Hex, MockRelayReceipt[]>();
-    // Use MockSurgeBridge ABI for parsing events
-    const surgeBridgeAbi = chain.contracts.MockSurgeBridge.abi;
+    // Use MockSurgeNativeBridge ABI for parsing events
+    const surgeNativeBridgeAbi = chain.contracts.MockSurgeNativeBridge.abi;
     
     const parsedLogs = parseEventLogs({
-      abi: surgeBridgeAbi,
+      abi: surgeNativeBridgeAbi,
       logs,
     });
     
@@ -114,7 +114,7 @@ export async function setupMockRelay(env: CrossChainEnvironment) {
     }
   }
 
-  const unwatchL1 = env.l1.contracts.MockSurgeBridge.watchEvent.MessageSent({}, {
+  const unwatchL1 = env.l1.contracts.MockSurgeNativeBridge.watchEvent.MessageSent({}, {
     onLogs: (logs: Log[]) => {
       relay(env.l1, logs).catch(error => {
         // Only log if it's not a shutdown-related error
@@ -130,7 +130,7 @@ export async function setupMockRelay(env: CrossChainEnvironment) {
       }
     },
   });
-  const unwatchL2 = env.l2.contracts.MockSurgeBridge.watchEvent.MessageSent({}, {
+  const unwatchL2 = env.l2.contracts.MockSurgeNativeBridge.watchEvent.MessageSent({}, {
     onLogs: (logs: Log[]) => {
       relay(env.l2, logs).catch(error => {
         // Only log if it's not a shutdown-related error
@@ -156,8 +156,8 @@ export async function setupMockRelay(env: CrossChainEnvironment) {
       if (receipt.status !== "success") {
         throw Object.assign(new Error("waitFor() failed!"), { receipt }); // rare
       }
-      // Use MockSurgeBridge ABI for parsing events  
-      const surgeBridgeAbi = chain.contracts.MockSurgeBridge.abi;
+      // Use MockSurgeNativeBridge ABI for parsing events
+      const surgeBridgeAbi = chain.contracts.MockSurgeNativeBridge.abi;
       const sent = parseEventLogs({
         abi: surgeBridgeAbi,
         logs: receipt.logs,

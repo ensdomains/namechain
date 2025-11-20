@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {ISurgeBridge, ISurgeBridgeMessageInvocable} from "~src/common/bridge/interfaces/ISurgeBridge.sol";
+import {ISurgeNativeBridge, ISurgeNativeBridgeMessageInvocable} from "~src/common/bridge/interfaces/ISurgeNativeBridge.sol";
 
 /**
- * @title MockSurgeBridge
- * @notice Mock implementation of Surge's ISurgeBridge interface for testing
+ * @title MockSurgeNativeBridge
+ * @notice Mock implementation of Surge's ISurgeNativeBridge interface for testing
  * @dev Simulates cross-chain message passing for unit and integration tests
  */
-contract MockSurgeBridge is ISurgeBridge {
+contract MockSurgeNativeBridge is ISurgeNativeBridge {
     ////////////////////////////////////////////////////////////////////////
     // Storage
     ////////////////////////////////////////////////////////////////////////
@@ -17,7 +17,7 @@ contract MockSurgeBridge is ISurgeBridge {
     uint64 private _nextMessageId;
 
     ////////////////////////////////////////////////////////////////////////
-    // ISurgeBridge Implementation
+    // ISurgeNativeBridge Implementation
     ////////////////////////////////////////////////////////////////////////
 
     /**
@@ -55,7 +55,7 @@ contract MockSurgeBridge is ISurgeBridge {
         require(message.to != address(0), "Invalid message target");
 
         // Call the target contract's onMessageInvocation method
-        ISurgeBridgeMessageInvocable(message.to).onMessageInvocation{value: message.value}(message.data);
+        ISurgeNativeBridgeMessageInvocable(message.to).onMessageInvocation{value: message.value}(message.data);
     }
 
     /**
