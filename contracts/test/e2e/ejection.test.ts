@@ -38,11 +38,14 @@ describe("Ejection", () => {
   let resetState: CrossChainSnapshot;
   beforeAll(async () => {
     env = await setupCrossChainEnvironment({ procLog: true });
-    relay = setupMockRelay(env);
+    relay = await setupMockRelay(env);
     resetState = await env.saveState();
   });
 
-  afterAll(() => env?.shutdown());
+  afterAll(() => {
+    relay?.removeListeners();
+    env?.shutdown();
+  });
   beforeEach(() => resetState?.());
 
   it("2LD => L1", async () => {
