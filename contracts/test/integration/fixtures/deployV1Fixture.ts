@@ -1,5 +1,12 @@
 import type { NetworkConnection } from "hardhat/types/network";
-import { type Address, labelhash, namehash, zeroAddress } from "viem";
+import {
+  type Account,
+  type Address,
+  getAddress,
+  labelhash,
+  namehash,
+  zeroAddress,
+} from "viem";
 import { splitName } from "../../utils/utils.js";
 import { LOCAL_BATCH_GATEWAY_URL } from "../../../deploy/constants.js";
 
@@ -64,6 +71,11 @@ export async function deployV1Fixture(
     labelhash("eth"),
     ethRegistrar.address,
   ]);
+  const nameWrapper = await network.viem.deployContract("NameWrapper", [
+    ensRegistry.address,
+    ethRegistrar.address,
+    zeroAddress, // IMetadataService
+  ]);
   return {
     network,
     publicClient,
@@ -74,6 +86,7 @@ export async function deployV1Fixture(
     publicResolver,
     batchGatewayProvider,
     universalResolver,
+    nameWrapper,
     setupName,
   };
   // clobbers registry ownership up to name
@@ -81,30 +94,34 @@ export async function deployV1Fixture(
   async function setupName({
     name,
     resolverAddress = publicResolver.address,
+    account = walletClient.account,
   }: {
     name: string;
     resolverAddress?: Address;
+    account?: Account;
   }) {
+    resolverAddress = getAddress(resolverAddress); // fix checksum
     const labels = splitName(name);
     let i = labels.length;
     if (name.endsWith(".eth")) {
       await ethRegistrar.write.register([
         BigInt(labelhash(labels[(i -= 2)])),
-        walletClient.account.address,
+        account.address,
         (1n << 64n) - 1n,
       ]);
     }
     while (i > 0) {
       const parent = labels.slice(i).join(".");
       const child = labels[--i];
-      await ensRegistry.write.setSubnodeOwner([
-        namehash(parent),
-        labelhash(child),
-        walletClient.account.address,
-      ]);
+      await ensRegistry.write.setSubnodeOwner(
+        [namehash(parent), labelhash(child), account.address],
+        { account },
+      );
     }
     // set resolver on leaf
-    await ensRegistry.write.setResolver([namehash(name), resolverAddress]);
-    return { labels };
+    await ensRegistry.write.setResolver([namehash(name), resolverAddress], {
+      account,
+    });
+    return { name, labels, resolverAddress };
   }
 }
