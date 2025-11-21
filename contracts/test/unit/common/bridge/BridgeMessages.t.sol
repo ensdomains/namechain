@@ -5,6 +5,8 @@ pragma solidity >=0.8.13;
 
 import {Test, Vm} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {BridgeMessageType} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
@@ -13,12 +15,11 @@ import {TransferData} from "~src/common/bridge/types/TransferData.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
-import {MockBridgeBase} from "~src/mocks/MockBridgeBase.sol";
-import {MockL1Bridge} from "~src/mocks/MockL1Bridge.sol";
-import {MockL2Bridge} from "~src/mocks/MockL2Bridge.sol";
+import {MockBridgeBase} from "~test/mocks/MockBridgeBase.sol";
+import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
+import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -77,7 +78,7 @@ contract BridgeMessagesTest is Test {
     }
 
     function test_encodeDecodeEjection() public view {
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
+        bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
         TransferData memory transferData = TransferData({
             dnsEncodedName: dnsEncodedName,
             owner: testOwner,
@@ -150,7 +151,7 @@ contract BridgeMessagesTest is Test {
         l1Bridge.receiveMessage(renewalMessage);
 
         // Verify the renewal was processed
-        uint64 updatedExpiry = datastore.getEntry(address(registry), tokenId).expiry;
+        uint64 updatedExpiry = registry.getExpiry(tokenId);
         assertEq(updatedExpiry, newExpiry, "Expiry should be updated");
 
         // Check for RenewalSynchronized event
@@ -185,10 +186,10 @@ contract BridgeMessagesTest is Test {
         vm.recordLogs();
         l1Bridge.sendMessage(testMessage);
 
-        // Check for NameBridgedToL2 event
+        // Check for MessageSent event
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
-        bytes32 eventSig = keccak256("NameBridgedToL2(bytes)");
+        bytes32 eventSig = keccak256("MessageSent(bytes)");
 
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == eventSig) {
@@ -196,11 +197,11 @@ contract BridgeMessagesTest is Test {
                 break;
             }
         }
-        assertTrue(foundEvent, "NameBridgedToL2 event should be emitted");
+        assertTrue(foundEvent, "MessageSent event should be emitted");
     }
 
     function test_l2Bridge_sendMessage_ejection() public {
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
+        bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
         bytes memory ejectionMessage = BridgeEncoderLib.encodeEjection(
             TransferData({
                 dnsEncodedName: dnsEncodedName,
@@ -215,10 +216,10 @@ contract BridgeMessagesTest is Test {
         vm.recordLogs();
         l2Bridge.sendMessage(ejectionMessage);
 
-        // Check for NameBridgedToL1 event
+        // Check for MessageSent event
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bool foundEvent = false;
-        bytes32 eventSig = keccak256("NameBridgedToL1(bytes)");
+        bytes32 eventSig = keccak256("MessageSent(bytes)");
 
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics[0] == eventSig) {
@@ -226,6 +227,6 @@ contract BridgeMessagesTest is Test {
                 break;
             }
         }
-        assertTrue(foundEvent, "NameBridgedToL1 event should be emitted");
+        assertTrue(foundEvent, "MessageSent event should be emitted");
     }
 }

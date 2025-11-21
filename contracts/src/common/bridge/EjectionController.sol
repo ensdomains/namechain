@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
@@ -30,9 +31,9 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     // Events
     ////////////////////////////////////////////////////////////////////////
 
-    event NameEjectedToL1(bytes dnsEncodedName, uint256 tokenId);
+    event NameEjectedToL1(bytes dnsEncodedName, uint256 indexed tokenId);
 
-    event NameEjectedToL2(bytes dnsEncodedName, uint256 tokenId);
+    event NameEjectedToL2(bytes dnsEncodedName, uint256 indexed tokenId);
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
@@ -93,8 +94,8 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     function onERC1155BatchReceived(
         address /*operator*/,
         address /* from */,
-        uint256[] memory tokenIds,
-        uint256[] memory /*amounts*/,
+        uint256[] calldata tokenIds,
+        uint256[] calldata /*amounts*/,
         bytes calldata data
     ) external virtual onlyRegistry returns (bytes4) {
         TransferData[] memory transferDataArray = abi.decode(data, (TransferData[]));
@@ -139,7 +140,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
         uint256 tokenId,
         bytes memory dnsEncodedName
     ) internal pure {
-        string memory label = LibLabel.extractLabel(dnsEncodedName);
+        string memory label = NameCoder.firstLabel(dnsEncodedName);
         if (LibLabel.labelToCanonicalId(label) != LibLabel.getCanonicalId(tokenId)) {
             revert InvalidLabel(tokenId, label);
         }

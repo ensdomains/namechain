@@ -1,31 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {IBaseRegistrar} from "@ens/contracts/ethregistrar/IBaseRegistrar.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {INameWrapper, CAN_EXTEND_EXPIRY} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {MigrationData} from "../../common/bridge/types/TransferData.sol";
 import {UnauthorizedCaller} from "../../common/CommonErrors.sol";
-import {LibLabel} from "../../common/utils/LibLabel.sol";
 import {L1BridgeController} from "../bridge/L1BridgeController.sol";
 
 import {LockedNamesLib} from "./libraries/LockedNamesLib.sol";
 
-contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
+contract L1LockedMigrationController is IERC1155Receiver, ERC165 {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
 
-    IBaseRegistrar public immutable ETH_REGISTRY_V1;
-
     INameWrapper public immutable NAME_WRAPPER;
-
-    IBridge public immutable BRIDGE;
 
     L1BridgeController public immutable L1_BRIDGE_CONTROLLER;
 
@@ -44,19 +37,15 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        IBaseRegistrar ethRegistryV1_,
-        INameWrapper nameWrapper_,
-        IBridge bridge_,
-        L1BridgeController l1BridgeController_,
-        VerifiableFactory factory_,
-        address migratedRegistryImplementation_
-    ) Ownable(msg.sender) {
-        ETH_REGISTRY_V1 = ethRegistryV1_;
-        NAME_WRAPPER = nameWrapper_;
-        BRIDGE = bridge_;
-        L1_BRIDGE_CONTROLLER = l1BridgeController_;
-        FACTORY = factory_;
-        MIGRATED_REGISTRY_IMPLEMENTATION = migratedRegistryImplementation_;
+        INameWrapper nameWrapper,
+        L1BridgeController l1BridgeController,
+        VerifiableFactory factory,
+        address migratedRegistryImplementation
+    ) {
+        NAME_WRAPPER = nameWrapper;
+        L1_BRIDGE_CONTROLLER = l1BridgeController;
+        FACTORY = factory;
+        MIGRATED_REGISTRY_IMPLEMENTATION = migratedRegistryImplementation;
     }
 
     function supportsInterface(
@@ -97,8 +86,8 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
     function onERC1155BatchReceived(
         address /*operator*/,
         address /*from*/,
-        uint256[] memory tokenIds,
-        uint256[] memory /*amounts*/,
+        uint256[] calldata tokenIds,
+        uint256[] calldata /*amounts*/,
         bytes calldata data
     ) external virtual returns (bytes4) {
         if (msg.sender != address(NAME_WRAPPER)) {
@@ -143,12 +132,12 @@ contract L1LockedMigrationController is IERC1155Receiver, ERC165, Ownable {
             migrationDataArray[i].transferData.roleBitmap = tokenRoles;
 
             // Ensure name data consistency for migration
-            string memory label = LibLabel.extractLabel(
-                migrationDataArray[i].transferData.dnsEncodedName
+            (bytes32 labelHash, ) = NameCoder.readLabel(
+                migrationDataArray[i].transferData.dnsEncodedName,
+                0
             );
-            uint256 expectedTokenId = uint256(keccak256(bytes(label)));
-            if (tokenIds[i] != expectedTokenId) {
-                revert TokenIdMismatch(tokenIds[i], expectedTokenId);
+            if (tokenIds[i] != uint256(labelHash)) {
+                revert TokenIdMismatch(tokenIds[i], uint256(labelHash));
             }
 
             // Process the locked name migration through bridge

@@ -27,32 +27,32 @@ library BridgeEncoderLib {
 
     /// @dev Decode an ejection message.
     function decodeEjection(bytes memory message) internal pure returns (TransferData memory data) {
-        uint _messageType;
-        (_messageType, data) = abi.decode(message, (uint, TransferData));
-        if (_messageType != uint(BridgeMessageType.EJECTION)) {
+        uint256 _messageType;
+        (_messageType, data) = abi.decode(message, (uint256, TransferData));
+        if (_messageType != uint256(BridgeMessageType.EJECTION)) {
             revert InvalidEjectionMessageType();
         }
     }
 
     /// @dev Encode a renewal message.
     function encodeRenewal(uint256 tokenId, uint64 newExpiry) internal pure returns (bytes memory) {
-        return abi.encode(uint(BridgeMessageType.RENEWAL), tokenId, newExpiry);
+        return abi.encode(uint256(BridgeMessageType.RENEWAL), tokenId, newExpiry);
     }
 
     /// @dev Decode a renewal message.
     function decodeRenewal(
         bytes memory message
     ) internal pure returns (uint256 tokenId, uint64 newExpiry) {
-        uint _messageType;
-        (_messageType, tokenId, newExpiry) = abi.decode(message, (uint, uint256, uint64));
-        if (_messageType != uint(BridgeMessageType.RENEWAL)) {
+        uint256 _messageType;
+        (_messageType, tokenId, newExpiry) = abi.decode(message, (uint256, uint256, uint64));
+        if (_messageType != uint256(BridgeMessageType.RENEWAL)) {
             revert InvalidRenewalMessageType();
         }
     }
 
     /// @dev Helper function to get the message type from an encoded message.
     function getMessageType(bytes memory message) internal pure returns (BridgeMessageType) {
-        uint _messageType = abi.decode(message, (uint));
+        uint256 _messageType = abi.decode(message, (uint256));
         return BridgeMessageType(_messageType);
     }
 }

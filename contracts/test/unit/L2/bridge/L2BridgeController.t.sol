@@ -5,6 +5,7 @@ pragma solidity >=0.8.13;
 
 import {Test, Vm} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
@@ -23,9 +24,8 @@ import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetada
 import {ITokenObserver} from "~src/common/registry/interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
-import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
+import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 
 // Mock implementation of IRegistryMetadata
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -52,7 +52,7 @@ contract MockBridge is IBridge {
 
 contract TestL2BridgeController is Test, ERC1155Holder {
     L2BridgeController controller;
-    MockPermissionedRegistry ethRegistry;
+    PermissionedRegistry ethRegistry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
     MockBridge bridge;
@@ -81,7 +81,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         bridge = new MockBridge();
 
         // Deploy ETH registry
-        ethRegistry = new MockPermissionedRegistry(
+        ethRegistry = new PermissionedRegistry(
             datastore,
             registryMetadata,
             address(this),
@@ -121,7 +121,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 roleBitmap
     ) internal pure returns (bytes memory) {
         TransferData memory transferData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(nameLabel),
+            dnsEncodedName: NameCoder.ethName(nameLabel),
             owner: _owner,
             subregistry: subregistry,
             resolver: _resolver,
@@ -176,12 +176,15 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertTrue(foundEvent, "NameEjectedToL1 event not found");
 
         // Verify subregistry is cleared after ejection
-        address subregAddr = datastore.getEntry(address(ethRegistry), tokenId).subregistry;
-        assertEq(subregAddr, address(0), "Subregistry not cleared after ejection");
+        assertEq(
+            address(ethRegistry.getSubregistry(testLabel)),
+            address(0),
+            "Subregistry not cleared after ejection"
+        );
 
         // Verify token observer is set
         assertEq(
-            address(ethRegistry.tokenObservers(tokenId)),
+            address(ethRegistry.getTokenObserver(tokenId)),
             address(controller),
             "Token observer not set"
         );
@@ -237,7 +240,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         uint256 differentRoles = RegistryRolesLib.ROLE_RENEW | RegistryRolesLib.ROLE_REGISTRAR;
         vm.recordLogs();
         TransferData memory migrationData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(label2),
+            dnsEncodedName: NameCoder.ethName(label2),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
@@ -276,7 +279,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         assertEq(resolverAddr, l2Resolver, "Resolver not set correctly after migration");
 
         // ROLE BITMAP VERIFICATION:
-        uint256 resource = ethRegistry.testGetResourceFromTokenId(_tokenId);
+        uint256 resource = ethRegistry.getResource(_tokenId);
         assertTrue(
             ethRegistry.hasRoles(resource, originalRoles, l2Owner),
             "L2 owner should have original roles"
@@ -312,7 +315,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         vm.expectRevert(abi.encodeWithSelector(L2BridgeController.NotTokenOwner.selector, tokenId));
         // Call the external method which should revert
         TransferData memory migrationData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+            dnsEncodedName: NameCoder.ethName(testLabel),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
@@ -327,7 +330,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     function test_Revert_completeEjectionToL2_not_bridge() public {
         // Try to call completeEjectionToL2 directly (without proper role)
         TransferData memory transferData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+            dnsEncodedName: NameCoder.ethName(testLabel),
             owner: l2Owner,
             subregistry: l2Subregistry,
             resolver: l2Resolver,
@@ -375,7 +378,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             "Controller should own the token"
         );
         assertEq(
-            address(ethRegistry.tokenObservers(tokenId)),
+            address(ethRegistry.getTokenObserver(tokenId)),
             address(controller),
             "Controller should be the observer"
         );
@@ -480,7 +483,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             "Controller should own the token"
         );
         assertEq(
-            address(ethRegistry.tokenObservers(tokenId)),
+            address(ethRegistry.getTokenObserver(tokenId)),
             address(controller),
             "Controller should be the observer"
         );
@@ -632,14 +635,8 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         ethRegistry.safeTransferFrom(user, address(controller), tokenId2, 1, ejectionData);
 
         // Scenario 2: Grant the missing roles, then add extra assignees
-        uint256 resource2 = ethRegistry.testGetResourceFromTokenId(tokenId2);
+        uint256 resource2 = ethRegistry.getResource(tokenId2);
         ethRegistry.grantRoles(resource2, RegistryRolesLib.ROLE_SET_SUBREGISTRY, user);
-        ethRegistry.grantRolesDirect(
-            resource2,
-            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN,
-            user
-        );
-        ethRegistry.grantRolesDirect(resource2, RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN, user);
         address secondUser = address(0x999);
         ethRegistry.grantRoles(resource2, RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER, secondUser);
 
@@ -705,7 +702,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
             "Token should be owned by controller after ejection"
         );
         assertEq(
-            address(ethRegistry.tokenObservers(tokenId3)),
+            address(ethRegistry.getTokenObserver(tokenId3)),
             address(controller),
             "Token observer should be set to controller"
         );
@@ -746,7 +743,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         );
 
         // Get the resource ID (this stays stable across regenerations)
-        uint256 resourceId = ethRegistry.testGetResourceFromTokenId(tokenId4);
+        uint256 resourceId = ethRegistry.getResource(tokenId4);
 
         // Add multiple assignees to ROLE_SET_RESOLVER (this should not affect ejection)
         address user2 = address(0x666);
@@ -813,5 +810,208 @@ contract TestL2BridgeController is Test, ERC1155Holder {
         vm.expectRevert(abi.encodeWithSelector(InvalidOwner.selector));
         vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), testTokenId, 1, ejectionData);
+    }
+
+    function test_preMigration_directMint_noEjection() public {
+        string memory preMigrationLabel = "premigrated";
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        uint256 roleBitmap = EACBaseRolesLib.ALL_ROLES;
+
+        bridge.resetCounters();
+        vm.recordLogs();
+
+        uint256 preMigrationTokenId = ethRegistry.register(
+            preMigrationLabel,
+            address(controller),
+            ethRegistry,
+            address(0),
+            roleBitmap,
+            expiryTime
+        );
+
+        assertEq(
+            ethRegistry.ownerOf(preMigrationTokenId),
+            address(controller),
+            "Controller should own the pre-migrated token"
+        );
+
+        assertEq(
+            bridge.sendMessageCallCount(),
+            0,
+            "No bridge message should be sent on direct mint"
+        );
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 ejectionEventSig = keccak256("NameEjectedToL1(bytes,uint256)");
+        for (uint256 i = 0; i < logs.length; i++) {
+            assertFalse(
+                logs[i].emitter == address(controller) && logs[i].topics[0] == ejectionEventSig,
+                "NameEjectedToL1 should not be emitted on direct mint"
+            );
+        }
+
+        assertEq(
+            address(ethRegistry.getTokenObserver(preMigrationTokenId)),
+            address(0),
+            "Token observer should not be set on direct mint"
+        );
+
+        assertEq(
+            address(datastore.getEntry(ethRegistry, preMigrationTokenId).subregistry),
+            address(ethRegistry),
+            "Subregistry should not be cleared on direct mint"
+        );
+    }
+
+    function test_preMigration_mintThenTransfer_shouldEject() public {
+        string memory mintThenTransferLabel = "minttransfer";
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        uint256 roleBitmap = RegistryRolesLib.ROLE_SET_RESOLVER |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
+            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN |
+            RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN;
+
+        uint256 mintedTokenId = ethRegistry.register(
+            mintThenTransferLabel,
+            user,
+            ethRegistry,
+            address(0),
+            roleBitmap,
+            expiryTime
+        );
+
+        assertEq(
+            ethRegistry.ownerOf(mintedTokenId),
+            user,
+            "User should own the newly minted token"
+        );
+
+        bytes memory ejectionData = _createEjectionData(
+            mintThenTransferLabel,
+            l1Owner,
+            l1Subregistry,
+            l1Resolver,
+            expiryTime,
+            roleBitmap
+        );
+
+        bridge.resetCounters();
+        vm.recordLogs();
+
+        vm.prank(user);
+        ethRegistry.safeTransferFrom(user, address(controller), mintedTokenId, 1, ejectionData);
+
+        assertEq(
+            ethRegistry.ownerOf(mintedTokenId),
+            address(controller),
+            "Controller should own the token after transfer"
+        );
+
+        assertEq(
+            bridge.sendMessageCallCount(),
+            1,
+            "Bridge message should be sent after transfer from user"
+        );
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool foundEjectionEvent = false;
+        bytes32 ejectionEventSig = keccak256("NameEjectedToL1(bytes,uint256)");
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(controller) && logs[i].topics[0] == ejectionEventSig) {
+                foundEjectionEvent = true;
+                break;
+            }
+        }
+        assertTrue(foundEjectionEvent, "NameEjectedToL1 should be emitted on transfer from user");
+
+        assertEq(
+            address(ethRegistry.getTokenObserver(mintedTokenId)),
+            address(controller),
+            "Token observer should be set after ejection"
+        );
+
+        assertEq(
+            address(datastore.getEntry(ethRegistry, mintedTokenId).subregistry),
+            address(0),
+            "Subregistry should be cleared after ejection"
+        );
+    }
+
+    function test_preMigration_directMintThenCompleteEjectionToL2() public {
+        string memory preMigrationLabel = "premigrate2";
+        uint64 expiryTime = uint64(block.timestamp + expiryDuration);
+        uint256 roleBitmap = RegistryRolesLib.ROLE_SET_RESOLVER |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY |
+            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER |
+            RegistryRolesLib.ROLE_SET_TOKEN_OBSERVER_ADMIN |
+            RegistryRolesLib.ROLE_SET_SUBREGISTRY_ADMIN |
+            RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN;
+
+        uint256 preMigrationTokenId = ethRegistry.register(
+            preMigrationLabel,
+            address(controller),
+            ethRegistry,
+            address(0),
+            roleBitmap,
+            expiryTime
+        );
+
+        assertEq(
+            ethRegistry.ownerOf(preMigrationTokenId),
+            address(controller),
+            "Controller should own the pre-migrated token"
+        );
+
+        TransferData memory migrationData = TransferData({
+            dnsEncodedName: NameCoder.ethName(preMigrationLabel),
+            owner: l2Owner,
+            subregistry: l2Subregistry,
+            resolver: l2Resolver,
+            roleBitmap: roleBitmap,
+            expires: 0
+        });
+
+        bridge.resetCounters();
+        vm.recordLogs();
+
+        vm.prank(address(bridge));
+        controller.completeEjectionToL2(migrationData);
+
+        assertEq(
+            ethRegistry.ownerOf(preMigrationTokenId),
+            l2Owner,
+            "L2 owner should now own the token after migration"
+        );
+
+        assertEq(
+            address(ethRegistry.getSubregistry(preMigrationLabel)),
+            l2Subregistry,
+            "Subregistry should be set to L2 subregistry after migration"
+        );
+
+        assertEq(
+            ethRegistry.getResolver(preMigrationLabel),
+            l2Resolver,
+            "Resolver should be set to L2 resolver after migration"
+        );
+
+        assertEq(
+            address(ethRegistry.getTokenObserver(preMigrationTokenId)),
+            address(0),
+            "Token observer should be cleared after migration"
+        );
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool foundEjectionEvent = false;
+        bytes32 ejectionEventSig = keccak256("NameEjectedToL2(bytes,uint256)");
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].emitter == address(controller) && logs[i].topics[0] == ejectionEventSig) {
+                foundEjectionEvent = true;
+                break;
+            }
+        }
+        assertTrue(foundEjectionEvent, "NameEjectedToL2 should be emitted on migration to L2");
     }
 }

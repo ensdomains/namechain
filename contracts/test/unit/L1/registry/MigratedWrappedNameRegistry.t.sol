@@ -63,6 +63,12 @@ contract MockNameWrapper {
     mapping(uint256 tokenId => uint64 expiry) public expiries;
     mapping(uint256 tokenId => address resolver) public resolvers;
 
+    MockENS public ens;
+
+    constructor(MockENS _ens) {
+        ens = _ens;
+    }
+
     function setOwner(uint256 tokenId, address owner) external {
         owners[tokenId] = owner;
     }
@@ -141,15 +147,14 @@ contract MigratedWrappedNameRegistryTest is Test {
         datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
         ensRegistry = new MockENS();
-        nameWrapper = new MockNameWrapper();
+        nameWrapper = new MockNameWrapper(ensRegistry);
         factory = new VerifiableFactory();
 
         // Deploy implementation
         implementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)), // mock nameWrapper
-            ENS(address(ensRegistry)), // mock ENS registry
-            factory,
             IPermissionedRegistry(address(0)), // mock ethRegistry
+            factory,
             datastore,
             metadata
         );
@@ -169,7 +174,7 @@ contract MigratedWrappedNameRegistryTest is Test {
         testLabelId = LibLabel.labelToCanonicalId(testLabel);
 
         // Setup v1 resolver in ENS registry
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
+        bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
         bytes32 node = NameCoder.namehash(dnsEncodedName, 0);
         ensRegistry.setResolver(node, v1Resolver);
     }
@@ -255,7 +260,7 @@ contract MigratedWrappedNameRegistryTest is Test {
 
     function test_getResolver_ens_registry_returns_zero() public {
         // Clear the resolver in ENS registry
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
+        bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
         bytes32 node = NameCoder.namehash(dnsEncodedName, 0);
         ensRegistry.setResolver(node, address(0));
 
@@ -269,8 +274,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         string memory label2 = "bar";
 
         // Setup different resolvers in ENS registry
-        bytes32 node1 = NameCoder.namehash(LibLabel.dnsEncodeEthLabel(label1), 0);
-        bytes32 node2 = NameCoder.namehash(LibLabel.dnsEncodeEthLabel(label2), 0);
+        bytes32 node1 = NameCoder.namehash(NameCoder.ethName(label1), 0);
+        bytes32 node2 = NameCoder.namehash(NameCoder.ethName(label2), 0);
         ensRegistry.setResolver(node1, address(0x1111));
         ensRegistry.setResolver(node2, address(0x2222));
 
@@ -562,9 +567,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy implementation with real factory
         MigratedWrappedNameRegistry impl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            realFactory,
             IPermissionedRegistry(address(0)),
+            realFactory,
             datastore,
             metadata
         );
@@ -589,9 +593,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy new implementation instance
         MigratedWrappedNameRegistry impl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             metadata
         );
@@ -1302,9 +1305,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy a new implementation
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             metadata
         );
@@ -1329,9 +1331,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy a new implementation
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             metadata
         );
@@ -1351,9 +1352,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy a new implementation
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             metadata
         );
@@ -1385,9 +1385,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy a new implementation
         MigratedWrappedNameRegistry newImplementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             metadata
         );
@@ -1452,9 +1451,8 @@ contract MigratedWrappedNameRegistryTest is Test {
     function test_initialize_zero_address_owner() public {
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             metadata
         );
@@ -1474,9 +1472,8 @@ contract MigratedWrappedNameRegistryTest is Test {
     function test_initialize_with_registrar_address() public {
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             metadata
         );
@@ -1507,9 +1504,8 @@ contract MigratedWrappedNameRegistryTest is Test {
     function test_initialize_with_custom_owner_roles() public {
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             metadata
         );
@@ -1540,9 +1536,8 @@ contract MigratedWrappedNameRegistryTest is Test {
     function test_initialize_different_parent_dns_name() public {
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(0)),
+            VerifiableFactory(address(0)),
             datastore,
             metadata
         );
@@ -1583,9 +1578,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         // Deploy new registry with mock ethRegistry
         MigratedWrappedNameRegistry newImpl = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
-            ENS(address(ensRegistry)),
-            VerifiableFactory(address(0)),
             IPermissionedRegistry(address(mockEthRegistry)),
+            VerifiableFactory(address(0)),
             datastore,
             metadata
         );

@@ -41,6 +41,7 @@ const config = {
     sources: {
       solidity: [
         "./src/",
+        "./test/mocks/",
         "./lib/verifiable-factory/src/",
         "./lib/ens-contracts/contracts/",
         "./lib/openzeppelin-contracts/contracts/utils/introspection/",

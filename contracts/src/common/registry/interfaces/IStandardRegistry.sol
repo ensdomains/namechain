@@ -9,20 +9,6 @@ import {IRegistry} from "./IRegistry.sol";
  */
 interface IStandardRegistry is IRegistry {
     ////////////////////////////////////////////////////////////////////////
-    // Events
-    ////////////////////////////////////////////////////////////////////////
-
-    /**
-     * @dev Event emitted when a name is renewed.
-     */
-    event NameRenewed(uint256 indexed tokenId, uint64 newExpiration, address renewedBy);
-
-    /**
-     * @dev Event emitted when a name is burned.
-     */
-    event NameBurned(uint256 indexed tokenId, address burnedBy);
-
-    ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
 
@@ -73,37 +59,27 @@ interface IStandardRegistry is IRegistry {
         uint64 expires
     ) external returns (uint256 tokenId);
 
-    /**
-     * @dev Renews a subdomain.
-     * @param tokenId The token ID of the subdomain to renew.
-     * @param expires The expiration date of the subdomain.
-     */
-    function renew(uint256 tokenId, uint64 expires) external;
+    /// @notice Renew a subdomain.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @param newExpiry The new expiration.
+    function renew(uint256 anyId, uint64 newExpiry) external;
 
-    /**
-     * @dev Burns a name.
-     * @param tokenId The token ID of the name to burn.
-     */
-    function burn(uint256 tokenId) external;
+    /// @notice Unregister name, inactivate token, and leave registry and resolver unchanged.
+    /// @param anyId The labelhash, token ID, or resource.
+    function unregister(uint256 anyId) external;
 
-    /**
-     * @dev Sets a name.
-     * @param tokenId The token ID of the name to set.
-     * @param registry The registry to set as the name.
-     */
-    function setSubregistry(uint256 tokenId, IRegistry registry) external;
+    /// @notice Change registry of name.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @param registry The new registry.
+    function setSubregistry(uint256 anyId, IRegistry registry) external;
 
-    /**
-     * @dev Sets a resolver for a name.
-     * @param tokenId The token ID of the name to set a resolver for.
-     * @param resolver The resolver to set for the name.
-     */
-    function setResolver(uint256 tokenId, address resolver) external;
+    /// @notice Change resolver of name.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @param resolver The new resolver.
+    function setResolver(uint256 anyId, address resolver) external;
 
-    /**
-     * @dev Fetches the expiry date of a name.
-     * @param tokenId The token ID of the name to fetch the expiry for.
-     * @return The expiry date of the name.
-     */
-    function getExpiry(uint256 tokenId) external view returns (uint64);
+    /// @notice Get expiry of name.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @return The expiry for name.
+    function getExpiry(uint256 anyId) external view returns (uint64);
 }

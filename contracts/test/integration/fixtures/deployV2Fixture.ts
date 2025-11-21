@@ -1,9 +1,8 @@
 import type { NetworkConnection } from "hardhat/types/network";
 import { type Address, labelhash, zeroAddress } from "viem";
-import { ROLES } from "../../../deploy/constants.js";
+import { LOCAL_BATCH_GATEWAY_URL, ROLES } from "../../../deploy/constants.js";
 import { splitName } from "../../utils/utils.js";
 import { deployVerifiableProxy } from "./deployVerifiableProxy.js";
-export { ROLES };
 
 export const MAX_EXPIRY = (1n << 64n) - 1n; // see: DatastoreUtils.sol
 
@@ -26,7 +25,7 @@ export async function deployV2Fixture(
   );
   const batchGatewayProvider = await network.viem.deployContract(
     "GatewayProvider",
-    [walletClient.account.address, ["x-batch-gateway:true"]],
+    [walletClient.account.address, [LOCAL_BATCH_GATEWAY_URL]],
   );
   const universalResolver = await network.viem.deployContract(
     "UniversalResolverV2",
@@ -41,9 +40,9 @@ export async function deployV2Fixture(
     ROLES.ALL,
     MAX_EXPIRY,
   ]);
-  const dedicatedResolverFactory =
+  const verifiableFactory =
     await network.viem.deployContract("VerifiableFactory");
-  const dedicatedResolverImpl =
+  const dedicatedResolver =
     await network.viem.deployContract("DedicatedResolver");
   return {
     network,
@@ -59,16 +58,20 @@ export async function deployV2Fixture(
   };
   async function deployDedicatedResolver({
     owner = walletClient.account.address,
+    roles = ROLES.ALL,
     salt = BigInt(labelhash(new Date().toISOString())),
   }: {
     owner?: Address;
+    roles?: bigint;
     salt?: bigint;
   } = {}) {
     return deployVerifiableProxy({
       walletClient: await network.viem.getWalletClient(owner),
-      factoryAddress: dedicatedResolverFactory.address,
-      implAddress: dedicatedResolverImpl.address,
-      implAbi: dedicatedResolverImpl.abi,
+      factoryAddress: verifiableFactory.address,
+      implAddress: dedicatedResolver.address,
+      abi: dedicatedResolver.abi,
+      functionName: "initialize",
+      args: [walletClient.account.address, roles],
       salt,
     });
   }

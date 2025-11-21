@@ -5,6 +5,7 @@ import {
   parseEventLogs,
   zeroAddress,
 } from "viem";
+import { ROLES } from "../constants.ts";
 
 export default execute(
   async (
@@ -31,20 +32,19 @@ export default execute(
     const verifiableFactory =
       get<(typeof artifacts.VerifiableFactory)["abi"]>("VerifiableFactory");
 
-    const dedicatedResolverImpl = get<
-      (typeof artifacts.DedicatedResolver)["abi"]
-    >("DedicatedResolverImpl");
+    const dedicatedResolver =
+      get<(typeof artifacts.DedicatedResolver)["abi"]>("DedicatedResolver");
 
     const hash = await write(verifiableFactory, {
       account: deployer,
       functionName: "deployProxy",
       args: [
-        dedicatedResolverImpl.address,
+        dedicatedResolver.address,
         1n,
         encodeFunctionData({
-          abi: dedicatedResolverImpl.abi,
+          abi: dedicatedResolver.abi,
           functionName: "initialize",
-          args: [deployer],
+          args: [deployer, ROLES.ALL],
         }),
       ],
     });
@@ -62,7 +62,7 @@ export default execute(
     });
 
     const ethSelfResolver = await save("ETHSelfResolver", {
-      ...dedicatedResolverImpl,
+      ...dedicatedResolver,
       address: log.args.proxyAddress,
     });
 
@@ -89,6 +89,7 @@ export default execute(
   {
     tags: ["ETHTLDResolver", "l1"],
     dependencies: [
+      "VerifiableFactory",
       "DedicatedResolver",
       "BaseRegistrarImplementation", // "ENSRegistry"
       "BatchGatewayProvider",
