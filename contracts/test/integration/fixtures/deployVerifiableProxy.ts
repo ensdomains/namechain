@@ -10,7 +10,7 @@ import {
   type EncodeFunctionDataParameters,
   getContract,
   getContractAddress,
-  Hex,
+  type Hex,
   keccak256,
   parseAbi,
   parseEventLogs,

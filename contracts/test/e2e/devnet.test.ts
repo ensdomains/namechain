@@ -72,7 +72,7 @@ describe("Devnet", () => {
     ).resolves.toStrictEqual(toHex(0, { size: 32 }));
   });
 
-  it(`computeProxyAddress`, async () => {
+  it(`computeVerifiableProxyAddress`, async () => {
     for (const lx of [env.l1, env.l2]) {
       const account = env.namedAccounts.deployer;
       const salt = 1234n;
