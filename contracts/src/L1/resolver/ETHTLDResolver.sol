@@ -38,9 +38,7 @@ import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
-import {
-    DedicatedResolverLayoutLib
-} from "../../common/resolver/libraries/DedicatedResolverLayoutLib.sol";
+import {DedicatedResolverLib} from "../../common/resolver/libraries/DedicatedResolverLib.sol";
 import {LibLabel} from "../../common/utils/LibLabel.sol";
 import {LibRegistry} from "../../universalResolver/libraries/LibRegistry.sol";
 import {L1BridgeController} from "../bridge/L1BridgeController.sol";
@@ -426,7 +424,7 @@ contract ETHTLDResolver is
                     ? COIN_TYPE_ETH
                     : uint256(BytesUtils.readBytes32(v, 36));
                 req
-                    .setSlot(DedicatedResolverLayoutLib.SLOT_ADDRESSES)
+                    .setSlot(DedicatedResolverLib.SLOT_ADDRESSES)
                     .push(coinType)
                     .follow()
                     .readBytes(); // _addresses[coinType]
@@ -435,11 +433,7 @@ contract ETHTLDResolver is
                 }
             } else if (selector == IHasAddressResolver.hasAddr.selector) {
                 uint256 coinType = uint256(BytesUtils.readBytes32(v, 36));
-                req
-                    .setSlot(DedicatedResolverLayoutLib.SLOT_ADDRESSES)
-                    .push(coinType)
-                    .follow()
-                    .read(); // _addresses[coinType] head slot
+                req.setSlot(DedicatedResolverLib.SLOT_ADDRESSES).push(coinType).follow().read(); // _addresses[coinType] head slot
             } else if (selector == ITextResolver.text.selector) {
                 (, string memory key) = abi.decode(
                     BytesUtils.substring(v, 4, v.length - 4),
@@ -448,20 +442,16 @@ contract ETHTLDResolver is
                 // uint256 jump = 4 + uint256(BytesUtils.readBytes32(v, 36));
                 // uint256 size = uint256(BytesUtils.readBytes32(v, jump));
                 // bytes memory key = BytesUtils.substring(v, jump + 32, size);
-                req.setSlot(DedicatedResolverLayoutLib.SLOT_TEXTS).push(key).follow().readBytes(); // _texts[key]
+                req.setSlot(DedicatedResolverLib.SLOT_TEXTS).push(key).follow().readBytes(); // _texts[key]
             } else if (selector == IContentHashResolver.contenthash.selector) {
-                req.setSlot(DedicatedResolverLayoutLib.SLOT_CONTENTHASH).readBytes(); // _contenthash
+                req.setSlot(DedicatedResolverLib.SLOT_CONTENTHASH).readBytes(); // _contenthash
             } else if (selector == INameResolver.name.selector) {
-                req.setSlot(DedicatedResolverLayoutLib.SLOT_PRIMARY).readBytes(); // _primary
+                req.setSlot(DedicatedResolverLib.SLOT_NAME).readBytes(); // _primary
             } else if (selector == IPubkeyResolver.pubkey.selector) {
-                req.setSlot(DedicatedResolverLayoutLib.SLOT_PUBKEY).read(2); // _pubkey (x and y)
+                req.setSlot(DedicatedResolverLib.SLOT_PUBKEY).read(2); // _pubkey (x and y)
             } else if (selector == IInterfaceResolver.interfaceImplementer.selector) {
                 bytes4 interfaceID = bytes4(BytesUtils.readBytes32(v, 36));
-                req
-                    .setSlot(DedicatedResolverLayoutLib.SLOT_INTERFACES)
-                    .push(interfaceID)
-                    .follow()
-                    .read(); // _interfaces[interfaceID]
+                req.setSlot(DedicatedResolverLib.SLOT_INTERFACES).push(interfaceID).follow().read(); // _interfaces[interfaceID]
             } else if (selector == IABIResolver.ABI.selector) {
                 uint256 bits = uint256(BytesUtils.readBytes32(v, 36));
                 for (uint256 contentType = 1 << 255; contentType > 0; contentType >>= 1) {
@@ -475,7 +465,7 @@ contract ETHTLDResolver is
                 cmd.dup().length().assertNonzero(1); // require length > 0
                 cmd.concat().setOutput(i); // save contentType + bytes
                 req.push(cmd);
-                req.setSlot(DedicatedResolverLayoutLib.SLOT_ABIS);
+                req.setSlot(DedicatedResolverLib.SLOT_ABIS);
                 req.evalLoop(EvalFlag.STOP_ON_SUCCESS);
                 continue;
             } else {
@@ -497,7 +487,7 @@ contract ETHTLDResolver is
         }
         req.pushOutput(max).requireNonzero(0); // stop if no missing
         req
-            .setSlot(DedicatedResolverLayoutLib.SLOT_ADDRESSES)
+            .setSlot(DedicatedResolverLib.SLOT_ADDRESSES)
             .push(COIN_TYPE_DEFAULT)
             .follow()
             .readBytes(); // _addresses[COIN_TYPE_DEFAULT]
