@@ -71,4 +71,17 @@ describe("Devnet", () => {
       env.l1.client.getStorageAt({ address, slot }),
     ).resolves.toStrictEqual(toHex(0, { size: 32 }));
   });
+
+  it(`computeProxyAddress`, async () => {
+    for (const lx of [env.l1, env.l2]) {
+      const account = env.namedAccounts.deployer;
+      const salt = 1234n;
+      const contract = await lx.deployDedicatedResolver({ account, salt });
+      const address = await lx.computeVerifiableProxyAddress({
+        deployer: account.address,
+        salt,
+      });
+      expect(address, lx.name).toStrictEqual(contract.address);
+    }
+  });
 });

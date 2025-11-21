@@ -3,10 +3,14 @@ import {
   type Account,
   type Address,
   type Chain,
+  concat,
   type ContractFunctionName,
+  encodeAbiParameters,
   encodeFunctionData,
   type EncodeFunctionDataParameters,
   getContract,
+  getContractAddress,
+  Hex,
   keccak256,
   parseAbi,
   parseEventLogs,
@@ -64,5 +68,36 @@ export async function deployVerifiableProxy<
   return Object.assign(contract, {
     deploymentHash: hash,
     deploymentReceipt: receipt,
+  });
+}
+
+export async function computeVerifiableProxyAddress({
+  factoryAddress,
+  bytecode,
+  deployer,
+  salt,
+}: {
+  factoryAddress: Address;
+  bytecode: Hex;
+  deployer: Address;
+  salt: bigint;
+}) {
+  const outerSalt = keccak256(
+    encodeAbiParameters(
+      [{ type: "address" }, { type: "uint256" }],
+      [deployer, salt],
+    ),
+  );
+  return getContractAddress({
+    bytecode: concat([
+      bytecode,
+      encodeAbiParameters(
+        [{ type: "address" }, { type: "bytes32" }],
+        [factoryAddress, outerSalt],
+      ),
+    ]),
+    from: factoryAddress,
+    opcode: "CREATE2",
+    salt: outerSalt,
   });
 }
