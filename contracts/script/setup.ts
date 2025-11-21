@@ -24,11 +24,7 @@ import { WebSocketProvider } from "ethers/providers";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 
-/**
- * Default chain IDs for devnet environment
- */
-export const DEFAULT_L2_CHAIN_ID = 0xeeeeee;
-export const DEFAULT_L1_CHAIN_ID = DEFAULT_L2_CHAIN_ID - 1;
+import type { RockethArguments, RockethL1Arguments } from "./types.js";
 import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
 import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
 import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
@@ -38,11 +34,12 @@ import {
   MAX_EXPIRY,
   ROLES,
 } from "../deploy/constants.js";
-import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
-import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
-import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
-import { patchArtifactsV1 } from "./patchArtifactsV1.js";
-import type { RockethArguments, RockethL1Arguments } from "./types.js";
+
+/**
+ * Default chain IDs for devnet environment
+ */
+export const DEFAULT_L2_CHAIN_ID = 0xeeeeee;
+export const DEFAULT_L1_CHAIN_ID = DEFAULT_L2_CHAIN_ID - 1;
 
 type DeployedArtifacts = Record<string, Abi>;
 
