@@ -84,6 +84,7 @@ jobs:
 
   publish-docker:
     name: Publish Docker Image
+    if: github.ref == 'refs/heads/main'
     needs: [check-types, forge-tests, hardhat-tests, lint]
     runs-on: ubuntu-latest
     permissions:
