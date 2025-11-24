@@ -16,11 +16,9 @@ interface IEnhancedAccessControl is IERC165 {
     // Events
     ////////////////////////////////////////////////////////////////////////
 
-    event EACRolesGranted(uint256 resource, uint256 roleBitmap, address account);
+    event EACRolesGranted(uint256 indexed resource, uint256 roleBitmap, address indexed account);
 
-    event EACRolesRevoked(uint256 resource, uint256 roleBitmap, address account);
-
-    event EACAllRolesRevoked(uint256 resource, address account);
+    event EACRolesRevoked(uint256 indexed resource, uint256 roleBitmap, address indexed account);
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
