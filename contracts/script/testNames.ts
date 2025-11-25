@@ -170,7 +170,7 @@ async function deployResolverWithRecords(
 ) {
   const chainEnv = chain === "l2" ? env.l2 : env.l1;
   const client = chain === "l2" ? env.l2.client : env.l1.client;
-  const resolver = (await chainEnv.deployDedicatedResolver(account)) as any;
+  const resolver = (await chainEnv.deployDedicatedResolver({ account })) as any;
 
   if (shouldTrackGas && resolver.deploymentHash) {
     await trackGas("deployResolver", resolver.deploymentHash, client);
@@ -912,7 +912,7 @@ export async function registerTestNames(
 
   for (const label of labels) {
     // Deploy a dedicated resolver for this name (same as test)
-    const resolver = (await env.l2.deployDedicatedResolver(account)) as any;
+    const resolver = (await env.l2.deployDedicatedResolver({ account })) as any;
 
     // Track deployment gas if enabled
     if (shouldTrackGas && resolver.deploymentHash) {
