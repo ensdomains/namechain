@@ -94,7 +94,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     ////////////////////////////////////////////////////////////////////////
     // Implementation
     ////////////////////////////////////////////////////////////////////////
-
     /**
      * @dev Grants all roles in the given role bitmap to `account`.
      *
@@ -248,6 +247,8 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * This function first revokes all roles from the source account, then grants them to the
      * destination account. This prevents exceeding max assignees limits during transfer.
      *
+     * Does nothing if there are no roles to transfer.
+     *
      * @param resource The resource to transfer roles within.
      * @param srcAccount The account to transfer roles from.
      * @param dstAccount The account to transfer roles to.
@@ -284,6 +285,9 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         bool executeCallbacks
     ) internal virtual returns (bool) {
         _checkRoleBitmap(roleBitmap);
+        if (account == address(0)) {
+            revert EACInvalidAccount();
+        }
         uint256 currentRoles = _roles[resource][account];
         uint256 updatedRoles = currentRoles | roleBitmap;
 
@@ -294,7 +298,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
             if (executeCallbacks) {
                 _onRolesGranted(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
-            emit EACRolesGranted(resource, roleBitmap, account);
+            emit EACRolesChanged(resource, account, currentRoles, updatedRoles);
             return true;
         } else {
             return false;
@@ -327,7 +331,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
             if (executeCallbacks) {
                 _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
-            emit EACRolesRevoked(resource, roleBitmap, account);
+            emit EACRolesChanged(resource, account, currentRoles, updatedRoles);
             return true;
         } else {
             return false;
