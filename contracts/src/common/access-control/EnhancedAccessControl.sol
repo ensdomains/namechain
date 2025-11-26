@@ -247,7 +247,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * This function first revokes all roles from the source account, then grants them to the
      * destination account. This prevents exceeding max assignees limits during transfer.
      *
-     * Does nothing if `srcAccount == dstAccount`.
      * Does nothing if there are no roles to transfer.
      *
      * @param resource The resource to transfer roles within.
@@ -261,14 +260,12 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         address dstAccount,
         bool executeCallbacks
     ) internal virtual {
-        if (srcAccount != dstAccount) {
-            uint256 srcRoles = _roles[resource][srcAccount];
-            if (srcRoles != 0) {
-                // First revoke roles from source account to free up assignee slots
-                _revokeRoles(resource, srcRoles, srcAccount, executeCallbacks);
-                // Then grant roles to destination account
-                _grantRoles(resource, srcRoles, dstAccount, executeCallbacks);
-            }
+        uint256 srcRoles = _roles[resource][srcAccount];
+        if (srcRoles != 0) {
+            // First revoke roles from source account to free up assignee slots
+            _revokeRoles(resource, srcRoles, srcAccount, executeCallbacks);
+            // Then grant roles to destination account
+            _grantRoles(resource, srcRoles, dstAccount, executeCallbacks);
         }
     }
 
