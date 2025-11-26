@@ -1,6 +1,5 @@
 import { artifacts, execute } from "@rocketh";
-import { ROLES } from "../constants.js";
-import { dnsEncodeName } from "../../test/utils/utils.ts";
+import { dnsEncodeName } from "../../test/utils/utils.js";
 
 export default execute(
   async ({ deploy, get, namedAccounts: { deployer } }) => {
