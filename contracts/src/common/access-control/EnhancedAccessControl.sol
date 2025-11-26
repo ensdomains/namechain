@@ -170,6 +170,16 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         return _revokeRoles(ROOT_RESOURCE, roleBitmap, account, true);
     }
 
+    /// @notice Returns the roles bitmap for an account in a resource.
+    function roles(uint256 resource, address account) public view virtual returns (uint256) {
+        return _roles[resource][account];
+    }
+
+    /// @notice Returns the role count bitmap for a resource.
+    function roleCount(uint256 resource) public view virtual returns (uint256) {
+        return _roleCount[resource];
+    }
+
     /**
      * @dev Returns `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`.
      *
@@ -179,16 +189,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      */
     function hasRootRoles(uint256 rolesBitmap, address account) public view virtual returns (bool) {
         return _roles[ROOT_RESOURCE][account] & rolesBitmap == rolesBitmap;
-    }
-
-    /// @notice Returns the roles bitmap for an account in a resource.
-    function roles(uint256 resource, address account) public view virtual returns (uint256) {
-        return _roles[resource][account];
-    }
-
-    /// @notice Returns the role count bitmap for a resource.
-    function roleCount(uint256 resource) public view virtual returns (uint256) {
-        return _roleCount[resource];
     }
 
     /**
