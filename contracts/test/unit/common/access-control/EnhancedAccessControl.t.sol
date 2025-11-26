@@ -212,6 +212,11 @@ contract EnhancedAccessControlTest is Test {
         _grant(RESOURCE_1, ROLE_B | ROLE_C, user1);
     }
 
+    function test_grant_invalid_account() external {
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidAccount.selector));
+        access.grantRoles(RESOURCE_1, ROLE_A, address(0));
+    }
+
     // Test that unauthorized accounts cannot grant roles
     function test_grant_roles_unauthorized_admin() external {
         // Grant ROLE_A (but not ADMIN_ROLE_A) to user1
