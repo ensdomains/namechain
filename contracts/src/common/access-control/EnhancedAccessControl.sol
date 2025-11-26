@@ -94,7 +94,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     ////////////////////////////////////////////////////////////////////////
     // Implementation
     ////////////////////////////////////////////////////////////////////////
-
     /**
      * @dev Grants all roles in the given role bitmap to `account`.
      *
@@ -171,27 +170,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         return _revokeRoles(ROOT_RESOURCE, roleBitmap, account, true);
     }
 
-    /// @notice Returns the roles bitmap for an account in a resource.
-    function roles(uint256 resource, address account) public view virtual returns (uint256) {
-        return _roles[resource][account];
-    }
-
-    /// @notice Returns the role count bitmap for a resource.
-    function roleCount(uint256 resource) public view virtual returns (uint256) {
-        return _roleCount[resource];
-    }
-
-    /**
-     * @dev Returns `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`.
-     *
-     * @param rolesBitmap The roles bitmap to check.
-     * @param account The account to check.
-     * @return `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`, `false` otherwise.
-     */
-    function hasRootRoles(uint256 rolesBitmap, address account) public view virtual returns (bool) {
-        return _roles[ROOT_RESOURCE][account] & rolesBitmap == rolesBitmap;
-    }
-
     /**
      * @dev Returns `true` if `account` has been granted all the given roles in `resource`.
      *
@@ -208,6 +186,27 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         return
             (_roles[ROOT_RESOURCE][account] | _roles[resource][account]) & rolesBitmap ==
             rolesBitmap;
+    }
+
+    /**
+     * @dev Returns `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`.
+     *
+     * @param rolesBitmap The roles bitmap to check.
+     * @param account The account to check.
+     * @return `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`, `false` otherwise.
+     */
+    function hasRootRoles(uint256 rolesBitmap, address account) public view virtual returns (bool) {
+        return _roles[ROOT_RESOURCE][account] & rolesBitmap == rolesBitmap;
+    }
+
+    /// @notice Returns the roles bitmap for an account in a resource.
+    function roles(uint256 resource, address account) public view virtual returns (uint256) {
+        return _roles[resource][account];
+    }
+
+    /// @notice Returns the role count bitmap for a resource.
+    function roleCount(uint256 resource) public view virtual returns (uint256) {
+        return _roleCount[resource];
     }
 
     /**
@@ -248,6 +247,9 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * This function first revokes all roles from the source account, then grants them to the
      * destination account. This prevents exceeding max assignees limits during transfer.
      *
+     * Does nothing if `srcAccount == dstAccount`.
+     * Does nothing if there are no roles to transfer.
+     *
      * @param resource The resource to transfer roles within.
      * @param srcAccount The account to transfer roles from.
      * @param dstAccount The account to transfer roles to.
@@ -259,12 +261,14 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         address dstAccount,
         bool executeCallbacks
     ) internal virtual {
-        uint256 srcRoles = _roles[resource][srcAccount];
-        if (srcRoles != 0) {
-            // First revoke roles from source account to free up assignee slots
-            _revokeRoles(resource, srcRoles, srcAccount, executeCallbacks);
-            // Then grant roles to destination account
-            _grantRoles(resource, srcRoles, dstAccount, executeCallbacks);
+        if (srcAccount != dstAccount) {
+            uint256 srcRoles = _roles[resource][srcAccount];
+            if (srcRoles != 0) {
+                // First revoke roles from source account to free up assignee slots
+                _revokeRoles(resource, srcRoles, srcAccount, executeCallbacks);
+                // Then grant roles to destination account
+                _grantRoles(resource, srcRoles, dstAccount, executeCallbacks);
+            }
         }
     }
 
@@ -284,6 +288,9 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         bool executeCallbacks
     ) internal virtual returns (bool) {
         _checkRoleBitmap(roleBitmap);
+        if (account == address(0)) {
+            revert EACInvalidAccount();
+        }
         uint256 currentRoles = _roles[resource][account];
         uint256 updatedRoles = currentRoles | roleBitmap;
 
@@ -294,7 +301,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
             if (executeCallbacks) {
                 _onRolesGranted(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
-            emit EACRolesGranted(resource, roleBitmap, account);
+            emit EACRolesChanged(resource, account, currentRoles, updatedRoles);
             return true;
         } else {
             return false;
@@ -327,7 +334,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
             if (executeCallbacks) {
                 _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
-            emit EACRolesRevoked(resource, roleBitmap, account);
+            emit EACRolesChanged(resource, account, currentRoles, updatedRoles);
             return true;
         } else {
             return false;
