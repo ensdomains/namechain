@@ -530,6 +530,19 @@ export async function setupCrossChainEnvironment({
     await setupEnsDotEth(l1, deployer);
     console.log("Setup ens.eth");
 
+    // Set Namechain metadata on ETHTLDResolver for offchain resolution discovery
+    // DNS-encoded "eth" = 0x03657468 (length byte 0x03 + "eth")
+    await l1.contracts.ETHTLDResolver.write.setMetadata(
+      [
+        "0x03657468",
+        [`http://${l2HostPort}`],
+        BigInt(l2ChainId),
+        l2.contracts.ETHRegistry.address,
+      ],
+      { account: deployer },
+    );
+    console.log("Setup Namechain metadata");
+
     //await setupBridgeBlacklists(l1, l2);
 
     await sync();
