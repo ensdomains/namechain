@@ -1,5 +1,5 @@
-import { type ByteArray, concat, stringToBytes, toHex } from "viem";
-import { packetToBytes } from "../../../utils/utils.js";
+import { type ByteArray, concat, hexToBytes, stringToBytes, toHex } from "viem";
+import { dnsEncodeName } from "../../../utils/utils.js";
 
 export type RR = {
   name: ByteArray;
@@ -11,7 +11,7 @@ export type RR = {
 
 export function encodeRRs(rr: RR[]) {
   const v = new Uint8Array(
-    rr.reduce((a, x) => a + x.name.length + 10 + x.data.length, 0),
+    rr.reduce((a, x) => a + x.name.length + 10 + x.data.length, 0), // see below
   );
   const dv = new DataView(v.buffer, v.byteOffset, v.byteLength);
   let pos = 0;
@@ -25,7 +25,7 @@ export function encodeRRs(rr: RR[]) {
     if (x.ttl) dv.setUint32(pos, x.ttl);
     pos += 4; // 8
     dv.setUint16(pos, x.data.length);
-    pos += 2; // 10
+    pos += 2; // 10 => same as above
     v.set(x.data, pos);
     pos += x.data.length;
   }
@@ -34,7 +34,7 @@ export function encodeRRs(rr: RR[]) {
 
 export function makeTXT(name: string, txt: string): RR {
   return {
-    name: packetToBytes(name),
+    name: hexToBytes(dnsEncodeName(name)),
     class: 1, // CLASS_INET
     type: 16, // QTYPE_TXT
     data: encodeTXT(txt),
