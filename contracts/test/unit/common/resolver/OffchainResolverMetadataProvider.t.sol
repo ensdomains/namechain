@@ -126,4 +126,51 @@ contract OffchainResolverMetadataProviderTest is Test {
 
         assertEq(provider.baseRegistry(), mockBaseRegistry);
     }
+
+    function test_metadata_returnsDataForMatchingSuffix() external {
+        string[] memory rpcURLs = new string[](1);
+        rpcURLs[0] = "https://rpc.example";
+        uint256 expectedChainId = 100;
+
+        provider.setMetadata(hex"0365746800", rpcURLs, expectedChainId, mockBaseRegistry);
+
+        // Query with matching suffix - should return metadata
+        (string[] memory returnedURLs1, uint256 returnedChainId1, address baseRegistry1) =
+            provider.metadata(hex"0365746800"); // "eth"
+        (string[] memory returnedURLs2, uint256 returnedChainId2, address baseRegistry2) =
+            provider.metadata(hex"07766974616c696b0365746800"); // "vitalik.eth"
+        (string[] memory returnedURLs3, uint256 returnedChainId3, address baseRegistry3) =
+            provider.metadata(hex"03737562" hex"07766974616c696b0365746800"); // "sub.vitalik.eth"
+
+        assertEq(returnedURLs1.length, 1);
+        assertEq(returnedURLs1[0], "https://rpc.example");
+        assertEq(returnedChainId1, expectedChainId);
+        assertEq(baseRegistry1, mockBaseRegistry);
+
+        assertEq(returnedURLs2.length, 1);
+        assertEq(returnedURLs2[0], "https://rpc.example");
+        assertEq(returnedChainId2, expectedChainId);
+        assertEq(baseRegistry2, mockBaseRegistry);
+
+        assertEq(returnedURLs3.length, 1);
+        assertEq(returnedURLs3[0], "https://rpc.example");
+        assertEq(returnedChainId3, expectedChainId);
+        assertEq(baseRegistry3, mockBaseRegistry);
+    }
+
+    function test_metadata_returnsEmptyForNonMatchingSuffix() external {
+        string[] memory rpcURLs = new string[](1);
+        rpcURLs[0] = "https://rpc.example";
+        uint256 expectedChainId = 100;
+
+        provider.setMetadata(hex"0365746800", rpcURLs, expectedChainId, mockBaseRegistry);
+
+        // Query with non-matching suffix - should return empty values
+        (string[] memory returnedURLs, uint256 returnedChainId, address returnedRegistry) =
+            provider.metadata(hex"03636f6d00"); // "com"
+
+        assertEq(returnedURLs.length, 0);
+        assertEq(returnedChainId, 0);
+        assertEq(returnedRegistry, address(0));
+    }
 }

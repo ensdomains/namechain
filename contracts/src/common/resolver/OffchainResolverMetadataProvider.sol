@@ -3,6 +3,7 @@ pragma solidity >=0.8.13;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
+import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
 import {IOffchainResolverMetadataProvider} from "./interfaces/IOffchainResolverMetadataProvider.sol";
 
@@ -46,8 +47,20 @@ abstract contract OffchainResolverMetadataProvider is IOffchainResolverMetadataP
 
     /// @inheritdoc IOffchainResolverMetadataProvider
     function metadata(
-        bytes calldata /* name */
+        bytes calldata name
     ) external view returns (string[] memory rpcURLs_, uint256 chainId_, address baseRegistry_) {
+        if (!_hasSuffix(name, dnsEncodedName)) {
+            return (new string[](0), 0, address(0));
+        }
         return (rpcURLs, chainId, baseRegistry);
+    }
+
+    /// @dev Check if name ends with the configured suffix.
+    function _hasSuffix(bytes calldata name, bytes memory suffix) internal pure returns (bool) {
+        if (suffix.length == 0 || name.length < suffix.length) {
+            return false;
+        }
+        uint256 offset = name.length - suffix.length;
+        return BytesUtils.equals(bytes(name[offset:]), 0, suffix);
     }
 }
