@@ -122,6 +122,37 @@ contract DNSTLDResolver is IERC7996, ICompositeResolver, IVerifiableResolver, CC
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
+    /// @notice Fetch the DNSSEC TXT record.
+    ///         Callers should enable EIP-3668.
+    ///
+    /// @dev This function executes over multiple steps.
+    ///
+    /// @param name The DNS-encoded name.
+    ///
+    /// @return The verified DNSSEC TXT record or null if not gasless.
+    function getContext(bytes calldata name) external view returns (bytes memory) {
+        address resolver = _determineMainnetResolver(name);
+        if (resolver != address(0)) {
+            return "";
+        }
+        revert OffchainLookup(
+            address(this),
+            ORACLE_GATEWAY_PROVIDER.gateways(),
+            abi.encodeCall(IDNSGateway.resolve, (name, QTYPE_TXT)),
+            this.getContextCallback.selector, // ==> step 2
+            name
+        );
+    }
+
+    /// @notice CCIP-Read callback for `getContext()`.
+    function getContextCallback(
+        bytes calldata response,
+        bytes calldata name
+    ) external view returns (bytes memory) {
+        (, bytes memory context) = _verifyDNSSEC(name, response);
+        return context;
+    }
+
     /// @inheritdoc IVerifiableResolver
     function verifierMetadata(
         bytes calldata name
