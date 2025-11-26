@@ -105,7 +105,10 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
         uint256 resource,
         uint256 roleBitmap,
         address account
-    ) external returns (bool) {
+    ) external canGrantRoles(resource, roleBitmap) returns (bool) {
+        if (resource == ROOT_RESOURCE) {
+            revert EACRootResourceNotAllowed();
+        }
         return _grantRoles(resource, roleBitmap, account, false);
     }
 
@@ -113,7 +116,10 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
         uint256 resource,
         uint256 roleBitmap,
         address account
-    ) external returns (bool) {
+    ) external canRevokeRoles(resource, roleBitmap) returns (bool) {
+        if (resource == ROOT_RESOURCE) {
+            revert EACRootResourceNotAllowed();
+        }
         return _revokeRoles(resource, roleBitmap, account, false);
     }
 
@@ -425,7 +431,7 @@ contract EnhancedAccessControlTest is Test {
                 user1
             )
         );
-        EnhancedAccessControl(address(access)).revokeRoles(RESOURCE_1, ROLE_A, user2);
+        access.revokeRoles(RESOURCE_1, ROLE_A, user2);
         vm.stopPrank();
 
         // Verify user2 still has ROLE_A (it wasn't revoked)
@@ -495,7 +501,7 @@ contract EnhancedAccessControlTest is Test {
                 user1
             )
         );
-        EnhancedAccessControl(address(access)).revokeRoles(ROOT_RESOURCE, ROLE_A, user2);
+        access.revokeRoles(ROOT_RESOURCE, ROLE_A, user2);
         vm.stopPrank();
 
         // Verify user2 still has ROLE_A (it wasn't revoked)
