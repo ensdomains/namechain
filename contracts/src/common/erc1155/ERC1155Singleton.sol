@@ -171,8 +171,7 @@ abstract contract ERC1155Singleton is
         address from,
         address to,
         uint256[] memory ids,
-        uint256[] memory values,
-        uint256 /*extra*/
+        uint256[] memory values
     ) internal virtual {
         if (ids.length != values.length) {
             revert ERC1155InvalidArrayLength(ids.length, values.length);
@@ -218,10 +217,9 @@ abstract contract ERC1155Singleton is
         address to,
         uint256[] memory ids,
         uint256[] memory values,
-        bytes memory data,
-        uint256 extra
+        bytes memory data
     ) internal virtual {
-        _update(from, to, ids, values, extra);
+        _update(from, to, ids, values);
         if (to != address(0)) {
             address operator = _msgSender();
             if (ids.length == 1) {
@@ -260,7 +258,7 @@ abstract contract ERC1155Singleton is
             revert ERC1155InvalidSender(address(0));
         }
         (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(id, value);
-        _updateWithAcceptanceCheck(from, to, ids, values, data, 0);
+        _updateWithAcceptanceCheck(from, to, ids, values, data);
     }
 
     /**
@@ -287,7 +285,7 @@ abstract contract ERC1155Singleton is
         if (from == address(0)) {
             revert ERC1155InvalidSender(address(0));
         }
-        _updateWithAcceptanceCheck(from, to, ids, values, data, 0);
+        _updateWithAcceptanceCheck(from, to, ids, values, data);
     }
 
     /**
@@ -301,18 +299,12 @@ abstract contract ERC1155Singleton is
      * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155Received} and return the
      * acceptance magic value.
      */
-    function _mint(
-        address to,
-        uint256 id,
-        uint256 value,
-        bytes memory data,
-        uint256 extra
-    ) internal {
+    function _mint(address to, uint256 id, uint256 value, bytes memory data) internal {
         if (to == address(0)) {
             revert ERC1155InvalidReceiver(address(0));
         }
         (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(id, value);
-        _updateWithAcceptanceCheck(address(0), to, ids, values, data, extra);
+        _updateWithAcceptanceCheck(address(0), to, ids, values, data);
     }
 
     /**
@@ -331,13 +323,12 @@ abstract contract ERC1155Singleton is
         address to,
         uint256[] memory ids,
         uint256[] memory values,
-        bytes memory data,
-        uint256 extra
+        bytes memory data
     ) internal {
         if (to == address(0)) {
             revert ERC1155InvalidReceiver(address(0));
         }
-        _updateWithAcceptanceCheck(address(0), to, ids, values, data, extra);
+        _updateWithAcceptanceCheck(address(0), to, ids, values, data);
     }
 
     /**
@@ -350,12 +341,12 @@ abstract contract ERC1155Singleton is
      * - `from` cannot be the zero address.
      * - `from` must have at least `value` amount of tokens of type `id`.
      */
-    function _burn(address from, uint256 id, uint256 value, uint256 extra) internal {
+    function _burn(address from, uint256 id, uint256 value) internal {
         if (from == address(0)) {
             revert ERC1155InvalidSender(address(0));
         }
         (uint256[] memory ids, uint256[] memory values) = _asSingletonArrays(id, value);
-        _updateWithAcceptanceCheck(from, address(0), ids, values, "", extra);
+        _updateWithAcceptanceCheck(from, address(0), ids, values, "");
     }
 
     /**
@@ -369,16 +360,11 @@ abstract contract ERC1155Singleton is
      * - `from` must have at least `value` amount of tokens of type `id`.
      * - `ids` and `values` must have the same length.
      */
-    function _burnBatch(
-        address from,
-        uint256[] memory ids,
-        uint256[] memory values,
-        uint256 extra
-    ) internal {
+    function _burnBatch(address from, uint256[] memory ids, uint256[] memory values) internal {
         if (from == address(0)) {
             revert ERC1155InvalidSender(address(0));
         }
-        _updateWithAcceptanceCheck(from, address(0), ids, values, "", extra);
+        _updateWithAcceptanceCheck(from, address(0), ids, values, "");
     }
 
     /**

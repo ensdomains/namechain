@@ -300,7 +300,7 @@ contract PermissionedRegistry is
         tokenId = _constructTokenId(tokenId, entry);
         address prevOwner = super.ownerOf(tokenId);
         if (prevOwner != address(0)) {
-            _burn(prevOwner, tokenId, 1, 1);
+            _burn(prevOwner, tokenId, 1);
             delete _tokenObservers[LibLabel.getCanonicalId(tokenId)];
             ++entry.eacVersionId;
             ++entry.tokenVersionId;
@@ -314,7 +314,7 @@ contract PermissionedRegistry is
         // emit NameRegistered before mint so we can determine this is a registry (in an indexer)
         emit NameRegistered(tokenId, label, expires, _msgSender());
 
-        _mint(owner, tokenId, 1, "", 0);
+        _mint(owner, tokenId, 1, "");
         _grantRoles(_constructResource(tokenId, entry), roleBitmap, owner, false);
 
         emit SubregistryUpdated(tokenId, registry);
@@ -328,10 +328,9 @@ contract PermissionedRegistry is
         address from,
         address to,
         uint256[] memory tokenIds,
-        uint256[] memory values,
-        uint256 extra
+        uint256[] memory values
     ) internal virtual override {
-        bool externalTransfer = extra == 0 && to != address(0) && from != address(0);
+        bool externalTransfer = to != address(0) && from != address(0);
         if (externalTransfer) {
             // Check ROLE_CAN_TRANSFER for actual transfers only
             // Skip check for mints (from == address(0)) and burns (to == address(0))
@@ -341,7 +340,7 @@ contract PermissionedRegistry is
                 }
             }
         }
-        super._update(from, to, tokenIds, values, extra);
+        super._update(from, to, tokenIds, values);
         if (externalTransfer) {
             for (uint256 i; i < tokenIds.length; ++i) {
                 _transferRoles(getResource(tokenIds[i]), from, to, false);
@@ -382,12 +381,12 @@ contract PermissionedRegistry is
             uint256 tokenId = _constructTokenId(anyId, entry);
             address owner = super.ownerOf(tokenId); // skip expiry check
             if (owner != address(0)) {
-                _burn(owner, tokenId, 1, 1);
+                _burn(owner, tokenId, 1);
                 // keep _tokenObservers
                 ++entry.tokenVersionId;
                 DATASTORE.setEntry(tokenId, entry);
                 uint256 newTokenId = _constructTokenId(tokenId, entry);
-                _mint(owner, newTokenId, 1, "", 1);
+                _mint(owner, newTokenId, 1, "");
                 emit TokenRegenerated(tokenId, newTokenId, _constructResource(tokenId, entry));
             }
         }
