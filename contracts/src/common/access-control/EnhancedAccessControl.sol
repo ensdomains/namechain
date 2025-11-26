@@ -171,24 +171,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     }
 
     /**
-     * @dev Returns `true` if `account` has been granted all the given roles in `resource`.
-     *
-     * @param resource The resource to check.
-     * @param rolesBitmap The roles bitmap to check.
-     * @param account The account to check.
-     * @return `true` if `account` has been granted all the given roles in either `resource` or the `ROOT_RESOURCE`, `false` otherwise.
-     */
-    function hasRoles(
-        uint256 resource,
-        uint256 rolesBitmap,
-        address account
-    ) public view virtual returns (bool) {
-        return
-            (_roles[ROOT_RESOURCE][account] | _roles[resource][account]) & rolesBitmap ==
-            rolesBitmap;
-    }
-
-    /**
      * @dev Returns `true` if `account` has been granted all the given roles in the `ROOT_RESOURCE`.
      *
      * @param rolesBitmap The roles bitmap to check.
@@ -207,6 +189,24 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     /// @notice Returns the role count bitmap for a resource.
     function roleCount(uint256 resource) public view virtual returns (uint256) {
         return _roleCount[resource];
+    }
+
+    /**
+     * @dev Returns `true` if `account` has been granted all the given roles in `resource`.
+     *
+     * @param resource The resource to check.
+     * @param rolesBitmap The roles bitmap to check.
+     * @param account The account to check.
+     * @return `true` if `account` has been granted all the given roles in either `resource` or the `ROOT_RESOURCE`, `false` otherwise.
+     */
+    function hasRoles(
+        uint256 resource,
+        uint256 rolesBitmap,
+        address account
+    ) public view virtual returns (bool) {
+        return
+            (_roles[ROOT_RESOURCE][account] | _roles[resource][account]) & rolesBitmap ==
+            rolesBitmap;
     }
 
     /**
