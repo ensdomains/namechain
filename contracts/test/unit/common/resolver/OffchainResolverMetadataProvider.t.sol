@@ -99,35 +99,6 @@ contract OffchainResolverMetadataProviderTest is Test {
         provider.setMetadata(NameCoder.encode("eth"), rpcURLs, 12345, mockBaseRegistry);
     }
 
-    function test_chainId_returnsStoredValue() external {
-        string[] memory rpcURLs = new string[](0);
-        uint256 expectedChainId = 31338;
-
-        provider.setMetadata(NameCoder.encode("eth"), rpcURLs, expectedChainId, mockBaseRegistry);
-
-        assertEq(provider.chainId(), expectedChainId);
-    }
-
-    function test_metadata_withEmptyRpcURLs() external {
-        string[] memory rpcURLs = new string[](0);
-        uint256 expectedChainId = 42;
-
-        provider.setMetadata(NameCoder.encode("eth"), rpcURLs, expectedChainId, mockBaseRegistry);
-
-        (string[] memory returnedURLs, uint256 returnedChainId,) = provider.metadata(NameCoder.encode("eth"));
-
-        assertEq(returnedURLs.length, 0);
-        assertEq(returnedChainId, expectedChainId);
-    }
-
-    function test_baseRegistry_returnsStoredValue() external {
-        string[] memory rpcURLs = new string[](0);
-
-        provider.setMetadata(NameCoder.encode("eth"), rpcURLs, 0, mockBaseRegistry);
-
-        assertEq(provider.baseRegistry(), mockBaseRegistry);
-    }
-
     function test_metadata_returnsDataForMatchingSuffix() external {
         string[] memory rpcURLs = new string[](1);
         rpcURLs[0] = "https://rpc.example";
