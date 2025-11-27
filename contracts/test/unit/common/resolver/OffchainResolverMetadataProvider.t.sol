@@ -6,6 +6,7 @@ pragma solidity >=0.8.13;
 import {Test, Vm} from "forge-std/Test.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 import {OffchainResolverMetadataProvider} from "~src/common/resolver/OffchainResolverMetadataProvider.sol";
 import {IOffchainResolverMetadataProvider} from "~src/common/resolver/interfaces/IOffchainResolverMetadataProvider.sol";
@@ -36,7 +37,7 @@ contract OffchainResolverMetadataProviderTest is Test {
 
     function test_metadata_returnsDefaultValues() external view {
         (string[] memory rpcURLs, uint256 chainId, address baseRegistry) = provider.metadata(
-            hex"0365746800" // "eth" DNS-encoded with null terminator
+            NameCoder.encode("eth")
         );
 
         assertEq(rpcURLs.length, 0);
@@ -50,10 +51,10 @@ contract OffchainResolverMetadataProviderTest is Test {
         rpcURLs[1] = "https://rpc2.namechain.example";
         uint256 expectedChainId = 12345;
 
-        provider.setMetadata(hex"0365746800", rpcURLs, expectedChainId, mockBaseRegistry);
+        provider.setMetadata(NameCoder.encode("eth"), rpcURLs, expectedChainId, mockBaseRegistry);
 
         (string[] memory returnedURLs, uint256 returnedChainId, address baseRegistry) =
-            provider.metadata(hex"0365746800");
+            provider.metadata(NameCoder.encode("eth"));
 
         assertEq(returnedURLs.length, 2);
         assertEq(returnedURLs[0], "https://rpc1.namechain.example");
@@ -69,7 +70,7 @@ contract OffchainResolverMetadataProviderTest is Test {
 
         vm.recordLogs();
 
-        provider.setMetadata(hex"0365746800", rpcURLs, expectedChainId, mockBaseRegistry);
+        provider.setMetadata(NameCoder.encode("eth"), rpcURLs, expectedChainId, mockBaseRegistry);
 
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
@@ -82,7 +83,7 @@ contract OffchainResolverMetadataProviderTest is Test {
         (bytes memory name, string[] memory emittedURLs, uint256 emittedChainId, address emittedRegistry) =
             abi.decode(logs[0].data, (bytes, string[], uint256, address));
 
-        assertEq(name, hex"0365746800"); // "eth" DNS-encoded with null terminator
+        assertEq(name, NameCoder.encode("eth"));
         assertEq(emittedURLs.length, 1);
         assertEq(emittedURLs[0], "https://rpc.namechain.example");
         assertEq(emittedChainId, expectedChainId);
@@ -95,14 +96,14 @@ contract OffchainResolverMetadataProviderTest is Test {
 
         vm.expectRevert();
         vm.prank(nonOwner);
-        provider.setMetadata(hex"0365746800", rpcURLs, 12345, mockBaseRegistry);
+        provider.setMetadata(NameCoder.encode("eth"), rpcURLs, 12345, mockBaseRegistry);
     }
 
     function test_chainId_returnsStoredValue() external {
         string[] memory rpcURLs = new string[](0);
         uint256 expectedChainId = 31338;
 
-        provider.setMetadata(hex"0365746800", rpcURLs, expectedChainId, mockBaseRegistry);
+        provider.setMetadata(NameCoder.encode("eth"), rpcURLs, expectedChainId, mockBaseRegistry);
 
         assertEq(provider.chainId(), expectedChainId);
     }
@@ -111,9 +112,9 @@ contract OffchainResolverMetadataProviderTest is Test {
         string[] memory rpcURLs = new string[](0);
         uint256 expectedChainId = 42;
 
-        provider.setMetadata(hex"0365746800", rpcURLs, expectedChainId, mockBaseRegistry);
+        provider.setMetadata(NameCoder.encode("eth"), rpcURLs, expectedChainId, mockBaseRegistry);
 
-        (string[] memory returnedURLs, uint256 returnedChainId,) = provider.metadata(hex"0365746800");
+        (string[] memory returnedURLs, uint256 returnedChainId,) = provider.metadata(NameCoder.encode("eth"));
 
         assertEq(returnedURLs.length, 0);
         assertEq(returnedChainId, expectedChainId);
@@ -122,7 +123,7 @@ contract OffchainResolverMetadataProviderTest is Test {
     function test_baseRegistry_returnsStoredValue() external {
         string[] memory rpcURLs = new string[](0);
 
-        provider.setMetadata(hex"0365746800", rpcURLs, 0, mockBaseRegistry);
+        provider.setMetadata(NameCoder.encode("eth"), rpcURLs, 0, mockBaseRegistry);
 
         assertEq(provider.baseRegistry(), mockBaseRegistry);
     }
@@ -132,15 +133,15 @@ contract OffchainResolverMetadataProviderTest is Test {
         rpcURLs[0] = "https://rpc.example";
         uint256 expectedChainId = 100;
 
-        provider.setMetadata(hex"0365746800", rpcURLs, expectedChainId, mockBaseRegistry);
+        provider.setMetadata(NameCoder.encode("eth"), rpcURLs, expectedChainId, mockBaseRegistry);
 
         // Query with matching suffix - should return metadata
         (string[] memory returnedURLs1, uint256 returnedChainId1, address baseRegistry1) =
-            provider.metadata(hex"0365746800"); // "eth"
+            provider.metadata(NameCoder.encode("eth"));
         (string[] memory returnedURLs2, uint256 returnedChainId2, address baseRegistry2) =
-            provider.metadata(hex"07766974616c696b0365746800"); // "vitalik.eth"
+            provider.metadata(NameCoder.encode("vitalik.eth"));
         (string[] memory returnedURLs3, uint256 returnedChainId3, address baseRegistry3) =
-            provider.metadata(hex"03737562" hex"07766974616c696b0365746800"); // "sub.vitalik.eth"
+            provider.metadata(NameCoder.encode("sub.vitalik.eth"));
 
         assertEq(returnedURLs1.length, 1);
         assertEq(returnedURLs1[0], "https://rpc.example");
@@ -163,11 +164,11 @@ contract OffchainResolverMetadataProviderTest is Test {
         rpcURLs[0] = "https://rpc.example";
         uint256 expectedChainId = 100;
 
-        provider.setMetadata(hex"0365746800", rpcURLs, expectedChainId, mockBaseRegistry);
+        provider.setMetadata(NameCoder.encode("eth"), rpcURLs, expectedChainId, mockBaseRegistry);
 
         // Query with non-matching suffix - should return empty values
         (string[] memory returnedURLs, uint256 returnedChainId, address returnedRegistry) =
-            provider.metadata(hex"03636f6d00"); // "com"
+            provider.metadata(NameCoder.encode("com"));
 
         assertEq(returnedURLs.length, 0);
         assertEq(returnedChainId, 0);
