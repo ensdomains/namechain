@@ -35,6 +35,7 @@ import {
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
 
 import {IRegistryResolver} from "../../common/resolver/interfaces/IRegistryResolver.sol";
+import {OffchainResolverMetadataProvider} from "../../common/resolver/OffchainResolverMetadataProvider.sol";
 import {DedicatedResolverLib} from "../../common/resolver/libraries/DedicatedResolverLib.sol";
 import {LibLabel} from "../../common/utils/LibLabel.sol";
 
@@ -54,8 +55,7 @@ contract ETHTLDResolver is
     IRegistryResolver,
     GatewayFetchTarget,
     ResolverCaller,
-    Ownable,
-    ERC165
+    OffchainResolverMetadataProvider
 {
     using GatewayFetcher for GatewayRequest;
 
@@ -125,7 +125,7 @@ contract ETHTLDResolver is
     /// @inheritdoc ERC165
     function supportsInterface(
         bytes4 interfaceId
-    ) public view virtual override(ERC165) returns (bool) {
+    ) public view virtual override(OffchainResolverMetadataProvider) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
             type(IERC7996).interfaceId == interfaceId ||
