@@ -9,14 +9,12 @@ interface IOffchainResolverMetadataProvider {
      * @return chainId The chain ID where the data is stored (format for non-EVM systems to be determined)
      * @return baseRegistry The base registry address on the target chain that emits events (optional, may be zero address)
      */
-    function metadata(bytes calldata name)
-        external
-        view
-        returns (string[] memory rpcURLs, uint256 chainId, address baseRegistry);
+    function metadata(
+        bytes calldata name
+    ) external view returns (string[] memory rpcURLs, uint256 chainId, address baseRegistry);
 
-    event MetadataChanged( // DNS-encoded name
-        // JSON RPC endpoint (optional, may be empty array)
-        // Chain identifier (format for non-EVM systems to be determined)
-        // Base registry address (optional, may be zero address)
-    bytes name, string[] rpcURLs, uint256 chainId, address baseRegistry);
+    ////////////////////////////////////////////////////////////////////////
+    // Events
+    ////////////////////////////////////////////////////////////////////////
+    event MetadataChanged(bytes name, string[] rpcURLs, uint256 chainId, address baseRegistry);
 }
