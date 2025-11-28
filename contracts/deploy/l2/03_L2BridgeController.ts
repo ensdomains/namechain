@@ -9,22 +9,14 @@ export default execute(
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
-    const l2Bridge = get<(typeof artifacts.MockL2Bridge)["abi"]>("MockBridge");
-
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
 
+    // Deploy bridge controller with dummy bridge address first to break circular dependency
     const l2BridgeController = await deploy("BridgeController", {
       account: deployer,
       artifact: artifacts.L2BridgeController,
-      args: [l2Bridge.address, ethRegistry.address, registryDatastore.address],
-    });
-
-    // Set the bridge controller on the bridge
-    await write(l2Bridge, {
-      functionName: "setBridgeController",
-      args: [l2BridgeController.address],
-      account: deployer,
+      args: ["0x0000000000000000000000000000000000000000", ethRegistry.address, registryDatastore.address], // Dummy bridge address
     });
 
     // Grant registrar and renew roles to the bridge controller on the eth registry
@@ -36,22 +28,14 @@ export default execute(
       ],
       account: deployer,
     });
-
-    // Grant bridge roles to the bridge on the bridge controller
-    await write(l2BridgeController, {
-      functionName: "grantRootRoles",
-      args: [ROLES.OWNER.BRIDGE.EJECTOR, l2Bridge.address],
-      account: deployer,
-    });
   },
   // finally you can pass tags and dependencies
   {
     tags: ["L2BridgeController", "registry", "l2"],
     dependencies: [
       "ETHRegistry",
-      "MockL2Bridge",
       "RegistryDatastore",
       "VerifiableFactory",
-    ],
+    ], // Remove L2Bridge dependency
   },
 );
