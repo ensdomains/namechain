@@ -32,6 +32,7 @@ import {
 import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
 import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
 import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
+import { dnsEncodeName } from "../test/utils/utils.js";
 import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 import type { RockethArguments, RockethL1Arguments } from "./types.js";
 
@@ -529,6 +530,18 @@ export async function setupCrossChainEnvironment({
 
     await setupEnsDotEth(l1, deployer);
     console.log("Setup ens.eth");
+
+    // Set Namechain metadata on ETHTLDResolver for offchain resolution discovery
+    await l1.contracts.ETHTLDResolver.write.setMetadata(
+      [
+        dnsEncodeName("eth"),
+        [`http://${l2HostPort}`],
+        BigInt(l2ChainId),
+        l2.contracts.ETHRegistry.address,
+      ],
+      { account: deployer },
+    );
+    console.log("Setup Namechain metadata");
 
     //await setupBridgeBlacklists(l1, l2);
 
