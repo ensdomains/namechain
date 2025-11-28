@@ -40,7 +40,7 @@ contract L1SurgeBridge is SurgeBridge {
      * @notice Get the bridge controller address
      * @return The address of the bridge controller
      */
-    function bridgeControllerAddress() public view override returns (address) {
+    function bridgeController() public view override returns (address) {
         return _BRIDGE_CONTROLLER;
     }
 
@@ -56,7 +56,7 @@ contract L1SurgeBridge is SurgeBridge {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        L1BridgeController(bridgeControllerAddress()).completeEjectionToL1(transferData);
+        L1BridgeController(bridgeController()).completeEjectionToL1(transferData);
     }
 
     /**
@@ -65,6 +65,6 @@ contract L1SurgeBridge is SurgeBridge {
      * @param newExpiry The new expiry timestamp
      */
     function _handleRenewalMessage(uint256 tokenId, uint64 newExpiry) internal override {
-        L1BridgeController(bridgeControllerAddress()).syncRenewal(tokenId, newExpiry);
+        L1BridgeController(bridgeController()).syncRenewal(tokenId, newExpiry);
     }
 }

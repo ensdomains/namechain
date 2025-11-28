@@ -61,7 +61,7 @@ abstract contract SurgeBridge is
     ////////////////////////////////////////////////////////////////////////
 
     modifier onlyBridgeController() {
-        if (msg.sender != bridgeControllerAddress()) {
+        if (msg.sender != bridgeController()) {
             revert OnlyBridgeController();
         }
         _;
@@ -196,7 +196,7 @@ abstract contract SurgeBridge is
      * @notice Get the bridge controller address
      * @return The address of the bridge controller
      */
-    function bridgeControllerAddress() public view virtual returns (address);
+    function bridgeController() public view virtual returns (address);
 
     /**
      * @notice Handle an ejection message

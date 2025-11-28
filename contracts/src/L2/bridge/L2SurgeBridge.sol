@@ -46,7 +46,7 @@ contract L2SurgeBridge is SurgeBridge {
      * @notice Get the bridge controller address
      * @return The address of the bridge controller
      */
-    function bridgeControllerAddress() public view override returns (address) {
+    function bridgeController() public view override returns (address) {
         return _BRIDGE_CONTROLLER;
     }
 
@@ -62,7 +62,7 @@ contract L2SurgeBridge is SurgeBridge {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        L2BridgeController(bridgeControllerAddress()).completeEjectionToL2(transferData);
+        L2BridgeController(bridgeController()).completeEjectionToL2(transferData);
     }
 
     /**
