@@ -14,6 +14,12 @@ import {L1BridgeController} from "./L1BridgeController.sol";
  */
 contract L1SurgeBridge is SurgeBridge {
     ////////////////////////////////////////////////////////////////////////
+    // Storage
+    ////////////////////////////////////////////////////////////////////////
+
+    address private immutable _BRIDGE_CONTROLLER;
+
+    ////////////////////////////////////////////////////////////////////////
     // Constructor
     ////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +28,21 @@ contract L1SurgeBridge is SurgeBridge {
         uint64 l1ChainId_,
         uint64 l2ChainId_,
         address l1BridgeController_
-    ) SurgeBridge(surgeNativeBridge_, l1ChainId_, l2ChainId_, l1BridgeController_) {}
+    ) SurgeBridge(surgeNativeBridge_, l1ChainId_, l2ChainId_) {
+        _BRIDGE_CONTROLLER = l1BridgeController_;
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+    // Public Methods
+    ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @notice Get the bridge controller address
+     * @return The address of the bridge controller
+     */
+    function bridgeControllerAddress() public view override returns (address) {
+        return _BRIDGE_CONTROLLER;
+    }
 
     ////////////////////////////////////////////////////////////////////////
     // Internal Methods
@@ -36,7 +56,7 @@ contract L1SurgeBridge is SurgeBridge {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        L1BridgeController(BRIDGE_CONTROLLER).completeEjectionToL1(transferData);
+        L1BridgeController(bridgeControllerAddress()).completeEjectionToL1(transferData);
     }
 
     /**
@@ -45,6 +65,6 @@ contract L1SurgeBridge is SurgeBridge {
      * @param newExpiry The new expiry timestamp
      */
     function _handleRenewalMessage(uint256 tokenId, uint64 newExpiry) internal override {
-        L1BridgeController(BRIDGE_CONTROLLER).syncRenewal(tokenId, newExpiry);
+        L1BridgeController(bridgeControllerAddress()).syncRenewal(tokenId, newExpiry);
     }
 }

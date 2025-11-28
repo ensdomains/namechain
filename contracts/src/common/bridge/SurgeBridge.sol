@@ -34,7 +34,6 @@ abstract contract SurgeBridge is
 
     uint64 public immutable SOURCE_CHAIN_ID;
     uint64 public immutable DEST_CHAIN_ID;
-    address public immutable BRIDGE_CONTROLLER;
 
     ISurgeNativeBridge public surgeNativeBridge;
     address public destBridgeAddress;
@@ -62,7 +61,7 @@ abstract contract SurgeBridge is
     ////////////////////////////////////////////////////////////////////////
 
     modifier onlyBridgeController() {
-        if (msg.sender != BRIDGE_CONTROLLER) {
+        if (msg.sender != bridgeControllerAddress()) {
             revert OnlyBridgeController();
         }
         _;
@@ -72,16 +71,10 @@ abstract contract SurgeBridge is
     // Constructor
     ////////////////////////////////////////////////////////////////////////
 
-    constructor(
-        ISurgeNativeBridge surgeNativeBridge_,
-        uint64 sourceChainId_,
-        uint64 destChainId_,
-        address bridgeController_
-    ) {
+    constructor(ISurgeNativeBridge surgeNativeBridge_, uint64 sourceChainId_, uint64 destChainId_) {
         surgeNativeBridge = surgeNativeBridge_;
         SOURCE_CHAIN_ID = sourceChainId_;
         DEST_CHAIN_ID = destChainId_;
-        BRIDGE_CONTROLLER = bridgeController_;
 
         // Grant bridge manager admin role to deployer
         _grantRoles(ROOT_RESOURCE, ROLE_BRIDGE_MANAGER_ADMIN, msg.sender, true);
@@ -198,6 +191,12 @@ abstract contract SurgeBridge is
     ////////////////////////////////////////////////////////////////////////
     // Abstract Methods
     ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @notice Get the bridge controller address
+     * @return The address of the bridge controller
+     */
+    function bridgeControllerAddress() public view virtual returns (address);
 
     /**
      * @notice Handle an ejection message

@@ -143,14 +143,14 @@ contract BridgeTest is Test {
         assertEq(address(l1SurgeBridge.surgeNativeBridge()), address(surgeNativeBridge));
         assertEq(l1SurgeBridge.SOURCE_CHAIN_ID(), L1_CHAIN_ID);
         assertEq(l1SurgeBridge.DEST_CHAIN_ID(), L2_CHAIN_ID);
-        assertEq(l1SurgeBridge.BRIDGE_CONTROLLER(), mockL2Controller);
+        assertEq(l1SurgeBridge.bridgeControllerAddress(), mockL2Controller);
     }
 
     function test_L2SurgeBridge_ImmutableValues() public view {
         assertEq(address(l2SurgeBridge.surgeNativeBridge()), address(surgeNativeBridge));
         assertEq(l2SurgeBridge.SOURCE_CHAIN_ID(), L2_CHAIN_ID);
         assertEq(l2SurgeBridge.DEST_CHAIN_ID(), L1_CHAIN_ID);
-        assertEq(l2SurgeBridge.BRIDGE_CONTROLLER(), mockL1Controller);
+        assertEq(l2SurgeBridge.bridgeControllerAddress(), mockL1Controller);
     }
 
     // Access Control Tests

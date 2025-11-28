@@ -14,6 +14,12 @@ import {L2BridgeController} from "./L2BridgeController.sol";
  */
 contract L2SurgeBridge is SurgeBridge {
     ////////////////////////////////////////////////////////////////////////
+    // Storage
+    ////////////////////////////////////////////////////////////////////////
+
+    address private immutable _BRIDGE_CONTROLLER;
+
+    ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +34,21 @@ contract L2SurgeBridge is SurgeBridge {
         uint64 l2ChainId_,
         uint64 l1ChainId_,
         address l2BridgeController_
-    ) SurgeBridge(surgeNativeBridge_, l2ChainId_, l1ChainId_, l2BridgeController_) {}
+    ) SurgeBridge(surgeNativeBridge_, l2ChainId_, l1ChainId_) {
+        _BRIDGE_CONTROLLER = l2BridgeController_;
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+    // Public Methods
+    ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @notice Get the bridge controller address
+     * @return The address of the bridge controller
+     */
+    function bridgeControllerAddress() public view override returns (address) {
+        return _BRIDGE_CONTROLLER;
+    }
 
     ////////////////////////////////////////////////////////////////////////
     // Internal Methods
@@ -42,7 +62,7 @@ contract L2SurgeBridge is SurgeBridge {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        L2BridgeController(BRIDGE_CONTROLLER).completeEjectionToL2(transferData);
+        L2BridgeController(bridgeControllerAddress()).completeEjectionToL2(transferData);
     }
 
     /**
