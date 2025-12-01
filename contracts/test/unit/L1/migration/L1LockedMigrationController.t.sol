@@ -30,12 +30,13 @@ import {IPermissionedRegistry} from "~src/common/registry/interfaces/IPermission
 import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
+import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1LockedMigrationController} from "~src/L1/migration/L1LockedMigrationController.sol";
 import {LockedNamesLib} from "~src/L1/migration/libraries/LockedNamesLib.sol";
 import {MigratedWrappedNameRegistry} from "~src/L1/registry/MigratedWrappedNameRegistry.sol";
-import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract MockNameWrapper {
     mapping(uint256 tokenId => uint32 fuses) public fuses;
@@ -102,6 +103,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
     PermissionedRegistry registry;
     VerifiableFactory factory;
     MigratedWrappedNameRegistry implementation;
+    MockHCAFactoryBasic hcaFactory;
 
     address owner = address(this);
     address user = address(0x1234);
@@ -114,6 +116,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         bridge = new MockBridge();
         datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
+        hcaFactory = new MockHCAFactoryBasic();
 
         // Deploy factory and implementation
         factory = new VerifiableFactory();
@@ -122,11 +125,18 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
             IPermissionedRegistry(address(registry)), // ethRegistry
             factory,
             datastore,
+            hcaFactory,
             metadata
         );
 
         // Setup eth registry
-        registry = new PermissionedRegistry(datastore, metadata, owner, EACBaseRolesLib.ALL_ROLES);
+        registry = new PermissionedRegistry(
+            datastore,
+            hcaFactory,
+            metadata,
+            owner,
+            EACBaseRolesLib.ALL_ROLES
+        );
 
         // Setup bridge controller
         bridgeController = new L1BridgeController(registry, bridge);

@@ -10,6 +10,9 @@ import {
     IEnhancedAccessControl
 } from "~src/common/access-control/interfaces/IEnhancedAccessControl.sol";
 import {EACBaseRolesLib} from "~src/common/access-control/libraries/EACBaseRolesLib.sol";
+import {HCAEquivalence} from "~src/common/hca/HCAEquivalence.sol";
+import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 uint256 constant ROOT_RESOURCE = 0;
 uint256 constant RESOURCE_1 = uint256(keccak256("RESOURCE_1"));
@@ -51,7 +54,7 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
     address public lastRevokedAccount;
     uint256 public lastRevokedResource;
 
-    constructor() EnhancedAccessControl() {
+    constructor(IHCAFactoryBasic hcaFactory) HCAEquivalence(hcaFactory) {
         _grantRoles(ROOT_RESOURCE, ALL_ROLES, msg.sender, true);
         lastGrantedCount = 0;
         lastRevokedCount = 0;
@@ -141,14 +144,15 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
 
 contract EnhancedAccessControlTest is Test {
     MockEnhancedAccessControl access;
-
+    MockHCAFactoryBasic hcaFactory;
     address admin = address(this);
     address user1 = makeAddr("user1");
     address user2 = makeAddr("user2");
     address superuser = makeAddr("superuser");
 
     function setUp() external {
-        access = new MockEnhancedAccessControl();
+        hcaFactory = new MockHCAFactoryBasic();
+        access = new MockEnhancedAccessControl(hcaFactory);
     }
 
     function test_ROOT_RESOURCE() external view {
