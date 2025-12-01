@@ -6,6 +6,7 @@ pragma solidity >=0.8.13;
 import {Test} from "forge-std/Test.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
@@ -47,72 +48,49 @@ contract LibRegistryTest is Test, ERC1155Holder {
         );
     }
 
-    function setUp() public {
+    function setUp() external {
         datastore = new RegistryDatastore();
         rootRegistry = _createRegistry();
     }
 
-    function test_readLabel_root() external pure {
-        bytes memory name = NameCoder.encode("");
-        assertEq(LibRegistry.readLabel(name, 0), "");
-    }
-    function test_readLabel_eth() external pure {
-        bytes memory name = NameCoder.encode("eth");
-        assertEq(LibRegistry.readLabel(name, 0), "eth");
-        assertEq(LibRegistry.readLabel(name, 4), ""); // 3eth
-    }
-    function test_readLabel_test_eth() external pure {
-        bytes memory name = NameCoder.encode("test.eth");
-        assertEq(LibRegistry.readLabel(name, 0), "test");
-        assertEq(LibRegistry.readLabel(name, 5), "eth"); // 4test
-        assertEq(LibRegistry.readLabel(name, 9), ""); // 4test3eth
-    }
-
-    function _readLabel(bytes memory name, uint256 offset) public pure returns (string memory) {
-        return LibRegistry.readLabel(name, offset);
-    }
-    function test_Revert_readLabel_invalidOffset() external {
-        vm.expectRevert();
-        this._readLabel("", 1);
-    }
-    function test_Revert_readLabel_invalidEncoding() external {
-        vm.expectRevert();
-        this._readLabel("0x01", 0);
-    }
-    function test_revert_readLabel_junkAtEnd() external {
-        vm.expectRevert();
-        this._readLabel("0x0000", 0);
-    }
-
-    function _expectFindResolver(
+    function _expectFind(
         bytes memory name,
         uint256 resolverOffset,
         address parentRegistry,
         IRegistry[] memory registries
     ) internal view {
-        (, address resolver, bytes32 node, uint256 offset) = LibRegistry.findResolver(
+        (, address resolver, bytes32 node, uint256 resolverOffset_) = LibRegistry.findResolver(
             rootRegistry,
             name,
             0
         );
         assertEq(resolver, resolverAddress, "resolver");
         assertEq(node, NameCoder.namehash(name, 0), "node");
-        assertEq(offset, resolverOffset, "offset");
+        assertEq(resolverOffset_, resolverOffset, "offset");
         assertEq(
             address(LibRegistry.findParentRegistry(rootRegistry, name, 0)),
             parentRegistry,
             "parent"
         );
-        uint256 i;
-        for (offset = 0; i < registries.length; i++) {
+        IRegistry[] memory regs = LibRegistry.findRegistries(rootRegistry, name, 0);
+        assertEq(registries.length, regs.length, "count");
+        for (uint256 i; i < regs.length; ++i) {
+            assertEq(
+                address(registries[i]),
+                address(regs[i]),
+                string.concat("registry[", Strings.toString(i), "]")
+            );
+        }
+        uint256 offset;
+        for (uint256 i; i < registries.length; ++i) {
             assertEq(
                 address(LibRegistry.findExactRegistry(rootRegistry, name, offset)),
                 address(registries[i]),
-                "exact"
+                string.concat("exact[", Strings.toString(i), "]")
             );
-            (, offset) = NameCoder.readLabel(name, offset);
+            (, offset) = NameCoder.nextLabel(name, offset);
         }
-        assertEq(i, registries.length, "count");
+        assertEq(offset, name.length, "length");
     }
 
     function test_findResolver_eth() external {
@@ -135,7 +113,7 @@ contract LibRegistryTest is Test, ERC1155Holder {
         IRegistry[] memory v = new IRegistry[](2);
         v[0] = ethRegistry;
         v[1] = rootRegistry;
-        _expectFindResolver(name, 0, address(rootRegistry), v);
+        _expectFind(name, 0, address(rootRegistry), v);
     }
 
     function test_findResolver_resolverOnParent() external {
@@ -154,7 +132,7 @@ contract LibRegistryTest is Test, ERC1155Holder {
         v[0] = testRegistry;
         v[1] = ethRegistry;
         v[2] = rootRegistry;
-        _expectFindResolver(name, 0, address(ethRegistry), v);
+        _expectFind(name, 0, address(ethRegistry), v);
     }
 
     function test_findResolver_resolverOnRoot() external {
@@ -173,7 +151,7 @@ contract LibRegistryTest is Test, ERC1155Holder {
         v[1] = testRegistry;
         v[2] = ethRegistry;
         v[3] = rootRegistry;
-        _expectFindResolver(name, 9, address(testRegistry), v); // 3sub4test
+        _expectFind(name, 9, address(testRegistry), v); // 3sub4test
     }
 
     function test_findResolver_virtual() external {
@@ -192,6 +170,6 @@ contract LibRegistryTest is Test, ERC1155Holder {
         v[2] = testRegistry;
         v[3] = ethRegistry;
         v[4] = rootRegistry;
-        _expectFindResolver(name, 10, address(0), v); // 1a2bb4test
+        _expectFind(name, 10, address(0), v); // 1a2bb4test
     }
 }

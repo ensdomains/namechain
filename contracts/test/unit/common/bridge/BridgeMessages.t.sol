@@ -5,6 +5,8 @@ pragma solidity >=0.8.13;
 
 import {Test, Vm} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {BridgeMessageType} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
@@ -13,7 +15,6 @@ import {TransferData} from "~src/common/bridge/types/TransferData.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {MockBridgeBase} from "~test/mocks/MockBridgeBase.sol";
@@ -81,7 +82,7 @@ contract BridgeMessagesTest is Test {
     }
 
     function test_encodeDecodeEjection() public view {
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
+        bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
         TransferData memory transferData = TransferData({
             dnsEncodedName: dnsEncodedName,
             owner: testOwner,
@@ -154,7 +155,7 @@ contract BridgeMessagesTest is Test {
         l1Bridge.receiveMessage(renewalMessage);
 
         // Verify the renewal was processed
-        uint64 updatedExpiry = datastore.getEntry(address(registry), tokenId).expiry;
+        uint64 updatedExpiry = registry.getExpiry(tokenId);
         assertEq(updatedExpiry, newExpiry, "Expiry should be updated");
 
         // Check for RenewalSynchronized event
@@ -204,7 +205,7 @@ contract BridgeMessagesTest is Test {
     }
 
     function test_l2Bridge_sendMessage_ejection() public {
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
+        bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
         bytes memory ejectionMessage = BridgeEncoderLib.encodeEjection(
             TransferData({
                 dnsEncodedName: dnsEncodedName,

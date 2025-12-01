@@ -1,16 +1,16 @@
 import { artifacts } from "@rocketh";
 import { rm } from "node:fs/promises";
 import { anvil as createAnvil } from "prool/instances";
-import { type Environment, executeDeployScripts, resolveConfig } from "rocketh";
+import { executeDeployScripts, resolveConfig, type Environment } from "rocketh";
 import {
   type Abi,
   type Account,
+  type Address,
   type Chain,
   createWalletClient,
-  encodeFunctionData,
   getContract,
   type GetContractReturnType,
-  Hex,
+  type Hex,
   publicActions,
   testActions,
   type Transport,
@@ -53,8 +53,8 @@ const sharedContracts = {
   SimpleRegistryMetadata: artifacts.SimpleRegistryMetadata.abi,
   HCAFactory: artifacts.MockHCAFactoryBasic.abi,
   VerifiableFactory: artifacts.VerifiableFactory.abi,
-  DedicatedResolverImpl: artifacts.DedicatedResolver.abi,
-  UserRegistryImpl: artifacts.UserRegistry.abi,
+  DedicatedResolver: artifacts.DedicatedResolver.abi,
+  UserRegistry: artifacts.UserRegistry.abi,
   // common
   MockBridge: artifacts.MockBridgeBase.abi,
   ETHRegistry: artifacts.PermissionedRegistry.abi,
@@ -105,14 +105,19 @@ const l2Contracts = {
 } as const satisfies DeployedArtifacts;
 
 export type CrossChainSnapshot = () => Promise<void>;
+export type CrossChainClient = ReturnType<typeof createClient>;
 export type CrossChainEnvironment = Awaited<
   ReturnType<typeof setupCrossChainEnvironment>
 >;
 
-export type L1Deployment = ChainDeployment<typeof l1Contracts>;
-export type L2Deployment = ChainDeployment<typeof l2Contracts>;
-
-export type CrossChainClient = ReturnType<typeof createClient>;
+export type L1Deployment = ChainDeployment<
+  typeof l1Contracts,
+  typeof l2Contracts
+>;
+export type L2Deployment = ChainDeployment<
+  typeof l2Contracts,
+  typeof l1Contracts
+>;
 
 function ansi(c: any, s: any) {
   return `\x1b[${c}m${s}\x1b[0m`;
@@ -138,13 +143,28 @@ function createClient(transport: Transport, chain: Chain, account: Account) {
     .extend(testActions({ mode: "anvil" }));
 }
 
+type SharedContracts = {
+  [K in keyof typeof sharedContracts]: (typeof sharedContracts)[K] extends
+    | Abi
+    | readonly unknown[]
+    ? GetContractReturnType<(typeof sharedContracts)[K], CrossChainClient>
+    : never;
+};
+type ContractsOf<A> = {
+  [K in keyof A as Exclude<K, keyof typeof sharedContracts>]: A[K] extends
+    | Abi
+    | readonly unknown[]
+    ? GetContractReturnType<A[K], CrossChainClient>
+    : never;
+};
+
 export class ChainDeployment<
-  A extends DeployedArtifacts = typeof sharedContracts,
-  B extends DeployedArtifacts = typeof sharedContracts,
+  const A extends typeof sharedContracts &
+    DeployedArtifacts = typeof sharedContracts,
+  const B extends typeof sharedContracts &
+    DeployedArtifacts = typeof sharedContracts,
 > {
-  readonly contracts: {
-    [K in keyof A]: GetContractReturnType<A[K], CrossChainClient>;
-  };
+  readonly contracts: SharedContracts & ContractsOf<A>;
   readonly rx!: ChainDeployment<B, A>;
   constructor(
     readonly isL1: boolean,
@@ -165,27 +185,27 @@ export class ChainDeployment<
       Object.entries(namedArtifacts).map(([name, abi]) => {
         const deployment = env.get(renames[name] ?? name.replace(/V1$/, ""));
         const contract = getContract({
-          abi: deployment.abi,
+          abi,
           address: deployment.address,
           client,
-        }) as unknown as GetContractReturnType<typeof abi>;
+        }) as unknown;
         return [name, contract];
       }),
-    ) as typeof this.contracts;
+    ) as SharedContracts & ContractsOf<A>;
   }
-  // get nameStr() {
-  //   return nameForChain(this.isL1);
-  // }
-  // get name() {
-  //   return ansi(ansiForChain(this.isL1), this.nameStr);
-  // }
   get name() {
     return nameForChain(this.isL1);
   }
   get arrow() {
     return `${this.name}->${this.rx.name}`;
   }
-  async deployPermissionedRegistry(account: Account, roles = ROLES.ALL) {
+  async deployPermissionedRegistry({
+    account,
+    roles = ROLES.ALL,
+  }: {
+    account: Account;
+    roles?: bigint;
+  }) {
     const client = createClient(this.transport, this.client.chain, account);
     const { abi, bytecode } = artifacts.PermissionedRegistry;
     const hash = await client.deployContract({
@@ -206,31 +226,45 @@ export class ChainDeployment<
       client,
     });
   }
-  deployDedicatedResolver(account: Account, salt?: bigint) {
+  async deployDedicatedResolver({
+    account,
+    admin = account.address,
+    roles = ROLES.ALL,
+    salt,
+  }: {
+    account: Account;
+    admin?: Address;
+    roles?: bigint;
+    salt?: bigint;
+  }) {
     return deployVerifiableProxy({
       walletClient: createClient(this.transport, this.client.chain, account),
       factoryAddress: this.contracts.VerifiableFactory.address,
-      implAddress: this.contracts.DedicatedResolverImpl.address,
-      implAbi: this.contracts.DedicatedResolverImpl.abi,
+      implAddress: this.contracts.DedicatedResolver.address,
+      abi: this.contracts.DedicatedResolver.abi,
+      functionName: "initialize",
+      args: [admin, roles],
       salt,
     });
   }
-  deployUserRegistry(
-    account: Account,
-    roles: bigint,
-    admin: string,
-    salt?: bigint,
-  ) {
+  deployUserRegistry({
+    account,
+    admin = account.address,
+    roles = ROLES.ALL,
+    salt,
+  }: {
+    account: Account;
+    admin?: Address;
+    roles?: bigint;
+    salt?: bigint;
+  }) {
     return deployVerifiableProxy({
       walletClient: createClient(this.transport, this.client.chain, account),
       factoryAddress: this.contracts.VerifiableFactory.address,
-      implAddress: this.contracts.UserRegistryImpl.address,
-      implAbi: this.contracts.UserRegistryImpl.abi,
-      callData: encodeFunctionData({
-        abi: this.contracts.UserRegistryImpl.abi,
-        functionName: "initialize",
-        args: [roles, admin],
-      } as any) as `0x${string}`,
+      implAddress: this.contracts.UserRegistry.address,
+      abi: this.contracts.UserRegistry.abi,
+      functionName: "initialize",
+      args: [admin, roles],
       salt,
     });
   }
@@ -278,10 +312,11 @@ export async function setupCrossChainEnvironment({
     console.log("Deploying ENSv2...");
     await patchArtifactsV1();
 
+    // list of named wallets
     const names = ["deployer", "owner", "bridger", "user", "user2"];
     extraAccounts += names.length;
 
-    process.env["RUST_LOG"] = "info";
+    process.env["RUST_LOG"] = "info"; // required to capture console.log()
     const l1Anvil = createAnvil({
       chainId: l1ChainId,
       port: l1Port,
@@ -587,41 +622,41 @@ export async function setupCrossChainEnvironment({
 //   }
 // }
 
-async function setupEnsDotEth(l1: L1Deployment, owner: Account) {
+async function setupEnsDotEth(l1: L1Deployment, account: Account) {
   // create registry for "ens.eth"
-  const ens_ethRegistry = await l1.deployPermissionedRegistry(owner);
+  const ens_ethRegistry = await l1.deployPermissionedRegistry({ account });
   // create "ens.eth"
   await l1.contracts.ETHRegistry.write.register([
     "ens",
-    owner.address,
+    account.address,
     ens_ethRegistry.address,
     zeroAddress,
     0n,
     MAX_EXPIRY,
   ]);
   // create "dnsname.ens.eth"
-  const dnsnameResolver = await l1.deployDedicatedResolver(owner);
+  const dnsnameResolver = await l1.deployDedicatedResolver({ account });
   await dnsnameResolver.write.setAddr([
     60n,
     l1.contracts.DNSTXTResolver.address, // set to DNSTXTResolver
   ]);
   await ens_ethRegistry.write.register([
     "dnsname",
-    owner.address,
+    account.address,
     zeroAddress,
     dnsnameResolver.address,
     0n,
     MAX_EXPIRY,
   ]);
   // create "dnsalias.ens.eth"
-  const dnsaliasResolver = await l1.deployDedicatedResolver(owner);
+  const dnsaliasResolver = await l1.deployDedicatedResolver({ account });
   await dnsaliasResolver.write.setAddr([
     60n,
     l1.contracts.DNSAliasResolver.address, // set to DNSAliasResolver
   ]);
   await ens_ethRegistry.write.register([
     "dnsalias",
-    owner.address,
+    account.address,
     zeroAddress,
     dnsaliasResolver.address,
     0n,

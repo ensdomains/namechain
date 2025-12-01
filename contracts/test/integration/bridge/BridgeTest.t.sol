@@ -5,7 +5,12 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
+import {
+    EnhancedAccessControl,
+    EACBaseRolesLib
+} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
@@ -14,7 +19,6 @@ import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
@@ -72,7 +76,7 @@ contract BridgeTest is Test {
         l1Registry.grantRootRoles(
             RegistryRolesLib.ROLE_REGISTRAR |
                 RegistryRolesLib.ROLE_RENEW |
-                RegistryRolesLib.ROLE_BURN,
+                RegistryRolesLib.ROLE_UNREGISTER,
             address(l1Controller)
         );
         l2Registry.grantRootRoles(
@@ -97,7 +101,7 @@ contract BridgeTest is Test {
         );
 
         TransferData memory transferData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel("premiumname"),
+            dnsEncodedName: NameCoder.ethName("premiumname"),
             owner: user2,
             subregistry: address(0x123),
             resolver: address(0x456),
@@ -124,7 +128,7 @@ contract BridgeTest is Test {
         assertEq(l1Registry.ownerOf(tokenId), transferData.owner);
         assertEq(address(l1Registry.getSubregistry("premiumname")), transferData.subregistry);
         assertEq(l1Registry.getResolver("premiumname"), transferData.resolver);
-        assertEq(l1Registry.getExpiry(tokenId), transferData.expires);
+        assertEq(l1Registry.getEntry(tokenId).expiry, transferData.expires);
         assertEq(
             l1Registry.roles(l1Registry.getResource(tokenId), transferData.owner),
             transferData.roleBitmap

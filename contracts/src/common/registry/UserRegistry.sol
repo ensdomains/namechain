@@ -8,6 +8,7 @@ import {IHCAFactoryBasic} from "../../common/hca/interfaces/IHCAFactoryBasic.sol
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "../../common/registry/interfaces/IRegistryMetadata.sol";
 import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.sol";
+import {InvalidOwner} from "../CommonErrors.sol";
 
 /**
  * @title UserRegistry
@@ -37,17 +38,16 @@ contract UserRegistry is Initializable, PermissionedRegistry, UUPSUpgradeable {
 
     /**
      * @dev Initializes the UserRegistry contract.
-     * @param deployerRoles_ The roles to grant to the deployer.
-     * @param admin_ The address that will be set as the admin with upgrade privileges.
+     * @param admin The address that will be set as the admin with upgrade privileges.
+     * @param roleBitmap The roles to grant to `admin`.
      */
-    function initialize(uint256 deployerRoles_, address admin_) public initializer {
-        // TODO: custom error
-        require(admin_ != address(0), "Admin cannot be zero address");
-
+    function initialize(address admin, uint256 roleBitmap) public initializer {
+        if (admin == address(0)) {
+            revert InvalidOwner();
+        }
         // Datastore and metadata provider are set immutably in constructor
-
-        // Grant deployer roles to the admin
-        _grantRoles(ROOT_RESOURCE, deployerRoles_, admin_, false);
+        // Grant roles to the admin
+        _grantRoles(ROOT_RESOURCE, roleBitmap, admin, false);
     }
 
     /**

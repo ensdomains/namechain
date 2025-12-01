@@ -173,7 +173,7 @@ contract MigratedWrappedNameRegistry is
 
     function getResolver(string calldata label) external view override returns (address) {
         uint256 canonicalId = LibLabel.labelToCanonicalId(label);
-        IRegistryDatastore.Entry memory entry = DATASTORE.getEntry(address(this), canonicalId);
+        IRegistryDatastore.Entry memory entry = this.getEntry(canonicalId);
         uint64 expires = entry.expiry;
 
         // Use fallback resolver for unregistered names
@@ -288,7 +288,7 @@ contract MigratedWrappedNameRegistry is
     ) internal view returns (string memory label) {
         // Extract the current label (leftmost, at offset 0)
         uint256 parentOffset;
-        (label, parentOffset) = LibLabel.extractLabel(dnsEncodedName, offset);
+        (label, parentOffset) = NameCoder.extractLabel(dnsEncodedName, offset);
 
         // Check if there's no parent (trying to migrate TLD)
         if (dnsEncodedName[parentOffset] == 0) {
@@ -296,7 +296,7 @@ contract MigratedWrappedNameRegistry is
         }
 
         // Extract the parent label
-        (string memory parentLabel, uint256 grandparentOffset) = LibLabel.extractLabel(
+        (string memory parentLabel, uint256 grandparentOffset) = NameCoder.extractLabel(
             dnsEncodedName,
             parentOffset
         );

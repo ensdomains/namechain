@@ -177,7 +177,7 @@ contract MigratedWrappedNameRegistryTest is Test {
         testLabelId = LibLabel.labelToCanonicalId(testLabel);
 
         // Setup v1 resolver in ENS registry
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
+        bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
         bytes32 node = NameCoder.namehash(dnsEncodedName, 0);
         ensRegistry.setResolver(node, v1Resolver);
     }
@@ -263,7 +263,7 @@ contract MigratedWrappedNameRegistryTest is Test {
 
     function test_getResolver_ens_registry_returns_zero() public {
         // Clear the resolver in ENS registry
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
+        bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
         bytes32 node = NameCoder.namehash(dnsEncodedName, 0);
         ensRegistry.setResolver(node, address(0));
 
@@ -277,8 +277,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         string memory label2 = "bar";
 
         // Setup different resolvers in ENS registry
-        bytes32 node1 = NameCoder.namehash(LibLabel.dnsEncodeEthLabel(label1), 0);
-        bytes32 node2 = NameCoder.namehash(LibLabel.dnsEncodeEthLabel(label2), 0);
+        bytes32 node1 = NameCoder.namehash(NameCoder.ethName(label1), 0);
+        bytes32 node2 = NameCoder.namehash(NameCoder.ethName(label2), 0);
         ensRegistry.setResolver(node1, address(0x1111));
         ensRegistry.setResolver(node2, address(0x2222));
 

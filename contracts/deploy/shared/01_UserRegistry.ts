@@ -12,7 +12,7 @@ export default execute(
       (typeof artifacts.SimpleRegistryMetadata)["abi"]
     >("SimpleRegistryMetadata");
 
-    await deploy("UserRegistryImpl", {
+    await deploy("UserRegistry", {
       account: deployer,
       artifact: artifacts.UserRegistry,
       args: [

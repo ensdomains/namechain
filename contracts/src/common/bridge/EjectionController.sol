@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
@@ -144,7 +145,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
         uint256 tokenId,
         bytes memory dnsEncodedName
     ) internal pure {
-        string memory label = LibLabel.extractLabel(dnsEncodedName);
+        string memory label = NameCoder.firstLabel(dnsEncodedName);
         if (LibLabel.labelToCanonicalId(label) != LibLabel.getCanonicalId(tokenId)) {
             revert InvalidLabel(tokenId, label);
         }

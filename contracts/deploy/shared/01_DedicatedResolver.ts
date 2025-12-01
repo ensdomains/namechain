@@ -5,7 +5,7 @@ export default execute(
     const hcaFactory =
       get<(typeof artifacts.MockHCAFactoryBasic)["abi"]>("HCAFactory");
 
-    await deploy("DedicatedResolverImpl", {
+    await deploy("DedicatedResolver", {
       account: deployer,
       artifact: artifacts.DedicatedResolver,
       args: [hcaFactory.address],

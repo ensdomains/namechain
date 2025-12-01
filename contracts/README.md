@@ -104,7 +104,7 @@ In registry contracts, EAC is used with these specific behaviors:
 | `ROLE_SET_SUBREGISTRY` | 8 | 136 | Can change subregistry addresses |
 | `ROLE_SET_RESOLVER` | 12 | 140 | Can change the resolver address |
 | `ROLE_SET_TOKEN_OBSERVER` | 16 | 144 | Can set token observer contracts |
-| `ROLE_BURN` | 24 | 152 | Can burn (delete) the name |
+| `ROLE_UNREGISTER` | 24 | 152 | Can unregister (delete) name registrations |
 | `ROLE_CAN_TRANSFER_ADMIN` | - | 148 | Auto-granted to new name owner. Revoking this creates a soulbound NFT. |
 
 **Note**: `ROLE_REGISTRAR` is a root-only role since creating new subnames has no logical resource-specific equivalent (the resource doesn't exist yet).

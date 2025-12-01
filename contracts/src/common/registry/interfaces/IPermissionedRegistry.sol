@@ -12,10 +12,8 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     // Events
     ////////////////////////////////////////////////////////////////////////
 
-    /**
-     * @dev Event emitted when a token observer is set.
-     */
-    event TokenObserverSet(uint256 indexed tokenId, address observer);
+    /// @notice Token observer was changed.
+    event TokenObserverUpdated(uint256 indexed tokenId, ITokenObserver observer);
 
     ////////////////////////////////////////////////////////////////////////
     // Functions
@@ -46,4 +44,19 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     function getNameData(
         string calldata label
     ) external view returns (uint256 tokenId, IRegistryDatastore.Entry memory entry);
+
+    /// @notice Get datastore `Entry` from `anyId`.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @return The datastore entry.
+    function getEntry(uint256 anyId) external view returns (IRegistryDatastore.Entry memory);
+
+    /// @notice Get `resource` from `anyId`.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @return The resource.
+    function getResource(uint256 anyId) external view returns (uint256);
+
+    /// @notice Get `tokenId` from `anyId`.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @return The token ID.
+    function getTokenId(uint256 anyId) external view returns (uint256);
 }
