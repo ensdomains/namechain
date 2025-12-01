@@ -18,7 +18,6 @@ import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
-import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
@@ -33,7 +32,6 @@ import {DedicatedResolverLib} from "./libraries/DedicatedResolverLib.sol";
 
 /// @notice An owned resolver that provides the same results for any name.
 contract DedicatedResolver is
-    ERC165,
     HCAContextUpgradeable,
     UUPSUpgradeable,
     EnhancedAccessControl,
@@ -70,7 +68,7 @@ contract DedicatedResolver is
     /// @inheritdoc EnhancedAccessControl
     function supportsInterface(
         bytes4 interfaceId
-    ) public view override(ERC165, EnhancedAccessControl) returns (bool) {
+    ) public view override(EnhancedAccessControl) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
             type(IDedicatedResolverSetters).interfaceId == interfaceId ||
