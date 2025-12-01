@@ -15,17 +15,19 @@ import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.so
 import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
 import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
-import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
+import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
 import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
 
-contract BridgeTest is Test, EnhancedAccessControl {
+contract BridgeTest is Test {
     RegistryDatastore datastore;
+    MockHCAFactoryBasic hcaFactory;
 
     PermissionedRegistry l1Registry;
     PermissionedRegistry l2Registry;
@@ -41,15 +43,18 @@ contract BridgeTest is Test, EnhancedAccessControl {
     function setUp() public {
         // Deploy registries
         datastore = new RegistryDatastore();
-        SimpleRegistryMetadata metadata = new SimpleRegistryMetadata();
+        hcaFactory = new MockHCAFactoryBasic();
+        SimpleRegistryMetadata metadata = new SimpleRegistryMetadata(hcaFactory);
         l1Registry = new PermissionedRegistry(
             datastore,
+            hcaFactory,
             metadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES
         );
         l2Registry = new PermissionedRegistry(
             datastore,
+            hcaFactory,
             metadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES

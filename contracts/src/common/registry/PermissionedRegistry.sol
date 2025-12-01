@@ -8,6 +8,8 @@ import {IEnhancedAccessControl} from "../access-control/interfaces/IEnhancedAcce
 import {EACBaseRolesLib} from "../access-control/libraries/EACBaseRolesLib.sol";
 import {ERC1155Singleton} from "../erc1155/ERC1155Singleton.sol";
 import {IERC1155Singleton} from "../erc1155/interfaces/IERC1155Singleton.sol";
+import {HCAEquivalence} from "../hca/HCAEquivalence.sol";
+import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 import {LibLabel} from "../utils/LibLabel.sol";
 
 import {BaseRegistry} from "./BaseRegistry.sol";
@@ -38,10 +40,11 @@ contract PermissionedRegistry is
 
     constructor(
         IRegistryDatastore datastore,
+        IHCAFactoryBasic hcaFactory,
         IRegistryMetadata metadata,
         address ownerAddress,
         uint256 ownerRoles
-    ) BaseRegistry(datastore) MetadataMixin(metadata) {
+    ) BaseRegistry(datastore) HCAEquivalence(hcaFactory) MetadataMixin(metadata) {
         _grantRoles(ROOT_RESOURCE, ownerRoles, ownerAddress, false);
     }
 
