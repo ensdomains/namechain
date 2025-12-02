@@ -14,6 +14,9 @@ export default execute(
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
 
+    const hcaFactory =
+      get<(typeof artifacts.MockHCAFactoryBasic)["abi"]>("HCAFactory");
+
     const registryMetadata = get<
       (typeof artifacts.SimpleRegistryMetadata)["abi"]
     >("SimpleRegistryMetadata");
@@ -24,6 +27,7 @@ export default execute(
       artifact: artifacts.PermissionedRegistry,
       args: [
         registryDatastore.address,
+        hcaFactory.address,
         registryMetadata.address,
         deployer,
         ROLES.ALL,
@@ -50,6 +54,7 @@ export default execute(
       "DefaultReverseResolver",
       "RootRegistry",
       "RegistryDatastore",
+      "HCAFactory",
       "SimpleRegistryMetadata",
     ],
   },

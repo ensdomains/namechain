@@ -5,7 +5,6 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {
@@ -36,6 +35,7 @@ import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {LockedNamesLib} from "~src/L1/migration/libraries/LockedNamesLib.sol";
 import {ParentNotMigrated, LabelNotMigrated} from "~src/L1/migration/MigrationErrors.sol";
 import {MigratedWrappedNameRegistry} from "~src/L1/registry/MigratedWrappedNameRegistry.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -130,6 +130,7 @@ contract MigratedWrappedNameRegistryTest is Test {
     MigratedWrappedNameRegistry implementation;
     MigratedWrappedNameRegistry registry;
     RegistryDatastore datastore;
+    MockHCAFactoryBasic hcaFactory;
     MockRegistryMetadata metadata;
     MockENS ensRegistry;
     MockNameWrapper nameWrapper;
@@ -145,6 +146,7 @@ contract MigratedWrappedNameRegistryTest is Test {
 
     function setUp() public {
         datastore = new RegistryDatastore();
+        hcaFactory = new MockHCAFactoryBasic();
         metadata = new MockRegistryMetadata();
         ensRegistry = new MockENS();
         nameWrapper = new MockNameWrapper(ensRegistry);
@@ -156,6 +158,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)), // mock ethRegistry
             factory,
             datastore,
+            hcaFactory,
             metadata
         );
 
@@ -570,6 +573,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             realFactory,
             datastore,
+            hcaFactory,
             metadata
         );
 
@@ -596,6 +600,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata
         );
 
@@ -1308,6 +1313,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata
         );
 
@@ -1334,6 +1340,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata
         );
 
@@ -1355,6 +1362,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata
         );
 
@@ -1388,6 +1396,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata
         );
 
@@ -1454,6 +1463,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata
         );
 
@@ -1475,6 +1485,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata
         );
 
@@ -1507,6 +1518,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata
         );
 
@@ -1539,6 +1551,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata
         );
 
@@ -1581,6 +1594,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(mockEthRegistry)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata
         );
 
