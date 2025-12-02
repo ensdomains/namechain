@@ -146,7 +146,6 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
             RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_UNREGISTER,
             address(bridgeController)
         );
-        bridgeController.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(controller));
 
         controller = new L1LockedMigrationController(
             INameWrapper(address(nameWrapper)),

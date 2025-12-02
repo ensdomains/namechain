@@ -160,7 +160,7 @@ contract EnhancedAccessControlTest is Test {
     }
 
     function test_initial_roles() external view {
-        assertTrue(access.hasRoles(ROOT_RESOURCE, ALL_ROLES, admin));
+        assertTrue(access.hasRootRoles(ALL_ROLES, admin));
         assertTrue(access.hasRoles(RESOURCE_1, ALL_ROLES, admin));
         assertTrue(access.hasRoles(RESOURCE_2, ALL_ROLES, admin));
     }
@@ -194,7 +194,7 @@ contract EnhancedAccessControlTest is Test {
         _revoke(RESOURCE_1, ADMIN_ROLE_B | ADMIN_ROLE_C, user1);
     }
 
-    function test_grant_roles() public {
+    function test_grant_roles() external {
         // Create a bitmap with regular roles only (admin roles cannot be granted via grantRoles)
         uint256 roleBitmap = ROLE_A | ROLE_B;
 
@@ -216,8 +216,13 @@ contract EnhancedAccessControlTest is Test {
         _grant(RESOURCE_1, ROLE_B | ROLE_C, user1);
     }
 
+    function test_grant_invalid_account() external {
+        vm.expectRevert(abi.encodeWithSelector(IEnhancedAccessControl.EACInvalidAccount.selector));
+        access.grantRoles(RESOURCE_1, ROLE_A, address(0));
+    }
+
     // Test that unauthorized accounts cannot grant roles
-    function test_grant_roles_unauthorized_admin() public {
+    function test_grant_roles_unauthorized_admin() external {
         // Grant ROLE_A (but not ADMIN_ROLE_A) to user1
         access.grantRoles(RESOURCE_1, ROLE_A, user1);
 
@@ -238,7 +243,7 @@ contract EnhancedAccessControlTest is Test {
     }
 
     // Test that authorized accounts can grant roles
-    function test_grant_roles_authorized_admin() public {
+    function test_grant_roles_authorized_admin() external {
         // Grant regular role and admin role to user1
         access.grantRoles(RESOURCE_1, ROLE_A, user1);
         access.grantRootRoles(ADMIN_ROLE_A, user1);
@@ -255,7 +260,7 @@ contract EnhancedAccessControlTest is Test {
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user2));
     }
 
-    function test_grant_roles_return_value() public {
+    function test_grant_roles_return_value() external {
         uint256 roleBitmap = ROLE_A | ROLE_B;
 
         bool success = access.grantRoles(RESOURCE_1, roleBitmap, user1);
@@ -268,16 +273,14 @@ contract EnhancedAccessControlTest is Test {
     }
 
     // Test that grantRoles cannot be called with ROOT_RESOURCE
-    function test_grant_roles_with_root_resource_not_allowed() public {
-        uint256 rootResource = ROOT_RESOURCE;
-        // Attempt to call grantRoles with ROOT_RESOURCE should revert
+    function test_grant_roles_with_root_resource_not_allowed() external {
         vm.expectRevert(
             abi.encodeWithSelector(IEnhancedAccessControl.EACRootResourceNotAllowed.selector)
         );
-        access.grantRoles(rootResource, ROLE_A, user1);
+        access.grantRoles(ROOT_RESOURCE, ROLE_A, user1);
     }
 
-    function test_root_resource_role_applies_to_all_resources() public {
+    function test_root_resource_role_applies_to_all_resources() external {
         access.grantRootRoles(ROLE_A, user1);
 
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A, user1));
@@ -285,7 +288,7 @@ contract EnhancedAccessControlTest is Test {
         assertTrue(access.hasRoles(uint256(keccak256("ANY_OTHER_RESOURCE")), ROLE_A, user1));
     }
 
-    function test_has_root_roles() public {
+    function test_has_root_roles() external {
         // Initially user1 doesn't have the role in root resource
         assertFalse(access.hasRootRoles(ROLE_A, user1));
 
@@ -304,7 +307,7 @@ contract EnhancedAccessControlTest is Test {
         assertFalse(access.hasRootRoles(ROLE_A, user1));
     }
 
-    function test_only_root_roles() public {
+    function test_only_root_roles() external {
         // Grant role in root resource to user1
         access.grantRootRoles(ROLE_A, user1);
 
@@ -339,7 +342,7 @@ contract EnhancedAccessControlTest is Test {
         access.callOnlyRootRoles(ROLE_A);
     }
 
-    function test_has_roles_requires_all_roles() public {
+    function test_has_roles_requires_all_roles() external {
         // Grant only ROLE_A and ROLE_B to user1
         access.grantRoles(RESOURCE_1, ROLE_A | ROLE_B, user1);
 
@@ -365,7 +368,7 @@ contract EnhancedAccessControlTest is Test {
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B | ROLE_C | ROLE_D, user1));
     }
 
-    function test_has_root_roles_requires_all_roles() public {
+    function test_has_root_roles_requires_all_roles() external {
         // Grant only ROLE_A and ROLE_B to user1 in root resource
         access.grantRootRoles(ROLE_A | ROLE_B, user1);
 
@@ -391,7 +394,7 @@ contract EnhancedAccessControlTest is Test {
         assertTrue(access.hasRootRoles(ROLE_A | ROLE_B | ROLE_C | ROLE_D, user1));
     }
 
-    function test_revoke_roles() public {
+    function test_revoke_roles() external {
         // Grant multiple roles to user1 in different resources
         _grant(RESOURCE_1, ROLE_A, user1);
         _grant(RESOURCE_1, ROLE_B, user1);
@@ -420,7 +423,7 @@ contract EnhancedAccessControlTest is Test {
     }
 
     // Test that unauthorized accounts cannot revoke roles
-    function test_revoke_roles_unauthorized_admin() public {
+    function test_revoke_roles_unauthorized_admin() external {
         // Grant ROLE_A to user2, as the test admin
         access.grantRoles(RESOURCE_1, ROLE_A, user2);
 
@@ -437,7 +440,7 @@ contract EnhancedAccessControlTest is Test {
                 user1
             )
         );
-        EnhancedAccessControl(address(access)).revokeRoles(RESOURCE_1, ROLE_A, user2);
+        access.revokeRoles(RESOURCE_1, ROLE_A, user2);
         vm.stopPrank();
 
         // Verify user2 still has ROLE_A (it wasn't revoked)
@@ -445,7 +448,7 @@ contract EnhancedAccessControlTest is Test {
     }
 
     // Test that authorized accounts can revoke roles
-    function test_revoke_roles_authorized_admin() public {
+    function test_revoke_roles_authorized_admin() external {
         // Grant ROLE_A to user2, as the test admin
         access.grantRoles(RESOURCE_1, ROLE_A, user2);
 
@@ -463,16 +466,14 @@ contract EnhancedAccessControlTest is Test {
     }
 
     // Test that revokeRoles cannot be called with ROOT_RESOURCE
-    function test_revoke_roles_with_root_resource_not_allowed() public {
-        uint256 rootResource = ROOT_RESOURCE;
-        // Attempt to call revokeRoles with ROOT_RESOURCE should revert
+    function test_revoke_roles_with_root_resource_not_allowed() external {
         vm.expectRevert(
             abi.encodeWithSelector(IEnhancedAccessControl.EACRootResourceNotAllowed.selector)
         );
-        access.revokeRoles(rootResource, ROLE_A, user1);
+        access.revokeRoles(ROOT_RESOURCE, ROLE_A, user1);
     }
 
-    function test_revoke_root_roles() public {
+    function test_revoke_root_roles() external {
         // Grant roles to user1 in the root resource
         // Verify initial state
         _grant(ROOT_RESOURCE, ROLE_A | ROLE_B, user1);
@@ -492,7 +493,7 @@ contract EnhancedAccessControlTest is Test {
         _revoke(ROOT_RESOURCE, ROLE_B, user1);
     }
 
-    function test_revoke_root_roles_unauthorized_admin() public {
+    function test_revoke_root_roles_unauthorized_admin() external {
         // Grant ROLE_A to user2 in root resource, as the test admin
         access.grantRootRoles(ROLE_A, user2);
 
@@ -509,14 +510,14 @@ contract EnhancedAccessControlTest is Test {
                 user1
             )
         );
-        EnhancedAccessControl(address(access)).revokeRootRoles(ROLE_A, user2);
+        access.revokeRoles(ROOT_RESOURCE, ROLE_A, user2);
         vm.stopPrank();
 
         // Verify user2 still has ROLE_A (it wasn't revoked)
         assertTrue(access.hasRootRoles(ROLE_A, user2));
     }
 
-    function test_revoke_root_roles_authorized_admin() public {
+    function test_revoke_root_roles_authorized_admin() external {
         // Grant ROLE_A to user2 in root resource, as the test admin
         access.grantRootRoles(ROLE_A, user2);
 
@@ -534,16 +535,15 @@ contract EnhancedAccessControlTest is Test {
         assertFalse(access.hasRootRoles(ROLE_A, user2));
     }
 
-    function test_revoke_all_roles() public {
+    function test_revoke_all_roles() external {
         // Setup: Grant multiple roles to user1
-        _grant(RESOURCE_1, ROLE_A, user1);
-        _grant(RESOURCE_1, ROLE_B, user1);
+        _grant(RESOURCE_1, ROLE_A | ROLE_B, user1);
         _grant(RESOURCE_2, ROLE_A, user1);
 
         // Revoke all roles for RESOURCE_1
         // Verify the operation was successful
         vm.expectEmit(true, true, false, true);
-        emit IEnhancedAccessControl.EACRolesRevoked(RESOURCE_1, EACBaseRolesLib.ALL_ROLES, user1);
+        emit IEnhancedAccessControl.EACRolesChanged(RESOURCE_1, user1, ROLE_A | ROLE_B, 0);
         assertTrue(access.revokeAllRoles(RESOURCE_1, user1), "revoke");
 
         // Verify all roles for RESOURCE_1 were revoked
@@ -561,14 +561,13 @@ contract EnhancedAccessControlTest is Test {
         assertEq(vm.getRecordedLogs().length, 0, "silent");
     }
 
-    function test_supports_interface() public view {
+    function test_supports_interface() external view {
         assertTrue(access.supportsInterface(type(IEnhancedAccessControl).interfaceId));
     }
 
-    function test_transfer_roles() public {
+    function test_transfer_roles() external {
         // Setup: Grant multiple roles to user1
-        _grant(RESOURCE_1, ROLE_B, user1);
-        _grant(RESOURCE_1, ROLE_A, user1);
+        _grant(RESOURCE_1, ROLE_A | ROLE_B, user1);
         _grant(RESOURCE_2, ROLE_A, user1);
 
         // Verify initial state
@@ -578,9 +577,9 @@ contract EnhancedAccessControlTest is Test {
 
         // Transfer roles from user1 to user2 for RESOURCE_1
         vm.expectEmit(true, true, false, true);
-        emit IEnhancedAccessControl.EACRolesRevoked(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        emit IEnhancedAccessControl.EACRolesChanged(RESOURCE_1, user1, ROLE_A | ROLE_B, 0);
         vm.expectEmit(true, true, false, true);
-        emit IEnhancedAccessControl.EACRolesGranted(RESOURCE_1, ROLE_A | ROLE_B, user2);
+        emit IEnhancedAccessControl.EACRolesChanged(RESOURCE_1, user2, 0, ROLE_A | ROLE_B);
         access.transferRoles(RESOURCE_1, user1, user2);
 
         // Verify roles were transferred correctly for RESOURCE_1
@@ -588,57 +587,62 @@ contract EnhancedAccessControlTest is Test {
         // Verify roles for RESOURCE_2 were not transferred
         assertFalse(access.hasRoles(RESOURCE_2, ROLE_A, user2));
         // Verify user1 no longer has roles in RESOURCE_1 (transferred away)
-        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_B, user1));
         // But still has roles in RESOURCE_2 (not transferred)
         assertTrue(access.hasRoles(RESOURCE_2, ROLE_A, user1));
     }
 
-    function test_transfer_roles_with_existing_roles() public {
+    function test_transfer_roles_with_existing_roles() external {
         // Setup: Grant different roles to user1 and user2
-        _grant(RESOURCE_1, ROLE_A, user1);
-        _grant(RESOURCE_1, ROLE_B, user1);
-        _grant(RESOURCE_1, ROLE_C, user2);
-        _grant(RESOURCE_1, ROLE_D, user2);
+        _grant(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        _grant(RESOURCE_1, ROLE_C | ROLE_D, user2);
 
         // Transfer roles from user1 to user2 for RESOURCE_1
         // This should OR the roles from user1 with user2's existing roles
         vm.expectEmit(true, true, false, true);
-        emit IEnhancedAccessControl.EACRolesRevoked(RESOURCE_1, ROLE_A | ROLE_B, user1);
+        emit IEnhancedAccessControl.EACRolesChanged(RESOURCE_1, user1, ROLE_A | ROLE_B, 0);
         vm.expectEmit(true, true, false, true);
-        emit IEnhancedAccessControl.EACRolesGranted(RESOURCE_1, ROLE_A | ROLE_B, user2);
+        emit IEnhancedAccessControl.EACRolesChanged(
+            RESOURCE_1,
+            user2,
+            ROLE_C | ROLE_D,
+            ROLE_A | ROLE_B | ROLE_C | ROLE_D
+        );
         access.transferRoles(RESOURCE_1, user1, user2);
 
         // Verify user1 no longer has their original roles (transferred away)
-        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_A, user1));
+        assertFalse(access.hasRoles(RESOURCE_1, ROLE_B, user1));
 
         // Verify user2 has all roles (original + transferred)
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B | ROLE_C | ROLE_D, user2));
     }
 
-    function test_transfer_roles_with_admin_roles() public {
+    function test_transfer_roles_with_admin_roles() external {
         // Setup: Grant roles including admin roles to user1
-        _grant(RESOURCE_1, ROLE_A | ROLE_B, user1);
         _grant(ROOT_RESOURCE, ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
-        _grant(RESOURCE_1, ADMIN_ROLE_C, user1);
+        _grant(RESOURCE_1, ROLE_A | ROLE_B | ADMIN_ROLE_C, user1);
 
         // Setup user2 with some existing roles
-        _grant(RESOURCE_1, ROLE_C, user2);
-        _grant(RESOURCE_1, ADMIN_ROLE_D, user2);
+        _grant(RESOURCE_1, ROLE_C | ADMIN_ROLE_D, user2);
 
         // Transfer roles from user1 to user2 for RESOURCE_1
         // This should transfer all roles that user1 has directly in RESOURCE_1
         // (but not the root resource roles)
         vm.expectEmit(true, true, false, true);
-        emit IEnhancedAccessControl.EACRolesRevoked(
+        emit IEnhancedAccessControl.EACRolesChanged(
             RESOURCE_1,
+            user1,
             ROLE_A | ROLE_B | ADMIN_ROLE_C,
-            user1
+            0
         );
         vm.expectEmit(true, true, false, true);
-        emit IEnhancedAccessControl.EACRolesGranted(
+        emit IEnhancedAccessControl.EACRolesChanged(
             RESOURCE_1,
-            ROLE_A | ROLE_B | ADMIN_ROLE_C,
-            user2
+            user2,
+            ROLE_C | ADMIN_ROLE_D,
+            ROLE_A | ROLE_B | ROLE_C | ADMIN_ROLE_C | ADMIN_ROLE_D
         );
         access.transferRoles(RESOURCE_1, user1, user2);
 
@@ -652,7 +656,7 @@ contract EnhancedAccessControlTest is Test {
         assertTrue(access.hasRoles(RESOURCE_1, ADMIN_ROLE_C | ADMIN_ROLE_D, user2)); // Admin roles
     }
 
-    function test_role_callback_hooks() public {
+    function test_role_callback_hooks() external {
         // Test granting roles
         uint256 roleBitmap = ROLE_A | ROLE_B;
         access.grantRoles(RESOURCE_1, roleBitmap, user1);
@@ -731,7 +735,7 @@ contract EnhancedAccessControlTest is Test {
         assertEq(access.lastGrantedCount(), countBeforeTransfer + 1);
     }
 
-    function test_disable_callbacks() public {
+    function test_disable_callbacks() external {
         // Store initial counter values
         uint256 initialGrantCount = access.lastGrantedCount();
         uint256 initialRevokeCount = access.lastRevokedCount();
@@ -781,7 +785,7 @@ contract EnhancedAccessControlTest is Test {
         assertFalse(access.hasRoles(RESOURCE_1, ROLE_A | ROLE_B, user1));
     }
 
-    function test_direct_roles_access() public {
+    function test_direct_roles_access() external {
         // Test direct access to roles mapping
         uint256 roleBitmap = ROLE_A | ROLE_B;
 
@@ -817,7 +821,7 @@ contract EnhancedAccessControlTest is Test {
         assertEq(access.roles(ROOT_RESOURCE, user1), ROLE_C);
     }
 
-    function test_roles_mapping_after_operations() public {
+    function test_roles_mapping_after_operations() external {
         // Test mapping state after complex operations
 
         // Set up initial roles
@@ -848,7 +852,7 @@ contract EnhancedAccessControlTest is Test {
         assertEq(access.roles(RESOURCE_1, address(0x123)), 0);
     }
 
-    function test_roles_mapping_consistency() public {
+    function test_roles_mapping_consistency() external {
         // Test consistency between hasRoles and direct mapping access
 
         // Grant multiple roles to user1
@@ -881,7 +885,7 @@ contract EnhancedAccessControlTest is Test {
 
     // Tests for hasAssignees() and max/min assignees functionality
 
-    function test_hasAssignees_single_role() public {
+    function test_hasAssignees_single_role() external {
         // Initially, no roles should have assignees
         assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A));
 
@@ -915,7 +919,7 @@ contract EnhancedAccessControlTest is Test {
         assertFalse(access.hasAssignees(RESOURCE_1, ROLE_D));
     }
 
-    function test_hasAssignees_two_roles() public {
+    function test_hasAssignees_two_roles() external {
         // Initially, neither role should have assignees
         assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
         assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A));
@@ -964,7 +968,7 @@ contract EnhancedAccessControlTest is Test {
         assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
     }
 
-    function test_max_assignees_single_role() public {
+    function test_max_assignees_single_role() external {
         // Create 15 different user addresses
         address[] memory users = new address[](15);
         for (uint256 i = 0; i < 15; i++) {
@@ -1007,7 +1011,7 @@ contract EnhancedAccessControlTest is Test {
         access.grantRoles(RESOURCE_1, ROLE_A, makeAddr("maxUser17"));
     }
 
-    function test_max_assignees_two_roles() public {
+    function test_max_assignees_two_roles() external {
         // Create enough users for testing
         address[] memory users = new address[](16);
         for (uint256 i = 0; i < 16; i++) {
@@ -1077,7 +1081,7 @@ contract EnhancedAccessControlTest is Test {
         access.grantRoles(RESOURCE_1, ROLE_D, makeAddr("extraUser"));
     }
 
-    function test_min_assignees_single_role() public {
+    function test_min_assignees_single_role() external {
         // Initially, no assignees for ROLE_A
         assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A));
 
@@ -1104,7 +1108,7 @@ contract EnhancedAccessControlTest is Test {
         assertFalse(success); // Should return false as no roles were actually revoked
     }
 
-    function test_min_assignees_two_roles() public {
+    function test_min_assignees_two_roles() external {
         // Initially, no assignees for either role
         assertFalse(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
 
@@ -1135,7 +1139,7 @@ contract EnhancedAccessControlTest is Test {
         assertFalse(success); // Should return false as no roles were actually revoked
     }
 
-    function test_hasAssignees_different_resources() public {
+    function test_hasAssignees_different_resources() external {
         // Test that hasAssignees works correctly across different resources
 
         // Grant ROLE_A to user1 in RESOURCE_1
@@ -1182,7 +1186,7 @@ contract EnhancedAccessControlTest is Test {
         assertTrue(access.hasAssignees(RESOURCE_2, ROLE_A));
     }
 
-    function test_hasAssignees_with_root_resource() public {
+    function test_hasAssignees_with_root_resource() external {
         // Root resource behavior should not affect hasAssignees
 
         // Grant ROLE_A in root resource
@@ -1211,7 +1215,7 @@ contract EnhancedAccessControlTest is Test {
     // Tests for invalid role bitmaps (multiple bits set in a nybble)
     // These tests verify that invalid role bitmaps throw EACInvalidRoleBitmap error
 
-    function test_invalid_role_bitmap_validation() public {
+    function test_invalid_role_bitmap_validation() external {
         // Test that core functions reject invalid role bitmaps
         uint256 invalidRoleA = ROLE_A | (1 << 1) | (1 << 2); // 0x7 = 0111 in first nybble
         uint256 invalidRoleB = ROLE_B | (1 << 5) | (1 << 6); // extra bits in second nybble
@@ -1244,7 +1248,7 @@ contract EnhancedAccessControlTest is Test {
         assertTrue(access.hasRoles(RESOURCE_1, ROLE_B, user1));
     }
 
-    function test_hasAssignees_comprehensive_validation() public {
+    function test_hasAssignees_comprehensive_validation() external {
         // Test hasAssignees with various valid and invalid role bitmaps
 
         // Grant some valid roles
@@ -1307,7 +1311,7 @@ contract EnhancedAccessControlTest is Test {
 
     // Tests for getAssigneeCount() method
 
-    function test_getAssigneeCount_single_role_basic() public {
+    function test_getAssigneeCount_single_role_basic() external {
         // Initially, no roles should have assignees
         (uint256 counts, uint256 mask) = access.getAssigneeCount(RESOURCE_1, ROLE_A);
         assertEq(counts, 0);
@@ -1342,7 +1346,7 @@ contract EnhancedAccessControlTest is Test {
         assertEq(mask, 0xf);
     }
 
-    function test_getAssigneeCount_multiple_roles() public {
+    function test_getAssigneeCount_multiple_roles() external {
         // Test with ROLE_A (first nybble) and ROLE_D (fourth nybble)
         uint256 roleBitmap = ROLE_A | ROLE_D;
 
@@ -1373,7 +1377,7 @@ contract EnhancedAccessControlTest is Test {
         assertEq(mask, 61455);
     }
 
-    function test_getAssigneeCount_all_four_roles() public {
+    function test_getAssigneeCount_all_four_roles() external {
         uint256 allRoles = ROLE_A | ROLE_B | ROLE_C | ROLE_D;
 
         // Initially, no assignees
@@ -1399,7 +1403,7 @@ contract EnhancedAccessControlTest is Test {
         assertEq(mask, 0xffff);
     }
 
-    function test_getAssigneeCount_different_resources() public {
+    function test_getAssigneeCount_different_resources() external {
         // Test that getAssigneeCount works correctly across different resources
 
         // Grant ROLE_A to user1 in RESOURCE_1
@@ -1433,7 +1437,7 @@ contract EnhancedAccessControlTest is Test {
         assertEq(counts2, 1); // RESOURCE_2 should still have 1 assignee
     }
 
-    function test_getAssigneeCount_with_root_resource() public {
+    function test_getAssigneeCount_with_root_resource() external {
         // Test getAssigneeCount with root resource
 
         // Grant ROLE_A in root resource
@@ -1462,7 +1466,7 @@ contract EnhancedAccessControlTest is Test {
         assertEq(res1Counts, 1); // but only user2 is counted as direct assignee
     }
 
-    function test_getAssigneeCount_consistency_with_hasAssignees() public {
+    function test_getAssigneeCount_consistency_with_hasAssignees() external {
         // Test that getAssigneeCount is consistent with hasAssignees
 
         uint256 roleBitmap = ROLE_A | ROLE_C;
@@ -1511,7 +1515,7 @@ contract EnhancedAccessControlTest is Test {
         assertFalse(hasAny);
     }
 
-    function test_getAssigneeCount_max_assignees() public {
+    function test_getAssigneeCount_max_assignees() external {
         // Test getAssigneeCount with maximum assignees (15 per role)
 
         // Create 15 different user addresses
@@ -1544,7 +1548,7 @@ contract EnhancedAccessControlTest is Test {
         assertTrue(access.hasAssignees(RESOURCE_1, ROLE_A | ROLE_D));
     }
 
-    function test_getAssigneeCount_invalid_role_bitmap() public {
+    function test_getAssigneeCount_invalid_role_bitmap() external {
         // Test that getAssigneeCount rejects invalid role bitmaps
 
         uint256 invalidRoleA = ROLE_A | (1 << 1) | (1 << 2); // 0x7 = 0111 in first nybble
@@ -1573,7 +1577,7 @@ contract EnhancedAccessControlTest is Test {
         assertEq(mask, 0xff); // Mask for first two nybbles
     }
 
-    function test_getAssigneeCount_mask_calculation() public view {
+    function test_getAssigneeCount_mask_calculation() external view {
         // Test that masks are calculated correctly for different role combinations
 
         // Single roles
@@ -1604,7 +1608,7 @@ contract EnhancedAccessControlTest is Test {
         assertEq(maskAll, 0xffff); // All four nybbles
     }
 
-    function test_getAssigneeCount_zero_bitmap() public view {
+    function test_getAssigneeCount_zero_bitmap() external view {
         // Test getAssigneeCount with zero role bitmap - should return zero counts
         (uint256 counts, uint256 mask) = access.getAssigneeCount(RESOURCE_1, 0);
         assertEq(counts, 0);
@@ -1613,14 +1617,14 @@ contract EnhancedAccessControlTest is Test {
 
     // Tests for admin role restrictions
 
-    function test_grantRoles_allows_admin_roles() public {
+    function test_grantRoles_allows_admin_roles() external {
         // Verify that accounts WITH proper admin privileges CAN grant admin roles
         _grant(RESOURCE_1, ADMIN_ROLE_A, user1);
         _grant(RESOURCE_1, ROLE_A | ADMIN_ROLE_B, user2);
         _grant(RESOURCE_1, ADMIN_ROLE_C | ADMIN_ROLE_D, superuser);
     }
 
-    function test_grantRoles_rejects_unauthorized_admin_roles() public {
+    function test_grantRoles_rejects_unauthorized_admin_roles() external {
         // Verify that accounts WITHOUT proper admin privileges CANNOT grant admin roles
 
         vm.startPrank(user1);
@@ -1651,7 +1655,7 @@ contract EnhancedAccessControlTest is Test {
         vm.stopPrank();
     }
 
-    function test_canRevokeRoles_allows_admin_roles() public {
+    function test_canRevokeRoles_allows_admin_roles() external {
         // First grant some roles including admin roles
         _grant(RESOURCE_1, ROLE_A | ADMIN_ROLE_A, user1);
 
@@ -1669,13 +1673,13 @@ contract EnhancedAccessControlTest is Test {
         _revoke(RESOURCE_1, ROLE_A, user1);
     }
 
-    function test_grantRootRoles_allows_admin_roles() public {
+    function test_grantRootRoles_allows_admin_roles() external {
         // Verify that accounts WITH proper admin privileges CAN grant admin roles in ROOT_RESOURCE
         _grant(ROOT_RESOURCE, ADMIN_ROLE_A, user1);
         _grant(ROOT_RESOURCE, ADMIN_ROLE_B | ADMIN_ROLE_C, user1);
     }
 
-    function test_grantRootRoles_rejects_unauthorized_admin_roles() public {
+    function test_grantRootRoles_rejects_unauthorized_admin_roles() external {
         // Verify that accounts WITHOUT proper admin privileges CANNOT grant admin roles in ROOT_RESOURCE
         vm.startPrank(user1);
         // user1 has no admin roles in ROOT_RESOURCE, so should not be able to grant admin roles
@@ -1692,7 +1696,7 @@ contract EnhancedAccessControlTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACCannotGrantRoles.selector,
-                access.ROOT_RESOURCE(),
+                ROOT_RESOURCE,
                 ADMIN_ROLE_A | ADMIN_ROLE_B,
                 user1
             )
@@ -1701,7 +1705,7 @@ contract EnhancedAccessControlTest is Test {
         vm.stopPrank();
     }
 
-    function test_canRevokeRoles_allows_root_admin_roles() public {
+    function test_canRevokeRoles_allows_root_admin_roles() external {
         // First grant regular roles and admin roles via grantRootRoles
         _grant(ROOT_RESOURCE, ROLE_A | ROLE_B | ADMIN_ROLE_A | ADMIN_ROLE_B, user1);
         // Test that revokeRootRoles can now revoke admin roles
@@ -1712,7 +1716,7 @@ contract EnhancedAccessControlTest is Test {
         _revoke(ROOT_RESOURCE, ROLE_A, user1);
     }
 
-    function test_canRevokeRoles_unauthorized() public {
+    function test_canRevokeRoles_unauthorized() external {
         _grant(RESOURCE_1, ROLE_A, user2);
         vm.startPrank(user1);
         vm.expectRevert(
@@ -1726,7 +1730,7 @@ contract EnhancedAccessControlTest is Test {
         access.revokeRoles(RESOURCE_1, ROLE_A, user2);
     }
 
-    function test_canRevokeRoles_admin_unauthorized() public {
+    function test_canRevokeRoles_admin_unauthorized() external {
         _grant(RESOURCE_1, ADMIN_ROLE_A, user2);
         vm.prank(user1);
         vm.expectRevert(
@@ -1740,7 +1744,7 @@ contract EnhancedAccessControlTest is Test {
         access.revokeRoles(RESOURCE_1, ADMIN_ROLE_A, user2);
     }
 
-    function test_canRevokeRoles_with_root_admin_privileges() public {
+    function test_canRevokeRoles_with_root_admin_privileges() external {
         // Grant admin role in ROOT_RESOURCE to user1
         _grant(ROOT_RESOURCE, ADMIN_ROLE_A, user1);
 
@@ -1763,7 +1767,7 @@ contract EnhancedAccessControlTest is Test {
     function _grant(uint256 resource, uint256 roles, address account) public {
         uint256 roles0 = access.roles(resource, account);
         vm.expectEmit(true, true, false, true);
-        emit IEnhancedAccessControl.EACRolesGranted(resource, roles, account);
+        emit IEnhancedAccessControl.EACRolesChanged(resource, account, roles0, roles0 | roles);
         assertTrue(
             resource == ROOT_RESOURCE
                 ? access.grantRootRoles(roles, account)
@@ -1775,17 +1779,17 @@ contract EnhancedAccessControlTest is Test {
     }
 
     /// @dev Revoke roles then require event and check getter.
-    function _revoke(uint256 resource, uint256 roles, address account) internal {
-        uint256 roles0 = access.roles(roles, account);
+    function _revoke(uint256 resource, uint256 roles, address account) public {
+        uint256 roles0 = access.roles(resource, account);
         vm.expectEmit(true, true, false, true);
-        emit IEnhancedAccessControl.EACRolesRevoked(resource, roles, account);
+        emit IEnhancedAccessControl.EACRolesChanged(resource, account, roles0, roles0 & ~roles);
         assertTrue(
             resource == ROOT_RESOURCE
                 ? access.revokeRootRoles(roles, account)
                 : access.revokeRoles(resource, roles, account),
             "revoke"
         );
-        assertFalse(access.hasRoles(resource, roles, account), "revoked");
+        assertEq(access.roles(resource, account) & roles, 0, "revoked"); // explicit none
         assertTrue(access.hasRoles(resource, roles0 & ~roles, account), "unchanged");
     }
 }

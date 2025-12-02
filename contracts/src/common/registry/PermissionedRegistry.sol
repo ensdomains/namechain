@@ -333,29 +333,21 @@ contract PermissionedRegistry is
         uint256[] memory tokenIds,
         uint256[] memory values
     ) internal virtual override {
-        // Check ROLE_CAN_TRANSFER for actual transfers only
-        // Skip check for mints (from == address(0)) and burns (to == address(0))
-        if (from != address(0) && to != address(0)) {
-            for (uint256 i = 0; i < tokenIds.length; ++i) {
+        bool externalTransfer = to != address(0) && from != address(0);
+        if (externalTransfer) {
+            // Check ROLE_CAN_TRANSFER for actual transfers only
+            // Skip check for mints (from == address(0)) and burns (to == address(0))
+            for (uint256 i; i < tokenIds.length; ++i) {
                 if (!hasRoles(tokenIds[i], RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN, from)) {
                     revert TransferDisallowed(tokenIds[i], from);
                 }
             }
         }
-
         super._update(from, to, tokenIds, values);
-
-        for (uint256 i = 0; i < tokenIds.length; ++i) {
-            /*
-            There are two use-cases for this logic:
-
-            1) when transferring a name from one account to another we transfer all roles 
-            from the old owner to the new owner.
-
-            2) in _regenerateToken, we burn the token and then mint a new one. This flow below ensures 
-            the roles go from owner => zeroAddr => owner during this process.
-            */
-            _transferRoles(getResource(tokenIds[i]), from, to, false);
+        if (externalTransfer) {
+            for (uint256 i; i < tokenIds.length; ++i) {
+                _transferRoles(getResource(tokenIds[i]), from, to, false);
+            }
         }
     }
 

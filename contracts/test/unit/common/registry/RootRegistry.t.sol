@@ -342,13 +342,7 @@ contract RootRegistryTest is Test, ERC1155Holder {
         registry.revokeRootRoles(RegistryRolesLib.ROLE_REGISTRAR, address(this));
 
         // Verify the test contract no longer has the role
-        assertFalse(
-            registry.hasRoles(
-                registry.ROOT_RESOURCE(),
-                RegistryRolesLib.ROLE_REGISTRAR,
-                address(this)
-            )
-        );
+        assertFalse(registry.hasRootRoles(RegistryRolesLib.ROLE_REGISTRAR, address(this)));
 
         // The test fails since no one has permission
         vm.expectRevert(
