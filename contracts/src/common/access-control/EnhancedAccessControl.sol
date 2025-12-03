@@ -3,9 +3,10 @@
 
 pragma solidity ^0.8.20;
 
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
+import {HCAContext} from "../hca/HCAContext.sol";
 
 import {IEnhancedAccessControl} from "./interfaces/IEnhancedAccessControl.sol";
 import {EACBaseRolesLib} from "./libraries/EACBaseRolesLib.sol";
@@ -22,7 +23,7 @@ import {EACBaseRolesLib} from "./libraries/EACBaseRolesLib.sol";
 ///      - A role bitmap is a uint256, where the lower 128 bits represent the regular roles (0-31), and the upper 128 bits represent the admin roles (32-63) for those roles.
 ///      - Each role is represented by a nybble (4 bits), in little-endian order.
 ///      - If a given role left-most nybble bit is located at index N then the corresponding admin role nybble starts at bit position N << 128.
-abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessControl {
+abstract contract EnhancedAccessControl is HCAContext, ERC165, IEnhancedAccessControl {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
@@ -94,7 +95,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     ////////////////////////////////////////////////////////////////////////
     // Implementation
     ////////////////////////////////////////////////////////////////////////
-
     /**
      * @dev Grants all roles in the given role bitmap to `account`.
      *
@@ -248,6 +248,8 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * This function first revokes all roles from the source account, then grants them to the
      * destination account. This prevents exceeding max assignees limits during transfer.
      *
+     * Does nothing if there are no roles to transfer.
+     *
      * @param resource The resource to transfer roles within.
      * @param srcAccount The account to transfer roles from.
      * @param dstAccount The account to transfer roles to.
@@ -284,6 +286,9 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         bool executeCallbacks
     ) internal virtual returns (bool) {
         _checkRoleBitmap(roleBitmap);
+        if (account == address(0)) {
+            revert EACInvalidAccount();
+        }
         uint256 currentRoles = _roles[resource][account];
         uint256 updatedRoles = currentRoles | roleBitmap;
 
@@ -294,7 +299,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
             if (executeCallbacks) {
                 _onRolesGranted(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
-            emit EACRolesGranted(resource, roleBitmap, account);
+            emit EACRolesChanged(resource, account, currentRoles, updatedRoles);
             return true;
         } else {
             return false;
@@ -327,7 +332,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
             if (executeCallbacks) {
                 _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
-            emit EACRolesRevoked(resource, roleBitmap, account);
+            emit EACRolesChanged(resource, account, currentRoles, updatedRoles);
             return true;
         } else {
             return false;
