@@ -161,6 +161,18 @@ describe("DNSTLDResolver", () => {
     expectVar({ gateways }).toStrictEqual([dnsOracleGateway]);
   });
 
+  it(`getContext()`, async () => {
+    const F = await network.networkHelpers.loadFixture(fixture);
+    const context = "anything";
+    const encodedRRs = encodeRRs([
+      makeTXT(basicProfile.name, `ENS1 ${dnsnameResolver} ${context}`),
+    ]);
+    await F.mockDNSSEC.write.setResponse([encodedRRs]);
+    await expect(
+      F.dnsTLDResolver.read.getContext([dnsEncodeName(basicProfile.name)]),
+    ).resolves.toStrictEqual(stringToHex(context));
+  });
+
   function testProfiles(
     name: string,
     factory: (kp: KnownProfile) => () => Promise<void>,
@@ -479,16 +491,6 @@ describe("DNSTLDResolver", () => {
         pubkey: { x, y },
       });
     });
-
-    const TEXT_DNSSEC_CONTEXT = "eth.ens.dnssec-context";
-    it(`text(${TEXT_DNSSEC_CONTEXT})`, async () => {
-      const F = await network.networkHelpers.loadFixture(fixture);
-      await F.mockDNSSEC.write.setResponse([encodedRRs]);
-      await F.expectTXT({
-        name: basicProfile.name,
-        texts: [{ key: TEXT_DNSSEC_CONTEXT, value: context }],
-      });
-    });
   });
 
   describe("DNSAliasResolver", () => {
@@ -547,11 +549,7 @@ describe("DNSTLDResolver", () => {
             ]),
           ]);
           await F.expectResolution(
-            {
-              ...kp,
-              name: oldName,
-              texts: [...kp.texts, { key: "eth.ens.dnsalias", value: newName }],
-            },
+            { ...kp, name: oldName },
             F.dnsAliasResolver.address,
             true,
           );

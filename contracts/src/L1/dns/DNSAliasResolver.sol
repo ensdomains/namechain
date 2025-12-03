@@ -12,15 +12,9 @@ import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 import {
-    ResolverProfileDecoderLib
-} from "../../common/resolver/libraries/ResolverProfileDecoderLib.sol";
-import {
     ResolverProfileRewriterLib
 } from "../../common/resolver/libraries/ResolverProfileRewriterLib.sol";
 import {LibRegistry, IRegistry} from "../../universalResolver/libraries/LibRegistry.sol";
-
-/// @dev The text() key to access the aliased name from the context.
-string constant TEXT_KEY_ALIAS = "eth.ens.dnsalias";
 
 /// @notice Gasless DNSSEC resolver that forwards to another name.
 ///
@@ -86,25 +80,19 @@ contract DNSAliasResolver is ERC165, ResolverCaller, IERC7996, IExtendedDNSResol
     /// The operating assumption is that this contract is never called directly,
     /// and instead only invoked by DNSTLDResolver in response to an TXT record.
     ///
-    /// The DNSTLDResolver answers `TEXT_KEY_DNSSEC_CONTEXT` and this contract
-    /// answers `TEXT_KEY_ALIAS` only if queried with a single record (not a multicall).
-    ///
-    /// Multicalling this contract directly will not include these values.
-    ///
     function resolve(
         bytes calldata name,
         bytes calldata data,
         bytes calldata context
     ) external view returns (bytes memory) {
-        bytes memory newName = _rewriteNameWithContext(name, context);
-        if (ResolverProfileDecoderLib.isText(data, keccak256(bytes(TEXT_KEY_ALIAS)))) {
-            return abi.encode(NameCoder.decode(newName));
-        }
+        bytes memory newName = rewriteNameWithContext(name, context);
         (, address resolver, bytes32 node, ) = LibRegistry.findResolver(ROOT_REGISTRY, newName, 0);
         callResolver(
             resolver,
             newName,
             ResolverProfileRewriterLib.replaceNode(data, node),
+            false,
+            "",
             BATCH_GATEWAY_PROVIDER.gateways()
         );
     }
@@ -119,10 +107,10 @@ contract DNSAliasResolver is ERC165, ResolverCaller, IERC7996, IExtendedDNSResol
     /// @param context The rewrite rule.
     ///
     /// @return The modified DNS-encoded name.
-    function _rewriteNameWithContext(
+    function rewriteNameWithContext(
         bytes calldata name,
         bytes calldata context
-    ) internal pure returns (bytes memory) {
+    ) public pure returns (bytes memory) {
         uint256 sep = BytesUtils.find(context, 0, context.length, " ");
         if (sep < context.length) {
             bytes memory oldSuffix = NameCoder.encode(string(context[:sep]));
