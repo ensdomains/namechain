@@ -6,10 +6,8 @@ import {IGatewayProvider} from "@ens/contracts/ccipRead/IGatewayProvider.sol";
 import {DNSSEC} from "@ens/contracts/dnssec-oracle/DNSSEC.sol";
 import {IDNSGateway} from "@ens/contracts/dnssec-oracle/IDNSGateway.sol";
 import {RRUtils} from "@ens/contracts/dnssec-oracle/RRUtils.sol";
-import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
 import {ICompositeResolver} from "@ens/contracts/resolvers/profiles/ICompositeResolver.sol";
-import {IExtendedDNSResolver} from "@ens/contracts/resolvers/profiles/IExtendedDNSResolver.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IVerifiableResolver} from "@ens/contracts/resolvers/profiles/IVerifiableResolver.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
@@ -23,7 +21,6 @@ import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 import {LibRegistry, IRegistry} from "../../universalResolver/libraries/LibRegistry.sol";
 
@@ -124,28 +121,52 @@ contract DNSTLDResolver is
     ///
     /// @param name The DNS-encoded name.
     ///
-    /// @return The verified DNSSEC TXT record or null if not gasless.
-    function getContext(bytes calldata name) external view returns (bytes memory) {
+    /// @return The verified DNSSEC TXT records.
+    function getDNSSECRecords(bytes calldata name) external view returns (bytes[] memory) {
         address resolver = _determineMainnetResolver(name);
         if (resolver != address(0)) {
-            return "";
+            return new bytes[](0);
         }
         revert OffchainLookup(
             address(this),
             ORACLE_GATEWAY_PROVIDER.gateways(),
             abi.encodeCall(IDNSGateway.resolve, (name, QTYPE_TXT)),
-            this.getContextCallback.selector, // ==> step 2
+            this.getDNSSECRecordsCallback.selector, // ==> step 2
             name
         );
     }
 
-    /// @notice CCIP-Read callback for `getContext()`.
-    function getContextCallback(
+    /// @notice CCIP-Read callback for `getDNSSECRecords()`.
+    function getDNSSECRecordsCallback(
         bytes calldata response,
         bytes calldata name
-    ) external view returns (bytes memory) {
-        (, bytes memory context) = _verifyDNSSEC(name, response);
-        return context;
+    ) external view returns (bytes[] memory txts) {
+        DNSSEC.RRSetWithSignature[] memory rrsets = abi.decode(
+            response,
+            (DNSSEC.RRSetWithSignature[])
+        );
+        (bytes memory data, ) = DNSSEC_ORACLE.verifyRRSet(rrsets);
+        uint256 i;
+        for (
+            RRUtils.RRIterator memory iter = RRUtils.iterateRRs(data, 0);
+            !RRUtils.done(iter);
+            RRUtils.next(iter)
+        ) {
+            if (_isTXTForName(iter, name)) {
+                ++i;
+            }
+        }
+        txts = new bytes[](i);
+        i = 0;
+        for (
+            RRUtils.RRIterator memory iter = RRUtils.iterateRRs(data, 0);
+            !RRUtils.done(iter);
+            RRUtils.next(iter)
+        ) {
+            if (_isTXTForName(iter, name)) {
+                txts[i++] = _readTXT(iter.data, iter.rdataOffset, iter.nextOffset);
+            }
+        }
     }
 
     /// @inheritdoc IVerifiableResolver
@@ -228,6 +249,29 @@ contract DNSTLDResolver is
         return callResolver(resolver, name, call, true, context, BATCH_GATEWAY_PROVIDER.gateways()); // ==> step 3
     }
 
+    /// @notice Parse DNSSEC TXT record into parts.
+    ///         Format: "ENS1 <name-or-address> <context>".
+    ///
+    /// @param txt The DNSSEC TXT record.
+    ///
+    /// @return resolver The resolver address or null if wrong format or name didn't resolve.
+    /// @return context The context data.
+    function parseDNSSECRecord(
+        bytes memory txt
+    ) public view returns (address resolver, bytes memory context) {
+        uint256 p = TXT_PREFIX.length;
+        uint256 n = txt.length;
+        if (n > p && BytesUtils.equals(txt, 0, TXT_PREFIX, 0, p)) {
+            uint256 sep = BytesUtils.find(txt, p, n - p, " ");
+            if (sep < n) {
+                context = BytesUtils.substring(txt, sep + 1, n - sep - 1);
+            } else {
+                sep = n;
+            }
+            resolver = _parseResolver(BytesUtils.substring(txt, p, sep - p));
+        }
+    }
+
     ////////////////////////////////////////////////////////////////////////
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
@@ -241,6 +285,7 @@ contract DNSTLDResolver is
     }
 
     /// @dev Verify DNSSEC TXT record.
+    //       Returns the first non-zero resolver.
     function _verifyDNSSEC(
         bytes memory name,
         bytes calldata oracleWitness
@@ -255,40 +300,14 @@ contract DNSTLDResolver is
             !RRUtils.done(iter);
             RRUtils.next(iter)
         ) {
-            if (
-                iter.class == CLASS_INET &&
-                iter.dnstype == QTYPE_TXT &&
-                BytesUtils.equals(iter.data, iter.offset, name, 0, name.length)
-            ) {
-                (resolver, context) = _parseTXT(
+            if (_isTXTForName(iter, name)) {
+                (resolver, context) = parseDNSSECRecord(
                     _readTXT(iter.data, iter.rdataOffset, iter.nextOffset)
                 );
                 if (resolver != address(0)) {
-                    break;
+                    break; // https://github.com/ensdomains/ens-contracts/blob/289913d7e3923228675add09498d66920216fe9b/contracts/dnsregistrar/OffchainDNSResolver.sol#L111
                 }
             }
-        }
-    }
-
-    /// @dev Parse the TXT record into resolver and context.
-    ///      Format: "ENS1 <name-or-address> <context?>".
-    ///
-    /// @param txt The TXT data.
-    ///
-    /// @return resolver The resolver address or null if wrong format or name didn't resolve.
-    /// @return context The optional context data.
-    function _parseTXT(
-        bytes memory txt
-    ) internal view returns (address resolver, bytes memory context) {
-        uint256 n = TXT_PREFIX.length;
-        if (txt.length >= n && BytesUtils.equals(txt, 0, TXT_PREFIX, 0, n)) {
-            uint256 sep = BytesUtils.find(txt, n, txt.length - n, " ");
-            if (sep < txt.length) {
-                context = BytesUtils.substring(txt, sep + 1, txt.length - sep - 1);
-            } else {
-                sep = txt.length;
-            }
-            resolver = _parseResolver(BytesUtils.substring(txt, n, sep - n));
         }
     }
 
@@ -301,7 +320,7 @@ contract DNSTLDResolver is
     ///
     /// @return resolver The corresponding resolver address.
     function _parseResolver(bytes memory v) internal view returns (address resolver) {
-        if (v.length == 42 && v[0] == "0" && v[1] == "x") {
+        if (v.length == 42 && bytes2(v) == "0x") {
             (address addr, bool valid) = HexUtils.hexToAddress(v, 2, 42);
             if (valid) {
                 return addr;
@@ -315,6 +334,17 @@ contract DNSTLDResolver is
                 resolver = a;
             } catch {}
         }
+    }
+
+    /// @dev Determine if the current DNSSEC record is a TXT record for `name`.
+    function _isTXTForName(
+        RRUtils.RRIterator memory iter,
+        bytes memory name
+    ) internal pure returns (bool) {
+        return
+            iter.class == CLASS_INET &&
+            iter.dnstype == QTYPE_TXT &&
+            BytesUtils.equals(iter.data, iter.offset, name, 0, name.length);
     }
 
     /// @dev Decode `v[off:end]` as raw TXT chunks.

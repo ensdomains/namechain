@@ -6,6 +6,7 @@ import {
   encodeErrorResult,
   getAddress,
   stringToHex,
+  zeroAddress,
 } from "viem";
 import { describe, expect, it } from "vitest";
 
@@ -152,25 +153,62 @@ describe("DNSTLDResolver", () => {
     },
   });
 
-  it("verifierMetadata", async () => {
+  describe("parseDNSSECRecord()", () => {
+    const CONTEXT = "i am context";
+    it("invalid", async () => {
+      const F = await network.networkHelpers.loadFixture(fixture);
+      const [resolver, context] = await F.dnsTLDResolver.read.parseDNSSECRecord(
+        [stringToHex("i am invalid")],
+      );
+      expectVar({ resolver }).toEqualAddress(zeroAddress);
+      expectVar({ context }).toStrictEqual("0x");
+    });
+    it("via address", async () => {
+      const F = await network.networkHelpers.loadFixture(fixture);
+      const [resolver, context] = await F.dnsTLDResolver.read.parseDNSSECRecord(
+        [stringToHex(`ENS1 ${F.dnsTXTResolver.address} ${CONTEXT}`)],
+      );
+      expectVar({ resolver }).toEqualAddress(F.dnsTXTResolver.address);
+      expectVar({ context }).toStrictEqual(stringToHex(CONTEXT));
+    });
+    it("via name", async () => {
+      const F = await network.networkHelpers.loadFixture(fixture);
+      const [resolver, context] = await F.dnsTLDResolver.read.parseDNSSECRecord(
+        [stringToHex(`ENS1 ${dnsnameResolver} ${CONTEXT}`)],
+      );
+      expectVar({ resolver }).toEqualAddress(F.dnsTXTResolver.address);
+      expectVar({ context }).toStrictEqual(stringToHex(CONTEXT));
+    });
+  });
+
+  it(`getDNSSECRecords()`, async () => {
+    const F = await network.networkHelpers.loadFixture(fixture);
+    const contextByName = `ENS1 ${dnsnameResolver} 123`;
+    const contextByAddr = `ENS1 ${F.dnsAliasResolver.address} abc`;
+    const contextJunk = "abc";
+    const encodedRRs = encodeRRs([
+      makeTXT(basicProfile.name, contextByName),
+      makeTXT(basicProfile.name, contextByAddr),
+      makeTXT(basicProfile.name, contextJunk),
+      makeTXT("different.com", contextByName),
+    ]);
+    await F.mockDNSSEC.write.setResponse([encodedRRs]);
+    await expect(
+      F.dnsTLDResolver.read.getDNSSECRecords([
+        dnsEncodeName(basicProfile.name),
+      ]),
+    ).resolves.toStrictEqual(
+      [contextByName, contextByAddr, contextJunk].map((x) => stringToHex(x)),
+    );
+  });
+
+  it("verifierMetadata()", async () => {
     const F = await network.networkHelpers.loadFixture(fixture);
     const [verifier, gateways] = await F.dnsTLDResolver.read.verifierMetadata([
       dnsEncodeName(basicProfile.name),
     ]);
     expectVar({ verifier }).toEqualAddress(F.mockDNSSEC.address);
     expectVar({ gateways }).toStrictEqual([dnsOracleGateway]);
-  });
-
-  it(`getContext()`, async () => {
-    const F = await network.networkHelpers.loadFixture(fixture);
-    const context = "anything";
-    const encodedRRs = encodeRRs([
-      makeTXT(basicProfile.name, `ENS1 ${dnsnameResolver} ${context}`),
-    ]);
-    await F.mockDNSSEC.write.setResponse([encodedRRs]);
-    await expect(
-      F.dnsTLDResolver.read.getContext([dnsEncodeName(basicProfile.name)]),
-    ).resolves.toStrictEqual(stringToHex(context));
   });
 
   function testProfiles(
@@ -241,7 +279,7 @@ describe("DNSTLDResolver", () => {
     bundle.expect(answer);
   });
 
-  describe("DNSSEC", () => {
+  describe("resolve()", () => {
     it("no ENS1", async () => {
       const F = await network.networkHelpers.loadFixture(fixture);
       await expect(
@@ -553,26 +591,35 @@ describe("DNSTLDResolver", () => {
             F.dnsAliasResolver.address,
             true,
           );
+          await expect(
+            F.dnsAliasResolver.read.rewriteNameWithContext([
+              dnsEncodeName(oldName),
+              stringToHex(context),
+            ]),
+          ).resolves.toStrictEqual(dnsEncodeName(newName));
         };
       }
 
       describe(context.replace(" ", " => "), () => {
-        for (let bits = 0; bits < 2 ** 3; bits++) {
-          const offchain = !!(bits & 1);
-          const extended = !!(bits & 2);
-          const multi = !!(bits & 4);
-          it(
-            `${offchain ? "offchain" : "onchain"} ${extended ? "extended" : "immediate"}${multi ? " w/multicall" : ""}`,
-            create(async (F) => {
-              await F.ssResolver.write.setExtended([extended]);
-              await F.ssResolver.write.setOffchain([offchain]);
-              await F.ssResolver.write.setDeriveMulticall([multi]);
-              await F.ssResolver.write.setFeature([
-                FEATURES.RESOLVER.RESOLVE_MULTICALL,
-                multi,
-              ]);
-            }),
-          );
+        for (const multi of [false, true]) {
+          for (const offchain of [false, true]) {
+            for (const type of ["extended", "immediate", "old"]) {
+              if (type === "old" && offchain) continue;
+              it(
+                `${offchain ? "offchain" : "onchain"} ${type}${multi ? " w/multicall" : ""}`,
+                create(async (F) => {
+                  await F.ssResolver.write.setOld([type === "old"]);
+                  await F.ssResolver.write.setExtended([type === "extended"]);
+                  await F.ssResolver.write.setOffchain([offchain]);
+                  await F.ssResolver.write.setDeriveMulticall([multi]);
+                  await F.ssResolver.write.setFeature([
+                    FEATURES.RESOLVER.RESOLVE_MULTICALL,
+                    multi,
+                  ]);
+                }),
+              );
+            }
+          }
         }
       });
     }
