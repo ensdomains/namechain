@@ -20,8 +20,8 @@ import {DNSTXTParserLib} from "./libraries/DNSTXTParserLib.sol";
 
 /// @notice Resolver that answers requests with the data encoded into the context of a DNSSEC "ENS1" TXT record.
 ///
-/// DNS TXT record format: `ENS1 dnsname.ens.eth <context>`.
-/// (where "dnsname.ens.eth" resolves to this contract.)
+/// DNS TXT record format: `ENS1 dnstxt.ens.eth <context>`.
+/// (where "dnstxt.ens.eth" resolves to this contract.)
 ///
 /// The <context> is a human-readable string that is parsable by `DNSTXTParserLib`.
 /// Context format: `<record1> <record2> ...`.
@@ -31,9 +31,9 @@ import {DNSTXTParserLib} from "./libraries/DNSTXTParserLib.sol";
 ///     - Unquoted: `t[age]=18`
 ///     - Quoted: `t[description]="Once upon a time, ..."`
 ///     - Quoted w/escapes: `t[notice]="\"E N S!\""`
-///* `addr(coinType)`
+/// * `addr(coinType)`
 ///     - Ethereum Address: `a[60]=0x8000000000000000000000000000000000000001` (see: ENSIP-1)
-///    - Default EVM Address: `a[e0]=0x...`
+///     - Default EVM Address: `a[e0]=0x...`
 ///     - Linea Address: `a[e59144]=0x...`
 ///     - Bitcoin Address: `a[0]=0x00...` (see: ENSIP-9)
 /// * `contenthash()`: `c=0x...` (see: ENSIP-7)

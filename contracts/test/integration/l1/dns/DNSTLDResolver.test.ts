@@ -22,12 +22,14 @@ import { shouldSupportFeatures } from "../../../utils/supportsFeatures.js";
 import { dnsEncodeName } from "../../../utils/utils.js";
 import { deployV1Fixture } from "../../fixtures/deployV1Fixture.js";
 import { deployV2Fixture } from "../../fixtures/deployV2Fixture.js";
+import { deployArtifact } from "../../fixtures/deployArtifact.js";
 import { encodeRRs, makeTXT } from "./rr.js";
 import { FEATURES } from "../../../../lib/ens-contracts/test/utils/features.js";
 
 const network = await hre.network.connect();
 
-const dnsnameResolver = "dnsname.ens.eth";
+const dnsTXTResolverName = "dnstxt.ens.eth";
+const extendedDNSResolverName = "dnsname.ens.eth";
 const dummyBytes4 = "0x12345678";
 const testAddress = "0x8000000000000000000000000000000000000001";
 const testURL = "https://ens.domains";
@@ -72,11 +74,21 @@ async function fixture() {
     resolverAddress: dnsTLDResolver.address,
   });
   const dnsTXTResolver = await network.viem.deployContract("DNSTXTResolver");
-  await setupNamedResolver(dnsnameResolver, dnsTXTResolver.address);
+  await setupNamedResolver(dnsTXTResolverName, dnsTXTResolver.address);
   const dnsAliasResolver = await network.viem.deployContract(
     "DNSAliasResolver",
     [mainnetV2.rootRegistry.address, mainnetV2.batchGatewayProvider.address],
   );
+  const extendedDNSResolverAddress = await deployArtifact(
+    mainnetV2.walletClient,
+    {
+      file: new URL(
+        "./ExtendedDNSResolver_53f64de872aad627467a34836be1e2b63713a438.json",
+        import.meta.url,
+      ),
+    },
+  );
+  await setupNamedResolver(extendedDNSResolverName, extendedDNSResolverAddress);
   return {
     mainnetV1,
     mainnetV2,
@@ -87,6 +99,7 @@ async function fixture() {
     dnsTLDResolver,
     dnsTXTResolver,
     dnsAliasResolver,
+    extendedDNSResolverAddress,
     expectTXT,
     expectGasless,
     expectResolution,
@@ -174,7 +187,7 @@ describe("DNSTLDResolver", () => {
     it("via name", async () => {
       const F = await network.networkHelpers.loadFixture(fixture);
       const [resolver, context] = await F.dnsTLDResolver.read.parseDNSSECRecord(
-        [stringToHex(`ENS1 ${dnsnameResolver} ${CONTEXT}`)],
+        [stringToHex(`ENS1 ${dnsTXTResolverName} ${CONTEXT}`)],
       );
       expectVar({ resolver }).toEqualAddress(F.dnsTXTResolver.address);
       expectVar({ context }).toStrictEqual(stringToHex(CONTEXT));
@@ -183,7 +196,7 @@ describe("DNSTLDResolver", () => {
 
   it(`getDNSSECRecords()`, async () => {
     const F = await network.networkHelpers.loadFixture(fixture);
-    const contextByName = `ENS1 ${dnsnameResolver} 123`;
+    const contextByName = `ENS1 ${dnsTXTResolverName} 123`;
     const contextByAddr = `ENS1 ${F.dnsAliasResolver.address} abc`;
     const contextJunk = "abc";
     const encodedRRs = encodeRRs([
@@ -279,7 +292,34 @@ describe("DNSTLDResolver", () => {
     bundle.expect(answer);
   });
 
-  describe("resolve()", () => {
+  describe("ExtendedDNSResolver (original deployment)", () => {
+    // this ensures MockDNSSEC is working as expected
+    it("addr(60)", async () => {
+      const F = await network.networkHelpers.loadFixture(fixture);
+      await F.mockDNSSEC.write.setResponse([
+        encodeRRs([
+          makeTXT(
+            basicProfile.name,
+            `ENS1 ${extendedDNSResolverName} ${testAddress}`,
+          ),
+        ]),
+      ]);
+      await F.expectGasless(
+        {
+          name: basicProfile.name,
+          addresses: [
+            {
+              coinType: COIN_TYPE_ETH,
+              value: testAddress,
+            },
+          ],
+        },
+        F.extendedDNSResolverAddress,
+      );
+    });
+  });
+
+  describe("DNSSEC", () => {
     it("no ENS1", async () => {
       const F = await network.networkHelpers.loadFixture(fixture);
       await expect(
@@ -350,7 +390,7 @@ describe("DNSTLDResolver", () => {
     const y = `0x${"b".repeat(64)}` as const;
     const context = `a[60]=${testAddress} a[e0]=${anotherAddress} t[url]='${testURL}' c=${contenthash} xy=${concat([x, y])}`;
     const encodedRRs = encodeRRs([
-      makeTXT(basicProfile.name, `ENS1 ${dnsnameResolver} ${context}`),
+      makeTXT(basicProfile.name, `ENS1 ${dnsTXTResolverName} ${context}`),
     ]);
 
     it("unsupported", async () => {
@@ -373,7 +413,7 @@ describe("DNSTLDResolver", () => {
         encodeRRs([
           makeTXT(
             basicProfile.name,
-            `ENS1 ${dnsnameResolver} a[60]=${invalidHex}`,
+            `ENS1 ${dnsTXTResolverName} a[60]=${invalidHex}`,
           ),
         ]),
       ]);
@@ -403,7 +443,7 @@ describe("DNSTLDResolver", () => {
         encodeRRs([
           makeTXT(
             basicProfile.name,
-            `ENS1 ${dnsnameResolver} a[60]=${dummyBytes4}`,
+            `ENS1 ${dnsTXTResolverName} a[60]=${dummyBytes4}`,
           ),
         ]),
       ]);
@@ -433,7 +473,7 @@ describe("DNSTLDResolver", () => {
         encodeRRs([
           makeTXT(
             basicProfile.name,
-            `ENS1 ${dnsnameResolver} xy=${dummyBytes4}`,
+            `ENS1 ${dnsTXTResolverName} xy=${dummyBytes4}`,
           ),
         ]),
       ]);
