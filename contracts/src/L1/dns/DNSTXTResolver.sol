@@ -10,7 +10,6 @@ import {IHasAddressResolver} from "@ens/contracts/resolvers/profiles/IHasAddress
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
-import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH} from "@ens/contracts/utils/ENSIP19.sol";
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
@@ -21,33 +20,26 @@ import {DNSTXTParserLib} from "./libraries/DNSTXTParserLib.sol";
 
 /// @notice Resolver that answers requests with the data encoded into the context of a DNSSEC "ENS1" TXT record.
 ///
-///         DNS TXT record format: `ENS1 dnsname.ens.eth <context>`.
-///         (where "dnsname.ens.eth" resolves to this contract.)
+/// DNS TXT record format: `ENS1 dnstxt.ens.eth <context>`.
+/// (where "dnstxt.ens.eth" resolves to this contract.)
 ///
-///         The <context> is a human-readable string that is parsable by `DNSTXTParserLib`.
-///         Context format: `<record1> <record2> ...`.
+/// The <context> is a human-readable string that is parsable by `DNSTXTParserLib`.
+/// Context format: `<record1> <record2> ...`.
 ///
-///         Support record formats:
-///         * `text(key)`
-///             - Unquoted: `t[age]=18`
-///             - Quoted: `t[description]="Once upon a time, ..."`
-///             - Quoted w/escapes: `t[notice]="\"E N S!\""`
-///        * `addr(coinType)`
-///             - Ethereum Address: `a[60]=0x8000000000000000000000000000000000000001` (see: ENSIP-1)
-///            - Default EVM Address: `a[e0]=0x...`
-///             - Linea Address: `a[e59144]=0x...`
-///             - Bitcoin Address: `a[0]=0x00...` (see: ENSIP-9)
-///         * `contenthash()`: `c=0x...` (see: ENSIP-7)
-///         * `pubkey()`: `xy=0x...`
+/// Support record formats:
+/// * `text(key)`
+///     - Unquoted: `t[age]=18`
+///     - Quoted: `t[description]="Once upon a time, ..."`
+///     - Quoted w/escapes: `t[notice]="\"E N S!\""`
+/// * `addr(coinType)`
+///     - Ethereum Address: `a[60]=0x8000000000000000000000000000000000000001` (see: ENSIP-1)
+///     - Default EVM Address: `a[e0]=0x...`
+///     - Linea Address: `a[e59144]=0x...`
+///     - Bitcoin Address: `a[0]=0x00...` (see: ENSIP-9)
+/// * `contenthash()`: `c=0x...` (see: ENSIP-7)
+/// * `pubkey()`: `xy=0x...`
 ///
 contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
-    ////////////////////////////////////////////////////////////////////////
-    // Constants
-    ////////////////////////////////////////////////////////////////////////
-
-    /// @dev The text key to access "context" from `ENS1 <resolver> <context>`.
-    string private constant _TEXT_DNSSEC_CONTEXT = "eth.ens.dnssec-context";
-
     ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
@@ -89,6 +81,14 @@ contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
     ////////////////////////////////////////////////////////////////////////
 
     /// @notice Resolve using values parsed from `context`.
+    ///
+    /// The operating assumption is that this contract is never called directly,
+    /// and instead only invoked by DNSTLDResolver in response to an TXT record.
+    ///
+    /// The DNSTLDResolver includes `TEXT_KEY_DNSSEC_CONTEXT`.
+    ///
+    /// Multicalling this contract directly will not include these values.
+    ///
     function resolve(
         bytes calldata /* name */,
         bytes calldata data,
@@ -97,7 +97,7 @@ contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
         bytes4 selector = bytes4(data);
         if (selector == IMulticallable.multicall.selector) {
             bytes[] memory m = abi.decode(data[4:], (bytes[]));
-            for (uint256 i; i < m.length; i++) {
+            for (uint256 i; i < m.length; ++i) {
                 (bool ok, bytes memory v) = address(this).staticcall(
                     abi.encodeCall(this.resolve, ("", m[i], context))
                 );
@@ -119,9 +119,6 @@ contract DNSTXTResolver is ERC165, IERC7996, IExtendedDNSResolver {
             return abi.encode(v.length > 0);
         } else if (selector == ITextResolver.text.selector) {
             (, string memory key) = abi.decode(data[4:], (bytes32, string));
-            if (BytesUtils.equals(bytes(key), bytes(_TEXT_DNSSEC_CONTEXT))) {
-                return abi.encode(context);
-            }
             bytes memory v = DNSTXTParserLib.find(context, abi.encodePacked("t[", key, "]="));
             return abi.encode(v);
         } else if (selector == IContentHashResolver.contenthash.selector) {

@@ -218,12 +218,12 @@ contract ETHTLDResolver is
         }
         if (nodeSuffix == ETH_NODE) {
             if (offset == prevOffset) {
-                callResolver(ethResolver, name, data, BATCH_GATEWAY_PROVIDER.gateways());
+                callResolver(ethResolver, name, data, false, "", BATCH_GATEWAY_PROVIDER.gateways());
             }
             (bytes32 labelHash, ) = NameCoder.readLabel(name, prevOffset);
             if (isActiveRegistrationV1(uint256(labelHash))) {
                 (address resolver, , ) = RegistryUtilsV1.findResolver(REGISTRY_V1, name, 0);
-                callResolver(resolver, name, data, BATCH_GATEWAY_PROVIDER.gateways());
+                callResolver(resolver, name, data, false, "", BATCH_GATEWAY_PROVIDER.gateways());
             }
         }
         bytes[] memory calls;

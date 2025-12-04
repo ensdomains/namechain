@@ -18,12 +18,12 @@ import {LibRegistry, IRegistry} from "../../universalResolver/libraries/LibRegis
 
 /// @notice Gasless DNSSEC resolver that forwards to another name.
 ///
-///         Format: `ENS1 <this> <context>`
+/// Format: `ENS1 <this> <context>`
 ///
-///         1. Rewrite: `context = <oldSuffix> <newSuffix>`
-///            eg. `*.nick.com` + `ENS1 <this> com base.eth` &rarr; `*.nick.base.eth`
-///         2. Replace: `context = <newName>`
-///            eg. `notdot.net` + `ENS1 <this> nick.eth` &rarr; `nick.eth`
+/// 1. Rewrite: `context = <oldSuffix> <newSuffix>`
+///    eg. `*.nick.com` + `ENS1 <this> com base.eth` &rarr; `*.nick.base.eth`
+/// 2. Replace: `context = <newName>`
+///    eg. `notdot.net` + `ENS1 <this> nick.eth` &rarr; `nick.eth`
 ///
 contract DNSAliasResolver is ERC165, ResolverCaller, IERC7996, IExtendedDNSResolver {
     ////////////////////////////////////////////////////////////////////////
@@ -32,14 +32,13 @@ contract DNSAliasResolver is ERC165, ResolverCaller, IERC7996, IExtendedDNSResol
 
     IRegistry public immutable ROOT_REGISTRY;
 
-    /// @dev Shared batch gateway provider.
     IGatewayProvider public immutable BATCH_GATEWAY_PROVIDER;
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
 
-    /// @dev The `name` did not end with `suffix`.
+    /// @notice The `name` did not end with `suffix`.
     ///
     /// @param name The DNS-encoded name.
     /// @param suffix THe DNS-encoded suffix.
@@ -50,11 +49,11 @@ contract DNSAliasResolver is ERC165, ResolverCaller, IERC7996, IExtendedDNSResol
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        IRegistry rootRegistry_,
-        IGatewayProvider batchGatewayProvider_
+        IRegistry rootRegistry,
+        IGatewayProvider batchGatewayProvider
     ) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
-        ROOT_REGISTRY = rootRegistry_;
-        BATCH_GATEWAY_PROVIDER = batchGatewayProvider_;
+        ROOT_REGISTRY = rootRegistry;
+        BATCH_GATEWAY_PROVIDER = batchGatewayProvider;
     }
 
     /// @inheritdoc ERC165
@@ -76,18 +75,24 @@ contract DNSAliasResolver is ERC165, ResolverCaller, IERC7996, IExtendedDNSResol
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
-    /// @dev Resolve the records after applying rewrite rule.
+    /// @dev Apply rewrite rule to name and resolve it instead.
+    ///
+    /// The operating assumption is that this contract is never called directly,
+    /// and instead only invoked by DNSTLDResolver in response to an TXT record.
+    ///
     function resolve(
         bytes calldata name,
         bytes calldata data,
         bytes calldata context
     ) external view returns (bytes memory) {
-        bytes memory newName = _parseContext(name, context);
+        bytes memory newName = rewriteNameWithContext(name, context);
         (, address resolver, bytes32 node, ) = LibRegistry.findResolver(ROOT_REGISTRY, newName, 0);
         callResolver(
             resolver,
             newName,
             ResolverProfileRewriterLib.replaceNode(data, node),
+            false,
+            "",
             BATCH_GATEWAY_PROVIDER.gateways()
         );
     }
@@ -101,11 +106,11 @@ contract DNSAliasResolver is ERC165, ResolverCaller, IERC7996, IExtendedDNSResol
     /// @param name The DNS-encoded name.
     /// @param context The rewrite rule.
     ///
-    /// @return newName The modified DNS-encoded name.
-    function _parseContext(
+    /// @return The modified DNS-encoded name.
+    function rewriteNameWithContext(
         bytes calldata name,
         bytes calldata context
-    ) internal pure returns (bytes memory newName) {
+    ) public pure returns (bytes memory) {
         uint256 sep = BytesUtils.find(context, 0, context.length, " ");
         if (sep < context.length) {
             bytes memory oldSuffix = NameCoder.encode(string(context[:sep]));

@@ -625,6 +625,7 @@ export async function setupCrossChainEnvironment({
 async function setupEnsDotEth(l1: L1Deployment, account: Account) {
   // create registry for "ens.eth"
   const ens_ethRegistry = await l1.deployPermissionedRegistry({ account });
+
   // create "ens.eth"
   await l1.contracts.ETHRegistry.write.register([
     "ens",
@@ -634,32 +635,47 @@ async function setupEnsDotEth(l1: L1Deployment, account: Account) {
     0n,
     MAX_EXPIRY,
   ]);
+
   // create "dnsname.ens.eth"
-  const dnsnameResolver = await l1.deployDedicatedResolver({ account });
-  await dnsnameResolver.write.setAddr([
-    60n,
-    l1.contracts.DNSTXTResolver.address, // set to DNSTXTResolver
-  ]);
-  await ens_ethRegistry.write.register([
+  // https://etherscan.io/address/0x08769D484a7Cd9c4A98E928D9E270221F3E8578c#code
+  await setupNamedResolver(
     "dnsname",
-    account.address,
-    zeroAddress,
-    dnsnameResolver.address,
-    0n,
-    MAX_EXPIRY,
-  ]);
+    await deployArtifact(l1.client, {
+      file: new URL(
+        "../test/integration/l1/dns/ExtendedDNSResolver_53f64de872aad627467a34836be1e2b63713a438.json",
+        import.meta.url,
+      ),
+    }),
+  );
+
+  // // create "dnsname2.ens.eth" (was never named?)
+  // // https://etherscan.io/address/0x08769D484a7Cd9c4A98E928D9E270221F3E8578c#code
+  // await setupNamedResolver(
+  //   "dnsname2",
+  //   await deployArtifact(l1.client, {
+  //     file: new URL(
+  //       "../lib/ens-contracts/deployments/mainnet/ExtendedDNSResolver.json",
+  //       import.meta.url,
+  //     ),
+  //   }),
+  // );
+
+  // create "dnstxt.ens.eth"
+  await setupNamedResolver("dnstxt", l1.contracts.DNSTXTResolver.address);
+
   // create "dnsalias.ens.eth"
-  const dnsaliasResolver = await l1.deployDedicatedResolver({ account });
-  await dnsaliasResolver.write.setAddr([
-    60n,
-    l1.contracts.DNSAliasResolver.address, // set to DNSAliasResolver
-  ]);
-  await ens_ethRegistry.write.register([
-    "dnsalias",
-    account.address,
-    zeroAddress,
-    dnsaliasResolver.address,
-    0n,
-    MAX_EXPIRY,
-  ]);
+  await setupNamedResolver("dnsalias", l1.contracts.DNSAliasResolver.address);
+
+  async function setupNamedResolver(label: string, address: Address) {
+    const resolver = await l1.deployDedicatedResolver({ account });
+    await resolver.write.setAddr([60n, address]);
+    await ens_ethRegistry.write.register([
+      label,
+      account.address,
+      zeroAddress,
+      resolver.address,
+      0n,
+      MAX_EXPIRY,
+    ]);
+  }
 }
