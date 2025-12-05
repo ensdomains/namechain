@@ -2,7 +2,9 @@
 // ------------------------------------------------------------------------------------------------
 // Typed Config
 // ------------------------------------------------------------------------------------------------
-import type { UserConfig } from "rocketh";
+import { resolve } from "path";
+import type { Deployment, UnknownDeployments, UserConfig } from "rocketh";
+import type { Abi } from "viem";
 export const config = {
   accounts: {
     deployer: {
@@ -37,6 +39,15 @@ export const config = {
       scripts: ["deploy/l1/universalResolver"],
       tags: [],
     },
+    sepoliaFresh: {
+      scripts: [
+        "lib/ens-contracts/deploy",
+        "deploy/l1",
+        "deploy/l2",
+        "deploy/shared",
+      ],
+      tags: ["l1", "l2", "use_root", "allow_unsafe", "legacy"],
+    },
   },
 } as const satisfies UserConfig;
 
@@ -56,15 +67,36 @@ export { artifacts };
 // ------------------------------------------------------------------------------------------------
 
 import {
+  loadDeployments,
   setup,
   type CurriedFunctions,
   type Environment as Environment_,
 } from "rocketh";
 
+const deploymentsCache = new Map<string, UnknownDeployments>();
+
 const functions = {
   ...deployFunctions,
   ...readExecuteFunctions,
   ...viemFunctions,
+  getV1: (env: Environment_) => {
+    const path = resolve(env.config.deployments, "v1");
+    const deployments = (() => {
+      if (deploymentsCache.has(path)) return deploymentsCache.get(path)!;
+      const { deployments: deployments_ } = loadDeployments(
+        path,
+        env.config.network.name,
+        false,
+      );
+      deploymentsCache.set(path, deployments_);
+      return deployments_;
+    })();
+    return <TAbi extends Abi>(name: string): Deployment<TAbi> => {
+      const deployment = deployments[name];
+      if (!deployment) throw new Error(`V1 Deployment ${name} not found`);
+      return deployment as Deployment<TAbi>;
+    };
+  },
 };
 
 export type Environment = Environment_<typeof config.accounts> &
@@ -75,6 +107,7 @@ const enhanced = setup<typeof functions, typeof config.accounts>(functions);
 import type { RockethArguments } from "./script/types.ts";
 
 export const execute = enhanced.deployScript<RockethArguments>;
+export const deployScript = enhanced.deployScript<RockethArguments>;
 
 export const loadAndExecuteDeployments =
   enhanced.loadAndExecuteDeployments<RockethArguments>;

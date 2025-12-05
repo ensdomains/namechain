@@ -9,17 +9,25 @@ import { ROLES } from "../constants.ts";
 
 export default execute(
   async (
-    { deploy, execute: write, get, save, namedAccounts: { deployer }, network },
+    {
+      deploy,
+      execute: write,
+      get,
+      getV1,
+      save,
+      namedAccounts: { deployer },
+      network,
+    },
     args,
   ) => {
     if (!args?.l2Deploy) throw new Error("expected L2 deployment");
 
     const ensRegistryV1 =
-      get<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
+      getV1<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
 
-    const batchGatewayProvider = get<(typeof artifacts.GatewayProvider)["abi"]>(
-      "BatchGatewayProvider",
-    );
+    const batchGatewayProvider = getV1<
+      (typeof artifacts.GatewayProvider)["abi"]
+    >("BatchGatewayProvider");
 
     const verifiableFactory =
       get<(typeof artifacts.VerifiableFactory)["abi"]>("VerifiableFactory");
@@ -27,12 +35,14 @@ export default execute(
     const dedicatedResolver =
       get<(typeof artifacts.DedicatedResolver)["abi"]>("DedicatedResolver");
 
+    if (dedicatedResolver.transaction) return;
+
     const hash = await write(verifiableFactory, {
       account: deployer,
       functionName: "deployProxy",
       args: [
         dedicatedResolver.address,
-        1n,
+        3n,
         encodeFunctionData({
           abi: dedicatedResolver.abi,
           functionName: "initialize",
