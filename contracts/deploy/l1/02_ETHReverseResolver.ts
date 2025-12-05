@@ -1,5 +1,5 @@
 import { artifacts, execute } from "@rocketh";
-import { zeroAddress } from "viem";
+import { labelhash, zeroAddress } from "viem";
 import { MAX_EXPIRY } from "../constants.js";
 
 // TODO: ownership
@@ -7,6 +7,7 @@ export default execute(
   async ({
     deploy,
     execute: write,
+    read,
     get,
     getV1,
     namedAccounts: { deployer },
@@ -36,7 +37,28 @@ export default execute(
       ],
     });
 
-    // register "addr.reverse"
+    const entry = await read(reverseRegistry, {
+      functionName: 'getEntry',
+      args: [BigInt(labelhash('addr'))],
+    });
+
+    if (entry.expiry !== 0n) {
+
+        // set subregistry
+      await write(reverseRegistry, {
+        account: deployer,
+        functionName: "setSubregistry",
+        args: [BigInt(labelhash('addr')), zeroAddress],
+      });
+
+      // set resolver
+      await write(reverseRegistry, {
+        account: deployer,
+        functionName: "setResolver",
+        args: [BigInt(labelhash('addr')), ethReverseResolver.address],
+      });
+    } else {
+      // register "addr.reverse"
     await write(reverseRegistry, {
       account: deployer,
       functionName: "register",
@@ -49,6 +71,7 @@ export default execute(
         MAX_EXPIRY,
       ],
     });
+    }
   },
   {
     tags: ["ETHReverseResolver", "l1"],

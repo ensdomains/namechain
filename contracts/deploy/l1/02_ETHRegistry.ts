@@ -1,9 +1,10 @@
 import { artifacts, execute } from "@rocketh";
+import { labelhash } from "viem";
 import { MAX_EXPIRY, ROLES } from "../constants.js";
 
  // TODO: ownership
 export default execute(
-  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
+  async ({ deploy, execute: write, read, get, namedAccounts: { deployer } }) => {
     const rootRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("RootRegistry");
 
@@ -28,18 +29,42 @@ export default execute(
       ],
     });
 
-    await write(rootRegistry, {
-      account: deployer,
-      functionName: "register",
-      args: [
-        "eth",
-        deployer, 
-        ethRegistry.address,
-        ethTLDResolver.address,
-        0n,
-        MAX_EXPIRY,
-      ],
+    const entry = await read(rootRegistry, {
+      functionName: 'getEntry',
+      args: [BigInt(labelhash('eth'))],
     });
+
+    if (entry.expiry !== 0n) {
+
+        // set subregistry
+      await write(rootRegistry, {
+        account: deployer,
+        functionName: "setSubregistry",
+        args: [BigInt(labelhash('eth')), ethRegistry.address],
+      });
+
+      // set resolver
+      await write(rootRegistry, {
+        account: deployer,
+        functionName: "setResolver",
+        args: [BigInt(labelhash('eth')), ethTLDResolver.address],
+      });
+    } else {
+
+      await write(rootRegistry, {
+        account: deployer,
+        functionName: "register",
+        args: [
+          "eth",
+          deployer, 
+          ethRegistry.address,
+          ethTLDResolver.address,
+          0n,
+          MAX_EXPIRY,
+        ],
+      });
+    }
+
   },
   {
     tags: ["ETHRegistry", "l1"],

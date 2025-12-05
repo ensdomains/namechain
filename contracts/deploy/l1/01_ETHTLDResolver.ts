@@ -35,12 +35,14 @@ export default execute(
     const dedicatedResolver =
       get<(typeof artifacts.DedicatedResolver)["abi"]>("DedicatedResolver");
 
+    if (dedicatedResolver.transaction) return;
+
     const hash = await write(verifiableFactory, {
       account: deployer,
       functionName: "deployProxy",
       args: [
         dedicatedResolver.address,
-        1n,
+        3n,
         encodeFunctionData({
           abi: dedicatedResolver.abi,
           functionName: "initialize",
