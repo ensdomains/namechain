@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
+
 import {Test} from "forge-std/Test.sol";
 
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
+import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
+import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
-import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
-import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {BatchRegistrar, BatchRegistrarName} from "~src/L2/registrar/BatchRegistrar.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract BatchRegistrarTest is Test {
     PermissionedRegistry ethRegistry;
@@ -19,9 +22,11 @@ contract BatchRegistrarTest is Test {
     address user = makeAddr("user");
 
     function setUp() external {
+        MockHCAFactoryBasic hcaFactory = new MockHCAFactoryBasic();
         ethRegistry = new PermissionedRegistry(
             new RegistryDatastore(),
-            new SimpleRegistryMetadata(),
+            hcaFactory,
+            new SimpleRegistryMetadata(hcaFactory),
             owner,
             EACBaseRolesLib.ALL_ROLES
         );

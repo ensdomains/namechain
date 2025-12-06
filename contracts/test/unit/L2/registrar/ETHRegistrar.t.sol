@@ -39,9 +39,11 @@ import {
     MockERC20VoidReturn,
     MockERC20FalseReturn
 } from "~test/mocks/MockERC20.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract ETHRegistrarTest is Test {
     PermissionedRegistry ethRegistry;
+    MockHCAFactoryBasic hcaFactory;
 
     StandardRentPriceOracle rentPriceOracle;
     ETHRegistrar ethRegistrar;
@@ -56,9 +58,11 @@ contract ETHRegistrarTest is Test {
     address beneficiary = makeAddr("beneficiary");
 
     function setUp() external {
+        hcaFactory = new MockHCAFactoryBasic();
         ethRegistry = new PermissionedRegistry(
             new RegistryDatastore(),
-            new SimpleRegistryMetadata(),
+            hcaFactory,
+            new SimpleRegistryMetadata(hcaFactory),
             address(this),
             EACBaseRolesLib.ALL_ROLES
         );
@@ -89,6 +93,7 @@ contract ETHRegistrarTest is Test {
 
         ethRegistrar = new ETHRegistrar(
             ethRegistry,
+            hcaFactory,
             beneficiary,
             StandardPricing.MIN_COMMITMENT_AGE,
             StandardPricing.MAX_COMMITMENT_AGE,
@@ -140,6 +145,7 @@ contract ETHRegistrarTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IETHRegistrar.MaxCommitmentAgeTooLow.selector));
         new ETHRegistrar(
             ethRegistry,
+            hcaFactory,
             beneficiary,
             1, // minCommitmentAge
             1, // maxCommitmentAge
@@ -152,6 +158,7 @@ contract ETHRegistrarTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IETHRegistrar.MaxCommitmentAgeTooLow.selector));
         new ETHRegistrar(
             ethRegistry,
+            hcaFactory,
             beneficiary,
             1, // minCommitmentAge
             0, // maxCommitmentAge
@@ -512,12 +519,7 @@ contract ETHRegistrarTest is Test {
         RegisterArgs memory args = _defaultRegisterArgs();
         this._register(args);
         args.duration = 0;
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IRentPriceOracle.NotValid.selector,
-                args.label
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(IRentPriceOracle.NotValid.selector, args.label));
         this._renew(args);
     }
 

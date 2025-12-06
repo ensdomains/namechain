@@ -7,6 +7,8 @@ import {ERC165, IERC165} from "@openzeppelin/contracts/utils/introspection/ERC16
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
 import {UnauthorizedCaller} from "../CommonErrors.sol";
+import {HCAEquivalence} from "../hca/HCAEquivalence.sol";
+import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 import {IPermissionedRegistry} from "../registry/interfaces/IPermissionedRegistry.sol";
 import {LibLabel} from "../utils/LibLabel.sol";
 
@@ -56,7 +58,10 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
-    constructor(IPermissionedRegistry registry_, IBridge bridge_) {
+    constructor(
+        IPermissionedRegistry registry_,
+        IBridge bridge_
+    ) HCAEquivalence(IHCAFactoryBasic(address(0))) {
         REGISTRY = registry_;
         BRIDGE = bridge_;
 
