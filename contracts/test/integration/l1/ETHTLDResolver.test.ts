@@ -506,40 +506,39 @@ describe("ETHTLDResolver", () => {
     }
   });
 
-  // TODO: enable this test after burn() => unregister()
-  // describe("ejecting L1 -> L2", () => {
-  //   for (const name of ethNames) {
-  //     it(name, async () => {
-  //       const F = await loadFixture();
-  //       const kp: KnownProfile = {
-  //         name,
-  //         addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
-  //       };
-  //       const [res] = makeResolutions(kp);
-  //       const { dedicatedResolver } = await F.mainnetV2.setupName(kp);
-  //       await dedicatedResolver.write.multicall([[res.writeDedicated]]);
-  //       // "burn" for post-ejection state
-  //       const label2LD = getLabelAt(name, -2);
-  //       const [tokenId] = await F.mainnetV2.ethRegistry.read.getNameData([
-  //         label2LD,
-  //       ]);
-  //       await F.mainnetV2.ethRegistry.write.unregister([tokenId]);
-  //       // setup faux ejected state
-  //       await F.namechain.setupName({
-  //         name: `${label2LD}.eth`,
-  //         resolverAddress: toHex(2, { size: 20 }),
-  //       });
-  //       await sync();
-  //       const [answer, resolver] =
-  //         await F.mainnetV2.universalResolver.read.resolve([
-  //           dnsEncodeName(kp.name),
-  //           res.call,
-  //         ]);
-  //       expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
-  //       res.expect(answer);
-  //     });
-  //   }
-  // });
+  describe("ejecting L1 -> L2", () => {
+    for (const name of ethNames) {
+      it(name, async () => {
+        const F = await loadFixture();
+        const kp: KnownProfile = {
+          name,
+          addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }],
+        };
+        const [res] = makeResolutions(kp);
+        const { dedicatedResolver } = await F.mainnetV2.setupName(kp);
+        await dedicatedResolver.write.multicall([[res.writeDedicated]]);
+        // "burn" for post-ejection state
+        const label2LD = getLabelAt(name, -2);
+        const [tokenId] = await F.mainnetV2.ethRegistry.read.getNameData([
+          label2LD,
+        ]);
+        await F.mainnetV2.ethRegistry.write.unregister([tokenId]);
+        // setup faux ejected state
+        await F.namechain.setupName({
+          name: `${label2LD}.eth`,
+          resolverAddress: toHex(2, { size: 20 }),
+        });
+        await sync();
+        const [answer, resolver] =
+          await F.mainnetV2.universalResolver.read.resolve([
+            dnsEncodeName(kp.name),
+            res.call,
+          ]);
+        expectVar({ resolver }).toEqualAddress(F.ethTLDResolver.address);
+        res.expect(answer);
+      });
+    }
+  });
 
   describe("on L1", () => {
     for (const name of ethNames) {
