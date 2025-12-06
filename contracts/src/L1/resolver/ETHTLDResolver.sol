@@ -8,6 +8,7 @@ import {IMulticallable} from "@ens/contracts/resolvers/IMulticallable.sol";
 import {IABIResolver} from "@ens/contracts/resolvers/profiles/IABIResolver.sol";
 import {IAddressResolver} from "@ens/contracts/resolvers/profiles/IAddressResolver.sol";
 import {IAddrResolver} from "@ens/contracts/resolvers/profiles/IAddrResolver.sol";
+import {ICompositeResolver} from "@ens/contracts/resolvers/profiles/ICompositeResolver.sol";
 import {IContentHashResolver} from "@ens/contracts/resolvers/profiles/IContentHashResolver.sol";
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IHasAddressResolver} from "@ens/contracts/resolvers/profiles/IHasAddressResolver.sol";
@@ -15,16 +16,15 @@ import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceRe
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
+import {IVerifiableResolver} from "@ens/contracts/resolvers/profiles/IVerifiableResolver.sol";
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
-import {
-    RegistryUtils as RegistryUtilsV1,
-    ENS
-} from "@ens/contracts/universalResolver/RegistryUtils.sol";
+import {RegistryUtils} from "@ens/contracts/universalResolver/RegistryUtils.sol";
 import {ResolverCaller} from "@ens/contracts/universalResolver/ResolverCaller.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {INameWrapper} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {GatewayFetcher} from "@unruggable/gateways/contracts/GatewayFetcher.sol";
@@ -34,30 +34,55 @@ import {
 } from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
 
-import {IRegistryResolver} from "../../common/resolver/interfaces/IRegistryResolver.sol";
+import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
+import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
+import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
+import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {DedicatedResolverLib} from "../../common/resolver/libraries/DedicatedResolverLib.sol";
 import {LibLabel} from "../../common/utils/LibLabel.sol";
-
-/// @dev The namehash of "eth".
-bytes32 constant ETH_NODE = keccak256(abi.encode(bytes32(0), keccak256("eth")));
+import {LibRegistry} from "../../universalResolver/libraries/LibRegistry.sol";
+import {L1BridgeController} from "../bridge/L1BridgeController.sol";
 
 /// @notice Resolver that performs ".eth" resolutions for Namechain (via gateway) or V1 (via fallback).
 ///
-///         Mainnet ".eth" resolutions do not reach this resolver unless there are no resolvers set.
+/// 0. Mainnet ".eth" resolutions do not reach this resolver unless set directly or there are no resolvers.
+/// 1. If there is an active V1 registration (unmigrated), resolve using V1 Registry.
+/// 2. Otherwise, resolve using Namechain.
+/// 3. If Namechain resolver is 0x1 (pre-migration), use V1.
+/// 4. If Namechain resolver is 0x2 (post-ejection), use V2 on Mainnet (w/expiry circumvention).
+/// 5. If no resolver is found, reverts `UnreachableName`.
 ///
-///         1. If there is an active V1 registration, resolve using Universal Resolver for V1.
-///         2. Otherwise, resolve using Namechain.
-///         3. If no resolver is found, reverts `UnreachableName`.
+///                       *** Mainnet (L1) ***                |                *** Namechain (L2) ***
+///                                                           |
+///                             <root> (RootRegistry)         |   Gateway
+///                                |                          |      |
+///                              <eth> (ETHRegistry) - - - - -|- - - + - - - -> <eth> (ETHRegistry)
+///             ____________ETHTLDResolver____________        |             (null resolver)
+///            /                   |                  \       |             /             \
+///    0.) <alice>        1.) <unmigrated>             *      |      2.) <bob>           5. ??? ==> UnreachableName
+///  DedicatedResolver       PublicResolver                   |   DedicatedResolver
+///   => Mainnet (V2)        => Mainnet (V1)                  |   => Namechain (V2)
+///
 contract ETHTLDResolver is
-    IExtendedResolver,
+    ICompositeResolver,
+    IVerifiableResolver,
     IERC7996,
-    IRegistryResolver,
     GatewayFetchTarget,
     ResolverCaller,
     Ownable,
     ERC165
 {
     using GatewayFetcher for GatewayRequest;
+
+    ////////////////////////////////////////////////////////////////////////
+    // Types
+    ////////////////////////////////////////////////////////////////////////
+
+    enum NameState {
+        NAMECHAIN,
+        PRE_MIGRATION, // = address(0x1)
+        POST_EJECTION //  = address(0x2)
+    }
 
     ////////////////////////////////////////////////////////////////////////
     // Constants
@@ -69,11 +94,13 @@ contract ETHTLDResolver is
     /// @dev `GatewayRequest` exit code which indicates no resolver was found.
     uint8 private constant _EXIT_CODE_NO_RESOLVER = 2;
 
-    ENS public immutable REGISTRY_V1;
+    INameWrapper public immutable NAME_WRAPPER;
 
     IBaseRegistrar public immutable ETH_REGISTRAR_V1;
 
-    address public immutable BURN_ADDRESS_V1;
+    IPermissionedRegistry public immutable ETH_REGISTRY;
+
+    L1BridgeController public immutable L1_BRIDGE_CONTROLLER;
 
     address public immutable NAMECHAIN_DATASTORE;
 
@@ -103,20 +130,22 @@ contract ETHTLDResolver is
     ////////////////////////////////////////////////////////////////////////
 
     constructor(
-        ENS registryV1_,
-        IGatewayProvider batchGatewayProvider_,
-        address burnAddressV1_,
+        INameWrapper nameWrapper,
+        IGatewayProvider batchGatewayProvider,
+        IPermissionedRegistry ethRegistry,
+        L1BridgeController l1BridgeController,
         address ethResolver_,
         IGatewayVerifier namechainVerifier_,
-        address namechainDatastore_,
-        address namechainEthRegistry_
+        address namechainDatastore,
+        address namechainEthRegistry
     ) Ownable(msg.sender) CCIPReader(DEFAULT_UNSAFE_CALL_GAS) {
-        REGISTRY_V1 = registryV1_;
-        ETH_REGISTRAR_V1 = IBaseRegistrar(registryV1_.owner(ETH_NODE));
-        BATCH_GATEWAY_PROVIDER = batchGatewayProvider_;
-        BURN_ADDRESS_V1 = burnAddressV1_;
-        NAMECHAIN_DATASTORE = namechainDatastore_;
-        NAMECHAIN_ETH_REGISTRY = namechainEthRegistry_;
+        NAME_WRAPPER = nameWrapper;
+        ETH_REGISTRAR_V1 = nameWrapper.registrar();
+        BATCH_GATEWAY_PROVIDER = batchGatewayProvider;
+        ETH_REGISTRY = ethRegistry;
+        L1_BRIDGE_CONTROLLER = l1BridgeController;
+        NAMECHAIN_DATASTORE = namechainDatastore;
+        NAMECHAIN_ETH_REGISTRY = namechainEthRegistry;
 
         ethResolver = ethResolver_;
         namechainVerifier = namechainVerifier_;
@@ -128,8 +157,9 @@ contract ETHTLDResolver is
     ) public view virtual override(ERC165) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
+            type(ICompositeResolver).interfaceId == interfaceId ||
+            type(IVerifiableResolver).interfaceId == interfaceId ||
             type(IERC7996).interfaceId == interfaceId ||
-            type(IRegistryResolver).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
@@ -154,15 +184,80 @@ contract ETHTLDResolver is
         ethResolver = resolver;
     }
 
-    /// @notice Same as `resolveWithRegistry()` but starts at "eth".
+    /// @notice Resolve `name` with the Namechain registry.
+    ///         Checks Mainnet V1 before resolving on Namechain.
     function resolve(
         bytes calldata name,
         bytes calldata data
-    ) external view returns (bytes memory) {
-        return resolveWithRegistry(NAMECHAIN_ETH_REGISTRY, ETH_NODE, name, data);
+    ) external view returns (bytes memory result) {
+        address resolver = _determineMainnetResolver(name);
+        if (resolver == address(0)) {
+            bytes[] memory calls;
+            bool multi = bytes4(data) == IMulticallable.multicall.selector;
+            if (multi) {
+                calls = abi.decode(data[4:], (bytes[]));
+            } else {
+                calls = new bytes[](1);
+                calls[0] = data;
+            }
+            result = _resolveNamechain(name, multi, calls);
+        } else {
+            callResolver(resolver, name, data, BATCH_GATEWAY_PROVIDER.gateways());
+        }
     }
 
-    /// @dev CCIP-Read callback for `resolve()` from calling `namechainVerifier`.
+    /// @inheritdoc IVerifiableResolver
+    function verifierMetadata(
+        bytes calldata name
+    ) external view returns (address verifier, string[] memory gateways) {
+        if (_determineMainnetResolver(name) == address(0)) {
+            verifier = address(namechainVerifier);
+            gateways = namechainVerifier.gatewayURLs();
+        }
+    }
+
+    /// @inheritdoc ICompositeResolver
+    function requiresOffchain(bytes calldata name) external view returns (bool offchain) {
+        offchain = _determineMainnetResolver(name) == address(0);
+    }
+
+    /// @inheritdoc ICompositeResolver
+    /// @dev This function executes over multiple steps.
+    /// * `getResolver("eth") = (ethResolver, false)`
+    /// * `getResolver(<not .eth>)` reverts
+    /// * `getResolver(<unmigrated .eth>) = (<L1 resolver>, false)`
+    /// * `getResolver(<namechain .eth>) = (<L2 resolver>, true)`
+    /// * `getResolver(<unregistered .eth) = (address(0), true)`
+    function getResolver(bytes calldata name) external view returns (address, bool) {
+        address resolver = _determineMainnetResolver(name);
+        if (resolver != address(0)) {
+            return (resolver, false);
+        }
+        fetch(
+            namechainVerifier,
+            _createRequest(0, name),
+            this.getResolverCallback.selector, // ==> step 2,
+            name,
+            new string[](0)
+        );
+    }
+
+    /// @notice CCIP-Read callback for `getResolver()`.
+    function getResolverCallback(
+        bytes[] calldata values,
+        uint8 /*exitCode*/,
+        bytes calldata name
+    ) external view returns (address resolver, bool offchain) {
+        NameState state = _nameStateFrom(values[1]);
+        if (state == NameState.NAMECHAIN) {
+            resolver = address(uint160(uint256(bytes32(values[1]))));
+            offchain = true;
+        } else {
+            resolver = _determineInflightResolver(name, state);
+        }
+    }
+
+    /// @notice CCIP-Read callback for `resolve()`.
     ///
     /// @param values The outputs for `GatewayRequest`.
     /// @param exitCode The exit code for `GatewayRequest`.
@@ -173,137 +268,105 @@ contract ETHTLDResolver is
         bytes[] calldata values,
         uint8 exitCode,
         bytes calldata extraData
-    ) external pure returns (bytes memory) {
-        State memory state = abi.decode(extraData, (State));
+    ) external view returns (bytes memory) {
+        (bytes memory name, bool multi, bytes[] memory m) = abi.decode(
+            extraData,
+            (bytes, bool, bytes[])
+        );
         if (exitCode == _EXIT_CODE_NO_RESOLVER) {
-            revert UnreachableName(state.name);
-        }
-        bytes memory defaultAddress = values[state.data.length]; // stored at end
-        if (state.multi) {
-            for (uint256 i; i < state.data.length; ++i) {
-                state.data[i] = _prepareResponse(state.data[i], values[i], defaultAddress);
+            address resolver = _determineInflightResolver(name, _nameStateFrom(values[1]));
+            if (address(resolver) == address(0)) {
+                revert UnreachableName(name);
             }
-            return abi.encode(state.data);
+            callResolver(
+                resolver,
+                name,
+                multi ? abi.encodeCall(IMulticallable.multicall, (m)) : m[0],
+                BATCH_GATEWAY_PROVIDER.gateways()
+            );
+        }
+        bytes memory defaultAddress = values[m.length]; // stored at end
+        if (multi) {
+            for (uint256 i; i < m.length; ++i) {
+                m[i] = _prepareResponse(m[i], values[i], defaultAddress);
+            }
+            return abi.encode(m);
         } else {
-            return _prepareResponse(state.data[0], values[0], defaultAddress);
+            return _prepareResponse(m[0], values[0], defaultAddress);
         }
     }
 
     /// @dev Determine if actively registered on V1.
+    ///
     /// @param labelHash The labelhash of the "eth" 2LD.
+    ///
     /// @return `true` if the registration is active.
-    function isActiveRegistrationV1(uint256 labelHash) public view returns (bool) {
-        // TODO: add final migration logic
+    function isActiveRegistrationV1(bytes32 labelHash) public view returns (bool) {
         return
-            ETH_REGISTRAR_V1.nameExpires(labelHash) >= block.timestamp &&
-            ETH_REGISTRAR_V1.ownerOf(labelHash) != BURN_ADDRESS_V1;
+            ETH_REGISTRAR_V1.nameExpires(uint256(labelHash)) >= block.timestamp &&
+            !L1_BRIDGE_CONTROLLER.hasRootRoles(
+                BridgeRolesLib.ROLE_EJECTOR,
+                ETH_REGISTRAR_V1.ownerOf(uint256(labelHash))
+            );
     }
 
-    /// @notice Resolve `name` with the Namechain registry corresponding to `nodeSuffix`.
-    ///         If `nodeSuffix` is "eth", checks Mainnet V1 before resolving on Namechain.
-    /// @inheritdoc IRegistryResolver
-    function resolveWithRegistry(
-        address parentRegistry,
-        bytes32 nodeSuffix,
-        bytes calldata name,
-        bytes calldata data
-    ) public view returns (bytes memory) {
-        (bool matched, , uint256 prevOffset, uint256 offset) = NameCoder.matchSuffix(
-            name,
-            0,
-            nodeSuffix
-        );
-        if (!matched) {
-            revert UnreachableName(name);
-        }
-        if (nodeSuffix == ETH_NODE) {
-            if (offset == prevOffset) {
-                callResolver(ethResolver, name, data, BATCH_GATEWAY_PROVIDER.gateways());
-            }
-            (bytes32 labelHash, ) = NameCoder.readLabel(name, prevOffset);
-            if (isActiveRegistrationV1(uint256(labelHash))) {
-                (address resolver, , ) = RegistryUtilsV1.findResolver(REGISTRY_V1, name, 0);
-                callResolver(resolver, name, data, BATCH_GATEWAY_PROVIDER.gateways());
-            }
-        }
-        bytes[] memory calls;
-        bool multi = bytes4(data) == IMulticallable.multicall.selector;
-        if (multi) {
-            calls = abi.decode(data[4:], (bytes[]));
-        } else {
-            calls = new bytes[](1);
-            calls[0] = data;
-        }
-        return _resolveNamechain(State(parentRegistry, name, offset, multi, calls));
-    }
+    ////////////////////////////////////////////////////////////////////////
+    // Internal Functions
+    ////////////////////////////////////////////////////////////////////////
 
-    // solhint-disable namechain/ordering
-    /// @dev State of Namechain resolution.
-    struct State {
-        address registry; // starting parent registry
-        bytes name;
-        uint256 nameLength; // name[:nameLength] are the labels to resolve
-        bool multi; // true if multicall
-        bytes[] data;
-    }
-    // solhint-enable namechain/ordering
-
-    // solhint-disable private-vars-leading-underscore
-    /// @notice Resolve `state.name[:state.nameLength]` on Namechain starting at `state.registry`.
+    /// @dev Create `GatewayRequest` for registry traversal.
     ///
-    /// @dev This function executes over multiple steps.
+    /// @param outputs The number of outputs for the request.
+    /// @param name The DNS-encoded .eth name to resolve.
     ///
-    ///      `GatewayRequest` walkthrough:
-    ///      * The stack is loaded with labelhashes:
-    ///          * "sub.vitalik" &rarr; `["sub", "vitalik"]`.
-    ///      * `output[0]` is set to the Namechain "eth" registry.
-    ///      * A traversal program is pushed onto the stack.
-    ///      * `evalLoop(flags, count)` pops the program and executes it `count` times,
-    ///        consuming one labelhash from the stack and passing it to the program in a separate context.
-    ///          * The default `count` is the full stack.
-    ///          * If `EvalFlag.STOP_ON_FAILURE`, the loop terminates when the program throws.
-    ///          * Unless `EvalFlag.KEEP_ARGS`, `count` stack arguments are consumed, even when the loop terminates early.
-    ///      * Before the program executes:
-    ///          * The target is `namechainDatastore`.
-    ///          * The slot is `SLOT_RD_ENTRIES`.
-    ///          * The stack is `[labelhash]`.
-    ///          * `output[0]` is the parent registry address.
-    ///          * `output[1]` is the latest resolver address.
-    ///      * `pushOutput(0)` adds the `registry` to the stack.
-    ///          * The stack is `[labelHash, registry]`.
-    ///      * `req.setSlot(SLOT_RD_ENTRIES).follow().follow()` &harr; `entries[registry][labelHash]`.
-    ///          * `follow()` does a pop and uses the value as a mapping key.
-    ///      * The program terminates if the next registry is expired.
-    ///      * `output[1]` contains the resolver if one is set.
-    ///      * The program terminates if the next registry is unset.
-    ///      * `output[0]` contains the next registry in the chain.
+    /// `GatewayRequest` walkthrough:
+    /// * The stack is loaded with labelhashes:
+    ///     * "sub.vitalik" &rarr; `["sub", "vitalik"]`.
+    /// * `output[0]` is set to the Namechain "eth" registry.
+    /// * A traversal program is pushed onto the stack.
+    /// * `evalLoop(flags, count)` pops the program and executes it `count` times,
+    ///   consuming one labelhash from the stack and passing it to the program in a separate context.
+    ///     * The default `count` is the full stack.
+    ///     * If `EvalFlag.STOP_ON_FAILURE`, the loop terminates when the program throws.
+    ///     * Unless `EvalFlag.KEEP_ARGS`, `count` stack arguments are consumed, even when the loop terminates early.
+    /// * Before the program executes:
+    ///     * The target is `namechainDatastore`.
+    ///     * The slot is `SLOT_RD_ENTRIES`.
+    ///     * The stack is `[labelhash]`.
+    ///     * `output[0]` is the parent registry address.
+    ///     * `output[1]` is the latest resolver address.
+    /// * `pushOutput(0)` adds the `registry` to the stack.
+    ///     * The stack is `[labelHash, registry]`.
+    /// * `req.setSlot(SLOT_RD_ENTRIES).follow().follow()` &harr; `entries[registry][labelHash]`.
+    ///     * `follow()` does a pop and uses the value as a mapping key.
+    /// * The program terminates if the next registry is expired.
+    /// * `output[1]` contains the resolver if one is set.
+    /// * The program terminates if the next registry is unset.
+    /// * `output[0]` contains the next registry in the chain.
     ///
-    ///      Pseudocode:
-    ///      ```
-    ///      registry = <registry>
-    ///      resolver = null
-    ///      for label of name.slice(-length).split('.').reverse()
-    ///         (reg, res) = datastore.getSubregistry(reg, label)
-    ///         if (expired) break
-    ///         if (res) resolver = res
-    ///         if (!reg) break
-    ///         registry = reg
-    ///      ```
-    function _resolveNamechain(State memory state) public view returns (bytes memory) {
-        // output[ 0] = registry
-        // output[ 1] = last non-zero resolver
-        // output[-1] = default address
-        uint8 max = uint8(state.data.length);
-        GatewayRequest memory req = GatewayFetcher.newRequest(max < 2 ? 2 : max + 1);
-        {
-            uint256 offset;
-            while (offset < state.nameLength) {
-                bytes32 labelHash;
-                (labelHash, offset) = NameCoder.readLabel(state.name, offset);
-                req.push(LibLabel.getCanonicalId(uint256(labelHash)));
-            }
+    /// Pseudocode:
+    /// ```
+    /// registry = <registry>
+    /// resolver = null
+    /// for label of name.slice(-length).split('.').reverse()
+    ///    (reg, res) = datastore.getSubregistry(reg, label)
+    ///    if (expired) break
+    ///    if (res) resolver = res
+    ///    if (!reg) break
+    ///    registry = reg
+    /// ```
+    function _createRequest(
+        uint8 outputs,
+        bytes memory name
+    ) internal view returns (GatewayRequest memory req) {
+        req = GatewayFetcher.newRequest(outputs < 2 ? 2 : outputs);
+        uint256 offset;
+        while (offset < name.length - 5) {
+            bytes32 labelHash; //     ^ "3eth0".length = 5
+            (labelHash, offset) = NameCoder.readLabel(name, offset);
+            req.push(LibLabel.getCanonicalId(uint256(labelHash)));
         }
-        req.push(state.registry).setOutput(0); // starting point
+        req.push(NAMECHAIN_ETH_REGISTRY).setOutput(0); // starting point
         req.setTarget(NAMECHAIN_DATASTORE);
         req.setSlot(_SLOT_RD_ENTRIES);
         {
@@ -324,11 +387,29 @@ contract ETHTLDResolver is
             req.push(cmd);
         }
         req.evalLoop(EvalFlag.STOP_ON_FAILURE | EvalFlag.KEEP_ARGS); // outputs = [registry, resolver]
-        req.pushOutput(1).requireNonzero(_EXIT_CODE_NO_RESOLVER).target(); // target resolver
+    }
+
+    /// @notice Resolve `name` on Namechain.
+    ///
+    /// @dev This function executes over multiple steps.
+    function _resolveNamechain(
+        bytes memory name,
+        bool multi,
+        bytes[] memory m
+    ) internal view returns (bytes memory) {
+        // output[ 0] = registry
+        // output[ 1] = last non-zero resolver
+        // output[-1] = default address
+        uint8 max = uint8(m.length);
+        GatewayRequest memory req = _createRequest(max + 1, name);
+        req.pushOutput(1).push(uint256(type(NameState).max)).gt().assertNonzero(
+            _EXIT_CODE_NO_RESOLVER
+        ); // is this a real resolver?
+        req.pushOutput(1).target(); // target resolver
         req.push(bytes("")).dup().setOutput(0).setOutput(1); // clear outputs
         uint8 errorCount; // number of errors
-        for (uint8 i; i < state.data.length; ++i) {
-            bytes memory v = state.data[i];
+        for (uint8 i; i < m.length; ++i) {
+            bytes memory v = m[i];
             bytes4 selector = bytes4(v);
             // NOTE: "node check" is NOT performed:
             // if (v.length < 36 || BytesUtils.readBytes32(v, 4) != node) {
@@ -389,19 +470,16 @@ contract ETHTLDResolver is
                 continue;
             } else {
                 ++errorCount;
-                state.data[i] = abi.encodeWithSelector(
-                    UnsupportedResolverProfile.selector,
-                    selector
-                );
+                m[i] = abi.encodeWithSelector(UnsupportedResolverProfile.selector, selector);
                 continue;
             }
             req.setOutput(i);
         }
         if (errorCount == max) {
-            if (state.multi) {
-                return abi.encode(state.data); // all calls failed
+            if (multi) {
+                return abi.encode(m); // all calls failed
             } else {
-                bytes memory v = state.data[0];
+                bytes memory v = m[0];
                 assembly {
                     revert(add(v, 32), mload(v)) // revert with the call that failed
                 }
@@ -418,15 +496,63 @@ contract ETHTLDResolver is
             namechainVerifier,
             req,
             this.resolveNamechainCallback.selector, // ==> step 2
-            abi.encode(state),
+            abi.encode(name, multi, m),
             new string[](0)
         );
     }
-    // solhint-enable private-vars-leading-underscore
 
-    ////////////////////////////////////////////////////////////////////////
-    // Internal Functions
-    ////////////////////////////////////////////////////////////////////////
+    /// @dev Determine underlying Mainnet resolver or null if offchain.
+    function _determineMainnetResolver(bytes memory name) internal view returns (address resolver) {
+        (bool matched, , uint256 prevOffset, uint256 offset) = NameCoder.matchSuffix(
+            name,
+            0,
+            NameCoder.ETH_NODE
+        );
+        if (!matched) {
+            revert UnreachableName(name);
+        }
+        if (offset == prevOffset) {
+            return ethResolver;
+        }
+        (bytes32 labelHash, ) = NameCoder.readLabel(name, prevOffset);
+        if (isActiveRegistrationV1(labelHash)) {
+            (resolver, , ) = RegistryUtils.findResolver(NAME_WRAPPER.ens(), name, 0);
+            if (resolver == address(this)) {
+                resolver = address(0);
+            }
+        }
+    }
+
+    /// @dev Determine underlying resolver while `name` is inflight to Namechain.
+    function _determineInflightResolver(
+        bytes memory name,
+        NameState state
+    ) internal view returns (address resolver) {
+        if (state == NameState.PRE_MIGRATION) {
+            (resolver, , ) = RegistryUtils.findResolver(NAME_WRAPPER.ens(), name, 0);
+        } else if (state == NameState.POST_EJECTION) {
+            (, , uint256 offset, ) = NameCoder.matchSuffix(name, 0, NameCoder.ETH_NODE);
+            (string memory label, ) = NameCoder.extractLabel(name, offset);
+            // circumvent ETH_REGISTRY.getResolver() since name was unregistered()
+            (, IRegistryDatastore.Entry memory entry) = ETH_REGISTRY.getNameData(label);
+            (, resolver) = LibRegistry.findResolverFromParent(
+                name,
+                0,
+                offset,
+                IRegistry(entry.subregistry),
+                entry.resolver
+            );
+        }
+        if (resolver == address(this)) {
+            resolver = address(0);
+        }
+    }
+
+    /// @dev Map an abi-encoded address from `GatewayRequest` to a `NameState`.
+    function _nameStateFrom(bytes memory value) internal pure returns (NameState) {
+        uint256 i = uint256(bytes32(value));
+        return i > uint256(type(NameState).max) ? NameState.NAMECHAIN : NameState(i);
+    }
 
     /// @dev Prepare response based on the request.
     ///
