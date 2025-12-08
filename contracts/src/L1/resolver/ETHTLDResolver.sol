@@ -202,7 +202,7 @@ contract ETHTLDResolver is
             }
             result = _resolveNamechain(name, multi, calls);
         } else {
-            callResolver(resolver, name, data, BATCH_GATEWAY_PROVIDER.gateways());
+            callResolver(resolver, name, data, false, "", BATCH_GATEWAY_PROVIDER.gateways());
         }
     }
 
@@ -282,6 +282,8 @@ contract ETHTLDResolver is
                 resolver,
                 name,
                 multi ? abi.encodeCall(IMulticallable.multicall, (m)) : m[0],
+                false,
+                "",
                 BATCH_GATEWAY_PROVIDER.gateways()
             );
         }
