@@ -3,19 +3,19 @@ import { rm } from "node:fs/promises";
 import { anvil as createAnvil } from "prool/instances";
 import { executeDeployScripts, resolveConfig, type Environment } from "rocketh";
 import {
-  createWalletClient,
-  getContract,
-  publicActions,
-  testActions,
-  webSocket,
-  zeroAddress,
   type Abi,
   type Account,
   type Address,
   type Chain,
+  createWalletClient,
+  getContract,
   type GetContractReturnType,
   type Hex,
+  publicActions,
+  testActions,
   type Transport,
+  webSocket,
+  zeroAddress,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 
@@ -52,6 +52,7 @@ const renames: Record<string, string> = {
 const sharedContracts = {
   RegistryDatastore: artifacts.RegistryDatastore.abi,
   SimpleRegistryMetadata: artifacts.SimpleRegistryMetadata.abi,
+  HCAFactory: artifacts.MockHCAFactoryBasic.abi,
   VerifiableFactory: artifacts.VerifiableFactory.abi,
   DedicatedResolver: artifacts.DedicatedResolver.abi,
   UserRegistry: artifacts.UserRegistry.abi,
@@ -213,6 +214,7 @@ export class ChainDeployment<
       bytecode,
       args: [
         this.contracts.RegistryDatastore.address,
+        this.contracts.HCAFactory.address,
         this.contracts.SimpleRegistryMetadata.address,
         account.address,
         roles,

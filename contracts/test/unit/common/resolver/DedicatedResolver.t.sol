@@ -34,6 +34,7 @@ import {
     NODE_ANY
 } from "~src/common/resolver/DedicatedResolver.sol";
 import {StorageTester} from "~test/unit/common/utils/StorageTester.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract DedicatedResolverTest is StorageTester {
     uint256 constant DEFAULT_ROLES = EACBaseRolesLib.ALL_ROLES;
@@ -64,6 +65,7 @@ contract DedicatedResolverTest is StorageTester {
         assertEq(v.length, i);
     }
 
+    MockHCAFactoryBasic hcaFactory;
     DedicatedResolver resolver;
 
     address owner = makeAddr("owner");
@@ -75,7 +77,8 @@ contract DedicatedResolverTest is StorageTester {
 
     function setUp() external {
         VerifiableFactory factory = new VerifiableFactory();
-        DedicatedResolver resolverImpl = new DedicatedResolver();
+        hcaFactory = new MockHCAFactoryBasic();
+        DedicatedResolver resolverImpl = new DedicatedResolver(hcaFactory);
 
         bytes memory initData = abi.encodeCall(
             DedicatedResolver.initialize,
@@ -251,7 +254,7 @@ contract DedicatedResolverTest is StorageTester {
         resolver.setAddr(COIN_TYPE_ETH, v);
     }
 
-    function test_setAddr_notOwner() external {
+    function test_setAddr_notAuthorized() external {
         uint256 coinType;
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -282,7 +285,7 @@ contract DedicatedResolverTest is StorageTester {
         );
     }
 
-    function test_setText_notOwner() external {
+    function test_setText_notAuthorized() external {
         string memory key = "abc";
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -310,7 +313,7 @@ contract DedicatedResolverTest is StorageTester {
         );
     }
 
-    function test_setName_notOwner() external {
+    function test_setName_notAuthorized() external {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
@@ -336,7 +339,7 @@ contract DedicatedResolverTest is StorageTester {
         assertEq(v, readBytes(address(resolver), DedicatedResolverLib.SLOT_CONTENTHASH), "storage");
     }
 
-    function test_setContenthash_notOwner() external {
+    function test_setContenthash_notAuthorized() external {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
@@ -372,7 +375,7 @@ contract DedicatedResolverTest is StorageTester {
         );
     }
 
-    function test_setPubkey_notOwner() external {
+    function test_setPubkey_notAuthorized() external {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
@@ -426,7 +429,7 @@ contract DedicatedResolverTest is StorageTester {
         resolver.setABI(3, "");
     }
 
-    function test_setABI_notOwner() external {
+    function test_setABI_notAuthorized() external {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
@@ -475,7 +478,7 @@ contract DedicatedResolverTest is StorageTester {
         }
     }
 
-    function test_setInterface_notOwner() external {
+    function test_setInterface_notAuthorized() external {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
@@ -499,7 +502,7 @@ contract DedicatedResolverTest is StorageTester {
         assertEq(resolver.addr(NODE_ANY, COIN_TYPE_ETH), testAddress, "addr()");
     }
 
-    function test_multicall_setters_notOwner() external {
+    function test_multicall_setters_notAuthorized() external {
         bytes[] memory calls = new bytes[](2);
         calls[0] = abi.encodeCall(DedicatedResolver.setName, (testName));
         calls[1] = abi.encodeCall(DedicatedResolver.setAddr, (COIN_TYPE_ETH, testAddress));
