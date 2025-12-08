@@ -34,7 +34,6 @@ import {
 } from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
 
-import {IRegistryResolver} from "../../common/resolver/interfaces/IRegistryResolver.sol";
 import {OffchainResolverMetadataProvider} from "../../common/resolver/OffchainResolverMetadataProvider.sol";
 import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
