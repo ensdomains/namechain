@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
-import {IOffchainResolverMetadataProvider} from "./interfaces/IOffchainResolverMetadataProvider.sol";
+import {
+    IOffchainResolverMetadataProvider
+} from "./interfaces/IOffchainResolverMetadataProvider.sol";
 
 /// @notice Base contract for providing offchain resolver metadata.
-abstract contract OffchainResolverMetadataProvider is IOffchainResolverMetadataProvider, Ownable, ERC165 {
+abstract contract OffchainResolverMetadataProvider is
+    IOffchainResolverMetadataProvider,
+    Ownable,
+    ERC165
+{
     /// @notice DNS-encoded name for this metadata provider.
     bytes public dnsEncodedName;
 
@@ -22,9 +28,12 @@ abstract contract OffchainResolverMetadataProvider is IOffchainResolverMetadataP
     address public baseRegistry;
 
     /// @inheritdoc ERC165
-    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165) returns (bool) {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC165) returns (bool) {
         return
-            type(IOffchainResolverMetadataProvider).interfaceId == interfaceId || super.supportsInterface(interfaceId);
+            type(IOffchainResolverMetadataProvider).interfaceId == interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
     /// @notice Set the metadata for offchain resolution discovery.

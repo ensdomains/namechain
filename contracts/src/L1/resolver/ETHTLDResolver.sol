@@ -34,12 +34,14 @@ import {
 } from "@unruggable/gateways/contracts/GatewayFetchTarget.sol";
 import {GatewayRequest, EvalFlag} from "@unruggable/gateways/contracts/GatewayRequest.sol";
 
-import {OffchainResolverMetadataProvider} from "../../common/resolver/OffchainResolverMetadataProvider.sol";
 import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
 import {DedicatedResolverLib} from "../../common/resolver/libraries/DedicatedResolverLib.sol";
+import {
+    OffchainResolverMetadataProvider
+} from "../../common/resolver/OffchainResolverMetadataProvider.sol";
 import {LibLabel} from "../../common/utils/LibLabel.sol";
 import {LibRegistry} from "../../universalResolver/libraries/LibRegistry.sol";
 import {L1BridgeController} from "../bridge/L1BridgeController.sol";

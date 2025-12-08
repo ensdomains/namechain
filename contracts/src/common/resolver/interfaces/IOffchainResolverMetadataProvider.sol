@@ -2,6 +2,11 @@
 pragma solidity >=0.8.13;
 
 interface IOffchainResolverMetadataProvider {
+    ////////////////////////////////////////////////////////////////////////
+    // Events
+    ////////////////////////////////////////////////////////////////////////
+    event MetadataChanged(bytes name, string[] rpcURLs, uint256 chainId, address baseRegistry);
+
     /**
      * @dev Returns metadata for discovering the location of offchain name data
      * @param name DNS-encoded name to query
@@ -12,9 +17,4 @@ interface IOffchainResolverMetadataProvider {
     function metadata(
         bytes calldata name
     ) external view returns (string[] memory rpcURLs, uint256 chainId, address baseRegistry);
-
-    ////////////////////////////////////////////////////////////////////////
-    // Events
-    ////////////////////////////////////////////////////////////////////////
-    event MetadataChanged(bytes name, string[] rpcURLs, uint256 chainId, address baseRegistry);
 }
