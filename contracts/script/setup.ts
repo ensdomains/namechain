@@ -30,7 +30,10 @@ import {
   ROLES,
 } from "../deploy/constants.js";
 import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
-import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
+import {
+  computeVerifiableProxyAddress,
+  deployVerifiableProxy,
+} from "../test/integration/fixtures/deployVerifiableProxy.js";
 import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
 import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 import type { RockethArguments, RockethL1Arguments } from "./types.js";
@@ -198,6 +201,16 @@ export class ChainDeployment<
   }
   get arrow() {
     return `${this.name}->${this.rx.name}`;
+  }
+  async computeVerifiableProxyAddress(args: {
+    deployer: Address;
+    salt: bigint;
+  }) {
+    return computeVerifiableProxyAddress({
+      factoryAddress: this.contracts.VerifiableFactory.address,
+      bytecode: artifacts["UUPSProxy"].bytecode,
+      ...args,
+    });
   }
   async deployPermissionedRegistry({
     account,
