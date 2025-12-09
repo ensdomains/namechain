@@ -547,7 +547,7 @@ export async function setupCrossChainEnvironment({
     (l1 as any).rx = l2;
     (l2 as any).rx = l1;
 
-    await setupEnsDotEth(l1, deployer);
+    const { extendedDNSResolverAddress } = await setupEnsDotEth(l1, deployer);
     console.log("Setup ens.eth");
 
     //await setupBridgeBlacklists(l1, l2);
@@ -568,6 +568,7 @@ export async function setupCrossChainEnvironment({
         gatewayURL: ccip.endpoint,
         verifierAddress,
       },
+      extendedDNSResolverAddress,
       sync,
       waitFor,
       shutdown,
@@ -659,15 +660,13 @@ async function setupEnsDotEth(l1: L1Deployment, account: Account) {
 
   // create "dnsname.ens.eth"
   // https://etherscan.io/address/0x08769D484a7Cd9c4A98E928D9E270221F3E8578c#code
-  await setupNamedResolver(
-    "dnsname",
-    await deployArtifact(l1.client, {
-      file: new URL(
-        "../test/integration/l1/dns/ExtendedDNSResolver_53f64de872aad627467a34836be1e2b63713a438.json",
-        import.meta.url,
-      ),
-    }),
-  );
+  const extendedDNSResolverAddress = await deployArtifact(l1.client, {
+    file: new URL(
+      "../test/integration/l1/dns/ExtendedDNSResolver_53f64de872aad627467a34836be1e2b63713a438.json",
+      import.meta.url,
+    ),
+  });
+  await setupNamedResolver("dnsname", extendedDNSResolverAddress);
 
   // // create "dnsname2.ens.eth" (was never named?)
   // // https://etherscan.io/address/0x08769D484a7Cd9c4A98E928D9E270221F3E8578c#code
@@ -699,6 +698,8 @@ async function setupEnsDotEth(l1: L1Deployment, account: Account) {
       MAX_EXPIRY,
     ]);
   }
+
+  return { extendedDNSResolverAddress };
 }
 
 async function setupBridgeConfiguration(l1: L1Deployment, l2: L2Deployment, deployer: Account) {
