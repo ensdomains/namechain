@@ -314,16 +314,16 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         // Deploy Surge bridge mock
         surgeNativeBridge = new MockSurgeNativeBridge();
 
-        // Deploy mock bridge with Surge integration
-        mockBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(0));
+        // Deploy placeholder bridge with Surge integration
+        mockBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, L1BridgeController(address(0)));
         mockBridge.setDestBridgeAddress(address(0x1234)); // Mock destination bridge
 
         // Deploy REAL L1BridgeController with temporary mock bridge
         IBridge tempBridge = IBridge(address(0));
         realL1BridgeController = new L1BridgeController(registry, tempBridge);
 
-        // Deploy the real bridge with the correct controller address
-        mockBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(realL1BridgeController));
+        // Deploy the real bridge with the correct controller reference
+        mockBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, realL1BridgeController);
         mockBridge.setDestBridgeAddress(address(0x1234)); // Mock destination bridge
 
         // Update the bridge reference in the controller

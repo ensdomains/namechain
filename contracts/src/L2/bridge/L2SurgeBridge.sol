@@ -17,7 +17,7 @@ contract L2SurgeBridge is SurgeBridge {
     // Storage
     ////////////////////////////////////////////////////////////////////////
 
-    address private immutable _BRIDGE_CONTROLLER;
+    L2BridgeController private immutable _BRIDGE_CONTROLLER;
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
@@ -33,7 +33,7 @@ contract L2SurgeBridge is SurgeBridge {
         ISurgeNativeBridge surgeNativeBridge_,
         uint64 l2ChainId_,
         uint64 l1ChainId_,
-        address l2BridgeController_
+        L2BridgeController l2BridgeController_
     ) SurgeBridge(surgeNativeBridge_, l2ChainId_, l1ChainId_) {
         _BRIDGE_CONTROLLER = l2BridgeController_;
     }
@@ -47,7 +47,7 @@ contract L2SurgeBridge is SurgeBridge {
      * @return The address of the bridge controller
      */
     function bridgeController() public view override returns (address) {
-        return _BRIDGE_CONTROLLER;
+        return address(_BRIDGE_CONTROLLER);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -62,7 +62,7 @@ contract L2SurgeBridge is SurgeBridge {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        L2BridgeController(bridgeController()).completeEjectionToL2(transferData);
+        _BRIDGE_CONTROLLER.completeEjectionToL2(transferData);
     }
 
     /**

@@ -8,6 +8,8 @@ import {Test, Vm} from "forge-std/Test.sol";
 import {BridgeMessageType} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
+import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
+import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {L1SurgeBridge} from "~src/L1/bridge/L1SurgeBridge.sol";
 import {L2SurgeBridge} from "~src/L2/bridge/L2SurgeBridge.sol";
 import {MockSurgeNativeBridge} from "~test/mocks/MockSurgeNativeBridge.sol";
@@ -29,9 +31,9 @@ contract BridgeTest is Test {
         // Deploy Surge bridge mock
         surgeNativeBridge = new MockSurgeNativeBridge();
 
-        // Deploy bridges with surge bridge and controller addresses (admin is deployer by default)
-        l1SurgeBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, mockL2Controller);
-        l2SurgeBridge = new L2SurgeBridge(surgeNativeBridge, L2_CHAIN_ID, L1_CHAIN_ID, mockL1Controller);
+        // Deploy bridges with surge bridge and mock controller addresses (admin is deployer by default)
+        l1SurgeBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, L1BridgeController(mockL2Controller));
+        l2SurgeBridge = new L2SurgeBridge(surgeNativeBridge, L2_CHAIN_ID, L1_CHAIN_ID, L2BridgeController(mockL1Controller));
 
         // Set up bridges with destination addresses
         // Test contract is admin by default since it deployed the bridges
@@ -207,7 +209,7 @@ contract BridgeTest is Test {
     
     function test_sendMessage_RevertWhenDestBridgeNotSet() public {
         // Deploy a new bridge without setting dest bridge
-        L1SurgeBridge newBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, mockL2Controller);
+        L1SurgeBridge newBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, L1BridgeController(mockL2Controller));
         
         bytes memory testData = hex"1234567890";
         

@@ -65,17 +65,17 @@ contract BridgeTest is Test, EnhancedAccessControl {
         // Deploy Surge bridge mock
         surgeNativeBridge = new MockSurgeNativeBridge();
 
-        // Deploy bridges with Surge integration (controllers will be set later)
-        l1SurgeBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(0));
-        l2SurgeBridge = new L2SurgeBridge(surgeNativeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(0));
+        // Deploy placeholder bridges first (needed to create controllers)
+        l1SurgeBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, L1BridgeController(address(0)));
+        l2SurgeBridge = new L2SurgeBridge(surgeNativeBridge, L2_CHAIN_ID, L1_CHAIN_ID, L2BridgeController(address(0)));
 
         // Deploy controllers with initial bridges
         l1Controller = new L1BridgeController(l1Registry, l1SurgeBridge);
         l2Controller = new L2BridgeController(l2SurgeBridge, l2Registry, datastore);
 
-        // Re-deploy bridges with correct controller addresses
-        l1SurgeBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, address(l1Controller));
-        l2SurgeBridge = new L2SurgeBridge(surgeNativeBridge, L2_CHAIN_ID, L1_CHAIN_ID, address(l2Controller));
+        // Re-deploy bridges with correct controller references
+        l1SurgeBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, l1Controller);
+        l2SurgeBridge = new L2SurgeBridge(surgeNativeBridge, L2_CHAIN_ID, L1_CHAIN_ID, l2Controller);
 
         // Set up bridges with destination addresses
         l1SurgeBridge.setDestBridgeAddress(address(l2SurgeBridge));

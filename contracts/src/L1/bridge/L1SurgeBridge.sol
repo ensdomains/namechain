@@ -17,7 +17,7 @@ contract L1SurgeBridge is SurgeBridge {
     // Storage
     ////////////////////////////////////////////////////////////////////////
 
-    address private immutable _BRIDGE_CONTROLLER;
+    L1BridgeController private immutable _BRIDGE_CONTROLLER;
 
     ////////////////////////////////////////////////////////////////////////
     // Constructor
@@ -27,7 +27,7 @@ contract L1SurgeBridge is SurgeBridge {
         ISurgeNativeBridge surgeNativeBridge_,
         uint64 l1ChainId_,
         uint64 l2ChainId_,
-        address l1BridgeController_
+        L1BridgeController l1BridgeController_
     ) SurgeBridge(surgeNativeBridge_, l1ChainId_, l2ChainId_) {
         _BRIDGE_CONTROLLER = l1BridgeController_;
     }
@@ -41,7 +41,7 @@ contract L1SurgeBridge is SurgeBridge {
      * @return The address of the bridge controller
      */
     function bridgeController() public view override returns (address) {
-        return _BRIDGE_CONTROLLER;
+        return address(_BRIDGE_CONTROLLER);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -56,7 +56,7 @@ contract L1SurgeBridge is SurgeBridge {
         bytes memory /*dnsEncodedName*/,
         TransferData memory transferData
     ) internal override {
-        L1BridgeController(bridgeController()).completeEjectionToL1(transferData);
+        _BRIDGE_CONTROLLER.completeEjectionToL1(transferData);
     }
 
     /**
@@ -65,6 +65,6 @@ contract L1SurgeBridge is SurgeBridge {
      * @param newExpiry The new expiry timestamp
      */
     function _handleRenewalMessage(uint256 tokenId, uint64 newExpiry) internal override {
-        L1BridgeController(bridgeController()).syncRenewal(tokenId, newExpiry);
+        _BRIDGE_CONTROLLER.syncRenewal(tokenId, newExpiry);
     }
 }
