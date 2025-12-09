@@ -16,6 +16,7 @@ import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -38,6 +39,7 @@ contract MockBridge is IBridge {
 contract BridgeControllerSetBridgeTest is Test {
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
+    MockHCAFactoryBasic hcaFactory;
     PermissionedRegistry registry;
     L1BridgeController bridgeController;
     MockBridge bridge1;
@@ -48,11 +50,13 @@ contract BridgeControllerSetBridgeTest is Test {
 
     function setUp() public {
         datastore = new RegistryDatastore();
+        hcaFactory = new MockHCAFactoryBasic();
         registryMetadata = new MockRegistryMetadata();
         bridge1 = new MockBridge();
 
         registry = new PermissionedRegistry(
             datastore,
+            hcaFactory,
             registryMetadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES

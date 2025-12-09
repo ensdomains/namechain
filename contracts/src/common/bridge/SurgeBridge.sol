@@ -2,6 +2,8 @@
 pragma solidity ^0.8.13;
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
+import {HCAEquivalence} from "../hca/HCAEquivalence.sol";
+import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 
 import {IBridge, BridgeMessageType} from "./interfaces/IBridge.sol";
 import {
@@ -71,7 +73,11 @@ abstract contract SurgeBridge is
     // Constructor
     ////////////////////////////////////////////////////////////////////////
 
-    constructor(ISurgeNativeBridge surgeNativeBridge_, uint64 sourceChainId_, uint64 destChainId_) {
+    constructor(
+        ISurgeNativeBridge surgeNativeBridge_,
+        uint64 sourceChainId_,
+        uint64 destChainId_
+    ) HCAEquivalence(IHCAFactoryBasic(address(0))) {
         surgeNativeBridge = surgeNativeBridge_;
         SOURCE_CHAIN_ID = sourceChainId_;
         DEST_CHAIN_ID = destChainId_;

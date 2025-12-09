@@ -10,14 +10,8 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
-import {
-    IEnhancedAccessControl
-} from "~src/common/access-control/interfaces/IEnhancedAccessControl.sol";
-import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "~src/common/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
-import {IStandardRegistry} from "~src/common/registry/interfaces/IStandardRegistry.sol";
-import {ITokenObserver} from "~src/common/registry/interfaces/ITokenObserver.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
@@ -29,6 +23,7 @@ import {
     IStandardRegistry,
     ITokenObserver
 } from "~src/common/registry/PermissionedRegistry.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
 
 contract PermissionedRegistryTest is Test, ERC1155Holder {
@@ -42,6 +37,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
     RegistryDatastore datastore;
     MockPermissionedRegistry registry;
+    MockHCAFactoryBasic hcaFactory;
     MockTokenObserver observer;
     RevertingTokenObserver revertingObserver;
     IRegistryMetadata metadata;
@@ -70,8 +66,15 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
     function setUp() public {
         datastore = new RegistryDatastore();
-        metadata = new SimpleRegistryMetadata();
-        registry = new MockPermissionedRegistry(datastore, metadata, address(this), deployerRoles);
+        hcaFactory = new MockHCAFactoryBasic();
+        metadata = new SimpleRegistryMetadata(hcaFactory);
+        registry = new MockPermissionedRegistry(
+            datastore,
+            hcaFactory,
+            metadata,
+            address(this),
+            deployerRoles
+        );
         observer = new MockTokenObserver();
         revertingObserver = new RevertingTokenObserver();
     }
@@ -2237,8 +2240,12 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         assertEq(reconstructedTokenId, tokenId, "Round-trip conversion should work");
 
         // Check that the owner is correctly recognized
-        address owner = registry.ownerOf(reconstructedTokenId);
-        assertEq(owner, user1, "Owner should be found for reconstructed token ID");
+        address ownerOfReconstructedTokenId = registry.ownerOf(reconstructedTokenId);
+        assertEq(
+            ownerOfReconstructedTokenId,
+            user1,
+            "Owner should be found for reconstructed token ID"
+        );
     }
 
     function test_getNameData_returns_correct_tokenId() public {
@@ -2566,23 +2573,11 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         uint256 resource = registry.getResource(tokenId);
 
         // Verify user1 has admin roles from registration
-        assertTrue(
-            registry.hasRoles(
-                resource,
-                RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN,
-                user1
-            )
-        );
+        assertTrue(registry.hasRoles(resource, RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN, user1));
 
         // Verify that admin roles CAN be revoked (this should work)
         registry.revokeRoles(resource, RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN, user1);
-        assertFalse(
-            registry.hasRoles(
-                resource,
-                RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN,
-                user1
-            )
-        );
+        assertFalse(registry.hasRoles(resource, RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN, user1));
     }
 
     function _tokenVersionId(uint256 id) internal pure returns (uint32) {

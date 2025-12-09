@@ -15,21 +15,26 @@ import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol
 import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
 import {InvalidOwner} from "../CommonErrors.sol";
+import {HCAContext} from "../hca/HCAContext.sol";
+import {HCAContextUpgradeable} from "../hca/HCAContextUpgradeable.sol";
+import {HCAEquivalence} from "../hca/HCAEquivalence.sol";
+import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 
 import {IDedicatedResolverSetters, NODE_ANY} from "./interfaces/IDedicatedResolverSetters.sol";
 import {DedicatedResolverLib} from "./libraries/DedicatedResolverLib.sol";
 
 /// @notice An owned resolver that provides the same results for any name.
 contract DedicatedResolver is
-    EnhancedAccessControl,
-    Initializable,
+    HCAContextUpgradeable,
     UUPSUpgradeable,
+    EnhancedAccessControl,
     IDedicatedResolverSetters,
     IERC7996,
     IExtendedResolver,
@@ -56,7 +61,7 @@ contract DedicatedResolver is
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
-    constructor() {
+    constructor(IHCAFactoryBasic hcaFactory) HCAEquivalence(hcaFactory) {
         _disableInitializers();
     }
 
@@ -322,6 +327,36 @@ contract DedicatedResolver is
         address newImplementation
     ) internal override onlyRootRoles(DedicatedResolverLib.ROLE_UPGRADE) {
         //
+    }
+
+    function _msgSender()
+        internal
+        view
+        virtual
+        override(HCAContext, HCAContextUpgradeable)
+        returns (address)
+    {
+        return HCAContextUpgradeable._msgSender();
+    }
+
+    function _msgData()
+        internal
+        view
+        virtual
+        override(Context, ContextUpgradeable)
+        returns (bytes calldata)
+    {
+        return msg.data;
+    }
+
+    function _contextSuffixLength()
+        internal
+        view
+        virtual
+        override(Context, ContextUpgradeable)
+        returns (uint256)
+    {
+        return 0;
     }
 
     /// @dev Returns true if `x` has a single bit set.

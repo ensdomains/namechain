@@ -20,6 +20,7 @@ import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
 import {ISurgeNativeBridge} from "~src/common/bridge/interfaces/ISurgeNativeBridge.sol";
 import {L1SurgeBridge} from "~src/L1/bridge/L1SurgeBridge.sol";
 import {L2SurgeBridge} from "~src/L2/bridge/L2SurgeBridge.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 import {MockSurgeNativeBridge} from "~test/mocks/MockSurgeNativeBridge.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
@@ -37,6 +38,7 @@ contract BridgeMessagesTest is Test {
     PermissionedRegistry registry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
+    MockHCAFactoryBasic hcaFactory;
 
     // Chain IDs for testing
     uint64 constant L1_CHAIN_ID = 1;
@@ -51,11 +53,13 @@ contract BridgeMessagesTest is Test {
     function setUp() public {
         // Deploy dependencies
         datastore = new RegistryDatastore();
+        hcaFactory = new MockHCAFactoryBasic();
         registryMetadata = new MockRegistryMetadata();
 
         // Deploy registry
         registry = new PermissionedRegistry(
             datastore,
+            hcaFactory,
             registryMetadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES
