@@ -1,13 +1,13 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
-import { unlinkSync, existsSync } from "node:fs";
+import { existsSync, unlinkSync } from "node:fs";
 import { zeroAddress } from "viem";
 import { ROLES } from "../../deploy/constants.js";
 import {
   batchRegisterNames,
-  loadCheckpoint,
-  saveCheckpoint,
   createFreshCheckpoint,
+  loadCheckpoint,
   type PreMigrationConfig,
+  saveCheckpoint,
 } from "../../script/preMigration.js";
 import {
   type CrossChainEnvironment,
@@ -30,7 +30,7 @@ describe("Pre-Migration Script E2E", () => {
     );
   });
 
-  afterAll(() => env?.shutdown);
+  afterAll(() => env?.shutdown());
 
   afterEach(() => {
     deleteTestCheckpoint();

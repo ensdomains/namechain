@@ -26,7 +26,7 @@ describe("Bridge", () => {
     env = await setupCrossChainEnvironment();
     relay = setupMockRelay(env);
   });
-  afterAll(() => env?.shutdown);
+  afterAll(() => env?.shutdown());
   // beforeEach(() => env?.resetState());
 
   it("name ejection", async () => {
