@@ -18,6 +18,7 @@ import {
   getCanonicalId,
   labelToCanonicalId,
 } from "../utils/utils.js";
+import { waitForSuccessfulTransactionReceipt } from "../utils/waitForSuccessfulTransactionReceipt.ts";
 
 describe("Bridge", () => {
   let env: CrossChainEnvironment;
@@ -52,7 +53,7 @@ describe("Bridge", () => {
       roleBitmap,
       expiryTime,
     ]);
-    await env.l2.client.waitForTransactionReceipt({ hash: registerTx });
+    await waitForSuccessfulTransactionReceipt(env.l2.client, { hash: registerTx });
     console.log(`Name registered on L2, tx hash: ${registerTx}`);
 
     const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
@@ -136,7 +137,7 @@ describe("Bridge", () => {
       roleBitmap,
       expiryTime,
     ]);
-    await env.l2.client.waitForTransactionReceipt({ hash: registerTx });
+    await waitForSuccessfulTransactionReceipt(env.l2.client, { hash: registerTx });
     console.log(`Name registered on L2, tx hash: ${registerTx}`);
 
     const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
