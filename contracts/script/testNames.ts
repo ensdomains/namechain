@@ -1,5 +1,6 @@
 import {
-  Address,
+  type Address,
+  type TransactionReceipt,
   decodeFunctionResult,
   encodeAbiParameters,
   encodeFunctionData,
@@ -30,10 +31,8 @@ const gasTracker: GasRecord[] = [];
 
 async function trackGas(
   operation: string,
-  txHash: `0x${string}`,
-  client: any,
+  receipt: TransactionReceipt
 ): Promise<void> {
-  const receipt = await client.waitForTransactionReceipt({ hash: txHash });
   const gasUsed = BigInt(receipt.gasUsed);
   const effectiveGasPrice = receipt.effectiveGasPrice
     ? BigInt(receipt.effectiveGasPrice)
@@ -170,10 +169,10 @@ async function deployResolverWithRecords(
 ) {
   const chainEnv = chain === "l2" ? env.l2 : env.l1;
   const client = chain === "l2" ? env.l2.client : env.l1.client;
-  const resolver = (await chainEnv.deployDedicatedResolver({ account })) as any;
+  const resolver = await chainEnv.deployDedicatedResolver({ account });
 
-  if (shouldTrackGas && resolver.deploymentHash) {
-    await trackGas("deployResolver", resolver.deploymentHash, client);
+  if (shouldTrackGas) {
+    await trackGas("deployResolver", resolver.deploymentReceipt);
   }
 
   // Set ETH address (coin type 60)
@@ -599,7 +598,7 @@ export async function createSubname(
     const alreadyExists = owner !== zeroAddress;
 
     // Check if expired
-    const currentTime = BigInt(Math.floor(Date.now() / 1000));
+    const currentTime = await env.l2.client.getBlock().then((b) => b.timestamp);
     const isExpired = alreadyExists && entry.expiry < currentTime;
 
     if (alreadyExists && !isExpired) {
@@ -909,30 +908,25 @@ export async function registerTestNames(
   const registrarAccount =
     options.registrarAccount ?? env.namedAccounts.deployer;
   const shouldTrackGas = options.trackGas ?? false;
+  const currentTimestamp = await env.l2.client.getBlock().then((b) => b.timestamp);
 
   for (const label of labels) {
     // Deploy a dedicated resolver for this name (same as test)
-    const resolver = (await env.l2.deployDedicatedResolver({ account })) as any;
+    const resolver = (await env.l2.deployDedicatedResolver({ account }));
 
     // Track deployment gas if enabled
-    if (shouldTrackGas && resolver.deploymentHash) {
-      await trackGas(
-        "deployDedicatedResolver",
-        resolver.deploymentHash,
-        env.l2.client,
-      );
-    }
+    if (shouldTrackGas) await trackGas("deployDedicatedResolver", resolver.deploymentReceipt);
 
     // Determine expiry: use provided value or default to 1 day from now
     let expiry: bigint;
     if (options.expiry !== undefined) {
       expiry = options.expiry;
     } else {
-      expiry = BigInt(Math.floor(Date.now() / 1000) + ONE_DAY_SECONDS);
+      expiry = currentTimestamp + BigInt(ONE_DAY_SECONDS);
     }
 
     // Register the name with all roles (including transfer role)
-    const registerHash = await env.l2.contracts.ETHRegistry.write.register(
+    const registerTx = await env.waitFor(env.l2.contracts.ETHRegistry.write.register(
       [
         label,
         account.address,
@@ -942,32 +936,32 @@ export async function registerTestNames(
         expiry,
       ],
       { account: registrarAccount },
-    );
+    ));
 
     if (shouldTrackGas) {
-      await trackGas(`register(${label})`, registerHash, env.l2.client);
+      await trackGas(`register(${label})`, registerTx.receipt);
     }
 
     // Set some default records
-    const setAddrHash = await resolver.write.setAddr(
+    const setAddrTx = await env.waitFor(resolver.write.setAddr(
       [
         60n, // ETH coin type
         account.address,
       ],
       { account },
-    );
+    ));
 
     if (shouldTrackGas) {
-      await trackGas(`setAddr(${label})`, setAddrHash, env.l2.client);
+      await trackGas(`setAddr(${label})`, setAddrTx.receipt);
     }
 
-    const setTextHash = await resolver.write.setText(
+    const setTextTx = await env.waitFor(resolver.write.setText(
       ["description", `${label}.eth`],
       { account },
-    );
+    ));
 
     if (shouldTrackGas) {
-      await trackGas(`setText(${label})`, setTextHash, env.l2.client);
+      await trackGas(`setText(${label})`, setTextTx.receipt);
     }
   }
 }
@@ -994,6 +988,9 @@ export async function reregisterName(
   const warpSeconds = ONE_DAY_SECONDS + 1; // 1 day + 1 second to ensure expiry
   console.log(`\nTime warping ${warpSeconds} seconds...`);
   await env.sync({ warpSec: warpSeconds });
+
+  console.log(`\nCurrent onchain timestamp: ${new Date(Number(await env.l2.client.getBlock().then((b) => b.timestamp)) * 1000).toISOString()}`);
+  console.log(`\nCurrent onchain expiry: ${new Date(Number(initialExpiry) * 1000).toISOString()}`);
 
   // Step 2: Verify name is available for re-registration
   const isAvailable = await env.l2.contracts.ETHRegistrar.read.isAvailable([
@@ -1045,7 +1042,12 @@ export async function testNames(env: CrossChainEnvironment) {
 
   console.log("\n========== Starting testNames with Gas Tracking ==========\n");
 
-  // Register all test names with default 1 day expiry
+  // Register reregister
+  await registerTestNames(env, ["reregister"], { trackGas: true });
+  // Re-register reregister (with time warp, do first to avoid expiring other names)
+  await reregisterName(env, "reregister");
+
+  // Register all other test names with default 1 day expiry
   await registerTestNames(
     env,
     [
@@ -1054,7 +1056,6 @@ export async function testNames(env: CrossChainEnvironment) {
       "demo",
       "newowner",
       "renew",
-      "reregister",
       "parent",
       "bridge",
       "changerole",
@@ -1063,7 +1064,7 @@ export async function testNames(env: CrossChainEnvironment) {
   );
 
   // Transfer newowner.eth to user
-  const transferHash =
+  const transferTx = await env.waitFor(
     await env.l2.contracts.ETHRegistry.write.safeTransferFrom(
       [
         env.namedAccounts.owner.address,
@@ -1073,8 +1074,8 @@ export async function testNames(env: CrossChainEnvironment) {
         "0x",
       ],
       { account: env.namedAccounts.owner },
-    );
-  await trackGas("transfer(newowner)", transferHash, env.l2.client);
+    ));
+  await trackGas("transfer(newowner)", transferTx.receipt);
 
   // Renew renew.eth for 365 days
   const { label } = parseName("renew.eth");
@@ -1104,11 +1105,11 @@ export async function testNames(env: CrossChainEnvironment) {
     { account: env.namedAccounts.owner },
   );
 
-  const renewHash = await env.l2.contracts.ETHRegistrar.write.renew(
+  const renewTx = await env.waitFor(env.l2.contracts.ETHRegistrar.write.renew(
     [label, duration, paymentToken, referrer],
     { account: env.namedAccounts.owner },
-  );
-  await trackGas("renew(renew)", renewHash, env.l2.client);
+  ));
+  await trackGas("renew(renew)", renewTx.receipt);
 
   // Create subnames - need to create children too so sub1.sub2.parent.eth has a subregistry
   const createdSubnames = await createSubname(
@@ -1119,25 +1120,25 @@ export async function testNames(env: CrossChainEnvironment) {
   // Change roles on changerole.eth - grant ROLE_SET_RESOLVER to user, revoke ROLE_SET_TOKEN_OBSERVER
   const [changeRoleTokenId] =
     await env.l2.contracts.ETHRegistry.read.getNameData(["changerole"]);
-  const grantHash = await env.l2.contracts.ETHRegistry.write.grantRoles(
+  const grantTx = await env.waitFor(env.l2.contracts.ETHRegistry.write.grantRoles(
     [
       changeRoleTokenId,
       ROLES.OWNER.EAC.SET_RESOLVER,
       env.namedAccounts.user.address,
     ],
     { account: env.namedAccounts.owner },
-  );
-  await trackGas("grantRoles(changerole)", grantHash, env.l2.client);
+  ));
+  await trackGas("grantRoles(changerole)", grantTx.receipt);
 
-  const revokeHash = await env.l2.contracts.ETHRegistry.write.revokeRoles(
+  const revokeTx = await env.waitFor(env.l2.contracts.ETHRegistry.write.revokeRoles(
     [
       changeRoleTokenId,
       ROLES.OWNER.EAC.SET_TOKEN_OBSERVER,
       env.namedAccounts.user.address,
     ],
     { account: env.namedAccounts.owner },
-  );
-  await trackGas("revokeRoles(changerole)", revokeHash, env.l2.client);
+  ));
+  await trackGas("revokeRoles(changerole)", revokeTx.receipt);
 
   // Link sub1.sub2.parent.eth to parent.eth with different label (creates linked.parent.eth with shared children)
   // Now wallet.linked.parent.eth and wallet.sub1.sub2.parent.eth will be the same token
@@ -1162,9 +1163,6 @@ export async function testNames(env: CrossChainEnvironment) {
   await bridgeName(env, "bridge.eth");
 
   await showName(env, allNames);
-
-  // Test re-registration of expired name (run last to avoid expiring other names)
-  await reregisterName(env, "reregister");
 
   // Display gas report at the end
   displayGasReport();

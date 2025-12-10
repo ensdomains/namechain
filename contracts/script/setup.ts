@@ -1,7 +1,7 @@
 import { artifacts } from "@rocketh";
 import { rm } from "node:fs/promises";
 import { anvil as createAnvil } from "prool/instances";
-import { executeDeployScripts, resolveConfig, type Environment } from "rocketh";
+import { type Environment, executeDeployScripts, resolveConfig } from "rocketh";
 import {
   type Abi,
   type Account,
@@ -35,6 +35,7 @@ import {
   deployVerifiableProxy,
 } from "../test/integration/fixtures/deployVerifiableProxy.js";
 import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
+import { waitForSuccessfulTransactionReceipt } from "../test/utils/waitForSuccessfulTransactionReceipt.ts";
 import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 import type { RockethArguments, RockethL1Arguments } from "./types.js";
 
@@ -232,10 +233,10 @@ export class ChainDeployment<
         roles,
       ],
     });
-    const receipt = await client.waitForTransactionReceipt({ hash });
+    const receipt = await waitForSuccessfulTransactionReceipt(client, { hash, ensureDeployment: true });
     return getContract({
       abi,
-      address: receipt.contractAddress!,
+      address: receipt.contractAddress,
       client,
     });
   }
@@ -294,6 +295,7 @@ export async function setupCrossChainEnvironment({
   saveDeployments = false,
   quiet = !saveDeployments,
   procLog = false,
+  extraTime = 0,
 }: {
   l1ChainId?: number;
   l2ChainId?: number;
@@ -305,6 +307,7 @@ export async function setupCrossChainEnvironment({
   saveDeployments?: boolean;
   quiet?: boolean;
   procLog?: boolean; // show anvil process logs
+  extraTime?: number; // extra time to subtract from genesis timestamp
 } = {}) {
   // shutdown functions for partial initialization
   const finalizers: (() => unknown | Promise<unknown>)[] = [];
@@ -330,17 +333,20 @@ export async function setupCrossChainEnvironment({
     extraAccounts += names.length;
 
     process.env["RUST_LOG"] = "info"; // required to capture console.log()
+    const baseArgs = {
+      accounts: extraAccounts,
+      mnemonic,
+      ...(extraTime ? { timestamp: Math.floor(Date.now() / 1000) - extraTime } : {}),
+    }
     const l1Anvil = createAnvil({
+      ...baseArgs,
       chainId: l1ChainId,
       port: l1Port,
-      accounts: extraAccounts,
-      mnemonic,
     });
     const l2Anvil = createAnvil({
+      ...baseArgs,
       chainId: l2ChainId,
       port: l2Port,
-      accounts: extraAccounts,
-      mnemonic,
     });
 
     // use same accounts on both chains
@@ -575,7 +581,7 @@ export async function setupCrossChainEnvironment({
     async function waitFor(hash: Future<Hex>) {
       hash = await hash;
       const chain = await findChain(hash);
-      const receipt = await chain.client.waitForTransactionReceipt({ hash });
+      const receipt = await waitForSuccessfulTransactionReceipt(chain.client, { hash });
       return { receipt, chain };
     }
     async function saveState(): Promise<CrossChainSnapshot> {
@@ -601,17 +607,28 @@ export async function setupCrossChainEnvironment({
       blocks = 1,
       warpSec = 0,
     }: { blocks?: number; warpSec?: number } = {}) {
-      const [b0, b1] = await Promise.all([
+      // example:
+      // l1Block.timestamp = 100
+      // l2Block.timestamp = 105 (l2 is 5 seconds ahead)
+      const [l1Block, l2Block] = await Promise.all([
         l1Client.getBlock(),
         l2Client.getBlock(),
       ]);
-      const dt = Number(b0.timestamp - b1.timestamp);
-      const interval = warpSec + Math.max(0, -dt);
+      // dt = -5
+      const timestampDiff = Number(l1Block.timestamp - l2Block.timestamp);
+      // l1WarpSec = max(0, -1 * -5) = 5
+      const l1WarpSec = warpSec + Math.max(0, -timestampDiff);
+      // l2WarpSec = max(0, -5) = 0
+      const l2WarpSec = warpSec + Math.max(0, +timestampDiff);
+      // l1 will warp 5 seconds, l2 will warp 0 seconds
       await Promise.all([
-        l1Client.mine({ blocks, interval }),
-        l2Client.mine({ blocks, interval: warpSec + Math.max(0, +dt) }),
+        l1Client.mine({ blocks, interval: l1WarpSec }),
+        l2Client.mine({ blocks, interval: l2WarpSec }),
       ]);
-      return b0.timestamp + BigInt(interval);
+      // result:
+      // l1Block.timestamp = 105
+      // l2Block.timestamp = 105
+      return l1Block.timestamp + BigInt(l1WarpSec);
     }
   } catch (err) {
     await shutdown();
