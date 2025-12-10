@@ -10,12 +10,13 @@ import {
   createWalletClient,
   getContract,
   type GetContractReturnType,
+  type Hash,
   type Hex,
   publicActions,
   testActions,
   type Transport,
   webSocket,
-  zeroAddress,
+  zeroAddress
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 
@@ -192,7 +193,27 @@ export class ChainDeployment<
           abi,
           address: deployment.address,
           client,
-        }) as unknown;
+        }) as { write?: Record<string, (...parameters: unknown[]) => Promise<Hash>> } & Record<string, unknown>;
+        if ('write' in contract) {
+          const write = contract.write!;
+          // override to ensure successful transaction
+          // otherwise, success is being assumed based on an eth_estimateGas call
+          // but state could change, or eth_estimateGas could be wrong
+          contract.write = new Proxy(
+            {},
+            {
+              get(_, functionName: string) {
+                return async (
+                  ...parameters: unknown[]
+                ) => {
+                  const hash = await write[functionName](...parameters);
+                  await waitForSuccessfulTransactionReceipt(client, { hash });
+                  return hash;
+                }
+              },
+            },
+          )
+        }
         return [name, contract];
       }),
     ) as SharedContracts & ContractsOf<A>;
