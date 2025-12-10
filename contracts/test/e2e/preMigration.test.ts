@@ -30,7 +30,7 @@ describe("Pre-Migration Script E2E", () => {
     );
   });
 
-  afterAll(() => env?.shutdown);
+  afterAll(() => env?.shutdown());
 
   afterEach(() => {
     deleteTestCheckpoint();

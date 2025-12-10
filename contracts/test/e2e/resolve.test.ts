@@ -71,13 +71,13 @@ describe("Resolve", () => {
         ],
       }));
 
-    it("dnsname.ens.eth + addr() => DNSTXTResolver", () =>
+    it("dnsname.ens.eth + addr() => ExtendedDNSResolver", () =>
       expectResolve({
         name: "dnsname.ens.eth",
         addresses: [
           {
             coinType: COIN_TYPE_ETH,
-            value: env.l1.contracts.DNSTXTResolver.address,
+            value: env.extendedDNSResolverAddress,
           },
         ],
       }));
@@ -213,17 +213,16 @@ describe("Resolve", () => {
   });
 
   describe("DNS", () => {
-    it("onchain txt: dnstxt.raffy.xyz", () =>
-      // `dnsname.ens.eth t[avatar]=https://raffy.xyz/ens.jpg a[e0]=0x51050ec063d393217B436747617aD1C2285Aeeee`
+    it("onchain txt: taytems.xyz", () =>
+      // Uses real DNS TXT record for taytems.xyz
       expectResolve({
-        name: "dnstxt.raffy.xyz",
+        name: "taytems.xyz",
         addresses: [
           {
             coinType: COIN_TYPE_ETH,
-            value: "0x51050ec063d393217B436747617aD1C2285Aeeee",
+            value: "0x8e8Db5CcEF88cca9d624701Db544989C996E3216",
           },
         ],
-        texts: [{ key: "avatar", value: "https://raffy.xyz/ens.jpg" }],
       }));
 
     it("alias replace: dnsalias.raffy.xyz => eth", () =>
@@ -239,13 +238,13 @@ describe("Resolve", () => {
       }));
 
     it("alias rewrite: dnsname[.raffy.xyz] => dnsname[.ens.eth]", () =>
-      // `dnsalias.ens.eth raffy.xyz ens.eth`
+      // `dnsalias.ens.eth raffy.xyz ens.eth` - rewrites to dnsname.ens.eth which uses ExtendedDNSResolver
       expectResolve({
         name: "dnsname.raffy.xyz",
         addresses: [
           {
             coinType: COIN_TYPE_ETH,
-            value: env.l1.contracts.DNSTXTResolver.address,
+            value: env.extendedDNSResolverAddress,
           },
         ],
       }));

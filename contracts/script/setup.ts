@@ -24,6 +24,14 @@ import { WebSocketProvider } from "ethers/providers";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 
+import type { RockethArguments, RockethL1Arguments } from "./types.js";
+import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
+import {
+  computeVerifiableProxyAddress,
+  deployVerifiableProxy,
+} from "../test/integration/fixtures/deployVerifiableProxy.js";
+import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
+import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 import {
   LOCAL_BATCH_GATEWAY_URL,
   MAX_EXPIRY,
@@ -36,6 +44,12 @@ import { dnsEncodeName } from "../test/utils/utils.js";
 import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 import type { RockethArguments, RockethL1Arguments } from "./types.js";
 
+/**
+ * Default chain IDs for devnet environment
+ */
+export const DEFAULT_L2_CHAIN_ID = 0xeeeeee;
+export const DEFAULT_L1_CHAIN_ID = DEFAULT_L2_CHAIN_ID - 1;
+
 type DeployedArtifacts = Record<string, Abi>;
 
 type Future<T> = T | Promise<T>;
@@ -43,8 +57,6 @@ type Future<T> = T | Promise<T>;
 // typescript key (see below) mapped to rocketh deploy name
 const renames: Record<string, string> = {
   ETHRegistrarV1: "BaseRegistrarImplementation",
-  MockL1Bridge: "MockBridge",
-  MockL2Bridge: "MockBridge",
   L1BridgeController: "BridgeController",
   L2BridgeController: "BridgeController",
 };
@@ -57,9 +69,9 @@ const sharedContracts = {
   DedicatedResolver: artifacts.DedicatedResolver.abi,
   UserRegistry: artifacts.UserRegistry.abi,
   // common
-  MockBridge: artifacts.MockBridgeBase.abi,
+  MockSurgeNativeBridge: artifacts.MockSurgeNativeBridge.abi,
   ETHRegistry: artifacts.PermissionedRegistry.abi,
-  BridgeController: artifacts.EjectionController.abi,
+  BridgeController: artifacts.BridgeController.abi,
 } as const satisfies DeployedArtifacts;
 
 const l1Contracts = {
@@ -77,7 +89,7 @@ const l1Contracts = {
   DefaultReverseRegistrar: artifacts.DefaultReverseRegistrar.abi,
   DefaultReverseResolver: artifacts.DefaultReverseResolver.abi,
   //
-  MockL1Bridge: artifacts.MockL1Bridge.abi,
+  L1SurgeBridge: artifacts.L1SurgeBridge.abi,
   L1BridgeController: artifacts.L1BridgeController.abi,
   UnlockedMigrationController: artifacts.L1UnlockedMigrationController.abi,
   LockedMigrationController: artifacts.L1LockedMigrationController.abi,
@@ -96,7 +108,7 @@ const l1Contracts = {
 
 const l2Contracts = {
   ...sharedContracts,
-  MockL2Bridge: artifacts.MockL2Bridge.abi,
+  L2SurgeBridge: artifacts.L2SurgeBridge.abi,
   L2BridgeController: artifacts.L2BridgeController.abi,
   //
   ETHRegistrar: artifacts.ETHRegistrar.abi,
@@ -137,7 +149,7 @@ function createClient(transport: Transport, chain: Chain, account: Account) {
     transport,
     chain,
     account,
-    pollingInterval: 0,
+    pollingInterval: 100,
     cacheTime: 0, // must be 0 due to client caching
   })
     .extend(publicActions)
@@ -199,6 +211,16 @@ export class ChainDeployment<
   }
   get arrow() {
     return `${this.name}->${this.rx.name}`;
+  }
+  async computeVerifiableProxyAddress(args: {
+    deployer: Address;
+    salt: bigint;
+  }) {
+    return computeVerifiableProxyAddress({
+      factoryAddress: this.contracts.VerifiableFactory.address,
+      bytecode: artifacts["UUPSProxy"].bytecode,
+      ...args,
+    });
   }
   async deployPermissionedRegistry({
     account,
@@ -272,7 +294,7 @@ export class ChainDeployment<
 }
 
 export async function setupCrossChainEnvironment({
-  l2ChainId = 0xeeeeee,
+  l2ChainId = DEFAULT_L2_CHAIN_ID,
   l1ChainId = l2ChainId - 1,
   l1Port = 0,
   l2Port = 0,
@@ -392,9 +414,10 @@ export async function setupCrossChainEnvironment({
     });
 
     const transportOptions = {
-      retryCount: 0,
-      keepAlive: true, // these prevent error
-      reconnect: false, // spam on shutdown
+      retryCount: 1,
+      keepAlive: true,
+      reconnect: false,
+      timeout: 10000,
     } as const;
     const l1Transport = webSocket(`ws://${l1HostPort}`, transportOptions);
     const l2Transport = webSocket(`ws://${l2HostPort}`, transportOptions);
@@ -530,7 +553,7 @@ export async function setupCrossChainEnvironment({
     (l1 as any).rx = l2;
     (l2 as any).rx = l1;
 
-    await setupEnsDotEth(l1, deployer);
+    const { extendedDNSResolverAddress } = await setupEnsDotEth(l1, deployer);
     console.log("Setup ens.eth");
 
     // Set Namechain metadata on ETHTLDResolver for offchain resolution discovery
@@ -547,6 +570,9 @@ export async function setupCrossChainEnvironment({
 
     //await setupBridgeBlacklists(l1, l2);
 
+    await setupBridgeConfiguration(l1, l2, deployer);
+    console.log("Setup bridge configuration");
+
     await sync();
     console.log("Deployed ENSv2");
 
@@ -560,6 +586,7 @@ export async function setupCrossChainEnvironment({
         gatewayURL: ccip.endpoint,
         verifierAddress,
       },
+      extendedDNSResolverAddress,
       sync,
       waitFor,
       shutdown,
@@ -638,6 +665,7 @@ export async function setupCrossChainEnvironment({
 async function setupEnsDotEth(l1: L1Deployment, account: Account) {
   // create registry for "ens.eth"
   const ens_ethRegistry = await l1.deployPermissionedRegistry({ account });
+
   // create "ens.eth"
   await l1.contracts.ETHRegistry.write.register([
     "ens",
@@ -647,32 +675,88 @@ async function setupEnsDotEth(l1: L1Deployment, account: Account) {
     0n,
     MAX_EXPIRY,
   ]);
+
   // create "dnsname.ens.eth"
-  const dnsnameResolver = await l1.deployDedicatedResolver({ account });
-  await dnsnameResolver.write.setAddr([
-    60n,
-    l1.contracts.DNSTXTResolver.address, // set to DNSTXTResolver
-  ]);
-  await ens_ethRegistry.write.register([
-    "dnsname",
-    account.address,
-    zeroAddress,
-    dnsnameResolver.address,
-    0n,
-    MAX_EXPIRY,
-  ]);
+  // https://etherscan.io/address/0x08769D484a7Cd9c4A98E928D9E270221F3E8578c#code
+  const extendedDNSResolverAddress = await deployArtifact(l1.client, {
+    file: new URL(
+      "../test/integration/l1/dns/ExtendedDNSResolver_53f64de872aad627467a34836be1e2b63713a438.json",
+      import.meta.url,
+    ),
+  });
+  await setupNamedResolver("dnsname", extendedDNSResolverAddress);
+
+  // // create "dnsname2.ens.eth" (was never named?)
+  // // https://etherscan.io/address/0x08769D484a7Cd9c4A98E928D9E270221F3E8578c#code
+  // await setupNamedResolver(
+  //   "dnsname2",
+  //   await deployArtifact(l1.client, {
+  //     file: new URL(
+  //       "../lib/ens-contracts/deployments/mainnet/ExtendedDNSResolver.json",
+  //       import.meta.url,
+  //     ),
+  //   }),
+  // );
+
+  // create "dnstxt.ens.eth"
+  await setupNamedResolver("dnstxt", l1.contracts.DNSTXTResolver.address);
+
   // create "dnsalias.ens.eth"
-  const dnsaliasResolver = await l1.deployDedicatedResolver({ account });
-  await dnsaliasResolver.write.setAddr([
-    60n,
-    l1.contracts.DNSAliasResolver.address, // set to DNSAliasResolver
+  await setupNamedResolver("dnsalias", l1.contracts.DNSAliasResolver.address);
+
+  async function setupNamedResolver(label: string, address: Address) {
+    const resolver = await l1.deployDedicatedResolver({ account });
+    await resolver.write.setAddr([60n, address]);
+    await ens_ethRegistry.write.register([
+      label,
+      account.address,
+      zeroAddress,
+      resolver.address,
+      0n,
+      MAX_EXPIRY,
+    ]);
+  }
+
+  return { extendedDNSResolverAddress };
+}
+
+async function setupBridgeConfiguration(l1: L1Deployment, l2: L2Deployment, deployer: Account) {
+  // Configure bridge relationships for cross-chain messaging
+  console.log("Configuring bridge relationships...");
+  console.log("L1SurgeBridge:", l1.contracts.L1SurgeBridge.address);
+  console.log("L2SurgeBridge:", l2.contracts.L2SurgeBridge.address);
+  console.log("L1BridgeController:", l1.contracts.L1BridgeController.address);
+  console.log("L2BridgeController:", l2.contracts.L2BridgeController.address);
+  
+  // Grant ROLE_SET_BRIDGE to deployer so they can call setBridge
+  // ROLE_SET_BRIDGE = 1 << 4 = 16 (from BridgeRolesLib.sol)
+  const ROLE_SET_BRIDGE = 1n << 4n;
+  await l1.contracts.L1BridgeController.write.grantRootRoles([
+    ROLE_SET_BRIDGE,
+    deployer.address
   ]);
-  await ens_ethRegistry.write.register([
-    "dnsalias",
-    account.address,
-    zeroAddress,
-    dnsaliasResolver.address,
-    0n,
-    MAX_EXPIRY,
+  await l2.contracts.L2BridgeController.write.grantRootRoles([
+    ROLE_SET_BRIDGE,
+    deployer.address
   ]);
+  
+  // Configure bridge controllers to point to their respective bridges
+  await l1.contracts.L1BridgeController.write.setBridge([l1.contracts.L1SurgeBridge.address]);
+  await l2.contracts.L2BridgeController.write.setBridge([l2.contracts.L2SurgeBridge.address]);
+  
+  // Grant bridge roles to the bridges on their respective bridge controllers
+  await l1.contracts.L1BridgeController.write.grantRootRoles([
+    ROLES.OWNER.BRIDGE.EJECTOR,
+    l1.contracts.L1SurgeBridge.address
+  ]);
+  await l2.contracts.L2BridgeController.write.grantRootRoles([
+    ROLES.OWNER.BRIDGE.EJECTOR,
+    l2.contracts.L2SurgeBridge.address
+  ]);
+  
+  // Configure destination bridge addresses for cross-chain messaging
+  await l1.contracts.L1SurgeBridge.write.setDestBridgeAddress([l2.contracts.L2SurgeBridge.address]);
+  await l2.contracts.L2SurgeBridge.write.setDestBridgeAddress([l1.contracts.L1SurgeBridge.address]);
+  
+  console.log("✓ Bridge configuration complete");
 }
