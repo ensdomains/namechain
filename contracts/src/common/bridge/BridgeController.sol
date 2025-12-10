@@ -17,17 +17,17 @@ import {BridgeRolesLib} from "./libraries/BridgeRolesLib.sol";
 import {TransferData} from "./types/TransferData.sol";
 
 /**
- * @title EjectionController
- * @dev Base contract for the ejection controllers.
+ * @title BridgeController
+ * @dev Base contract for the bridge controllers.
  */
-abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccessControl {
+abstract contract BridgeController is IERC1155Receiver, ERC165, EnhancedAccessControl {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
 
     IPermissionedRegistry public immutable REGISTRY;
 
-    IBridge public immutable BRIDGE;
+    IBridge public BRIDGE;
 
     ////////////////////////////////////////////////////////////////////////
     // Events
@@ -37,11 +37,14 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
 
     event NameEjectedToL2(bytes dnsEncodedName, uint256 indexed tokenId);
 
+    event BridgeUpdated(address indexed oldBridge, address indexed newBridge);
+
     ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
 
     error InvalidLabel(uint256 tokenId, string label);
+    error InvalidBridgeAddress();
 
     ////////////////////////////////////////////////////////////////////////
     // Modifiers
@@ -66,7 +69,12 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
         BRIDGE = bridge_;
 
         // Grant admin roles to the deployer so they can manage bridge roles
-        _grantRoles(ROOT_RESOURCE, BridgeRolesLib.ROLE_EJECTOR_ADMIN, msg.sender, true);
+        _grantRoles(
+            ROOT_RESOURCE,
+            BridgeRolesLib.ROLE_EJECTOR_ADMIN | BridgeRolesLib.ROLE_SET_BRIDGE_ADMIN,
+            msg.sender,
+            true
+        );
     }
 
     /// @inheritdoc IERC165
@@ -74,7 +82,7 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
         bytes4 interfaceId
     ) public view virtual override(ERC165, EnhancedAccessControl, IERC165) returns (bool) {
         return
-            interfaceId == type(EjectionController).interfaceId ||
+            interfaceId == type(BridgeController).interfaceId ||
             interfaceId == type(IERC1155Receiver).interfaceId ||
             super.supportsInterface(interfaceId);
     }
@@ -82,6 +90,22 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
     ////////////////////////////////////////////////////////////////////////
     // Implementation
     ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @notice Set the bridge contract address
+     * @param newBridge The new bridge contract address
+     * @dev Only callable by addresses with ROLE_SET_BRIDGE
+     */
+    function setBridge(IBridge newBridge) external onlyRootRoles(BridgeRolesLib.ROLE_SET_BRIDGE) {
+        if (address(newBridge) == address(0)) {
+            revert InvalidBridgeAddress();
+        }
+
+        address oldBridge = address(BRIDGE);
+        BRIDGE = newBridge;
+
+        emit BridgeUpdated(oldBridge, address(newBridge));
+    }
 
     /// Implements ERC1155Receiver.onERC1155Received
     function onERC1155Received(
@@ -108,6 +132,28 @@ abstract contract EjectionController is IERC1155Receiver, ERC165, EnhancedAccess
         _onEject(tokenIds, transferDataArray);
 
         return this.onERC1155BatchReceived.selector;
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+    // External Functions
+    ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @notice Perform an ejection for external callers (e.g., migration controllers)
+     * @param tokenId The token ID of the name being ejected
+     * @param transferData The transfer data for the ejection
+     */
+    function performEjection(
+        uint256 tokenId,
+        TransferData calldata transferData
+    ) external onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
+        TransferData[] memory transferDataArray = new TransferData[](1);
+        transferDataArray[0] = transferData;
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenId;
+
+        _onEject(tokenIds, transferDataArray);
     }
 
     ////////////////////////////////////////////////////////////////////////

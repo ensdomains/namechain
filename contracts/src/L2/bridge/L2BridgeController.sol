@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
-import {EjectionController} from "../../common/bridge/EjectionController.sol";
+import {BridgeController} from "../../common/bridge/BridgeController.sol";
 import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
@@ -19,7 +19,7 @@ import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib
  * @title L2BridgeController
  * @dev Combined controller that handles both ejection messages from L1 to L2 and ejection operations
  */
-contract L2BridgeController is EjectionController, ITokenObserver {
+contract L2BridgeController is BridgeController, ITokenObserver {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
@@ -42,14 +42,14 @@ contract L2BridgeController is EjectionController, ITokenObserver {
         IBridge bridge_,
         IPermissionedRegistry registry_,
         IRegistryDatastore datastore_
-    ) EjectionController(registry_, bridge_) {
+    ) BridgeController(registry_, bridge_) {
         DATASTORE = datastore_;
     }
 
-    /// @inheritdoc EjectionController
+    /// @inheritdoc BridgeController
     function supportsInterface(
         bytes4 interfaceId
-    ) public view virtual override(EjectionController) returns (bool) {
+    ) public view virtual override(BridgeController) returns (bool) {
         return
             interfaceId == type(ITokenObserver).interfaceId || super.supportsInterface(interfaceId);
     }

@@ -23,6 +23,12 @@
   "lib/solsha1": {
     "rev": "c4fbe97cf5e8c1b8d607001588fd23abb5bfb923"
   },
+  "lib/surge-taiko-mono": {
+    "tag": {
+      "name": "v25.1.1",
+      "rev": "e9c2ae6658ab69afe16f09d2ddca158046b47962"
+    }
+  },
   "lib/unruggable-gateways": {
     "rev": "3d68742832c68bf9a158c7bcd1aa47fad511b213"
   },
