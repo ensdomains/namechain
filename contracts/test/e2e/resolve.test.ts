@@ -27,10 +27,13 @@ import { expectVar } from "../utils/expectVar.js";
 describe("Resolve", () => {
   let env: CrossChainEnvironment;
   let resetState: CrossChainSnapshot;
-  beforeAll(async () => {
-    env = await setupCrossChainEnvironment();
-    resetState = await env.saveState();
-  });
+  beforeAll(
+    async () => {
+      env = await setupCrossChainEnvironment();
+      resetState = await env.saveState();
+    },
+    { timeout: 30000 },
+  );
   afterAll(() => env?.shutdown());
   beforeEach(() => resetState?.());
 
@@ -224,42 +227,56 @@ describe("Resolve", () => {
   });
 
   describe("DNS", () => {
-    it("onchain txt: dnstxt.raffy.xyz", () =>
-      // `dnstxt.ens.eth t[avatar]=https://raffy.xyz/ens.jpg a[e0]=0x51050ec063d393217B436747617aD1C2285Aeeee`
-      expectResolve({
-        name: "dnstxt.raffy.xyz",
-        addresses: [
-          {
-            coinType: COIN_TYPE_ETH,
-            value: "0x51050ec063d393217B436747617aD1C2285Aeeee",
-          },
-        ],
-        texts: [{ key: "avatar", value: "https://raffy.xyz/ens.jpg" }],
-      }));
+    const timeout = 20000;
 
-    it("alias replace: dnsalias.raffy.xyz => eth", () =>
-      // `dnsalias.ens.eth eth`
-      expectResolve({
-        name: "dnsalias.raffy.xyz",
-        addresses: [
-          {
-            coinType: COIN_TYPE_ETH,
-            value: env.l1.contracts.ETHTLDResolver.address,
-          },
-        ],
-      }));
+    it(
+      "onchain txt: dnstxt.raffy.xyz",
+      () =>
+        // `dnstxt.ens.eth t[avatar]=https://raffy.xyz/ens.jpg a[e0]=0x51050ec063d393217B436747617aD1C2285Aeeee`
+        expectResolve({
+          name: "dnstxt.raffy.xyz",
+          addresses: [
+            {
+              coinType: COIN_TYPE_ETH,
+              value: "0x51050ec063d393217B436747617aD1C2285Aeeee",
+            },
+          ],
+          texts: [{ key: "avatar", value: "https://raffy.xyz/ens.jpg" }],
+        }),
+      { timeout },
+    );
 
-    it("alias rewrite: dnstxt[.raffy.xyz] => dnstxt[.ens.eth]", () =>
-      // `dnsalias.ens.eth raffy.xyz ens.eth`
-      expectResolve({
-        name: "dnstxt.raffy.xyz",
-        addresses: [
-          {
-            coinType: COIN_TYPE_ETH,
-            value: "0x51050ec063d393217B436747617aD1C2285Aeeee",
-          },
-        ],
-      }));
+    it(
+      "alias replace: dnsalias-replace.raffy.xyz => eth",
+      () =>
+        // `ENS1 dnsalias-replace.ens.eth eth`
+        expectResolve({
+          name: "dnsalias-replace.raffy.xyz",
+          addresses: [
+            {
+              coinType: COIN_TYPE_ETH,
+              value: env.l1.contracts.ETHTLDResolver.address,
+            },
+          ],
+        }),
+      { timeout },
+    );
+
+    it(
+      "alias rewrite: dnsalias[.raffy.xyz] => dnsalias[.ens.eth]",
+      () =>
+        // `dnsalias.ens.eth raffy.xyz ens.eth`
+        expectResolve({
+          name: "dnsalias.raffy.xyz",
+          addresses: [
+            {
+              coinType: COIN_TYPE_ETH,
+              value: env.l1.contracts.DNSAliasResolver.address,
+            },
+          ],
+        }),
+      { timeout },
+    );
   });
 
   describe("L2", () => {
