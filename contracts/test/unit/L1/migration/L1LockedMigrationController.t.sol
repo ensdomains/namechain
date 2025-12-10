@@ -78,8 +78,12 @@ contract MockNameWrapper {
 contract MockBridge is IBridge {
     bytes public lastMessage;
 
-    function sendMessage(bytes memory message) external override {
+    function sendMessage(bytes memory message) external payable override {
         lastMessage = message;
+    }
+
+    function getMinGasLimit(bytes calldata) external pure override returns (uint32) {
+        return 100000;
     }
 
     function getLastMessage() external view returns (bytes memory) {

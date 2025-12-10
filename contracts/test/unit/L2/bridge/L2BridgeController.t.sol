@@ -13,7 +13,7 @@ import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.
 import {
     IEnhancedAccessControl
 } from "~src/common/access-control/interfaces/IEnhancedAccessControl.sol";
-import {EjectionController} from "~src/common/bridge/EjectionController.sol";
+import {BridgeController} from "~src/common/bridge/BridgeController.sol";
 import {IBridge, BridgeMessageType} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
@@ -40,9 +40,13 @@ contract MockBridge is IBridge {
     uint256 public sendMessageCallCount;
     bytes public lastMessage;
 
-    function sendMessage(bytes memory message) external override {
+    function sendMessage(bytes memory message) external payable override {
         sendMessageCallCount++;
         lastMessage = message;
+    }
+
+    function getMinGasLimit(bytes calldata) external pure override returns (uint32) {
+        return 100000;
     }
 
     function resetCounters() external {
@@ -354,7 +358,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
     }
 
     function test_supportsInterface() public view {
-        assertTrue(controller.supportsInterface(type(EjectionController).interfaceId));
+        assertTrue(controller.supportsInterface(type(BridgeController).interfaceId));
         assertTrue(controller.supportsInterface(type(IERC1155Receiver).interfaceId));
         assertTrue(controller.supportsInterface(type(ITokenObserver).interfaceId));
         assertFalse(controller.supportsInterface(0x12345678));
@@ -441,7 +445,7 @@ contract TestL2BridgeController is Test, ERC1155Holder {
 
         // User transfers the token to the bridge controller, should revert with InvalidLabel
         vm.expectRevert(
-            abi.encodeWithSelector(EjectionController.InvalidLabel.selector, tokenId, invalidLabel)
+            abi.encodeWithSelector(BridgeController.InvalidLabel.selector, tokenId, invalidLabel)
         );
         vm.prank(user);
         ethRegistry.safeTransferFrom(user, address(controller), tokenId, 1, ejectionData);

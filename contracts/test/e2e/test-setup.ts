@@ -24,7 +24,7 @@ declare global {
 }
 
 const env = await setupCrossChainEnvironment({ extraTime: 10 });
-const relay = setupMockRelay(env);
+const relay = await setupMockRelay(env);
 
 process.env.TEST_GLOBALS = {
   env,
