@@ -21,7 +21,7 @@ describe("Pre-Migration Script E2E", () => {
   const env = process.env.TEST_GLOBALS!.env;
 
   beforeAll(async () => {
-    process.env.TEST_GLOBALS!.disableStateReset();
+    await process.env.TEST_GLOBALS!.disableStateReset();
     await setupBaseRegistrarController(
       env.l1.client,
       env.l1.contracts.ETHRegistrarV1.address,

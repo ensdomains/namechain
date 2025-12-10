@@ -15,7 +15,7 @@ declare global {
         env: CrossChainEnvironment;
         relay: MockRelay;
         resetState: CrossChainSnapshot;
-        disableStateReset: () => void;
+        disableStateReset: () => Promise<void>;
         enableStateReset: () => Promise<void>;
         __canResetState: boolean;
       };
@@ -30,7 +30,8 @@ process.env.TEST_GLOBALS = {
   env,
   relay,
   resetState: await env.saveState(),
-  disableStateReset: () => {
+  disableStateReset: async () => {
+    await process.env.TEST_GLOBALS?.resetState();
     process.env.TEST_GLOBALS!.__canResetState = false;
   },
   enableStateReset: async () => {

@@ -37,13 +37,12 @@ describe("Migration", () => {
   const relay = process.env.TEST_GLOBALS!.relay;
   let resetState: CrossChainSnapshot;
   beforeAll(async () => {
+    await process.env.TEST_GLOBALS!.disableStateReset();
     // add owner as controller so we can register() directly
     const { owner } = env.namedAccounts;
     await env.l1.contracts.ETHRegistrarV1.write.addController([owner.address], {
       account: owner,
     });
-
-    process.env.TEST_GLOBALS!.disableStateReset();
     resetState = await env.saveState();
   });
 
