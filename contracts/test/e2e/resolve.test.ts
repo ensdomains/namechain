@@ -1,4 +1,4 @@
-import { describe, it, beforeAll, beforeEach, afterAll } from "bun:test";
+import { describe, it } from "bun:test";
 import {
   type Address,
   getAddress,
@@ -7,35 +7,20 @@ import {
   zeroAddress,
 } from "viem";
 
-import {
-  type CrossChainEnvironment,
-  CrossChainSnapshot,
-  setupCrossChainEnvironment,
-} from "../../script/setup.js";
-import { dnsEncodeName } from "../utils/utils.js";
-import {
-  COIN_TYPE_ETH,
-  COIN_TYPE_DEFAULT,
-  type KnownProfile,
-  makeResolutions,
-  bundleCalls,
-  getReverseName,
-} from "../utils/resolutions.js";
 import { MAX_EXPIRY } from "../../deploy/constants.js";
 import { expectVar } from "../utils/expectVar.js";
+import {
+  bundleCalls,
+  COIN_TYPE_DEFAULT,
+  COIN_TYPE_ETH,
+  getReverseName,
+  type KnownProfile,
+  makeResolutions,
+} from "../utils/resolutions.js";
+import { dnsEncodeName } from "../utils/utils.js";
 
 describe("Resolve", () => {
-  let env: CrossChainEnvironment;
-  let resetState: CrossChainSnapshot;
-  beforeAll(
-    async () => {
-      env = await setupCrossChainEnvironment();
-      resetState = await env.saveState();
-    },
-    { timeout: 30000 },
-  );
-  afterAll(() => env?.shutdown());
-  beforeEach(() => resetState?.());
+  const env = process.env.TEST_GLOBALS!.env;
 
   async function expectResolve(kp: KnownProfile) {
     const bundle = bundleCalls(makeResolutions(kp));

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import {
   encodeAbiParameters,
   getAddress,
@@ -8,11 +8,6 @@ import {
 } from "viem";
 
 import { ROLES } from "../../deploy/constants.js";
-import { type MockRelay, setupMockRelay } from "../../script/mockRelay.js";
-import {
-  type CrossChainEnvironment,
-  setupCrossChainEnvironment,
-} from "../../script/setup.js";
 import {
   dnsEncodeName,
   getCanonicalId,
@@ -20,14 +15,8 @@ import {
 } from "../utils/utils.js";
 
 describe("Bridge", () => {
-  let env: CrossChainEnvironment;
-  let relay: MockRelay;
-  beforeAll(async () => {
-    env = await setupCrossChainEnvironment();
-    relay = setupMockRelay(env);
-  });
-  afterAll(() => env?.shutdown());
-  // beforeEach(() => env?.resetState());
+  const env = process.env.TEST_GLOBALS!.env;
+  const relay = process.env.TEST_GLOBALS!.relay;
 
   it("name ejection", async () => {
     const label = "premium";
