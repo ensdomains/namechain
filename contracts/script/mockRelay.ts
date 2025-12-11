@@ -1,5 +1,5 @@
 import { type Hex, Log, parseEventLogs, TransactionReceipt } from "viem";
-import type { CrossChainEnvironment, ChainDeployment } from "./setup.js";
+import type { ChainDeployment, CrossChainEnvironment } from "./setup.js";
 
 function print(...a: unknown[]) {
   console.log("   -", ...a);

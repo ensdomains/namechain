@@ -18,7 +18,7 @@ import {
   type Transport,
   type WalletClient,
 } from "viem";
-import { waitForTransactionReceipt } from "viem/actions";
+import { waitForSuccessfulTransactionReceipt } from "../../utils/waitForSuccessfulTransactionReceipt.ts";
 
 const verifiableFactoryAbi = parseAbi([
   "function deployProxy(address implementation, uint256 salt, bytes data)",
@@ -52,7 +52,8 @@ export async function deployVerifiableProxy<
       ),
     ],
   });
-  const receipt = await waitForTransactionReceipt(walletClient, { hash });
+
+  const receipt = await waitForSuccessfulTransactionReceipt(walletClient, { hash });
   const [log] = parseEventLogs({
     abi: verifiableFactoryAbi,
     eventName: "ProxyDeployed",

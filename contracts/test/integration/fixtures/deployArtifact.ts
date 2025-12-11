@@ -11,7 +11,8 @@ import {
   type Transport,
   type WalletClient,
 } from "viem";
-import { getTransactionCount, waitForTransactionReceipt } from "viem/actions";
+import { getTransactionCount } from "viem/actions";
+import { waitForSuccessfulTransactionReceipt } from "../../utils/waitForSuccessfulTransactionReceipt.ts";
 
 type LinkReferences = Record<
   string,
@@ -73,7 +74,7 @@ export async function deployArtifact(
     bytecode,
     args: options.args,
   });
-  await waitForTransactionReceipt(walletClient, { hash });
+  await waitForSuccessfulTransactionReceipt(walletClient, { hash, ensureDeployment: true });
   return getContractAddress({
     from: walletClient.account.address,
     nonce,

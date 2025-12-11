@@ -38,7 +38,6 @@ describe("Bridge", () => {
       roleBitmap,
       expiryTime,
     ]);
-    await env.l2.client.waitForTransactionReceipt({ hash: registerTx });
     console.log(`Name registered on L2, tx hash: ${registerTx}`);
 
     const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
@@ -122,7 +121,6 @@ describe("Bridge", () => {
       roleBitmap,
       expiryTime,
     ]);
-    await env.l2.client.waitForTransactionReceipt({ hash: registerTx });
     console.log(`Name registered on L2, tx hash: ${registerTx}`);
 
     const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
