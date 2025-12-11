@@ -78,10 +78,21 @@ contract ETHTLDResolver is
     // Types
     ////////////////////////////////////////////////////////////////////////
 
+    /// @dev Determines how a name should be resolved.
     enum NameState {
+        // name is on namechain
         NAMECHAIN,
+        // name is in-flight to namechain but still in V1
         PRE_MIGRATION, // = address(0x1)
+        // name is in-flight to nanechain and unregistered in V2
         POST_EJECTION //  = address(0x2)
+    }
+
+    /// @dev Determines if the default EVM address should be included.
+    enum DefaultEVMState {
+        ABSENT, // no addr(evm) => no default needed
+        NEED, // there is addr(evm) but no default
+        HAVE // there is addr(evm:0)
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -408,8 +419,10 @@ contract ETHTLDResolver is
             _EXIT_CODE_NO_RESOLVER
         ); // is this a real resolver?
         req.pushOutput(1).target(); // target resolver
+        req.push(DedicatedResolverLib.NAMED_SLOT); // save slot offset
         req.push(bytes("")).dup().setOutput(0).setOutput(1); // clear outputs
         uint8 errorCount; // number of errors
+        DefaultEVMState evmState = DefaultEVMState.ABSENT;
         for (uint8 i; i < m.length; ++i) {
             bytes memory v = m[i];
             bytes4 selector = bytes4(v);
@@ -425,17 +438,20 @@ contract ETHTLDResolver is
                 uint256 coinType = selector == IAddrResolver.addr.selector
                     ? COIN_TYPE_ETH
                     : uint256(BytesUtils.readBytes32(v, 36));
-                req
-                    .setSlot(DedicatedResolverLib.SLOT_ADDRESSES)
-                    .push(coinType)
-                    .follow()
-                    .readBytes(); // _addresses[coinType]
-                if (ENSIP19.chainFromCoinType(coinType) > 0) {
-                    req.dup().length().isZero().pushOutput(max).plus().setOutput(uint8(max)); // count missing
+                req.pushStack(0).push(DedicatedResolverLib.OFFSET_ADDRESSES).plus().slot();
+                req.push(coinType).follow().readBytes(); // _addresses[coinType]
+                if (evmState != DefaultEVMState.HAVE) {
+                    if (coinType == COIN_TYPE_DEFAULT) {
+                        evmState = DefaultEVMState.HAVE;
+                        req.dup().setOutput(max); // copy to end
+                    } else if (ENSIP19.chainFromCoinType(coinType) > 0) {
+                        evmState = DefaultEVMState.NEED;
+                    }
                 }
             } else if (selector == IHasAddressResolver.hasAddr.selector) {
                 uint256 coinType = uint256(BytesUtils.readBytes32(v, 36));
-                req.setSlot(DedicatedResolverLib.SLOT_ADDRESSES).push(coinType).follow().read(); // _addresses[coinType] head slot
+                req.pushStack(0).push(DedicatedResolverLib.OFFSET_ADDRESSES).plus().slot();
+                req.push(coinType).follow().read(); // _addresses[coinType] head slot
             } else if (selector == ITextResolver.text.selector) {
                 (, string memory key) = abi.decode(
                     BytesUtils.substring(v, 4, v.length - 4),
@@ -444,21 +460,28 @@ contract ETHTLDResolver is
                 // uint256 jump = 4 + uint256(BytesUtils.readBytes32(v, 36));
                 // uint256 size = uint256(BytesUtils.readBytes32(v, jump));
                 // bytes memory key = BytesUtils.substring(v, jump + 32, size);
-                req.setSlot(DedicatedResolverLib.SLOT_TEXTS).push(key).follow().readBytes(); // _texts[key]
+                req.pushStack(0).push(DedicatedResolverLib.OFFSET_TEXTS).plus().slot();
+                req.push(key).follow().readBytes(); // _texts[key]
             } else if (selector == IContentHashResolver.contenthash.selector) {
-                req.setSlot(DedicatedResolverLib.SLOT_CONTENTHASH).readBytes(); // _contenthash
+                req.pushStack(0).push(DedicatedResolverLib.OFFSET_CONTENTHASH).plus().slot();
+                req.readBytes(); // _contenthash
             } else if (selector == INameResolver.name.selector) {
-                req.setSlot(DedicatedResolverLib.SLOT_NAME).readBytes(); // _primary
+                req.pushStack(0).push(DedicatedResolverLib.OFFSET_NAME).plus().slot();
+                req.readBytes(); // _primary
             } else if (selector == IPubkeyResolver.pubkey.selector) {
-                req.setSlot(DedicatedResolverLib.SLOT_PUBKEY).read(2); // _pubkey (x and y)
+                req.pushStack(0).push(DedicatedResolverLib.OFFSET_PUBKEY).plus().slot();
+                req.read(2); // _pubkey (x and y)
             } else if (selector == IInterfaceResolver.interfaceImplementer.selector) {
                 bytes4 interfaceID = bytes4(BytesUtils.readBytes32(v, 36));
-                req.setSlot(DedicatedResolverLib.SLOT_INTERFACES).push(interfaceID).follow().read(); // _interfaces[interfaceID]
+                req.pushStack(0).push(DedicatedResolverLib.OFFSET_INTERFACES).plus().slot();
+                req.push(interfaceID).follow().read(); // _interfaces[interfaceID]
             } else if (selector == IABIResolver.ABI.selector) {
                 uint256 bits = uint256(BytesUtils.readBytes32(v, 36));
+                uint256 count;
                 for (uint256 contentType = 1 << 255; contentType > 0; contentType >>= 1) {
                     if ((bits & contentType) != 0) {
                         req.push(contentType); // stack overflow if too many bits
+                        ++count;
                     }
                 }
                 // program to check one stored abi
@@ -467,8 +490,8 @@ contract ETHTLDResolver is
                 cmd.dup().length().assertNonzero(1); // require length > 0
                 cmd.concat().setOutput(i); // save contentType + bytes
                 req.push(cmd);
-                req.setSlot(DedicatedResolverLib.SLOT_ABIS);
-                req.evalLoop(EvalFlag.STOP_ON_SUCCESS);
+                req.pushStack(0).push(DedicatedResolverLib.OFFSET_ABIS).plus().slot();
+                req.evalLoop(EvalFlag.STOP_ON_SUCCESS, count);
                 continue;
             } else {
                 ++errorCount;
@@ -487,13 +510,11 @@ contract ETHTLDResolver is
                 }
             }
         }
-        req.pushOutput(max).requireNonzero(0); // stop if no missing
-        req
-            .setSlot(DedicatedResolverLib.SLOT_ADDRESSES)
-            .push(COIN_TYPE_DEFAULT)
-            .follow()
-            .readBytes(); // _addresses[COIN_TYPE_DEFAULT]
-        req.setOutput(uint8(max)); // save default address at end
+        if (evmState == DefaultEVMState.NEED) {
+            req.pushStack(0).push(DedicatedResolverLib.OFFSET_ADDRESSES).plus().slot(); // load slot offset
+            req.push(COIN_TYPE_DEFAULT).follow().readBytes(); // _addresses[COIN_TYPE_DEFAULT]
+            req.setOutput(max); // save default address at end
+        }
         fetch(
             namechainVerifier,
             req,

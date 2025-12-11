@@ -185,7 +185,10 @@ contract DedicatedResolverTest is StorageTester {
             addressBytes,
             readBytes(
                 address(resolver),
-                follow(DedicatedResolverLib.SLOT_ADDRESSES, abi.encode(coinType))
+                follow(
+                    DedicatedResolverLib.NAMED_SLOT + DedicatedResolverLib.OFFSET_ADDRESSES,
+                    abi.encode(coinType)
+                )
             ),
             "storage"
         );
@@ -280,7 +283,13 @@ contract DedicatedResolverTest is StorageTester {
 
         assertEq(
             bytes(value),
-            readBytes(address(resolver), follow(DedicatedResolverLib.SLOT_TEXTS, bytes(key))),
+            readBytes(
+                address(resolver),
+                follow(
+                    DedicatedResolverLib.NAMED_SLOT + DedicatedResolverLib.OFFSET_TEXTS,
+                    bytes(key)
+                )
+            ),
             "storage"
         );
     }
@@ -308,7 +317,10 @@ contract DedicatedResolverTest is StorageTester {
 
         assertEq(
             bytes(name),
-            readBytes(address(resolver), DedicatedResolverLib.SLOT_NAME),
+            readBytes(
+                address(resolver),
+                DedicatedResolverLib.NAMED_SLOT + DedicatedResolverLib.OFFSET_NAME
+            ),
             "storage"
         );
     }
@@ -336,7 +348,14 @@ contract DedicatedResolverTest is StorageTester {
         );
         assertEq(abi.decode(result, (bytes)), v, "extended");
 
-        assertEq(v, readBytes(address(resolver), DedicatedResolverLib.SLOT_CONTENTHASH), "storage");
+        assertEq(
+            v,
+            readBytes(
+                address(resolver),
+                DedicatedResolverLib.NAMED_SLOT + DedicatedResolverLib.OFFSET_CONTENTHASH
+            ),
+            "storage"
+        );
     }
 
     function test_setContenthash_notAuthorized() external {
@@ -365,12 +384,18 @@ contract DedicatedResolverTest is StorageTester {
 
         assertEq(
             x,
-            vm.load(address(resolver), bytes32(DedicatedResolverLib.SLOT_PUBKEY)),
+            vm.load(
+                address(resolver),
+                bytes32(DedicatedResolverLib.NAMED_SLOT + DedicatedResolverLib.OFFSET_PUBKEY)
+            ),
             "storage[0]"
         );
         assertEq(
             y,
-            vm.load(address(resolver), bytes32(DedicatedResolverLib.SLOT_PUBKEY + 1)),
+            vm.load(
+                address(resolver),
+                bytes32(DedicatedResolverLib.NAMED_SLOT + DedicatedResolverLib.OFFSET_PUBKEY + 1)
+            ),
             "storage[1]"
         );
     }
@@ -407,7 +432,10 @@ contract DedicatedResolverTest is StorageTester {
             data,
             readBytes(
                 address(resolver),
-                follow(DedicatedResolverLib.SLOT_ABIS, abi.encode(contentType))
+                follow(
+                    DedicatedResolverLib.NAMED_SLOT + DedicatedResolverLib.OFFSET_ABIS,
+                    abi.encode(contentType)
+                )
             ),
             "storage"
         );
@@ -458,7 +486,12 @@ contract DedicatedResolverTest is StorageTester {
             bytes32(uint256(uint160(impl))),
             vm.load(
                 address(resolver),
-                bytes32(follow(DedicatedResolverLib.SLOT_INTERFACES, abi.encode(interfaceId)))
+                bytes32(
+                    follow(
+                        DedicatedResolverLib.NAMED_SLOT + DedicatedResolverLib.OFFSET_INTERFACES,
+                        abi.encode(interfaceId)
+                    )
+                )
             ),
             "storage"
         );
@@ -677,7 +710,7 @@ contract DedicatedResolverTest is StorageTester {
 
     //     assertEq(
     //         text,
-    //         string(readBytes(follow(DedicatedResolverLib.SLOT_TEXTS, bytes(text)))),
+    //         string(readBytes(follow(DedicatedResolverLib.NAMED_SLOT + DedicatedResolverLib.OFFSET_TEXTS, bytes(text)))),
     //         "text"
     //     );
     // }
