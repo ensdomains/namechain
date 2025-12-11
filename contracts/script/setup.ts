@@ -16,7 +16,7 @@ import {
   testActions,
   type Transport,
   webSocket,
-  zeroAddress
+  zeroAddress,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 
@@ -25,7 +25,11 @@ import { WebSocketProvider } from "ethers/providers";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 
-import type { RockethArguments, RockethL1Arguments } from "./types.js";
+import {
+  LOCAL_BATCH_GATEWAY_URL,
+  MAX_EXPIRY,
+  ROLES,
+} from "../deploy/constants.js";
 import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
 import {
   computeVerifiableProxyAddress,
@@ -34,11 +38,7 @@ import {
 import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
 import { waitForSuccessfulTransactionReceipt } from "../test/utils/waitForSuccessfulTransactionReceipt.ts";
 import { patchArtifactsV1 } from "./patchArtifactsV1.js";
-import {
-  LOCAL_BATCH_GATEWAY_URL,
-  MAX_EXPIRY,
-  ROLES,
-} from "../deploy/constants.js";
+import type { RockethArguments, RockethL1Arguments } from "./types.js";
 
 /**
  * Default chain IDs for devnet environment
@@ -145,7 +145,7 @@ function createClient(transport: Transport, chain: Chain, account: Account) {
     transport,
     chain,
     account,
-    pollingInterval: 100,
+    pollingInterval: 1,
     cacheTime: 0, // must be 0 due to client caching
   })
     .extend(publicActions)
@@ -197,8 +197,10 @@ export class ChainDeployment<
           abi,
           address: deployment.address,
           client,
-        }) as { write?: Record<string, (...parameters: unknown[]) => Promise<Hash>> } & Record<string, unknown>;
-        if ('write' in contract) {
+        }) as {
+          write?: Record<string, (...parameters: unknown[]) => Promise<Hash>>;
+        } & Record<string, unknown>;
+        if ("write" in contract) {
           const write = contract.write!;
           // override to ensure successful transaction
           // otherwise, success is being assumed based on an eth_estimateGas call
@@ -207,16 +209,14 @@ export class ChainDeployment<
             {},
             {
               get(_, functionName: string) {
-                return async (
-                  ...parameters: unknown[]
-                ) => {
+                return async (...parameters: unknown[]) => {
                   const hash = await write[functionName](...parameters);
                   await waitForSuccessfulTransactionReceipt(client, { hash });
                   return hash;
-                }
+                };
               },
             },
-          )
+          );
         }
         return [name, contract];
       }),
@@ -258,7 +258,10 @@ export class ChainDeployment<
         roles,
       ],
     });
-    const receipt = await waitForSuccessfulTransactionReceipt(client, { hash, ensureDeployment: true });
+    const receipt = await waitForSuccessfulTransactionReceipt(client, {
+      hash,
+      ensureDeployment: true,
+    });
     return getContract({
       abi,
       address: receipt.contractAddress,
@@ -361,8 +364,10 @@ export async function setupCrossChainEnvironment({
     const baseArgs = {
       accounts: extraAccounts,
       mnemonic,
-      ...(extraTime ? { timestamp: Math.floor(Date.now() / 1000) - extraTime } : {}),
-    }
+      ...(extraTime
+        ? { timestamp: Math.floor(Date.now() / 1000) - extraTime }
+        : {}),
+    };
     const l1Anvil = createAnvil({
       ...baseArgs,
       chainId: l1ChainId,
@@ -574,7 +579,7 @@ export async function setupCrossChainEnvironment({
     (l1 as any).rx = l2;
     (l2 as any).rx = l1;
 
-    const { extendedDNSResolverAddress } = await setupEnsDotEth(l1, deployer);
+    await setupEnsDotEth(l1, deployer);
     console.log("Setup ens.eth");
 
     //await setupBridgeBlacklists(l1, l2);
@@ -584,6 +589,12 @@ export async function setupCrossChainEnvironment({
 
     await sync();
     console.log("Deployed ENSv2");
+
+    type RecursiveCrossChainSnapshot =
+      () => Promise<RecursiveCrossChainSnapshot>;
+    let executionChain: Promise<void | CrossChainSnapshot> = new Promise(
+      (resolve) => resolve(),
+    );
 
     return {
       accounts,
@@ -595,7 +606,6 @@ export async function setupCrossChainEnvironment({
         gatewayURL: ccip.endpoint,
         verifierAddress,
       },
-      extendedDNSResolverAddress,
       sync,
       waitFor,
       shutdown,
@@ -611,26 +621,44 @@ export async function setupCrossChainEnvironment({
     async function waitFor(hash: Future<Hex>) {
       hash = await hash;
       const chain = await findChain(hash);
-      const receipt = await waitForSuccessfulTransactionReceipt(chain.client, { hash });
+      const receipt = await waitForSuccessfulTransactionReceipt(chain.client, {
+        hash,
+      });
       return { receipt, chain };
     }
     async function saveState(): Promise<CrossChainSnapshot> {
-      const fs = await Promise.all(
-        [l1Client, l2Client].map(async (c) => {
-          let state = await c.request({ method: "evm_snapshot" } as any);
-          return async () => {
-            const ok = await c.request({
-              method: "evm_revert",
-              params: [state],
-            } as any);
-            if (!ok) throw new Error("revert failed");
-            // apparently the snapshots cannot be reused
-            state = await c.request({ method: "evm_snapshot" } as any);
-          };
-        }),
-      );
+      executionChain = executionChain.then(() => _saveState());
+      return executionChain as Promise<CrossChainSnapshot>;
+    }
+    async function _saveState(): Promise<CrossChainSnapshot> {
+      const saveStateForClient = async (
+        c: CrossChainClient,
+        i: number,
+        recursiveIndex: number = 0,
+      ): Promise<RecursiveCrossChainSnapshot> => {
+        let state = await c.request({ method: "evm_snapshot" } as any);
+        const systemTime = Math.floor(Date.now() / 1000);
+        await c.setNextBlockTimestamp({ timestamp: BigInt(systemTime) });
+        await c.mine({ blocks: 1 });
+        return async () => {
+          const ok = await c.request({
+            method: "evm_revert",
+            params: [state],
+          } as any);
+          if (!ok) throw new Error("revert failed");
+          return await saveStateForClient(c, i, recursiveIndex + 1);
+        };
+      };
+      let fs: RecursiveCrossChainSnapshot[] = [];
+      const cs = [l1Client, l2Client];
+      for (let i = 0; i < 2; i++) {
+        const c = cs[i];
+        fs.push(await saveStateForClient(c, i));
+      }
       return async () => {
-        await Promise.all(fs.map((f) => f()));
+        for (let i = 0; i < fs.length; i++) {
+          fs[i] = await fs[i]();
+        }
       };
     }
     async function sync({
@@ -698,13 +726,15 @@ async function setupEnsDotEth(l1: L1Deployment, account: Account) {
 
   // create "dnsname.ens.eth"
   // https://etherscan.io/address/0x08769D484a7Cd9c4A98E928D9E270221F3E8578c#code
-  const extendedDNSResolverAddress = await deployArtifact(l1.client, {
-    file: new URL(
-      "../test/integration/l1/dns/ExtendedDNSResolver_53f64de872aad627467a34836be1e2b63713a438.json",
-      import.meta.url,
-    ),
-  });
-  await setupNamedResolver("dnsname", extendedDNSResolverAddress);
+  await setupNamedResolver(
+    "dnsname",
+    await deployArtifact(l1.client, {
+      file: new URL(
+        "../test/integration/l1/dns/ExtendedDNSResolver_53f64de872aad627467a34836be1e2b63713a438.json",
+        import.meta.url,
+      ),
+    }),
+  );
 
   // // create "dnsname2.ens.eth" (was never named?)
   // // https://etherscan.io/address/0x08769D484a7Cd9c4A98E928D9E270221F3E8578c#code
@@ -736,47 +766,57 @@ async function setupEnsDotEth(l1: L1Deployment, account: Account) {
       MAX_EXPIRY,
     ]);
   }
-
-  return { extendedDNSResolverAddress };
 }
 
-async function setupBridgeConfiguration(l1: L1Deployment, l2: L2Deployment, deployer: Account) {
+async function setupBridgeConfiguration(
+  l1: L1Deployment,
+  l2: L2Deployment,
+  deployer: Account,
+) {
   // Configure bridge relationships for cross-chain messaging
   console.log("Configuring bridge relationships...");
   console.log("L1SurgeBridge:", l1.contracts.L1SurgeBridge.address);
   console.log("L2SurgeBridge:", l2.contracts.L2SurgeBridge.address);
   console.log("L1BridgeController:", l1.contracts.L1BridgeController.address);
   console.log("L2BridgeController:", l2.contracts.L2BridgeController.address);
-  
+
   // Grant ROLE_SET_BRIDGE to deployer so they can call setBridge
   // ROLE_SET_BRIDGE = 1 << 4 = 16 (from BridgeRolesLib.sol)
   const ROLE_SET_BRIDGE = 1n << 4n;
   await l1.contracts.L1BridgeController.write.grantRootRoles([
     ROLE_SET_BRIDGE,
-    deployer.address
+    deployer.address,
   ]);
   await l2.contracts.L2BridgeController.write.grantRootRoles([
     ROLE_SET_BRIDGE,
-    deployer.address
+    deployer.address,
   ]);
-  
+
   // Configure bridge controllers to point to their respective bridges
-  await l1.contracts.L1BridgeController.write.setBridge([l1.contracts.L1SurgeBridge.address]);
-  await l2.contracts.L2BridgeController.write.setBridge([l2.contracts.L2SurgeBridge.address]);
-  
+  await l1.contracts.L1BridgeController.write.setBridge([
+    l1.contracts.L1SurgeBridge.address,
+  ]);
+  await l2.contracts.L2BridgeController.write.setBridge([
+    l2.contracts.L2SurgeBridge.address,
+  ]);
+
   // Grant bridge roles to the bridges on their respective bridge controllers
   await l1.contracts.L1BridgeController.write.grantRootRoles([
     ROLES.OWNER.BRIDGE.EJECTOR,
-    l1.contracts.L1SurgeBridge.address
+    l1.contracts.L1SurgeBridge.address,
   ]);
   await l2.contracts.L2BridgeController.write.grantRootRoles([
     ROLES.OWNER.BRIDGE.EJECTOR,
-    l2.contracts.L2SurgeBridge.address
+    l2.contracts.L2SurgeBridge.address,
   ]);
-  
+
   // Configure destination bridge addresses for cross-chain messaging
-  await l1.contracts.L1SurgeBridge.write.setDestBridgeAddress([l2.contracts.L2SurgeBridge.address]);
-  await l2.contracts.L2SurgeBridge.write.setDestBridgeAddress([l1.contracts.L1SurgeBridge.address]);
-  
+  await l1.contracts.L1SurgeBridge.write.setDestBridgeAddress([
+    l2.contracts.L2SurgeBridge.address,
+  ]);
+  await l2.contracts.L2SurgeBridge.write.setDestBridgeAddress([
+    l1.contracts.L1SurgeBridge.address,
+  ]);
+
   console.log("✓ Bridge configuration complete");
 }

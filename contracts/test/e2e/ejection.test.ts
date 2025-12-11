@@ -1,12 +1,6 @@
-import { describe, it, beforeAll, beforeEach, afterAll } from "bun:test";
+import { describe, it } from "bun:test";
 import { encodeAbiParameters } from "viem";
 
-import {
-  type CrossChainEnvironment,
-  type CrossChainSnapshot,
-  setupCrossChainEnvironment,
-} from "../../script/setup.js";
-import { type MockRelay, setupMockRelay } from "../../script/mockRelay.js";
 import { ROLES } from "../../deploy/constants.js";
 import { dnsEncodeName } from "../utils/utils.js";
 
@@ -33,20 +27,9 @@ const RESOLVER = "0x2222222222222222222222222222222222222222";
 
 // TODO: finish this after migration tests
 describe("Ejection", () => {
-  let env: CrossChainEnvironment;
-  let relay: MockRelay;
-  let resetState: CrossChainSnapshot;
-  beforeAll(async () => {
-    env = await setupCrossChainEnvironment({ procLog: true });
-    relay = await setupMockRelay(env);
-    resetState = await env.saveState();
-  });
-
-  afterAll(() => {
-    relay?.removeListeners();
-    env?.shutdown();
-  });
-  beforeEach(() => resetState?.());
+  const env = process.env.TEST_GLOBALS!.env;
+  const relay = process.env.TEST_GLOBALS!.relay;
+  const resetState = process.env.TEST_GLOBALS!.resetState;
 
   it("2LD => L1", async () => {
     const account = env.namedAccounts.user2;

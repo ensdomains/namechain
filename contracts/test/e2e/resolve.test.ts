@@ -1,4 +1,4 @@
-import { describe, it, beforeAll, beforeEach, afterAll } from "bun:test";
+import { describe, it } from "bun:test";
 import {
   type Address,
   getAddress,
@@ -7,32 +7,20 @@ import {
   zeroAddress,
 } from "viem";
 
-import {
-  type CrossChainEnvironment,
-  CrossChainSnapshot,
-  setupCrossChainEnvironment,
-} from "../../script/setup.js";
-import { dnsEncodeName } from "../utils/utils.js";
-import {
-  COIN_TYPE_ETH,
-  COIN_TYPE_DEFAULT,
-  type KnownProfile,
-  makeResolutions,
-  bundleCalls,
-  getReverseName,
-} from "../utils/resolutions.js";
 import { MAX_EXPIRY } from "../../deploy/constants.js";
 import { expectVar } from "../utils/expectVar.js";
+import {
+  bundleCalls,
+  COIN_TYPE_DEFAULT,
+  COIN_TYPE_ETH,
+  getReverseName,
+  type KnownProfile,
+  makeResolutions,
+} from "../utils/resolutions.js";
+import { dnsEncodeName } from "../utils/utils.js";
 
 describe("Resolve", () => {
-  let env: CrossChainEnvironment;
-  let resetState: CrossChainSnapshot;
-  beforeAll(async () => {
-    env = await setupCrossChainEnvironment();
-    resetState = await env.saveState();
-  });
-  afterAll(() => env?.shutdown());
-  beforeEach(() => resetState?.());
+  const env = process.env.TEST_GLOBALS!.env;
 
   async function expectResolve(kp: KnownProfile) {
     const bundle = bundleCalls(makeResolutions(kp));
@@ -71,13 +59,24 @@ describe("Resolve", () => {
         ],
       }));
 
-    it("dnsname.ens.eth + addr() => ExtendedDNSResolver", () =>
+    it("dnstxt.ens.eth + addr() => DNSTXTResolver", () =>
       expectResolve({
-        name: "dnsname.ens.eth",
+        name: "dnstxt.ens.eth",
         addresses: [
           {
             coinType: COIN_TYPE_ETH,
-            value: env.extendedDNSResolverAddress,
+            value: env.l1.contracts.DNSTXTResolver.address,
+          },
+        ],
+      }));
+
+    it("dnsalias.ens.eth + addr() => DNSAliasResolver", () =>
+      expectResolve({
+        name: "dnsalias.ens.eth",
+        addresses: [
+          {
+            coinType: COIN_TYPE_ETH,
+            value: env.l1.contracts.DNSAliasResolver.address,
           },
         ],
       }));
@@ -225,10 +224,23 @@ describe("Resolve", () => {
         ],
       }));
 
-    it("alias replace: dnsalias.raffy.xyz => eth", () =>
-      // `dnsalias.ens.eth eth`
+    it("onchain txt: dnstxt.raffy.xyz", () =>
+      // `dnstxt.ens.eth t[avatar]=https://raffy.xyz/ens.jpg a[e0]=0x51050ec063d393217B436747617aD1C2285Aeeee`
       expectResolve({
-        name: "dnsalias.raffy.xyz",
+        name: "dnstxt.raffy.xyz",
+        addresses: [
+          {
+            coinType: COIN_TYPE_ETH,
+            value: "0x51050ec063d393217B436747617aD1C2285Aeeee",
+          },
+        ],
+        texts: [{ key: "avatar", value: "https://raffy.xyz/ens.jpg" }],
+      }));
+
+    it("alias replace: dnsalias-replace.raffy.xyz => eth", () =>
+      // `ENS1 dnsalias-replace.ens.eth eth`
+      expectResolve({
+        name: "dnsalias-replace.raffy.xyz",
         addresses: [
           {
             coinType: COIN_TYPE_ETH,
@@ -237,14 +249,14 @@ describe("Resolve", () => {
         ],
       }));
 
-    it("alias rewrite: dnsname[.raffy.xyz] => dnsname[.ens.eth]", () =>
-      // `dnsalias.ens.eth raffy.xyz ens.eth` - rewrites to dnsname.ens.eth which uses ExtendedDNSResolver
+    it("alias rewrite: dnsalias[.raffy.xyz] => dnsalias[.ens.eth]", () =>
+      // `dnsalias.ens.eth raffy.xyz ens.eth`
       expectResolve({
-        name: "dnsname.raffy.xyz",
+        name: "dnsalias.raffy.xyz",
         addresses: [
           {
             coinType: COIN_TYPE_ETH,
-            value: env.extendedDNSResolverAddress,
+            value: env.l1.contracts.DNSAliasResolver.address,
           },
         ],
       }));

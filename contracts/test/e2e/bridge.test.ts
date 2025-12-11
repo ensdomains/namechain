@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import {
   encodeAbiParameters,
   getAddress,
@@ -8,30 +8,15 @@ import {
 } from "viem";
 
 import { ROLES } from "../../deploy/constants.js";
-import { type MockRelay, setupMockRelay } from "../../script/mockRelay.js";
-import {
-  type CrossChainEnvironment,
-  setupCrossChainEnvironment,
-} from "../../script/setup.js";
 import {
   dnsEncodeName,
   getCanonicalId,
   labelToCanonicalId,
 } from "../utils/utils.js";
-import { waitForSuccessfulTransactionReceipt } from "../utils/waitForSuccessfulTransactionReceipt.ts";
 
 describe("Bridge", () => {
-  let env: CrossChainEnvironment;
-  let relay: MockRelay;
-  beforeAll(async () => {
-    env = await setupCrossChainEnvironment();
-    relay = await setupMockRelay(env);
-  });
-  afterAll(() => {
-    relay?.removeListeners();
-    env?.shutdown();
-  });
-  // beforeEach(() => env?.resetState());
+  const env = process.env.TEST_GLOBALS!.env;
+  const relay = process.env.TEST_GLOBALS!.relay;
 
   it("name ejection", async () => {
     const label = "premium";
@@ -53,7 +38,6 @@ describe("Bridge", () => {
       roleBitmap,
       expiryTime,
     ]);
-    await waitForSuccessfulTransactionReceipt(env.l2.client, { hash: registerTx });
     console.log(`Name registered on L2, tx hash: ${registerTx}`);
 
     const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([
@@ -137,7 +121,6 @@ describe("Bridge", () => {
       roleBitmap,
       expiryTime,
     ]);
-    await waitForSuccessfulTransactionReceipt(env.l2.client, { hash: registerTx });
     console.log(`Name registered on L2, tx hash: ${registerTx}`);
 
     const [tokenId] = await env.l2.contracts.ETHRegistry.read.getNameData([

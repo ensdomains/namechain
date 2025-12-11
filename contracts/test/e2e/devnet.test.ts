@@ -1,29 +1,10 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { toHex } from "viem";
 import { expectVar } from "../utils/expectVar.js";
 
-import {
-  type CrossChainEnvironment,
-  type CrossChainSnapshot,
-  setupCrossChainEnvironment,
-} from "../../script/setup.js";
-
 describe("Devnet", () => {
-  let env: CrossChainEnvironment;
-  let resetState: CrossChainSnapshot;
-  beforeAll(async () => {
-    env = await setupCrossChainEnvironment();
-    resetState = await env.saveState();
-  });
-  afterAll(() => env?.shutdown());
-  beforeEach(() => resetState?.());
+  const env = process.env.TEST_GLOBALS!.env;
+  const resetState = process.env.TEST_GLOBALS!.resetState;
 
   function blocks() {
     return Promise.all([env.l1.client, env.l2.client].map((x) => x.getBlock()));
