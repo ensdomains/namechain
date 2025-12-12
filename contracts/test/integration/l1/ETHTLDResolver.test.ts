@@ -817,7 +817,7 @@ describe("ETHTLDResolver", () => {
           const max = 10;
           const kp: KnownProfile = {
             name,
-            addresses: [{ coinType: COIN_TYPE_ETH, value: testAddress }], // 1 proof
+            addresses: [{ coinType: 0n, value: testAddress }], // 1 proof
           };
           try {
             F.gateway.rollup.configure = (c) => {
