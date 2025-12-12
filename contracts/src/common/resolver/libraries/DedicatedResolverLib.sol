@@ -15,13 +15,13 @@ library DedicatedResolverLib {
 
     uint256 internal constant NAMED_SLOT = uint256(keccak256("eth.ens.storage.DedicatedResolver"));
 
-    uint256 internal constant OFFSET_ADDRESSES = 0; // addresses
-    uint256 internal constant OFFSET_TEXTS = 1; // texts
-    uint256 internal constant OFFSET_CONTENTHASH = 2; // contenthash
-    uint256 internal constant OFFSET_PUBKEY = 3; // pubkey[2]
-    uint256 internal constant OFFSET_ABIS = 5; // abis
-    uint256 internal constant OFFSET_INTERFACES = 6; // interfaces
-    uint256 internal constant OFFSET_NAME = 7; // name
+    uint8 internal constant OFFSET_ADDRESSES = 0; // addresses
+    uint8 internal constant OFFSET_TEXTS = 1; // texts
+    uint8 internal constant OFFSET_CONTENTHASH = 2; // contenthash
+    uint8 internal constant OFFSET_PUBKEY = 3; // pubkey[2]
+    uint8 internal constant OFFSET_ABIS = 5; // abis
+    uint8 internal constant OFFSET_INTERFACES = 6; // interfaces
+    uint8 internal constant OFFSET_NAME = 7; // name
 
     uint256 internal constant ROLE_SET_ADDR = 1 << 0;
     uint256 internal constant ROLE_SET_ADDR_ADMIN = ROLE_SET_ADDR << 128;

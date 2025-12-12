@@ -80,11 +80,11 @@ contract ETHTLDResolver is
 
     /// @dev Determines how a name should be resolved.
     enum NameState {
-        // name is on namechain
+        // name is on Namechain
         NAMECHAIN,
-        // name is in-flight to namechain but still in V1
+        // name is in-flight to Namechain and last resolver in Mainnet V1
         PRE_MIGRATION, // = address(0x1)
-        // name is in-flight to nanechain and unregistered in V2
+        // name is in-flight to Namechain and last resolver in Mainnet V2
         POST_EJECTION //  = address(0x2)
     }
 
