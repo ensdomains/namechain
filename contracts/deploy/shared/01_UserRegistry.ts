@@ -5,21 +5,25 @@ export default execute(
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
 
+    const hcaFactory =
+      get<(typeof artifacts.MockHCAFactoryBasic)["abi"]>("HCAFactory");
+
     const registryMetadata = get<
       (typeof artifacts.SimpleRegistryMetadata)["abi"]
     >("SimpleRegistryMetadata");
 
-    await deploy("UserRegistryImpl", {
+    await deploy("UserRegistry", {
       account: deployer,
       artifact: artifacts.UserRegistry,
       args: [
         registryDatastore.address,
+        hcaFactory.address,
         registryMetadata.address,
       ],
     });
   },
   {
     tags: ["UserRegistry", "shared"],
-    dependencies: ["RegistryDatastore", "RegistryMetadata"],
+    dependencies: ["RegistryDatastore", "HCAFactory", "RegistryMetadata"],
   },
 );

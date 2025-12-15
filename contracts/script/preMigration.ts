@@ -2,33 +2,33 @@
 
 import { artifacts } from "@rocketh";
 import { Command } from "commander";
-import { writeFileSync, existsSync, readFileSync, rmSync, createReadStream } from "node:fs";
+import { createReadStream, existsSync, readFileSync, writeFileSync } from "node:fs";
 import {
-  createWalletClient,
   createPublicClient,
-  http,
-  type Address,
-  type Hash,
-  zeroAddress,
+  createWalletClient,
   getContract,
+  http,
   keccak256,
-  toHex,
   publicActions,
+  toHex,
+  zeroAddress,
+  type Address
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
-import {
-  Logger,
-  red,
-  green,
-  yellow,
-  blue,
-  cyan,
-  magenta,
-  bold,
-  dim,
-} from "./logger.js";
 import { ROLES } from "../deploy/constants.js";
+import { waitForSuccessfulTransactionReceipt } from "../test/utils/waitForSuccessfulTransactionReceipt.ts";
+import {
+  blue,
+  bold,
+  cyan,
+  dim,
+  green,
+  Logger,
+  magenta,
+  red,
+  yellow,
+} from "./logger.js";
 
 // Helper function to determine if an error is retriable
 function isRetriableError(error: any): boolean {
@@ -395,7 +395,7 @@ export async function deployBatchRegistrar(
     args: [registryAddress],
   });
 
-  const receipt = await client.waitForTransactionReceipt({ hash });
+  const receipt = await waitForSuccessfulTransactionReceipt(client, { hash, ensureDeployment: true });
   const deployedAddress = receipt.contractAddress;
 
   logger.success(`BatchRegistrar deployed at ${deployedAddress}`);
@@ -571,7 +571,7 @@ async function fetchAndRegisterInBatches(
       requiredRoles,
       batchRegistrarAddress,
     ]);
-    await client.waitForTransactionReceipt({ hash });
+    await waitForSuccessfulTransactionReceipt(client, { hash });
     logger.success("REGISTRAR and RENEW roles granted to BatchRegistrar");
   } else {
     logger.info("BatchRegistrar already has REGISTRAR and RENEW roles");
@@ -756,7 +756,7 @@ async function processBatch(
 
     try {
       const hash = await batchRegistrar.write.batchRegister([batchNames]);
-      await client.waitForTransactionReceipt({ hash });
+      await waitForSuccessfulTransactionReceipt(client, { hash });
 
       logger.success(`Batch registration successful (tx: ${hash})`);
 
@@ -897,7 +897,7 @@ export async function batchRegisterNames(
       requiredRoles,
       batchRegistrarAddress,
     ]);
-    await client.waitForTransactionReceipt({ hash });
+    await waitForSuccessfulTransactionReceipt(client, { hash });
   }
 
   // Load checkpoint based on configuration

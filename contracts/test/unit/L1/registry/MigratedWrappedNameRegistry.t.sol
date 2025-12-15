@@ -35,6 +35,7 @@ import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {LockedNamesLib} from "~src/L1/migration/libraries/LockedNamesLib.sol";
 import {ParentNotMigrated, LabelNotMigrated} from "~src/L1/migration/MigrationErrors.sol";
 import {MigratedWrappedNameRegistry} from "~src/L1/registry/MigratedWrappedNameRegistry.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -134,6 +135,7 @@ contract MigratedWrappedNameRegistryTest is Test {
     MigratedWrappedNameRegistry implementation;
     MigratedWrappedNameRegistry registry;
     RegistryDatastore datastore;
+    MockHCAFactoryBasic hcaFactory;
     MockRegistryMetadata metadata;
     MockENS ensRegistry;
     MockNameWrapper nameWrapper;
@@ -150,6 +152,7 @@ contract MigratedWrappedNameRegistryTest is Test {
 
     function setUp() public {
         datastore = new RegistryDatastore();
+        hcaFactory = new MockHCAFactoryBasic();
         metadata = new MockRegistryMetadata();
         ensRegistry = new MockENS();
         nameWrapper = new MockNameWrapper(ensRegistry);
@@ -161,6 +164,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)), // mock ethRegistry
             factory,
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );
@@ -180,7 +184,7 @@ contract MigratedWrappedNameRegistryTest is Test {
         testLabelId = LibLabel.labelToCanonicalId(testLabel);
 
         // Setup v1 resolver in ENS registry
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
+        bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
         bytes32 node = NameCoder.namehash(dnsEncodedName, 0);
         ensRegistry.setResolver(node, v1Resolver);
     }
@@ -253,50 +257,20 @@ contract MigratedWrappedNameRegistryTest is Test {
             RegistryRolesLib.ROLE_SET_RESOLVER,
             expiry
         );
-
-        // Move time forward
-        vm.warp(block.timestamp + 1);
-
-        // Should return address(0) for expired name
-        address resolver = registry.getResolver(testLabel);
-        assertEq(resolver, address(0), "Should return zero address for expired name");
+        assertEq(registry.getResolver(testLabel), mockResolver, "before");
+        vm.warp(expiry);
+        assertEq(registry.getResolver(testLabel), address(0), "after");
     }
 
     function test_getResolver_ens_registry_returns_zero() public {
         // Clear the resolver in ENS registry
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
+        bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
         bytes32 node = NameCoder.namehash(dnsEncodedName, 0);
         ensRegistry.setResolver(node, address(0));
 
         // Should return address(0) when ENS registry returns zero
         address resolver = registry.getResolver(testLabel);
         assertEq(resolver, address(0), "Should return zero address when ENS registry returns zero");
-    }
-
-    function test_getResolver_registration_lifecycle() public {
-        // Initially unregistered - should use ENS registry
-        assertEq(registry.getResolver(testLabel), address(0), "Should use v1 resolver initially");
-
-        // Register the name
-        uint64 expiry = uint64(block.timestamp + 100);
-        _registerName(
-            registry,
-            testLabel,
-            user,
-            registry,
-            mockResolver,
-            RegistryRolesLib.ROLE_SET_RESOLVER,
-            expiry
-        );
-        assertEq(registry.getResolver(testLabel), mockResolver, "Should use registered resolver");
-
-        // Let name expire
-        vm.warp(block.timestamp + 101);
-        assertEq(
-            registry.getResolver(testLabel),
-            address(0),
-            "Should return zero for expired name"
-        );
     }
 
     function test_validateHierarchy_parent_fully_migrated() public {
@@ -515,6 +489,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             realFactory,
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );
@@ -542,6 +517,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );
@@ -1258,6 +1234,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );
@@ -1285,6 +1262,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );
@@ -1307,6 +1285,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );
@@ -1341,6 +1320,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );
@@ -1408,6 +1388,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );
@@ -1430,6 +1411,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );
@@ -1463,6 +1445,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );
@@ -1496,6 +1479,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );
@@ -1539,6 +1523,7 @@ contract MigratedWrappedNameRegistryTest is Test {
             IPermissionedRegistry(address(mockEthRegistry)),
             VerifiableFactory(address(0)),
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );

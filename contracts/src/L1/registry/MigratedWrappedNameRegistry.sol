@@ -12,6 +12,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {MigrationData} from "../../common/bridge/types/TransferData.sol";
 import {UnauthorizedCaller} from "../../common/CommonErrors.sol";
+import {IHCAFactoryBasic} from "../../common/hca/interfaces/IHCAFactoryBasic.sol";
 import {IPermissionedRegistry} from "../../common/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "../../common/registry/interfaces/IRegistryDatastore.sol";
@@ -75,9 +76,10 @@ contract MigratedWrappedNameRegistry is
         IPermissionedRegistry ethRegistry,
         VerifiableFactory factory,
         IRegistryDatastore datastore,
+        IHCAFactoryBasic hcaFactory,
         IRegistryMetadata metadataProvider,
         address fallbackResolver
-    ) PermissionedRegistry(datastore, metadataProvider, _msgSender(), 0) {
+    ) PermissionedRegistry(datastore, hcaFactory, metadataProvider, _msgSender(), 0) {
         NAME_WRAPPER = nameWrapper;
         ETH_REGISTRY = ethRegistry;
         FACTORY = factory;
@@ -273,7 +275,7 @@ contract MigratedWrappedNameRegistry is
     ) internal view returns (string memory label) {
         // Extract the current label (leftmost, at offset 0)
         uint256 parentOffset;
-        (label, parentOffset) = LibLabel.extractLabel(dnsEncodedName, offset);
+        (label, parentOffset) = NameCoder.extractLabel(dnsEncodedName, offset);
 
         // Check if there's no parent (trying to migrate TLD)
         if (dnsEncodedName[parentOffset] == 0) {
@@ -281,7 +283,7 @@ contract MigratedWrappedNameRegistry is
         }
 
         // Extract the parent label
-        (string memory parentLabel, uint256 grandparentOffset) = LibLabel.extractLabel(
+        (string memory parentLabel, uint256 grandparentOffset) = NameCoder.extractLabel(
             dnsEncodedName,
             parentOffset
         );

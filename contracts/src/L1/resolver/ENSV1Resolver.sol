@@ -60,6 +60,6 @@ contract ENSV1Resolver is IExtendedResolver, IERC7996, ResolverCaller, ERC165 {
         bytes calldata data
     ) external view returns (bytes memory) {
         (address resolver, , ) = RegistryUtils.findResolver(REGISTRY_V1, name, 0);
-        callResolver(resolver, name, data, BATCH_GATEWAY_PROVIDER.gateways());
+        callResolver(resolver, name, data, false, "", BATCH_GATEWAY_PROVIDER.gateways());
     }
 }

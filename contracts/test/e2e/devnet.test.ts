@@ -1,29 +1,10 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { toHex } from "viem";
 import { expectVar } from "../utils/expectVar.js";
 
-import {
-  type CrossChainEnvironment,
-  type CrossChainSnapshot,
-  setupCrossChainEnvironment,
-} from "../../script/setup.js";
-
 describe("Devnet", () => {
-  let env: CrossChainEnvironment;
-  let resetState: CrossChainSnapshot;
-  beforeAll(async () => {
-    env = await setupCrossChainEnvironment();
-    resetState = await env.saveState();
-  });
-  afterAll(() => env?.shutdown());
-  beforeEach(() => resetState?.());
+  const env = process.env.TEST_GLOBALS!.env;
+  const resetState = process.env.TEST_GLOBALS!.resetState;
 
   function blocks() {
     return Promise.all([env.l1.client, env.l2.client].map((x) => x.getBlock()));
@@ -70,5 +51,18 @@ describe("Devnet", () => {
     expect(
       env.l1.client.getStorageAt({ address, slot }),
     ).resolves.toStrictEqual(toHex(0, { size: 32 }));
+  });
+
+  it(`computeVerifiableProxyAddress`, async () => {
+    for (const lx of [env.l1, env.l2]) {
+      const account = env.namedAccounts.deployer;
+      const salt = 1234n;
+      const contract = await lx.deployDedicatedResolver({ account, salt });
+      const address = await lx.computeVerifiableProxyAddress({
+        deployer: account.address,
+        salt,
+      });
+      expect(address, lx.name).toStrictEqual(contract.address);
+    }
   });
 });

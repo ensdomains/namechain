@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {EjectionController} from "../../common/bridge/EjectionController.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
+import {BridgeController} from "../../common/bridge/BridgeController.sol";
 import {IBridge} from "../../common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "../../common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "../../common/bridge/libraries/BridgeRolesLib.sol";
@@ -17,7 +19,7 @@ import {LibLabel} from "../../common/utils/LibLabel.sol";
  * @dev L1 contract for bridge controller that facilitates migrations of names
  * between L1 and L2, as well as handling renewals.
  */
-contract L1BridgeController is EjectionController {
+contract L1BridgeController is BridgeController {
     ////////////////////////////////////////////////////////////////////////
     // Events
     ////////////////////////////////////////////////////////////////////////
@@ -39,11 +41,34 @@ contract L1BridgeController is EjectionController {
     constructor(
         IPermissionedRegistry registry_,
         IBridge bridge_
-    ) EjectionController(registry_, bridge_) {}
+    ) BridgeController(registry_, bridge_) {}
 
     ////////////////////////////////////////////////////////////////////////
     // Implementation
     ////////////////////////////////////////////////////////////////////////
+
+    /**
+     * @notice Perform an ejection for migration scenarios (bypasses locking checks)
+     * @param tokenId The token ID of the name being migrated
+     * @param transferData The transfer data for the migration
+     * @dev This is specifically for migration controllers that handle v1->v2 migrations
+     */
+    function performMigrationEjection(
+        uint256 tokenId,
+        TransferData calldata transferData
+    ) external onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) {
+        // Check that the owner is not null address
+        if (transferData.owner == address(0)) {
+            revert InvalidOwner();
+        }
+
+        // Check that the label matches the token id
+        _assertTokenIdMatchesLabel(tokenId, transferData.dnsEncodedName);
+
+        // Send the message to the bridge (without the locking check for migrations)
+        BRIDGE.sendMessage(BridgeEncoderLib.encodeEjection(transferData));
+        emit NameEjectedToL2(transferData.dnsEncodedName, tokenId);
+    }
 
     /**
      * @dev Should be called when a name is being ejected to L1.
@@ -53,7 +78,7 @@ contract L1BridgeController is EjectionController {
     function completeEjectionToL1(
         TransferData calldata transferData
     ) external virtual onlyRootRoles(BridgeRolesLib.ROLE_EJECTOR) returns (uint256 tokenId) {
-        string memory label = LibLabel.extractLabel(transferData.dnsEncodedName);
+        string memory label = NameCoder.firstLabel(transferData.dnsEncodedName);
 
         tokenId = REGISTRY.register(
             label,
@@ -113,8 +138,7 @@ contract L1BridgeController is EjectionController {
             // check that the label matches the token id
             _assertTokenIdMatchesLabel(tokenId, transferData.dnsEncodedName);
 
-            // burn the token
-            REGISTRY.burn(tokenId);
+            REGISTRY.unregister(tokenId);
 
             // send the message to the bridge
             BRIDGE.sendMessage(BridgeEncoderLib.encodeEjection(transferData));

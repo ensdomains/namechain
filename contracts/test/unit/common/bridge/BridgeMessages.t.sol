@@ -5,6 +5,8 @@ pragma solidity >=0.8.13;
 
 import {Test, Vm} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {BridgeMessageType} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
@@ -13,12 +15,13 @@ import {TransferData} from "~src/common/bridge/types/TransferData.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
-import {MockBridgeBase} from "~test/mocks/MockBridgeBase.sol";
-import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
-import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
+import {ISurgeNativeBridge} from "~src/common/bridge/interfaces/ISurgeNativeBridge.sol";
+import {L1SurgeBridge} from "~src/L1/bridge/L1SurgeBridge.sol";
+import {L2SurgeBridge} from "~src/L2/bridge/L2SurgeBridge.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
+import {MockSurgeNativeBridge} from "~test/mocks/MockSurgeNativeBridge.sol";
 
 contract MockRegistryMetadata is IRegistryMetadata {
     function tokenUri(uint256) external pure override returns (string memory) {
@@ -27,13 +30,19 @@ contract MockRegistryMetadata is IRegistryMetadata {
 }
 
 contract BridgeMessagesTest is Test {
-    MockL1Bridge l1Bridge;
-    MockL2Bridge l2Bridge;
+    MockSurgeNativeBridge surgeNativeBridge;
+    L1SurgeBridge l1SurgeBridge;
+    L2SurgeBridge l2SurgeBridge;
     L1BridgeController l1Controller;
     L2BridgeController l2Controller;
     PermissionedRegistry registry;
     RegistryDatastore datastore;
     MockRegistryMetadata registryMetadata;
+    MockHCAFactoryBasic hcaFactory;
+
+    // Chain IDs for testing
+    uint64 constant L1_CHAIN_ID = 1;
+    uint64 constant L2_CHAIN_ID = 42;
 
     string testLabel = "test";
     address testOwner = address(0x1234);
@@ -44,40 +53,61 @@ contract BridgeMessagesTest is Test {
     function setUp() public {
         // Deploy dependencies
         datastore = new RegistryDatastore();
+        hcaFactory = new MockHCAFactoryBasic();
         registryMetadata = new MockRegistryMetadata();
 
         // Deploy registry
         registry = new PermissionedRegistry(
             datastore,
+            hcaFactory,
             registryMetadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES
         );
 
-        // Deploy bridges
-        l1Bridge = new MockL1Bridge();
-        l2Bridge = new MockL2Bridge();
+        // Deploy Surge bridge mock
+        surgeNativeBridge = new MockSurgeNativeBridge();
+
+        // Deploy placeholder bridges first (needed to create controllers)
+        l1SurgeBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, L1BridgeController(address(0)));
+        l2SurgeBridge = new L2SurgeBridge(surgeNativeBridge, L2_CHAIN_ID, L1_CHAIN_ID, L2BridgeController(address(0)));
 
         // Deploy controllers
-        l1Controller = new L1BridgeController(registry, l1Bridge);
-        l2Controller = new L2BridgeController(l2Bridge, registry, datastore);
+        l1Controller = new L1BridgeController(registry, l1SurgeBridge);
+        l2Controller = new L2BridgeController(l2SurgeBridge, registry, datastore);
 
-        // Set up bridge controllers
-        l1Bridge.setBridgeController(l1Controller);
-        l2Bridge.setBridgeController(l2Controller);
+        // Re-deploy bridges with correct controller references
+        l1SurgeBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, l1Controller);
+        l2SurgeBridge = new L2SurgeBridge(surgeNativeBridge, L2_CHAIN_ID, L1_CHAIN_ID, l2Controller);
+
+        // Set up bridges with destination addresses
+        l1SurgeBridge.setDestBridgeAddress(address(l2SurgeBridge));
+        l2SurgeBridge.setDestBridgeAddress(address(l1SurgeBridge));
 
         // Grant necessary roles (filter out admin roles since they're restricted)
         uint256 regularRoles = EACBaseRolesLib.ALL_ROLES & ~EACBaseRolesLib.ADMIN_ROLES;
         registry.grantRootRoles(regularRoles, address(l1Controller));
+
+        // Update controller bridge references
+        l1Controller.grantRootRoles(BridgeRolesLib.ROLE_SET_BRIDGE, address(this));
+        l2Controller.grantRootRoles(BridgeRolesLib.ROLE_SET_BRIDGE, address(this));
+        l1Controller.setBridge(l1SurgeBridge);
+        l2Controller.setBridge(l2SurgeBridge);
+
+        // Grant registry roles to L2 controller too
         registry.grantRootRoles(regularRoles, address(l2Controller));
 
-        // Grant bridge roles so the bridges can call the controllers
-        l1Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l1Bridge));
-        l2Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l2Bridge));
+        // Grant bridge roles so the NEW bridges can call the controllers
+        l1Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l1SurgeBridge));
+        l2Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l2SurgeBridge));
+
+        // Fund the controllers for bridge operations
+        vm.deal(address(l1Controller), 10 ether);
+        vm.deal(address(l2Controller), 10 ether);
     }
 
     function test_encodeDecodeEjection() public view {
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
+        bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
         TransferData memory transferData = TransferData({
             dnsEncodedName: dnsEncodedName,
             owner: testOwner,
@@ -128,7 +158,7 @@ contract BridgeMessagesTest is Test {
         assertEq(decodedExpiry, newExpiry);
     }
 
-    function test_l1Bridge_handleRenewal() public {
+    function test_l1SurgeBridge_handleRenewal() public {
         // First register a name to renew
         uint256 tokenId = registry.register(
             testLabel,
@@ -146,11 +176,26 @@ contract BridgeMessagesTest is Test {
 
         vm.recordLogs();
 
-        // Simulate receiving the message through the bridge
-        l1Bridge.receiveMessage(renewalMessage);
+        // Simulate receiving the message through Surge bridge
+        ISurgeNativeBridge.Message memory surgeMessage = ISurgeNativeBridge.Message({
+            id: 0,
+            fee: 0,
+            gasLimit: surgeNativeBridge.getMessageMinGasLimit(renewalMessage.length),
+            from: address(l2SurgeBridge),
+            srcChainId: L2_CHAIN_ID,
+            srcOwner: address(this),
+            destChainId: L1_CHAIN_ID,
+            destOwner: address(this),
+            to: address(l1SurgeBridge),
+            value: 0,
+            data: renewalMessage
+        });
+
+        (, ISurgeNativeBridge.Message memory sentMessage) = surgeNativeBridge.sendMessage(surgeMessage);
+        surgeNativeBridge.deliverMessage(sentMessage);
 
         // Verify the renewal was processed
-        uint64 updatedExpiry = datastore.getEntry(address(registry), tokenId).expiry;
+        uint64 updatedExpiry = registry.getExpiry(tokenId);
         assertEq(updatedExpiry, newExpiry, "Expiry should be updated");
 
         // Check for RenewalSynchronized event
@@ -167,23 +212,43 @@ contract BridgeMessagesTest is Test {
         assertTrue(foundEvent, "RenewalSynchronized event should be emitted");
     }
 
-    function test_l2Bridge_revertRenewal() public {
+    function test_l2SurgeBridge_revertRenewal() public {
         uint256 tokenId = 12345;
         uint64 newExpiry = uint64(block.timestamp + 86400);
 
         // Encode renewal message
         bytes memory renewalMessage = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
 
-        // L2 bridge should revert on renewal messages
-        vm.expectRevert(MockBridgeBase.RenewalNotSupported.selector);
-        l2Bridge.receiveMessage(renewalMessage);
+        // L2 bridge should revert on renewal messages with RenewalNotSupported
+
+        // Simulate receiving renewal message on L2 bridge (should revert)
+        ISurgeNativeBridge.Message memory surgeMessage = ISurgeNativeBridge.Message({
+            id: 0,
+            fee: 0,
+            gasLimit: surgeNativeBridge.getMessageMinGasLimit(renewalMessage.length),
+            from: address(l1SurgeBridge),
+            srcChainId: L1_CHAIN_ID,
+            srcOwner: address(this),
+            destChainId: L2_CHAIN_ID,
+            destOwner: address(this),
+            to: address(l2SurgeBridge),
+            value: 0,
+            data: renewalMessage
+        });
+
+        (, ISurgeNativeBridge.Message memory sentMessage) = surgeNativeBridge.sendMessage(surgeMessage);
+
+        // L2 bridge should revert on renewal messages with RenewalNotSupported
+        vm.expectRevert(L2SurgeBridge.RenewalNotSupported.selector);
+        surgeNativeBridge.deliverMessage(sentMessage);
     }
 
-    function test_l1Bridge_sendMessage() public {
+    function test_l1SurgeBridge_sendMessage() public {
         bytes memory testMessage = "test message";
 
         vm.recordLogs();
-        l1Bridge.sendMessage(testMessage);
+        vm.prank(address(l1Controller));
+        l1SurgeBridge.sendMessage(testMessage);
 
         // Check for MessageSent event
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -199,8 +264,8 @@ contract BridgeMessagesTest is Test {
         assertTrue(foundEvent, "MessageSent event should be emitted");
     }
 
-    function test_l2Bridge_sendMessage_ejection() public {
-        bytes memory dnsEncodedName = LibLabel.dnsEncodeEthLabel(testLabel);
+    function test_l2SurgeBridge_sendMessage_ejection() public {
+        bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
         bytes memory ejectionMessage = BridgeEncoderLib.encodeEjection(
             TransferData({
                 dnsEncodedName: dnsEncodedName,
@@ -213,7 +278,8 @@ contract BridgeMessagesTest is Test {
         );
 
         vm.recordLogs();
-        l2Bridge.sendMessage(ejectionMessage);
+        vm.prank(address(l2Controller));
+        l2SurgeBridge.sendMessage(ejectionMessage);
 
         // Check for MessageSent event
         Vm.Log[] memory logs = vm.getRecordedLogs();

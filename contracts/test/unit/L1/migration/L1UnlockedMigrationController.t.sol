@@ -5,6 +5,7 @@ pragma solidity >=0.8.13;
 
 import {Test, Vm} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {INameWrapper, CANNOT_UNWRAP} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
@@ -14,6 +15,7 @@ import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Hol
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
+import {IBridge} from "~src/common/bridge/interfaces/IBridge.sol";
 import {BridgeEncoderLib} from "~src/common/bridge/libraries/BridgeEncoderLib.sol";
 import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData, MigrationData} from "~src/common/bridge/types/TransferData.sol";
@@ -22,10 +24,12 @@ import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetada
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1UnlockedMigrationController} from "~src/L1/migration/L1UnlockedMigrationController.sol";
-import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
+import {ISurgeNativeBridge} from "~src/common/bridge/interfaces/ISurgeNativeBridge.sol";
+import {L1SurgeBridge} from "~src/L1/bridge/L1SurgeBridge.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
+import {MockSurgeNativeBridge} from "~test/mocks/MockSurgeNativeBridge.sol";
 import {MockBaseRegistrar} from "~test/mocks/v1/MockBaseRegistrar.sol";
 
 // Simple mock that implements IRegistryMetadata
@@ -104,13 +108,19 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     MockBaseRegistrar ethRegistrarV1;
     MockNameWrapper nameWrapper;
     L1UnlockedMigrationController migrationController;
-    MockL1Bridge mockBridge;
+    MockSurgeNativeBridge surgeNativeBridge;
+    L1SurgeBridge mockBridge;
 
     // Real components for testing
     L1BridgeController realL1BridgeController;
     RegistryDatastore datastore;
     PermissionedRegistry registry;
     MockRegistryMetadata registryMetadata;
+    MockHCAFactoryBasic hcaFactory;
+
+    // Chain IDs for testing
+    uint64 constant L1_CHAIN_ID = 1;
+    uint64 constant L2_CHAIN_ID = 42;
 
     address user = address(0x1234);
     address controller = address(0x5678);
@@ -127,7 +137,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         return
             MigrationData({
                 transferData: TransferData({
-                    dnsEncodedName: LibLabel.dnsEncodeEthLabel(label),
+                    dnsEncodedName: NameCoder.ethName(label),
                     owner: address(0),
                     subregistry: address(0),
                     resolver: address(0),
@@ -149,7 +159,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         return
             MigrationData({
                 transferData: TransferData({
-                    dnsEncodedName: LibLabel.dnsEncodeEthLabel(label),
+                    dnsEncodedName: NameCoder.ethName(label),
                     owner: address(0x1111),
                     subregistry: address(0x2222),
                     resolver: address(0x3333),
@@ -188,7 +198,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
                 (TransferData memory decodedTransferData) = BridgeEncoderLib.decodeEjection(
                     message
                 );
-                string memory decodedLabel = LibLabel.extractLabel(
+                string memory decodedLabel = NameCoder.firstLabel(
                     decodedTransferData.dnsEncodedName
                 );
                 if (keccak256(bytes(decodedLabel)) == keccak256(bytes(expectedLabel))) {
@@ -232,7 +242,7 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
                 (TransferData memory decodedTransferData) = BridgeEncoderLib.decodeEjection(
                     message
                 );
-                string memory decodedLabel = LibLabel.extractLabel(
+                string memory decodedLabel = NameCoder.firstLabel(
                     decodedTransferData.dnsEncodedName
                 );
                 uint256 emittedTokenId = uint256(keccak256(bytes(decodedLabel)));
@@ -288,11 +298,13 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
     function setUp() public {
         // Set up real registry infrastructure
         datastore = new RegistryDatastore();
+        hcaFactory = new MockHCAFactoryBasic();
         registryMetadata = new MockRegistryMetadata();
 
         // Deploy the real registry
         registry = new PermissionedRegistry(
             datastore,
+            hcaFactory,
             registryMetadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES
@@ -303,17 +315,33 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         ethRegistrarV1.addController(controller);
         nameWrapper = new MockNameWrapper(ethRegistrarV1);
 
-        // Deploy mock bridge
-        mockBridge = new MockL1Bridge();
+        // Deploy Surge bridge mock
+        surgeNativeBridge = new MockSurgeNativeBridge();
 
-        // Deploy REAL L1BridgeController with real dependencies
-        realL1BridgeController = new L1BridgeController(registry, mockBridge);
+        // Deploy placeholder bridge with Surge integration
+        mockBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, L1BridgeController(address(0)));
+        mockBridge.setDestBridgeAddress(address(0x1234)); // Mock destination bridge
+
+        // Deploy REAL L1BridgeController with temporary mock bridge
+        IBridge tempBridge = IBridge(address(0));
+        realL1BridgeController = new L1BridgeController(registry, tempBridge);
+
+        // Deploy the real bridge with the correct controller reference
+        mockBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, realL1BridgeController);
+        mockBridge.setDestBridgeAddress(address(0x1234)); // Mock destination bridge
+
+        // Update the bridge reference in the controller
+        realL1BridgeController.grantRootRoles(BridgeRolesLib.ROLE_SET_BRIDGE, address(this));
+        realL1BridgeController.setBridge(mockBridge);
+        
+        // Fund the bridge controller for operations
+        vm.deal(address(realL1BridgeController), 10 ether);
 
         // Grant necessary roles to the ejection controller
         registry.grantRootRoles(
             RegistryRolesLib.ROLE_REGISTRAR |
                 RegistryRolesLib.ROLE_RENEW |
-                RegistryRolesLib.ROLE_BURN,
+                RegistryRolesLib.ROLE_UNREGISTER,
             address(realL1BridgeController)
         );
 
@@ -348,8 +376,10 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         // Verify user owns the token
         assertEq(ethRegistrarV1.ownerOf(testTokenId), user);
 
-        // Create migration data
-        MigrationData memory migrationData = _createMigrationData(testLabel);
+        // Create migration data with proper owner
+        MigrationData memory migrationData = _createMigrationDataWithL1Flag(testLabel, false);
+        // Update owner to match the actual token owner for this test
+        migrationData.transferData.owner = user;
         bytes memory data = abi.encode(migrationData);
 
         vm.recordLogs();
@@ -455,8 +485,9 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         // Verify user owns the wrapped token
         assertEq(nameWrapper.balanceOf(user, testTokenId), 1);
 
-        // Create migration data
-        MigrationData memory migrationData = _createMigrationData(testLabel);
+        // Create migration data with proper owner
+        MigrationData memory migrationData = _createMigrationDataWithL1Flag(testLabel, false);
+        migrationData.transferData.owner = user;
         bytes memory data = abi.encode(migrationData);
 
         vm.recordLogs();
@@ -542,8 +573,10 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         amounts[1] = 1;
 
         MigrationData[] memory migrationDataArray = new MigrationData[](2);
-        migrationDataArray[0] = _createMigrationData(label1);
-        migrationDataArray[1] = _createMigrationData(label2);
+        migrationDataArray[0] = _createMigrationDataWithL1Flag(label1, false);
+        migrationDataArray[0].transferData.owner = user;
+        migrationDataArray[1] = _createMigrationDataWithL1Flag(label2, false);
+        migrationDataArray[1].transferData.owner = user;
 
         bytes memory data = abi.encode(migrationDataArray);
 
@@ -857,10 +890,12 @@ contract L1UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder 
         amounts[0] = 1;
         amounts[1] = 1;
 
-        // Create migration data with one wrong label
+        // Create migration data with one wrong label  
         MigrationData[] memory migrationDataArray = new MigrationData[](2);
-        migrationDataArray[0] = _createMigrationData(label1); // correct
-        migrationDataArray[1] = _createMigrationData(wrongLabel2); // wrong label for tokenId2
+        migrationDataArray[0] = _createMigrationDataWithL1Flag(label1, false); // correct
+        migrationDataArray[0].transferData.owner = user;
+        migrationDataArray[1] = _createMigrationDataWithL1Flag(wrongLabel2, false); // wrong label for tokenId2
+        migrationDataArray[1].transferData.owner = user;
 
         bytes memory data = abi.encode(migrationDataArray);
 

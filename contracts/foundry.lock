@@ -1,4 +1,16 @@
 {
+<<<<<<< HEAD
+=======
+  "lib/buffer": {
+    "rev": "82cc81935de1d1a82e021cf1030d902c5248982b"
+  },
+  "lib/ens-contracts": {
+    "branch": {
+      "name": "staging",
+      "rev": "6d877523e11f647ed62e8ee159f48f288c9cd9e9"
+    }
+  },
+>>>>>>> main
   "lib/forge-std": {
     "rev": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
   },
@@ -17,8 +29,14 @@
   "lib/verifiable-factory": {
     "rev": "c47c0e61ce03b3ab5891a3b743287b54aee9f021"
   },
+  "lib/surge-taiko-mono": {
+    "tag": {
+      "name": "v25.1.1",
+      "rev": "e9c2ae6658ab69afe16f09d2ddca158046b47962"
+    }
+  },
   "lib/unruggable-gateways": {
-    "rev": "4c246c98d322fcf12654138e63fcd4bea3f31f7b"
+    "rev": "3d68742832c68bf9a158c7bcd1aa47fad511b213"
   },
   "lib/solsha1": {
     "rev": "c4fbe97cf5e8c1b8d607001588fd23abb5bfb923"

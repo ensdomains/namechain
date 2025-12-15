@@ -1,10 +1,6 @@
 import { artifacts, execute } from "@rocketh";
-import {
-  type RpcLog,
-  encodeFunctionData,
-  parseEventLogs,
-  zeroAddress,
-} from "viem";
+import { type RpcLog, encodeFunctionData, parseEventLogs } from "viem";
+import { ROLES } from "../constants.js";
 
 export default execute(
   async (
@@ -13,30 +9,35 @@ export default execute(
   ) => {
     if (!args?.l2Deploy) throw new Error("expected L2 deployment");
 
-    const ensRegistryV1 =
-      get<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
+    const nameWrapper =
+      get<(typeof artifacts.NameWrapper)["abi"]>("NameWrapper");
 
     const batchGatewayProvider = get<(typeof artifacts.GatewayProvider)["abi"]>(
       "BatchGatewayProvider",
     );
 
+    const ethRegistry =
+      get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
+
+    const bridgeController =
+      get<(typeof artifacts.L1BridgeController)["abi"]>("BridgeController");
+
     const verifiableFactory =
       get<(typeof artifacts.VerifiableFactory)["abi"]>("VerifiableFactory");
 
-    const dedicatedResolverImpl = get<
-      (typeof artifacts.DedicatedResolver)["abi"]
-    >("DedicatedResolverImpl");
+    const dedicatedResolver =
+      get<(typeof artifacts.DedicatedResolver)["abi"]>("DedicatedResolver");
 
     const hash = await write(verifiableFactory, {
       account: deployer,
       functionName: "deployProxy",
       args: [
-        dedicatedResolverImpl.address,
+        dedicatedResolver.address,
         1n,
         encodeFunctionData({
-          abi: dedicatedResolverImpl.abi,
+          abi: dedicatedResolver.abi,
           functionName: "initialize",
-          args: [deployer],
+          args: [deployer, ROLES.ALL],
         }),
       ],
     });
@@ -54,7 +55,7 @@ export default execute(
     });
 
     const ethSelfResolver = await save("ETHSelfResolver", {
-      ...dedicatedResolverImpl,
+      ...dedicatedResolver,
       address: log.args.proxyAddress,
     });
 
@@ -62,9 +63,10 @@ export default execute(
       account: deployer,
       artifact: artifacts.ETHTLDResolver,
       args: [
-        ensRegistryV1.address,
+        nameWrapper.address,
         batchGatewayProvider.address,
-        zeroAddress, // burnAddressV1
+        ethRegistry.address,
+        bridgeController.address,
         ethSelfResolver.address,
         args.verifierAddress,
         args.l2Deploy.deployments.RegistryDatastore.address,
@@ -81,10 +83,12 @@ export default execute(
   {
     tags: ["ETHTLDResolver", "l1"],
     dependencies: [
+      "NameWrapper",
+      "BatchGatewayProvider",
+      "ETHRegistry",
+      "BridgeController",
       "VerifiableFactory",
       "DedicatedResolver",
-      "BaseRegistrarImplementation", // "ENSRegistry"
-      "BatchGatewayProvider",
     ],
   },
 );

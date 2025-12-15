@@ -1,5 +1,5 @@
 import type { NetworkConnection } from "hardhat/types/network";
-import { type Address, labelhash, zeroAddress } from "viem";
+import { type Address, getAddress, labelhash, zeroAddress } from "viem";
 import { LOCAL_BATCH_GATEWAY_URL, ROLES } from "../../../deploy/constants.js";
 import { splitName } from "../../utils/utils.js";
 import { deployVerifiableProxy } from "./deployVerifiableProxy.js";
@@ -15,13 +15,26 @@ export async function deployV2Fixture(
   });
   const [walletClient] = await network.viem.getWalletClients();
   const datastore = await network.viem.deployContract("RegistryDatastore");
+  const hcaFactory = await network.viem.deployContract("MockHCAFactoryBasic");
   const rootRegistry = await network.viem.deployContract(
     "PermissionedRegistry",
-    [datastore.address, zeroAddress, walletClient.account.address, ROLES.ALL],
+    [
+      datastore.address,
+      hcaFactory.address,
+      zeroAddress,
+      walletClient.account.address,
+      ROLES.ALL,
+    ],
   );
   const ethRegistry = await network.viem.deployContract(
     "PermissionedRegistry",
-    [datastore.address, zeroAddress, walletClient.account.address, ROLES.ALL],
+    [
+      datastore.address,
+      hcaFactory.address,
+      zeroAddress,
+      walletClient.account.address,
+      ROLES.ALL,
+    ],
   );
   const batchGatewayProvider = await network.viem.deployContract(
     "GatewayProvider",
@@ -40,15 +53,18 @@ export async function deployV2Fixture(
     ROLES.ALL,
     MAX_EXPIRY,
   ]);
-  const dedicatedResolverFactory =
+  const verifiableFactory =
     await network.viem.deployContract("VerifiableFactory");
-  const dedicatedResolverImpl =
-    await network.viem.deployContract("DedicatedResolver");
+  const dedicatedResolver = await network.viem.deployContract(
+    "DedicatedResolver",
+    [hcaFactory.address],
+  );
   return {
     network,
     publicClient,
     walletClient,
     datastore,
+    hcaFactory,
     rootRegistry,
     ethRegistry,
     batchGatewayProvider,
@@ -58,16 +74,20 @@ export async function deployV2Fixture(
   };
   async function deployDedicatedResolver({
     owner = walletClient.account.address,
+    roles = ROLES.ALL,
     salt = BigInt(labelhash(new Date().toISOString())),
   }: {
     owner?: Address;
+    roles?: bigint;
     salt?: bigint;
   } = {}) {
     return deployVerifiableProxy({
       walletClient: await network.viem.getWalletClient(owner),
-      factoryAddress: dedicatedResolverFactory.address,
-      implAddress: dedicatedResolverImpl.address,
-      implAbi: dedicatedResolverImpl.abi,
+      factoryAddress: verifiableFactory.address,
+      implAddress: dedicatedResolver.address,
+      abi: dedicatedResolver.abi,
+      functionName: "initialize",
+      args: [walletClient.account.address, roles],
       salt,
     });
   }
@@ -118,6 +138,7 @@ export async function deployV2Fixture(
             "PermissionedRegistry",
             [
               datastore.address,
+              hcaFactory.address,
               metadataAddress,
               walletClient.account.address,
               roles,
@@ -166,6 +187,7 @@ export async function deployV2Fixture(
         //     parentRegistry == registries[1]
         // dedicatedResolver? == !resolverAddress
         return {
+          name,
           labels,
           tokenId,
           parentRegistry,
@@ -182,6 +204,7 @@ export async function deployV2Fixture(
           dedicatedResolver: dedicatedResolver as resolver_ extends false
             ? NonNullable<typeof dedicatedResolver>
             : undefined,
+          resolverAddress: getAddress(resolverAddress),
         };
       }
     }

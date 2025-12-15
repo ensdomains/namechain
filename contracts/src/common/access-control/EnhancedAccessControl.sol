@@ -3,9 +3,10 @@
 
 pragma solidity ^0.8.20;
 
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
+import {HCAContext} from "../hca/HCAContext.sol";
 
 import {IEnhancedAccessControl} from "./interfaces/IEnhancedAccessControl.sol";
 import {EACBaseRolesLib} from "./libraries/EACBaseRolesLib.sol";
@@ -22,7 +23,7 @@ import {EACBaseRolesLib} from "./libraries/EACBaseRolesLib.sol";
 ///      - A role bitmap is a uint256, where the lower 128 bits represent the regular roles (0-31), and the upper 128 bits represent the admin roles (32-63) for those roles.
 ///      - Each role is represented by a nybble (4 bits), in little-endian order.
 ///      - If a given role left-most nybble bit is located at index N then the corresponding admin role nybble starts at bit position N << 128.
-abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessControl {
+abstract contract EnhancedAccessControl is HCAContext, ERC165, IEnhancedAccessControl {
     ////////////////////////////////////////////////////////////////////////
     // Constants
     ////////////////////////////////////////////////////////////////////////
@@ -94,13 +95,11 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     ////////////////////////////////////////////////////////////////////////
     // Implementation
     ////////////////////////////////////////////////////////////////////////
-
     /**
      * @dev Grants all roles in the given role bitmap to `account`.
      *
      * The caller must have all the necessary admin roles for the roles being granted.
      * Cannot be used with ROOT_RESOURCE directly, use grantRootRoles instead.
-     * Cannot be used to grant admin roles, admin roles must be granted through other mechanisms.
      *
      * @param resource The resource to grant roles within.
      * @param roleBitmap The roles bitmap to grant.
@@ -122,7 +121,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @dev Grants all roles in the given role bitmap to `account` in the ROOT_RESOURCE.
      *
      * The caller must have all the necessary admin roles for the roles being granted.
-     * Cannot be used to grant admin roles, admin roles must be granted through other mechanisms.
      *
      * @param roleBitmap The roles bitmap to grant.
      * @param account The account to grant roles to.
@@ -140,7 +138,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      *
      * The caller must have all the necessary admin roles for the roles being revoked.
      * Cannot be used with ROOT_RESOURCE directly, use revokeRootRoles instead.
-     * Cannot be used to revoke admin roles, admin roles must be revoked through other mechanisms.
      *
      * @param resource The resource to revoke roles within.
      * @param roleBitmap The roles bitmap to revoke.
@@ -162,7 +159,6 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * @dev Revokes all roles in the given role bitmap from `account` in the ROOT_RESOURCE.
      *
      * The caller must have all the necessary admin roles for the roles being revoked.
-     * Cannot be used to revoke admin roles, admin roles must be revoked through other mechanisms.
      *
      * @param roleBitmap The roles bitmap to revoke.
      * @param account The account to revoke roles from.
@@ -252,6 +248,8 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
      * This function first revokes all roles from the source account, then grants them to the
      * destination account. This prevents exceeding max assignees limits during transfer.
      *
+     * Does nothing if there are no roles to transfer.
+     *
      * @param resource The resource to transfer roles within.
      * @param srcAccount The account to transfer roles from.
      * @param dstAccount The account to transfer roles to.
@@ -288,6 +286,9 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
         bool executeCallbacks
     ) internal virtual returns (bool) {
         _checkRoleBitmap(roleBitmap);
+        if (account == address(0)) {
+            revert EACInvalidAccount();
+        }
         uint256 currentRoles = _roles[resource][account];
         uint256 updatedRoles = currentRoles | roleBitmap;
 
@@ -298,7 +299,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
             if (executeCallbacks) {
                 _onRolesGranted(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
-            emit EACRolesGranted(resource, roleBitmap, account);
+            emit EACRolesChanged(resource, account, currentRoles, updatedRoles);
             return true;
         } else {
             return false;
@@ -331,7 +332,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
             if (executeCallbacks) {
                 _onRolesRevoked(resource, account, currentRoles, updatedRoles, roleBitmap);
             }
-            emit EACRolesRevoked(resource, roleBitmap, account);
+            emit EACRolesChanged(resource, account, currentRoles, updatedRoles);
             return true;
         } else {
             return false;
@@ -455,7 +456,9 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     /**
      * @dev Returns the settable roles for `account` within `resource`.
      *
-     * The settable roles are the roles that the account can grant/revoke.
+     * The settable roles are the roles (both regular and admin) that the account can grant.
+     * An account can grant a regular role if they have the corresponding admin role.
+     * An account can grant an admin role if they have that same admin role.
      *
      * @param resource The resource to get settable roles for.
      * @param account The account to get settable roles for.
@@ -467,7 +470,7 @@ abstract contract EnhancedAccessControl is Context, ERC165, IEnhancedAccessContr
     ) internal view virtual returns (uint256) {
         uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) &
             EACBaseRolesLib.ADMIN_ROLES;
-        return adminRoleBitmap >> 128;
+        return (adminRoleBitmap >> 128) | adminRoleBitmap;
     }
 
     /**

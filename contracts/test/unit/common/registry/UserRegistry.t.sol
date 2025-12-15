@@ -12,13 +12,15 @@ import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.
 import {
     IEnhancedAccessControl
 } from "~src/common/access-control/interfaces/IEnhancedAccessControl.sol";
+import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
 import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {IRegistryDatastore} from "~src/common/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
-import {UserRegistry} from "~src/L2/registry/UserRegistry.sol";
+import {UserRegistry} from "~src/common/registry/UserRegistry.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract UserRegistryTest is Test, ERC1155Holder {
     // Test constants
@@ -31,6 +33,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
     // Contracts
     VerifiableFactory factory;
     RegistryDatastore datastore;
+    MockHCAFactoryBasic hcaFactory;
     SimpleRegistryMetadata metadata;
     UserRegistry implementation;
     UserRegistry proxy;
@@ -47,17 +50,19 @@ contract UserRegistryTest is Test, ERC1155Holder {
         // Deploy the datastore
         datastore = new RegistryDatastore();
 
+        // Deploy the HCA factory
+        hcaFactory = new MockHCAFactoryBasic();
+
         // Deploy metadata provider
-        metadata = new SimpleRegistryMetadata();
+        metadata = new SimpleRegistryMetadata(hcaFactory);
 
         // Deploy the implementation
-        implementation = new UserRegistry(datastore, metadata);
+        implementation = new UserRegistry(datastore, hcaFactory, metadata);
 
         // Create initialization data
-        bytes memory initData = abi.encodeWithSelector(
-            UserRegistry.initialize.selector,
-            EACBaseRolesLib.ALL_ROLES,
-            admin
+        bytes memory initData = abi.encodeCall(
+            UserRegistry.initialize,
+            (admin, EACBaseRolesLib.ALL_ROLES)
         );
 
         // Deploy the proxy using the factory
@@ -258,7 +263,11 @@ contract UserRegistryTest is Test, ERC1155Holder {
     // Test for contract upgradeability
     function test_upgrade() public {
         // Deploy a new implementation
-        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(datastore, metadata);
+        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(
+            datastore,
+            hcaFactory,
+            metadata
+        );
 
         // Upgrade the proxy
         vm.prank(admin);
@@ -271,7 +280,11 @@ contract UserRegistryTest is Test, ERC1155Holder {
 
     function test_Revert_unauthorized_upgrade() public {
         // Deploy a new implementation
-        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(datastore, metadata);
+        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(
+            datastore,
+            hcaFactory,
+            metadata
+        );
 
         // User1 tries to upgrade without permission
         vm.expectRevert(
@@ -332,8 +345,9 @@ contract UserRegistryTest is Test, ERC1155Holder {
 contract UserRegistryV2Mock is UserRegistry {
     constructor(
         IRegistryDatastore _datastore,
+        IHCAFactoryBasic _hcaFactory,
         IRegistryMetadata _metadataProvider
-    ) UserRegistry(_datastore, _metadataProvider) {}
+    ) UserRegistry(_datastore, _hcaFactory, _metadataProvider) {}
     function version() public pure returns (uint256) {
         return 2;
     }

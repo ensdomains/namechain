@@ -1,39 +1,50 @@
+import { artifacts } from "@rocketh";
+import { rm } from "node:fs/promises";
 import { anvil as createAnvil } from "prool/instances";
 import { type Environment, executeDeployScripts, resolveConfig } from "rocketh";
 import {
+  type Abi,
+  type Account,
+  type Address,
+  type Chain,
   createWalletClient,
   getContract,
-  webSocket,
+  type GetContractReturnType,
+  type Hash,
+  type Hex,
   publicActions,
   testActions,
-  zeroAddress,
-  encodeFunctionData,
-  type Account,
-  type Chain,
-  type GetContractReturnType,
   type Transport,
-  type Abi,
-  Hex,
+  webSocket,
+  zeroAddress,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
-import { artifacts } from "@rocketh";
-import { rm } from "node:fs/promises";
 
 import { serve } from "@namestone/ezccip/serve";
 import { WebSocketProvider } from "ethers/providers";
 import { Gateway } from "../lib/unruggable-gateways/src/gateway.js";
 import { UncheckedRollup } from "../lib/unruggable-gateways/src/UncheckedRollup.js";
 
-import type { RockethL1Arguments, RockethArguments } from "./types.js";
-import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
-import { deployVerifiableProxy } from "../test/integration/fixtures/deployVerifiableProxy.js";
-import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
-import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 import {
   LOCAL_BATCH_GATEWAY_URL,
   MAX_EXPIRY,
   ROLES,
 } from "../deploy/constants.js";
+import { deployArtifact } from "../test/integration/fixtures/deployArtifact.js";
+import {
+  computeVerifiableProxyAddress,
+  deployVerifiableProxy,
+} from "../test/integration/fixtures/deployVerifiableProxy.js";
+import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
+import { waitForSuccessfulTransactionReceipt } from "../test/utils/waitForSuccessfulTransactionReceipt.ts";
+import { patchArtifactsV1 } from "./patchArtifactsV1.js";
+import type { RockethArguments, RockethL1Arguments } from "./types.js";
+
+/**
+ * Default chain IDs for devnet environment
+ */
+export const DEFAULT_L2_CHAIN_ID = 0xeeeeee;
+export const DEFAULT_L1_CHAIN_ID = DEFAULT_L2_CHAIN_ID - 1;
 
 type DeployedArtifacts = Record<string, Abi>;
 
@@ -42,8 +53,6 @@ type Future<T> = T | Promise<T>;
 // typescript key (see below) mapped to rocketh deploy name
 const renames: Record<string, string> = {
   ETHRegistrarV1: "BaseRegistrarImplementation",
-  MockL1Bridge: "MockBridge",
-  MockL2Bridge: "MockBridge",
   L1BridgeController: "BridgeController",
   L2BridgeController: "BridgeController",
 };
@@ -51,13 +60,14 @@ const renames: Record<string, string> = {
 const sharedContracts = {
   RegistryDatastore: artifacts.RegistryDatastore.abi,
   SimpleRegistryMetadata: artifacts.SimpleRegistryMetadata.abi,
+  HCAFactory: artifacts.MockHCAFactoryBasic.abi,
   VerifiableFactory: artifacts.VerifiableFactory.abi,
-  DedicatedResolverImpl: artifacts.DedicatedResolver.abi,
-  UserRegistryImpl: artifacts.UserRegistry.abi,
+  DedicatedResolver: artifacts.DedicatedResolver.abi,
+  UserRegistry: artifacts.UserRegistry.abi,
   // common
-  MockBridge: artifacts.MockBridgeBase.abi,
+  MockSurgeNativeBridge: artifacts.MockSurgeNativeBridge.abi,
   ETHRegistry: artifacts.PermissionedRegistry.abi,
-  BridgeController: artifacts.EjectionController.abi,
+  BridgeController: artifacts.BridgeController.abi,
 } as const satisfies DeployedArtifacts;
 
 const l1Contracts = {
@@ -75,7 +85,7 @@ const l1Contracts = {
   DefaultReverseRegistrar: artifacts.DefaultReverseRegistrar.abi,
   DefaultReverseResolver: artifacts.DefaultReverseResolver.abi,
   //
-  MockL1Bridge: artifacts.MockL1Bridge.abi,
+  L1SurgeBridge: artifacts.L1SurgeBridge.abi,
   L1BridgeController: artifacts.L1BridgeController.abi,
   UnlockedMigrationController: artifacts.L1UnlockedMigrationController.abi,
   LockedMigrationController: artifacts.L1LockedMigrationController.abi,
@@ -94,7 +104,7 @@ const l1Contracts = {
 
 const l2Contracts = {
   ...sharedContracts,
-  MockL2Bridge: artifacts.MockL2Bridge.abi,
+  L2SurgeBridge: artifacts.L2SurgeBridge.abi,
   L2BridgeController: artifacts.L2BridgeController.abi,
   //
   ETHRegistrar: artifacts.ETHRegistrar.abi,
@@ -104,14 +114,19 @@ const l2Contracts = {
 } as const satisfies DeployedArtifacts;
 
 export type CrossChainSnapshot = () => Promise<void>;
+export type CrossChainClient = ReturnType<typeof createClient>;
 export type CrossChainEnvironment = Awaited<
   ReturnType<typeof setupCrossChainEnvironment>
 >;
 
-export type L1Deployment = ChainDeployment<typeof l1Contracts>;
-export type L2Deployment = ChainDeployment<typeof l2Contracts>;
-
-export type CrossChainClient = ReturnType<typeof createClient>;
+export type L1Deployment = ChainDeployment<
+  typeof l1Contracts,
+  typeof l2Contracts
+>;
+export type L2Deployment = ChainDeployment<
+  typeof l2Contracts,
+  typeof l1Contracts
+>;
 
 function ansi(c: any, s: any) {
   return `\x1b[${c}m${s}\x1b[0m`;
@@ -130,20 +145,35 @@ function createClient(transport: Transport, chain: Chain, account: Account) {
     transport,
     chain,
     account,
-    pollingInterval: 0,
+    pollingInterval: 1,
     cacheTime: 0, // must be 0 due to client caching
   })
     .extend(publicActions)
     .extend(testActions({ mode: "anvil" }));
 }
 
+type SharedContracts = {
+  [K in keyof typeof sharedContracts]: (typeof sharedContracts)[K] extends
+    | Abi
+    | readonly unknown[]
+    ? GetContractReturnType<(typeof sharedContracts)[K], CrossChainClient>
+    : never;
+};
+type ContractsOf<A> = {
+  [K in keyof A as Exclude<K, keyof typeof sharedContracts>]: A[K] extends
+    | Abi
+    | readonly unknown[]
+    ? GetContractReturnType<A[K], CrossChainClient>
+    : never;
+};
+
 export class ChainDeployment<
-  A extends DeployedArtifacts = typeof sharedContracts,
-  B extends DeployedArtifacts = typeof sharedContracts,
+  const A extends typeof sharedContracts &
+    DeployedArtifacts = typeof sharedContracts,
+  const B extends typeof sharedContracts &
+    DeployedArtifacts = typeof sharedContracts,
 > {
-  readonly contracts: {
-    [K in keyof A]: GetContractReturnType<A[K], CrossChainClient>;
-  };
+  readonly contracts: SharedContracts & ContractsOf<A>;
   readonly rx!: ChainDeployment<B, A>;
   constructor(
     readonly isL1: boolean,
@@ -164,27 +194,57 @@ export class ChainDeployment<
       Object.entries(namedArtifacts).map(([name, abi]) => {
         const deployment = env.get(renames[name] ?? name.replace(/V1$/, ""));
         const contract = getContract({
-          abi: deployment.abi,
+          abi,
           address: deployment.address,
           client,
-        }) as unknown as GetContractReturnType<typeof abi>;
+        }) as {
+          write?: Record<string, (...parameters: unknown[]) => Promise<Hash>>;
+        } & Record<string, unknown>;
+        if ("write" in contract) {
+          const write = contract.write!;
+          // override to ensure successful transaction
+          // otherwise, success is being assumed based on an eth_estimateGas call
+          // but state could change, or eth_estimateGas could be wrong
+          contract.write = new Proxy(
+            {},
+            {
+              get(_, functionName: string) {
+                return async (...parameters: unknown[]) => {
+                  const hash = await write[functionName](...parameters);
+                  await waitForSuccessfulTransactionReceipt(client, { hash });
+                  return hash;
+                };
+              },
+            },
+          );
+        }
         return [name, contract];
       }),
-    ) as typeof this.contracts;
+    ) as SharedContracts & ContractsOf<A>;
   }
-  // get nameStr() {
-  //   return nameForChain(this.isL1);
-  // }
-  // get name() {
-  //   return ansi(ansiForChain(this.isL1), this.nameStr);
-  // }
   get name() {
     return nameForChain(this.isL1);
   }
   get arrow() {
     return `${this.name}->${this.rx.name}`;
   }
-  async deployPermissionedRegistry(account: Account, roles = ROLES.ALL) {
+  async computeVerifiableProxyAddress(args: {
+    deployer: Address;
+    salt: bigint;
+  }) {
+    return computeVerifiableProxyAddress({
+      factoryAddress: this.contracts.VerifiableFactory.address,
+      bytecode: artifacts["UUPSProxy"].bytecode,
+      ...args,
+    });
+  }
+  async deployPermissionedRegistry({
+    account,
+    roles = ROLES.ALL,
+  }: {
+    account: Account;
+    roles?: bigint;
+  }) {
     const client = createClient(this.transport, this.client.chain, account);
     const { abi, bytecode } = artifacts.PermissionedRegistry;
     const hash = await client.deployContract({
@@ -192,50 +252,68 @@ export class ChainDeployment<
       bytecode,
       args: [
         this.contracts.RegistryDatastore.address,
+        this.contracts.HCAFactory.address,
         this.contracts.SimpleRegistryMetadata.address,
         account.address,
         roles,
       ],
     });
-    const receipt = await client.waitForTransactionReceipt({ hash });
+    const receipt = await waitForSuccessfulTransactionReceipt(client, {
+      hash,
+      ensureDeployment: true,
+    });
     return getContract({
       abi,
-      address: receipt.contractAddress!,
+      address: receipt.contractAddress,
       client,
     });
   }
-  deployDedicatedResolver(account: Account, salt?: bigint) {
+  async deployDedicatedResolver({
+    account,
+    admin = account.address,
+    roles = ROLES.ALL,
+    salt,
+  }: {
+    account: Account;
+    admin?: Address;
+    roles?: bigint;
+    salt?: bigint;
+  }) {
     return deployVerifiableProxy({
       walletClient: createClient(this.transport, this.client.chain, account),
       factoryAddress: this.contracts.VerifiableFactory.address,
-      implAddress: this.contracts.DedicatedResolverImpl.address,
-      implAbi: this.contracts.DedicatedResolverImpl.abi,
+      implAddress: this.contracts.DedicatedResolver.address,
+      abi: this.contracts.DedicatedResolver.abi,
+      functionName: "initialize",
+      args: [admin, roles],
       salt,
     });
   }
-  deployUserRegistry(
-    account: Account,
-    roles: bigint,
-    admin: string,
-    salt?: bigint,
-  ) {
+  deployUserRegistry({
+    account,
+    admin = account.address,
+    roles = ROLES.ALL,
+    salt,
+  }: {
+    account: Account;
+    admin?: Address;
+    roles?: bigint;
+    salt?: bigint;
+  }) {
     return deployVerifiableProxy({
       walletClient: createClient(this.transport, this.client.chain, account),
       factoryAddress: this.contracts.VerifiableFactory.address,
-      implAddress: this.contracts.UserRegistryImpl.address,
-      implAbi: this.contracts.UserRegistryImpl.abi,
-      callData: encodeFunctionData({
-        abi: this.contracts.UserRegistryImpl.abi,
-        functionName: "initialize",
-        args: [roles, admin],
-      } as any) as `0x${string}`,
+      implAddress: this.contracts.UserRegistry.address,
+      abi: this.contracts.UserRegistry.abi,
+      functionName: "initialize",
+      args: [admin, roles],
       salt,
     });
   }
 }
 
 export async function setupCrossChainEnvironment({
-  l2ChainId = 0xeeeeee,
+  l2ChainId = DEFAULT_L2_CHAIN_ID,
   l1ChainId = l2ChainId - 1,
   l1Port = 0,
   l2Port = 0,
@@ -245,6 +323,7 @@ export async function setupCrossChainEnvironment({
   saveDeployments = false,
   quiet = !saveDeployments,
   procLog = false,
+  extraTime = 0,
 }: {
   l1ChainId?: number;
   l2ChainId?: number;
@@ -256,17 +335,18 @@ export async function setupCrossChainEnvironment({
   saveDeployments?: boolean;
   quiet?: boolean;
   procLog?: boolean; // show anvil process logs
+  extraTime?: number; // extra time to subtract from genesis timestamp
 } = {}) {
   // shutdown functions for partial initialization
   const finalizers: (() => unknown | Promise<unknown>)[] = [];
   async function shutdown() {
     await Promise.allSettled(finalizers.map((f) => f()));
   }
-  let unquiet = () => { };
+  let unquiet = () => {};
   if (quiet) {
     const { log, table } = console;
-    console.log = () => { };
-    console.table = () => { };
+    console.log = () => {};
+    console.table = () => {};
     unquiet = () => {
       console.log = log;
       console.table = table;
@@ -276,21 +356,27 @@ export async function setupCrossChainEnvironment({
     console.log("Deploying ENSv2...");
     await patchArtifactsV1();
 
+    // list of named wallets
     const names = ["deployer", "owner", "bridger", "user", "user2"];
     extraAccounts += names.length;
 
-    process.env["RUST_LOG"] = "info";
+    process.env["RUST_LOG"] = "info"; // required to capture console.log()
+    const baseArgs = {
+      accounts: extraAccounts,
+      mnemonic,
+      ...(extraTime
+        ? { timestamp: Math.floor(Date.now() / 1000) - extraTime }
+        : {}),
+    };
     const l1Anvil = createAnvil({
+      ...baseArgs,
       chainId: l1ChainId,
       port: l1Port,
-      accounts: extraAccounts,
-      mnemonic,
     });
     const l2Anvil = createAnvil({
+      ...baseArgs,
       chainId: l2ChainId,
       port: l2Port,
-      accounts: extraAccounts,
-      mnemonic,
     });
 
     // use same accounts on both chains
@@ -354,9 +440,10 @@ export async function setupCrossChainEnvironment({
     });
 
     const transportOptions = {
-      retryCount: 0,
-      keepAlive: true, // these prevent error
-      reconnect: false, // spam on shutdown
+      retryCount: 1,
+      keepAlive: true,
+      reconnect: false,
+      timeout: 10000,
     } as const;
     const l1Transport = webSocket(`ws://${l1HostPort}`, transportOptions);
     const l2Transport = webSocket(`ws://${l2HostPort}`, transportOptions);
@@ -497,8 +584,17 @@ export async function setupCrossChainEnvironment({
 
     //await setupBridgeBlacklists(l1, l2);
 
+    await setupBridgeConfiguration(l1, l2, deployer);
+    console.log("Setup bridge configuration");
+
     await sync();
     console.log("Deployed ENSv2");
+
+    type RecursiveCrossChainSnapshot =
+      () => Promise<RecursiveCrossChainSnapshot>;
+    let executionChain: Promise<void | CrossChainSnapshot> = new Promise(
+      (resolve) => resolve(),
+    );
 
     return {
       accounts,
@@ -525,43 +621,72 @@ export async function setupCrossChainEnvironment({
     async function waitFor(hash: Future<Hex>) {
       hash = await hash;
       const chain = await findChain(hash);
-      const receipt = await chain.client.waitForTransactionReceipt({ hash });
+      const receipt = await waitForSuccessfulTransactionReceipt(chain.client, {
+        hash,
+      });
       return { receipt, chain };
     }
     async function saveState(): Promise<CrossChainSnapshot> {
-      const fs = await Promise.all(
-        [l1Client, l2Client].map(async (c) => {
-          let state = await c.request({ method: "evm_snapshot" } as any);
-          return async () => {
-            const ok = await c.request({
-              method: "evm_revert",
-              params: [state],
-            } as any);
-            if (!ok) throw new Error("revert failed");
-            // apparently the snapshots cannot be reused
-            state = await c.request({ method: "evm_snapshot" } as any);
-          };
-        }),
-      );
+      executionChain = executionChain.then(() => _saveState());
+      return executionChain as Promise<CrossChainSnapshot>;
+    }
+    async function _saveState(): Promise<CrossChainSnapshot> {
+      const saveStateForClient = async (
+        c: CrossChainClient,
+        i: number,
+        recursiveIndex: number = 0,
+      ): Promise<RecursiveCrossChainSnapshot> => {
+        let state = await c.request({ method: "evm_snapshot" } as any);
+        const systemTime = Math.floor(Date.now() / 1000);
+        await c.setNextBlockTimestamp({ timestamp: BigInt(systemTime) });
+        await c.mine({ blocks: 1 });
+        return async () => {
+          const ok = await c.request({
+            method: "evm_revert",
+            params: [state],
+          } as any);
+          if (!ok) throw new Error("revert failed");
+          return await saveStateForClient(c, i, recursiveIndex + 1);
+        };
+      };
+      let fs: RecursiveCrossChainSnapshot[] = [];
+      const cs = [l1Client, l2Client];
+      for (let i = 0; i < 2; i++) {
+        const c = cs[i];
+        fs.push(await saveStateForClient(c, i));
+      }
       return async () => {
-        await Promise.all(fs.map((f) => f()));
+        for (let i = 0; i < fs.length; i++) {
+          fs[i] = await fs[i]();
+        }
       };
     }
     async function sync({
       blocks = 1,
       warpSec = 0,
     }: { blocks?: number; warpSec?: number } = {}) {
-      const [b0, b1] = await Promise.all([
+      // example:
+      // l1Block.timestamp = 100
+      // l2Block.timestamp = 105 (l2 is 5 seconds ahead)
+      const [l1Block, l2Block] = await Promise.all([
         l1Client.getBlock(),
         l2Client.getBlock(),
       ]);
-      const dt = Number(b0.timestamp - b1.timestamp);
-      const interval = warpSec + Math.max(0, -dt);
+      // dt = -5
+      const timestampDiff = Number(l1Block.timestamp - l2Block.timestamp);
+      // l1WarpSec = max(0, -1 * -5) = 5
+      const l1WarpSec = warpSec + Math.max(0, -timestampDiff);
+      // l2WarpSec = max(0, -5) = 0
+      const l2WarpSec = warpSec + Math.max(0, +timestampDiff);
+      // l1 will warp 5 seconds, l2 will warp 0 seconds
       await Promise.all([
-        l1Client.mine({ blocks, interval }),
-        l2Client.mine({ blocks, interval: warpSec + Math.max(0, +dt) }),
+        l1Client.mine({ blocks, interval: l1WarpSec }),
+        l2Client.mine({ blocks, interval: l2WarpSec }),
       ]);
-      return b0.timestamp + BigInt(interval);
+      // result:
+      // l1Block.timestamp = 105
+      // l2Block.timestamp = 105
+      return l1Block.timestamp + BigInt(l1WarpSec);
     }
   } catch (err) {
     await shutdown();
@@ -585,44 +710,113 @@ export async function setupCrossChainEnvironment({
 //   }
 // }
 
-async function setupEnsDotEth(l1: L1Deployment, owner: Account) {
+async function setupEnsDotEth(l1: L1Deployment, account: Account) {
   // create registry for "ens.eth"
-  const ens_ethRegistry = await l1.deployPermissionedRegistry(owner);
+  const ens_ethRegistry = await l1.deployPermissionedRegistry({ account });
+
   // create "ens.eth"
   await l1.contracts.ETHRegistry.write.register([
     "ens",
-    owner.address,
+    account.address,
     ens_ethRegistry.address,
     zeroAddress,
     0n,
     MAX_EXPIRY,
   ]);
+
   // create "dnsname.ens.eth"
-  const dnsnameResolver = await l1.deployDedicatedResolver(owner);
-  await dnsnameResolver.write.setAddr([
-    60n,
-    l1.contracts.DNSTXTResolver.address, // set to DNSTXTResolver
-  ]);
-  await ens_ethRegistry.write.register([
+  // https://etherscan.io/address/0x08769D484a7Cd9c4A98E928D9E270221F3E8578c#code
+  await setupNamedResolver(
     "dnsname",
-    owner.address,
-    zeroAddress,
-    dnsnameResolver.address,
-    0n,
-    MAX_EXPIRY,
-  ]);
+    await deployArtifact(l1.client, {
+      file: new URL(
+        "../test/integration/l1/dns/ExtendedDNSResolver_53f64de872aad627467a34836be1e2b63713a438.json",
+        import.meta.url,
+      ),
+    }),
+  );
+
+  // // create "dnsname2.ens.eth" (was never named?)
+  // // https://etherscan.io/address/0x08769D484a7Cd9c4A98E928D9E270221F3E8578c#code
+  // await setupNamedResolver(
+  //   "dnsname2",
+  //   await deployArtifact(l1.client, {
+  //     file: new URL(
+  //       "../lib/ens-contracts/deployments/mainnet/ExtendedDNSResolver.json",
+  //       import.meta.url,
+  //     ),
+  //   }),
+  // );
+
+  // create "dnstxt.ens.eth"
+  await setupNamedResolver("dnstxt", l1.contracts.DNSTXTResolver.address);
+
   // create "dnsalias.ens.eth"
-  const dnsaliasResolver = await l1.deployDedicatedResolver(owner);
-  await dnsaliasResolver.write.setAddr([
-    60n,
-    l1.contracts.DNSAliasResolver.address, // set to DNSAliasResolver
+  await setupNamedResolver("dnsalias", l1.contracts.DNSAliasResolver.address);
+
+  async function setupNamedResolver(label: string, address: Address) {
+    const resolver = await l1.deployDedicatedResolver({ account });
+    await resolver.write.setAddr([60n, address]);
+    await ens_ethRegistry.write.register([
+      label,
+      account.address,
+      zeroAddress,
+      resolver.address,
+      0n,
+      MAX_EXPIRY,
+    ]);
+  }
+}
+
+async function setupBridgeConfiguration(
+  l1: L1Deployment,
+  l2: L2Deployment,
+  deployer: Account,
+) {
+  // Configure bridge relationships for cross-chain messaging
+  console.log("Configuring bridge relationships...");
+  console.log("L1SurgeBridge:", l1.contracts.L1SurgeBridge.address);
+  console.log("L2SurgeBridge:", l2.contracts.L2SurgeBridge.address);
+  console.log("L1BridgeController:", l1.contracts.L1BridgeController.address);
+  console.log("L2BridgeController:", l2.contracts.L2BridgeController.address);
+
+  // Grant ROLE_SET_BRIDGE to deployer so they can call setBridge
+  // ROLE_SET_BRIDGE = 1 << 4 = 16 (from BridgeRolesLib.sol)
+  const ROLE_SET_BRIDGE = 1n << 4n;
+  await l1.contracts.L1BridgeController.write.grantRootRoles([
+    ROLE_SET_BRIDGE,
+    deployer.address,
   ]);
-  await ens_ethRegistry.write.register([
-    "dnsalias",
-    owner.address,
-    zeroAddress,
-    dnsaliasResolver.address,
-    0n,
-    MAX_EXPIRY,
+  await l2.contracts.L2BridgeController.write.grantRootRoles([
+    ROLE_SET_BRIDGE,
+    deployer.address,
   ]);
+
+  // Configure bridge controllers to point to their respective bridges
+  await l1.contracts.L1BridgeController.write.setBridge([
+    l1.contracts.L1SurgeBridge.address,
+  ]);
+  await l2.contracts.L2BridgeController.write.setBridge([
+    l2.contracts.L2SurgeBridge.address,
+  ]);
+
+  // Grant bridge roles to the bridges on their respective bridge controllers
+  await l1.contracts.L1BridgeController.write.grantRootRoles([
+    ROLES.OWNER.BRIDGE.EJECTOR,
+    l1.contracts.L1SurgeBridge.address,
+  ]);
+  await l2.contracts.L2BridgeController.write.grantRootRoles([
+    ROLES.OWNER.BRIDGE.EJECTOR,
+    l2.contracts.L2SurgeBridge.address,
+  ]);
+
+  // Configure destination bridge addresses for cross-chain messaging
+  await l1.contracts.L1SurgeBridge.write.setDestBridgeAddress([
+    l2.contracts.L2SurgeBridge.address,
+  ]);
+  await l2.contracts.L2SurgeBridge.write.setDestBridgeAddress([
+    l1.contracts.L1SurgeBridge.address,
+  ]);
+
+  console.log("✓ Bridge configuration complete");
 }

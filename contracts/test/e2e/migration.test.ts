@@ -1,15 +1,10 @@
-import { describe, it, beforeAll, beforeEach, afterAll } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, it } from "bun:test";
 import { Account, encodeAbiParameters, labelhash, zeroAddress } from "viem";
 
-import {
-  type CrossChainEnvironment,
-  type CrossChainSnapshot,
-  setupCrossChainEnvironment,
-} from "../../script/setup.js";
-import { type MockRelay, setupMockRelay } from "../../script/mockRelay.js";
+import { ROLES } from "../../deploy/constants.js";
+import { type CrossChainSnapshot } from "../../script/setup.js";
 import { dnsEncodeName, labelToCanonicalId } from "../../test/utils/utils.js";
 import { expectVar } from "../utils/expectVar.js";
-import { ROLES } from "../../deploy/constants.js";
 
 // see: TransferData.sol
 const migrationDataAbi = [
@@ -38,23 +33,22 @@ const migrationDataAbi = [
 // https://www.notion.so/enslabs/ENSv2-Migration-Plan-23b7a8b1f0ed80ee832df953abc80810
 
 describe("Migration", () => {
-  let env: CrossChainEnvironment;
-  let relay: MockRelay;
+  const env = process.env.TEST_GLOBALS!.env;
+  const relay = process.env.TEST_GLOBALS!.relay;
   let resetState: CrossChainSnapshot;
   beforeAll(async () => {
-    env = await setupCrossChainEnvironment({ procLog: true }); // show anvil logs
-    relay = setupMockRelay(env);
-
+    await process.env.TEST_GLOBALS!.disableStateReset();
     // add owner as controller so we can register() directly
     const { owner } = env.namedAccounts;
     await env.l1.contracts.ETHRegistrarV1.write.addController([owner.address], {
       account: owner,
     });
-
     resetState = await env.saveState();
   });
 
-  afterAll(() => env?.shutdown());
+  afterAll(async () => {
+    await process.env.TEST_GLOBALS!.enableStateReset();
+  });
   beforeEach(() => resetState?.());
 
   const SUBREGISTRY = "0x1111111111111111111111111111111111111111";

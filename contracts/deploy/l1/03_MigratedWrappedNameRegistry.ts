@@ -11,6 +11,9 @@ export default execute(
     const registryDatastore =
       get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
 
+    const hcaFactory =
+      get<(typeof artifacts.MockHCAFactoryBasic)["abi"]>("HCAFactory");
+
     const registryMetadata = get<
       (typeof artifacts.SimpleRegistryMetadata)["abi"]
     >("SimpleRegistryMetadata");
@@ -29,6 +32,7 @@ export default execute(
         ethRegistry.address,
         verifiableFactory.address,
         registryDatastore.address,
+        hcaFactory.address,
         registryMetadata.address,
         ensV1Resolver.address,
       ],
@@ -38,6 +42,7 @@ export default execute(
     tags: ["MigratedWrappedNameRegistry", "l1"],
     dependencies: [
       "NameWrapper",
+      "HCAFactory",
       "ETHRegistry",
       "VerifiableFactory",
       "ENSV1Resolver",

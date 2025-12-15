@@ -2,13 +2,14 @@ import { artifacts, execute } from "@rocketh";
 
 export default execute(
   async ({ deploy, namedAccounts: { deployer } }) => {
-    await deploy("MockBridge", {
+    // TODO: deploy the actual HCAFactory
+    await deploy("HCAFactory", {
       account: deployer,
-      artifact: artifacts.MockL1Bridge,
+      artifact: artifacts.MockHCAFactoryBasic,
       args: [],
     });
   },
   {
-    tags: ["MockL1Bridge", "mocks", "l1"],
+    tags: ["HCAFactory", "shared"],
   },
 );

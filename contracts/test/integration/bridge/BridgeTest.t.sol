@@ -5,6 +5,8 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+
 import {
     EnhancedAccessControl,
     EACBaseRolesLib
@@ -14,24 +16,32 @@ import {BridgeRolesLib} from "~src/common/bridge/libraries/BridgeRolesLib.sol";
 import {TransferData} from "~src/common/bridge/types/TransferData.sol";
 import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
+import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L2BridgeController} from "~src/L2/bridge/L2BridgeController.sol";
-import {MockL1Bridge} from "~test/mocks/MockL1Bridge.sol";
-import {MockL2Bridge} from "~test/mocks/MockL2Bridge.sol";
-import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
+import {ISurgeNativeBridge} from "~src/common/bridge/interfaces/ISurgeNativeBridge.sol";
+import {L1SurgeBridge} from "~src/L1/bridge/L1SurgeBridge.sol";
+import {L2SurgeBridge} from "~src/L2/bridge/L2SurgeBridge.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
+import {MockSurgeNativeBridge} from "~test/mocks/MockSurgeNativeBridge.sol";
 
-contract BridgeTest is Test, EnhancedAccessControl {
+contract BridgeTest is Test {
     RegistryDatastore datastore;
+    MockHCAFactoryBasic hcaFactory;
 
-    MockPermissionedRegistry l1Registry;
-    MockPermissionedRegistry l2Registry;
-    MockL1Bridge l1Bridge;
-    MockL2Bridge l2Bridge;
+    PermissionedRegistry l1Registry;
+    PermissionedRegistry l2Registry;
+    MockSurgeNativeBridge surgeNativeBridge;
+    L1SurgeBridge l1SurgeBridge;
+    L2SurgeBridge l2SurgeBridge;
     L1BridgeController l1Controller;
     L2BridgeController l2Controller;
+
+    // Chain IDs for testing
+    uint64 constant L1_CHAIN_ID = 1;
+    uint64 constant L2_CHAIN_ID = 42;
 
     // Test accounts
     address user1 = address(0x1);
@@ -40,37 +50,47 @@ contract BridgeTest is Test, EnhancedAccessControl {
     function setUp() public {
         // Deploy registries
         datastore = new RegistryDatastore();
-        SimpleRegistryMetadata metadata = new SimpleRegistryMetadata();
-        l1Registry = new MockPermissionedRegistry(
+        hcaFactory = new MockHCAFactoryBasic();
+        SimpleRegistryMetadata metadata = new SimpleRegistryMetadata(hcaFactory);
+        l1Registry = new PermissionedRegistry(
             datastore,
+            hcaFactory,
             metadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES
         );
-        l2Registry = new MockPermissionedRegistry(
+        l2Registry = new PermissionedRegistry(
             datastore,
+            hcaFactory,
             metadata,
             address(this),
             EACBaseRolesLib.ALL_ROLES
         );
 
-        // Deploy bridges
-        l1Bridge = new MockL1Bridge();
-        l2Bridge = new MockL2Bridge();
+        // Deploy Surge bridge mock
+        surgeNativeBridge = new MockSurgeNativeBridge();
 
-        // Deploy controllers
-        l1Controller = new L1BridgeController(l1Registry, l1Bridge);
-        l2Controller = new L2BridgeController(l2Bridge, l2Registry, datastore);
+        // Deploy placeholder bridges first (needed to create controllers)
+        l1SurgeBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, L1BridgeController(address(0)));
+        l2SurgeBridge = new L2SurgeBridge(surgeNativeBridge, L2_CHAIN_ID, L1_CHAIN_ID, L2BridgeController(address(0)));
 
-        // Set the controller contracts as targets for the bridges
-        l1Bridge.setBridgeController(l1Controller);
-        l2Bridge.setBridgeController(l2Controller);
+        // Deploy controllers with initial bridges
+        l1Controller = new L1BridgeController(l1Registry, l1SurgeBridge);
+        l2Controller = new L2BridgeController(l2SurgeBridge, l2Registry, datastore);
+
+        // Re-deploy bridges with correct controller references
+        l1SurgeBridge = new L1SurgeBridge(surgeNativeBridge, L1_CHAIN_ID, L2_CHAIN_ID, l1Controller);
+        l2SurgeBridge = new L2SurgeBridge(surgeNativeBridge, L2_CHAIN_ID, L1_CHAIN_ID, l2Controller);
+
+        // Set up bridges with destination addresses
+        l1SurgeBridge.setDestBridgeAddress(address(l2SurgeBridge));
+        l2SurgeBridge.setDestBridgeAddress(address(l1SurgeBridge));
 
         // Grant necessary roles to controllers
         l1Registry.grantRootRoles(
             RegistryRolesLib.ROLE_REGISTRAR |
                 RegistryRolesLib.ROLE_RENEW |
-                RegistryRolesLib.ROLE_BURN,
+                RegistryRolesLib.ROLE_UNREGISTER,
             address(l1Controller)
         );
         l2Registry.grantRootRoles(
@@ -78,9 +98,15 @@ contract BridgeTest is Test, EnhancedAccessControl {
             address(l2Controller)
         );
 
-        // Grant bridge roles so the bridges can call the controllers
-        l1Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l1Bridge));
-        l2Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l2Bridge));
+        // Update controller bridge references
+        l1Controller.grantRootRoles(BridgeRolesLib.ROLE_SET_BRIDGE, address(this));
+        l2Controller.grantRootRoles(BridgeRolesLib.ROLE_SET_BRIDGE, address(this));
+        l1Controller.setBridge(l1SurgeBridge);
+        l2Controller.setBridge(l2SurgeBridge);
+
+        // Grant bridge roles so the NEW bridges can call the controllers
+        l1Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l1SurgeBridge));
+        l2Controller.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(l2SurgeBridge));
     }
 
     function testNameEjectionFromL2ToL1() public {
@@ -95,7 +121,7 @@ contract BridgeTest is Test, EnhancedAccessControl {
         );
 
         TransferData memory transferData = TransferData({
-            dnsEncodedName: LibLabel.dnsEncodeEthLabel("premiumname"),
+            dnsEncodedName: NameCoder.ethName("premiumname"),
             owner: user2,
             subregistry: address(0x123),
             resolver: address(0x456),
@@ -114,17 +140,35 @@ contract BridgeTest is Test, EnhancedAccessControl {
         );
         vm.stopPrank();
 
-        // Step 2: Simulate receiving the message on L1
+        // Step 2: Simulate cross-chain message via Surge bridge
         bytes memory bridgeMessage = BridgeEncoderLib.encodeEjection(transferData);
-        l1Bridge.receiveMessage(bridgeMessage);
+
+        // Create Surge message to simulate L2->L1 message
+        ISurgeNativeBridge.Message memory surgeMessage = ISurgeNativeBridge.Message({
+            id: 0,
+            fee: 0,
+            gasLimit: surgeNativeBridge.getMessageMinGasLimit(bridgeMessage.length),
+            from: address(l2SurgeBridge),
+            srcChainId: L2_CHAIN_ID,
+            srcOwner: address(this),
+            destChainId: L1_CHAIN_ID,
+            destOwner: address(this),
+            to: address(l1SurgeBridge),
+            value: 0,
+            data: bridgeMessage
+        });
+
+        // Send message through Surge bridge and deliver it
+        (, ISurgeNativeBridge.Message memory sentMessage) = surgeNativeBridge.sendMessage(surgeMessage);
+        surgeNativeBridge.deliverMessage(sentMessage);
 
         // Step 3: Verify the name is registered on L1
         assertEq(l1Registry.ownerOf(tokenId), transferData.owner);
         assertEq(address(l1Registry.getSubregistry("premiumname")), transferData.subregistry);
         assertEq(l1Registry.getResolver("premiumname"), transferData.resolver);
-        assertEq(l1Registry.getExpiry(tokenId), transferData.expires);
+        assertEq(l1Registry.getEntry(tokenId).expiry, transferData.expires);
         assertEq(
-            l1Registry.roles(l1Registry.testGetResourceFromTokenId(tokenId), transferData.owner),
+            l1Registry.roles(l1Registry.getResource(tokenId), transferData.owner),
             transferData.roleBitmap
         );
     }

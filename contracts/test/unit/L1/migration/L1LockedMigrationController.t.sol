@@ -5,6 +5,7 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {ENS} from "@ens/contracts/registry/ENS.sol";
 import {
     INameWrapper,
@@ -29,13 +30,13 @@ import {IPermissionedRegistry} from "~src/common/registry/interfaces/IPermission
 import {IRegistry} from "~src/common/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/common/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.sol";
+import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
-import {LibLabel} from "~src/common/utils/LibLabel.sol";
 import {L1BridgeController} from "~src/L1/bridge/L1BridgeController.sol";
 import {L1LockedMigrationController} from "~src/L1/migration/L1LockedMigrationController.sol";
 import {LockedNamesLib} from "~src/L1/migration/libraries/LockedNamesLib.sol";
 import {MigratedWrappedNameRegistry} from "~src/L1/registry/MigratedWrappedNameRegistry.sol";
-import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
+import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract MockNameWrapper {
     mapping(uint256 tokenId => uint32 fuses) public fuses;
@@ -77,8 +78,12 @@ contract MockNameWrapper {
 contract MockBridge is IBridge {
     bytes public lastMessage;
 
-    function sendMessage(bytes memory message) external override {
+    function sendMessage(bytes memory message) external payable override {
         lastMessage = message;
+    }
+
+    function getMinGasLimit(bytes calldata) external pure override returns (uint32) {
+        return 100000;
     }
 
     function getLastMessage() external view returns (bytes memory) {
@@ -99,9 +104,10 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
     L1BridgeController bridgeController;
     RegistryDatastore datastore;
     MockRegistryMetadata metadata;
-    MockPermissionedRegistry registry;
+    PermissionedRegistry registry;
     VerifiableFactory factory;
     MigratedWrappedNameRegistry implementation;
+    MockHCAFactoryBasic hcaFactory;
 
     address owner = address(this);
     address user = address(0x1234);
@@ -115,6 +121,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         bridge = new MockBridge();
         datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
+        hcaFactory = new MockHCAFactoryBasic();
 
         // Deploy factory and implementation
         factory = new VerifiableFactory();
@@ -123,13 +130,15 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
             IPermissionedRegistry(address(registry)), // ethRegistry
             factory,
             datastore,
+            hcaFactory,
             metadata,
             fallbackResolver
         );
 
         // Setup eth registry
-        registry = new MockPermissionedRegistry(
+        registry = new PermissionedRegistry(
             datastore,
+            hcaFactory,
             metadata,
             owner,
             EACBaseRolesLib.ALL_ROLES
@@ -140,10 +149,9 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Grant necessary roles
         registry.grantRootRoles(
-            RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_BURN,
+            RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_UNREGISTER,
             address(bridgeController)
         );
-        bridgeController.grantRootRoles(BridgeRolesLib.ROLE_EJECTOR, address(controller));
 
         controller = new L1LockedMigrationController(
             INameWrapper(address(nameWrapper)),
@@ -166,7 +174,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -208,7 +216,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data - the roleBitmap should be ignored completely
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -227,7 +235,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // Confirm roles derived from name configuration
@@ -275,7 +283,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -301,7 +309,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -327,7 +335,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Use wrong label that doesn't match tokenId
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel("wronglabel"), // This won't match testTokenId
+                dnsEncodedName: NameCoder.ethName("wronglabel"), // This won't match testTokenId
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -356,7 +364,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
     function test_Revert_unauthorized_caller() public {
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -394,11 +402,11 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
             // DNS encode each label as .eth domain
             bytes memory dnsEncodedName;
             if (i == 0) {
-                dnsEncodedName = LibLabel.dnsEncodeEthLabel("test1");
+                dnsEncodedName = NameCoder.ethName("test1");
             } else if (i == 1) {
-                dnsEncodedName = LibLabel.dnsEncodeEthLabel("test2");
+                dnsEncodedName = NameCoder.ethName("test2");
             } else {
-                dnsEncodedName = LibLabel.dnsEncodeEthLabel("test3");
+                dnsEncodedName = NameCoder.ethName("test3");
             }
 
             migrationDataArray[i] = MigrationData({
@@ -456,7 +464,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         uint256 saltData = uint256(keccak256(abi.encodePacked(testLabel, uint256(999))));
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -499,7 +507,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data - incoming roleBitmap should be ignored
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -518,7 +526,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // 2LDs should NOT have renewal roles even when no additional fuses are burnt (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs)
@@ -564,7 +572,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -583,7 +591,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // Should NOT have renewal roles since CAN_EXTEND_EXPIRY is not set
@@ -614,7 +622,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -634,7 +642,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // 2LDs should NOT have renewal roles even when CANNOT_CREATE_SUBDOMAIN is not burnt (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs)
@@ -679,7 +687,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -698,7 +706,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
         // Get the registered name and check roles
         (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.testGetResourceFromTokenId(registeredTokenId);
+        uint256 resource = registry.getResource(registeredTokenId);
         uint256 userRoles = registry.roles(resource, user);
 
         // 2LDs should NOT have renewal roles (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs) but should have resolver roles
@@ -744,7 +752,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -800,7 +808,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -827,7 +835,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data with user as owner
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -880,7 +888,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
@@ -931,7 +939,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
-                dnsEncodedName: LibLabel.dnsEncodeEthLabel(testLabel),
+                dnsEncodedName: NameCoder.ethName(testLabel),
                 owner: user,
                 subregistry: address(0), // Will be created by factory
                 resolver: address(0xABCD),
