@@ -14,10 +14,7 @@ declare global {
       TEST_GLOBALS?: {
         env: CrossChainEnvironment;
         relay: MockRelay;
-        resetState: CrossChainSnapshot;
-        disableStateReset: () => Promise<void>;
-        enableStateReset: () => Promise<void>;
-        __canResetState: boolean;
+        setResetState(mode?: boolean): Promise<void>;
       };
     }
   }
@@ -26,28 +23,48 @@ declare global {
 const env = await setupCrossChainEnvironment({ extraTime: 10 });
 const relay = await setupMockRelay(env);
 
+// save the initial state
+const resetInitialState = await env.saveState();
+
+// the state that gets reset on each
+let resetState: CrossChainSnapshot | undefined = resetInitialState; // default to full reset
+
+// the environment is shared between all tests
+// so at the start of each test file, specific how the reset should work:
+//
+// beforeAll(async () => {
+//    // 1.) to enable reset
+//    await setResetState(true);
+//
+//    // 2.) to disable reset
+//    await setResetState(false);
+//
+//    // 3.) to add a prelude
+//    await setResetState(false); // reset
+//    // make modifications
+//    await setResetState(); // save new checkpoint
+// });
+
 process.env.TEST_GLOBALS = {
   env,
   relay,
-  resetState: await env.saveState(),
-  disableStateReset: async () => {
-    await process.env.TEST_GLOBALS?.resetState();
-    process.env.TEST_GLOBALS!.__canResetState = false;
+  async setResetState(mode) {
+    if (mode === false) {
+      await resetInitialState();
+      resetState = undefined;
+    } else if (mode === true) {
+      resetState = resetInitialState;
+    } else {
+      resetState = await env.saveState();
+    }
   },
-  enableStateReset: async () => {
-    process.env.TEST_GLOBALS!.__canResetState = true;
-    await process.env.TEST_GLOBALS?.resetState();
-  },
-  __canResetState: true,
 };
 
 beforeEach(async () => {
-  if (process.env.TEST_GLOBALS?.__canResetState) {
-    await process.env.TEST_GLOBALS?.resetState();
-  }
+  await resetState?.();
 });
 
 afterAll(async () => {
-  process.env.TEST_GLOBALS?.relay?.removeListeners();
-  await process.env.TEST_GLOBALS?.env?.shutdown();
+  relay.removeListeners();
+  await env.shutdown();
 });

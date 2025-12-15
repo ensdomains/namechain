@@ -1,4 +1,4 @@
-import { describe, it } from "bun:test";
+import { beforeAll, describe, it } from "bun:test";
 import {
   type Address,
   getAddress,
@@ -20,7 +20,9 @@ import {
 import { dnsEncodeName } from "../utils/utils.js";
 
 describe("Resolve", () => {
-  const env = process.env.TEST_GLOBALS!.env;
+  const { env, setResetState } = process.env.TEST_GLOBALS!;
+
+  beforeAll(() => setResetState(true));
 
   async function expectResolve(kp: KnownProfile) {
     const bundle = bundleCalls(makeResolutions(kp));

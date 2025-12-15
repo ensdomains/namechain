@@ -627,38 +627,22 @@ export async function setupCrossChainEnvironment({
       return { receipt, chain };
     }
     async function saveState(): Promise<CrossChainSnapshot> {
-      executionChain = executionChain.then(() => _saveState());
-      return executionChain as Promise<CrossChainSnapshot>;
-    }
-    async function _saveState(): Promise<CrossChainSnapshot> {
-      const saveStateForClient = async (
-        c: CrossChainClient,
-        i: number,
-        recursiveIndex: number = 0,
-      ): Promise<RecursiveCrossChainSnapshot> => {
-        let state = await c.request({ method: "evm_snapshot" } as any);
-        const systemTime = Math.floor(Date.now() / 1000);
-        await c.setNextBlockTimestamp({ timestamp: BigInt(systemTime) });
-        await c.mine({ blocks: 1 });
-        return async () => {
-          const ok = await c.request({
-            method: "evm_revert",
-            params: [state],
-          } as any);
-          if (!ok) throw new Error("revert failed");
-          return await saveStateForClient(c, i, recursiveIndex + 1);
-        };
-      };
-      let fs: RecursiveCrossChainSnapshot[] = [];
-      const cs = [l1Client, l2Client];
-      for (let i = 0; i < 2; i++) {
-        const c = cs[i];
-        fs.push(await saveStateForClient(c, i));
-      }
+      const fs = await Promise.all(
+        [l1Client, l2Client].map(async (c) => {
+          let state = await c.request({ method: "evm_snapshot" } as any);
+          return async () => {
+            const ok = await c.request({
+              method: "evm_revert",
+              params: [state],
+            } as any);
+            if (!ok) throw new Error("revert failed");
+            // apparently the snapshots cannot be reused
+            state = await c.request({ method: "evm_snapshot" } as any);
+          };
+        }),
+      );
       return async () => {
-        for (let i = 0; i < fs.length; i++) {
-          fs[i] = await fs[i]();
-        }
+        await Promise.all(fs.map((f) => f()));
       };
     }
     async function sync({

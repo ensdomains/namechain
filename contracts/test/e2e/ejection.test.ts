@@ -1,4 +1,4 @@
-import { describe, it } from "bun:test";
+import { beforeAll, describe, it } from "bun:test";
 import { encodeAbiParameters } from "viem";
 
 import { ROLES } from "../../deploy/constants.js";
@@ -27,9 +27,9 @@ const RESOLVER = "0x2222222222222222222222222222222222222222";
 
 // TODO: finish this after migration tests
 describe("Ejection", () => {
-  const env = process.env.TEST_GLOBALS!.env;
-  const relay = process.env.TEST_GLOBALS!.relay;
-  const resetState = process.env.TEST_GLOBALS!.resetState;
+  const { env, relay, setResetState } = process.env.TEST_GLOBALS!;
+
+  beforeAll(() => setResetState(true));
 
   it("2LD => L1", async () => {
     const account = env.namedAccounts.user2;

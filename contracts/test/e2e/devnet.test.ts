@@ -1,10 +1,11 @@
-import { describe, expect, it } from "bun:test";
+import { beforeAll, describe, expect, it } from "bun:test";
 import { toHex } from "viem";
 import { expectVar } from "../utils/expectVar.js";
 
 describe("Devnet", () => {
-  const env = process.env.TEST_GLOBALS!.env;
-  const resetState = process.env.TEST_GLOBALS!.resetState;
+  const { env, setResetState } = process.env.TEST_GLOBALS!;
+
+  beforeAll(() => setResetState(true));
 
   function blocks() {
     return Promise.all([env.l1.client, env.l2.client].map((x) => x.getBlock()));
@@ -39,6 +40,7 @@ describe("Devnet", () => {
   it("state", async () => {
     const address = toHex(1, { size: 20 });
     const slot = toHex(0, { size: 32 });
+    const resetState = await env.saveState();
     await env.l1.client.setStorageAt({
       address,
       index: Number(slot),

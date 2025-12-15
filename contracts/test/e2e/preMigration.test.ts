@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
+import { afterEach, beforeAll, describe, expect, it } from "bun:test";
 import { existsSync, unlinkSync } from "node:fs";
 import { zeroAddress } from "viem";
 import { ROLES } from "../../deploy/constants.js";
@@ -18,18 +18,14 @@ import { deleteTestCheckpoint } from "../utils/preMigrationTestUtils.js";
 const TEST_CSV_PATH = "test-registrations.csv";
 
 describe("Pre-Migration Script E2E", () => {
-  const env = process.env.TEST_GLOBALS!.env;
+  const { env, setResetState } = process.env.TEST_GLOBALS!;
 
   beforeAll(async () => {
-    await process.env.TEST_GLOBALS!.disableStateReset();
+    await setResetState(false);
     await setupBaseRegistrarController(
       env.l1.client,
       env.l1.contracts.ETHRegistrarV1.address,
     );
-  });
-
-  afterAll(async () => {
-    await process.env.TEST_GLOBALS!.enableStateReset();
   });
 
   afterEach(() => {
