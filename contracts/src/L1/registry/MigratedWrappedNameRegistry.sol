@@ -20,7 +20,6 @@ import {IRegistryMetadata} from "../../common/registry/interfaces/IRegistryMetad
 import {IStandardRegistry} from "../../common/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.sol";
-import {LibLabel} from "../../common/utils/LibLabel.sol";
 import {LockedNamesLib} from "../migration/libraries/LockedNamesLib.sol";
 import {ParentNotMigrated, LabelNotMigrated} from "../migration/MigrationErrors.sol";
 
