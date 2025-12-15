@@ -582,19 +582,11 @@ export async function setupCrossChainEnvironment({
     await setupEnsDotEth(l1, deployer);
     console.log("Setup ens.eth");
 
-    //await setupBridgeBlacklists(l1, l2);
-
     await setupBridgeConfiguration(l1, l2, deployer);
     console.log("Setup bridge configuration");
 
     await sync();
     console.log("Deployed ENSv2");
-
-    type RecursiveCrossChainSnapshot =
-      () => Promise<RecursiveCrossChainSnapshot>;
-    let executionChain: Promise<void | CrossChainSnapshot> = new Promise(
-      (resolve) => resolve(),
-    );
 
     return {
       accounts,
@@ -679,20 +671,6 @@ export async function setupCrossChainEnvironment({
     unquiet();
   }
 }
-
-// async function setupBridgeBlacklists(l1: L1Deployment, l2: L2Deployment) {
-//   // prevent ejection to the other sides controller
-//   const blacklisted = [
-//     l1.contracts.BridgeController.address,
-//     l2.contracts.BridgeController.address,
-//   ];
-//   for (const x of blacklisted) {
-//     await Promise.all([
-//       l1.contracts.BridgeController.write.setInvalidTransferOwner([x, true]),
-//       l2.contracts.BridgeController.write.setInvalidTransferOwner([x, true]),
-//     ]);
-//   }
-// }
 
 async function setupEnsDotEth(l1: L1Deployment, account: Account) {
   // create registry for "ens.eth"
