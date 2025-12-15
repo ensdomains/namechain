@@ -141,24 +141,24 @@ library LibRegistry {
     ) internal view returns (IRegistry[] memory registries) {
         registries = new IRegistry[](1 + NameCoder.countLabels(name, offset));
         registries[registries.length - 1] = rootRegistry;
-        _findRegistries(name, offset, registries, 0);
+        buildAncestory(name, offset, registries, 0);
     }
 
-    /// @dev Recursive function for building ancestory.
-    function _findRegistries(
+    /// @dev Recursive function for building registry ancestory.
+    function buildAncestory(
         bytes memory name,
         uint256 offset,
         IRegistry[] memory registries,
         uint256 index
-    ) private view returns (IRegistry registry) {
+    ) internal view returns (IRegistry registry) {
         (string memory label, uint256 nextOffset) = NameCoder.extractLabel(name, offset);
-        if (bytes(label).length == 0) {
-            return registries[registries.length - 1];
-        }
-        registry = _findRegistries(name, nextOffset, registries, index + 1);
-        if (address(registry) != address(0)) {
-            registry = registry.getSubregistry(label);
-            registries[index] = registry;
+        registry = registries[index];
+        if (address(registry) == address(0)) {
+            registry = buildAncestory(name, nextOffset, registries, index + 1);
+            if (address(registry) != address(0)) {
+                registry = registry.getSubregistry(label);
+                registries[index] = registry;
+            }
         }
     }
 }
