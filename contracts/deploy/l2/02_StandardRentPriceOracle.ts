@@ -2,6 +2,7 @@ import { artifacts, execute } from "@rocketh";
 
 export default execute(
   async ({ deploy, read, get, namedAccounts: { deployer, owner } }) => {
+    console.log("STANDARD RENT PRICE ORACLE");
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
@@ -41,6 +42,7 @@ export default execute(
       [SEC_PER_YEAR * 15n, discountRatio(1n, 3n)],
     ];
 
+    console.log("PAYMENT TOKENS");
     const paymentFactors = await Promise.all(
       paymentTokens.map(async (x) => {
         const [symbol, decimals] = await Promise.all([
@@ -56,6 +58,7 @@ export default execute(
         };
       }),
     );
+    console.log("PAYMENT FACTORS");
 
     console.table(paymentFactors);
 

@@ -22,14 +22,27 @@ export default execute(
     const beneficiary = owner || deployer;
 
     const SEC_PER_DAY = 86400n;
-    const ethRegistrar = await deploy("ETHRegistrar", {
+    // const ethRegistrar = await deploy("ETHRegistrar", {
+    //   account: deployer,
+    //   artifact: artifacts.ETHRegistrar,
+    //   args: [
+    //     ethRegistry.address,
+    //     beneficiary,
+    //     60n, // minCommitmentAge
+    //     SEC_PER_DAY, // maxCommitmentAge
+    //     28n * SEC_PER_DAY, // minRegistrationDuration
+    //     rentPriceOracle.address,
+    //   ],
+    // });
+
+    const ethRegistrar = await deploy("FastTestETHRegistrar", {
       account: deployer,
       artifact: artifacts.ETHRegistrar,
       args: [
         ethRegistry.address,
         hcaFactory.address,
         beneficiary,
-        60n, // minCommitmentAge
+        0n, // minCommitmentAge
         SEC_PER_DAY, // maxCommitmentAge
         28n * SEC_PER_DAY, // minRegistrationDuration
         rentPriceOracle.address,
