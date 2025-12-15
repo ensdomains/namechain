@@ -10,6 +10,7 @@ import {LibRegistry} from "./libraries/LibRegistry.sol";
 contract RegistryFinder {
     IRegistry public immutable REGISTRY;
     bytes32 private immutable _NODE;
+    uint256 private immutable _COUNT;
 
     bytes public baseName;
 
@@ -18,6 +19,7 @@ contract RegistryFinder {
     constructor(IRegistry registry, bytes memory name) {
         REGISTRY = registry;
         _NODE = NameCoder.namehash(name, 0);
+        _COUNT = NameCoder.countLabels(name, 0);
         baseName = name;
     }
 
@@ -35,12 +37,13 @@ contract RegistryFinder {
     function findRegistries(
         bytes calldata name
     ) external view returns (IRegistry[] memory registries) {
-        (bool matched, , , uint256 matchOffset) = NameCoder.matchSuffix(name, 0, _NODE);
+        (bool matched, , , ) = NameCoder.matchSuffix(name, 0, _NODE);
         if (!matched) {
             revert NameNotSubdomain(name, baseName);
         }
-        registries = new IRegistry[](1 + NameCoder.countLabels(name, 0));
-        registries[NameCoder.countLabels(name, matchOffset)] = REGISTRY;
+        uint256 count = NameCoder.countLabels(name, 0);
+        registries = new IRegistry[](1 + count);
+        registries[count - _COUNT] = REGISTRY;
         LibRegistry.buildAncestory(name, 0, registries, 0);
     }
 }

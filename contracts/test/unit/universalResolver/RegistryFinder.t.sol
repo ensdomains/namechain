@@ -32,7 +32,20 @@ contract RegistryFinderTest is Test, ERC1155Holder {
         datastore = new RegistryDatastore();
     }
 
-    function test_findRegistries() external {
+    function test_findRegistries_eth() external {
+        vm.pauseGasMetering();
+        PermissionedRegistry ethRegistry = _createRegistry();
+        RegistryFinder finder = new RegistryFinder(ethRegistry, NameCoder.encode("eth"));
+        vm.resumeGasMetering();
+
+        IRegistry[] memory registries = finder.findRegistries(NameCoder.encode("eth"));
+
+        assertEq(registries.length, 2, "length");
+        assertEq(address(registries[0]), address(ethRegistry), "0");
+        assertEq(address(registries[1]), address(0), "1");
+    }
+
+    function test_findRegistries_test_eth() external {
         vm.pauseGasMetering();
         PermissionedRegistry ethRegistry = _createRegistry();
         PermissionedRegistry testRegistry = _createRegistry();
@@ -53,5 +66,37 @@ contract RegistryFinderTest is Test, ERC1155Holder {
         assertEq(address(registries[0]), address(testRegistry), "0");
         assertEq(address(registries[1]), address(ethRegistry), "1");
         assertEq(address(registries[2]), address(0), "2");
+    }
+
+    function test_findRegistries_sub_test_eth() external {
+        vm.pauseGasMetering();
+        PermissionedRegistry ethRegistry = _createRegistry();
+        PermissionedRegistry testRegistry = _createRegistry();
+        RegistryFinder finder = new RegistryFinder(ethRegistry, NameCoder.encode("eth"));
+        ethRegistry.register(
+            "test",
+            address(this),
+            testRegistry,
+            address(0),
+            EACBaseRolesLib.ALL_ROLES,
+            uint64(block.timestamp + 1000)
+        );
+        testRegistry.register(
+            "test",
+            address(this),
+            IRegistry(address(0)),
+            resolverAddress,
+            EACBaseRolesLib.ALL_ROLES,
+            uint64(block.timestamp + 1000)
+        );
+        vm.resumeGasMetering();
+
+        IRegistry[] memory registries = finder.findRegistries(NameCoder.encode("sub.test.eth"));
+
+        assertEq(registries.length, 4, "length");
+        assertEq(address(registries[0]), address(0), "0");
+        assertEq(address(registries[1]), address(testRegistry), "1");
+        assertEq(address(registries[2]), address(ethRegistry), "2");
+        assertEq(address(registries[3]), address(0), "3");
     }
 }
