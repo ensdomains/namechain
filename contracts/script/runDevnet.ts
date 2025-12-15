@@ -20,9 +20,9 @@ const args = parseArgs({
 });
 
 const env = await setupCrossChainEnvironment({
-  l1Port: 48545,
-  l2Port: 48546,
-  urgPort: 48547,
+  l1Port: 8545,
+  l2Port: 8546,
+  urgPort: 8547,
   saveDeployments: true,
   procLog: args.values.procLog,
   extraTime: args.values.testNames ? 86_401 : 0,
