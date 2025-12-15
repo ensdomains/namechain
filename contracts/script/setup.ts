@@ -145,7 +145,7 @@ function createClient(transport: Transport, chain: Chain, account: Account) {
     transport,
     chain,
     account,
-    pollingInterval: 1,
+    pollingInterval: process.env.CI ? 10 : 0,
     cacheTime: 0, // must be 0 due to client caching
   })
     .extend(publicActions)
@@ -505,7 +505,7 @@ export async function setupCrossChainEnvironment({
               nativeCurrency: chain.nativeCurrency,
               rpcUrls: { default: { http: [...chain.rpcUrls.default.http] } },
             },
-            pollingInterval: 0.001, // cannot be zero
+            pollingInterval: process.env.CI ? 0.01 : 0.001, // cannot be zero
           },
           askBeforeProceeding: false,
           saveDeployments,
