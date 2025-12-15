@@ -1,11 +1,6 @@
 import { artifacts, execute } from "@rocketh";
-import {
-  type RpcLog,
-  encodeFunctionData,
-  parseEventLogs,
-  zeroAddress,
-} from "viem";
-import { ROLES } from "../constants.ts";
+import { type RpcLog, encodeFunctionData, parseEventLogs } from "viem";
+import { ROLES } from "../constants.js";
 
 export default execute(
   async (
@@ -24,10 +19,18 @@ export default execute(
 
     const ensRegistryV1 =
       getV1<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
+    const nameWrapper =
+      getV1<(typeof artifacts.NameWrapper)["abi"]>("NameWrapper");
 
     const batchGatewayProvider = getV1<
       (typeof artifacts.GatewayProvider)["abi"]
     >("BatchGatewayProvider");
+
+    const ethRegistry =
+      get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
+
+    const bridgeController =
+      get<(typeof artifacts.L1BridgeController)["abi"]>("BridgeController");
 
     const verifiableFactory =
       get<(typeof artifacts.VerifiableFactory)["abi"]>("VerifiableFactory");
@@ -72,9 +75,10 @@ export default execute(
       account: deployer,
       artifact: artifacts.ETHTLDResolver,
       args: [
-        ensRegistryV1.address,
+        nameWrapper.address,
         batchGatewayProvider.address,
-        zeroAddress, // burnAddressV1
+        ethRegistry.address,
+        bridgeController.address,
         ethSelfResolver.address,
         args.verifierAddress,
         args.l2Deploy.deployments.RegistryDatastore.address,
@@ -91,10 +95,12 @@ export default execute(
   {
     tags: ["ETHTLDResolver", "l1"],
     dependencies: [
+      "NameWrapper",
+      "BatchGatewayProvider",
+      "ETHRegistry",
+      "BridgeController",
       "VerifiableFactory",
       "DedicatedResolver",
-      "BaseRegistrarImplementation", // "ENSRegistry"
-      "BatchGatewayProvider",
     ],
   },
 );

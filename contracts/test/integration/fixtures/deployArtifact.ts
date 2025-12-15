@@ -11,7 +11,8 @@ import {
   type Transport,
   type WalletClient,
 } from "viem";
-import { getTransactionCount, waitForTransactionReceipt } from "viem/actions";
+import { getTransactionCount } from "viem/actions";
+import { waitForSuccessfulTransactionReceipt } from "../../utils/waitForSuccessfulTransactionReceipt.ts";
 
 type LinkReferences = Record<
   string,
@@ -29,7 +30,7 @@ type HardhatArtifact = {
   //_format: "hh-sol-artifact-1";
   abi: Abi;
   bytecode: Hex;
-  linkReferences: LinkReferences;
+  linkReferences?: LinkReferences;
 };
 
 export async function deployArtifact(
@@ -45,9 +46,9 @@ export async function deployArtifact(
     | HardhatArtifact;
   let bytecode: Hex;
   let linkReferences: LinkReferences;
-  if ("linkReferences" in artifact) {
+  if (typeof artifact.bytecode === "string") {
     bytecode = artifact.bytecode;
-    linkReferences = artifact.linkReferences;
+    linkReferences = artifact.linkReferences ?? {};
   } else {
     bytecode = artifact.bytecode.object;
     linkReferences = artifact.bytecode.linkReferences;
@@ -73,7 +74,7 @@ export async function deployArtifact(
     bytecode,
     args: options.args,
   });
-  await waitForTransactionReceipt(walletClient, { hash });
+  await waitForSuccessfulTransactionReceipt(walletClient, { hash, ensureDeployment: true });
   return getContractAddress({
     from: walletClient.account.address,
     nonce,

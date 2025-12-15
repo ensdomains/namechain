@@ -18,9 +18,6 @@ export default execute(
       (typeof artifacts.SimpleRegistryMetadata)["abi"]
     >("SimpleRegistryMetadata");
 
-    const ethTLDResolver =
-      get<(typeof artifacts.ETHTLDResolver)["abi"]>("ETHTLDResolver");
-
     const ethRegistry = await deploy("ETHRegistry", {
       account: deployer,
       artifact: artifacts.PermissionedRegistry,
@@ -77,7 +74,6 @@ export default execute(
       "RegistryDatastore",
       "HCAFactory",
       "RegistryMetadata",
-      "ETHTLDResolver",
     ],
   },
 );

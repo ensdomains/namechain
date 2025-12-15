@@ -1,5 +1,5 @@
 import type { NetworkConnection } from "hardhat/types/network";
-import { type Address, labelhash, zeroAddress } from "viem";
+import { type Address, getAddress, labelhash, zeroAddress } from "viem";
 import { LOCAL_BATCH_GATEWAY_URL, ROLES } from "../../../deploy/constants.js";
 import { splitName } from "../../utils/utils.js";
 import { deployVerifiableProxy } from "./deployVerifiableProxy.js";
@@ -187,6 +187,7 @@ export async function deployV2Fixture(
         //     parentRegistry == registries[1]
         // dedicatedResolver? == !resolverAddress
         return {
+          name,
           labels,
           tokenId,
           parentRegistry,
@@ -203,6 +204,7 @@ export async function deployV2Fixture(
           dedicatedResolver: dedicatedResolver as resolver_ extends false
             ? NonNullable<typeof dedicatedResolver>
             : undefined,
+          resolverAddress: getAddress(resolverAddress),
         };
       }
     }

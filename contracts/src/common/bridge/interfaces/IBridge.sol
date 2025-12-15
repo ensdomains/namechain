@@ -13,5 +13,6 @@ enum BridgeMessageType {
  * @dev Interface for the bridge contract.
  */
 interface IBridge {
-    function sendMessage(bytes memory message) external;
+    function sendMessage(bytes memory message) external payable;
+    function getMinGasLimit(bytes calldata message) external view returns (uint32);
 }

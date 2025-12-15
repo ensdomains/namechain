@@ -3,10 +3,14 @@ import {
   type Account,
   type Address,
   type Chain,
+  concat,
   type ContractFunctionName,
+  encodeAbiParameters,
   encodeFunctionData,
   type EncodeFunctionDataParameters,
   getContract,
+  getContractAddress,
+  type Hex,
   keccak256,
   parseAbi,
   parseEventLogs,
@@ -14,7 +18,7 @@ import {
   type Transport,
   type WalletClient,
 } from "viem";
-import { waitForTransactionReceipt } from "viem/actions";
+import { waitForSuccessfulTransactionReceipt } from "../../utils/waitForSuccessfulTransactionReceipt.ts";
 
 const verifiableFactoryAbi = parseAbi([
   "function deployProxy(address implementation, uint256 salt, bytes data)",
@@ -48,7 +52,8 @@ export async function deployVerifiableProxy<
       ),
     ],
   });
-  const receipt = await waitForTransactionReceipt(walletClient, { hash });
+
+  const receipt = await waitForSuccessfulTransactionReceipt(walletClient, { hash });
   const [log] = parseEventLogs({
     abi: verifiableFactoryAbi,
     eventName: "ProxyDeployed",
@@ -64,5 +69,36 @@ export async function deployVerifiableProxy<
   return Object.assign(contract, {
     deploymentHash: hash,
     deploymentReceipt: receipt,
+  });
+}
+
+export async function computeVerifiableProxyAddress({
+  factoryAddress,
+  bytecode,
+  deployer,
+  salt,
+}: {
+  factoryAddress: Address;
+  bytecode: Hex;
+  deployer: Address;
+  salt: bigint;
+}) {
+  const outerSalt = keccak256(
+    encodeAbiParameters(
+      [{ type: "address" }, { type: "uint256" }],
+      [deployer, salt],
+    ),
+  );
+  return getContractAddress({
+    bytecode: concat([
+      bytecode,
+      encodeAbiParameters(
+        [{ type: "address" }, { type: "bytes32" }],
+        [factoryAddress, outerSalt],
+      ),
+    ]),
+    from: factoryAddress,
+    opcode: "CREATE2",
+    salt: outerSalt,
   });
 }

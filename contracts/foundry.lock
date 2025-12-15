@@ -3,7 +3,10 @@
     "rev": "82cc81935de1d1a82e021cf1030d902c5248982b"
   },
   "lib/ens-contracts": {
-    "rev": "b6cb0e26f4039edab95cc465dc19f4b805ef95ba"
+    "branch": {
+      "name": "staging",
+      "rev": "6d877523e11f647ed62e8ee159f48f288c9cd9e9"
+    }
   },
   "lib/forge-std": {
     "rev": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
@@ -19,6 +22,12 @@
   },
   "lib/solsha1": {
     "rev": "c4fbe97cf5e8c1b8d607001588fd23abb5bfb923"
+  },
+  "lib/surge-taiko-mono": {
+    "tag": {
+      "name": "v25.1.1",
+      "rev": "e9c2ae6658ab69afe16f09d2ddca158046b47962"
+    }
   },
   "lib/unruggable-gateways": {
     "rev": "3d68742832c68bf9a158c7bcd1aa47fad511b213"

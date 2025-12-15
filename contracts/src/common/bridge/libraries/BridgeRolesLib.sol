@@ -5,4 +5,7 @@ pragma solidity ^0.8.13;
 library BridgeRolesLib {
     uint256 internal constant ROLE_EJECTOR = 1 << 0;
     uint256 internal constant ROLE_EJECTOR_ADMIN = ROLE_EJECTOR << 128;
+
+    uint256 internal constant ROLE_SET_BRIDGE = 1 << 4;
+    uint256 internal constant ROLE_SET_BRIDGE_ADMIN = ROLE_SET_BRIDGE << 128;
 }

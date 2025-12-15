@@ -18,6 +18,19 @@ jobs:
       - name: Compile and check types
         run: cd contracts && bun compile:hardhat && bun check:types
 
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      # setup
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+
+      - name: Run E2E tests
+        run: |
+          cd contracts && \
+          bun run test:e2e
+
   forge-tests:
     name: Forge Tests
     runs-on: ubuntu-latest
