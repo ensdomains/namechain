@@ -119,7 +119,7 @@ contract MockEnhancedAccessControl is EnhancedAccessControl {
         uint256 resource,
         uint256 roleBitmap,
         address account
-    ) external canRevokeRoles(resource, roleBitmap) returns (bool) {
+    ) external canRevokeRoles(resource, roleBitmap, account) returns (bool) {
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
@@ -1718,7 +1718,7 @@ contract EnhancedAccessControlTest is Test {
 
     function test_canRevokeRoles_unauthorized() external {
         _grant(RESOURCE_1, ROLE_A, user2);
-        vm.startPrank(user1);
+        vm.prank(user1);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACCannotRevokeRoles.selector,
