@@ -35,7 +35,7 @@ const migrationDataAbi = [
 describe("Migration", () => {
   const { env, relay, setupEnv } = process.env.TEST_GLOBALS!;
 
-  setupEnv(async () => {
+  setupEnv(true, async () => {
     // add owner as controller so we can register() directly
     const { owner } = env.namedAccounts;
     await env.l1.contracts.ETHRegistrarV1.write.addController([owner.address], {

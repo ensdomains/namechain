@@ -5,27 +5,23 @@ import { expectVar } from "../utils/expectVar.js";
 describe("Devnet", () => {
   const { env, setupEnv } = process.env.TEST_GLOBALS!;
 
-  setupEnv(true);
-
-  function blocks() {
-    return Promise.all([env.l1.client, env.l2.client].map((x) => x.getBlock()));
-  }
+  setupEnv();
 
   it("sync", async () => {
     await env.l1.client.mine({ blocks: 1, interval: 10 }); // advance one chain
-    let [a, b] = await blocks();
+    let [a, b] = await env.getBlocks();
     expect(a.timestamp, "diff").not.toStrictEqual(b.timestamp); // check diff
     const t = await env.sync();
-    [a, b] = await blocks();
+    [a, b] = await env.getBlocks();
     expect(b.timestamp, "after").toStrictEqual(a.timestamp); // check same
     expectVar({ t }).toStrictEqual(a.timestamp); // check estimate
   });
 
   it("warp", async () => {
     const warpSec = 60;
-    let [a0, b0] = await blocks();
+    let [a0, b0] = await env.getBlocks();
     const t = await env.sync({ warpSec }); // time warp
-    let [a1, b1] = await blocks();
+    let [a1, b1] = await env.getBlocks();
     expect(a1.timestamp - a0.timestamp, "diff1").toBeGreaterThanOrEqual(
       warpSec,
     );

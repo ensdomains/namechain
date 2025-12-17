@@ -585,9 +585,7 @@ export async function setupCrossChainEnvironment({
     await setupBridgeConfiguration(l1, l2, deployer);
     console.log("Setup bridge configuration");
 
-    await sync();
     console.log("Deployed ENSv2");
-
     return {
       accounts,
       namedAccounts,
@@ -600,8 +598,9 @@ export async function setupCrossChainEnvironment({
       },
       sync,
       waitFor,
-      shutdown,
+      getBlocks,
       saveState,
+      shutdown,
     };
     // determine the chain of the transaction
     async function findChain(hash: Future<Hex>) {
@@ -617,6 +616,9 @@ export async function setupCrossChainEnvironment({
         hash,
       });
       return { receipt, chain };
+    }
+    function getBlocks() {
+      return Promise.all([l1Client, l2Client].map((x) => x.getBlock()));
     }
     async function saveState(): Promise<CrossChainSnapshot> {
       const fs = await Promise.all(

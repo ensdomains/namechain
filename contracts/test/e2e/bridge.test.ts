@@ -17,7 +17,7 @@ import {
 describe("Bridge", () => {
   const { env, relay, setupEnv } = process.env.TEST_GLOBALS!;
 
-  setupEnv(true);
+  setupEnv();
 
   it("name ejection", async () => {
     const label = "premium";

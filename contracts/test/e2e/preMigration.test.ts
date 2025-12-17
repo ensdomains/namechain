@@ -20,7 +20,7 @@ const TEST_CSV_PATH = "test-registrations.csv";
 describe("Pre-Migration Script E2E", () => {
   const { env, setupEnv } = process.env.TEST_GLOBALS!;
 
-  setupEnv(async () => {
+  setupEnv(false, async () => {
     await setupBaseRegistrarController(
       env.l1.client,
       env.l1.contracts.ETHRegistrarV1.address,

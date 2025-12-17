@@ -14,49 +14,44 @@ declare global {
       TEST_GLOBALS?: {
         env: CrossChainEnvironment;
         relay: MockRelay;
-        setupEnv(mode: boolean | (() => Promise<void>)): void;
+        setupEnv(onEach?: boolean, init?: () => Promise<void>): unknown;
       };
     }
   }
 }
 
-const env = await setupCrossChainEnvironment({ extraTime: 10 });
+const env = await setupCrossChainEnvironment();
 const relay = await setupMockRelay(env);
 
 // save the initial state
 const resetInitialState = await env.saveState();
 
 // the state that gets reset on each
-let resetState: CrossChainSnapshot | undefined = resetInitialState; // default to full reset
+let resetEachState: CrossChainSnapshot | undefined = resetInitialState; // default to full reset
 
 // the environment is shared between all tests
-// so at the start of each test file, specific how the reset should work:
-//
-// 1.) to enable reset: setupEnv(true);
-// 2.) to disable reset: setupEnv(false);
-// 3.) to add a prelude: setupEnv(async () => { ... });
-
 process.env.TEST_GLOBALS = {
   env,
   relay,
-  setupEnv(mode) {
+  setupEnv(onEach = true, init) {
     beforeAll(async () => {
-      if (mode === false) {
+      if (!onEach || init) {
         await resetInitialState();
-        resetState = undefined;
-      } else if (mode === true) {
-        resetState = resetInitialState;
-      } else {
-        await resetInitialState();
-        await mode();
-        resetState = await env.saveState();
+      }
+      resetEachState = onEach ? resetInitialState : undefined;
+      if (init) {
+        await init();
+        if (onEach) {
+          resetEachState = await env.saveState();
+        }
       }
     });
   },
 };
 
 beforeEach(async () => {
-  await resetState?.();
+  await resetEachState?.();
+  console.log(await env.getBlocks().then((v) => v.map((x) => x.timestamp)));
 });
 
 afterAll(async () => {
