@@ -11,7 +11,7 @@ import {RegistryRolesLib} from "~src/common/registry/libraries/RegistryRolesLib.
 import {PermissionedRegistry} from "~src/common/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/common/registry/SimpleRegistryMetadata.sol";
-import {BatchRegistrar, BatchRegistrarName} from "~src/L2/registrar/BatchRegistrar.sol";
+import {BatchRegistrar, BatchRegistrarName} from "~src/common/registrar/BatchRegistrar.sol";
 import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract BatchRegistrarTest is Test {
@@ -31,17 +31,13 @@ contract BatchRegistrarTest is Test {
             EACBaseRolesLib.ALL_ROLES
         );
 
-        batchRegistrar = new BatchRegistrar(ethRegistry);
+        batchRegistrar = new BatchRegistrar(hcaFactory);
 
         vm.prank(owner);
         ethRegistry.grantRootRoles(
             RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_RENEW,
             address(batchRegistrar)
         );
-    }
-
-    function test_Constructor() external view {
-        assertEq(address(batchRegistrar.ETH_REGISTRY()), address(ethRegistry));
     }
 
     function test_BatchRegisterSingleName() external {
@@ -56,7 +52,8 @@ contract BatchRegistrarTest is Test {
         });
 
         vm.recordLogs();
-        batchRegistrar.batchRegister(names);
+        vm.prank(owner);
+        batchRegistrar.batchRegister(ethRegistry, names);
 
         (uint256 tokenId, ) = ethRegistry.getNameData("test");
         address nameOwner = ethRegistry.ownerOf(tokenId);
@@ -94,7 +91,8 @@ contract BatchRegistrarTest is Test {
             expires: expires
         });
 
-        batchRegistrar.batchRegister(names);
+        vm.prank(owner);
+        batchRegistrar.batchRegister(ethRegistry, names);
 
         for (uint256 i = 0; i < names.length; i++) {
             (uint256 tokenId, ) = ethRegistry.getNameData(names[i].label);
@@ -105,7 +103,8 @@ contract BatchRegistrarTest is Test {
 
     function test_BatchRegisterEmptyArray() external {
         BatchRegistrarName[] memory names = new BatchRegistrarName[](0);
-        batchRegistrar.batchRegister(names);
+        vm.prank(owner);
+        batchRegistrar.batchRegister(ethRegistry, names);
     }
 
     function test_BatchRegisterAlreadyRegisteredNameDoesNotRevert() external {
@@ -120,14 +119,16 @@ contract BatchRegistrarTest is Test {
             expires: initialExpiry
         });
 
-        batchRegistrar.batchRegister(names);
+        vm.prank(owner);
+        batchRegistrar.batchRegister(ethRegistry, names);
 
         (uint256 tokenId, ) = ethRegistry.getNameData("duplicate");
         uint64 expiryAfterFirst = ethRegistry.getExpiry(tokenId);
         assertEq(expiryAfterFirst, initialExpiry);
 
         // Should not revert when called again with same expiry
-        batchRegistrar.batchRegister(names);
+        vm.prank(owner);
+        batchRegistrar.batchRegister(ethRegistry, names);
 
         // Expiry should remain the same since it wasn't extended
         uint64 expiryAfterSecond = ethRegistry.getExpiry(tokenId);
@@ -146,7 +147,8 @@ contract BatchRegistrarTest is Test {
             expires: initialExpiry
         });
 
-        batchRegistrar.batchRegister(names);
+        vm.prank(owner);
+        batchRegistrar.batchRegister(ethRegistry, names);
 
         (uint256 tokenId, ) = ethRegistry.getNameData("renewable");
         uint64 expiryAfterFirst = ethRegistry.getExpiry(tokenId);
@@ -156,7 +158,9 @@ contract BatchRegistrarTest is Test {
         // Note: No need to grant RENEW role since renewAsRegistrar uses REGISTRAR role
         uint64 extendedExpiry = uint64(block.timestamp + 730 days);
         names[0].expires = extendedExpiry;
-        batchRegistrar.batchRegister(names);
+
+        vm.prank(owner);
+        batchRegistrar.batchRegister(ethRegistry, names);
 
         // Get the potentially updated tokenId (in case it was regenerated)
         (uint256 tokenIdAfterRenewal, ) = ethRegistry.getNameData("renewable");
@@ -182,7 +186,8 @@ contract BatchRegistrarTest is Test {
             expires: initialExpiry
         });
 
-        batchRegistrar.batchRegister(names);
+        vm.prank(owner);
+        batchRegistrar.batchRegister(ethRegistry, names);
 
         (uint256 tokenId, ) = ethRegistry.getNameData("skippable");
         uint64 expiryAfterFirst = ethRegistry.getExpiry(tokenId);
@@ -191,7 +196,9 @@ contract BatchRegistrarTest is Test {
         // Register again with earlier expiry - should be skipped
         uint64 earlierExpiry = uint64(block.timestamp + 180 days);
         names[0].expires = earlierExpiry;
-        batchRegistrar.batchRegister(names);
+
+        vm.prank(owner);
+        batchRegistrar.batchRegister(ethRegistry, names);
 
         // Expiry should remain unchanged
         uint64 expiryAfterSecond = ethRegistry.getExpiry(tokenId);
@@ -217,7 +224,8 @@ contract BatchRegistrarTest is Test {
         });
 
         vm.expectRevert();
-        batchRegistrar.batchRegister(names);
+        vm.prank(owner);
+        batchRegistrar.batchRegister(ethRegistry, names);
     }
 
     function test_BatchRegisterWithDifferentOwners() external {
@@ -254,7 +262,8 @@ contract BatchRegistrarTest is Test {
             expires: expires
         });
 
-        batchRegistrar.batchRegister(names);
+        vm.prank(owner);
+        batchRegistrar.batchRegister(ethRegistry, names);
 
         (uint256 tokenId1, ) = ethRegistry.getNameData("owner1");
         assertEq(ethRegistry.ownerOf(tokenId1), user);
@@ -289,7 +298,8 @@ contract BatchRegistrarTest is Test {
         });
 
         vm.recordLogs();
-        batchRegistrar.batchRegister(names);
+        vm.prank(owner);
+        batchRegistrar.batchRegister(ethRegistry, names);
 
         // Verify events were emitted from registry
         (uint256 tokenId1, ) = ethRegistry.getNameData("event1");
