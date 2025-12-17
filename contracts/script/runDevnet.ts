@@ -77,7 +77,7 @@ if (args.values.testNames) {
   await testNames(env);
 }
 
-await env.sync({ warpSec: 0 });
+await env.sync({ warpSec: "local" });
 
 console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);
 

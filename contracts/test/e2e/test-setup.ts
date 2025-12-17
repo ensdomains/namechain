@@ -45,12 +45,18 @@ process.env.TEST_GLOBALS = {
           resetEachState = await env.saveState();
         }
       }
+      if (!onEach) {
+        await env.sync();
+      }
     });
   },
 };
 
 beforeEach(async () => {
   await resetEachState?.();
+  if (resetEachState) {
+    await env.sync();
+  }
 });
 
 afterAll(async () => {
