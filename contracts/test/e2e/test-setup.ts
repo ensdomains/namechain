@@ -14,7 +14,7 @@ declare global {
       TEST_GLOBALS?: {
         env: CrossChainEnvironment;
         relay: MockRelay;
-        setupEnv(onEach?: boolean, init?: () => Promise<void>): unknown;
+        setupEnv(onEach?: boolean, init?: () => Promise<unknown>): void;
       };
     }
   }
