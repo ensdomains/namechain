@@ -20,9 +20,9 @@ import {
 import { dnsEncodeName } from "../utils/utils.js";
 
 describe("Resolve", () => {
-  const { env, setResetState } = process.env.TEST_GLOBALS!;
+  const { env, setupEnv } = process.env.TEST_GLOBALS!;
 
-  beforeAll(() => setResetState(true));
+  setupEnv(true);
 
   async function expectResolve(kp: KnownProfile) {
     const bundle = bundleCalls(makeResolutions(kp));

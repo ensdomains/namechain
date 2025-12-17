@@ -18,10 +18,9 @@ import { deleteTestCheckpoint } from "../utils/preMigrationTestUtils.js";
 const TEST_CSV_PATH = "test-registrations.csv";
 
 describe("Pre-Migration Script E2E", () => {
-  const { env, setResetState } = process.env.TEST_GLOBALS!;
+  const { env, setupEnv } = process.env.TEST_GLOBALS!;
 
-  beforeAll(async () => {
-    await setResetState(false);
+  setupEnv(async () => {
     await setupBaseRegistrarController(
       env.l1.client,
       env.l1.contracts.ETHRegistrarV1.address,

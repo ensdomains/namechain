@@ -27,9 +27,9 @@ const RESOLVER = "0x2222222222222222222222222222222222222222";
 
 // TODO: finish this after migration tests
 describe("Ejection", () => {
-  const { env, relay, setResetState } = process.env.TEST_GLOBALS!;
+  const { env, relay, setupEnv } = process.env.TEST_GLOBALS!;
 
-  beforeAll(() => setResetState(true));
+  setupEnv(true);
 
   it("2LD => L1", async () => {
     const account = env.namedAccounts.user2;

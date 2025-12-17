@@ -1,5 +1,5 @@
 // Global test setup
-import { afterAll, beforeEach } from "bun:test";
+import { afterAll, beforeAll, beforeEach } from "bun:test";
 import { type MockRelay, setupMockRelay } from "../../script/mockRelay.js";
 import {
   type CrossChainEnvironment,
@@ -14,7 +14,7 @@ declare global {
       TEST_GLOBALS?: {
         env: CrossChainEnvironment;
         relay: MockRelay;
-        setResetState(mode?: boolean): Promise<void>;
+        setupEnv(mode: boolean | (() => Promise<void>)): void;
       };
     }
   }
@@ -32,31 +32,26 @@ let resetState: CrossChainSnapshot | undefined = resetInitialState; // default t
 // the environment is shared between all tests
 // so at the start of each test file, specific how the reset should work:
 //
-// beforeAll(async () => {
-//    // 1.) to enable reset
-//    await setResetState(true);
-//
-//    // 2.) to disable reset
-//    await setResetState(false);
-//
-//    // 3.) to add a prelude
-//    await setResetState(false); // reset
-//    // make modifications
-//    await setResetState(); // save new checkpoint
-// });
+// 1.) to enable reset: setupEnv(true);
+// 2.) to disable reset: setupEnv(false);
+// 3.) to add a prelude: setupEnv(async () => { ... });
 
 process.env.TEST_GLOBALS = {
   env,
   relay,
-  async setResetState(mode) {
-    if (mode === false) {
-      await resetInitialState();
-      resetState = undefined;
-    } else if (mode === true) {
-      resetState = resetInitialState;
-    } else {
-      resetState = await env.saveState();
-    }
+  setupEnv(mode) {
+    beforeAll(async () => {
+      if (mode === false) {
+        await resetInitialState();
+        resetState = undefined;
+      } else if (mode === true) {
+        resetState = resetInitialState;
+      } else {
+        await resetInitialState();
+        await mode();
+        resetState = await env.saveState();
+      }
+    });
   },
 };
 

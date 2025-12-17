@@ -33,17 +33,14 @@ const migrationDataAbi = [
 // https://www.notion.so/enslabs/ENSv2-Migration-Plan-23b7a8b1f0ed80ee832df953abc80810
 
 describe("Migration", () => {
-  const { env, relay, setResetState } = process.env.TEST_GLOBALS!;
+  const { env, relay, setupEnv } = process.env.TEST_GLOBALS!;
 
-  beforeAll(async () => {
-    // reset
-    await setResetState(false);
+  setupEnv(async () => {
     // add owner as controller so we can register() directly
     const { owner } = env.namedAccounts;
     await env.l1.contracts.ETHRegistrarV1.write.addController([owner.address], {
       account: owner,
     });
-    await setResetState();
   });
 
   const SUBREGISTRY = "0x1111111111111111111111111111111111111111";

@@ -15,9 +15,9 @@ import {
 } from "../utils/utils.js";
 
 describe("Bridge", () => {
-  const { env, relay, setResetState } = process.env.TEST_GLOBALS!;
+  const { env, relay, setupEnv } = process.env.TEST_GLOBALS!;
 
-  beforeAll(() => setResetState(true));
+  setupEnv(true);
 
   it("name ejection", async () => {
     const label = "premium";

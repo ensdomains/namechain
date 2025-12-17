@@ -3,9 +3,9 @@ import { toHex } from "viem";
 import { expectVar } from "../utils/expectVar.js";
 
 describe("Devnet", () => {
-  const { env, setResetState } = process.env.TEST_GLOBALS!;
+  const { env, setupEnv } = process.env.TEST_GLOBALS!;
 
-  beforeAll(() => setResetState(true));
+  setupEnv(true);
 
   function blocks() {
     return Promise.all([env.l1.client, env.l2.client].map((x) => x.getBlock()));
