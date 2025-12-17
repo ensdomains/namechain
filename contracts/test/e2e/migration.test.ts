@@ -35,12 +35,16 @@ const migrationDataAbi = [
 describe("Migration", () => {
   const { env, relay, setupEnv } = process.env.TEST_GLOBALS!;
 
-  setupEnv(true, async () => {
-    // add owner as controller so we can register() directly
-    const { owner } = env.namedAccounts;
-    await env.l1.contracts.ETHRegistrarV1.write.addController([owner.address], {
-      account: owner,
-    });
+  setupEnv({
+    resetOnEach: true,
+    async initialize() {
+      // add owner as controller so we can register() directly
+      const { owner } = env.namedAccounts;
+      await env.l1.contracts.ETHRegistrarV1.write.addController(
+        [owner.address],
+        { account: owner },
+      );
+    },
   });
 
   const SUBREGISTRY = "0x1111111111111111111111111111111111111111";

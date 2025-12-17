@@ -644,36 +644,18 @@ export async function setupCrossChainEnvironment({
       blocks = 1,
       warpSec = "local",
     }: { blocks?: number; warpSec?: number | "local" } = {}) {
-      // example:
-      // l1Block.timestamp = 100
-      // l2Block.timestamp = 105 (l2 is 5 seconds ahead)
-      const [t1, t2] = await getBlocks().then((v) =>
-        v.map((x) => Number(x.timestamp)),
-      );
+      const [t1, t2] = (await getBlocks()).map((x) => Number(x.timestamp));
+      let max = Math.max(t1, t2);
       if (warpSec === "local") {
-        const max = Math.max(t1, t2, (Date.now() / 1000) | 0);
-        await Promise.all([
-          l1Client.mine({ blocks, interval: max - t1 }),
-          l2Client.mine({ blocks, interval: max - t2 }),
-        ]);
-        return BigInt(max);
+        max = Math.max(max, (Date.now() / 1000) | 0);
       } else {
-        // dt = -5
-        const timestampDiff = t1 - t2;
-        // l1WarpSec = max(0, -1 * -5) = 5
-        const l1WarpSec = warpSec + Math.max(0, -timestampDiff);
-        // l2WarpSec = max(0, -5) = 0
-        const l2WarpSec = warpSec + Math.max(0, +timestampDiff);
-        // l1 will warp 5 seconds, l2 will warp 0 seconds
-        await Promise.all([
-          l1Client.mine({ blocks, interval: l1WarpSec }),
-          l2Client.mine({ blocks, interval: l2WarpSec }),
-        ]);
-        // result:
-        // l1Block.timestamp = 105
-        // l2Block.timestamp = 105
-        return BigInt(t1 + l1WarpSec);
+        max += warpSec;
       }
+      await Promise.all([
+        l1Client.mine({ blocks, interval: max - t1 }),
+        l2Client.mine({ blocks, interval: max - t2 }),
+      ]);
+      return BigInt(max);
     }
   } catch (err) {
     await shutdown();

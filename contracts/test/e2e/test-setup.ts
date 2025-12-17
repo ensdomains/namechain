@@ -14,17 +14,24 @@ declare global {
       TEST_GLOBALS?: {
         env: CrossChainEnvironment;
         relay: MockRelay;
-        setupEnv(onEach?: boolean, init?: () => Promise<unknown>): void;
+        setupEnv(options: {
+          resetOnEach: boolean;
+          initialize?: () => Promise<unknown>;
+        }): void;
       };
     }
   }
 }
+
+const t0 = Date.now();
 
 const env = await setupCrossChainEnvironment();
 const relay = await setupMockRelay(env);
 
 // save the initial state
 const resetInitialState = await env.saveState();
+
+console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);
 
 // the state that gets reset on each
 let resetEachState: CrossChainSnapshot | undefined = resetInitialState; // default to full reset
@@ -33,19 +40,19 @@ let resetEachState: CrossChainSnapshot | undefined = resetInitialState; // defau
 process.env.TEST_GLOBALS = {
   env,
   relay,
-  setupEnv(onEach = true, init) {
+  setupEnv({ resetOnEach, initialize }) {
     beforeAll(async () => {
-      if (!onEach || init) {
+      if (!resetOnEach || initialize) {
         await resetInitialState();
       }
-      resetEachState = onEach ? resetInitialState : undefined;
-      if (init) {
-        await init();
-        if (onEach) {
+      resetEachState = resetOnEach ? resetInitialState : undefined;
+      if (initialize) {
+        await initialize();
+        if (resetOnEach) {
           resetEachState = await env.saveState();
         }
       }
-      if (!onEach) {
+      if (!resetOnEach) {
         await env.sync();
       }
     });

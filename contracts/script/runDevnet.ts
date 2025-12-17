@@ -25,7 +25,7 @@ const env = await setupCrossChainEnvironment({
   urgPort: 8547,
   saveDeployments: true,
   procLog: args.values.procLog,
-  extraTime: args.values.testNames ? 86_401 : 30,
+  extraTime: args.values.testNames ? 86_401 : 60,
 });
 
 // handler for shell

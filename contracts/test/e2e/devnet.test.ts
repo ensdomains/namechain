@@ -5,7 +5,7 @@ import { expectVar } from "../utils/expectVar.js";
 describe("Devnet", () => {
   const { env, setupEnv } = process.env.TEST_GLOBALS!;
 
-  setupEnv();
+  setupEnv({ resetOnEach: true });
 
   it("sync", async () => {
     await env.l1.client.mine({ blocks: 1, interval: 10 }); // advance one chain
