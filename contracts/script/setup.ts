@@ -146,7 +146,7 @@ function createClient(transport: Transport, chain: Chain, account: Account) {
     transport,
     chain,
     account,
-    pollingInterval: 1,
+    pollingInterval: 50,
     cacheTime: 0, // must be 0 due to client caching
   })
     .extend(publicActions)
@@ -625,7 +625,10 @@ export async function setupCrossChainEnvironment({
       const fs = await Promise.all(
         [l1Client, l2Client].map(async (c) => {
           let state = await c.request({ method: "evm_snapshot" } as any);
+          let block0 = await c.getBlock();
           return async () => {
+            const block1 = await c.getBlock();
+            if (block0.stateRoot === block1.stateRoot) return; // noop, assuming no setStorageAt
             const ok = await c.request({
               method: "evm_revert",
               params: [state],
@@ -633,6 +636,7 @@ export async function setupCrossChainEnvironment({
             if (!ok) throw new Error("revert failed");
             // apparently the snapshots cannot be reused
             state = await c.request({ method: "evm_snapshot" } as any);
+            block0 = await c.getBlock();
           };
         }),
       );

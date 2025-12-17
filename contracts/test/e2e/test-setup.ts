@@ -14,6 +14,7 @@ declare global {
       TEST_GLOBALS?: {
         env: CrossChainEnvironment;
         relay: MockRelay;
+        resetInitialState: CrossChainSnapshot;
         setupEnv(options: {
           resetOnEach: boolean;
           initialize?: () => Promise<unknown>;
@@ -40,6 +41,7 @@ let resetEachState: CrossChainSnapshot | undefined = resetInitialState; // defau
 process.env.TEST_GLOBALS = {
   env,
   relay,
+  resetInitialState,
   setupEnv({ resetOnEach, initialize }) {
     beforeAll(async () => {
       if (!resetOnEach || initialize) {

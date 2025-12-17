@@ -3,25 +3,25 @@ import { toHex } from "viem";
 import { expectVar } from "../utils/expectVar.js";
 
 describe("Devnet", () => {
-  const { env, setupEnv } = process.env.TEST_GLOBALS!;
+  const { env, setupEnv, resetInitialState } = process.env.TEST_GLOBALS!;
 
   setupEnv({ resetOnEach: true });
 
   it("sync", async () => {
     await env.l1.client.mine({ blocks: 1, interval: 10 }); // advance one chain
-    let [a, b] = await env.getBlocks();
-    expect(a.timestamp, "diff").not.toStrictEqual(b.timestamp); // check diff
+    const [a0, b0] = await env.getBlocks();
+    expect(a0.timestamp, "diff").not.toStrictEqual(b0.timestamp); // check diff
     const t = await env.sync();
-    [a, b] = await env.getBlocks();
-    expect(b.timestamp, "after").toStrictEqual(a.timestamp); // check same
-    expectVar({ t }).toStrictEqual(a.timestamp); // check estimate
+    const [a1, b1] = await env.getBlocks();
+    expect(b1.timestamp, "after").toStrictEqual(a1.timestamp); // check same
+    expectVar({ t }).toStrictEqual(a1.timestamp); // check estimate
   });
 
   it("warp", async () => {
     const warpSec = 60;
-    let [a0, b0] = await env.getBlocks();
+    const [a0, b0] = await env.getBlocks();
     const t = await env.sync({ warpSec }); // time warp
-    let [a1, b1] = await env.getBlocks();
+    const [a1, b1] = await env.getBlocks();
     expect(a1.timestamp - a0.timestamp, "diff1").toBeGreaterThanOrEqual(
       warpSec,
     );
@@ -33,22 +33,19 @@ describe("Devnet", () => {
     expectVar({ t }).toBeGreaterThanOrEqual(Math.floor(Date.now() / 1000));
   });
 
-  it("state", async () => {
-    const address = toHex(1, { size: 20 });
-    const slot = toHex(0, { size: 32 });
-    const resetState = await env.saveState();
-    await env.l1.client.setStorageAt({
-      address,
-      index: Number(slot),
-      value: toHex(1, { size: 32 }),
+  it("saveState", async () => {
+    const gateways =
+      await env.l1.contracts.BatchGatewayProvider.read.gateways();
+    await env.l1.contracts.BatchGatewayProvider.write.setGateways([[]], {
+      account: env.namedAccounts.owner,
     });
     expect(
-      env.l1.client.getStorageAt({ address, slot }),
-    ).resolves.toStrictEqual(toHex(1, { size: 32 }));
-    await resetState();
+      env.l1.contracts.BatchGatewayProvider.read.gateways(),
+    ).resolves.toStrictEqual([]);
+    await resetInitialState();
     expect(
-      env.l1.client.getStorageAt({ address, slot }),
-    ).resolves.toStrictEqual(toHex(0, { size: 32 }));
+      env.l1.contracts.BatchGatewayProvider.read.gateways(),
+    ).resolves.toStrictEqual(gateways);
   });
 
   it(`computeVerifiableProxyAddress`, async () => {
