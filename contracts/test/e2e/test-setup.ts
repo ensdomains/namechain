@@ -51,7 +51,6 @@ process.env.TEST_GLOBALS = {
 
 beforeEach(async () => {
   await resetEachState?.();
-  console.log(await env.getBlocks().then((v) => v.map((x) => x.timestamp)));
 });
 
 afterAll(async () => {
