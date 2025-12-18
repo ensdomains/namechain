@@ -39,7 +39,6 @@ import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
 import { waitForSuccessfulTransactionReceipt } from "../test/utils/waitForSuccessfulTransactionReceipt.ts";
 import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 import type { RockethArguments, RockethL1Arguments } from "./types.js";
-import { getBlock } from "viem/actions";
 
 /**
  * Default chain IDs for devnet environment
