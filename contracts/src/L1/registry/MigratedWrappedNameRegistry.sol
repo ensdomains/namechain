@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-import {RegistryUtils} from "@ens/contracts/universalResolver/RegistryUtils.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {INameWrapper, PARENT_CANNOT_CONTROL} from "@ens/contracts/wrapper/INameWrapper.sol";
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
@@ -21,7 +20,6 @@ import {IRegistryMetadata} from "../../common/registry/interfaces/IRegistryMetad
 import {IStandardRegistry} from "../../common/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "../../common/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "../../common/registry/PermissionedRegistry.sol";
-import {LibLabel} from "../../common/utils/LibLabel.sol";
 import {LockedNamesLib} from "../migration/libraries/LockedNamesLib.sol";
 import {ParentNotMigrated, LabelNotMigrated} from "../migration/MigrationErrors.sol";
 
@@ -54,6 +52,8 @@ contract MigratedWrappedNameRegistry is
 
     IPermissionedRegistry public immutable ETH_REGISTRY;
 
+    address public immutable FALLBACK_RESOLVER;
+
     ////////////////////////////////////////////////////////////////////////
     // Storage
     ////////////////////////////////////////////////////////////////////////
@@ -76,11 +76,13 @@ contract MigratedWrappedNameRegistry is
         VerifiableFactory factory,
         IRegistryDatastore datastore,
         IHCAFactoryBasic hcaFactory,
-        IRegistryMetadata metadataProvider
+        IRegistryMetadata metadataProvider,
+        address fallbackResolver
     ) PermissionedRegistry(datastore, hcaFactory, metadataProvider, _msgSender(), 0) {
         NAME_WRAPPER = nameWrapper;
         ETH_REGISTRY = ethRegistry;
         FACTORY = factory;
+        FALLBACK_RESOLVER = fallbackResolver;
         // Prevents initialization on the implementation contract
         _disableInitializers();
     }
@@ -171,36 +173,20 @@ contract MigratedWrappedNameRegistry is
         return this.onERC1155BatchReceived.selector;
     }
 
-    function getResolver(string calldata label) external view override returns (address) {
-        uint256 canonicalId = LibLabel.labelToCanonicalId(label);
-        IRegistryDatastore.Entry memory entry = this.getEntry(canonicalId);
-        uint64 expires = entry.expiry;
-
-        // Use fallback resolver for unregistered names
-        if (expires == 0) {
-            // Construct complete domain name for registry lookup
-            bytes memory dnsEncodedName = abi.encodePacked(
-                bytes1(uint8(bytes(label).length)),
-                label,
-                parentDnsEncodedName
-            );
-
-            // Retrieve resolver from legacy registry system
-            (address resolverAddress, , ) = RegistryUtils.findResolver(
-                NAME_WRAPPER.ens(),
-                dnsEncodedName,
-                0
-            );
-            return resolverAddress;
+    /// @inheritdoc PermissionedRegistry
+    /// @dev Restore the latest resolver to `FALLBACK_RESOLVER` upon visiting migratable children.
+    function getResolver(
+        string calldata label
+    ) public view override(PermissionedRegistry) returns (address) {
+        bytes32 node = NameCoder.namehash(
+            NameCoder.namehash(parentDnsEncodedName, 0),
+            keccak256(bytes(label))
+        );
+        (address owner, uint32 fuses, ) = NAME_WRAPPER.getData(uint256(node));
+        if (owner != address(this) && (fuses & PARENT_CANNOT_CONTROL) != 0) {
+            return FALLBACK_RESOLVER;
         }
-
-        // Return no resolver for expired names
-        if (expires <= block.timestamp) {
-            return address(0);
-        }
-
-        // Return the configured resolver for registered names
-        return entry.resolver;
+        return super.getResolver(label);
     }
 
     ////////////////////////////////////////////////////////////////////////

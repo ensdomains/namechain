@@ -21,6 +21,9 @@ export default execute(
     const verifiableFactory =
       get<(typeof artifacts.VerifiableFactory)["abi"]>("VerifiableFactory");
 
+    const ensV1Resolver =
+      get<(typeof artifacts.ENSV1Resolver)["abi"]>("ENSV1Resolver");
+
     await deploy("MigratedWrappedNameRegistryImpl", {
       account: deployer,
       artifact: artifacts.MigratedWrappedNameRegistry,
@@ -31,6 +34,7 @@ export default execute(
         registryDatastore.address,
         hcaFactory.address,
         registryMetadata.address,
+        ensV1Resolver.address,
       ],
     });
   },
@@ -41,6 +45,7 @@ export default execute(
       "HCAFactory",
       "ETHRegistry",
       "VerifiableFactory",
+      "ENSV1Resolver",
     ],
   },
 );

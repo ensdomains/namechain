@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { beforeAll, describe, expect, it } from "bun:test";
 import {
   encodeAbiParameters,
   getAddress,
@@ -15,8 +15,9 @@ import {
 } from "../utils/utils.js";
 
 describe("Bridge", () => {
-  const env = process.env.TEST_GLOBALS!.env;
-  const relay = process.env.TEST_GLOBALS!.relay;
+  const { env, relay, setupEnv } = process.env.TEST_GLOBALS!;
+
+  setupEnv({ resetOnEach: true });
 
   it("name ejection", async () => {
     const label = "premium";

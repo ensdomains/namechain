@@ -93,22 +93,6 @@ contract PermissionedRegistry is
         emit ResolverUpdated(tokenId, resolver);
     }
 
-    /// @inheritdoc IRegistry
-    function getSubregistry(
-        string calldata label
-    ) external view virtual override(BaseRegistry, IRegistry) returns (IRegistry) {
-        IRegistryDatastore.Entry memory entry = getEntry(LibLabel.labelToCanonicalId(label));
-        return _isExpired(entry.expiry) ? IRegistry(address(0)) : entry.subregistry;
-    }
-
-    /// @inheritdoc IRegistry
-    function getResolver(
-        string calldata label
-    ) external view virtual override(BaseRegistry, IRegistry) returns (address) {
-        IRegistryDatastore.Entry memory entry = getEntry(LibLabel.labelToCanonicalId(label));
-        return _isExpired(entry.expiry) ? address(0) : entry.resolver;
-    }
-
     /// @inheritdoc IPermissionedRegistry
     function getTokenObserver(uint256 anyId) external view returns (ITokenObserver) {
         return _tokenObservers[LibLabel.getCanonicalId(anyId)];
@@ -176,6 +160,22 @@ contract PermissionedRegistry is
         address account
     ) public override(EnhancedAccessControl, IEnhancedAccessControl) returns (bool) {
         return super.revokeRoles(getResource(anyId), roleBitmap, account);
+    }
+
+    /// @inheritdoc IRegistry
+    function getSubregistry(
+        string calldata label
+    ) public view virtual override(BaseRegistry, IRegistry) returns (IRegistry) {
+        IRegistryDatastore.Entry memory entry = getEntry(LibLabel.labelToCanonicalId(label));
+        return _isExpired(entry.expiry) ? IRegistry(address(0)) : entry.subregistry;
+    }
+
+    /// @inheritdoc IRegistry
+    function getResolver(
+        string calldata label
+    ) public view virtual override(BaseRegistry, IRegistry) returns (address) {
+        IRegistryDatastore.Entry memory entry = getEntry(LibLabel.labelToCanonicalId(label));
+        return _isExpired(entry.expiry) ? address(0) : entry.resolver;
     }
 
     /// @inheritdoc ERC1155Singleton
