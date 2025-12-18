@@ -2,7 +2,12 @@
 
 import { artifacts } from "@rocketh";
 import { Command } from "commander";
-import { createReadStream, existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  createReadStream,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import {
   createPublicClient,
   createWalletClient,
@@ -12,7 +17,7 @@ import {
   publicActions,
   toHex,
   zeroAddress,
-  type Address
+  type Address,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
@@ -32,14 +37,14 @@ import {
 
 // Helper function to determine if an error is retriable
 function isRetriableError(error: any): boolean {
-  const message = error?.message?.toLowerCase() || '';
+  const message = error?.message?.toLowerCase() || "";
   return (
-    message.includes('timeout') ||
-    message.includes('network') ||
-    message.includes('rate limit') ||
-    message.includes('connection') ||
-    message.includes('econnrefused') ||
-    message.includes('etimedout')
+    message.includes("timeout") ||
+    message.includes("network") ||
+    message.includes("rate limit") ||
+    message.includes("connection") ||
+    message.includes("econnrefused") ||
+    message.includes("etimedout")
   );
 }
 
@@ -48,10 +53,10 @@ export class UnexpectedOwnerError extends Error {
   constructor(
     public readonly labelName: string,
     public readonly actualOwner: Address,
-    public readonly expectedOwner: Address
+    public readonly expectedOwner: Address,
   ) {
     super(
-      `Name ${labelName}.eth is already registered but owned by unexpected address: ${actualOwner} (expected: ${expectedOwner})`
+      `Name ${labelName}.eth is already registered but owned by unexpected address: ${actualOwner} (expected: ${expectedOwner})`,
     );
     this.name = "UnexpectedOwnerError";
   }
@@ -121,8 +126,10 @@ const RPC_TIMEOUT_MS = 30000;
 const PROGRESS_LOG_INTERVAL = 10;
 
 // ENS v1 BaseRegistrar on Ethereum mainnet
-const BASE_REGISTRAR_ADDRESS = "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85" as Address;
-const PRE_MIGRATION_RESOLVER = "0x0000000000000000000000000000000000000001" as Address;
+const BASE_REGISTRAR_ADDRESS =
+  "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85" as Address;
+const PRE_MIGRATION_RESOLVER =
+  "0x0000000000000000000000000000000000000001" as Address;
 const BASE_REGISTRAR_ABI = [
   {
     inputs: [{ internalType: "uint256", name: "id", type: "uint256" }],
@@ -169,53 +176,70 @@ class PreMigrationLogger extends Logger {
   processingName(name: string, index: number, total: number): void {
     this.raw(
       cyan(`[${index}/${total}] Processing: ${bold(name)}.eth`),
-      `[${index}/${total}] Processing: ${name}.eth`
+      `[${index}/${total}] Processing: ${name}.eth`,
     );
   }
 
-  finishedName(name: string, result: 'registered' | 'renewed' | 'skipped' | 'failed'): void {
-    const icon = result === 'registered' ? '✓' : result === 'renewed' ? '↻' : result === 'skipped' ? '⊘' : '✗';
-    const color = result === 'registered' ? green : result === 'renewed' ? cyan : result === 'skipped' ? yellow : red;
+  finishedName(
+    name: string,
+    result: "registered" | "renewed" | "skipped" | "failed",
+  ): void {
+    const icon =
+      result === "registered"
+        ? "✓"
+        : result === "renewed"
+          ? "↻"
+          : result === "skipped"
+            ? "⊘"
+            : "✗";
+    const color =
+      result === "registered"
+        ? green
+        : result === "renewed"
+          ? cyan
+          : result === "skipped"
+            ? yellow
+            : red;
     this.raw(
       color(`${icon} Done: ${bold(name)}.eth`) + dim(` (${result})`),
-      `${icon} Done: ${name}.eth (${result})`
+      `${icon} Done: ${name}.eth (${result})`,
     );
   }
 
   registering(name: string, expiry: string): void {
     this.raw(
       blue(`  → Registering on namechain`) + dim(` (expires: ${expiry})`),
-      `  → Registering on namechain (expires: ${expiry})`
+      `  → Registering on namechain (expires: ${expiry})`,
     );
   }
 
   registered(tx: string): void {
     this.raw(
       green(`  → ✓ Registered successfully`) + dim(` (tx: ${tx})`),
-      `  → ✓ Registered successfully (tx: ${tx})`
+      `  → ✓ Registered successfully (tx: ${tx})`,
     );
   }
 
   alreadyRegistered(owner: string): void {
     this.raw(
       yellow(`  → ⊘ Already registered by this migration`) +
-      dim(` (owner: ${owner}...)`),
-      `  → ⊘ Already registered by this migration (owner: ${owner}...)`
+        dim(` (owner: ${owner}...)`),
+      `  → ⊘ Already registered by this migration (owner: ${owner}...)`,
     );
   }
 
   renewing(name: string, currentExpiry: string, newExpiry: string): void {
     this.raw(
       blue(`  → Renewing on namechain`) +
-      dim(` (current: ${currentExpiry}, new: ${newExpiry})`),
-      `  → Renewing on namechain (current: ${currentExpiry}, new: ${newExpiry})`
+        dim(` (current: ${currentExpiry}, new: ${newExpiry})`),
+      `  → Renewing on namechain (current: ${currentExpiry}, new: ${newExpiry})`,
     );
   }
 
   renewed(tx: string): void {
     this.raw(
       green(`  → ✓ Renewed successfully`) + dim(` (tx: ${tx})`),
-      `  → ✓ Renewed successfully (tx: ${tx})`
+      `  → ✓ Renewed successfully (tx: ${tx})`,
     );
   }
 
@@ -223,67 +247,73 @@ class PreMigrationLogger extends Logger {
     name: string,
     error: string,
     attempt?: number,
-    maxRetries?: number
+    maxRetries?: number,
   ): void {
     const attemptInfo = attempt
       ? ` (attempt ${attempt}/${maxRetries})`
       : ` after ${maxRetries} attempts`;
     this.rawError(
       red(`  → ✗ Failed${attemptInfo}:`) + dim(` ${error}`),
-      `  → ✗ Failed${attemptInfo}: ${error}`
+      `  → ✗ Failed${attemptInfo}: ${error}`,
     );
   }
 
   dryRun(): void {
     this.raw(
       dim(`  → [DRY RUN] Simulated registration (no transaction sent)`),
-      `  → [DRY RUN] Simulated registration (no transaction sent)`
+      `  → [DRY RUN] Simulated registration (no transaction sent)`,
     );
   }
 
   progress(
     current: number,
     total: number,
-    stats: { registered: number; renewed: number; skipped: number; failed: number }
+    stats: {
+      registered: number;
+      renewed: number;
+      skipped: number;
+      failed: number;
+    },
   ): void {
     const percent = Math.round((current / total) * 100);
     this.raw(
       magenta(
         `Progress: ${bold(`${current}/${total}`)} (${percent}%) - ` +
-        `${green("Registered: " + stats.registered)}, ` +
-        `${cyan("Renewed: " + stats.renewed)}, ` +
-        `${yellow("Skipped: " + stats.skipped)}, ` +
-        `${red("Failed: " + stats.failed)}`
+          `${green("Registered: " + stats.registered)}, ` +
+          `${cyan("Renewed: " + stats.renewed)}, ` +
+          `${yellow("Skipped: " + stats.skipped)}, ` +
+          `${red("Failed: " + stats.failed)}`,
       ),
-      `Progress: ${current}/${total} (${percent}%) - Registered: ${stats.registered}, Renewed: ${stats.renewed}, Skipped: ${stats.skipped}, Failed: ${stats.failed}`
+      `Progress: ${current}/${total} (${percent}%) - Registered: ${stats.registered}, Renewed: ${stats.renewed}, Skipped: ${stats.skipped}, Failed: ${stats.failed}`,
     );
   }
 
   verifyingMainnet(name: string): void {
     this.raw(
       dim(`  → Checking mainnet status for ${name}.eth...`),
-      `  → Checking mainnet status for ${name}.eth...`
+      `  → Checking mainnet status for ${name}.eth...`,
     );
   }
 
   mainnetVerified(name: string, expiry: string): void {
     this.raw(
       green(`  → ✓ Verified on mainnet`) + dim(` (expires: ${expiry})`),
-      `  → ✓ Verified on mainnet (expires: ${expiry})`
+      `  → ✓ Verified on mainnet (expires: ${expiry})`,
     );
   }
 
   mainnetNotRegistered(name: string, reason: string): void {
     this.raw(
       yellow(`  → ⊘ Not registered on mainnet: ${reason}`),
-      `  → ⊘ Not registered on mainnet: ${reason}`
+      `  → ⊘ Not registered on mainnet: ${reason}`,
     );
   }
 
   skippingInvalidName(domainName: string): void {
     this.raw(
-      yellow(`  → ⊘ Skipping: ${bold(domainName)}`) + dim(` (invalid label name)`),
-      `  → ⊘ Skipping: ${domainName} (invalid label name)`
+      yellow(`  → ⊘ Skipping: ${bold(domainName)}`) +
+        dim(` (invalid label name)`),
+      `  → ⊘ Skipping: ${domainName} (invalid label name)`,
     );
   }
 }
@@ -331,9 +361,9 @@ interface MainnetVerificationResult {
 export async function verifyNameOnMainnet(
   labelName: string,
   mainnetClient: any,
-  baseRegistrarAddress: Address = BASE_REGISTRAR_ADDRESS
+  baseRegistrarAddress: Address = BASE_REGISTRAR_ADDRESS,
 ): Promise<MainnetVerificationResult> {
-  if (!labelName || typeof labelName !== 'string' || labelName.trim() === '') {
+  if (!labelName || typeof labelName !== "string" || labelName.trim() === "") {
     throw new InvalidLabelNameError(labelName);
   }
 
@@ -364,8 +394,7 @@ export async function verifyNameOnMainnet(
  */
 export async function deployBatchRegistrar(
   client: any,
-  registryAddress: Address,
-  checkpointAddress?: Address
+  checkpointAddress?: Address,
 ): Promise<{ contract: any; address: Address }> {
   const batchRegistrarArtifact = artifacts.BatchRegistrar;
 
@@ -373,7 +402,9 @@ export async function deployBatchRegistrar(
   if (checkpointAddress) {
     const existingCode = await client.getCode({ address: checkpointAddress });
     if (existingCode && existingCode !== "0x") {
-      logger.success(`Reusing BatchRegistrar from checkpoint at ${checkpointAddress}`);
+      logger.success(
+        `Reusing BatchRegistrar from checkpoint at ${checkpointAddress}`,
+      );
       return {
         contract: getContract({
           address: checkpointAddress,
@@ -383,7 +414,9 @@ export async function deployBatchRegistrar(
         address: checkpointAddress,
       };
     } else {
-      logger.warning(`Checkpoint address ${checkpointAddress} has no code, deploying new instance`);
+      logger.warning(
+        `Checkpoint address ${checkpointAddress} has no code, deploying new instance`,
+      );
     }
   }
 
@@ -391,11 +424,14 @@ export async function deployBatchRegistrar(
 
   const hash = await client.deployContract({
     abi: batchRegistrarArtifact.abi,
-    bytecode: batchRegistrarArtifact.bytecode as `0x${string}`,
-    args: [registryAddress],
+    bytecode: batchRegistrarArtifact.bytecode,
+    args: [zeroAddress],
   });
 
-  const receipt = await waitForSuccessfulTransactionReceipt(client, { hash, ensureDeployment: true });
+  const receipt = await waitForSuccessfulTransactionReceipt(client, {
+    hash,
+    ensureDeployment: true,
+  });
   const deployedAddress = receipt.contractAddress;
 
   logger.success(`BatchRegistrar deployed at ${deployedAddress}`);
@@ -403,7 +439,9 @@ export async function deployBatchRegistrar(
   // Verify deployment
   const code = await client.getCode({ address: deployedAddress });
   if (!code || code === "0x") {
-    throw new Error(`BatchRegistrar deployment failed - no code at ${deployedAddress}`);
+    throw new Error(
+      `BatchRegistrar deployment failed - no code at ${deployedAddress}`,
+    );
   }
 
   return {
@@ -430,7 +468,7 @@ async function* readCSVInBatches(
   csvFilePath: string,
   batchSize: number,
   startLineNumber: number = 0,
-  limit: number | null = null
+  limit: number | null = null,
 ): AsyncGenerator<ENSRegistration[]> {
   const readline = await import("node:readline");
 
@@ -463,7 +501,7 @@ async function* readCSVInBatches(
     const parts = parseCSVLine(line);
     if (parts.length >= 7) {
       const labelName = parts[6].trim();
-      if (labelName && labelName !== '') {
+      if (labelName && labelName !== "") {
         batch.push({ labelName, lineNumber });
         processedCount++;
 
@@ -487,7 +525,7 @@ async function* readCSVInBatches(
  */
 function parseCSVLine(line: string): string[] {
   const result: string[] = [];
-  let current = '';
+  let current = "";
   let inQuotes = false;
 
   for (let i = 0; i < line.length; i++) {
@@ -500,9 +538,9 @@ function parseCSVLine(line: string): string[] {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (char === ',' && !inQuotes) {
+    } else if (char === "," && !inQuotes) {
       result.push(current);
-      current = '';
+      current = "";
     } else {
       current += char;
     }
@@ -522,7 +560,9 @@ async function fetchAndRegisterInBatches(
   if (config.continue) {
     checkpoint = loadCheckpoint();
     if (checkpoint) {
-      logger.info(`Resuming from checkpoint: ${checkpoint.totalProcessed} names already processed from line ${checkpoint.lastProcessedLineNumber}`);
+      logger.info(
+        `Resuming from checkpoint: ${checkpoint.totalProcessed} names already processed from line ${checkpoint.lastProcessedLineNumber}`,
+      );
       config.startIndex = checkpoint.lastProcessedLineNumber;
     }
   }
@@ -534,6 +574,7 @@ async function fetchAndRegisterInBatches(
   // Client instances shared across batch processing for connection reuse
   const client = createWalletClient({
     account: privateKeyToAccount(config.privateKey),
+    chain: mainnet, // TODO: use namechain
     transport: http(config.rpcUrl, { retryCount: 0, timeout: RPC_TIMEOUT_MS }),
   }).extend(publicActions);
 
@@ -545,15 +586,15 @@ async function fetchAndRegisterInBatches(
 
   const mainnetClient = createPublicClient({
     chain: mainnet,
-    transport: http(config.mainnetRpcUrl, { retryCount: 3, timeout: RPC_TIMEOUT_MS }),
+    transport: http(config.mainnetRpcUrl, {
+      retryCount: 3,
+      timeout: RPC_TIMEOUT_MS,
+    }),
   });
 
   // Deploy or get BatchRegistrar
-  const { contract: batchRegistrar, address: batchRegistrarAddress } = await deployBatchRegistrar(
-    client,
-    config.registryAddress,
-    checkpoint.batchRegistrarAddress
-  );
+  const { contract: batchRegistrar, address: batchRegistrarAddress } =
+    await deployBatchRegistrar(client, checkpoint.batchRegistrarAddress);
 
   // Update checkpoint with BatchRegistrar address
   checkpoint.batchRegistrarAddress = batchRegistrarAddress;
@@ -567,7 +608,7 @@ async function fetchAndRegisterInBatches(
 
   if (!hasRole) {
     logger.info("Granting REGISTRAR and RENEW roles to BatchRegistrar...");
-    const hash = await (registry.write.grantRootRoles as any)([
+    const hash = await registry.write.grantRootRoles([
       requiredRoles,
       batchRegistrarAddress,
     ]);
@@ -577,14 +618,16 @@ async function fetchAndRegisterInBatches(
     logger.info("BatchRegistrar already has REGISTRAR and RENEW roles");
   }
 
-  logger.info(`\nReading CSV file and registering in batches of ${config.batchSize}...`);
+  logger.info(
+    `\nReading CSV file and registering in batches of ${config.batchSize}...`,
+  );
   logger.info(`CSV file: ${config.csvFilePath}`);
 
   const batchGenerator = readCSVInBatches(
     config.csvFilePath,
     config.batchSize,
     config.startIndex,
-    config.limit
+    config.limit,
   );
 
   for await (const batch of batchGenerator) {
@@ -596,8 +639,12 @@ async function fetchAndRegisterInBatches(
       let invalidLabelsInBatch = 0;
       let lastInvalidLineNumber = checkpoint.lastProcessedLineNumber;
       const validBatch = batch.filter((reg) => {
-        if (!reg.labelName || typeof reg.labelName !== 'string' || reg.labelName.trim() === '') {
-          logger.skippingInvalidName(reg.labelName || 'unknown');
+        if (
+          !reg.labelName ||
+          typeof reg.labelName !== "string" ||
+          reg.labelName.trim() === ""
+        ) {
+          logger.skippingInvalidName(reg.labelName || "unknown");
           invalidLabelsInBatch++;
           checkpoint!.invalidLabelCount++;
           checkpoint!.totalProcessed++;
@@ -616,7 +663,7 @@ async function fetchAndRegisterInBatches(
 
       logger.info(
         `\nRead ${batch.length} registrations from CSV (${invalidLabelsInBatch} invalid labels filtered). ` +
-        `Starting registration of ${validBatch.length} valid names...`
+          `Starting registration of ${validBatch.length} valid names...`,
       );
 
       // Process valid batch immediately
@@ -628,16 +675,16 @@ async function fetchAndRegisterInBatches(
           registry,
           batchRegistrar,
           mainnetClient,
-          checkpoint
+          checkpoint,
         );
       }
 
       // Show batch summary
       logger.info(
         `Batch complete. Total: ${checkpoint.totalProcessed} processed ` +
-        `(${checkpoint.successCount} registered, ${checkpoint.renewedCount} renewed, ` +
-        `${checkpoint.skippedCount} skipped, ${checkpoint.invalidLabelCount} invalid, ` +
-        `${checkpoint.failureCount} failed)`
+          `(${checkpoint.successCount} registered, ${checkpoint.renewedCount} renewed, ` +
+          `${checkpoint.skippedCount} skipped, ${checkpoint.invalidLabelCount} invalid, ` +
+          `${checkpoint.failureCount} failed)`,
       );
 
       // Check if we've reached the limit
@@ -663,7 +710,7 @@ async function processBatch(
   registry: any,
   batchRegistrar: any,
   mainnetClient: any,
-  checkpoint: Checkpoint
+  checkpoint: Checkpoint,
 ): Promise<Checkpoint> {
   const batchNames: BatchRegistrarName[] = [];
   const alreadyRegisteredNames = new Set<string>();
@@ -675,25 +722,33 @@ async function processBatch(
     const globalIndex = checkpoint.totalProcessed + i + 1;
     lastLineNumber = registration.lineNumber;
 
-    logger.processingName(registration.labelName, globalIndex, checkpoint.totalExpected);
+    logger.processingName(
+      registration.labelName,
+      globalIndex,
+      checkpoint.totalExpected,
+    );
 
     try {
       // Check if name is already registered in namechain
-      let isAlreadyRegistered = false;
       try {
-        const [tokenId] = await registry.read.getNameData([registration.labelName]);
+        const [tokenId] = await registry.read.getNameData([
+          registration.labelName,
+        ]);
         const owner = await registry.read.ownerOf([tokenId]);
 
         if (owner !== zeroAddress) {
-          if (owner.toLowerCase() !== config.bridgeControllerAddress.toLowerCase()) {
-            logger.error(`Name ${registration.labelName}.eth is already registered but owned by unexpected address: ${owner}`);
+          if (
+            owner.toLowerCase() !== config.bridgeControllerAddress.toLowerCase()
+          ) {
+            logger.error(
+              `Name ${registration.labelName}.eth is already registered but owned by unexpected address: ${owner}`,
+            );
             checkpoint.failureCount++;
-            logger.finishedName(registration.labelName, 'failed');
+            logger.finishedName(registration.labelName, "failed");
             continue;
           }
 
           // Name is already registered by bridge controller - will be renewed if needed
-          isAlreadyRegistered = true;
           alreadyRegisteredNames.add(registration.labelName);
         }
       } catch (error) {
@@ -705,20 +760,23 @@ async function processBatch(
       const mainnetResult = await verifyNameOnMainnet(
         registration.labelName,
         mainnetClient,
-        config.mainnetBaseRegistrarAddress
+        config.mainnetBaseRegistrarAddress,
       );
 
       if (!mainnetResult.isRegistered) {
-        const reason = mainnetResult.expiry === 0n
-          ? "never registered or fully expired"
-          : "expired";
+        const reason =
+          mainnetResult.expiry === 0n
+            ? "never registered or fully expired"
+            : "expired";
         logger.mainnetNotRegistered(registration.labelName, reason);
         checkpoint.skippedCount++;
-        logger.finishedName(registration.labelName, 'skipped');
+        logger.finishedName(registration.labelName, "skipped");
         continue;
       }
 
-      const expiryDateFormatted = new Date(Number(mainnetResult.expiry) * 1000).toISOString().split('T')[0];
+      const expiryDateFormatted = new Date(Number(mainnetResult.expiry) * 1000)
+        .toISOString()
+        .split("T")[0];
       logger.mainnetVerified(registration.labelName, expiryDateFormatted);
 
       // Add to batch
@@ -731,10 +789,16 @@ async function processBatch(
         expires: mainnetResult.expiry,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.failed(registration.labelName, errorMessage, undefined, MAX_RETRIES);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger.failed(
+        registration.labelName,
+        errorMessage,
+        undefined,
+        MAX_RETRIES,
+      );
       checkpoint.failureCount++;
-      logger.finishedName(registration.labelName, 'failed');
+      logger.finishedName(registration.labelName, "failed");
     }
 
     // Update and save checkpoint after each name to handle interruptions
@@ -755,7 +819,10 @@ async function processBatch(
     logger.info(`\nBatch registering ${batchNames.length} names...`);
 
     try {
-      const hash = await batchRegistrar.write.batchRegister([batchNames]);
+      const hash = await batchRegistrar.write.batchRegister([
+        config.registryAddress,
+        batchNames,
+      ]);
       await waitForSuccessfulTransactionReceipt(client, { hash });
 
       logger.success(`Batch registration successful (tx: ${hash})`);
@@ -765,21 +832,22 @@ async function processBatch(
         if (alreadyRegisteredNames.has(name.label)) {
           checkpoint.renewedCount++;
           logger.renewed(hash);
-          logger.finishedName(name.label, 'renewed');
+          logger.finishedName(name.label, "renewed");
         } else {
           checkpoint.successCount++;
           logger.registered(hash);
-          logger.finishedName(name.label, 'registered');
+          logger.finishedName(name.label, "registered");
         }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       logger.error(`Batch registration failed: ${errorMessage}`);
       checkpoint.failureCount += batchNames.length;
 
       for (const name of batchNames) {
         logger.failed(name.label, errorMessage, undefined, MAX_RETRIES);
-        logger.finishedName(name.label, 'failed');
+        logger.finishedName(name.label, "failed");
       }
     }
   } else if (batchNames.length > 0 && config.dryRun) {
@@ -789,10 +857,10 @@ async function processBatch(
       logger.dryRun();
       if (alreadyRegisteredNames.has(name.label)) {
         checkpoint.renewedCount++;
-        logger.finishedName(name.label, 'renewed');
+        logger.finishedName(name.label, "renewed");
       } else {
         checkpoint.successCount++;
-        logger.finishedName(name.label, 'registered');
+        logger.finishedName(name.label, "registered");
       }
     }
   }
@@ -808,36 +876,64 @@ async function processBatch(
 }
 
 // Helper to calculate success rate percentage
-function calculateSuccessRate(successCount: number, totalAttempts: number): number {
-  return totalAttempts > 0 ? Math.round((successCount / totalAttempts) * 100) : 0;
+function calculateSuccessRate(
+  successCount: number,
+  totalAttempts: number,
+): number {
+  return totalAttempts > 0
+    ? Math.round((successCount / totalAttempts) * 100)
+    : 0;
 }
 
 // Print final summary after all processing
 function printFinalSummary(checkpoint: Checkpoint): void {
-  const actualRegistrations = checkpoint.successCount + checkpoint.renewedCount + checkpoint.failureCount;
+  const actualRegistrations =
+    checkpoint.successCount + checkpoint.renewedCount + checkpoint.failureCount;
 
-  logger.info('');
+  logger.info("");
   logger.divider();
-  logger.header('Pre-Migration Complete');
+  logger.header("Pre-Migration Complete");
   logger.divider();
 
-  logger.config('Total names processed', checkpoint.totalProcessed);
-  logger.config('Successfully registered', green(checkpoint.successCount.toString()));
-  logger.config('Successfully renewed', cyan(checkpoint.renewedCount.toString()));
-  logger.config('Skipped (already up-to-date/expired)', yellow(checkpoint.skippedCount.toString()));
-  logger.config('Invalid labels', yellow(checkpoint.invalidLabelCount.toString()));
-  logger.config('Failed (other errors)', checkpoint.failureCount > 0 ? red(checkpoint.failureCount.toString()) : checkpoint.failureCount);
-  logger.config('Actual registrations/renewals attempted', actualRegistrations);
+  logger.config("Total names processed", checkpoint.totalProcessed);
+  logger.config(
+    "Successfully registered",
+    green(checkpoint.successCount.toString()),
+  );
+  logger.config(
+    "Successfully renewed",
+    cyan(checkpoint.renewedCount.toString()),
+  );
+  logger.config(
+    "Skipped (already up-to-date/expired)",
+    yellow(checkpoint.skippedCount.toString()),
+  );
+  logger.config(
+    "Invalid labels",
+    yellow(checkpoint.invalidLabelCount.toString()),
+  );
+  logger.config(
+    "Failed (other errors)",
+    checkpoint.failureCount > 0
+      ? red(checkpoint.failureCount.toString())
+      : checkpoint.failureCount,
+  );
+  logger.config("Actual registrations/renewals attempted", actualRegistrations);
 
-  const rate = calculateSuccessRate(checkpoint.successCount + checkpoint.renewedCount, actualRegistrations);
+  const rate = calculateSuccessRate(
+    checkpoint.successCount + checkpoint.renewedCount,
+    actualRegistrations,
+  );
   if (actualRegistrations > 0) {
-    logger.config('Success rate', `${rate}%`);
+    logger.config("Success rate", `${rate}%`);
   }
 
   logger.divider();
 
   if (checkpoint.failureCount > 0) {
-    logger.warning(`\nSome registrations failed. Check ${ERROR_LOG_FILE} for details.`);
+    logger.warning(
+      `\nSome registrations failed. Check ${ERROR_LOG_FILE} for details.`,
+    );
   }
 }
 
@@ -854,21 +950,25 @@ export async function batchRegisterNames(
   config: PreMigrationConfig,
   registrations: ENSRegistration[],
   providedClient?: any,
-  providedRegistry?: any
+  providedRegistry?: any,
 ): Promise<void> {
-  const client = providedClient || createWalletClient({
-    account: privateKeyToAccount(config.privateKey),
-    transport: http(config.rpcUrl, {
-      retryCount: 0,
-      timeout: RPC_TIMEOUT_MS,
-    }),
-  }).extend(publicActions);
+  const client =
+    providedClient ||
+    createWalletClient({
+      account: privateKeyToAccount(config.privateKey),
+      transport: http(config.rpcUrl, {
+        retryCount: 0,
+        timeout: RPC_TIMEOUT_MS,
+      }),
+    }).extend(publicActions);
 
-  const registry = providedRegistry || getContract({
-    address: config.registryAddress,
-    abi: artifacts.PermissionedRegistry.abi,
-    client,
-  });
+  const registry =
+    providedRegistry ||
+    getContract({
+      address: config.registryAddress,
+      abi: artifacts.PermissionedRegistry.abi,
+      client,
+    });
 
   const mainnetClient = createPublicClient({
     chain: mainnet,
@@ -879,11 +979,8 @@ export async function batchRegisterNames(
   });
 
   // Deploy or get BatchRegistrar
-  const { contract: batchRegistrar, address: batchRegistrarAddress } = await deployBatchRegistrar(
-    client,
-    config.registryAddress,
-    config.batchRegistrarAddress
-  );
+  const { contract: batchRegistrar, address: batchRegistrarAddress } =
+    await deployBatchRegistrar(client, config.batchRegistrarAddress);
 
   // Grant REGISTRAR and RENEW roles to BatchRegistrar if needed
   const requiredRoles = ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW;
@@ -893,7 +990,7 @@ export async function batchRegisterNames(
   ]);
 
   if (!hasRole) {
-    const hash = await (registry.write.grantRootRoles as any)([
+    const hash = await registry.write.grantRootRoles([
       requiredRoles,
       batchRegistrarAddress,
     ]);
@@ -913,7 +1010,9 @@ export async function batchRegisterNames(
         renewedCount: loaded.renewedCount ?? 0,
         skippedCount: loaded.skippedCount ?? 0,
         invalidLabelCount: loaded.invalidLabelCount ?? 0,
-        totalExpected: (loaded.totalExpected ?? loaded.totalProcessed) + registrations.length,
+        totalExpected:
+          (loaded.totalExpected ?? loaded.totalProcessed) +
+          registrations.length,
       };
     } else {
       checkpoint = createFreshCheckpoint();
@@ -932,7 +1031,7 @@ export async function batchRegisterNames(
     registry,
     batchRegistrar,
     mainnetClient,
-    checkpoint
+    checkpoint,
   );
 
   // Print summary
@@ -948,19 +1047,55 @@ export async function batchRegisterNames(
 export async function main(argv = process.argv): Promise<void> {
   const program = new Command()
     .name("premigrate")
-    .description("Pre-migrate ENS .eth 2LDs from Mainnet to v2. By default starts fresh. Use --continue to resume from checkpoint.")
+    .description(
+      "Pre-migrate ENS .eth 2LDs from Mainnet to v2. By default starts fresh. Use --continue to resume from checkpoint.",
+    )
     .requiredOption("--namechain-rpc-url <url>", "Namechain (v2) RPC endpoint")
-    .option("--mainnet-rpc-url <url>", "Mainnet RPC endpoint for verification", "https://mainnet.gateway.tenderly.co/")
-    .requiredOption("--namechain-registry <address>", "ETH Registry contract address")
-    .requiredOption("--namechain-bridge-controller <address>", "L2BridgeController address")
-    .requiredOption("--private-key <key>", "Deployer private key (has REGISTRAR role)")
-    .requiredOption("--csv-file <path>", "Path to CSV file containing ENS registrations")
-    .option("--batch-size <number>", "Number of names to process per batch", "50")
-    .option("--start-index <number>", "Starting index for resuming partial migrations", "0")
-    .option("--limit <number>", "Maximum total number of names to process and register")
+    .option(
+      "--mainnet-rpc-url <url>",
+      "Mainnet RPC endpoint for verification",
+      "https://mainnet.gateway.tenderly.co/",
+    )
+    .requiredOption(
+      "--namechain-registry <address>",
+      "ETH Registry contract address",
+    )
+    .requiredOption(
+      "--namechain-bridge-controller <address>",
+      "L2BridgeController address",
+    )
+    .requiredOption(
+      "--private-key <key>",
+      "Deployer private key (has REGISTRAR role)",
+    )
+    .requiredOption(
+      "--csv-file <path>",
+      "Path to CSV file containing ENS registrations",
+    )
+    .option(
+      "--batch-size <number>",
+      "Number of names to process per batch",
+      "50",
+    )
+    .option(
+      "--start-index <number>",
+      "Starting index for resuming partial migrations",
+      "0",
+    )
+    .option(
+      "--limit <number>",
+      "Maximum total number of names to process and register",
+    )
     .option("--dry-run", "Simulate without executing transactions", false)
-    .option("--continue", "Continue from previous checkpoint if it exists", false)
-    .option("--role-bitmap <hex>", "Custom role bitmap (hex string) for when registering names");
+    .option(
+      "--continue",
+      "Continue from previous checkpoint if it exists",
+      false,
+    )
+    .option(
+      "--role-bitmap <hex>",
+      "Custom role bitmap (hex string) for when registering names",
+    );
 
   program.parse(argv);
   const opts = program.opts();
@@ -985,25 +1120,28 @@ export async function main(argv = process.argv): Promise<void> {
     logger.divider();
 
     logger.info(`Configuration:`);
-    logger.config('Namechain RPC URL', config.rpcUrl);
-    logger.config('Mainnet RPC URL', config.mainnetRpcUrl);
-    logger.config('Registry', config.registryAddress);
-    logger.config('Bridge Controller', config.bridgeControllerAddress);
-    logger.config('CSV File', config.csvFilePath);
-    logger.config('Batch Size', config.batchSize);
-    logger.config('Limit', config.limit ?? "none");
-    logger.config('Dry Run', config.dryRun);
-    logger.config('Continue Mode', config.continue ?? false);
+    logger.config("Namechain RPC URL", config.rpcUrl);
+    logger.config("Mainnet RPC URL", config.mainnetRpcUrl);
+    logger.config("Registry", config.registryAddress);
+    logger.config("Bridge Controller", config.bridgeControllerAddress);
+    logger.config("CSV File", config.csvFilePath);
+    logger.config("Batch Size", config.batchSize);
+    logger.config("Limit", config.limit ?? "none");
+    logger.config("Dry Run", config.dryRun);
+    logger.config("Continue Mode", config.continue ?? false);
     if (config.continue && loadCheckpoint()) {
       const cp = loadCheckpoint()!;
       const renewedCount = cp.renewedCount ?? 0;
       const invalidCount = cp.invalidLabelCount ?? 0;
       const lastLine = cp.lastProcessedLineNumber ?? -1;
-      logger.config('Checkpoint Found', `${cp.totalProcessed} processed (${cp.successCount} registered, ${renewedCount} renewed, ${cp.skippedCount} skipped, ${invalidCount} invalid, ${cp.failureCount} failed) (last line: ${lastLine})`);
+      logger.config(
+        "Checkpoint Found",
+        `${cp.totalProcessed} processed (${cp.successCount} registered, ${renewedCount} renewed, ${cp.skippedCount} skipped, ${invalidCount} invalid, ${cp.failureCount} failed) (last line: ${lastLine})`,
+      );
       config.startIndex = lastLine;
       logger.info(`Resuming from CSV line ${config.startIndex}`);
     }
-    logger.config('Role Bitmap', `0x${config.roleBitmap.toString(16)}`);
+    logger.config("Role Bitmap", `0x${config.roleBitmap.toString(16)}`);
     logger.info("");
 
     // Read CSV and register in streaming batches
