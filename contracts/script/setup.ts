@@ -39,6 +39,7 @@ import { urgArtifact } from "../test/integration/fixtures/externalArtifacts.js";
 import { waitForSuccessfulTransactionReceipt } from "../test/utils/waitForSuccessfulTransactionReceipt.ts";
 import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 import type { RockethArguments, RockethL1Arguments } from "./types.js";
+import { getBlock } from "viem/actions";
 
 /**
  * Default chain IDs for devnet environment
@@ -145,7 +146,7 @@ function createClient(transport: Transport, chain: Chain, account: Account) {
     transport,
     chain,
     account,
-    pollingInterval: 1,
+    pollingInterval: 50,
     cacheTime: 0, // must be 0 due to client caching
   })
     .extend(publicActions)
@@ -582,20 +583,10 @@ export async function setupCrossChainEnvironment({
     await setupEnsDotEth(l1, deployer);
     console.log("Setup ens.eth");
 
-    //await setupBridgeBlacklists(l1, l2);
-
     await setupBridgeConfiguration(l1, l2, deployer);
     console.log("Setup bridge configuration");
 
-    await sync();
     console.log("Deployed ENSv2");
-
-    type RecursiveCrossChainSnapshot =
-      () => Promise<RecursiveCrossChainSnapshot>;
-    let executionChain: Promise<void | CrossChainSnapshot> = new Promise(
-      (resolve) => resolve(),
-    );
-
     return {
       accounts,
       namedAccounts,
@@ -608,8 +599,9 @@ export async function setupCrossChainEnvironment({
       },
       sync,
       waitFor,
-      shutdown,
+      getBlocks,
       saveState,
+      shutdown,
     };
     // determine the chain of the transaction
     async function findChain(hash: Future<Hex>) {
@@ -626,67 +618,48 @@ export async function setupCrossChainEnvironment({
       });
       return { receipt, chain };
     }
-    async function saveState(): Promise<CrossChainSnapshot> {
-      executionChain = executionChain.then(() => _saveState());
-      return executionChain as Promise<CrossChainSnapshot>;
+    function getBlocks() {
+      return Promise.all([l1Client, l2Client].map((x) => x.getBlock()));
     }
-    async function _saveState(): Promise<CrossChainSnapshot> {
-      const saveStateForClient = async (
-        c: CrossChainClient,
-        i: number,
-        recursiveIndex: number = 0,
-      ): Promise<RecursiveCrossChainSnapshot> => {
-        let state = await c.request({ method: "evm_snapshot" } as any);
-        const systemTime = Math.floor(Date.now() / 1000);
-        await c.setNextBlockTimestamp({ timestamp: BigInt(systemTime) });
-        await c.mine({ blocks: 1 });
-        return async () => {
-          const ok = await c.request({
-            method: "evm_revert",
-            params: [state],
-          } as any);
-          if (!ok) throw new Error("revert failed");
-          return await saveStateForClient(c, i, recursiveIndex + 1);
-        };
-      };
-      let fs: RecursiveCrossChainSnapshot[] = [];
-      const cs = [l1Client, l2Client];
-      for (let i = 0; i < 2; i++) {
-        const c = cs[i];
-        fs.push(await saveStateForClient(c, i));
-      }
+    async function saveState(): Promise<CrossChainSnapshot> {
+      const fs = await Promise.all(
+        [l1Client, l2Client].map(async (c) => {
+          let state = await c.request({ method: "evm_snapshot" } as any);
+          let block0 = await c.getBlock();
+          return async () => {
+            const block1 = await c.getBlock();
+            if (block0.stateRoot === block1.stateRoot) return; // noop, assuming no setStorageAt
+            const ok = await c.request({
+              method: "evm_revert",
+              params: [state],
+            } as any);
+            if (!ok) throw new Error("revert failed");
+            // apparently the snapshots cannot be reused
+            state = await c.request({ method: "evm_snapshot" } as any);
+            block0 = await c.getBlock();
+          };
+        }),
+      );
       return async () => {
-        for (let i = 0; i < fs.length; i++) {
-          fs[i] = await fs[i]();
-        }
+        await Promise.all(fs.map((f) => f()));
       };
     }
     async function sync({
       blocks = 1,
-      warpSec = 0,
-    }: { blocks?: number; warpSec?: number } = {}) {
-      // example:
-      // l1Block.timestamp = 100
-      // l2Block.timestamp = 105 (l2 is 5 seconds ahead)
-      const [l1Block, l2Block] = await Promise.all([
-        l1Client.getBlock(),
-        l2Client.getBlock(),
-      ]);
-      // dt = -5
-      const timestampDiff = Number(l1Block.timestamp - l2Block.timestamp);
-      // l1WarpSec = max(0, -1 * -5) = 5
-      const l1WarpSec = warpSec + Math.max(0, -timestampDiff);
-      // l2WarpSec = max(0, -5) = 0
-      const l2WarpSec = warpSec + Math.max(0, +timestampDiff);
-      // l1 will warp 5 seconds, l2 will warp 0 seconds
+      warpSec = "local",
+    }: { blocks?: number; warpSec?: number | "local" } = {}) {
+      const [t1, t2] = (await getBlocks()).map((x) => Number(x.timestamp));
+      let max = Math.max(t1, t2);
+      if (warpSec === "local") {
+        max = Math.max(max, (Date.now() / 1000) | 0);
+      } else {
+        max += warpSec;
+      }
       await Promise.all([
-        l1Client.mine({ blocks, interval: l1WarpSec }),
-        l2Client.mine({ blocks, interval: l2WarpSec }),
+        l1Client.mine({ blocks, interval: max - t1 }),
+        l2Client.mine({ blocks, interval: max - t2 }),
       ]);
-      // result:
-      // l1Block.timestamp = 105
-      // l2Block.timestamp = 105
-      return l1Block.timestamp + BigInt(l1WarpSec);
+      return BigInt(max);
     }
   } catch (err) {
     await shutdown();
@@ -695,20 +668,6 @@ export async function setupCrossChainEnvironment({
     unquiet();
   }
 }
-
-// async function setupBridgeBlacklists(l1: L1Deployment, l2: L2Deployment) {
-//   // prevent ejection to the other sides controller
-//   const blacklisted = [
-//     l1.contracts.BridgeController.address,
-//     l2.contracts.BridgeController.address,
-//   ];
-//   for (const x of blacklisted) {
-//     await Promise.all([
-//       l1.contracts.BridgeController.write.setInvalidTransferOwner([x, true]),
-//       l2.contracts.BridgeController.write.setInvalidTransferOwner([x, true]),
-//     ]);
-//   }
-// }
 
 async function setupEnsDotEth(l1: L1Deployment, account: Account) {
   // create registry for "ens.eth"
