@@ -505,7 +505,7 @@ export async function setupCrossChainEnvironment({
               nativeCurrency: chain.nativeCurrency,
               rpcUrls: { default: { http: [...chain.rpcUrls.default.http] } },
             },
-            pollingInterval: 0.001,
+            pollingInterval: 0.001, // cannot be zero
           },
           askBeforeProceeding: false,
           saveDeployments,
