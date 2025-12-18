@@ -1,5 +1,5 @@
 // Global test setup
-import { afterAll, beforeEach } from "bun:test";
+import { afterAll, beforeAll, beforeEach } from "bun:test";
 import { type MockRelay, setupMockRelay } from "../../script/mockRelay.js";
 import {
   type CrossChainEnvironment,
@@ -14,40 +14,61 @@ declare global {
       TEST_GLOBALS?: {
         env: CrossChainEnvironment;
         relay: MockRelay;
-        resetState: CrossChainSnapshot;
-        disableStateReset: () => Promise<void>;
-        enableStateReset: () => Promise<void>;
-        __canResetState: boolean;
+        resetInitialState: CrossChainSnapshot;
+        setupEnv(options: {
+          resetOnEach: boolean;
+          initialize?: () => Promise<unknown>;
+        }): void;
       };
     }
   }
 }
 
-const env = await setupCrossChainEnvironment({ extraTime: 10 });
+const t0 = Date.now();
+
+const env = await setupCrossChainEnvironment();
 const relay = await setupMockRelay(env);
 
+// save the initial state
+const resetInitialState = await env.saveState();
+
+console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);
+
+// the state that gets reset on each
+let resetEachState: CrossChainSnapshot | undefined = resetInitialState; // default to full reset
+
+// the environment is shared between all tests
 process.env.TEST_GLOBALS = {
   env,
   relay,
-  resetState: await env.saveState(),
-  disableStateReset: async () => {
-    await process.env.TEST_GLOBALS?.resetState();
-    process.env.TEST_GLOBALS!.__canResetState = false;
+  resetInitialState,
+  setupEnv({ resetOnEach, initialize }) {
+    beforeAll(async () => {
+      if (!resetOnEach || initialize) {
+        await resetInitialState();
+      }
+      resetEachState = resetOnEach ? resetInitialState : undefined;
+      if (initialize) {
+        await initialize();
+        if (resetOnEach) {
+          resetEachState = await env.saveState();
+        }
+      }
+      if (!resetOnEach) {
+        await env.sync();
+      }
+    });
   },
-  enableStateReset: async () => {
-    process.env.TEST_GLOBALS!.__canResetState = true;
-    await process.env.TEST_GLOBALS?.resetState();
-  },
-  __canResetState: true,
 };
 
 beforeEach(async () => {
-  if (process.env.TEST_GLOBALS?.__canResetState) {
-    await process.env.TEST_GLOBALS?.resetState();
+  await resetEachState?.();
+  if (resetEachState) {
+    await env.sync();
   }
 });
 
 afterAll(async () => {
-  process.env.TEST_GLOBALS?.relay?.removeListeners();
-  await process.env.TEST_GLOBALS?.env?.shutdown();
+  relay.removeListeners();
+  await env.shutdown();
 });

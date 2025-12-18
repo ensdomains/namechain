@@ -6,7 +6,6 @@ pragma solidity >=0.8.13;
 import {Test} from "forge-std/Test.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
 import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
@@ -59,10 +58,12 @@ contract LibRegistryTest is Test, ERC1155Holder {
         address parentRegistry,
         IRegistry[] memory registries
     ) internal view {
-        (, address resolver, bytes32 node, uint256 resolverOffset_) = LibRegistry.findResolver(
-            rootRegistry,
-            name,
-            0
+        (IRegistry registry, address resolver, bytes32 node, uint256 resolverOffset_) = LibRegistry
+            .findResolver(rootRegistry, name, 0);
+        assertEq(
+            address(LibRegistry.findExactRegistry(rootRegistry, name, 0)),
+            address(registry),
+            "exact"
         );
         assertEq(resolver, resolverAddress, "resolver");
         assertEq(node, NameCoder.namehash(name, 0), "node");
@@ -78,7 +79,7 @@ contract LibRegistryTest is Test, ERC1155Holder {
             assertEq(
                 address(registries[i]),
                 address(regs[i]),
-                string.concat("registry[", Strings.toString(i), "]")
+                string.concat("registry[", vm.toString(i), "]")
             );
         }
         uint256 offset;
@@ -86,11 +87,20 @@ contract LibRegistryTest is Test, ERC1155Holder {
             assertEq(
                 address(LibRegistry.findExactRegistry(rootRegistry, name, offset)),
                 address(registries[i]),
-                string.concat("exact[", Strings.toString(i), "]")
+                string.concat("exact[", vm.toString(i), "]")
             );
             (, offset) = NameCoder.nextLabel(name, offset);
         }
         assertEq(offset, name.length, "length");
+        (IRegistry registryFrom, address resolverFrom) = LibRegistry.findResolverFromParent(
+            name,
+            0,
+            name.length - 1,
+            rootRegistry,
+            address(0)
+        );
+        assertEq(address(registryFrom), address(registry), "registryFrom");
+        assertEq(resolverFrom, resolver, "resolverFrom");
     }
 
     function test_findResolver_eth() external {

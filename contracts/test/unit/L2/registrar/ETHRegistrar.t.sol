@@ -67,8 +67,8 @@ contract ETHRegistrarTest is Test {
             EACBaseRolesLib.ALL_ROLES
         );
 
-        tokenUSDC = new MockERC20("USDC", 6);
-        tokenDAI = new MockERC20("DAI", 18);
+        tokenUSDC = new MockERC20("USDC", 6, hcaFactory);
+        tokenDAI = new MockERC20("DAI", 18, hcaFactory);
         tokenBlack = new MockERC20Blacklist();
         tokenVoid = new MockERC20VoidReturn();
         tokenFalse = new MockERC20FalseReturn();
