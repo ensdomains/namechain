@@ -111,6 +111,7 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
 
     address owner = address(this);
     address user = address(0x1234);
+    address fallbackResolver = address(0);
 
     string testLabel = "test";
     uint256 testTokenId;
@@ -130,7 +131,8 @@ contract L1LockedMigrationControllerTest is Test, ERC1155Holder {
             factory,
             datastore,
             hcaFactory,
-            metadata
+            metadata,
+            fallbackResolver
         );
 
         // Setup eth registry
