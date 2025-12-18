@@ -48,8 +48,8 @@ contract StandardRentPriceOracleTest is Test, ERC1155Holder {
             EACBaseRolesLib.ALL_ROLES
         );
 
-        tokenUSDC = new MockERC20("USDC", 6);
-        tokenIdentity = new MockERC20("ID", StandardPricing.PRICE_DECIMALS);
+        tokenUSDC = new MockERC20("USDC", 6, hcaFactory);
+        tokenIdentity = new MockERC20("ID", StandardPricing.PRICE_DECIMALS, hcaFactory);
 
         PaymentRatio[] memory paymentRatios = new PaymentRatio[](2);
         paymentRatios[0] = StandardPricing.ratioFromStable(tokenUSDC);
