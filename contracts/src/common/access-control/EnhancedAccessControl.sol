@@ -58,8 +58,8 @@ abstract contract EnhancedAccessControl is HCAContext, ERC165, IEnhancedAccessCo
     /**
      * @dev Modifier that checks that sender has the admin roles for all the given roles and can revoke them.
      */
-    modifier canRevokeRoles(uint256 resource, uint256 roleBitmap) {
-        _checkCanRevokeRoles(resource, roleBitmap, _msgSender());
+    modifier canRevokeRoles(uint256 resource, uint256 roleBitmap, address account) {
+        _checkCanRevokeRoles(resource, roleBitmap, account, _msgSender());
         _;
     }
 
@@ -148,7 +148,7 @@ abstract contract EnhancedAccessControl is HCAContext, ERC165, IEnhancedAccessCo
         uint256 resource,
         uint256 roleBitmap,
         address account
-    ) public virtual canRevokeRoles(resource, roleBitmap) returns (bool) {
+    ) public virtual canRevokeRoles(resource, roleBitmap, account) returns (bool) {
         if (resource == ROOT_RESOURCE) {
             revert EACRootResourceNotAllowed();
         }
@@ -167,7 +167,7 @@ abstract contract EnhancedAccessControl is HCAContext, ERC165, IEnhancedAccessCo
     function revokeRootRoles(
         uint256 roleBitmap,
         address account
-    ) public virtual canRevokeRoles(ROOT_RESOURCE, roleBitmap) returns (bool) {
+    ) public virtual canRevokeRoles(ROOT_RESOURCE, roleBitmap, account) returns (bool) {
         return _revokeRoles(ROOT_RESOURCE, roleBitmap, account, true);
     }
 
@@ -445,11 +445,12 @@ abstract contract EnhancedAccessControl is HCAContext, ERC165, IEnhancedAccessCo
     function _checkCanRevokeRoles(
         uint256 resource,
         uint256 roleBitmap,
-        address account
+        address account,
+        address sender
     ) internal view virtual {
-        uint256 revokableRoles = _getRevokableRoles(resource, account);
+        uint256 revokableRoles = _getRevokableRoles(resource, account, sender);
         if ((roleBitmap & ~revokableRoles) != 0) {
-            revert EACCannotRevokeRoles(resource, roleBitmap, account);
+            revert EACCannotRevokeRoles(resource, roleBitmap, sender);
         }
     }
 
@@ -485,12 +486,14 @@ abstract contract EnhancedAccessControl is HCAContext, ERC165, IEnhancedAccessCo
      */
     function _getRevokableRoles(
         uint256 resource,
-        address account
+        address account,
+        address sender
     ) internal view virtual returns (uint256) {
-        uint256 adminRoleBitmap = (_roles[resource][account] | _roles[ROOT_RESOURCE][account]) &
-            EACBaseRolesLib.ADMIN_ROLES;
-        uint256 regularRoles = adminRoleBitmap >> 128;
-        return regularRoles | adminRoleBitmap;
+        if (sender == account) {
+            return EACBaseRolesLib.ALL_ROLES;
+        }
+        uint256 roleBitmap = (_roles[resource][sender] | _roles[ROOT_RESOURCE][sender]);
+        return roleBitmap | (roleBitmap >> 128);
     }
 
     ////////////////////////////////////////////////////////////////////////
