@@ -107,6 +107,7 @@ const l2Contracts = {
   L2SurgeBridge: artifacts.L2SurgeBridge.abi,
   L2BridgeController: artifacts.L2BridgeController.abi,
   //
+  RegistryFinder: artifacts.RegistryFinder.abi,
   ETHRegistrar: artifacts.ETHRegistrar.abi,
   StandardRentPriceOracle: artifacts.StandardRentPriceOracle.abi,
   MockUSDC: artifacts["test/mocks/MockERC20.sol/MockERC20"].abi,
