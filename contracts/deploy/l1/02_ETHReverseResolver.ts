@@ -1,14 +1,21 @@
 import { artifacts, execute } from "@rocketh";
+import { labelhash, zeroAddress } from "viem";
 import { MAX_EXPIRY } from "../constants.js";
-import { zeroAddress } from "viem";
 
 // TODO: ownership
 export default execute(
-  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
+  async ({
+    deploy,
+    execute: write,
+    read,
+    get,
+    getV1,
+    namedAccounts: { deployer },
+  }) => {
     const ensRegistryV1 =
-      get<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
+      getV1<(typeof artifacts.ENSRegistry)["abi"]>("ENSRegistry");
 
-    const defaultReverseRegistrarV1 = get<
+    const defaultReverseRegistrarV1 = getV1<
       (typeof artifacts.DefaultReverseRegistrar)["abi"]
     >("DefaultReverseRegistrar");
 
@@ -30,7 +37,28 @@ export default execute(
       ],
     });
 
-    // register "addr.reverse"
+    const entry = await read(reverseRegistry, {
+      functionName: 'getEntry',
+      args: [BigInt(labelhash('addr'))],
+    });
+
+    if (entry.expiry !== 0n) {
+
+        // set subregistry
+      await write(reverseRegistry, {
+        account: deployer,
+        functionName: "setSubregistry",
+        args: [BigInt(labelhash('addr')), zeroAddress],
+      });
+
+      // set resolver
+      await write(reverseRegistry, {
+        account: deployer,
+        functionName: "setResolver",
+        args: [BigInt(labelhash('addr')), ethReverseResolver.address],
+      });
+    } else {
+      // register "addr.reverse"
     await write(reverseRegistry, {
       account: deployer,
       functionName: "register",
@@ -43,6 +71,7 @@ export default execute(
         MAX_EXPIRY,
       ],
     });
+    }
   },
   {
     tags: ["ETHReverseResolver", "l1"],

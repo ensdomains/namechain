@@ -1,10 +1,18 @@
 import { artifacts, execute } from "@rocketh";
-import { MAX_EXPIRY, ROLES } from "../constants.js";
+import { labelhash } from "viem";
+import { MAX_EXPIRY, ROLES } from "../constants.ts";
 
 // TODO: ownership
 export default execute(
-  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
-    const defaultReverseResolverV1 = get<
+  async ({
+    deploy,
+    execute: write,
+    read,
+    get,
+    getV1,
+    namedAccounts: { deployer },
+  }) => {
+    const defaultReverseResolverV1 = getV1<
       (typeof artifacts.DefaultReverseResolver)["abi"]
     >("DefaultReverseResolver");
 
@@ -34,7 +42,28 @@ export default execute(
       ],
     });
 
-    // register "reverse" with default resolver
+    const entry = await read(rootRegistry, {
+      functionName: 'getEntry',
+      args: [BigInt(labelhash('reverse'))],
+    });
+
+    if (entry.expiry !== 0n) {
+
+        // set subregistry
+      await write(rootRegistry, {
+        account: deployer,
+        functionName: "setSubregistry",
+        args: [BigInt(labelhash('reverse')), reverseRegistry.address],
+      });
+
+      // set resolver
+      await write(rootRegistry, {
+        account: deployer,
+        functionName: "setResolver",
+        args: [BigInt(labelhash('reverse')), defaultReverseResolverV1.address],
+      });
+    } else {
+          // register "reverse" with default resolver
     await write(rootRegistry, {
       account: deployer,
       functionName: "register",
@@ -47,6 +76,8 @@ export default execute(
         MAX_EXPIRY,
       ],
     });
+
+    }
   },
   {
     tags: ["ReverseRegistry", "l1"],

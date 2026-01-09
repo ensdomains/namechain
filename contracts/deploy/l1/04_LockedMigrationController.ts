@@ -2,9 +2,9 @@ import { artifacts, execute } from "@rocketh";
 import { ROLES } from "../constants.js";
 
 export default execute(
-  async ({ deploy, execute: write, get, namedAccounts: { deployer } }) => {
+  async ({ deploy, execute: write, get, getV1, namedAccounts: { deployer } }) => {
     const nameWrapperV1 =
-      get<(typeof artifacts.NameWrapper)["abi"]>("NameWrapper");
+      getV1<(typeof artifacts.NameWrapper)["abi"]>("NameWrapper");
 
     const bridgeController =
       get<(typeof artifacts.L1BridgeController)["abi"]>("BridgeController");
