@@ -120,13 +120,6 @@ contract StandaloneReverseRegistrarTest is Test {
         );
     }
 
-    function test_supportsInterface_ensip16() public view {
-        assertTrue(
-            registrar.supportsInterface(type(IENSIP16).interfaceId),
-            "Should support IENSIP16"
-        );
-    }
-
     function test_supportsInterface_nameResolver() public view {
         assertTrue(
             registrar.supportsInterface(type(INameResolver).interfaceId),

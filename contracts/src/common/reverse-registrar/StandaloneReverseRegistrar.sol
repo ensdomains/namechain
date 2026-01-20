@@ -64,7 +64,6 @@ abstract contract StandaloneReverseRegistrar is
     ) public view virtual override(ERC165) returns (bool) {
         return
             interfaceID == type(IExtendedResolver).interfaceId ||
-            interfaceID == type(IENSIP16).interfaceId ||
             interfaceID == type(INameResolver).interfaceId ||
             super.supportsInterface(interfaceID);
     }
