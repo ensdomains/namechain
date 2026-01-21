@@ -154,7 +154,7 @@ abstract contract StandaloneReverseRegistrar is
     ///
     /// @param addr The address to set the primary name for.
     /// @param name_ The primary ENS name to associate with the address.
-    function _setName(address addr, string calldata name_) internal {
+    function _setName(address addr, string memory name_) internal {
         // Convert address to lowercase hex string (without 0x prefix)
         string memory label = LibString.toAddressString(addr);
 
