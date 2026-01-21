@@ -8,10 +8,7 @@ import {
 } from "~src/common/reverse-registrar/StandaloneReverseRegistrar.sol";
 
 contract MockStandaloneReverseRegistrarImplementer is StandaloneReverseRegistrar {
-    constructor(
-        uint256 coinType,
-        string memory label
-    ) StandaloneReverseRegistrar(coinType, label) {}
+    constructor(string memory label) StandaloneReverseRegistrar(label) {}
 
     // Test helper functions
     function setName(address addr, string calldata name_) public {
@@ -20,5 +17,13 @@ contract MockStandaloneReverseRegistrarImplementer is StandaloneReverseRegistrar
 
     function toAddressString(address value) public pure returns (string memory) {
         return _toAddressString(value);
+    }
+
+    function SIMPLE_HASHED_PARENT() public view returns (bytes32) {
+        return _SIMPLE_HASHED_PARENT;
+    }
+
+    function PARENT_LENGTH() public view returns (uint256) {
+        return _PARENT_LENGTH;
     }
 }

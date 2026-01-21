@@ -116,7 +116,7 @@ async function fixture() {
   const l2ReverseRegistrar = await connection.viem.deployContract(
     // Use fully qualified name to ensure the correct contract is deployed
     'src/L2/reverse-registrar/L2ReverseRegistrar.sol:L2ReverseRegistrar',
-    [COIN_TYPE, COIN_TYPE_LABEL],
+    [OPTIMISM_CHAIN_ID, COIN_TYPE_LABEL],
   )
   const mockSmartContractAccount = await connection.viem.deployContract(
     'MockSmartContractWallet',
@@ -177,13 +177,6 @@ describe('L2ReverseRegistrar', () => {
 
     const chainId = await l2ReverseRegistrar.read.CHAIN_ID()
     expect(chainId).toStrictEqual(OPTIMISM_CHAIN_ID)
-  })
-
-  it('should have correct COIN_TYPE set', async () => {
-    const { l2ReverseRegistrar } = await loadFixture()
-
-    const coinType = await l2ReverseRegistrar.read.COIN_TYPE()
-    expect(coinType).toStrictEqual(COIN_TYPE)
   })
 
   describe('setName', () => {

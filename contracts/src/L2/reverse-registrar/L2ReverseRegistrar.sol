@@ -80,12 +80,12 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
-    /// @notice Initialises the contract with the coin type for this L2 chain.
+    /// @notice Initialises the contract with the chain ID and label for this L2 chain.
     /// @dev Pre-computes the validator address checksum string for gas-efficient message building.
-    /// @param coinType The ENSIP-11 coin type for this chain.
+    /// @param chainId The chain ID of the chain this contract is deployed to.
     /// @param label The hex string label for the coin type (used in reverse node computation).
-    constructor(uint256 coinType, string memory label) StandaloneReverseRegistrar(coinType, label) {
-        CHAIN_ID = (0x7fffffff & coinType) >> 0;
+    constructor(uint256 chainId, string memory label) StandaloneReverseRegistrar(label) {
+        CHAIN_ID = chainId;
 
         // Validator address checksum string is 42 bytes: "0x" + 40 hex characters
         // Pre-compute and store in two 32-byte immutables for efficient assembly access
@@ -490,12 +490,15 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     }
 
     /// @notice Converts an address to its EIP-55 checksummed hex string.
-    /// @dev Uses inline assembly for gas efficiency. Produces "0x" + 40 hex characters.
+    /// @dev Reuses _toAddressString from StandaloneReverseRegistrar for lowercase conversion,
+    ///      then applies EIP-55 checksum. Produces "0x" + 40 hex characters.
     /// @param addr The address to convert.
     /// @return result The checksummed hex string (42 bytes).
     function _toChecksumHexString(address addr) internal pure returns (string memory result) {
+        // Get lowercase hex without prefix (40 chars) from parent
+        string memory lowercase = _toAddressString(addr);
+
         assembly {
-            // Free memory pointer
             result := mload(0x40)
             mstore(0x40, add(result, 0x60)) // 32 (length) + 42 (data) = 74, round up to 96
             mstore(result, 42) // Set string length
@@ -506,23 +509,11 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             mstore8(add(ptr, 1), 0x78) // 'x'
 
             let hexPtr := add(ptr, 2)
-            // Shift address left so first byte aligns with position 0
-            let addrShifted := shl(96, addr)
+            let srcPtr := add(lowercase, 32)
 
-            // Convert address to lowercase hex (40 chars) - process 2 hex chars per byte
-            for {
-                let i := 0
-            } lt(i, 20) {
-                i := add(i, 1)
-            } {
-                let byteVal := byte(i, addrShifted)
-                let hi := shr(4, byteVal)
-                let lo := and(byteVal, 0x0f)
-                // Lookup: 0-9 -> 48-57, 10-15 -> 97-102 (a-f lowercase)
-                let pos := shl(1, i) // i * 2
-                mstore8(add(hexPtr, pos), add(hi, add(48, mul(39, gt(hi, 9)))))
-                mstore8(add(hexPtr, add(pos, 1)), add(lo, add(48, mul(39, gt(lo, 9)))))
-            }
+            // Copy 40 bytes from lowercase string to result
+            mstore(hexPtr, mload(srcPtr))
+            mstore(add(hexPtr, 32), mload(add(srcPtr, 32)))
 
             // Hash the 40 lowercase hex chars for checksum
             let hashVal := keccak256(hexPtr, 40)

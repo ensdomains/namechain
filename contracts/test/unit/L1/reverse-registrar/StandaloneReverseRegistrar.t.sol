@@ -34,16 +34,12 @@ contract StandaloneReverseRegistrarTest is Test {
     address user2 = makeAddr("user2");
 
     function setUp() public {
-        registrar = new MockStandaloneReverseRegistrarImplementer(ETH_COIN_TYPE, ETH_LABEL);
+        registrar = new MockStandaloneReverseRegistrarImplementer(ETH_LABEL);
     }
 
     ////////////////////////////////////////////////////////////////////////
     // Constructor / Immutables Tests
     ////////////////////////////////////////////////////////////////////////
-
-    function test_constructor_setCoinType() public view {
-        assertEq(registrar.COIN_TYPE(), ETH_COIN_TYPE, "COIN_TYPE should match");
-    }
 
     function test_constructor_setParentNode() public view {
         bytes32 expectedParentNode = keccak256(
@@ -83,11 +79,8 @@ contract StandaloneReverseRegistrarTest is Test {
         vm.assume(bytes(label).length > 0 && bytes(label).length <= 255);
 
         MockStandaloneReverseRegistrarImplementer newRegistrar = new MockStandaloneReverseRegistrarImplementer(
-                123,
                 label
             );
-
-        assertEq(newRegistrar.COIN_TYPE(), 123, "COIN_TYPE should match");
 
         bytes32 expectedParentNode = keccak256(
             abi.encodePacked(REVERSE_NODE, keccak256(abi.encodePacked(label)))
@@ -525,19 +518,14 @@ contract StandaloneReverseRegistrarTest is Test {
         assertEq(resolved2, name2, "User2 name should match");
     }
 
-    function test_differentCoinTypes() public {
-        // Deploy registrars with different coin types
+    function test_differentLabels() public {
+        // Deploy registrars with different labels
         MockStandaloneReverseRegistrarImplementer ethRegistrar = new MockStandaloneReverseRegistrarImplementer(
-                60,
                 "default"
             );
         MockStandaloneReverseRegistrarImplementer opRegistrar = new MockStandaloneReverseRegistrarImplementer(
-                2147483658,
                 "8000000a"
             );
-
-        assertEq(ethRegistrar.COIN_TYPE(), 60, "ETH coin type");
-        assertEq(opRegistrar.COIN_TYPE(), 2147483658, "OP coin type");
 
         // Parent nodes should be different
         assertTrue(

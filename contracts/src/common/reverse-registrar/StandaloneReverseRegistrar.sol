@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity >=0.8.13;
 
 import {IExtendedResolver} from "@ens/contracts/resolvers/profiles/IExtendedResolver.sol";
@@ -18,35 +17,65 @@ abstract contract StandaloneReverseRegistrar is
     INameResolver,
     Context
 {
-    bytes16 private constant _HEX_DIGITS = "0123456789abcdef";
+    ////////////////////////////////////////////////////////////////////////
+    // Constants & Immutables
+    ////////////////////////////////////////////////////////////////////////
 
-    bytes32 private constant _REVERSE_NODE =
+    /// @notice The namehash of the `reverse` TLD node.
+    /// @dev Pre-computed: namehash("reverse") = keccak256(abi.encodePacked(bytes32(0), keccak256("reverse")))
+    bytes32 internal constant _REVERSE_NODE =
         0xa097f6721ce401e757d1223a763fef49b8b5f90bb18567ddb86fd205dff71d34;
 
-    uint256 public immutable COIN_TYPE;
+    /// @notice The keccak256 hash of the DNS-encoded parent name.
+    /// @dev Used for efficient validation in `resolve()` to verify the queried name
+    ///      belongs to this registrar's namespace.
+    bytes32 internal immutable _SIMPLE_HASHED_PARENT;
 
+    /// @notice The length of the DNS-encoded parent name in bytes.
+    /// @dev Used in `resolve()` to validate the expected name length.
+    uint256 internal immutable _PARENT_LENGTH;
+
+    /// @notice The namehash of the parent node for this reverse registrar.
+    /// @dev Computed as: keccak256(abi.encodePacked(_REVERSE_NODE, keccak256(label)))
+    ///      For example, for Ethereum mainnet with label "60", this would be the namehash of "60.reverse".
     bytes32 public immutable PARENT_NODE;
 
-    bytes32 public immutable SIMPLE_HASHED_PARENT;
+    ////////////////////////////////////////////////////////////////////////
+    // Storage
+    ////////////////////////////////////////////////////////////////////////
 
-    uint256 public immutable PARENT_LENGTH;
-
-    /// @notice The mapping of nodes to names.
+    /// @notice Mapping from reverse node to the primary ENS name for that address.
+    /// @dev The node is computed as: keccak256(abi.encodePacked(PARENT_NODE, keccak256(addressString)))
     mapping(bytes32 node => string name) internal _names;
 
-    /// @notice `resolve()` was called with a profile other than `name()` or `addr(*)`.
+    ////////////////////////////////////////////////////////////////////////
+    // Errors
+    ////////////////////////////////////////////////////////////////////////
+
+    /// @notice Thrown when `resolve()` is called with an unsupported resolver profile.
+    /// @dev This registrar only supports the `name(bytes32)` selector.
     /// @dev Error selector: `0x7b1c461b`
     error UnsupportedResolverProfile(bytes4 selector);
 
-    /// @notice `name` is not a valid DNS-encoded ENSIP-19 reverse name or namespace.
+    /// @notice Thrown when the queried name is not a valid ENSIP-19 reverse name for this namespace.
+    /// @dev The name must be exactly 41 + PARENT_LENGTH bytes and match the expected parent suffix.
     /// @dev Error selector: `0x5fe9a5df`
     error UnreachableName(bytes name);
 
-    constructor(uint256 coinType, string memory label) {
-        COIN_TYPE = coinType;
+    ////////////////////////////////////////////////////////////////////////
+    // Initialization
+    ////////////////////////////////////////////////////////////////////////
+
+    /// @notice Initialises the standalone reverse registrar with the given label.
+    /// @dev Computes and stores the parent node and DNS-encoded parent hash for efficient lookups.
+    /// @param label The string label for the namespace (e.g., "8000000a" for OP Mainnet).
+    constructor(string memory label) {
+        // Compute the namehash of "{label}.reverse"
         PARENT_NODE = keccak256(
             abi.encodePacked(_REVERSE_NODE, keccak256(abi.encodePacked(label)))
         );
+
+        // Build the DNS-encoded parent name: {labelLength}{label}{7}reverse{0}
         bytes memory parent = abi.encodePacked(
             uint8(bytes(label).length),
             label,
@@ -54,8 +83,8 @@ abstract contract StandaloneReverseRegistrar is
             "reverse",
             uint8(0)
         );
-        SIMPLE_HASHED_PARENT = keccak256(parent);
-        PARENT_LENGTH = parent.length;
+        _SIMPLE_HASHED_PARENT = keccak256(parent);
+        _PARENT_LENGTH = parent.length;
     }
 
     /// @inheritdoc ERC165
@@ -68,58 +97,98 @@ abstract contract StandaloneReverseRegistrar is
             super.supportsInterface(interfaceID);
     }
 
+    ////////////////////////////////////////////////////////////////////////
+    // Implementation
+    ////////////////////////////////////////////////////////////////////////
+
+    /// @notice Returns the primary ENS name for a given reverse node.
+    /// @inheritdoc INameResolver
+    /// @param node The reverse node to query.
+    /// @return The primary ENS name associated with the node, or an empty string if not set.
     function name(bytes32 node) external view override returns (string memory) {
         return _names[node];
     }
 
+    /// @notice Resolves a DNS-encoded reverse name to its primary ENS name.
+    /// @dev Implements ENSIP-10 wildcard resolution for reverse lookups.
+    ///      Only supports the `name(bytes32)` resolver profile.
+    ///
+    ///      Expected name format: {40-char-hex-address}.{label}.reverse
+    ///      DNS-encoded: {0x28}{40-hex-chars}{labelLen}{label}{0x07}reverse{0x00}
+    ///
+    /// @inheritdoc IExtendedResolver
+    /// @param name The DNS-encoded reverse name to resolve.
+    /// @param data The ABI-encoded function call (must be `name(bytes32)`).
+    /// @return The ABI-encoded primary ENS name.
     function resolve(
         bytes calldata name,
         bytes calldata data
     ) external view override returns (bytes memory) {
         bytes4 selector = bytes4(data);
 
+        // Only support the name(bytes32) resolver profile
         if (selector != INameResolver.name.selector) revert UnsupportedResolverProfile(selector);
 
-        // 41 = length of the address string + prefixed length byte
-        if (name.length != PARENT_LENGTH + 41) revert UnreachableName(name);
-        if (keccak256(name[41:]) != SIMPLE_HASHED_PARENT) revert UnreachableName(name);
+        // Validate name length: 41 bytes for address component + parent suffix
+        // 41 = 1 byte (length prefix) + 40 bytes (hex address without 0x)
+        if (name.length != _PARENT_LENGTH + 41) revert UnreachableName(name);
 
+        // Validate the parent suffix matches this registrar's namespace
+        if (keccak256(name[41:]) != _SIMPLE_HASHED_PARENT) revert UnreachableName(name);
+
+        // Compute the reverse node and return the stored name
         bytes32 node = keccak256(abi.encodePacked(PARENT_NODE, keccak256(name[1:41])));
         return abi.encode(_names[node]);
     }
 
-    /// @notice Sets the name for an address.
+    ////////////////////////////////////////////////////////////////////////
+    // Internal Functions
+    ////////////////////////////////////////////////////////////////////////
+
+    /// @notice Sets the primary ENS name for an address.
+    /// @dev Computes the reverse node from the address and stores the name.
+    ///      Emits ENSIP-16 events for indexer compatibility.
     ///
-    /// @dev Authorisation should be checked before calling.
+    ///      IMPORTANT: Authorisation must be checked by the caller before invoking this function.
     ///
-    /// @param addr The address to set the name for.
-    /// @param name_ The name to set.
+    /// @param addr The address to set the primary name for.
+    /// @param name_ The primary ENS name to associate with the address.
     function _setName(address addr, string calldata name_) internal {
+        // Convert address to lowercase hex string (without 0x prefix)
         string memory label = _toAddressString(addr);
+
+        // Compute the token ID and reverse node
         uint256 tokenId = uint256(keccak256(abi.encodePacked(label)));
-        uint64 expiry = type(uint64).max;
         bytes32 node = keccak256(abi.encodePacked(PARENT_NODE, tokenId));
 
+        // Reverse names never expire
+        uint64 expiry = type(uint64).max;
+
+        // Store the name
         _names[node] = name_;
 
-        // TODO: add context field
+        // Emit ENSIP-16 events for indexer compatibility
         emit NameRegistered(tokenId, label, expiry, _msgSender(), 0);
         emit ResolverUpdated(tokenId, address(this));
         emit NameChanged(node, name_);
     }
 
+    /// @notice Converts an address to its lowercase hex string representation (without 0x prefix).
+    /// @dev Uses inline assembly for gas efficiency. Produces exactly 40 hex characters.
+    /// @param value The address to convert.
+    /// @return result The lowercase hex string (40 bytes, no 0x prefix).
     function _toAddressString(address value) internal pure returns (string memory result) {
         /// @solidity memory-safe-assembly
         assembly {
-            // Allocate memory for result
+            // Allocate memory for result string
             result := mload(0x40)
-            mstore(0x40, add(result, 0x60)) // 32 (length) + 40 (data) padded to 64
-            mstore(result, 40) // Store string length
+            mstore(0x40, add(result, 0x60)) // 32 (length slot) + 40 (data) padded to 64 bytes
+            mstore(result, 40) // Store string length (40 hex chars)
 
-            // Hex lookup table: "0123456789abcdef" left-aligned
+            // Hex lookup table: "0123456789abcdef" left-aligned in a bytes32
             let table := 0x3031323334353637383961626364656600000000000000000000000000000000
 
-            let o := add(result, 32) // Pointer to string data
+            let o := add(result, 32) // Pointer to string data (after length slot)
             let v := shl(96, value) // Left-align 160-bit address in 256-bit word
 
             // Process 1 byte (2 nibbles) per iteration → 20 iterations for 40 hex chars
