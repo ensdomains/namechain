@@ -1,6 +1,6 @@
 import type { NetworkConnection } from "hardhat/types/network";
 import { type Address, getAddress, labelhash, zeroAddress } from "viem";
-import { LOCAL_BATCH_GATEWAY_URL, ROLES } from "../../../deploy/constants.js";
+import { LOCAL_BATCH_GATEWAY_URL, ROLES } from "../../../script/deploy-constants.js";
 import { splitName } from "../../utils/utils.js";
 import { deployVerifiableProxy } from "./deployVerifiableProxy.js";
 

@@ -3,12 +3,12 @@ pragma solidity >=0.8.13;
 
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
-import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
+import {IHCAFactoryBasic} from "~src/hca/interfaces/IHCAFactoryBasic.sol";
 import {
     PermissionedRegistry,
     IRegistryDatastore,
     IRegistryMetadata
-} from "~src/common/registry/PermissionedRegistry.sol";
+} from "~src/registry/PermissionedRegistry.sol";
 
 /**
  * @title MockPermissionedRegistry

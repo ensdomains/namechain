@@ -19,7 +19,6 @@ import { deployV2Fixture } from "../fixtures/deployV2Fixture.js";
 
 const connection = await hre.network.connect();
 
-// see: ETHTLDResolver.sol
 const EXIT_CODE_NO_RESOLVER = 2;
 function createRegistryTraversalRequest({
   datastore,

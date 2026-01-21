@@ -3,7 +3,7 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {LibMem} from "~src/common/utils/LibMem.sol";
+import {LibMem} from "~src/utils/LibMem.sol";
 
 /// @dev Ensure remappings.txt is applied correctly.
 ///

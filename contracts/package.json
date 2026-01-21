@@ -60,7 +60,6 @@
     "clean": "forge clean && hardhat clean && rm -rf coverage/",
     "devnet": "bun run compile && bun ./script/runDevnet.ts",
     "aakit": "bun ./script/deployAAkit.ts",
-    "premigrate": "bun ./script/preMigration.ts",
     "check:types": "tsc --noEmit"
   },
   "type": "module"

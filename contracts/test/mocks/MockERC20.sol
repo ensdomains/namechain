@@ -4,8 +4,8 @@ pragma solidity ^0.8.13;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
-import {HCAContext, HCAEquivalence} from "~src/common/hca/HCAContext.sol";
-import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
+import {HCAContext, HCAEquivalence} from "~src/hca/HCAContext.sol";
+import {IHCAFactoryBasic} from "~src/hca/interfaces/IHCAFactoryBasic.sol";
 
 contract MockERC20 is ERC20, HCAContext {
     ////////////////////////////////////////////////////////////////////////

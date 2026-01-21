@@ -8,56 +8,53 @@ describe("Devnet", () => {
   setupEnv({ resetOnEach: true });
 
   it("sync", async () => {
-    await env.l1.client.mine({ blocks: 1, interval: 10 }); // advance one chain
-    const [a0, b0] = await env.getBlocks();
-    expect(a0.timestamp, "diff").not.toStrictEqual(b0.timestamp); // check diff
+    await env.deployment.client.mine({ blocks: 1, interval: 10 }); // advance chain
+    const block0 = await env.getBlock();
     const t = await env.sync();
-    const [a1, b1] = await env.getBlocks();
-    expect(b1.timestamp, "after").toStrictEqual(a1.timestamp); // check same
-    expectVar({ t }).toStrictEqual(a1.timestamp); // check estimate
+    const block1 = await env.getBlock();
+    expect(block1.timestamp).toBeGreaterThanOrEqual(block0.timestamp);
+    expectVar({ t }).toStrictEqual(block1.timestamp);
   });
 
   it("warp", async () => {
     const warpSec = 60;
-    const [a0, b0] = await env.getBlocks();
+    const block0 = await env.getBlock();
     const t = await env.sync({ warpSec }); // time warp
-    const [a1, b1] = await env.getBlocks();
-    expect(a1.timestamp - a0.timestamp, "diff1").toBeGreaterThanOrEqual(
-      warpSec,
-    );
-    expect(b1.timestamp - b0.timestamp, "diff2").toBeGreaterThanOrEqual(
-      warpSec,
-    );
-    expect(a1.timestamp, "1").toBeGreaterThanOrEqual(t);
-    expect(b1.timestamp, "2").toBeGreaterThanOrEqual(t);
+    const block1 = await env.getBlock();
+    expect(block1.timestamp - block0.timestamp).toBeGreaterThanOrEqual(warpSec);
+    expect(block1.timestamp).toBeGreaterThanOrEqual(t);
     expectVar({ t }).toBeGreaterThanOrEqual(Math.floor(Date.now() / 1000));
   });
 
   it("saveState", async () => {
     const gateways =
-      await env.l1.contracts.BatchGatewayProvider.read.gateways();
-    await env.l1.contracts.BatchGatewayProvider.write.setGateways([[]], {
-      account: env.namedAccounts.owner,
-    });
+      await env.deployment.contracts.BatchGatewayProvider.read.gateways();
+    await env.deployment.contracts.BatchGatewayProvider.write.setGateways(
+      [[]],
+      {
+        account: env.namedAccounts.owner,
+      },
+    );
     expect(
-      env.l1.contracts.BatchGatewayProvider.read.gateways(),
+      env.deployment.contracts.BatchGatewayProvider.read.gateways(),
     ).resolves.toStrictEqual([]);
     await resetInitialState();
     expect(
-      env.l1.contracts.BatchGatewayProvider.read.gateways(),
+      env.deployment.contracts.BatchGatewayProvider.read.gateways(),
     ).resolves.toStrictEqual(gateways);
   });
 
   it(`computeVerifiableProxyAddress`, async () => {
-    for (const lx of [env.l1, env.l2]) {
-      const account = env.namedAccounts.deployer;
-      const salt = 1234n;
-      const contract = await lx.deployDedicatedResolver({ account, salt });
-      const address = await lx.computeVerifiableProxyAddress({
-        deployer: account.address,
-        salt,
-      });
-      expect(address, lx.name).toStrictEqual(contract.address);
-    }
+    const account = env.namedAccounts.deployer;
+    const salt = 1234n;
+    const contract = await env.deployment.deployDedicatedResolver({
+      account,
+      salt,
+    });
+    const address = await env.deployment.computeVerifiableProxyAddress({
+      deployer: account.address,
+      salt,
+    });
+    expect(address).toStrictEqual(contract.address);
   });
 });
