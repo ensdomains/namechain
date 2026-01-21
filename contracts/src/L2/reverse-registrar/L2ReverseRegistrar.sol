@@ -9,6 +9,7 @@ import {
     StandaloneReverseRegistrar
 } from "../../common/reverse-registrar/StandaloneReverseRegistrar.sol";
 import {LibISO8601} from "../../common/utils/LibISO8601.sol";
+import {LibString} from "../../common/utils/LibString.sol";
 
 import {IL2ReverseRegistrar} from "./interfaces/IL2ReverseRegistrar.sol";
 
@@ -89,7 +90,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
 
         // Validator address checksum string is 42 bytes: "0x" + 40 hex characters
         // Pre-compute and store in two 32-byte immutables for efficient assembly access
-        string memory addressString = _toChecksumHexString(address(this));
+        string memory addressString = LibString.toChecksumHexString(address(this));
         bytes32 part1;
         bytes32 part2;
         assembly {
@@ -199,7 +200,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
 
         for (uint256 i = 0; i < chainIds.length; ++i) {
             if (chainIds[i] == CHAIN_ID) containsCurrentChain = true;
-            chainIdsString = string.concat(chainIdsString, _toString(chainIds[i]));
+            chainIdsString = string.concat(chainIdsString, LibString.toString(chainIds[i]));
             if (i < chainIds.length - 1) chainIdsString = string.concat(chainIdsString, ", ");
         }
 
@@ -232,9 +233,9 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         string memory chainIdsString
     ) internal view returns (bytes32 digest) {
         string memory name = claim.name;
-        string memory addrString = _toChecksumHexString(claim.addr);
+        string memory addrString = LibString.toChecksumHexString(claim.addr);
         string memory expiresAtString = LibISO8601.toISO8601(claim.expirationTime);
-        string memory nonceString = _toString(claim.nonce);
+        string memory nonceString = LibString.toString(claim.nonce);
 
         // Cache immutables for assembly access
         bytes32 validatorPart1 = _VALIDATOR_ADDR_PART1;
@@ -349,10 +350,10 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         string memory chainIdsString
     ) internal view returns (bytes32 digest) {
         string memory name = claim.name;
-        string memory addrString = _toChecksumHexString(claim.addr);
-        string memory ownerString = _toChecksumHexString(owner);
+        string memory addrString = LibString.toChecksumHexString(claim.addr);
+        string memory ownerString = LibString.toChecksumHexString(owner);
         string memory expiresAtString = LibISO8601.toISO8601(claim.expirationTime);
-        string memory nonceString = _toString(claim.nonce);
+        string memory nonceString = LibString.toString(claim.nonce);
 
         // Cache immutables for assembly access
         bytes32 validatorPart1 = _VALIDATOR_ADDR_PART1;
@@ -453,7 +454,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     /// @param message The message bytes to hash.
     /// @return digest The EIP-191 signed message hash.
     function _toEthSignedMessageHash(bytes memory message) internal pure returns (bytes32 digest) {
-        string memory lenString = _toString(message.length);
+        string memory lenString = LibString.toString(message.length);
         assembly {
             // Paris-compatible memory copy helper (replaces mcopy from Cancun)
             // Copies in 32-byte chunks; safe here since we hash immediately after
@@ -486,90 +487,6 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
 
             // Compute the final EIP-191 hash: keccak256(prefix || lenString || message)
             digest := keccak256(ptr, add(add(26, lenStringLen), messageLen))
-        }
-    }
-
-    /// @notice Converts an address to its EIP-55 checksummed hex string.
-    /// @dev Reuses _toAddressString from StandaloneReverseRegistrar for lowercase conversion,
-    ///      then applies EIP-55 checksum. Produces "0x" + 40 hex characters.
-    /// @param addr The address to convert.
-    /// @return result The checksummed hex string (42 bytes).
-    function _toChecksumHexString(address addr) internal pure returns (string memory result) {
-        // Get lowercase hex without prefix (40 chars) from parent
-        string memory lowercase = _toAddressString(addr);
-
-        assembly {
-            result := mload(0x40)
-            mstore(0x40, add(result, 0x60)) // 32 (length) + 42 (data) = 74, round up to 96
-            mstore(result, 42) // Set string length
-
-            let ptr := add(result, 32)
-            // Write "0x" prefix
-            mstore8(ptr, 0x30) // '0'
-            mstore8(add(ptr, 1), 0x78) // 'x'
-
-            let hexPtr := add(ptr, 2)
-            let srcPtr := add(lowercase, 32)
-
-            // Copy 40 bytes from lowercase string to result
-            mstore(hexPtr, mload(srcPtr))
-            mstore(add(hexPtr, 32), mload(add(srcPtr, 32)))
-
-            // Hash the 40 lowercase hex chars for checksum
-            let hashVal := keccak256(hexPtr, 40)
-
-            // Apply checksum: uppercase letters where hash nibble >= 8
-            for {
-                let i := 0
-            } lt(i, 40) {
-                i := add(i, 1)
-            } {
-                let charPos := add(hexPtr, i)
-                let char := byte(0, mload(charPos))
-                // If char is a-f (97-102) and hash nibble >= 8, uppercase it (xor with 0x20)
-                // Hash nibble at position i: shift right by (252 - i*4) and mask
-                if and(gt(char, 96), gt(and(shr(sub(252, shl(2, i)), hashVal), 0xf), 7)) {
-                    mstore8(charPos, xor(char, 0x20))
-                }
-            }
-        }
-    }
-
-    /// @notice Converts a uint256 to its ASCII decimal string representation.
-    /// @param value The value to convert.
-    /// @return result The decimal string.
-    function _toString(uint256 value) internal pure returns (string memory result) {
-        assembly {
-            result := mload(0x40)
-
-            switch value
-            case 0 {
-                mstore(0x40, add(result, 0x40)) // 32 (length slot) + 1 (data) = 33, round to 64
-                mstore(result, 1) // length = 1
-                mstore8(add(result, 32), 0x30) // '0'
-            }
-            default {
-                // Count digits: `for {} temp {}` is Yul idiom for `while (temp != 0)`
-                let temp := value
-                let digits := 0
-                for {} temp {} {
-                    digits := add(digits, 1)
-                    temp := div(temp, 10)
-                }
-
-                // Set length and update free memory pointer (rounded to 32-byte boundary)
-                mstore(result, digits)
-                mstore(0x40, add(result, and(add(add(32, digits), 31), not(31))))
-
-                // Write digits from right to left: `for {} temp {}` is Yul idiom for `while (temp != 0)`
-                let ptr := add(add(result, 32), digits)
-                temp := value
-                for {} temp {} {
-                    ptr := sub(ptr, 1)
-                    mstore8(ptr, add(48, mod(temp, 10))) // 48 = ASCII '0'
-                    temp := div(temp, 10)
-                }
-            }
         }
     }
 }

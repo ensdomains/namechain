@@ -7,6 +7,7 @@ import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
 import {IENSIP16} from "../utils/IENSIP16.sol";
+import {LibString} from "../utils/LibString.sol";
 
 /// @title Standalone Reverse Registrar
 /// @notice A standalone reverse registrar, detached from the ENS registry.
@@ -155,7 +156,7 @@ abstract contract StandaloneReverseRegistrar is
     /// @param name_ The primary ENS name to associate with the address.
     function _setName(address addr, string calldata name_) internal {
         // Convert address to lowercase hex string (without 0x prefix)
-        string memory label = _toAddressString(addr);
+        string memory label = LibString.toAddressString(addr);
 
         // Compute the token ID and reverse node
         uint256 tokenId = uint256(keccak256(abi.encodePacked(label)));
@@ -171,37 +172,5 @@ abstract contract StandaloneReverseRegistrar is
         emit NameRegistered(tokenId, label, expiry, _msgSender(), 0);
         emit ResolverUpdated(tokenId, address(this));
         emit NameChanged(node, name_);
-    }
-
-    /// @notice Converts an address to its lowercase hex string representation (without 0x prefix).
-    /// @dev Uses inline assembly for gas efficiency. Produces exactly 40 hex characters.
-    /// @param value The address to convert.
-    /// @return result The lowercase hex string (40 bytes, no 0x prefix).
-    function _toAddressString(address value) internal pure returns (string memory result) {
-        /// @solidity memory-safe-assembly
-        assembly {
-            // Allocate memory for result string
-            result := mload(0x40)
-            mstore(0x40, add(result, 0x60)) // 32 (length slot) + 40 (data) padded to 64 bytes
-            mstore(result, 40) // Store string length (40 hex chars)
-
-            // Hex lookup table: "0123456789abcdef" left-aligned in a bytes32
-            let table := 0x3031323334353637383961626364656600000000000000000000000000000000
-
-            let o := add(result, 32) // Pointer to string data (after length slot)
-            let v := shl(96, value) // Left-align 160-bit address in 256-bit word
-
-            // Process 1 byte (2 nibbles) per iteration → 20 iterations for 40 hex chars
-            for {
-                let i := 0
-            } lt(i, 20) {
-                i := add(i, 1)
-            } {
-                let b := byte(i, v) // Extract i-th byte from left
-                let pos := shl(1, i) // Output position = i * 2
-                mstore8(add(o, pos), byte(shr(4, b), table)) // High nibble → ASCII
-                mstore8(add(o, add(pos, 1)), byte(and(b, 0xf), table)) // Low nibble → ASCII
-            }
-        }
     }
 }

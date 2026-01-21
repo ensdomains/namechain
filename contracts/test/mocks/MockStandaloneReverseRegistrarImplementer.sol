@@ -15,10 +15,6 @@ contract MockStandaloneReverseRegistrarImplementer is StandaloneReverseRegistrar
         _setName(addr, name_);
     }
 
-    function toAddressString(address value) public pure returns (string memory) {
-        return _toAddressString(value);
-    }
-
     function SIMPLE_HASHED_PARENT() public view returns (bytes32) {
         return _SIMPLE_HASHED_PARENT;
     }

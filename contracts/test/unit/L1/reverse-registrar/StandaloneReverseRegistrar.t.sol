@@ -11,6 +11,7 @@ import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165C
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {IENSIP16} from "~src/common/utils/IENSIP16.sol";
+import {LibString} from "~src/common/utils/LibString.sol";
 import {
     StandaloneReverseRegistrar
 } from "~src/common/reverse-registrar/StandaloneReverseRegistrar.sol";
@@ -147,7 +148,7 @@ contract StandaloneReverseRegistrarTest is Test {
         string memory expectedName = "vitalik.eth";
         registrar.setName(user1, expectedName);
 
-        string memory label = registrar.toAddressString(user1);
+        string memory label = LibString.toAddressString(user1);
         bytes32 node = keccak256(
             abi.encodePacked(registrar.PARENT_NODE(), keccak256(abi.encodePacked(label)))
         );
@@ -158,7 +159,7 @@ contract StandaloneReverseRegistrarTest is Test {
     function testFuzz_name_returnsSetName(address addr, string memory expectedName) public {
         registrar.setName(addr, expectedName);
 
-        string memory label = registrar.toAddressString(addr);
+        string memory label = LibString.toAddressString(addr);
         bytes32 node = keccak256(
             abi.encodePacked(registrar.PARENT_NODE(), keccak256(abi.encodePacked(label)))
         );
@@ -290,7 +291,7 @@ contract StandaloneReverseRegistrarTest is Test {
         string memory name_ = "test.eth";
         registrar.setName(user1, name_);
 
-        string memory label = registrar.toAddressString(user1);
+        string memory label = LibString.toAddressString(user1);
         bytes32 node = keccak256(
             abi.encodePacked(registrar.PARENT_NODE(), keccak256(abi.encodePacked(label)))
         );
@@ -300,7 +301,7 @@ contract StandaloneReverseRegistrarTest is Test {
 
     function test_setName_emitsNameRegisteredEvent() public {
         string memory name_ = "alice.eth";
-        string memory expectedLabel = registrar.toAddressString(user1);
+        string memory expectedLabel = LibString.toAddressString(user1);
         uint256 expectedTokenId = uint256(keccak256(abi.encodePacked(expectedLabel)));
 
         vm.expectEmit(true, false, false, true);
@@ -317,7 +318,7 @@ contract StandaloneReverseRegistrarTest is Test {
 
     function test_setName_emitsResolverUpdatedEvent() public {
         string memory name_ = "bob.eth";
-        string memory expectedLabel = registrar.toAddressString(user1);
+        string memory expectedLabel = LibString.toAddressString(user1);
         uint256 expectedTokenId = uint256(keccak256(abi.encodePacked(expectedLabel)));
 
         vm.expectEmit(true, false, false, true);
@@ -328,7 +329,7 @@ contract StandaloneReverseRegistrarTest is Test {
 
     function test_setName_emitsNameChangedEvent() public {
         string memory name_ = "carol.eth";
-        string memory label = registrar.toAddressString(user1);
+        string memory label = LibString.toAddressString(user1);
         bytes32 expectedNode = keccak256(
             abi.encodePacked(registrar.PARENT_NODE(), keccak256(abi.encodePacked(label)))
         );
@@ -373,7 +374,7 @@ contract StandaloneReverseRegistrarTest is Test {
 
         registrar.setName(user1, firstName);
 
-        string memory label = registrar.toAddressString(user1);
+        string memory label = LibString.toAddressString(user1);
         bytes32 node = keccak256(
             abi.encodePacked(registrar.PARENT_NODE(), keccak256(abi.encodePacked(label)))
         );
@@ -387,7 +388,7 @@ contract StandaloneReverseRegistrarTest is Test {
     function test_setName_emptyName() public {
         registrar.setName(user1, "");
 
-        string memory label = registrar.toAddressString(user1);
+        string memory label = LibString.toAddressString(user1);
         bytes32 node = keccak256(
             abi.encodePacked(registrar.PARENT_NODE(), keccak256(abi.encodePacked(label)))
         );
@@ -398,80 +399,12 @@ contract StandaloneReverseRegistrarTest is Test {
     function testFuzz_setName(address addr, string memory name_) public {
         registrar.setName(addr, name_);
 
-        string memory label = registrar.toAddressString(addr);
+        string memory label = LibString.toAddressString(addr);
         bytes32 node = keccak256(
             abi.encodePacked(registrar.PARENT_NODE(), keccak256(abi.encodePacked(label)))
         );
 
         assertEq(registrar.name(node), name_, "Name should be stored");
-    }
-
-    ////////////////////////////////////////////////////////////////////////
-    // _toAddressString() Tests (via mock)
-    ////////////////////////////////////////////////////////////////////////
-
-    function test_toAddressString_zeroAddress() public view {
-        string memory result = registrar.toAddressString(address(0));
-        assertEq(result, "0000000000000000000000000000000000000000", "Should format zero address");
-    }
-
-    function test_toAddressString_nonZeroAddress() public view {
-        address addr = 0x1234567890AbcdEF1234567890aBcdef12345678;
-        string memory result = registrar.toAddressString(addr);
-        assertEq(
-            result,
-            "1234567890abcdef1234567890abcdef12345678",
-            "Should format address in lowercase"
-        );
-    }
-
-    function test_toAddressString_maxAddress() public view {
-        address addr = address(type(uint160).max);
-        string memory result = registrar.toAddressString(addr);
-        assertEq(result, "ffffffffffffffffffffffffffffffffffffffff", "Should format max address");
-    }
-
-    function test_toAddressString_knownAddresses() public view {
-        // Test with some known addresses
-        assertEq(
-            registrar.toAddressString(address(1)),
-            "0000000000000000000000000000000000000001",
-            "Address 1"
-        );
-        assertEq(
-            registrar.toAddressString(address(255)),
-            "00000000000000000000000000000000000000ff",
-            "Address 255"
-        );
-        assertEq(
-            registrar.toAddressString(address(0xdead)),
-            "000000000000000000000000000000000000dead",
-            "Address 0xdead"
-        );
-    }
-
-    function testFuzz_toAddressString_length(address addr) public view {
-        string memory result = registrar.toAddressString(addr);
-        assertEq(bytes(result).length, 40, "Result should be 40 characters (40 hex chars)");
-    }
-
-    function testFuzz_toAddressString_validHexChars(address addr) public view {
-        string memory result = registrar.toAddressString(addr);
-        bytes memory resultBytes = bytes(result);
-
-        // Check all characters are valid hex
-        for (uint256 i = 0; i < 40; i++) {
-            bytes1 c = resultBytes[i];
-            bool isValidHex = (c >= "0" && c <= "9") || (c >= "a" && c <= "f");
-            assertTrue(isValidHex, "All chars should be valid lowercase hex");
-        }
-    }
-
-    function testFuzz_toAddressString_roundTrip(address addr) public view {
-        string memory result = registrar.toAddressString(addr);
-        // Parse the hex string back to address
-        address parsed = _parseAddress(result);
-        assertEq(parsed, addr, "Should round-trip correctly");
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -493,7 +426,7 @@ contract StandaloneReverseRegistrarTest is Test {
         assertEq(resolvedName, expectedName, "Resolved name should match");
 
         // Also verify via direct name() call
-        string memory label = registrar.toAddressString(user1);
+        string memory label = LibString.toAddressString(user1);
         bytes32 node = keccak256(
             abi.encodePacked(registrar.PARENT_NODE(), keccak256(abi.encodePacked(label)))
         );
@@ -539,7 +472,7 @@ contract StandaloneReverseRegistrarTest is Test {
     ////////////////////////////////////////////////////////////////////////
 
     function _buildDnsEncodedName(address addr) internal view returns (bytes memory) {
-        string memory addrString = registrar.toAddressString(addr);
+        string memory addrString = LibString.toAddressString(addr);
 
         bytes memory parent = abi.encodePacked(
             uint8(bytes(ETH_LABEL).length),
