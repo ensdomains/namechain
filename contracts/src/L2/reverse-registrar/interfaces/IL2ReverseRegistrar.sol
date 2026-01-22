@@ -7,7 +7,6 @@ interface IL2ReverseRegistrar {
         address addr;
         uint256[] chainIds;
         uint256 expirationTime;
-        uint256 nonce;
     }
 
     /// @notice Sets the `nameForAddr()` record for the calling account.

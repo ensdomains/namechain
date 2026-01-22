@@ -28,7 +28,6 @@ Signatures are all plaintext, prefixed with `\x19Ethereum Signed Message:\n<leng
 | `chainList` | `string` | Comma-separated list of chains in format `{name} ({chainId})`, ordered by ascending chain ID. |
 | `expirationTime` | `string` | ISO 8601 UTC datetime when signature expires (max 1 hour from current time). |
 | `validatorAddress` | `address` | The signature validator contract address. EIP-55 checksummed. |
-| `nonce` | `bytes32` | Unique nonce to prevent replay. Hex-encoded with `0x` prefix, full 32 bytes. |
 
 ### `setNameForAddrWithSignature`
 
@@ -42,7 +41,6 @@ Expires At: {expirationTime}
 
 ---
 Validator: {validatorAddress}
-Nonce: {nonce}
 ```
 
 ### `setNameForOwnableWithSignature`
@@ -58,5 +56,4 @@ Expires At: {expirationTime}
 
 ---
 Validator: {validatorAddress}
-Nonce: {nonce}
 ```
