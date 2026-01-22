@@ -3,9 +3,7 @@ pragma solidity ^0.8.13;
 
 // solhint-disable no-empty-blocks, namechain/ordering
 
-import {
-    StandaloneReverseRegistrar
-} from "~src/common/reverse-registrar/StandaloneReverseRegistrar.sol";
+import {StandaloneReverseRegistrar} from "~src/reverse-registrar/StandaloneReverseRegistrar.sol";
 
 contract MockStandaloneReverseRegistrarImplementer is StandaloneReverseRegistrar {
     constructor(string memory label) StandaloneReverseRegistrar(label) {}

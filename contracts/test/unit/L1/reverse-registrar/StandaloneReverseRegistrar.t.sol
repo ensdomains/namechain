@@ -10,11 +10,9 @@ import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-import {IENSIP16} from "~src/common/utils/IENSIP16.sol";
-import {LibString} from "~src/common/utils/LibString.sol";
-import {
-    StandaloneReverseRegistrar
-} from "~src/common/reverse-registrar/StandaloneReverseRegistrar.sol";
+import {IENSIP16} from "~src/utils/interfaces/IENSIP16.sol";
+import {LibString} from "~src/utils/LibString.sol";
+import {StandaloneReverseRegistrar} from "~src/reverse-registrar/StandaloneReverseRegistrar.sol";
 
 import {
     MockStandaloneReverseRegistrarImplementer

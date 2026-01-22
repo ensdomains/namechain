@@ -11,8 +11,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {
     L2ReverseRegistrarWithMigration,
     IL2ReverseRegistrarV1
-} from "~src/L2/reverse-registrar/L2ReverseRegistrarWithMigration.sol";
-import {LibString} from "~src/common/utils/LibString.sol";
+} from "~src/reverse-registrar/L2ReverseRegistrarWithMigration.sol";
+import {LibString} from "~src/utils/LibString.sol";
 
 /// @title Mock Old L2 Reverse Registrar
 /// @notice A mock implementation of the V1 reverse registrar interface for testing migration.

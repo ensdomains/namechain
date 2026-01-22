@@ -115,7 +115,7 @@ async function fixture() {
 
   const l2ReverseRegistrar = await connection.viem.deployContract(
     // Use fully qualified name to ensure the correct contract is deployed
-    'src/L2/reverse-registrar/L2ReverseRegistrar.sol:L2ReverseRegistrar',
+    'src/reverse-registrar/L2ReverseRegistrar.sol:L2ReverseRegistrar',
     [OPTIMISM_CHAIN_ID, COIN_TYPE_LABEL],
   )
   const mockSmartContractAccount = await connection.viem.deployContract(
@@ -159,7 +159,7 @@ describe('L2ReverseRegistrar', () => {
     contract: () =>
       loadFixture().then(({ l2ReverseRegistrar }) => l2ReverseRegistrar),
     interfaces: [
-      'src/L2/reverse-registrar/interfaces/IL2ReverseRegistrar.sol:IL2ReverseRegistrar',
+      'src/reverse-registrar/interfaces/IL2ReverseRegistrar.sol:IL2ReverseRegistrar',
       'IExtendedResolver',
       'INameResolver',
       'IERC165',

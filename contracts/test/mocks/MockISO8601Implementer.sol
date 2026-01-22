@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {LibISO8601} from "~src/common/utils/LibISO8601.sol";
+import {LibISO8601} from "~src/utils/LibISO8601.sol";
 
 /// @notice Minimal contract for testing LibISO8601
 contract MockLibISO8601Implementer {
