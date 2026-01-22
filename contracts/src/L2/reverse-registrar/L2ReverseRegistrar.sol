@@ -41,7 +41,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
 
     /// @notice Mapping of message hashes to their used status for replay protection.
     /// @dev The message hash serves as a unique nonce for each signature claim.
-    mapping(bytes32 messageHash => bool used) private _nonces;
+    mapping(bytes32 messageHash => bool used) private _messageHashes;
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
@@ -52,12 +52,12 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     error NotOwnerOfContract();
 
     /// @notice Thrown when the current chain ID is not included in the claim's chain ID array.
-    /// @dev Error selector: `0xc8ca4826`
-    error CurrentChainNotFound();
+    /// @dev Error selector: `0x756925c8`
+    error CurrentChainNotFound(uint256 chainId);
 
     /// @notice Thrown when attempting to use a message hash that has already been consumed.
-    /// @dev Error selector: `0x1fb09b80`
-    error NonceAlreadyUsed();
+    /// @dev Error selector: `0xebf3e952`
+    error MessageAlreadyUsed(bytes32 messageHash);
 
     /// @notice Thrown when the caller is not authorised to perform the action.
     /// @dev Error selector: `0xd7a2ae6a`
@@ -134,7 +134,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         string memory chainIdsString = _validateChainIds(claim.chainIds);
 
         bytes32 message = _createNameForAddrWithSignatureMessageHash(claim, chainIdsString);
-        _validateMessageAsNonce(message);
+        _validateMessageHash(message);
 
         signature.validateSignatureWithExpiry(claim.addr, message, claim.expirationTime);
 
@@ -156,7 +156,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             owner,
             chainIdsString
         );
-        _validateMessageAsNonce(message);
+        _validateMessageHash(message);
 
         signature.validateSignatureWithExpiry(owner, message, claim.expirationTime);
 
@@ -170,9 +170,9 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     /// @notice Validates and consumes a message hash as a nonce for replay protection.
     /// @dev Reverts if the message hash has already been used.
     /// @param messageHash The message hash to validate and consume.
-    function _validateMessageAsNonce(bytes32 messageHash) internal {
-        if (_nonces[messageHash]) revert NonceAlreadyUsed();
-        _nonces[messageHash] = true;
+    function _validateMessageHash(bytes32 messageHash) internal {
+        if (_messageHashes[messageHash]) revert MessageAlreadyUsed(messageHash);
+        _messageHashes[messageHash] = true;
     }
 
     /// @notice Checks if the provided address owns the contract via the Ownable interface.
@@ -204,7 +204,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             if (i < chainIds.length - 1) chainIdsString = string.concat(chainIdsString, ", ");
         }
 
-        if (!containsCurrentChain) revert CurrentChainNotFound();
+        if (!containsCurrentChain) revert CurrentChainNotFound(CHAIN_ID);
 
         return chainIdsString;
     }

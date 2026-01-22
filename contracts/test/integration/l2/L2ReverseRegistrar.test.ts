@@ -4,6 +4,7 @@ import {
   decodeFunctionResult,
   encodeFunctionData,
   getAddress,
+  hashMessage,
   namehash,
   serializeErc6492Signature,
   type Address
@@ -352,6 +353,7 @@ describe('L2ReverseRegistrar', () => {
 
       return {
         ...initial,
+        message,
         name,
         expirationTime,
         signature,
@@ -725,7 +727,9 @@ describe('L2ReverseRegistrar', () => {
           [claim, signature],
           { account: accounts[1] },
         ),
-      ).toBeRevertedWithCustomError('CurrentChainNotFound')
+      )
+        .toBeRevertedWithCustomError('CurrentChainNotFound')
+        .withArgs([OPTIMISM_CHAIN_ID])
     })
 
     it('reverts if chain ID array is empty', async () => {
@@ -762,7 +766,9 @@ describe('L2ReverseRegistrar', () => {
           [claim, signature],
           { account: accounts[1] },
         ),
-      ).toBeRevertedWithCustomError('CurrentChainNotFound')
+      )
+        .toBeRevertedWithCustomError('CurrentChainNotFound')
+        .withArgs([OPTIMISM_CHAIN_ID])
     })
 
     it('reverts if the same signature is used twice (replay protection)', async () => {
@@ -773,6 +779,7 @@ describe('L2ReverseRegistrar', () => {
         signature,
         accounts,
         nonce,
+        message,
       } = await connection.networkHelpers.loadFixture(
         setNameForAddrWithSignatureFixture,
       )
@@ -797,7 +804,9 @@ describe('L2ReverseRegistrar', () => {
           [claim, signature],
           { account: accounts[1] },
         ),
-      ).toBeRevertedWithCustomError('NonceAlreadyUsed')
+      )
+        .toBeRevertedWithCustomError('MessageAlreadyUsed')
+        .withArgs([hashMessage(message)])
     })
 
     it('allows different signatures with different nonces for same address', async () => {
@@ -1391,7 +1400,9 @@ describe('L2ReverseRegistrar', () => {
           [claim, accounts[0].address, signature],
           { account: accounts[9] },
         ),
-      ).toBeRevertedWithCustomError('CurrentChainNotFound')
+      )
+        .toBeRevertedWithCustomError('CurrentChainNotFound')
+        .withArgs([OPTIMISM_CHAIN_ID])
     })
 
     it('reverts if chain ID array is empty', async () => {
@@ -1436,7 +1447,9 @@ describe('L2ReverseRegistrar', () => {
           [claim, accounts[0].address, signature],
           { account: accounts[9] },
         ),
-      ).toBeRevertedWithCustomError('CurrentChainNotFound')
+      )
+        .toBeRevertedWithCustomError('CurrentChainNotFound')
+        .withArgs([OPTIMISM_CHAIN_ID])
     })
 
     it('reverts if the same signature is used twice (replay protection)', async () => {
@@ -1486,7 +1499,9 @@ describe('L2ReverseRegistrar', () => {
           [claim, accounts[0].address, signature],
           { account: accounts[9] },
         ),
-      ).toBeRevertedWithCustomError('NonceAlreadyUsed')
+      )
+        .toBeRevertedWithCustomError('MessageAlreadyUsed')
+        .withArgs([hashMessage(message)])
     })
   })
 
