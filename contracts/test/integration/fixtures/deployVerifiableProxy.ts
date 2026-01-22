@@ -4,10 +4,8 @@ import {
   type Address,
   type Chain,
   concat,
-  type ContractFunctionName,
   encodeAbiParameters,
   encodeFunctionData,
-  type EncodeFunctionDataParameters,
   getContract,
   getContractAddress,
   type Hex,
@@ -27,19 +25,23 @@ const verifiableFactoryAbi = parseAbi([
 
 export async function deployVerifiableProxy<
   const abi extends Abi | readonly unknown[],
-  const functionName extends ContractFunctionName<abi> | undefined = undefined,
 >({
   walletClient,
   factoryAddress,
   implAddress,
   salt = BigInt(keccak256(stringToBytes(new Date().toISOString()))),
-  ...functionDataParameters
+  abi,
+  functionName,
+  args,
 }: {
   walletClient: WalletClient<Transport, Chain, Account>;
   factoryAddress: Address;
   implAddress: Address;
   salt?: bigint;
-} & EncodeFunctionDataParameters<abi, functionName>) {
+  abi: abi;
+  functionName: string;
+  args: readonly unknown[];
+}) {
   const hash = await walletClient.writeContract({
     address: factoryAddress,
     abi: verifiableFactoryAbi,
@@ -47,25 +49,26 @@ export async function deployVerifiableProxy<
     args: [
       implAddress,
       salt,
-      encodeFunctionData(
-        functionDataParameters as EncodeFunctionDataParameters,
-      ),
+      encodeFunctionData({
+        abi,
+        functionName,
+        args,
+      } as Parameters<typeof encodeFunctionData>[0]),
     ],
   });
-
-  const receipt = await waitForSuccessfulTransactionReceipt(walletClient, { hash });
+  const receipt = await waitForSuccessfulTransactionReceipt(walletClient, {
+    hash,
+  });
   const [log] = parseEventLogs({
     abi: verifiableFactoryAbi,
     eventName: "ProxyDeployed",
     logs: receipt.logs,
   });
   const contract = getContract({
-    abi: functionDataParameters.abi,
+    abi,
     address: log.args.proxyAddress,
     client: walletClient,
   });
-
-  // Attach deployment metadata for gas tracking
   return Object.assign(contract, {
     deploymentHash: hash,
     deploymentReceipt: receipt,

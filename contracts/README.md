@@ -9,11 +9,9 @@ This repository hosts the smart contracts for ENSv2 (Ethereum Name Service versi
 
 ENSv2 transitions from a flat registry to a hierarchical system that enables:
 
-- **L2 Scalability**: .eth names registered and managed on Layer 2 with reduced gas costs
 - **Flexible Ownership**: Custom registry implementations for different ownership models
-- **Cross-Chain Support**: Seamless name resolution across L1 and L2
 - **Backward Compatibility**: Unmigrated ENSv1 names continue to function
-- **Enhanced Security**: Names can be "ejected" to L1 for maximum security guarantees
+- **Gas Efficiency**: Optimized storage and access control patterns
 
 ### Key Features
 
@@ -28,14 +26,16 @@ ENSv2 transitions from a flat registry to a hierarchical system that enables:
 ### Core Concepts
 
 **Registries**
+
 - Each registry is responsible for one name and its direct subdomains
 - Registries implement ERC1155, treating subdomains as NFTs
 - Must implement the `IRegistry` interface for standard resolution
-- All registries store data in the singleton `RegistryDatastore` to reduce the number of storage proofs needed for CCIP-Read cross-chain lookups
+- All registries store data in the singleton `RegistryDatastore` for efficient storage access
 
 **Root Registry** → **TLD Registries** (.eth, .box, etc.) → **Domain Registries** (example.eth) → **Subdomain Registries** (sub.example.eth)
 
 **Resolution Process**
+
 1. Start at root registry
 2. Recursively traverse to find the deepest registry with a resolver set
 3. Query that resolver for the requested record
@@ -45,9 +45,9 @@ ENSv2 transitions from a flat registry to a hierarchical system that enables:
 
 Token IDs representing names get regenerated in the following scenarios:
 
-* **When an expired name is re-registered** - re-generating the token id resets the roles previously assigned against the name, ensuring that the new owner can know that only the roles they assign from then onwards are valid.
+- **When an expired name is re-registered** - re-generating the token id resets the roles previously assigned against the name, ensuring that the new owner can know that only the roles they assign from then onwards are valid.
 
-* **When the roles on a name are changed** - regenerating the token id in this case prevents griefing attacks - e.g a name is put up for sale on an NFT marketplace by an owner who then changes the permissions on it without a prospective buying knowing. 
+- **When the roles on a name are changed** - regenerating the token id in this case prevents griefing attacks - e.g a name is put up for sale on an NFT marketplace by an owner who then changes the permissions on it without a prospective buying knowing.
 
 The system accomplishes this through the concept of a _canonical id_ which is the internal representation of a given name's current token id:
 
@@ -55,8 +55,8 @@ The system accomplishes this through the concept of a _canonical id_ which is th
 
 The canonical id is used internally for:
 
-* Checking role-based permissions for the name.
-* Reading/writing storage data - expiry date, registry address, resolver address, etc.
+- Checking role-based permissions for the name.
+- Reading/writing storage data - expiry date, registry address, resolver address, etc.
 
 ### Access Control
 
@@ -67,25 +67,26 @@ ENSv2 uses **EnhancedAccessControl (EAC)**, a general-purpose access control bas
 
 #### How EAC Works
 
-Roles are assigned for a given `address` against a given resource (a `uint256` id that can represent anything). 
+Roles are assigned for a given `address` against a given resource (a `uint256` id that can represent anything).
 
 Note that there is a special resource `0` (also known internally as `ROOT_RESOURCE`). This functions as a contract-level resource, i.e. roles assigned against this resource are considered to be at "root-level" and are thus automatically applicable to all other resources. For example, if the `ROLE_SET_RESOLVER` role is assigned for a user at the root level of a given registry contract then that user can set the resolver for any and all names within the registry.
 
 Technical details:
 
-* Each role is represented by a 4-bit "nybble" within a `uint256` bitmap. Given that each role has a corresponding admin role this means there are a **maximum of 32 roles** and 32 corresponding admin roles. 
+- Each role is represented by a 4-bit "nybble" within a `uint256` bitmap. Given that each role has a corresponding admin role this means there are a **maximum of 32 roles** and 32 corresponding admin roles.
 
-* Normal roles are stored in the lower 128 bits of the `uint256` role bitmap. The corresponding admin roles are stored in the upper 128 bits. For a given role its admin role is found by calculating `role << 128`.
+- Normal roles are stored in the lower 128 bits of the `uint256` role bitmap. The corresponding admin roles are stored in the upper 128 bits. For a given role its admin role is found by calculating `role << 128`.
 
-* For a given resource, a **maximum of 15 assigness** can have a given role in that resource. 
+- For a given resource, a **maximum of 15 assigness** can have a given role in that resource.
 
-* Assigning a role via the external methods (`grantRole`, `revokeRole`, etc) requires the caller to hold the corresponding admin role for that role. 
+- Assigning a role via the external methods (`grantRole`, `revokeRole`, etc) requires the caller to hold the corresponding admin role for that role.
 
-* Admin roles cannot be assigned to someone else via the external EAC methods. This means admin roles can only be granted via internal logic in derived contracts.
+- Admin roles cannot be assigned to someone else via the external EAC methods. This means admin roles can only be granted via internal logic in derived contracts.
 
-* Admin roles can, however, be revoked from oneself. 
+- Admin roles can, however, be revoked from oneself.
 
 =**Permission Inheritance**: When checking permissions for a resource, EAC combines (via bitwise OR) the roles from:
+
 - The specific resource (e.g., your name's permissions)
 - The root resource (root-level permissions)
 
@@ -95,29 +96,29 @@ In registry contracts, EAC is used with these specific behaviors:
 
 **Resource ID Generation**: Resource IDs the canonical token ids (see above).
 
-**Registry-Specific Roles**: From [`RegistryRolesLib.sol`](src/common/registry/libraries/RegistryRolesLib.sol):
+**Registry-Specific Roles**: From [`RegistryRolesLib.sol`](src/registry/libraries/RegistryRolesLib.sol):
 
-| Role | Bit Position | Admin Bit Position | Description |
-|------|--------------|--------------------| ----------- |
-| `ROLE_REGISTRAR` | 0 | 128 | Can register new names (root-only) |
-| `ROLE_RENEW` | 4 | 132 | Can renew name registrations |
-| `ROLE_SET_SUBREGISTRY` | 8 | 136 | Can change subregistry addresses |
-| `ROLE_SET_RESOLVER` | 12 | 140 | Can change the resolver address |
-| `ROLE_SET_TOKEN_OBSERVER` | 16 | 144 | Can set token observer contracts |
-| `ROLE_UNREGISTER` | 24 | 152 | Can unregister (delete) name registrations |
-| `ROLE_CAN_TRANSFER_ADMIN` | - | 148 | Auto-granted to new name owner. Revoking this creates a soulbound NFT. |
+| Role                      | Bit Position | Admin Bit Position | Description                                                            |
+| ------------------------- | ------------ | ------------------ | ---------------------------------------------------------------------- |
+| `ROLE_REGISTRAR`          | 0            | 128                | Can register new names (root-only)                                     |
+| `ROLE_RENEW`              | 4            | 132                | Can renew name registrations                                           |
+| `ROLE_SET_SUBREGISTRY`    | 8            | 136                | Can change subregistry addresses                                       |
+| `ROLE_SET_RESOLVER`       | 12           | 140                | Can change the resolver address                                        |
+| `ROLE_CAN_TRANSFER_ADMIN` | -            | 144                | Auto-granted to new name owner. Revoking this creates a soulbound NFT. |
 
 **Note**: `ROLE_REGISTRAR` is a root-only role since creating new subnames has no logical resource-specific equivalent (the resource doesn't exist yet).
 
 **Admin Role Capabilities**
-   - In registries, **only the name owner can hold admin roles**
-   - **Why this restriction?** To prevent granting admin rights to another account and retaining control after a transfer. While theoretically secure (auditable), this was judged too risky.
-   - Admin roles can be revoked from oneself. The `ROLE_CAN_TRANSFER_ADMIN` role is one such example - this role is automatically granted to the owner of a name when the name is registered. Revoking this admin role will essentially make the name soulbound and un-transferrable.
+
+- In registries, **only the name owner can hold admin roles**
+- **Why this restriction?** To prevent granting admin rights to another account and retaining control after a transfer. While theoretically secure (auditable), this was judged too risky.
+- Admin roles can be revoked from oneself. The `ROLE_CAN_TRANSFER_ADMIN` role is one such example - this role is automatically granted to the owner of a name when the name is registered. Revoking this admin role will essentially make the name soulbound and un-transferrable.
 
 **Transfer Behavior**
-   - When you transfer a name, **all roles and admin roles** transfer to the new owner
-   - Existing **roles** delegated to other accounts remain intact unless explicitly revoked
-   - Example: If Alice granted Bob `ROLE_SET_RESOLVER` and transfers the name to Charlie, Charlie becomes the new admin but Bob keeps his resolver permission
+
+- When you transfer a name, **all roles and admin roles** transfer to the new owner
+- Existing **roles** delegated to other accounts remain intact unless explicitly revoked
+- Example: If Alice granted Bob `ROLE_SET_RESOLVER` and transfers the name to Charlie, Charlie becomes the new admin but Bob keeps his resolver permission
 
 #### Usage Examples
 
@@ -139,6 +140,7 @@ registry.hasRoles(tokenId, ROLE_SET_RESOLVER, alice);
 #### Creating Emancipated Names
 
 You can create the equivalent of Name Wrapper "emancipated" names by:
+
 1. Creating a subregistry where the owner has no root roles
 2. Locking the subregistry into the parent registry
 3. Result: Parent registry owner cannot interfere with subname operations
@@ -183,180 +185,92 @@ registry.grantRoles(
 ### Registry System
 
 #### `IRegistry` - Core Interface
-[src/common/registry/interfaces/IRegistry.sol](src/common/registry/interfaces/IRegistry.sol)
+
+[src/registry/interfaces/IRegistry.sol](src/registry/interfaces/IRegistry.sol)
 
 Standard interface all registries must implement:
+
 ```solidity
 interface IRegistry is IERC1155Singleton {
-    event NewSubname(uint256 indexed labelHash, string label);
+  event NewSubname(uint256 indexed labelHash, string label);
 
-    function getSubregistry(string calldata label) external view returns (IRegistry);
-    function getResolver(string calldata label) external view returns (address);
+  function getSubregistry(
+    string calldata label
+  ) external view returns (IRegistry);
+  function getResolver(string calldata label) external view returns (address);
 }
 ```
 
 #### `RegistryDatastore` - Singleton Storage
-[src/common/registry/RegistryDatastore.sol](src/common/registry/RegistryDatastore.sol)
 
-Universal storage contract for all registries. Reduces storage proof complexity for L2 resolution.
+[src/registry/RegistryDatastore.sol](src/registry/RegistryDatastore.sol)
+
+Universal storage contract for all registries.
 
 **Key Functions**:
+
 - `getEntry(address registry, uint256 tokenId)`: Fetch an entry
 - `setEntry(address registry, uint256 id, Entry calldata entry)`: Set an entry
 - `setSubregistry(uint256 tokenId, address subregistry)`: Update subregistry (caller must be registry)
 - `setResolver(uint256 tokenId, address resolver)`: Update resolver
 
 **Storage Structure**:
+
 ```solidity
 struct Entry {
-   uint64 expiry;          // Timestamp when the name expires (0 = never expires)
-   uint32 tokenVersionId;  // Version counter for token regeneration (incremented on burn/remint)
-   address subregistry;    // Registry contract for subdomains under this name
-   uint32 eacVersionId;    // Version counter for access control changes (incremented on permission updates)
-   address resolver;       // Resolver contract for name resolution data
+  uint64 expiry; // Timestamp when the name expires (0 = never expires)
+  uint32 tokenVersionId; // Version counter for token regeneration (incremented on burn/remint)
+  address subregistry; // Registry contract for subdomains under this name
+  uint32 eacVersionId; // Version counter for access control changes (incremented on permission updates)
+  address resolver; // Resolver contract for name resolution data
 }
 ```
 
 #### `PermissionedRegistry` - Standard Implementation
-[src/common/registry/PermissionedRegistry.sol](src/common/registry/PermissionedRegistry.sol)
+
+[src/registry/PermissionedRegistry.sol](src/registry/PermissionedRegistry.sol)
 
 Feature-complete registry with role-based access control:
+
 - ERC1155 NFT for subdomains
 - Enhanced Access Control with 32 roles
 - Expiry management
 - Metadata support (name, description, image)
 
 #### `ERC1155Singleton` - Gas-Optimized NFT
-[src/common/erc1155/ERC1155Singleton.sol](src/common/erc1155/ERC1155Singleton.sol)
+
+[src/erc1155/ERC1155Singleton.sol](src/erc1155/ERC1155Singleton.sol)
 
 Modified ERC1155 allowing only one token per ID:
+
 - Saves gas by omitting balance tracking
 - Provides `ownerOf(uint256 id)` like ERC721
 - Emits transfer events for indexing
 
-### L2 Components
-
-#### `ETHRegistrar` - .eth Name Registration
-[src/L2/registrar/ETHRegistrar.sol](src/L2/registrar/ETHRegistrar.sol)
-
-Handles .eth second-level domain registrations on L2:
-
-**Features**:
-- Commit-reveal registration (frontrunning protection)
-- Configurable pricing oracle
-- Multi-token payment support (ETH, USDC, etc.)
-- Minimum registration duration
-- Referral system
-
-**Registration Flow**:
-```solidity
-// 1. Commit to name + secret
-bytes32 commitment = keccak256(abi.encode(
-    label, owner, secret, subregistry, resolver, duration, referrer
-));
-registrar.commit(commitment);
-
-// 2. Wait MIN_COMMITMENT_AGE (prevent frontrunning)
-// 3. Complete registration
-registrar.register{value: price}(
-    label, owner, duration, secret, subregistry, resolver, referrer, paymentToken
-);
-```
-
-#### `StandardRentPriceOracle` - Dynamic Pricing
-[src/L2/registrar/StandardRentPriceOracle.sol](src/L2/registrar/StandardRentPriceOracle.sol)
-
-Length-based pricing with premium decay for expired names:
-- Shorter names cost more
-- Premium starts at 100% of annual rent and decays to 0% over 21 days
-- Fiat-pegged via Chainlink oracles
-- Multi-token support
-
-#### `L2BridgeController` - Name Migration
-[src/L2/bridge/L2BridgeController.sol](src/L2/bridge/L2BridgeController.sol)
-
-Manages ejection of names from L2 to L1. Ejection is triggered by transferring the token to the bridge controller:
-```solidity
-// Prepare transfer data for ejection
-TransferData memory transferData = TransferData({
-    dnsEncodedName: LibLabel.dnsEncodeEthLabel(label),
-    owner: l1Owner,
-    subregistry: l1Subregistry,
-    resolver: l1Resolver,
-    roleBitmap: roleBitmap,
-    expires: expiryTime
-});
-
-// Transfer token to bridge controller to initiate ejection
-registry.safeTransferFrom(
-    msg.sender,
-    address(bridgeController),
-    tokenId,
-    1,
-    abi.encode(transferData)
-);
-```
-
-### L1 Components
-
-#### `ETHTLDResolver` - Unified Resolution
-[src/L1/resolver/ETHTLDResolver.sol](src/L1/resolver/ETHTLDResolver.sol)
-
-Cross-chain resolver combining three systems:
-1. **L2 Names** (via CCIP-Read): New registrations on Namechain
-2. **L1 Ejected Names**: Names moved to L1 for security
-3. **Legacy ENSv1**: Unmigrated names still on old registry
-
-**Resolution Priority**:
-```
-Ejected on L1? → Use L1 data
-  ↓ No
-Migrated to v2? → Use CCIP-Read for L2
-  ↓ No
-Exists in v1? → Use legacy resolver
-```
-
-#### `L1BridgeController` - L1 Name Management
-[src/L1/bridge/L1BridgeController.sol](src/L1/bridge/L1BridgeController.sol)
-
-Handles ejected names on L1 triggered by transferring name to bridge controller.
+### Core Components
 
 #### Migration Controllers
-- `L1LockedMigrationController`: Handles ENSv1 → ENSv2 migration on L1 for locked names
-- `L1UnlockedMigrationController`: Handles ENSv1 → ENSv2 migration on L1 for unlocked names
 
-### Cross-Chain Bridge
+[src/migration/](src/migration/)
 
-#### `BridgeEncoderLib` - Message Format
-[src/common/bridge/libraries/BridgeEncoderLib.sol](src/common/bridge/libraries/BridgeEncoderLib.sol)
-
-Encodes/decodes cross-chain messages:
-
-**Message Types**:
-1. **EJECTION**: Transfer name from L2 to L1
-   ```solidity
-   bytes memory msg = BridgeEncoderLib.encodeEjection(
-       transferData  // owner, expiry, subregistry, resolver
-   );
-   ```
-
-2. **RENEWAL**: Sync expiry updates between chains
-   ```solidity
-   bytes memory msg = BridgeEncoderLib.encodeRenewal(tokenId, newExpiry);
-   ```
+- `LockedMigrationController`: Handles ENSv1 → ENSv2 migration for locked names
+- `UnlockedMigrationController`: Handles ENSv1 → ENSv2 migration for unlocked names
 
 ### Resolution
 
 #### `UniversalResolverV2` - One-Stop Resolution
+
 [src/universalResolver/UniversalResolverV2.sol](src/universalResolver/UniversalResolverV2.sol)
 
 Single contract for resolving any ENS name:
+
 - Handles recursive registry traversal
-- Supports CCIP-Read for L2 names
+- Supports CCIP-Read for off-chain resolution
 - Wildcard resolution
 - Batch resolution
 
 **Example**:
+
 ```solidity
 // Resolve address
 (bytes memory result, address resolver) = universalResolver.resolve(
@@ -421,16 +335,13 @@ There are two ways to run the devnet:
 
 ### Native Local Devnet (recommended)
 
-Start a local devnet with L1 and L2 chains:
+Start a local devnet:
 
 ```sh
 bun run devnet        # runs w/last build
 ```
 
-This will start:
-
-- L1 chain at http://localhost:8545 (Chain ID: 31337)
-- L2 chain at http://localhost:8546 (Chain ID: 31338)
+This will start a local chain at http://localhost:8545 (Chain ID: 31337)
 
 ### Using Docker Compose
 
@@ -446,9 +357,7 @@ This will start:
    docker compose up -d
    ```
 
-3. The devnet will be available at:
-   - L1 Chain: http://localhost:8545 (Chain ID: 31337)
-   - L2 Chain: http://localhost:8546 (Chain ID: 31338)
+3. The devnet will be available at http://localhost:8545 (Chain ID: 31337)
 
 To view logs:
 

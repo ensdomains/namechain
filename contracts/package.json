@@ -2,7 +2,6 @@
   "name": "contracts",
   "dependencies": {
     "@ensdomains/hardhat-chai-matchers-viem": "^0.1.16",
-    "@namestone/ezccip": "^0.1.0",
     "@nomicfoundation/hardhat-network-helpers": "3.0.0",
     "@nomicfoundation/hardhat-viem": "3.0.0",
     "@rocketh/deploy": "0.14.0",
@@ -60,7 +59,6 @@
     "clean": "forge clean && hardhat clean && rm -rf coverage/",
     "devnet": "bun run compile && bun ./script/runDevnet.ts",
     "aakit": "bun ./script/deployAAkit.ts",
-    "premigrate": "bun ./script/preMigration.ts",
     "check:types": "tsc --noEmit"
   },
   "type": "module"

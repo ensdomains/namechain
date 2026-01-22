@@ -1,6 +1,6 @@
 import { shouldSupportInterfaces } from "@ensdomains/hardhat-chai-matchers-viem/behaviour";
 import hre from "hardhat";
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   type KnownProfile,
@@ -25,13 +25,15 @@ async function fixture() {
 }
 
 describe("ENSV1Resolver", () => {
-  /// https://github.com/ensdomains/ens-contracts/blob/staging/test/universalResolver/TestResolverCaller.test.ts
-  /// https://github.com/ensdomains/ens-contracts/blob/staging/test/universalResolver/TestUniversalResolver.test.ts
-
   shouldSupportInterfaces({
     contract: () =>
       network.networkHelpers.loadFixture(fixture).then((F) => F.ensV1Resolver),
-    interfaces: ["IERC165", "IERC7996", "IExtendedResolver"],
+    interfaces: [
+      "IERC165",
+      "IERC7996",
+      "IExtendedResolver",
+      "ICompositeResolver",
+    ],
   });
 
   shouldSupportFeatures({
@@ -40,6 +42,20 @@ describe("ENSV1Resolver", () => {
     features: {
       RESOLVER: ["RESOLVE_MULTICALL"],
     },
+  });
+
+  it("requiresOffchain", async () => {
+    const F = await network.networkHelpers.loadFixture(fixture);
+    expect(
+      F.ensV1Resolver.read.requiresOffchain([dnsEncodeName("any.eth")]),
+    ).resolves.toStrictEqual(false);
+  });
+
+  it("getResolver", async () => {
+    const F = await network.networkHelpers.loadFixture(fixture);
+    expect(
+      F.ensV1Resolver.read.requiresOffchain([dnsEncodeName("any.eth")]),
+    ).resolves.toStrictEqual(false);
   });
 
   it("2LD", async () => {
