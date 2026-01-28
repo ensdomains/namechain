@@ -12,6 +12,7 @@ import {IInterfaceResolver} from "@ens/contracts/resolvers/profiles/IInterfaceRe
 import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol";
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
+import {IVersionableResolver} from "@ens/contracts/resolvers/profiles/IVersionableResolver.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -63,15 +64,14 @@ contract OwnedResolver is
     IContentHashResolver,
     IHasAddressResolver,
     IInterfaceResolver,
+    INameResolver,
     IPubkeyResolver,
     ITextResolver,
-    INameResolver
+    IVersionableResolver
 {
     ////////////////////////////////////////////////////////////////////////
     // Events
     ////////////////////////////////////////////////////////////////////////
-
-    event VersionChanged(bytes32 indexed node, uint256 newVersion);
 
     event AliasChanged(bytes indexed fromName, bytes indexed toName);
 
@@ -133,9 +133,10 @@ contract OwnedResolver is
             type(IContentHashResolver).interfaceId == interfaceId ||
             type(IHasAddressResolver).interfaceId == interfaceId ||
             type(IInterfaceResolver).interfaceId == interfaceId ||
+            type(INameResolver).interfaceId == interfaceId ||
             type(IPubkeyResolver).interfaceId == interfaceId ||
             type(ITextResolver).interfaceId == interfaceId ||
-            type(INameResolver).interfaceId == interfaceId ||
+            type(IVersionableResolver).interfaceId == interfaceId ||
             type(UUPSUpgradeable).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
     }
@@ -157,15 +158,18 @@ contract OwnedResolver is
 
     /// @notice Clear all records for `node`.
     /// @param node The node to update.
-    function clearRecord(bytes32 node) external onlyNodeRoles(node, OwnedResolverLib.ROLE_CLEAR) {
-        uint256 version = ++_storage().versions[node];
-        emit VersionChanged(node, version);
+    function clearRecords(bytes32 node) external onlyNodeRoles(node, OwnedResolverLib.ROLE_CLEAR) {
+        uint64 version = ++_storage().versions[node];
+        emit IVersionableResolver.VersionChanged(node, version);
     }
 
     /// @notice Create an alias from `fromName` to `toName`.
     /// @param fromName The source DNS-encoded name.
     /// @param toName The destination DNS-encoded name.
-    function setAlias(bytes calldata fromName, bytes calldata toName) external {
+    function setAlias(
+        bytes calldata fromName,
+        bytes calldata toName
+    ) external onlyRootRoles(OwnedResolverLib.ROLE_SET_ALIAS) {
         _storage().aliases[NameCoder.namehash(fromName, 0)] = toName;
         emit AliasChanged(fromName, toName);
     }
@@ -270,23 +274,28 @@ contract OwnedResolver is
     /// @inheritdoc IExtendedResolver
     function resolve(
         bytes calldata fromName,
-        bytes calldata data
+        bytes calldata fromData
     ) external view returns (bytes memory) {
         bytes memory toName = getAlias(fromName);
-        (bool ok, bytes memory v) = address(this).staticcall(
-            ResolverProfileRewriterLib.replaceNode(
-                data,
-                NameCoder.namehash(toName.length == 0 ? fromName : toName, 0)
-            )
+        bytes memory toData = ResolverProfileRewriterLib.replaceNode(
+            fromData,
+            NameCoder.namehash(toName.length == 0 ? fromName : toName, 0)
         );
+        (bool ok, bytes memory v) = address(this).staticcall(toData);
         if (!ok) {
             assembly {
                 revert(add(v, 32), mload(v))
             }
         } else if (v.length == 0) {
-            revert UnsupportedResolverProfile(bytes4(data));
+            revert UnsupportedResolverProfile(bytes4(fromData));
         }
         return v;
+    }
+
+    /// @notice Get the current version.
+    /// @param node The node to check.
+    function recordVersions(bytes32 node) external view returns (uint64) {
+        return _storage().versions[node];
     }
 
     /// @inheritdoc IABIResolver

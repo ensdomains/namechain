@@ -5,8 +5,8 @@ pragma solidity >=0.8.13;
 library OwnedResolverLib {
     struct Storage {
         mapping(bytes32 node => bytes) aliases;
-        mapping(bytes32 node => uint256) versions;
-        mapping(bytes32 node => mapping(uint256 version => Record)) records;
+        mapping(bytes32 node => uint64) versions;
+        mapping(bytes32 node => mapping(uint64 version => Record)) records;
     }
 
     struct Record {
@@ -42,8 +42,8 @@ library OwnedResolverLib {
     uint256 internal constant ROLE_SET_NAME = 1 << 24;
     uint256 internal constant ROLE_SET_NAME_ADMIN = ROLE_SET_NAME << 128;
 
-    uint256 internal constant ROLE_ALIAS = 1 << 28;
-    uint256 internal constant ROLE_ALIAS_ADMIN = ROLE_ALIAS << 128;
+    uint256 internal constant ROLE_SET_ALIAS = 1 << 28;
+    uint256 internal constant ROLE_SET_ALIAS_ADMIN = ROLE_SET_ALIAS << 128;
 
     uint256 internal constant ROLE_CLEAR = 1 << 32;
     uint256 internal constant ROLE_CLEAR_ADMIN = ROLE_CLEAR << 128;
