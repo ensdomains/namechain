@@ -12,16 +12,11 @@ import {OwnedResolverLib} from "./libraries/OwnedResolverLib.sol";
 /// * Cycles of length 1 apply once.
 /// * Cycles of length 2+ result in OOG.
 ///
-/// 1. Rewrite: `setAlias("a.eth", "b.eth")`
-///    eg. `getAlias("a.eth") => "b.eth"`
-///    eg. `getAlias("[sub].a.eth") => "[sub].b.eth"`
-///    eg. `getAlias("[x.y].a.eth") => "[x.y].b.eth"`
-///    eg. `getAlias("abc.eth") => ""`
-///
-/// 2. Replace: `setAlias("com", ".c.eth")`
-///    eg. `getAlias("abc.com") => "c.eth"`
-///    eg. `getAlias("x.y.com") => "c.eth"`
-///    eg. `getAlias("abc.eth") => ""`
+/// `setAlias("a.eth", "b.eth")`
+/// eg. `getAlias("a.eth") => "b.eth"`
+/// eg. `getAlias("[sub].a.eth") => "[sub].b.eth"`
+/// eg. `getAlias("[x.y].a.eth") => "[x.y].b.eth"`
+/// eg. `getAlias("abc.eth") => ""`
 ///
 contract OwnedResolver {
     ////////////////////////////////////////////////////////////////////////
@@ -71,21 +66,14 @@ contract OwnedResolver {
     ) internal view returns (bytes memory matchName, bytes memory toName) {
         uint256 offset;
         (matchName, offset, ) = _findAlias(fromName, 0);
-        if (matchName.length > 0) {
-            if (matchName.length > 1 && matchName[0] == 0) {
-                assembly {
-                    mstore(add(matchName, 1), sub(mload(matchName), 1))
-                    toName := add(matchName, 1) // drop first char
-                }
-            } else if (offset > 0) {
-                toName = new bytes(offset + matchName.length);
-                assembly {
-                    mcopy(add(toName, 32), add(fromName, 32), offset) // copy prefix
-                    mcopy(add(toName, add(32, offset)), add(matchName, 32), mload(matchName)) // copy suffix
-                }
-            } else {
-                toName = matchName;
+        if (offset > 0) {
+            toName = new bytes(offset + matchName.length);
+            assembly {
+                mcopy(add(toName, 32), add(fromName, 32), offset) // copy prefix
+                mcopy(add(toName, add(32, offset)), add(matchName, 32), mload(matchName)) // copy suffix
             }
+        } else {
+            toName = matchName;
         }
     }
 
