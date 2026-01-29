@@ -51,6 +51,10 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     /// @dev Error selector: `0xebf3e952`
     error MessageAlreadyUsed(bytes32 messageHash);
 
+    /// @notice Thrown when the chain ID array is not in strictly ascending order.
+    /// @dev Error selector: `0x12ba286f`
+    error ChainIdsNotAscending();
+
     /// @notice Thrown when the caller is not authorised to perform the action.
     /// @dev Error selector: `0xd7a2ae6a`
     error Unauthorised();
@@ -166,19 +170,31 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         }
     }
 
-    /// @notice Validates that the current chain ID is in the provided array and builds the display string.
-    /// @dev Reverts if the current chain ID is not found in the array.
-    /// @param chainIds The array of chain IDs to validate.
+    /// @notice Validates that the chain ID array is strictly ascending and contains the current chain ID.
+    /// @dev Reverts if chain IDs are not in ascending order or if current chain ID is not found.
+    /// @param chainIds The array of chain IDs to validate (must be in strictly ascending order).
     /// @return chainIdsString The chain IDs formatted as a comma-separated string.
     function _validateChainIds(
         uint256[] calldata chainIds
     ) internal view returns (string memory chainIdsString) {
-        bool containsCurrentChain = false;
+        uint256 length = chainIds.length;
+        if (length == 0) revert CurrentChainNotFound(CHAIN_ID);
 
-        for (uint256 i = 0; i < chainIds.length; ++i) {
-            if (chainIds[i] == CHAIN_ID) containsCurrentChain = true;
-            chainIdsString = string.concat(chainIdsString, LibString.toString(chainIds[i]));
-            if (i < chainIds.length - 1) chainIdsString = string.concat(chainIdsString, ", ");
+        // Handle first element
+        uint256 prev = chainIds[0];
+        bool containsCurrentChain = prev == CHAIN_ID;
+        chainIdsString = LibString.toString(prev);
+
+        // Process remaining elements (starting from index 1)
+        for (uint256 i = 1; i < length; ++i) {
+            uint256 current = chainIds[i];
+
+            // Verify strictly ascending order
+            if (current <= prev) revert ChainIdsNotAscending();
+            prev = current;
+
+            if (current == CHAIN_ID) containsCurrentChain = true;
+            chainIdsString = string.concat(chainIdsString, ", ", LibString.toString(current));
         }
 
         if (!containsCurrentChain) revert CurrentChainNotFound(CHAIN_ID);

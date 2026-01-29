@@ -609,13 +609,13 @@ describe('L2ReverseRegistrar', () => {
       ).toBeRevertedWithCustomError('SignatureExpiryTooHigh')
     })
 
-    it('allows multiple chain IDs in array', async () => {
+    it('allows multiple chain IDs in array (must be ascending)', async () => {
       const { l2ReverseRegistrar, name, expirationTime, accounts, walletClient, getNameForAddr } =
         await connection.networkHelpers.loadFixture(
           setNameForAddrWithSignatureFixture,
         )
 
-      const chainIds = [1n, 42161n, OPTIMISM_CHAIN_ID, 8453n] // ETH, Arbitrum, Optimism, Base
+      const chainIds = [1n, OPTIMISM_CHAIN_ID, 8453n, 42161n] // ETH (1), Optimism (10), Base (8453), Arbitrum (42161) - ascending order
 
       const message = createNameForAddrMessage({
         name,
@@ -645,13 +645,81 @@ describe('L2ReverseRegistrar', () => {
       ).resolves.toStrictEqual(name)
     })
 
+    it('reverts if chain IDs are not in ascending order', async () => {
+      const { l2ReverseRegistrar, name, expirationTime, accounts, walletClient } =
+        await connection.networkHelpers.loadFixture(
+          setNameForAddrWithSignatureFixture,
+        )
+
+      const chainIds = [1n, 42161n, OPTIMISM_CHAIN_ID, 8453n] // Not ascending: 1, 42161, 10, 8453
+
+      const message = createNameForAddrMessage({
+        name,
+        address: accounts[0].address,
+        chainIds,
+        expirationTime,
+      })
+
+      const signature = await walletClient.signMessage({
+        message,
+      })
+
+      const claim = {
+        name,
+        addr: accounts[0].address,
+        chainIds,
+        expirationTime,
+      }
+
+      await expect(
+        l2ReverseRegistrar.write.setNameForAddrWithSignature(
+          [claim, signature],
+          { account: accounts[1] },
+        ),
+      ).toBeRevertedWithCustomError('ChainIdsNotAscending')
+    })
+
+    it('reverts if chain IDs contain duplicates', async () => {
+      const { l2ReverseRegistrar, name, expirationTime, accounts, walletClient } =
+        await connection.networkHelpers.loadFixture(
+          setNameForAddrWithSignatureFixture,
+        )
+
+      const chainIds = [1n, OPTIMISM_CHAIN_ID, OPTIMISM_CHAIN_ID, 42161n] // Duplicate: 10 appears twice
+
+      const message = createNameForAddrMessage({
+        name,
+        address: accounts[0].address,
+        chainIds,
+        expirationTime,
+      })
+
+      const signature = await walletClient.signMessage({
+        message,
+      })
+
+      const claim = {
+        name,
+        addr: accounts[0].address,
+        chainIds,
+        expirationTime,
+      }
+
+      await expect(
+        l2ReverseRegistrar.write.setNameForAddrWithSignature(
+          [claim, signature],
+          { account: accounts[1] },
+        ),
+      ).toBeRevertedWithCustomError('ChainIdsNotAscending')
+    })
+
     it('reverts if current chain ID is not in array', async () => {
       const { l2ReverseRegistrar, name, expirationTime, accounts, walletClient } =
         await connection.networkHelpers.loadFixture(
           setNameForAddrWithSignatureFixture,
         )
 
-      const chainIds = [1n, 42161n, 8453n] // ETH, Arbitrum, Base - NO Optimism
+      const chainIds = [1n, 8453n, 42161n] // ETH, Base, Arbitrum - ascending order, NO Optimism
 
       const message = createNameForAddrMessage({
         name,
@@ -1208,7 +1276,7 @@ describe('L2ReverseRegistrar', () => {
       ).toBeRevertedWithCustomError('SignatureExpiryTooHigh')
     })
 
-    it('allows multiple chain IDs in array', async () => {
+    it('allows multiple chain IDs in array (must be ascending)', async () => {
       const {
         l2ReverseRegistrar,
         name,
@@ -1221,7 +1289,7 @@ describe('L2ReverseRegistrar', () => {
         setNameForOwnableWithSignatureFixture,
       )
 
-      const chainIds = [1n, 42161n, OPTIMISM_CHAIN_ID, 8453n]
+      const chainIds = [1n, OPTIMISM_CHAIN_ID, 8453n, 42161n] // Ascending order
 
       const message = createNameForOwnableMessage({
         name,
@@ -1254,6 +1322,47 @@ describe('L2ReverseRegistrar', () => {
       ).resolves.toStrictEqual(name)
     })
 
+    it('reverts if chain IDs are not in ascending order', async () => {
+      const {
+        l2ReverseRegistrar,
+        name,
+        expirationTime,
+        accounts,
+        mockOwnableEoa,
+        walletClient,
+      } = await connection.networkHelpers.loadFixture(
+        setNameForOwnableWithSignatureFixture,
+      )
+
+      const chainIds = [1n, 42161n, OPTIMISM_CHAIN_ID, 8453n] // Not ascending
+
+      const message = createNameForOwnableMessage({
+        name,
+        contractAddress: mockOwnableEoa.address,
+        owner: accounts[0].address,
+        chainIds,
+        expirationTime,
+      })
+
+      const signature = await walletClient.signMessage({
+        message,
+      })
+
+      const claim = {
+        name,
+        addr: mockOwnableEoa.address,
+        chainIds,
+        expirationTime,
+      }
+
+      await expect(
+        l2ReverseRegistrar.write.setNameForOwnableWithSignature(
+          [claim, accounts[0].address, signature],
+          { account: accounts[9] },
+        ),
+      ).toBeRevertedWithCustomError('ChainIdsNotAscending')
+    })
+
     it('reverts if current chain ID is not in array', async () => {
       const {
         l2ReverseRegistrar,
@@ -1266,7 +1375,7 @@ describe('L2ReverseRegistrar', () => {
         setNameForOwnableWithSignatureFixture,
       )
 
-      const chainIds = [1n, 42161n, 8453n] // No Optimism
+      const chainIds = [1n, 8453n, 42161n] // Ascending order, No Optimism
 
       const message = createNameForOwnableMessage({
         name,

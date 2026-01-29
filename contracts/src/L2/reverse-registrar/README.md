@@ -25,7 +25,7 @@ Signatures are all plaintext, prefixed with `\x19Ethereum Signed Message:\n<leng
 | `name` | `string` | The ENS name to set as primary (e.g., `vitalik.eth`). |
 | `address` | `address` | The address for which the primary name is being set. EIP-55 checksummed. |
 | `owner` | `address` | The address that owns the contract for which the primary name is being set. EIP-55 checksummed. Only applicable for `setNameForOwnableWithSignature`. |
-| `chainList` | `string` | Comma-separated list of chains in format `{name} ({chainId})`, ordered by ascending chain ID. |
+| `chainList` | `string` | Comma-separated list of chain IDs, **must be in strictly ascending order**. |
 | `expirationTime` | `string` | ISO 8601 UTC datetime when signature expires (max 1 hour from current time). |
 
 ### `setNameForAddrWithSignature`
