@@ -27,14 +27,6 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     /// @dev Derived from the coin type during construction.
     uint256 public immutable CHAIN_ID;
 
-    /// @notice First 32 bytes of the validator address checksum string ("0x" + first 30 hex chars).
-    /// @dev Pre-computed at construction for gas-efficient message building.
-    bytes32 private immutable _VALIDATOR_ADDR_PART1;
-
-    /// @notice Last 10 bytes of the validator address checksum string (chars 32-41), left-aligned.
-    /// @dev Pre-computed at construction for gas-efficient message building.
-    bytes32 private immutable _VALIDATOR_ADDR_PART2;
-
     ////////////////////////////////////////////////////////////////////////
     // Storage
     ////////////////////////////////////////////////////////////////////////
@@ -82,25 +74,10 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     ////////////////////////////////////////////////////////////////////////
 
     /// @notice Initialises the contract with the chain ID and label for this L2 chain.
-    /// @dev Pre-computes the validator address checksum string for gas-efficient message building.
     /// @param chainId The chain ID of the chain this contract is deployed to.
     /// @param label The hex string label for the coin type (used in reverse node computation).
     constructor(uint256 chainId, string memory label) StandaloneReverseRegistrar(label) {
         CHAIN_ID = chainId;
-
-        // Validator address checksum string is 42 bytes: "0x" + 40 hex characters
-        // Pre-compute and store in two 32-byte immutables for efficient assembly access
-        string memory addressString = LibString.toChecksumHexString(address(this));
-        bytes32 part1;
-        bytes32 part2;
-        assembly {
-            // First 32 bytes of the validator address checksum string ("0x" + first 30 hex chars).
-            part1 := mload(add(addressString, 32))
-            // Bytes starting at offset 32 (bytes 32-63, but only 32-41 are valid = last 10 hex chars)
-            part2 := mload(add(addressString, 64))
-        }
-        _VALIDATOR_ADDR_PART1 = part1;
-        _VALIDATOR_ADDR_PART2 = part2;
     }
 
     /// @inheritdoc ERC165
@@ -219,9 +196,6 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     ///         Address: {address}
     ///         Chains: {chainList}
     ///         Expires At: {expirationTime}
-    ///
-    ///         ---
-    ///         Validator: {validatorAddress}
     ///         ```
     ///
     /// @param claim The name claim data.
@@ -234,10 +208,6 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         string memory name = claim.name;
         string memory addrString = LibString.toChecksumHexString(claim.addr);
         string memory expiresAtString = LibISO8601.toISO8601(claim.expirationTime);
-
-        // Cache immutables for assembly access
-        bytes32 validatorPart1 = _VALIDATOR_ADDR_PART1;
-        bytes32 validatorPart2 = _VALIDATOR_ADDR_PART2;
 
         // Build message in memory as bytes
         bytes memory message;
@@ -294,16 +264,6 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             _memcpy(ptr, add(expiresAtString, 32), 20)
             ptr := add(ptr, 20)
 
-            // "\n\n---\nValidator: " (17 bytes)
-            mstore(ptr, 0x0a0a2d2d2d0a56616c696461746f723a20000000000000000000000000000000)
-            ptr := add(ptr, 17)
-
-            // Write validator address using pre-computed immutables (42 bytes total).
-            // Each mstore writes 32 bytes; the overlap beyond byte 42 is overwritten by subsequent data.
-            mstore(ptr, validatorPart1)
-            mstore(add(ptr, 32), validatorPart2)
-            ptr := add(ptr, 42)
-
             // Store final message length and update free memory pointer
             mstore(message, sub(ptr, add(message, 32)))
             mstore(0x40, ptr)
@@ -323,9 +283,6 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     ///         Owner: {owner}
     ///         Chains: {chainList}
     ///         Expires At: {expirationTime}
-    ///
-    ///         ---
-    ///         Validator: {validatorAddress}
     ///         ```
     ///
     /// @param claim The name claim data.
@@ -341,10 +298,6 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         string memory addrString = LibString.toChecksumHexString(claim.addr);
         string memory ownerString = LibString.toChecksumHexString(owner);
         string memory expiresAtString = LibISO8601.toISO8601(claim.expirationTime);
-
-        // Cache immutables for assembly access
-        bytes32 validatorPart1 = _VALIDATOR_ADDR_PART1;
-        bytes32 validatorPart2 = _VALIDATOR_ADDR_PART2;
 
         // Build message in memory as bytes
         bytes memory message;
@@ -408,16 +361,6 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             // Copy expiresAtString (20 bytes fixed - ISO8601 format)
             _memcpy(ptr, add(expiresAtString, 32), 20)
             ptr := add(ptr, 20)
-
-            // "\n\n---\nValidator: " (17 bytes)
-            mstore(ptr, 0x0a0a2d2d2d0a56616c696461746f723a20000000000000000000000000000000)
-            ptr := add(ptr, 17)
-
-            // Write validator address using pre-computed immutables (42 bytes total).
-            // Each mstore writes 32 bytes; the overlap beyond byte 42 is overwritten by subsequent data.
-            mstore(ptr, validatorPart1)
-            mstore(add(ptr, 32), validatorPart2)
-            ptr := add(ptr, 42)
 
             // Store final message length and update free memory pointer
             mstore(message, sub(ptr, add(message, 32)))

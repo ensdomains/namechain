@@ -43,13 +43,11 @@ function createNameForAddrMessage({
   address,
   chainIds,
   expirationTime,
-  validatorAddress,
 }: {
   name: string
   address: Address
   chainIds: bigint[]
   expirationTime: bigint
-  validatorAddress: Address
 }): string {
   const chainIdsString = chainIds.map((id) => id.toString()).join(', ')
   const expiresAtString = timestampToISO8601(expirationTime)
@@ -59,10 +57,7 @@ ${name}
 
 Address: ${getAddress(address)}
 Chains: ${chainIdsString}
-Expires At: ${expiresAtString}
-
----
-Validator: ${getAddress(validatorAddress)}`
+Expires At: ${expiresAtString}`
 }
 
 /**
@@ -75,14 +70,12 @@ function createNameForOwnableMessage({
   owner,
   chainIds,
   expirationTime,
-  validatorAddress,
 }: {
   name: string
   contractAddress: Address
   owner: Address
   chainIds: bigint[]
   expirationTime: bigint
-  validatorAddress: Address
 }): string {
   const chainIdsString = chainIds.map((id) => id.toString()).join(', ')
   const expiresAtString = timestampToISO8601(expirationTime)
@@ -93,10 +86,7 @@ ${name}
 Contract Address: ${getAddress(contractAddress)}
 Owner: ${getAddress(owner)}
 Chains: ${chainIdsString}
-Expires At: ${expiresAtString}
-
----
-Validator: ${getAddress(validatorAddress)}`
+Expires At: ${expiresAtString}`
 }
 
 async function fixture() {
@@ -333,7 +323,6 @@ describe('L2ReverseRegistrar', () => {
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -423,7 +412,6 @@ describe('L2ReverseRegistrar', () => {
         address: mockSmartContractAccount.address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -472,7 +460,6 @@ describe('L2ReverseRegistrar', () => {
         address: predictedAddress,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -525,7 +512,6 @@ describe('L2ReverseRegistrar', () => {
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -564,7 +550,6 @@ describe('L2ReverseRegistrar', () => {
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime: expiredTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -603,7 +588,6 @@ describe('L2ReverseRegistrar', () => {
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime: tooHighExpiry,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -638,7 +622,6 @@ describe('L2ReverseRegistrar', () => {
         address: accounts[0].address,
         chainIds,
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -675,7 +658,6 @@ describe('L2ReverseRegistrar', () => {
         address: accounts[0].address,
         chainIds,
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -712,7 +694,6 @@ describe('L2ReverseRegistrar', () => {
         address: accounts[0].address,
         chainIds,
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -784,7 +765,6 @@ describe('L2ReverseRegistrar', () => {
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature1 = await walletClient.signMessage({
@@ -810,7 +790,6 @@ describe('L2ReverseRegistrar', () => {
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature2 = await walletClient.signMessage({
@@ -848,7 +827,6 @@ describe('L2ReverseRegistrar', () => {
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await secondWalletClient.signMessage({
@@ -913,7 +891,6 @@ describe('L2ReverseRegistrar', () => {
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -959,7 +936,6 @@ describe('L2ReverseRegistrar', () => {
         owner: mockSmartContractAccount.address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -1005,7 +981,6 @@ describe('L2ReverseRegistrar', () => {
         owner: accounts[1].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await secondWalletClient.signMessage({
@@ -1045,7 +1020,6 @@ describe('L2ReverseRegistrar', () => {
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -1085,7 +1059,6 @@ describe('L2ReverseRegistrar', () => {
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -1126,7 +1099,6 @@ describe('L2ReverseRegistrar', () => {
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime: expirationTime - 100n,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -1171,7 +1143,6 @@ describe('L2ReverseRegistrar', () => {
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime: expiredTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -1216,7 +1187,6 @@ describe('L2ReverseRegistrar', () => {
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime: tooHighExpiry,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -1259,7 +1229,6 @@ describe('L2ReverseRegistrar', () => {
         owner: accounts[0].address,
         chainIds,
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -1305,7 +1274,6 @@ describe('L2ReverseRegistrar', () => {
         owner: accounts[0].address,
         chainIds,
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -1349,7 +1317,6 @@ describe('L2ReverseRegistrar', () => {
         owner: accounts[0].address,
         chainIds,
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({
@@ -1391,7 +1358,6 @@ describe('L2ReverseRegistrar', () => {
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
         expirationTime,
-        validatorAddress: l2ReverseRegistrar.address,
       })
 
       const signature = await walletClient.signMessage({

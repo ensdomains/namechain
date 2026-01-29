@@ -27,7 +27,6 @@ Signatures are all plaintext, prefixed with `\x19Ethereum Signed Message:\n<leng
 | `owner` | `address` | The address that owns the contract for which the primary name is being set. EIP-55 checksummed. Only applicable for `setNameForOwnableWithSignature`. |
 | `chainList` | `string` | Comma-separated list of chains in format `{name} ({chainId})`, ordered by ascending chain ID. |
 | `expirationTime` | `string` | ISO 8601 UTC datetime when signature expires (max 1 hour from current time). |
-| `validatorAddress` | `address` | The signature validator contract address. EIP-55 checksummed. |
 
 ### `setNameForAddrWithSignature`
 
@@ -38,9 +37,6 @@ You are setting your ENS primary name to:
 Address: {address}
 Chains: {chainList}
 Expires At: {expirationTime}
-
----
-Validator: {validatorAddress}
 ```
 
 ### `setNameForOwnableWithSignature`
@@ -53,7 +49,4 @@ Contract Address: {address}
 Owner: {owner}
 Chains: {chainList}
 Expires At: {expirationTime}
-
----
-Validator: {validatorAddress}
 ```
