@@ -358,7 +358,7 @@ contract OwnedResolver is
             (bool ok, bytes memory v) = address(this).delegatecall(calls[i]);
             if (!ok) {
                 assembly {
-                    revert(add(v, 32), v) // propagate the first error
+                    revert(add(v, 32), mload(v)) // propagate the first error
                 }
             }
             results[i] = v;
