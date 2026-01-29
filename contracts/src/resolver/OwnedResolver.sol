@@ -43,14 +43,17 @@ import {ResolverProfileRewriterLib} from "./libraries/ResolverProfileRewriterLib
 /// eg. `getAlias("[x.y].a.eth") => "[x.y].b.eth"`
 /// eg. `getAlias("abc.eth") => ""`
 ///
-/// `setText(key)` permissions can be restricted to a key using: `part = partForTextKey(<key>)`.
-/// `setAddr(coinType)` permissions can be restricted to a coinType using: `part = partForCoinType(<coinType>)`.
+/// `setText(key)` permissions can be restricted to a key using: `part = textPart(<key>)`.
+/// `setAddr(coinType)` permissions can be restricted to a coinType using: `part = addrPart(<coinType>)`.
 ///
-/// EAC resources exist for:
-/// * all names => `nodeResource(0)`
-/// * 1 name => `nodeResource(<namehash>)`
-/// * all names for 1 part => partResource(0, <part>)`
-/// * 1 name for 1 part => `partResource(<namehash>, <part>)`
+/// EAC resources:                                    Parts
+///                       +-----------------------------+------------------------------+
+///                       |           Any (*)           |         Specific (1)         |
+///        +--------------+-----------------------------+------------------------------+
+///        |      Any (*) |       resource(0, 0)        |      resource(0, <part>)     |
+///  Names |--------------+-----------------------------+------------------------------+
+///        | Specific (1) |   resource(<namehash>, 0)   | resource(<namehash>, <part>) |
+///        +--------------+-----------------------------+------------------------------+
 ///
 contract OwnedResolver is
     HCAContextUpgradeable,
@@ -95,18 +98,11 @@ contract OwnedResolver is
     // Modifiers
     ////////////////////////////////////////////////////////////////////////
 
-    modifier onlyNodeRoles(bytes32 node, uint256 roleBitmap) {
-        _checkRoles(OwnedResolverLib.nodeResource(node), roleBitmap, _msgSender());
-        _;
-    }
-
     modifier onlyPartRoles(bytes32 node, bytes32 part, uint256 roleBitmap) {
         address sender = _msgSender();
-        if ((roles(OwnedResolverLib.partResource(node, part), sender) & roleBitmap) == 0) {
-            if (
-                (roles(OwnedResolverLib.partResource(bytes32(0), part), sender) & roleBitmap) == 0
-            ) {
-                _checkRoles(OwnedResolverLib.nodeResource(node), roleBitmap, sender);
+        if ((roles(OwnedResolverLib.resource(node, part), sender) & roleBitmap) == 0) {
+            if ((roles(OwnedResolverLib.resource(0, part), sender) & roleBitmap) == 0) {
+                _checkRoles(OwnedResolverLib.resource(node, 0), roleBitmap, sender);
             }
         }
         _;
@@ -158,9 +154,11 @@ contract OwnedResolver is
 
     /// @notice Clear all records for `node`.
     /// @param node The node to update.
-    function clearRecords(bytes32 node) external onlyNodeRoles(node, OwnedResolverLib.ROLE_CLEAR) {
+    function clearRecords(
+        bytes32 node
+    ) external onlyPartRoles(node, 0, OwnedResolverLib.ROLE_CLEAR) {
         uint64 version = ++_storage().versions[node];
-        emit IVersionableResolver.VersionChanged(node, version);
+        emit VersionChanged(node, version);
     }
 
     /// @notice Create an alias from `fromName` to `toName`.
@@ -182,7 +180,7 @@ contract OwnedResolver is
         bytes32 node,
         uint256 contentType,
         bytes calldata data
-    ) external onlyNodeRoles(node, OwnedResolverLib.ROLE_SET_ABI) {
+    ) external onlyPartRoles(node, 0, OwnedResolverLib.ROLE_SET_ABI) {
         if (!_isPowerOf2(contentType)) {
             revert InvalidContentType(contentType);
         }
@@ -193,7 +191,7 @@ contract OwnedResolver is
     /// @notice Set Ethereum mainnet address of the associated ENS node.
     ///         `address(0)` is stored as `new bytes(20)`.
     /// @param node The node to update.
-    /// @param addr_ The address to set.
+    /// @param addr_ The mainnet address.
     function setAddr(bytes32 node, address addr_) external {
         setAddr(node, COIN_TYPE_ETH, abi.encodePacked(addr_));
     }
@@ -204,7 +202,7 @@ contract OwnedResolver is
     function setContenthash(
         bytes32 node,
         bytes calldata hash
-    ) external onlyNodeRoles(node, OwnedResolverLib.ROLE_SET_CONTENTHASH) {
+    ) external onlyPartRoles(node, 0, OwnedResolverLib.ROLE_SET_CONTENTHASH) {
         _record(node).contenthash = hash;
         emit ContenthashChanged(node, hash);
     }
@@ -217,7 +215,7 @@ contract OwnedResolver is
         bytes32 node,
         bytes4 interfaceId,
         address implementer
-    ) external onlyNodeRoles(node, OwnedResolverLib.ROLE_SET_INTERFACE) {
+    ) external onlyPartRoles(node, 0, OwnedResolverLib.ROLE_SET_INTERFACE) {
         _record(node).interfaces[interfaceId] = implementer;
         emit InterfaceChanged(node, interfaceId, implementer);
     }
@@ -230,33 +228,31 @@ contract OwnedResolver is
         bytes32 node,
         bytes32 x,
         bytes32 y
-    ) external onlyNodeRoles(node, OwnedResolverLib.ROLE_SET_PUBKEY) {
+    ) external onlyPartRoles(node, 0, OwnedResolverLib.ROLE_SET_PUBKEY) {
         _record(node).pubkey = [x, y];
         emit PubkeyChanged(node, x, y);
     }
 
     /// @notice Set the name of the associated ENS node.
     /// @param node The node to update.
+    /// @param primary The primary name.
     function setName(
         bytes32 node,
-        string calldata name_
-    ) external onlyNodeRoles(node, OwnedResolverLib.ROLE_SET_NAME) {
-        _record(node).name = name_;
-        emit NameChanged(node, name_);
+        string calldata primary
+    ) external onlyPartRoles(node, 0, OwnedResolverLib.ROLE_SET_NAME) {
+        _record(node).name = primary;
+        emit NameChanged(node, primary);
     }
 
     /// @notice Set the text for `key` of the associated ENS node.
     /// @param node The node to update.
-    /// @param key The key to set.
-    /// @param value The text value to set.
+    /// @param key The text key.
+    /// @param value The text value.
     function setText(
         bytes32 node,
         string calldata key,
         string calldata value
-    )
-        external
-        onlyPartRoles(node, OwnedResolverLib.partForTextKey(key), OwnedResolverLib.ROLE_SET_TEXT)
-    {
+    ) external onlyPartRoles(node, OwnedResolverLib.textPart(key), OwnedResolverLib.ROLE_SET_TEXT) {
         _record(node).texts[key] = value;
         emit TextChanged(node, key, key, value);
     }
@@ -374,18 +370,14 @@ contract OwnedResolver is
     ///         Reverts `InvalidEVMAddress` if coin type is EVM and not 0 or 20 bytes.
     /// @param node The node to update.
     /// @param coinType The coin type.
-    /// @param addressBytes The address to set.
+    /// @param addressBytes The encoded address.
     function setAddr(
         bytes32 node,
         uint256 coinType,
         bytes memory addressBytes
     )
         public
-        onlyPartRoles(
-            node,
-            OwnedResolverLib.partForCoinType(coinType),
-            OwnedResolverLib.ROLE_SET_ADDR
-        )
+        onlyPartRoles(node, OwnedResolverLib.addrPart(coinType), OwnedResolverLib.ROLE_SET_ADDR)
     {
         if (
             addressBytes.length != 0 && addressBytes.length != 20 && ENSIP19.isEVMCoinType(coinType)
