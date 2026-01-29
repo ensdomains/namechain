@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import {SignatureUtils} from "@ens/contracts/reverseRegistrar/SignatureUtils.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-import {
-    StandaloneReverseRegistrar
-} from "../../common/reverse-registrar/StandaloneReverseRegistrar.sol";
-import {LibISO8601} from "../../common/utils/LibISO8601.sol";
-import {LibString} from "../../common/utils/LibString.sol";
+import {IUniversalSignatureValidator} from "../utils/interfaces/IUniversalSignatureValidator.sol";
+import {LibISO8601} from "../utils/LibISO8601.sol";
+import {LibString} from "../utils/LibString.sol";
 
 import {IL2ReverseRegistrar} from "./interfaces/IL2ReverseRegistrar.sol";
 
@@ -17,11 +15,17 @@ import {IL2ReverseRegistrar} from "./interfaces/IL2ReverseRegistrar.sol";
 /// @notice A reverse registrar for L2 chains that allows users to set their ENS primary name.
 /// @dev Deployed to each L2 chain. Supports signature-based claims for both EOAs and contracts.
 contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseRegistrar {
-    using SignatureUtils for bytes;
-
     ////////////////////////////////////////////////////////////////////////
     // Constants & Immutables
     ////////////////////////////////////////////////////////////////////////
+
+    /// @notice The ERC6492 detection suffix.
+    bytes32 private constant _ERC6492_DETECTION_SUFFIX =
+        0x6492649264926492649264926492649264926492649264926492649264926492;
+
+    /// @notice The universal signature validator for ERC6492 signatures.
+    IUniversalSignatureValidator private constant _UNIVERSAL_SIG_VALIDATOR =
+        IUniversalSignatureValidator(0x164af34fAF9879394370C7f09064127C043A35E9);
 
     /// @notice The chain ID of the chain this contract is deployed to.
     /// @dev Derived from the coin type during construction.
@@ -31,44 +35,52 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     // Storage
     ////////////////////////////////////////////////////////////////////////
 
-    /// @notice Mapping of message hashes to their used status for replay protection.
-    /// @dev The message hash serves as a unique nonce for each signature claim.
-    mapping(bytes32 messageHash => bool used) private _messageHashes;
+    /// @notice Mapping of addresses to their inception timestamp for replay protection.
+    /// @dev Only signatures with a signedAt timestamp greater than the stored inception can be used.
+    mapping(address addr => uint256 inception) private _inceptions;
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
 
+    /// @notice Thrown when the caller is not authorized to perform the action.
+    /// @dev Error selector: `0x82b42900`
+    error Unauthorized();
+
     /// @notice Thrown when the specified address is not the owner of the target contract.
     /// @dev Error selector: `0x4570a024`
     error NotOwnerOfContract();
+
+    /// @notice Thrown when the signature's signedAt is not after the current inception.
+    /// @dev Error selector: `0xbdc2d236`
+    error StaleSignature(uint256 signedAt, uint256 inception);
+
+    /// @notice Thrown when the signature's signedAt timestamp is in the future.
+    /// @dev Error selector: `0x2c4fde1c`
+    error SignatureNotValidYet(uint256 signedAt, uint256 currentTime);
+
+    /// @notice Thrown when the signature is invalid.
+    /// @dev Error selector: `0x8baa579f`
+    error InvalidSignature();
+
+    /// @notice Thrown when the chain ID array is not in strictly ascending order.
+    /// @dev Error selector: `0xea0b14e2`
+    error ChainIdsNotAscending();
 
     /// @notice Thrown when the current chain ID is not included in the claim's chain ID array.
     /// @dev Error selector: `0x756925c8`
     error CurrentChainNotFound(uint256 chainId);
 
-    /// @notice Thrown when attempting to use a message hash that has already been consumed.
-    /// @dev Error selector: `0xebf3e952`
-    error MessageAlreadyUsed(bytes32 messageHash);
-
-    /// @notice Thrown when the chain ID array is not in strictly ascending order.
-    /// @dev Error selector: `0x12ba286f`
-    error ChainIdsNotAscending();
-
-    /// @notice Thrown when the caller is not authorised to perform the action.
-    /// @dev Error selector: `0xd7a2ae6a`
-    error Unauthorised();
-
     ////////////////////////////////////////////////////////////////////////
     // Modifiers
     ////////////////////////////////////////////////////////////////////////
 
-    /// @notice Checks if the caller is authorised to act on behalf of the given address.
-    /// @dev Authorised if caller is the address itself, or if caller owns the contract at addr.
+    /// @notice Checks if the caller is authorized to act on behalf of the given address.
+    /// @dev Authorized if caller is the address itself, or if caller owns the contract at addr.
     /// @param addr The address to check authorisation for.
-    modifier authorised(address addr) {
+    modifier authorized(address addr) {
         if (addr != msg.sender && !_ownsContract(addr, msg.sender)) {
-            revert Unauthorised();
+            revert Unauthorized();
         }
         _;
     }
@@ -103,7 +115,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     }
 
     /// @inheritdoc IL2ReverseRegistrar
-    function setNameForAddr(address addr, string calldata name) external authorised(addr) {
+    function setNameForAddr(address addr, string calldata name) external authorized(addr) {
         _setName(addr, name);
     }
 
@@ -115,9 +127,8 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         string memory chainIdsString = _validateChainIds(claim.chainIds);
 
         bytes32 message = _createNameForAddrWithSignatureMessageHash(claim, chainIdsString);
-        _validateMessageHash(message);
-
-        signature.validateSignatureWithExpiry(claim.addr, message, claim.expirationTime);
+        _validateSignature(signature, claim.addr, message);
+        _validateAndUpdateInception(claim.addr, claim.signedAt);
 
         _setName(claim.addr, claim.name);
     }
@@ -137,23 +148,55 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             owner,
             chainIdsString
         );
-        _validateMessageHash(message);
-
-        signature.validateSignatureWithExpiry(owner, message, claim.expirationTime);
+        _validateSignature(signature, owner, message);
+        _validateAndUpdateInception(claim.addr, claim.signedAt);
 
         _setName(claim.addr, claim.name);
+    }
+
+    /// @inheritdoc IL2ReverseRegistrar
+    function inceptionOf(address addr) external view returns (uint256) {
+        return _inceptions[addr];
     }
 
     ////////////////////////////////////////////////////////////////////////
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
 
-    /// @notice Validates and consumes a message hash as a nonce for replay protection.
-    /// @dev Reverts if the message hash has already been used.
-    /// @param messageHash The message hash to validate and consume.
-    function _validateMessageHash(bytes32 messageHash) internal {
-        if (_messageHashes[messageHash]) revert MessageAlreadyUsed(messageHash);
-        _messageHashes[messageHash] = true;
+    /// @notice Validates a signature for the given address and message.
+    /// @dev Supports EOA signatures, ERC1271 (smart contract wallets), and ERC6492 (undeployed wallets).
+    /// @param signature The signature to validate.
+    /// @param addr The address that should have signed the message.
+    /// @param message The message hash that was signed.
+    function _validateSignature(bytes calldata signature, address addr, bytes32 message) internal {
+        // ERC6492 check is done internally because UniversalSigValidator is not gas efficient.
+        // We only want to use UniversalSigValidator for ERC6492 signatures.
+        if (
+            bytes32(signature[signature.length - 32:signature.length]) == _ERC6492_DETECTION_SUFFIX
+        ) {
+            if (!_UNIVERSAL_SIG_VALIDATOR.isValidSig(addr, message, signature))
+                revert InvalidSignature();
+        } else {
+            if (!SignatureChecker.isValidSignatureNow(addr, message, signature))
+                revert InvalidSignature();
+        }
+    }
+
+    /// @notice Validates and updates the inception timestamp for replay protection.
+    /// @dev Reverts if signedAt is not after the current inception or is in the future.
+    /// @param addr The address to validate and update inception for.
+    /// @param signedAt The signedAt timestamp from the signature.
+    function _validateAndUpdateInception(address addr, uint256 signedAt) internal {
+        uint256 currentInception = _inceptions[addr];
+
+        // signedAt must be strictly greater than the current inception
+        if (signedAt <= currentInception) revert StaleSignature(signedAt, currentInception);
+
+        // signedAt cannot be in the future
+        if (signedAt > block.timestamp) revert SignatureNotValidYet(signedAt, block.timestamp);
+
+        // Update the inception to the new signedAt
+        _inceptions[addr] = signedAt;
     }
 
     /// @notice Checks if the provided address owns the contract via the Ownable interface.
@@ -211,7 +254,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     ///
     ///         Address: {address}
     ///         Chains: {chainList}
-    ///         Expires At: {expirationTime}
+    ///         Signed At: {signedAt}
     ///         ```
     ///
     /// @param claim The name claim data.
@@ -220,10 +263,10 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     function _createNameForAddrWithSignatureMessageHash(
         NameClaim calldata claim,
         string memory chainIdsString
-    ) internal view returns (bytes32 digest) {
+    ) internal pure returns (bytes32 digest) {
         string memory name = claim.name;
         string memory addrString = LibString.toChecksumHexString(claim.addr);
-        string memory expiresAtString = LibISO8601.toISO8601(claim.expirationTime);
+        string memory signedAtString = LibISO8601.toISO8601(claim.signedAt);
 
         // Build message in memory as bytes
         bytes memory message;
@@ -272,12 +315,12 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             _memcpy(ptr, add(chainIdsString, 32), chainLen)
             ptr := add(ptr, chainLen)
 
-            // "\nExpires At: " (13 bytes)
-            mstore(ptr, 0x0a457870697265732041743a2000000000000000000000000000000000000000)
-            ptr := add(ptr, 13)
+            // "\nSigned At: " (12 bytes)
+            mstore(ptr, 0x0a5369676e65642041743a200000000000000000000000000000000000000000)
+            ptr := add(ptr, 12)
 
-            // Copy expiresAtString (20 bytes fixed - ISO8601 format)
-            _memcpy(ptr, add(expiresAtString, 32), 20)
+            // Copy signedAtString (20 bytes fixed - ISO8601 format)
+            _memcpy(ptr, add(signedAtString, 32), 20)
             ptr := add(ptr, 20)
 
             // Store final message length and update free memory pointer
@@ -298,7 +341,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     ///         Contract Address: {address}
     ///         Owner: {owner}
     ///         Chains: {chainList}
-    ///         Expires At: {expirationTime}
+    ///         Signed At: {signedAt}
     ///         ```
     ///
     /// @param claim The name claim data.
@@ -309,11 +352,11 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         NameClaim calldata claim,
         address owner,
         string memory chainIdsString
-    ) internal view returns (bytes32 digest) {
+    ) internal pure returns (bytes32 digest) {
         string memory name = claim.name;
         string memory addrString = LibString.toChecksumHexString(claim.addr);
         string memory ownerString = LibString.toChecksumHexString(owner);
-        string memory expiresAtString = LibISO8601.toISO8601(claim.expirationTime);
+        string memory signedAtString = LibISO8601.toISO8601(claim.signedAt);
 
         // Build message in memory as bytes
         bytes memory message;
@@ -370,12 +413,12 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             _memcpy(ptr, add(chainIdsString, 32), chainLen)
             ptr := add(ptr, chainLen)
 
-            // "\nExpires At: " (13 bytes)
-            mstore(ptr, 0x0a457870697265732041743a2000000000000000000000000000000000000000)
-            ptr := add(ptr, 13)
+            // "\nSigned At: " (12 bytes)
+            mstore(ptr, 0x0a5369676e65642041743a200000000000000000000000000000000000000000)
+            ptr := add(ptr, 12)
 
-            // Copy expiresAtString (20 bytes fixed - ISO8601 format)
-            _memcpy(ptr, add(expiresAtString, 32), 20)
+            // Copy signedAtString (20 bytes fixed - ISO8601 format)
+            _memcpy(ptr, add(signedAtString, 32), 20)
             ptr := add(ptr, 20)
 
             // Store final message length and update free memory pointer

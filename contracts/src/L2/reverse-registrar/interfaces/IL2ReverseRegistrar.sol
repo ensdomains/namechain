@@ -6,7 +6,7 @@ interface IL2ReverseRegistrar {
         string name;
         address addr;
         uint256[] chainIds;
-        uint256 expirationTime;
+        uint256 signedAt;
     }
 
     /// @notice Sets the `nameForAddr()` record for the calling account.
@@ -39,4 +39,11 @@ interface IL2ReverseRegistrar {
         address owner,
         bytes calldata signature
     ) external;
+
+    /// @notice Returns the inception timestamp for a given address.
+    /// @dev Only signatures with a signedAt timestamp greater than the inception can be used.
+    ///
+    /// @param addr The address to query.
+    /// @return The inception timestamp for the address.
+    function inceptionOf(address addr) external view returns (uint256);
 }

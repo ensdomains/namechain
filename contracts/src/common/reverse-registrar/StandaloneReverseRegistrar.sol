@@ -6,7 +6,7 @@ import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 
-import {IENSIP16} from "../utils/IENSIP16.sol";
+import {IENSIP16} from "../utils/interfaces/IENSIP16.sol";
 import {LibString} from "../utils/LibString.sol";
 
 /// @title Standalone Reverse Registrar

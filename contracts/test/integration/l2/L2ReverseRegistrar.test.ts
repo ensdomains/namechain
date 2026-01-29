@@ -4,7 +4,6 @@ import {
   decodeFunctionResult,
   encodeFunctionData,
   getAddress,
-  hashMessage,
   namehash,
   serializeErc6492Signature,
   type Address
@@ -42,22 +41,22 @@ function createNameForAddrMessage({
   name,
   address,
   chainIds,
-  expirationTime,
+  signedAt,
 }: {
   name: string
   address: Address
   chainIds: bigint[]
-  expirationTime: bigint
+  signedAt: bigint
 }): string {
   const chainIdsString = chainIds.map((id) => id.toString()).join(', ')
-  const expiresAtString = timestampToISO8601(expirationTime)
+  const signedAtString = timestampToISO8601(signedAt)
 
   return `You are setting your ENS primary name to:
 ${name}
 
 Address: ${getAddress(address)}
 Chains: ${chainIdsString}
-Expires At: ${expiresAtString}`
+Signed At: ${signedAtString}`
 }
 
 /**
@@ -69,16 +68,16 @@ function createNameForOwnableMessage({
   contractAddress,
   owner,
   chainIds,
-  expirationTime,
+  signedAt,
 }: {
   name: string
   contractAddress: Address
   owner: Address
   chainIds: bigint[]
-  expirationTime: bigint
+  signedAt: bigint
 }): string {
   const chainIdsString = chainIds.map((id) => id.toString()).join(', ')
-  const expiresAtString = timestampToISO8601(expirationTime)
+  const signedAtString = timestampToISO8601(signedAt)
 
   return `You are setting the ENS primary name for a contract you own to:
 ${name}
@@ -86,7 +85,7 @@ ${name}
 Contract Address: ${getAddress(contractAddress)}
 Owner: ${getAddress(owner)}
 Chains: ${chainIdsString}
-Expires At: ${expiresAtString}`
+Signed At: ${signedAtString}`
 }
 
 async function fixture() {
@@ -280,7 +279,7 @@ describe('L2ReverseRegistrar', () => {
             account: accounts[1],
           },
         ),
-      ).toBeRevertedWithCustomError('Unauthorised')
+      ).toBeRevertedWithCustomError('Unauthorized')
     })
 
     it('reverts if caller tries to set name for another EOA', async () => {
@@ -289,7 +288,7 @@ describe('L2ReverseRegistrar', () => {
 
       await expect(
         l2ReverseRegistrar.write.setNameForAddr([accounts[1].address, name]),
-      ).toBeRevertedWithCustomError('Unauthorised')
+      ).toBeRevertedWithCustomError('Unauthorized')
     })
 
     it('reverts if caller is not owner of the target contract (via Ownable)', async () => {
@@ -299,7 +298,7 @@ describe('L2ReverseRegistrar', () => {
       // mockOwnableSca is owned by mockSmartContractAccount, not accounts[0]
       await expect(
         l2ReverseRegistrar.write.setNameForAddr([mockOwnableSca.address, name]),
-      ).toBeRevertedWithCustomError('Unauthorised')
+      ).toBeRevertedWithCustomError('Unauthorized')
     })
   })
 
@@ -314,7 +313,7 @@ describe('L2ReverseRegistrar', () => {
       const blockTimestamp = await publicClient
         .getBlock()
         .then((b) => b.timestamp)
-      const expirationTime = blockTimestamp + 3600n
+      const signedAt = blockTimestamp
 
       const [walletClient] = await connection.viem.getWalletClients()
 
@@ -322,7 +321,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -333,7 +332,7 @@ describe('L2ReverseRegistrar', () => {
         ...initial,
         message,
         name,
-        expirationTime,
+        signedAt,
         signature,
         walletClient,
       }
@@ -343,7 +342,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         signature,
         accounts,
         getNameForAddr,
@@ -355,7 +354,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       await expect(l2ReverseRegistrar.write.setNameForAddrWithSignature(
@@ -372,7 +371,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         signature,
         accounts,
       } = await connection.networkHelpers.loadFixture(
@@ -383,7 +382,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -398,7 +397,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         mockSmartContractAccount,
         walletClient,
@@ -411,7 +410,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         address: mockSmartContractAccount.address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -422,7 +421,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: mockSmartContractAccount.address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -441,7 +440,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         mockErc6492WalletFactory,
         walletClient,
@@ -459,7 +458,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         address: predictedAddress,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -480,7 +479,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: predictedAddress,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -499,7 +498,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         walletClient,
       } = await connection.networkHelpers.loadFixture(
@@ -511,7 +510,7 @@ describe('L2ReverseRegistrar', () => {
         name: 'different.eth',
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -522,7 +521,7 @@ describe('L2ReverseRegistrar', () => {
         name, // Original name
         addr: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -533,7 +532,7 @@ describe('L2ReverseRegistrar', () => {
       ).toBeRevertedWithCustomError('InvalidSignature')
     })
 
-    it('reverts if signature is expired', async () => {
+    it('reverts if signedAt is in the future', async () => {
       const { l2ReverseRegistrar, name, accounts, walletClient } =
         await connection.networkHelpers.loadFixture(
           setNameForAddrWithSignatureFixture,
@@ -543,13 +542,13 @@ describe('L2ReverseRegistrar', () => {
       const blockTimestamp = await publicClient
         .getBlock()
         .then((b) => b.timestamp)
-      const expiredTime = blockTimestamp - 1n // Already expired
+      const futureTime = blockTimestamp + 3600n // 1 hour in the future
 
       const message = createNameForAddrMessage({
         name,
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime: expiredTime,
+        signedAt: futureTime,
       })
 
       const signature = await walletClient.signMessage({
@@ -560,7 +559,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime: expiredTime,
+        signedAt: futureTime,
       }
 
       await expect(
@@ -568,49 +567,58 @@ describe('L2ReverseRegistrar', () => {
           [claim, signature],
           { account: accounts[1] },
         ),
-      ).toBeRevertedWithCustomError('SignatureExpired')
+      ).toBeRevertedWithCustomError('SignatureNotValidYet')
     })
 
-    it('reverts if expiry date is too high (more than 1 hour)', async () => {
-      const { l2ReverseRegistrar, name, accounts, walletClient } =
+    it('reverts if signedAt is not after inception', async () => {
+      const { l2ReverseRegistrar, name, signedAt, accounts, walletClient, signature } =
         await connection.networkHelpers.loadFixture(
           setNameForAddrWithSignatureFixture,
         )
 
-      const publicClient = await connection.viem.getPublicClient()
-      const blockTimestamp = await publicClient
-        .getBlock()
-        .then((b) => b.timestamp)
-      const tooHighExpiry = blockTimestamp + 3602n // More than 1 hour
-
-      const message = createNameForAddrMessage({
-        name,
-        address: accounts[0].address,
-        chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime: tooHighExpiry,
-      })
-
-      const signature = await walletClient.signMessage({
-        message,
-      })
-
-      const claim = {
+      // First, use the signature to establish an inception
+      const claim1 = {
         name,
         addr: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime: tooHighExpiry,
+        signedAt,
+      }
+
+      await l2ReverseRegistrar.write.setNameForAddrWithSignature(
+        [claim1, signature],
+        { account: accounts[1] },
+      )
+
+      // Try to use a signature with the same signedAt (should fail)
+      const newName = 'newname.eth'
+      const message2 = createNameForAddrMessage({
+        name: newName,
+        address: accounts[0].address,
+        chainIds: [OPTIMISM_CHAIN_ID],
+        signedAt,
+      })
+
+      const signature2 = await walletClient.signMessage({
+        message: message2,
+      })
+
+      const claim2 = {
+        name: newName,
+        addr: accounts[0].address,
+        chainIds: [OPTIMISM_CHAIN_ID],
+        signedAt,
       }
 
       await expect(
         l2ReverseRegistrar.write.setNameForAddrWithSignature(
-          [claim, signature],
+          [claim2, signature2],
           { account: accounts[1] },
         ),
-      ).toBeRevertedWithCustomError('SignatureExpiryTooHigh')
+      ).toBeRevertedWithCustomError('StaleSignature')
     })
 
     it('allows multiple chain IDs in array (must be ascending)', async () => {
-      const { l2ReverseRegistrar, name, expirationTime, accounts, walletClient, getNameForAddr } =
+      const { l2ReverseRegistrar, name, signedAt, accounts, walletClient, getNameForAddr } =
         await connection.networkHelpers.loadFixture(
           setNameForAddrWithSignatureFixture,
         )
@@ -621,7 +629,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         address: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -632,7 +640,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       }
 
       await l2ReverseRegistrar.write.setNameForAddrWithSignature(
@@ -646,7 +654,7 @@ describe('L2ReverseRegistrar', () => {
     })
 
     it('reverts if chain IDs are not in ascending order', async () => {
-      const { l2ReverseRegistrar, name, expirationTime, accounts, walletClient } =
+      const { l2ReverseRegistrar, name, signedAt, accounts, walletClient } =
         await connection.networkHelpers.loadFixture(
           setNameForAddrWithSignatureFixture,
         )
@@ -657,7 +665,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         address: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -668,7 +676,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -680,7 +688,7 @@ describe('L2ReverseRegistrar', () => {
     })
 
     it('reverts if chain IDs contain duplicates', async () => {
-      const { l2ReverseRegistrar, name, expirationTime, accounts, walletClient } =
+      const { l2ReverseRegistrar, name, signedAt, accounts, walletClient } =
         await connection.networkHelpers.loadFixture(
           setNameForAddrWithSignatureFixture,
         )
@@ -691,7 +699,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         address: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -702,7 +710,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -714,7 +722,7 @@ describe('L2ReverseRegistrar', () => {
     })
 
     it('reverts if current chain ID is not in array', async () => {
-      const { l2ReverseRegistrar, name, expirationTime, accounts, walletClient } =
+      const { l2ReverseRegistrar, name, signedAt, accounts, walletClient } =
         await connection.networkHelpers.loadFixture(
           setNameForAddrWithSignatureFixture,
         )
@@ -725,7 +733,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         address: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -736,7 +744,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -750,7 +758,7 @@ describe('L2ReverseRegistrar', () => {
     })
 
     it('reverts if chain ID array is empty', async () => {
-      const { l2ReverseRegistrar, name, expirationTime, accounts, walletClient } =
+      const { l2ReverseRegistrar, name, signedAt, accounts, walletClient } =
         await connection.networkHelpers.loadFixture(
           setNameForAddrWithSignatureFixture,
         )
@@ -761,7 +769,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         address: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -772,7 +780,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -789,10 +797,9 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         signature,
         accounts,
-        message,
       } = await connection.networkHelpers.loadFixture(
         setNameForAddrWithSignatureFixture,
       )
@@ -801,7 +808,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       // First call should succeed
@@ -810,29 +817,27 @@ describe('L2ReverseRegistrar', () => {
         { account: accounts[1] },
       )
 
-      // Second call with same signature should fail
+      // Second call with same signature should fail (signedAt not after inception)
       await expect(
         l2ReverseRegistrar.write.setNameForAddrWithSignature(
           [claim, signature],
           { account: accounts[1] },
         ),
-      )
-        .toBeRevertedWithCustomError('MessageAlreadyUsed')
-        .withArgs([hashMessage(message)])
+      ).toBeRevertedWithCustomError('StaleSignature')
     })
 
-    it('allows different signatures with different parameters for same address', async () => {
-      const { l2ReverseRegistrar, name, expirationTime, accounts, walletClient, getNameForAddr } =
+    it('allows newer signatures with later signedAt for same address', async () => {
+      const { l2ReverseRegistrar, name, signedAt, accounts, walletClient, getNameForAddr } =
         await connection.networkHelpers.loadFixture(
           setNameForAddrWithSignatureFixture,
         )
 
-      // First signature with original name
+      // First signature
       const message1 = createNameForAddrMessage({
         name,
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       })
 
       const signature1 = await walletClient.signMessage({
@@ -843,7 +848,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       await expect(l2ReverseRegistrar.write.setNameForAddrWithSignature(
@@ -851,13 +856,20 @@ describe('L2ReverseRegistrar', () => {
         { account: accounts[1] },
       )).not.toBeReverted()
 
-      // Second signature with different name (message hash differs, so no replay)
+      // Mine a block to advance time
+      await connection.networkHelpers.mine(1)
+      const publicClient = await connection.viem.getPublicClient()
+      const newBlockTimestamp = await publicClient
+        .getBlock()
+        .then((b) => b.timestamp)
+
+      // Second signature with newer signedAt should work
       const newName = 'updated.eth'
       const message2 = createNameForAddrMessage({
         name: newName,
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt: newBlockTimestamp,
       })
 
       const signature2 = await walletClient.signMessage({
@@ -868,7 +880,7 @@ describe('L2ReverseRegistrar', () => {
         name: newName,
         addr: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt: newBlockTimestamp,
       }
 
       await expect(l2ReverseRegistrar.write.setNameForAddrWithSignature(
@@ -882,7 +894,7 @@ describe('L2ReverseRegistrar', () => {
     })
 
     it('reverts if signed by wrong account', async () => {
-      const { l2ReverseRegistrar, name, expirationTime, accounts } =
+      const { l2ReverseRegistrar, name, signedAt, accounts } =
         await connection.networkHelpers.loadFixture(
           setNameForAddrWithSignatureFixture,
         )
@@ -894,7 +906,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         address: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       })
 
       const signature = await secondWalletClient.signMessage({
@@ -905,7 +917,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -914,6 +926,38 @@ describe('L2ReverseRegistrar', () => {
           { account: accounts[2] },
         ),
       ).toBeRevertedWithCustomError('InvalidSignature')
+    })
+
+    it('updates and returns inception correctly', async () => {
+      const {
+        l2ReverseRegistrar,
+        name,
+        signedAt,
+        signature,
+        accounts,
+      } = await connection.networkHelpers.loadFixture(
+        setNameForAddrWithSignatureFixture,
+      )
+
+      // Check initial inception is 0
+      const initialInception = await l2ReverseRegistrar.read.inceptionOf([accounts[0].address])
+      expect(initialInception).toStrictEqual(0n)
+
+      const claim = {
+        name,
+        addr: accounts[0].address,
+        chainIds: [OPTIMISM_CHAIN_ID],
+        signedAt,
+      }
+
+      await l2ReverseRegistrar.write.setNameForAddrWithSignature(
+        [claim, signature],
+        { account: accounts[1] },
+      )
+
+      // Check inception is updated
+      const updatedInception = await l2ReverseRegistrar.read.inceptionOf([accounts[0].address])
+      expect(updatedInception).toStrictEqual(signedAt)
     })
   })
 
@@ -928,14 +972,14 @@ describe('L2ReverseRegistrar', () => {
       const blockTimestamp = await publicClient
         .getBlock()
         .then((b) => b.timestamp)
-      const expirationTime = blockTimestamp + 3600n
+      const signedAt = blockTimestamp
 
       const [walletClient] = await connection.viem.getWalletClients()
 
       return {
         ...initial,
         name,
-        expirationTime,
+        signedAt,
         walletClient,
       }
     }
@@ -944,7 +988,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         mockOwnableEoa,
         walletClient,
@@ -958,7 +1002,7 @@ describe('L2ReverseRegistrar', () => {
         contractAddress: mockOwnableEoa.address,
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -969,7 +1013,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: mockOwnableEoa.address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -988,7 +1032,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         mockOwnableSca,
         mockSmartContractAccount,
@@ -1003,7 +1047,7 @@ describe('L2ReverseRegistrar', () => {
         contractAddress: mockOwnableSca.address,
         owner: mockSmartContractAccount.address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -1014,7 +1058,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: mockOwnableSca.address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -1033,7 +1077,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         mockOwnableEoa,
       } = await connection.networkHelpers.loadFixture(
@@ -1048,7 +1092,7 @@ describe('L2ReverseRegistrar', () => {
         contractAddress: mockOwnableEoa.address,
         owner: accounts[1].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       })
 
       const signature = await secondWalletClient.signMessage({
@@ -1059,7 +1103,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: mockOwnableEoa.address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -1074,7 +1118,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         walletClient,
       } = await connection.networkHelpers.loadFixture(
@@ -1087,7 +1131,7 @@ describe('L2ReverseRegistrar', () => {
         contractAddress: accounts[2].address,
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -1098,7 +1142,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: accounts[2].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -1113,7 +1157,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         walletClient,
       } = await connection.networkHelpers.loadFixture(
@@ -1126,7 +1170,7 @@ describe('L2ReverseRegistrar', () => {
         contractAddress: l2ReverseRegistrar.address,
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -1137,7 +1181,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: l2ReverseRegistrar.address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -1152,7 +1196,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         mockOwnableEoa,
         walletClient,
@@ -1160,13 +1204,13 @@ describe('L2ReverseRegistrar', () => {
         setNameForOwnableWithSignatureFixture,
       )
 
-      // Sign with different expiration time
+      // Sign with different signedAt
       const message = createNameForOwnableMessage({
         name,
         contractAddress: mockOwnableEoa.address,
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime: expirationTime - 100n,
+        signedAt: signedAt - 100n,
       })
 
       const signature = await walletClient.signMessage({
@@ -1177,7 +1221,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: mockOwnableEoa.address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime, // Original expiration time
+        signedAt, // Original signedAt
       }
 
       await expect(
@@ -1188,7 +1232,7 @@ describe('L2ReverseRegistrar', () => {
       ).toBeRevertedWithCustomError('InvalidSignature')
     })
 
-    it('reverts if expiry date has passed', async () => {
+    it('reverts if signedAt is in the future', async () => {
       const {
         l2ReverseRegistrar,
         name,
@@ -1203,14 +1247,14 @@ describe('L2ReverseRegistrar', () => {
       const blockTimestamp = await publicClient
         .getBlock()
         .then((b) => b.timestamp)
-      const expiredTime = blockTimestamp - 1n
+      const futureTime = blockTimestamp + 3600n // 1 hour in the future
 
       const message = createNameForOwnableMessage({
         name,
         contractAddress: mockOwnableEoa.address,
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime: expiredTime,
+        signedAt: futureTime,
       })
 
       const signature = await walletClient.signMessage({
@@ -1221,7 +1265,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: mockOwnableEoa.address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime: expiredTime,
+        signedAt: futureTime,
       }
 
       await expect(
@@ -1229,13 +1273,14 @@ describe('L2ReverseRegistrar', () => {
           [claim, accounts[0].address, signature],
           { account: accounts[9] },
         ),
-      ).toBeRevertedWithCustomError('SignatureExpired')
+      ).toBeRevertedWithCustomError('SignatureNotValidYet')
     })
 
-    it('reverts if expiry date is too high', async () => {
+    it('reverts if signedAt is not after inception', async () => {
       const {
         l2ReverseRegistrar,
         name,
+        signedAt,
         accounts,
         mockOwnableEoa,
         walletClient,
@@ -1243,18 +1288,12 @@ describe('L2ReverseRegistrar', () => {
         setNameForOwnableWithSignatureFixture,
       )
 
-      const publicClient = await connection.viem.getPublicClient()
-      const blockTimestamp = await publicClient
-        .getBlock()
-        .then((b) => b.timestamp)
-      const tooHighExpiry = blockTimestamp + 3602n
-
       const message = createNameForOwnableMessage({
         name,
         contractAddress: mockOwnableEoa.address,
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime: tooHighExpiry,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -1265,22 +1304,49 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: mockOwnableEoa.address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime: tooHighExpiry,
+        signedAt,
+      }
+
+      // First call should succeed
+      await l2ReverseRegistrar.write.setNameForOwnableWithSignature(
+        [claim, accounts[0].address, signature],
+        { account: accounts[9] },
+      )
+
+      // Try to use a signature with the same signedAt (should fail)
+      const newName = 'newname.eth'
+      const message2 = createNameForOwnableMessage({
+        name: newName,
+        contractAddress: mockOwnableEoa.address,
+        owner: accounts[0].address,
+        chainIds: [OPTIMISM_CHAIN_ID],
+        signedAt,
+      })
+
+      const signature2 = await walletClient.signMessage({
+        message: message2,
+      })
+
+      const claim2 = {
+        name: newName,
+        addr: mockOwnableEoa.address,
+        chainIds: [OPTIMISM_CHAIN_ID],
+        signedAt,
       }
 
       await expect(
         l2ReverseRegistrar.write.setNameForOwnableWithSignature(
-          [claim, accounts[0].address, signature],
+          [claim2, accounts[0].address, signature2],
           { account: accounts[9] },
         ),
-      ).toBeRevertedWithCustomError('SignatureExpiryTooHigh')
+      ).toBeRevertedWithCustomError('StaleSignature')
     })
 
     it('allows multiple chain IDs in array (must be ascending)', async () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         mockOwnableEoa,
         walletClient,
@@ -1296,7 +1362,7 @@ describe('L2ReverseRegistrar', () => {
         contractAddress: mockOwnableEoa.address,
         owner: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -1307,7 +1373,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: mockOwnableEoa.address,
         chainIds,
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -1326,7 +1392,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         mockOwnableEoa,
         walletClient,
@@ -1341,7 +1407,7 @@ describe('L2ReverseRegistrar', () => {
         contractAddress: mockOwnableEoa.address,
         owner: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -1352,7 +1418,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: mockOwnableEoa.address,
         chainIds,
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -1367,7 +1433,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         mockOwnableEoa,
         walletClient,
@@ -1382,7 +1448,7 @@ describe('L2ReverseRegistrar', () => {
         contractAddress: mockOwnableEoa.address,
         owner: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -1393,7 +1459,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: mockOwnableEoa.address,
         chainIds,
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -1410,7 +1476,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         mockOwnableEoa,
         walletClient,
@@ -1425,7 +1491,7 @@ describe('L2ReverseRegistrar', () => {
         contractAddress: mockOwnableEoa.address,
         owner: accounts[0].address,
         chainIds,
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -1436,7 +1502,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: mockOwnableEoa.address,
         chainIds,
-        expirationTime,
+        signedAt,
       }
 
       await expect(
@@ -1453,7 +1519,7 @@ describe('L2ReverseRegistrar', () => {
       const {
         l2ReverseRegistrar,
         name,
-        expirationTime,
+        signedAt,
         accounts,
         mockOwnableEoa,
         walletClient,
@@ -1466,7 +1532,7 @@ describe('L2ReverseRegistrar', () => {
         contractAddress: mockOwnableEoa.address,
         owner: accounts[0].address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       })
 
       const signature = await walletClient.signMessage({
@@ -1477,7 +1543,7 @@ describe('L2ReverseRegistrar', () => {
         name,
         addr: mockOwnableEoa.address,
         chainIds: [OPTIMISM_CHAIN_ID],
-        expirationTime,
+        signedAt,
       }
 
       // First call should succeed
@@ -1486,15 +1552,58 @@ describe('L2ReverseRegistrar', () => {
         { account: accounts[9] },
       )).not.toBeReverted()
 
-      // Second call with same signature should fail
+      // Second call with same signature should fail (signedAt not after inception)
       await expect(
         l2ReverseRegistrar.write.setNameForOwnableWithSignature(
           [claim, accounts[0].address, signature],
           { account: accounts[9] },
         ),
+      ).toBeRevertedWithCustomError('StaleSignature')
+    })
+
+    it('updates and returns inception correctly', async () => {
+      const {
+        l2ReverseRegistrar,
+        name,
+        signedAt,
+        accounts,
+        mockOwnableEoa,
+        walletClient,
+      } = await connection.networkHelpers.loadFixture(
+        setNameForOwnableWithSignatureFixture,
       )
-        .toBeRevertedWithCustomError('MessageAlreadyUsed')
-        .withArgs([hashMessage(message)])
+
+      // Check initial inception is 0
+      const initialInception = await l2ReverseRegistrar.read.inceptionOf([mockOwnableEoa.address])
+      expect(initialInception).toStrictEqual(0n)
+
+      const message = createNameForOwnableMessage({
+        name,
+        contractAddress: mockOwnableEoa.address,
+        owner: accounts[0].address,
+        chainIds: [OPTIMISM_CHAIN_ID],
+        signedAt,
+      })
+
+      const signature = await walletClient.signMessage({
+        message,
+      })
+
+      const claim = {
+        name,
+        addr: mockOwnableEoa.address,
+        chainIds: [OPTIMISM_CHAIN_ID],
+        signedAt,
+      }
+
+      await l2ReverseRegistrar.write.setNameForOwnableWithSignature(
+        [claim, accounts[0].address, signature],
+        { account: accounts[9] },
+      )
+
+      // Check inception is updated
+      const updatedInception = await l2ReverseRegistrar.read.inceptionOf([mockOwnableEoa.address])
+      expect(updatedInception).toStrictEqual(signedAt)
     })
   })
 
