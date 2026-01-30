@@ -100,10 +100,11 @@ contract OwnedResolver is
 
     modifier onlyPartRoles(bytes32 node, bytes32 part, uint256 roleBitmap) {
         address sender = _msgSender();
-        if ((roles(OwnedResolverLib.resource(node, part), sender) & roleBitmap) == 0) {
-            if ((roles(OwnedResolverLib.resource(0, part), sender) & roleBitmap) == 0) {
-                _checkRoles(OwnedResolverLib.resource(node, 0), roleBitmap, sender);
-            }
+        if (
+            !hasRoles(OwnedResolverLib.resource(node, part), roleBitmap, sender) &&
+            !hasRoles(OwnedResolverLib.resource(0, part), roleBitmap, sender)
+        ) {
+            _checkRoles(OwnedResolverLib.resource(node, 0), roleBitmap, sender);
         }
         _;
     }
