@@ -13,7 +13,9 @@ import {INameResolver} from "@ens/contracts/resolvers/profiles/INameResolver.sol
 import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver.sol";
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {IVersionableResolver} from "@ens/contracts/resolvers/profiles/IVersionableResolver.sol";
+import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
+import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ContextUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
@@ -65,6 +67,7 @@ contract OwnedResolver is
     HCAContextUpgradeable,
     UUPSUpgradeable,
     EnhancedAccessControl,
+    IERC7996,
     IExtendedResolver,
     IMulticallable,
     IABIResolver,
@@ -129,6 +132,7 @@ contract OwnedResolver is
     ) public view virtual override(EnhancedAccessControl) returns (bool) {
         return
             type(IExtendedResolver).interfaceId == interfaceId ||
+            type(IERC7996).interfaceId == interfaceId ||
             type(IMulticallable).interfaceId == interfaceId ||
             type(IABIResolver).interfaceId == interfaceId ||
             type(IAddrResolver).interfaceId == interfaceId ||
@@ -142,6 +146,11 @@ contract OwnedResolver is
             type(IVersionableResolver).interfaceId == interfaceId ||
             type(UUPSUpgradeable).interfaceId == interfaceId ||
             super.supportsInterface(interfaceId);
+    }
+
+    /// @inheritdoc IERC7996
+    function supportsFeature(bytes4 feature) external pure returns (bool) {
+        return ResolverFeatures.RESOLVE_MULTICALL == feature;
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -282,17 +291,35 @@ contract OwnedResolver is
         bytes memory toName = getAlias(fromName);
         bytes memory toData = ResolverProfileRewriterLib.replaceNode(
             fromData,
-            NameCoder.namehash(toName.length == 0 ? fromName : toName, 0)
+            NameCoder.namehash(toName.length == 0 ? fromName : toName, 0) // always rewrite node
         );
-        (bool ok, bytes memory v) = address(this).staticcall(toData);
-        if (!ok) {
+        if (bytes4(toData) == IMulticallable.multicall.selector) {
+            // note: cannot staticcall multicall() because it reverts with first error
             assembly {
-                revert(add(v, 32), mload(v))
+                mstore(add(toData, 4), sub(mload(toData), 4))
+                toData := add(toData, 4) // drop selector
             }
-        } else if (v.length == 0) {
-            revert UnsupportedResolverProfile(bytes4(fromData));
+            bytes[] memory m = abi.decode(toData, (bytes[]));
+            for (uint256 i; i < m.length; ++i) {
+                toData = m[i];
+                (, bytes memory v) = address(this).staticcall(toData);
+                if (v.length == 0) {
+                    v = abi.encodeWithSelector(UnsupportedResolverProfile.selector, bytes4(toData));
+                }
+                m[i] = v;
+            }
+            return abi.encode(m);
+        } else {
+            (bool ok, bytes memory v) = address(this).staticcall(toData);
+            if (!ok) {
+                assembly {
+                    revert(add(v, 32), mload(v))
+                }
+            } else if (v.length == 0) {
+                revert UnsupportedResolverProfile(bytes4(fromData));
+            }
+            return v;
         }
-        return v;
     }
 
     /// @notice Get the current version.
@@ -357,7 +384,7 @@ contract OwnedResolver is
         return _record(node).texts[key];
     }
 
-    /// @notice Perform multiple read or write operations.
+    /// @notice Perform multiple write operations.
     /// @dev Reverts with first error.
     function multicall(bytes[] calldata calls) public returns (bytes[] memory results) {
         results = new bytes[](calls.length);

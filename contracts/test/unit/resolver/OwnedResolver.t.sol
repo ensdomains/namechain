@@ -16,7 +16,10 @@ import {IPubkeyResolver} from "@ens/contracts/resolvers/profiles/IPubkeyResolver
 import {ITextResolver} from "@ens/contracts/resolvers/profiles/ITextResolver.sol";
 import {IVersionableResolver} from "@ens/contracts/resolvers/profiles/IVersionableResolver.sol";
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {ResolverFeatures} from "@ens/contracts/resolvers/ResolverFeatures.sol";
+import {IERC7996} from "@ens/contracts/utils/IERC7996.sol";
 import {ENSIP19, COIN_TYPE_ETH, COIN_TYPE_DEFAULT} from "@ens/contracts/utils/ENSIP19.sol";
+
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
@@ -36,8 +39,9 @@ contract OwnedResolverTest is Test {
     }
     function _supportedInterfaces() internal pure returns (I[] memory v) {
         uint256 i;
-        v = new I[](14);
+        v = new I[](15);
         v[i++] = I(type(IExtendedResolver).interfaceId, "IExtendedResolver");
+        v[i++] = I(type(IERC7996).interfaceId, "IERC7996");
         v[i++] = I(type(IMulticallable).interfaceId, "IMulticallable");
         v[i++] = I(type(IABIResolver).interfaceId, "IABIResolver");
         v[i++] = I(type(IAddrResolver).interfaceId, "IAddrResolver");
@@ -113,6 +117,13 @@ contract OwnedResolverTest is Test {
                 v[i].name
             );
         }
+    }
+
+    function test_supportsFeature() external view {
+        assertTrue(
+            resolver.supportsFeature(ResolverFeatures.RESOLVE_MULTICALL),
+            "RESOLVE_MULTICALL"
+        );
     }
 
     function test_alias_none() external view {
@@ -500,13 +511,17 @@ contract OwnedResolverTest is Test {
         resolver.setInterface(testNode, bytes4(0), address(0));
     }
 
-    function test_multicall_setters() external {
+    function test_multicall_setters(bool checked) external {
         bytes[] memory calls = new bytes[](2);
         calls[0] = abi.encodeCall(OwnedResolver.setName, (testNode, testString));
         calls[1] = abi.encodeCall(OwnedResolver.setContenthash, (testNode, testAddress));
 
         vm.prank(owner);
-        resolver.multicall(calls);
+        if (checked) {
+            resolver.multicallWithNodeCheck(keccak256("ignored"), calls);
+        } else {
+            resolver.multicall(calls);
+        }
 
         assertEq(resolver.name(testNode), testString, "name()");
         assertEq(resolver.contenthash(testNode), testAddress, "contenthash()");
@@ -530,31 +545,53 @@ contract OwnedResolverTest is Test {
 
     function test_multicall_getters() external {
         vm.startPrank(owner);
+        resolver.setAddr(testNode, testAddr);
+        resolver.setText(testNode, testString, testString);
         resolver.setName(testNode, testString);
         resolver.setContenthash(testNode, testAddress);
         vm.stopPrank();
 
-        bytes[] memory calls = new bytes[](2);
-        calls[0] = abi.encodeCall(INameResolver.name, (testNode));
-        calls[1] = abi.encodeCall(IContentHashResolver.contenthash, (testNode));
+        bytes[] memory calls = new bytes[](4);
+        calls[0] = abi.encodeCall(IAddrResolver.addr, (testNode));
+        calls[1] = abi.encodeCall(ITextResolver.text, (testNode, testString));
+        calls[2] = abi.encodeCall(INameResolver.name, (testNode));
+        calls[3] = abi.encodeCall(IContentHashResolver.contenthash, (testNode));
 
-        bytes[] memory answers = new bytes[](2);
-        answers[0] = abi.encode(testString);
-        answers[1] = abi.encode(testAddress);
+        bytes[] memory answers = new bytes[](calls.length);
+        answers[0] = abi.encode(testAddr);
+        answers[1] = abi.encode(testString);
+        answers[2] = abi.encode(testString);
+        answers[3] = abi.encode(testAddress);
 
-        bytes memory expect = abi.encode(answers);
-        assertEq(abi.encode(resolver.multicall(calls)), expect, "immediate");
         bytes memory result = resolver.resolve(
             testName,
             abi.encodeCall(OwnedResolver.multicall, (calls))
         );
-        assertEq(result, expect, "extended");
+        assertEq(result, abi.encode(answers));
+    }
 
-        assertEq(
-            abi.encode(resolver.multicallWithNodeCheck(keccak256("ignored"), calls)),
-            expect,
-            "checked"
+    function test_multicall_getters_partialError() external {
+        vm.prank(owner);
+        resolver.setName(testNode, testString);
+
+        bytes4 selector = 0x12345678;
+
+        bytes[] memory calls = new bytes[](2);
+        calls[0] = abi.encodeCall(INameResolver.name, (testNode));
+        calls[1] = abi.encodeWithSelector(selector, selector);
+
+        bytes[] memory answers = new bytes[](calls.length);
+        answers[0] = abi.encode(testString);
+        answers[1] = abi.encodeWithSelector(
+            OwnedResolver.UnsupportedResolverProfile.selector,
+            selector
         );
+
+        bytes memory result = resolver.resolve(
+            testName,
+            abi.encodeCall(OwnedResolver.multicall, (calls))
+        );
+        assertEq(result, abi.encode(answers));
     }
 
     function test_setText_anyNode_onePart() external {
