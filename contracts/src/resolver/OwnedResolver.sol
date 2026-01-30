@@ -30,24 +30,30 @@ import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 import {OwnedResolverLib} from "./libraries/OwnedResolverLib.sol";
 import {ResolverProfileRewriterLib} from "./libraries/ResolverProfileRewriterLib.sol";
 
-/// @notice An owned resolver that supports multiple names and internal aliasing.
+/// @notice An owned resolver that supports multiple names, internal aliasing, and fine-grained permissions.
 ///
-/// * Resolved names find the longest match.
+/// Internal Aliasing:
+///
+/// * Resolved names find the longest match and rewrite the suffix.
 /// * Successful matches recursively check for additional aliasing.
+/// * `bytes32 node` in calldata is updated accordingly.
 /// * Cycles of length 1 apply once.
 /// * Cycles of length 2+ result in OOG.
 ///
-/// `setAlias("a.eth", "b.eth")`
-/// eg. `getAlias("a.eth") => "b.eth"`
-/// eg. `getAlias("[sub].a.eth") => "[sub].b.eth"`
-/// eg. `getAlias("[x.y].a.eth") => "[x.y].b.eth"`
-/// eg. `getAlias("abc.eth") => ""`
+/// eg. `setAlias("a.eth", "b.eth")`
+/// * `getAlias("a.eth") => "b.eth"`
+/// * `getAlias("[sub].a.eth") => "[sub].b.eth"`
+/// * `getAlias("[x.y].a.eth") => "[x.y].b.eth"`
+/// * `getAlias("abc.eth") => ""`
 ///
-/// `setText(key)` permissions can be restricted to a key using: `part = textPart(<key>)`.
-/// `setAddr(coinType)` permissions can be restricted to a coinType using: `part = addrPart(<coinType>)`.
+/// Fine-grained Permissions:
 ///
-/// EAC resources:                                    Parts
-///                       +-----------------------------+------------------------------+
+/// `setText(key)` can be restricted to a key using: `part = textPart(<key>)`.
+/// `setAddr(coinType)` can be restricted to a coinType using: `part = addrPart(<coinType>)`.
+///
+/// Setters with `node` check (4) EAC resources:
+///                                                   Parts
+///        Resources      +-----------------------------+------------------------------+
 ///                       |           Any (*)           |         Specific (1)         |
 ///        +--------------+-----------------------------+------------------------------+
 ///        |      Any (*) |       resource(0, 0)        |      resource(0, <part>)     |
