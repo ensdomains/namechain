@@ -78,13 +78,11 @@ contract PreMigrationController is
     /// @inheritdoc IPreMigrationController
     /// @dev Sets subregistry/resolver and transfers ownership to the new owner.
     ///      Pre-migrated names have ROLES.ALL, so all roles transfer with the token.
-    ///      The roleBitmap parameter is ignored - kept for interface compatibility.
     function claim(
         string calldata label,
         address owner,
         IRegistry subregistry,
-        address resolver,
-        uint256 /* roleBitmap */
+        address resolver
     ) external onlyRootRoles(ROLE_MIGRATION_CONTROLLER) {
         (uint256 tokenId, IRegistryDatastore.Entry memory entry) = ETH_REGISTRY.getNameData(label);
 

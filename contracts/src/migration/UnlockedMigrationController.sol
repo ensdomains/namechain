@@ -186,8 +186,7 @@ contract UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC16
             label,
             migrationData.transferData.owner,
             IRegistry(migrationData.transferData.subregistry),
-            migrationData.transferData.resolver,
-            migrationData.transferData.roleBitmap
+            migrationData.transferData.resolver
         );
     }
 }

@@ -105,8 +105,7 @@ contract PreMigrationControllerTest is Test, ERC1155Holder {
             testLabel,
             user,
             IRegistry(newSubregistry),
-            resolver,
-            0
+            resolver
         );
 
         // Verify owner changed
@@ -135,8 +134,7 @@ contract PreMigrationControllerTest is Test, ERC1155Holder {
             testLabel,
             user,
             IRegistry(address(0)),
-            address(0),
-            0
+            address(0)
         );
 
         // Verify user now owns the name
@@ -152,8 +150,7 @@ contract PreMigrationControllerTest is Test, ERC1155Holder {
             testLabel,
             user,
             IRegistry(address(0)),
-            resolver,
-            0
+            resolver
         );
 
         // Verify subregistry is still zero
@@ -169,8 +166,7 @@ contract PreMigrationControllerTest is Test, ERC1155Holder {
             testLabel,
             user,
             IRegistry(address(0x9999)),
-            address(0),
-            0
+            address(0)
         );
 
         // Verify resolver is still zero
@@ -188,8 +184,7 @@ contract PreMigrationControllerTest is Test, ERC1155Holder {
             testLabel,
             user,
             IRegistry(address(0)),
-            address(0),
-            0
+            address(0)
         );
     }
 
@@ -212,8 +207,7 @@ contract PreMigrationControllerTest is Test, ERC1155Holder {
             testLabel,
             user,
             IRegistry(address(0)),
-            address(0),
-            0
+            address(0)
         );
     }
 
@@ -230,8 +224,7 @@ contract PreMigrationControllerTest is Test, ERC1155Holder {
             testLabel,
             user,
             IRegistry(address(0)),
-            address(0),
-            0
+            address(0)
         );
     }
 
@@ -283,8 +276,7 @@ contract PreMigrationControllerTest is Test, ERC1155Holder {
             testLabel,
             user,
             IRegistry(address(0)),
-            address(0),
-            0
+            address(0)
         );
 
         // Verify user now has ALL roles
@@ -307,8 +299,7 @@ contract PreMigrationControllerTest is Test, ERC1155Holder {
             testLabel,
             user,
             IRegistry(newSubregistry),
-            resolver,
-            0
+            resolver
         );
 
         Vm.Log[] memory entries = vm.getRecordedLogs();

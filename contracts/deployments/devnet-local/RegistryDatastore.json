@@ -1,0 +1,244 @@
+{
+  "address": "0xa513e6e4b8f2a923d98304ec87f64353c4d5c853",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "contract IRegistry",
+          "name": "registry",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "anyId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getEntry",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "expiry",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint32",
+              "name": "tokenVersionId",
+              "type": "uint32"
+            },
+            {
+              "internalType": "contract IRegistry",
+              "name": "subregistry",
+              "type": "address"
+            },
+            {
+              "internalType": "uint32",
+              "name": "eacVersionId",
+              "type": "uint32"
+            },
+            {
+              "internalType": "address",
+              "name": "resolver",
+              "type": "address"
+            }
+          ],
+          "internalType": "struct IRegistryDatastore.Entry",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "anyId",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint64",
+              "name": "expiry",
+              "type": "uint64"
+            },
+            {
+              "internalType": "uint32",
+              "name": "tokenVersionId",
+              "type": "uint32"
+            },
+            {
+              "internalType": "contract IRegistry",
+              "name": "subregistry",
+              "type": "address"
+            },
+            {
+              "internalType": "uint32",
+              "name": "eacVersionId",
+              "type": "uint32"
+            },
+            {
+              "internalType": "address",
+              "name": "resolver",
+              "type": "address"
+            }
+          ],
+          "internalType": "struct IRegistryDatastore.Entry",
+          "name": "entry",
+          "type": "tuple"
+        }
+      ],
+      "name": "setEntry",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "contractName": "RegistryDatastore",
+  "sourceName": "src/registry/RegistryDatastore.sol",
+  "bytecode": "0x6080604052348015600e575f80fd5b506103ab8061001c5f395ff3fe608060405234801561000f575f80fd5b5060043610610034575f3560e01c8063b8a740e014610038578063c0f8a7311461018b575b5f80fd5b61010e6100463660046101f5565b6040805160a080820183525f80835260208084018290528385018290526060808501839052608094850183905273ffffffffffffffffffffffffffffffffffffffff978816835282825285832063ffffffff888116909818845282529185902085519384018652805467ffffffffffffffff811685526801000000000000000081048816928501929092526c01000000000000000000000000909104871694830194909452600190930154938416928101929092526401000000009092049092169082015290565b60405161018291905f60a08201905067ffffffffffffffff8351168252602083015163ffffffff80821660208501526040850151915073ffffffffffffffffffffffffffffffffffffffff808316604086015281606087015116606086015280608087015116608086015250505092915050565b60405180910390f35b61019e61019936600461021f565b6101a0565b005b335f9081526020818152604080832063ffffffff861686188452909152902081906101cb828261027a565b50505050565b73ffffffffffffffffffffffffffffffffffffffff811681146101f2575f80fd5b50565b5f8060408385031215610206575f80fd5b8235610211816101d1565b946020939093013593505050565b5f8082840360c0811215610231575f80fd5b8335925060a0601f1982011215610246575f80fd5b506020830190509250929050565b5f813563ffffffff81168114610268575f80fd5b92915050565b5f8135610268816101d1565b813567ffffffffffffffff8116808214610292575f80fd5b825467ffffffffffffffff1981168217845591506bffffffff00000000000000006102bf60208601610254565b60401b166bffffffffffffffffffffffff19818382861617178555604086013593506102ea846101d1565b606093841b169117178255600182019063ffffffff9061030b908501610254565b1663ffffffff198254161781556103706103276080850161026e565b82547fffffffffffffffff0000000000000000000000000000000000000000ffffffff1660209190911b77ffffffffffffffffffffffffffffffffffffffff0000000016178255565b50505056fea26469706673582212208059bfcc8b115af5b481babda8ada264eb1816fa5258693bd2b4641ebc48c93964736f6c63430008190033",
+  "deployedBytecode": "0x608060405234801561000f575f80fd5b5060043610610034575f3560e01c8063b8a740e014610038578063c0f8a7311461018b575b5f80fd5b61010e6100463660046101f5565b6040805160a080820183525f80835260208084018290528385018290526060808501839052608094850183905273ffffffffffffffffffffffffffffffffffffffff978816835282825285832063ffffffff888116909818845282529185902085519384018652805467ffffffffffffffff811685526801000000000000000081048816928501929092526c01000000000000000000000000909104871694830194909452600190930154938416928101929092526401000000009092049092169082015290565b60405161018291905f60a08201905067ffffffffffffffff8351168252602083015163ffffffff80821660208501526040850151915073ffffffffffffffffffffffffffffffffffffffff808316604086015281606087015116606086015280608087015116608086015250505092915050565b60405180910390f35b61019e61019936600461021f565b6101a0565b005b335f9081526020818152604080832063ffffffff861686188452909152902081906101cb828261027a565b50505050565b73ffffffffffffffffffffffffffffffffffffffff811681146101f2575f80fd5b50565b5f8060408385031215610206575f80fd5b8235610211816101d1565b946020939093013593505050565b5f8082840360c0811215610231575f80fd5b8335925060a0601f1982011215610246575f80fd5b506020830190509250929050565b5f813563ffffffff81168114610268575f80fd5b92915050565b5f8135610268816101d1565b813567ffffffffffffffff8116808214610292575f80fd5b825467ffffffffffffffff1981168217845591506bffffffff00000000000000006102bf60208601610254565b60401b166bffffffffffffffffffffffff19818382861617178555604086013593506102ea846101d1565b606093841b169117178255600182019063ffffffff9061030b908501610254565b1663ffffffff198254161781556103706103276080850161026e565b82547fffffffffffffffff0000000000000000000000000000000000000000ffffffff1660209190911b77ffffffffffffffffffffffffffffffffffffffff0000000016178255565b50505056fea26469706673582212208059bfcc8b115af5b481babda8ada264eb1816fa5258693bd2b4641ebc48c93964736f6c63430008190033",
+  "linkReferences": {},
+  "deployedLinkReferences": {},
+  "immutableReferences": {},
+  "inputSourceName": "project/src/registry/RegistryDatastore.sol",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "version": 1
+  },
+  "evm": {
+    "gasEstimates": {
+      "creation": {
+        "codeDepositCost": "187800",
+        "executionCost": "230",
+        "totalCost": "188030"
+      },
+      "external": {
+        "getEntry(address,uint256)": "5222",
+        "setEntry(uint256,(uint64,uint32,address,uint32,address))": "infinite"
+      }
+    }
+  },
+  "metadata": "{\"compiler\":{\"version\":\"0.8.25+commit.b61c2a91\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"contract IRegistry\",\"name\":\"registry\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"anyId\",\"type\":\"uint256\"}],\"name\":\"getEntry\",\"outputs\":[{\"components\":[{\"internalType\":\"uint64\",\"name\":\"expiry\",\"type\":\"uint64\"},{\"internalType\":\"uint32\",\"name\":\"tokenVersionId\",\"type\":\"uint32\"},{\"internalType\":\"contract IRegistry\",\"name\":\"subregistry\",\"type\":\"address\"},{\"internalType\":\"uint32\",\"name\":\"eacVersionId\",\"type\":\"uint32\"},{\"internalType\":\"address\",\"name\":\"resolver\",\"type\":\"address\"}],\"internalType\":\"struct IRegistryDatastore.Entry\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"anyId\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"uint64\",\"name\":\"expiry\",\"type\":\"uint64\"},{\"internalType\":\"uint32\",\"name\":\"tokenVersionId\",\"type\":\"uint32\"},{\"internalType\":\"contract IRegistry\",\"name\":\"subregistry\",\"type\":\"address\"},{\"internalType\":\"uint32\",\"name\":\"eacVersionId\",\"type\":\"uint32\"},{\"internalType\":\"address\",\"name\":\"resolver\",\"type\":\"address\"}],\"internalType\":\"struct IRegistryDatastore.Entry\",\"name\":\"entry\",\"type\":\"tuple\"}],\"name\":\"setEntry\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"project/src/registry/RegistryDatastore.sol\":\"RegistryDatastore\"},\"evmVersion\":\"cancun\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":1000},\"remappings\":[\"project/:@ens/contracts/=project/lib/ens-contracts/contracts/\",\"project/:@ensdomains/buffer/=project/lib/buffer/\",\"project/:@ensdomains/verifiable-factory/=project/lib/verifiable-factory/src/\",\"project/:@openzeppelin/contracts-upgradeable/=project/lib/openzeppelin-contracts-upgradeable/contracts/\",\"project/:@openzeppelin/contracts/=project/lib/openzeppelin-contracts/contracts/\",\"project/:@unruggable/gateways/=project/lib/unruggable-gateways/\",\"project/:forge-std/=project/lib/forge-std/src/\",\"project/:~src/=project/src/\",\"project/lib/ens-contracts/:@openzeppelin/contracts/=project/lib/openzeppelin-contracts-v4/contracts/\",\"project/lib/openzeppelin-contracts-upgradeable/:@openzeppelin/contracts/=project/lib/openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/\",\"project/lib/verifiable-factory/:@openzeppelin/contracts/=project/lib/verifiable-factory/lib/openzeppelin-contracts/contracts/\"]},\"sources\":{\"project/lib/openzeppelin-contracts/contracts/token/ERC1155/IERC1155.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n// OpenZeppelin Contracts (last updated v5.3.0) (token/ERC1155/IERC1155.sol)\\n\\npragma solidity ^0.8.20;\\n\\nimport {IERC165} from \\\"../../utils/introspection/IERC165.sol\\\";\\n\\n/**\\n * @dev Required interface of an ERC-1155 compliant contract, as defined in the\\n * https://eips.ethereum.org/EIPS/eip-1155[ERC].\\n */\\ninterface IERC1155 is IERC165 {\\n    /**\\n     * @dev Emitted when `value` amount of tokens of type `id` are transferred from `from` to `to` by `operator`.\\n     */\\n    event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);\\n\\n    /**\\n     * @dev Equivalent to multiple {TransferSingle} events, where `operator`, `from` and `to` are the same for all\\n     * transfers.\\n     */\\n    event TransferBatch(\\n        address indexed operator,\\n        address indexed from,\\n        address indexed to,\\n        uint256[] ids,\\n        uint256[] values\\n    );\\n\\n    /**\\n     * @dev Emitted when `account` grants or revokes permission to `operator` to transfer their tokens, according to\\n     * `approved`.\\n     */\\n    event ApprovalForAll(address indexed account, address indexed operator, bool approved);\\n\\n    /**\\n     * @dev Emitted when the URI for token type `id` changes to `value`, if it is a non-programmatic URI.\\n     *\\n     * If an {URI} event was emitted for `id`, the standard\\n     * https://eips.ethereum.org/EIPS/eip-1155#metadata-extensions[guarantees] that `value` will equal the value\\n     * returned by {IERC1155MetadataURI-uri}.\\n     */\\n    event URI(string value, uint256 indexed id);\\n\\n    /**\\n     * @dev Returns the value of tokens of token type `id` owned by `account`.\\n     */\\n    function balanceOf(address account, uint256 id) external view returns (uint256);\\n\\n    /**\\n     * @dev xref:ROOT:erc1155.adoc#batch-operations[Batched] version of {balanceOf}.\\n     *\\n     * Requirements:\\n     *\\n     * - `accounts` and `ids` must have the same length.\\n     */\\n    function balanceOfBatch(\\n        address[] calldata accounts,\\n        uint256[] calldata ids\\n    ) external view returns (uint256[] memory);\\n\\n    /**\\n     * @dev Grants or revokes permission to `operator` to transfer the caller's tokens, according to `approved`,\\n     *\\n     * Emits an {ApprovalForAll} event.\\n     *\\n     * Requirements:\\n     *\\n     * - `operator` cannot be the zero address.\\n     */\\n    function setApprovalForAll(address operator, bool approved) external;\\n\\n    /**\\n     * @dev Returns true if `operator` is approved to transfer ``account``'s tokens.\\n     *\\n     * See {setApprovalForAll}.\\n     */\\n    function isApprovedForAll(address account, address operator) external view returns (bool);\\n\\n    /**\\n     * @dev Transfers a `value` amount of tokens of type `id` from `from` to `to`.\\n     *\\n     * WARNING: This function can potentially allow a reentrancy attack when transferring tokens\\n     * to an untrusted contract, when invoking {IERC1155Receiver-onERC1155Received} on the receiver.\\n     * Ensure to follow the checks-effects-interactions pattern and consider employing\\n     * reentrancy guards when interacting with untrusted contracts.\\n     *\\n     * Emits a {TransferSingle} event.\\n     *\\n     * Requirements:\\n     *\\n     * - `to` cannot be the zero address.\\n     * - If the caller is not `from`, it must have been approved to spend ``from``'s tokens via {setApprovalForAll}.\\n     * - `from` must have a balance of tokens of type `id` of at least `value` amount.\\n     * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155Received} and return the\\n     * acceptance magic value.\\n     */\\n    function safeTransferFrom(address from, address to, uint256 id, uint256 value, bytes calldata data) external;\\n\\n    /**\\n     * @dev xref:ROOT:erc1155.adoc#batch-operations[Batched] version of {safeTransferFrom}.\\n     *\\n     * WARNING: This function can potentially allow a reentrancy attack when transferring tokens\\n     * to an untrusted contract, when invoking {IERC1155Receiver-onERC1155BatchReceived} on the receiver.\\n     * Ensure to follow the checks-effects-interactions pattern and consider employing\\n     * reentrancy guards when interacting with untrusted contracts.\\n     *\\n     * Emits either a {TransferSingle} or a {TransferBatch} event, depending on the length of the array arguments.\\n     *\\n     * Requirements:\\n     *\\n     * - `ids` and `values` must have the same length.\\n     * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155BatchReceived} and return the\\n     * acceptance magic value.\\n     */\\n    function safeBatchTransferFrom(\\n        address from,\\n        address to,\\n        uint256[] calldata ids,\\n        uint256[] calldata values,\\n        bytes calldata data\\n    ) external;\\n}\\n\",\"keccak256\":\"0x1d7a05b3219532ea5ece50a80cf390cac9109dc74e07763adfa463ab5a3af0dc\",\"license\":\"MIT\"},\"project/lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n// OpenZeppelin Contracts (last updated v5.1.0) (utils/introspection/IERC165.sol)\\n\\npragma solidity ^0.8.20;\\n\\n/**\\n * @dev Interface of the ERC-165 standard, as defined in the\\n * https://eips.ethereum.org/EIPS/eip-165[ERC].\\n *\\n * Implementers can declare support of contract interfaces, which can then be\\n * queried by others ({ERC165Checker}).\\n *\\n * For an implementation, see {ERC165}.\\n */\\ninterface IERC165 {\\n    /**\\n     * @dev Returns true if this contract implements the interface defined by\\n     * `interfaceId`. See the corresponding\\n     * https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[ERC section]\\n     * to learn more about how these ids are created.\\n     *\\n     * This function call must use less than 30 000 gas.\\n     */\\n    function supportsInterface(bytes4 interfaceId) external view returns (bool);\\n}\\n\",\"keccak256\":\"0x79796192ec90263f21b464d5bc90b777a525971d3de8232be80d9c4f9fb353b8\",\"license\":\"MIT\"},\"project/src/erc1155/interfaces/IERC1155Singleton.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity >=0.8.13;\\n\\nimport {IERC1155} from \\\"@openzeppelin/contracts/token/ERC1155/IERC1155.sol\\\";\\n\\ninterface IERC1155Singleton is IERC1155 {\\n    function ownerOf(uint256 id) external view returns (address owner);\\n}\\n\",\"keccak256\":\"0xbfa4f4f1da56c42a6e878895cbcfc50d0d612ca9d75dda04c6df1ca0fdb72494\",\"license\":\"MIT\"},\"project/src/registry/RegistryDatastore.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity >=0.8.13;\\n\\nimport {LibLabel} from \\\"../utils/LibLabel.sol\\\";\\n\\nimport {IRegistry} from \\\"./interfaces/IRegistry.sol\\\";\\nimport {IRegistryDatastore} from \\\"./interfaces/IRegistryDatastore.sol\\\";\\n\\ncontract RegistryDatastore is IRegistryDatastore {\\n    ////////////////////////////////////////////////////////////////////////\\n    // Storage\\n    ////////////////////////////////////////////////////////////////////////\\n\\n    mapping(IRegistry registry => mapping(uint256 canonicalId => Entry)) private _entries;\\n\\n    ////////////////////////////////////////////////////////////////////////\\n    // Implementation\\n    ////////////////////////////////////////////////////////////////////////\\n\\n    /// @inheritdoc IRegistryDatastore\\n    function setEntry(uint256 anyId, Entry calldata entry) external {\\n        _entries[IRegistry(msg.sender)][LibLabel.getCanonicalId(anyId)] = entry;\\n    }\\n\\n    /// @inheritdoc IRegistryDatastore\\n    function getEntry(IRegistry registry, uint256 anyId) external view returns (Entry memory) {\\n        return _entries[registry][LibLabel.getCanonicalId(anyId)];\\n    }\\n}\\n\",\"keccak256\":\"0x408872714ecab38f7d039ce1a4886e218cf5ae1f0c309fd548064ff6cb899ca3\",\"license\":\"MIT\"},\"project/src/registry/interfaces/IRegistry.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity >=0.8.13;\\n\\nimport {IERC1155Singleton} from \\\"../../erc1155/interfaces/IERC1155Singleton.sol\\\";\\n\\nimport {IRegistry} from \\\"./IRegistry.sol\\\";\\n\\ninterface IRegistry is IERC1155Singleton {\\n    ////////////////////////////////////////////////////////////////////////\\n    // Events\\n    ////////////////////////////////////////////////////////////////////////\\n\\n    /// @dev SHOULD be emitted when a new label is registered\\n    event NameRegistered(\\n        uint256 indexed tokenId,\\n        string label,\\n        uint64 expiry,\\n        address registeredBy\\n    );\\n\\n    /// @notice Expiry was changed.\\n    /// @dev Error selector: `0x`\\n    event ExpiryUpdated(uint256 indexed tokenId, uint64 newExpiry, address changedBy);\\n\\n    /// @notice Subregistry was changed.\\n    event SubregistryUpdated(uint256 indexed tokenId, IRegistry subregistry);\\n\\n    /// @notice Resolver was changed.\\n    event ResolverUpdated(uint256 indexed tokenId, address resolver);\\n\\n    /// @notice Token was regenerated with a new token ID.\\n    ///         This occurs when roles are granted or revoked to maintain ERC1155 compliance.\\n    event TokenRegenerated(\\n        uint256 indexed oldTokenId,\\n        uint256 indexed newTokenId,\\n        uint256 resource\\n    );\\n\\n    ////////////////////////////////////////////////////////////////////////\\n    // Functions\\n    ////////////////////////////////////////////////////////////////////////\\n\\n    /**\\n     * @dev Fetches the registry for a subdomain.\\n     * @param label The label to resolve.\\n     * @return The address of the registry for this subdomain, or `address(0)` if none exists.\\n     */\\n    function getSubregistry(string calldata label) external view returns (IRegistry);\\n\\n    /**\\n     * @dev Fetches the resolver responsible for the specified label.\\n     * @param label The label to fetch a resolver for.\\n     * @return resolver The address of a resolver responsible for this name, or `address(0)` if none exists.\\n     */\\n    function getResolver(string calldata label) external view returns (address);\\n}\\n\",\"keccak256\":\"0xc3c7b964bbaadd35412ce44163ab335f802ac9b5f19d72b0fbb64bf772f63634\",\"license\":\"MIT\"},\"project/src/registry/interfaces/IRegistryDatastore.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity >=0.8.13;\\n\\nimport {IRegistry} from \\\"./IRegistry.sol\\\";\\n\\n/**\\n * @dev Interface for the ENSv2 registry datastore, which stores subregistry and resolver addresses and other data\\n *      for all names, keyed by registry address and label hash.\\n */\\ninterface IRegistryDatastore {\\n    ////////////////////////////////////////////////////////////////////////\\n    // Types\\n    ////////////////////////////////////////////////////////////////////////\\n\\n    struct Entry {\\n        uint64 expiry;\\n        uint32 tokenVersionId;\\n        IRegistry subregistry;\\n        uint32 eacVersionId;\\n        address resolver;\\n    }\\n\\n    ////////////////////////////////////////////////////////////////////////\\n    // Functions\\n    ////////////////////////////////////////////////////////////////////////\\n\\n    function setEntry(uint256 anyId, Entry calldata entry) external;\\n\\n    function getEntry(IRegistry registry, uint256 anyId) external view returns (Entry calldata);\\n}\\n\",\"keccak256\":\"0xb253b791894ae3bffc3c3a6c6c485ee7adab7a597a6bdfdcd7275e7064125024\",\"license\":\"MIT\"},\"project/src/utils/LibLabel.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity >=0.8.13;\\n\\nlibrary LibLabel {\\n    /// @dev Convert a label to canonical id.\\n    ///\\n    /// @param label The label to convert.\\n    ///\\n    /// @return The canonical id corresponding to this label.\\n    function labelToCanonicalId(string memory label) internal pure returns (uint256) {\\n        return getCanonicalId(uint256(keccak256(bytes(label))));\\n    }\\n\\n    /// @dev Get the canonical id of a token id or canonical id.\\n    ///\\n    /// @param id The token id or canonical id to convert to its canonical id version.\\n    ///\\n    /// @return The canonical id.\\n    function getCanonicalId(uint256 id) internal pure returns (uint256) {\\n        return id ^ uint32(id);\\n    }\\n}\\n\",\"keccak256\":\"0x2e5ba544a5883665568b8068f263bfed14c2c4aa7a4a8bf3779192437a5c889c\",\"license\":\"MIT\"}},\"version\":1}",
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 37017,
+        "contract": "project/src/registry/RegistryDatastore.sol:RegistryDatastore",
+        "label": "_entries",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_mapping(t_contract(IRegistry)37428,t_mapping(t_uint256,t_struct(Entry)37445_storage))"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_contract(IRegistry)37428": {
+        "encoding": "inplace",
+        "label": "contract IRegistry",
+        "numberOfBytes": "20"
+      },
+      "t_mapping(t_contract(IRegistry)37428,t_mapping(t_uint256,t_struct(Entry)37445_storage))": {
+        "encoding": "mapping",
+        "key": "t_contract(IRegistry)37428",
+        "label": "mapping(contract IRegistry => mapping(uint256 => struct IRegistryDatastore.Entry))",
+        "numberOfBytes": "32",
+        "value": "t_mapping(t_uint256,t_struct(Entry)37445_storage)"
+      },
+      "t_mapping(t_uint256,t_struct(Entry)37445_storage)": {
+        "encoding": "mapping",
+        "key": "t_uint256",
+        "label": "mapping(uint256 => struct IRegistryDatastore.Entry)",
+        "numberOfBytes": "32",
+        "value": "t_struct(Entry)37445_storage"
+      },
+      "t_struct(Entry)37445_storage": {
+        "encoding": "inplace",
+        "label": "struct IRegistryDatastore.Entry",
+        "members": [
+          {
+            "astId": 37435,
+            "contract": "project/src/registry/RegistryDatastore.sol:RegistryDatastore",
+            "label": "expiry",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_uint64"
+          },
+          {
+            "astId": 37437,
+            "contract": "project/src/registry/RegistryDatastore.sol:RegistryDatastore",
+            "label": "tokenVersionId",
+            "offset": 8,
+            "slot": "0",
+            "type": "t_uint32"
+          },
+          {
+            "astId": 37440,
+            "contract": "project/src/registry/RegistryDatastore.sol:RegistryDatastore",
+            "label": "subregistry",
+            "offset": 12,
+            "slot": "0",
+            "type": "t_contract(IRegistry)37428"
+          },
+          {
+            "astId": 37442,
+            "contract": "project/src/registry/RegistryDatastore.sol:RegistryDatastore",
+            "label": "eacVersionId",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_uint32"
+          },
+          {
+            "astId": 37444,
+            "contract": "project/src/registry/RegistryDatastore.sol:RegistryDatastore",
+            "label": "resolver",
+            "offset": 4,
+            "slot": "1",
+            "type": "t_address"
+          }
+        ],
+        "numberOfBytes": "64"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      },
+      "t_uint32": {
+        "encoding": "inplace",
+        "label": "uint32",
+        "numberOfBytes": "4"
+      },
+      "t_uint64": {
+        "encoding": "inplace",
+        "label": "uint64",
+        "numberOfBytes": "8"
+      }
+    }
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  },
+  "argsData": "0x",
+  "transaction": {
+    "hash": "0x6c900f8faa916d05a85943c55a8ef31d4d63aafe1a5677cc303fc088583fa8fe",
+    "nonce": "0x7",
+    "origin": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+  },
+  "receipt": {
+    "blockHash": "0x509cbd7a10ce5053fcfd49d8b6449873b6034f4cbb056145c21a290b0499c05f",
+    "blockNumber": "0x8",
+    "transactionIndex": "0x0"
+  }
+}

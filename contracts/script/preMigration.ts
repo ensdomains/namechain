@@ -2,16 +2,18 @@
 
 import { Command } from "commander";
 import { createReadStream, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
-  createPublicClient,
   createWalletClient,
+  defineChain,
   getContract,
   http,
   keccak256,
   publicActions,
   toHex,
   zeroAddress,
-  type Address
+  type Address,
+  type Chain
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
@@ -29,7 +31,28 @@ import {
   yellow,
 } from "./logger.js";
 
-// ABI fragments for contracts
+// Load ABI from forge compilation artifacts
+function loadArtifact(contractName: string): { abi: any[] } {
+  const artifactPath = join(
+    import.meta.dirname,
+    `../out/${contractName}.sol/${contractName}.json`
+  );
+  const artifact = JSON.parse(readFileSync(artifactPath, "utf-8"));
+  return { abi: artifact.abi };
+}
+
+// ABI fragments for v1 BaseRegistrar
+const BASE_REGISTRAR_ABI = [
+  {
+    inputs: [{ internalType: "uint256", name: "id", type: "uint256" }],
+    name: "nameExpires",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+// Minimal ABI for PermissionedRegistry read operations
 const PERMISSIONED_REGISTRY_ABI = [
   {
     inputs: [{ name: "label", type: "string" }],
@@ -58,57 +81,7 @@ const PERMISSIONED_REGISTRY_ABI = [
     stateMutability: "view",
     type: "function",
   },
-  {
-    inputs: [
-      { name: "roleBitmap", type: "uint256" },
-      { name: "account", type: "address" },
-    ],
-    name: "hasRootRoles",
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      { name: "roleBitmap", type: "uint256" },
-      { name: "account", type: "address" },
-    ],
-    name: "grantRootRoles",
-    outputs: [{ name: "", type: "bool" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
 ] as const;
-
-const BATCH_REGISTRAR_ABI = [
-  {
-    inputs: [{ name: "ethRegistry_", type: "address" }],
-    stateMutability: "nonpayable",
-    type: "constructor",
-  },
-  {
-    inputs: [
-      {
-        name: "names",
-        type: "tuple[]",
-        components: [
-          { name: "label", type: "string" },
-          { name: "owner", type: "address" },
-          { name: "registry", type: "address" },
-          { name: "resolver", type: "address" },
-          { name: "roleBitmap", type: "uint256" },
-          { name: "expires", type: "uint64" },
-        ],
-      },
-    ],
-    name: "batchRegister",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
-
-const BATCH_REGISTRAR_BYTECODE = "0x60a060405234801561000f575f80fd5b506040516106ac3803806106ac83398101604081905261002e91610040565b6001600160a01b031660805261006d565b5f60208284031215610050575f80fd5b81516001600160a01b0381168114610066575f80fd5b9392505050565b60805161061b6100915f395f8181609a01528181610174015261027a015261061b5ff3fe608060405234801561000f575f80fd5b5060043610610034575f3560e01c80632b4b5a9714610038578063c6c2d1111461004d575b5f80fd5b61004b6100463660046103d1565b610098565b005b6100757f000000000000000000000000000000000000000000000000000000000000000081565b6040516001600160a01b0390911681526020015b60405180910390f35b7f00000000000000000000000000000000000000000000000000000000000000005f5b82811015610261575f8484838181106100d6576100d66104b7565b90506020028101906100e891906104cb565b6100f6906020810190610510565b604051610104929190610559565b604051809103902090505f7f00000000000000000000000000000000000000000000000000000000000000006001600160a01b03166382c414a88888878181106101505761015061057e565b905060200281019061016291906104cb565b610170906020810190610510565b7f00000000000000000000000000000000000000000000000000000000000000006040518463ffffffff1660e01b81526004016101af939291906105d7565b60c060405180830381865afa1580156101ca573d5f803e3d5ffd5b505050506040513d601f19601f820116820180604052508101906101ee919061069e565b509050805f015167ffffffffffffffff16158061021857508051428167ffffffffffffffff16115b1561024f576040516325c6d4a960e21b815260048101849052670de0b6b3a76400006024820152604401604051809103905ffd5b508061025a816106c2565b91506100bb565b50505050565b634e487b7160e01b5f52604160045260245ffd5b604051601f8201601f1916810167ffffffffffffffff811182821017156102a4576102a4610267565b604052919050565b5f67ffffffffffffffff8211156102c5576102c5610267565b50601f01601f191660200190565b5f82601f8301126102e2575f80fd5b81356102f56102f0826102ac565b61027b565b818152846020838601011115610309575f80fd5b816020850160208301375f918101602001919091529392505050565b6001600160a01b0381168114610339575f80fd5b50565b803561034781610325565b919050565b803567ffffffffffffffff81168114610347575f80fd5b5f60c08284031215610373575f80fd5b60405160c0810181811067ffffffffffffffff8211171561039657610396610267565b80604052508091508235815260208301356103b081610325565b602082015260408301356103c381610325565b6040820152606083013560608201526080830135608082015260a083013560a082015250919050565b5f805f606084860312156103fe575f80fd5b833567ffffffffffffffff80821115610415575f80fd5b818601915086601f830112610428575f80fd5b813560208282111561043c5761043c610267565b8160051b61044b82820161027b565b928352848101820192828101908b851115610464575f80fd5b83870192505b8483101561048d57823582811115610480575f80fd5b61048e8d86838b01016102d3565b835250918301919083019061046a565b98506104b6915050879050818a0161033c565b9550505b5050506104c78560408601610363565b90509250925092565b5f8235609e198336030181126104e4575f80fd5b9190910192915050565b5f67ffffffffffffffff82111561050757610507610267565b50601f01601f191660200190565b5f8083357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe1843603018112610548575f80fd5b83018035915067ffffffffffffffff821115610562575f80fd5b60200191503681900382131561057657815f80fd5b9250929050565b634e487b7160e01b5f52603260045260245ffd5b5f81518084528060208401602086015e5f602082860101526020601f19601f83011685010191505092915050565b602081525f6105d26020830184610591565b9392505050565b5f60c082018583526020858185015260c06040850152818554808452858301915060e0860186525f86815283812090915b828110156106285781548452600191820191850161060a565b50508293506060860192909252506080840152915060a0830152509392505050565b5f6106586102f0846102ac565b905082815283838301111561066b575f80fd5b828260208301375f602084830101529392505050565b5f82601f830112610690575f80fd5b6105d28383516020850161064a565b5f602082840312156106ae575f80fd5b81516105d281610325565b634e487b7160e01b5f52601160045260245ffd5b5f600182016106d9576106d96106b9565b506001019056fea26469706673582212207d42a9c7c4b84c9e1b5b8c8f0e5d6a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f64736f6c634300081c0033" as `0x${string}`;
 
 // Custom Errors
 export class UnexpectedOwnerError extends Error {
@@ -149,8 +122,9 @@ export interface BatchRegistrarName {
 export interface PreMigrationConfig {
   rpcUrl: string;
   mainnetRpcUrl: string;
-  mainnetBaseRegistrarAddress?: Address;
+  chainId: number;
   registryAddress: Address;
+  batchRegistrarAddress: Address;
   preMigrationControllerAddress: Address;
   privateKey: `0x${string}`;
   csvFilePath: string;
@@ -161,7 +135,6 @@ export interface PreMigrationConfig {
   roleBitmap: bigint;
   continue?: boolean;
   disableCheckpoint?: boolean;
-  batchRegistrarAddress?: Address;
   minExpiryDays: number;
 }
 
@@ -175,7 +148,6 @@ export interface Checkpoint {
   skippedCount: number;
   invalidLabelCount: number;
   timestamp: string;
-  batchRegistrarAddress?: Address;
 }
 
 // Constants
@@ -190,15 +162,6 @@ const RPC_TIMEOUT_MS = 30000;
 // ENS v1 BaseRegistrar on Ethereum mainnet
 const BASE_REGISTRAR_ADDRESS = "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85" as Address;
 const PRE_MIGRATION_RESOLVER = "0x0000000000000000000000000000000000000001" as Address;
-const BASE_REGISTRAR_ABI = [
-  {
-    inputs: [{ internalType: "uint256", name: "id", type: "uint256" }],
-    name: "nameExpires",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
 
 export function createFreshCheckpoint(): Checkpoint {
   return {
@@ -317,24 +280,24 @@ class PreMigrationLogger extends Logger {
     );
   }
 
-  verifyingMainnet(name: string): void {
+  verifyingV1(name: string): void {
     this.raw(
-      dim(`  → Checking mainnet status for ${name}.eth...`),
-      `  → Checking mainnet status for ${name}.eth...`
+      dim(`  → Checking v1 status for ${name}.eth...`),
+      `  → Checking v1 status for ${name}.eth...`
     );
   }
 
-  mainnetVerified(name: string, expiry: string): void {
+  v1Verified(name: string, expiry: string): void {
     this.raw(
-      green(`  → ✓ Verified on mainnet`) + dim(` (expires: ${expiry})`),
-      `  → ✓ Verified on mainnet (expires: ${expiry})`
+      green(`  → ✓ Verified on v1`) + dim(` (expires: ${expiry})`),
+      `  → ✓ Verified on v1 (expires: ${expiry})`
     );
   }
 
-  mainnetNotRegistered(name: string, reason: string): void {
+  v1NotRegistered(name: string, reason: string): void {
     this.raw(
-      yellow(`  → ⊘ Not registered on mainnet: ${reason}`),
-      `  → ⊘ Not registered on mainnet: ${reason}`
+      yellow(`  → ⊘ Not registered on v1: ${reason}`),
+      `  → ⊘ Not registered on v1: ${reason}`
     );
   }
 
@@ -378,24 +341,24 @@ export function saveCheckpoint(checkpoint: Checkpoint): void {
   }
 }
 
-// Mainnet verification
-interface MainnetVerificationResult {
+// v1 verification
+interface V1VerificationResult {
   isRegistered: boolean;
   expiry: bigint;
 }
 
-export async function verifyNameOnMainnet(
+export async function verifyNameOnV1(
   labelName: string,
-  mainnetClient: any,
+  client: any,
   baseRegistrarAddress: Address = BASE_REGISTRAR_ADDRESS
-): Promise<MainnetVerificationResult> {
+): Promise<V1VerificationResult> {
   if (!labelName || typeof labelName !== 'string' || labelName.trim() === '') {
     throw new InvalidLabelNameError(labelName);
   }
 
   const tokenId = keccak256(toHex(labelName));
 
-  const expiry = await mainnetClient.readContract({
+  const expiry = await client.readContract({
     address: baseRegistrarAddress,
     abi: BASE_REGISTRAR_ABI,
     functionName: "nameExpires",
@@ -408,56 +371,12 @@ export async function verifyNameOnMainnet(
   return { isRegistered, expiry };
 }
 
-export async function deployBatchRegistrar(
-  client: any,
-  registryAddress: Address,
-  checkpointAddress?: Address
-): Promise<{ contract: any; address: Address }> {
-  // Check if we can reuse a previously deployed BatchRegistrar from checkpoint
-  if (checkpointAddress) {
-    const existingCode = await client.getCode({ address: checkpointAddress });
-    if (existingCode && existingCode !== "0x") {
-      logger.success(`Reusing BatchRegistrar from checkpoint at ${checkpointAddress}`);
-      return {
-        contract: getContract({
-          address: checkpointAddress,
-          abi: BATCH_REGISTRAR_ABI,
-          client,
-        }),
-        address: checkpointAddress,
-      };
-    } else {
-      logger.warning(`Checkpoint address ${checkpointAddress} has no code, deploying new instance`);
-    }
-  }
-
-  logger.info("Deploying BatchRegistrar...");
-
-  const hash = await client.deployContract({
-    abi: BATCH_REGISTRAR_ABI,
-    bytecode: BATCH_REGISTRAR_BYTECODE,
-    args: [registryAddress],
-  });
-
-  const receipt = await waitForSuccessfulTransactionReceipt(client, { hash, ensureDeployment: true });
-  const deployedAddress = receipt.contractAddress;
-
-  logger.success(`BatchRegistrar deployed at ${deployedAddress}`);
-
-  // Verify deployment
-  const code = await client.getCode({ address: deployedAddress });
+async function validateBatchRegistrar(client: any, address: Address): Promise<void> {
+  const code = await client.getCode({ address });
   if (!code || code === "0x") {
-    throw new Error(`BatchRegistrar deployment failed - no code at ${deployedAddress}`);
+    throw new Error(`No contract deployed at BatchRegistrar address: ${address}`);
   }
-
-  return {
-    contract: getContract({
-      address: deployedAddress,
-      abi: BATCH_REGISTRAR_ABI,
-      client,
-    }),
-    address: deployedAddress,
-  };
+  logger.success(`Using BatchRegistrar at ${address}`);
 }
 
 async function* readCSVInBatches(
@@ -495,8 +414,8 @@ async function* readCSVInBatches(
     }
 
     const parts = parseCSVLine(line);
-    if (parts.length >= 2) {
-      const labelName = parts[1].trim();
+    if (parts.length >= 7) {
+      const labelName = parts[6].trim();
       if (labelName && labelName !== '') {
         batch.push({ labelName, lineNumber });
         processedCount++;
@@ -560,9 +479,26 @@ async function fetchAndRegisterInBatches(
     checkpoint = createFreshCheckpoint();
   }
 
+  // Get chain for v2 operations (mainnet or custom chain)
+  const v2Chain: Chain = config.chainId === 1 ? mainnet : defineChain({
+    id: config.chainId,
+    name: "Custom",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: [config.rpcUrl] } },
+  });
+
+  // Client for v2 operations (can be devnet or mainnet)
   const client = createWalletClient({
     account: privateKeyToAccount(config.privateKey),
+    chain: v2Chain,
     transport: http(config.rpcUrl, { retryCount: 0, timeout: RPC_TIMEOUT_MS }),
+  }).extend(publicActions);
+
+  // Separate client for mainnet v1 verification
+  const mainnetClient = createWalletClient({
+    account: privateKeyToAccount(config.privateKey),
+    chain: mainnet,
+    transport: http(config.mainnetRpcUrl, { retryCount: 0, timeout: RPC_TIMEOUT_MS }),
   }).extend(publicActions);
 
   const registry = getContract({
@@ -571,36 +507,16 @@ async function fetchAndRegisterInBatches(
     client,
   });
 
-  const mainnetClient = createPublicClient({
-    chain: mainnet,
-    transport: http(config.mainnetRpcUrl, { retryCount: 3, timeout: RPC_TIMEOUT_MS }),
-  });
+  // Validate BatchRegistrar is deployed
+  await validateBatchRegistrar(client, config.batchRegistrarAddress);
 
-  const { contract: batchRegistrar, address: batchRegistrarAddress } = await deployBatchRegistrar(
+  // Load BatchRegistrar ABI from artifacts
+  const batchRegistrarArtifact = loadArtifact("BatchRegistrar");
+  const batchRegistrar = getContract({
+    address: config.batchRegistrarAddress,
+    abi: batchRegistrarArtifact.abi,
     client,
-    config.registryAddress,
-    checkpoint.batchRegistrarAddress
-  );
-
-  checkpoint.batchRegistrarAddress = batchRegistrarAddress;
-
-  const requiredRoles = ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW;
-  const hasRole = await registry.read.hasRootRoles([
-    requiredRoles,
-    batchRegistrarAddress,
-  ]);
-
-  if (!hasRole) {
-    logger.info("Granting REGISTRAR and RENEW roles to BatchRegistrar...");
-    const hash = await (registry.write.grantRootRoles as any)([
-      requiredRoles,
-      batchRegistrarAddress,
-    ]);
-    await waitForSuccessfulTransactionReceipt(client, { hash });
-    logger.success("REGISTRAR and RENEW roles granted to BatchRegistrar");
-  } else {
-    logger.info("BatchRegistrar already has REGISTRAR and RENEW roles");
-  }
+  });
 
   logger.info(`\nReading CSV file and registering in batches of ${config.batchSize}...`);
   logger.info(`CSV file: ${config.csvFilePath}`);
@@ -647,9 +563,9 @@ async function fetchAndRegisterInBatches(
           config,
           validBatch,
           client,
+          mainnetClient,
           registry,
           batchRegistrar,
-          mainnetClient,
           checkpoint
         );
       }
@@ -678,9 +594,9 @@ async function processBatch(
   config: PreMigrationConfig,
   registrations: ENSRegistration[],
   client: any,
+  mainnetClient: any,
   registry: any,
   batchRegistrar: any,
-  mainnetClient: any,
   checkpoint: Checkpoint
 ): Promise<Checkpoint> {
   const batchNames: BatchRegistrarName[] = [];
@@ -714,36 +630,35 @@ async function processBatch(
           }
         }
       } catch {
-        // Name not found - proceed with mainnet verification
+        // Name not found - proceed with v1 verification
       }
 
-      logger.verifyingMainnet(registration.labelName);
-      const mainnetResult = await verifyNameOnMainnet(
+      logger.verifyingV1(registration.labelName);
+      const v1Result = await verifyNameOnV1(
         registration.labelName,
-        mainnetClient,
-        config.mainnetBaseRegistrarAddress
+        mainnetClient
       );
 
-      if (!mainnetResult.isRegistered) {
-        const reason = mainnetResult.expiry === 0n
+      if (!v1Result.isRegistered) {
+        const reason = v1Result.expiry === 0n
           ? "never registered or fully expired"
           : "expired";
-        logger.mainnetNotRegistered(registration.labelName, reason);
+        logger.v1NotRegistered(registration.labelName, reason);
         checkpoint.skippedCount++;
         logger.finishedName(registration.labelName, 'skipped');
         continue;
       }
 
-      if (mainnetResult.expiry <= minExpiryThreshold) {
-        const daysUntilExpiry = Number((mainnetResult.expiry - BigInt(Math.floor(Date.now() / 1000))) / 86400n);
+      if (v1Result.expiry <= minExpiryThreshold) {
+        const daysUntilExpiry = Number((v1Result.expiry - BigInt(Math.floor(Date.now() / 1000))) / 86400n);
         logger.skippingExpiringSoon(registration.labelName, daysUntilExpiry);
         checkpoint.skippedCount++;
         logger.finishedName(registration.labelName, 'skipped');
         continue;
       }
 
-      const expiryDateFormatted = new Date(Number(mainnetResult.expiry) * 1000).toISOString().split('T')[0];
-      logger.mainnetVerified(registration.labelName, expiryDateFormatted);
+      const expiryDateFormatted = new Date(Number(v1Result.expiry) * 1000).toISOString().split('T')[0];
+      logger.v1Verified(registration.labelName, expiryDateFormatted);
 
       batchNames.push({
         label: registration.labelName,
@@ -751,7 +666,7 @@ async function processBatch(
         registry: zeroAddress,
         resolver: PRE_MIGRATION_RESOLVER,
         roleBitmap: config.roleBitmap,
-        expires: mainnetResult.expiry,
+        expires: v1Result.expiry,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -861,11 +776,31 @@ export async function batchRegisterNames(
   config: PreMigrationConfig,
   registrations: ENSRegistration[],
   providedClient?: any,
-  providedRegistry?: any
+  providedRegistry?: any,
+  providedMainnetClient?: any
 ): Promise<void> {
+  // Get chain for v2 operations (mainnet or custom chain)
+  const v2Chain: Chain = config.chainId === 1 ? mainnet : defineChain({
+    id: config.chainId,
+    name: "Custom",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: [config.rpcUrl] } },
+  });
+
   const client = providedClient || createWalletClient({
     account: privateKeyToAccount(config.privateKey),
+    chain: v2Chain,
     transport: http(config.rpcUrl, {
+      retryCount: 0,
+      timeout: RPC_TIMEOUT_MS,
+    }),
+  }).extend(publicActions);
+
+  // Mainnet client for v1 verification
+  const mainnetClient = providedMainnetClient || createWalletClient({
+    account: privateKeyToAccount(config.privateKey),
+    chain: mainnet,
+    transport: http(config.mainnetRpcUrl, {
       retryCount: 0,
       timeout: RPC_TIMEOUT_MS,
     }),
@@ -877,33 +812,16 @@ export async function batchRegisterNames(
     client,
   });
 
-  const mainnetClient = createPublicClient({
-    chain: mainnet,
-    transport: http(config.mainnetRpcUrl, {
-      retryCount: 3,
-      timeout: RPC_TIMEOUT_MS,
-    }),
-  });
+  // Validate BatchRegistrar is deployed
+  await validateBatchRegistrar(client, config.batchRegistrarAddress);
 
-  const { contract: batchRegistrar, address: batchRegistrarAddress } = await deployBatchRegistrar(
+  // Load BatchRegistrar ABI from artifacts
+  const batchRegistrarArtifact = loadArtifact("BatchRegistrar");
+  const batchRegistrar = getContract({
+    address: config.batchRegistrarAddress,
+    abi: batchRegistrarArtifact.abi,
     client,
-    config.registryAddress,
-    config.batchRegistrarAddress
-  );
-
-  const requiredRoles = ROLES.OWNER.EAC.REGISTRAR | ROLES.OWNER.EAC.RENEW;
-  const hasRole = await registry.read.hasRootRoles([
-    requiredRoles,
-    batchRegistrarAddress,
-  ]);
-
-  if (!hasRole) {
-    const hash = await (registry.write.grantRootRoles as any)([
-      requiredRoles,
-      batchRegistrarAddress,
-    ]);
-    await waitForSuccessfulTransactionReceipt(client, { hash });
-  }
+  });
 
   let checkpoint: Checkpoint;
   if (config.disableCheckpoint) {
@@ -932,9 +850,9 @@ export async function batchRegisterNames(
     config,
     registrations,
     client,
+    mainnetClient,
     registry,
     batchRegistrar,
-    mainnetClient,
     checkpoint
   );
 
@@ -944,13 +862,15 @@ export async function batchRegisterNames(
 export async function main(argv = process.argv): Promise<void> {
   const program = new Command()
     .name("premigrate")
-    .description("Pre-migrate ENS .eth 2LDs from Mainnet to v2. By default starts fresh. Use --continue to resume from checkpoint.")
-    .requiredOption("--v2-rpc-url <url>", "V2 RPC endpoint")
-    .option("--mainnet-rpc-url <url>", "Mainnet RPC endpoint for verification", "https://mainnet.gateway.tenderly.co/")
-    .requiredOption("--v2-registry <address>", "ETH Registry contract address")
+    .description("Pre-migrate ENS .eth 2LDs from v1 to v2 on Ethereum mainnet. By default starts fresh. Use --continue to resume from checkpoint.")
+    .requiredOption("--rpc-url <url>", "Ethereum mainnet RPC endpoint")
+    .requiredOption("--registry <address>", "v2 ETH Registry contract address")
+    .requiredOption("--batch-registrar <address>", "Pre-deployed BatchRegistrar contract address")
     .requiredOption("--pre-migration-controller <address>", "PreMigrationController address")
-    .requiredOption("--private-key <key>", "Deployer private key (has REGISTRAR role)")
+    .requiredOption("--private-key <key>", "Deployer private key")
     .requiredOption("--csv-file <path>", "Path to CSV file containing ENS registrations")
+    .option("--mainnet-rpc-url <url>", "Mainnet RPC endpoint for v1 verification (default: public endpoint)", "https://eth.drpc.org")
+    .option("--chain-id <number>", "Chain ID for v2 RPC (default: 1 for mainnet)", "1")
     .option("--batch-size <number>", "Number of names to process per batch", "50")
     .option("--start-index <number>", "Starting index for resuming partial migrations", "0")
     .option("--limit <number>", "Maximum total number of names to process and register")
@@ -963,9 +883,11 @@ export async function main(argv = process.argv): Promise<void> {
   const opts = program.opts();
 
   const config: PreMigrationConfig = {
-    rpcUrl: opts.v2RpcUrl,
+    rpcUrl: opts.rpcUrl,
     mainnetRpcUrl: opts.mainnetRpcUrl,
-    registryAddress: opts.v2Registry as Address,
+    chainId: parseInt(opts.chainId) || 1,
+    registryAddress: opts.registry as Address,
+    batchRegistrarAddress: opts.batchRegistrar as Address,
     preMigrationControllerAddress: opts.preMigrationController as Address,
     privateKey: opts.privateKey as `0x${string}`,
     csvFilePath: opts.csvFile,
@@ -983,10 +905,12 @@ export async function main(argv = process.argv): Promise<void> {
     logger.divider();
 
     logger.info(`Configuration:`);
-    logger.config('V2 RPC URL', config.rpcUrl);
-    logger.config('Mainnet RPC URL', config.mainnetRpcUrl);
+    logger.config('RPC URL', config.rpcUrl);
+    logger.config('Chain ID', config.chainId);
     logger.config('Registry', config.registryAddress);
+    logger.config('BatchRegistrar', config.batchRegistrarAddress);
     logger.config('PreMigrationController', config.preMigrationControllerAddress);
+    logger.config('Mainnet RPC (v1)', config.mainnetRpcUrl);
     logger.config('CSV File', config.csvFilePath);
     logger.config('Batch Size', config.batchSize);
     logger.config('Min Expiry Days', config.minExpiryDays);
