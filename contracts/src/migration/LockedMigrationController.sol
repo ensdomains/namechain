@@ -141,7 +141,7 @@ contract LockedMigrationController is IERC1155Receiver, ERC165 {
                 revert TokenIdMismatch(tokenIds[i], uint256(labelHash));
             }
 
-            // Register the name in the ETH registry
+            // Register the name directly with fuse-derived roles
             string memory label = NameCoder.firstLabel(
                 migrationDataArray[i].transferData.dnsEncodedName
             );

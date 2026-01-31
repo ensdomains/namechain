@@ -11,6 +11,7 @@ import {UnauthorizedCaller} from "../CommonErrors.sol";
 import {IPermissionedRegistry} from "../registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../registry/interfaces/IRegistry.sol";
 
+import {IPreMigrationController} from "./interfaces/IPreMigrationController.sol";
 import {MigrationData} from "./types/MigrationTypes.sol";
 
 /**
@@ -26,6 +27,8 @@ contract UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC16
 
     IPermissionedRegistry public immutable ETH_REGISTRY;
 
+    IPreMigrationController public immutable PRE_MIGRATION_CONTROLLER;
+
     ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
@@ -38,9 +41,14 @@ contract UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC16
     // Initialization
     ////////////////////////////////////////////////////////////////////////
 
-    constructor(INameWrapper nameWrapper, IPermissionedRegistry ethRegistry) {
+    constructor(
+        INameWrapper nameWrapper,
+        IPermissionedRegistry ethRegistry,
+        IPreMigrationController preMigrationController
+    ) {
         NAME_WRAPPER = nameWrapper;
         ETH_REGISTRY = ethRegistry;
+        PRE_MIGRATION_CONTROLLER = preMigrationController;
     }
 
     /**
@@ -172,15 +180,14 @@ contract UnlockedMigrationController is IERC1155Receiver, IERC721Receiver, ERC16
             revert TokenIdMismatch(tokenId, uint256(labelHash));
         }
 
-        // Register the name in the ETH registry
+        // Claim the pre-migrated name from the PreMigrationController
         string memory label = NameCoder.firstLabel(migrationData.transferData.dnsEncodedName);
-        ETH_REGISTRY.register(
+        PRE_MIGRATION_CONTROLLER.claim(
             label,
             migrationData.transferData.owner,
             IRegistry(migrationData.transferData.subregistry),
             migrationData.transferData.resolver,
-            migrationData.transferData.roleBitmap,
-            migrationData.transferData.expires
+            migrationData.transferData.roleBitmap
         );
     }
 }
