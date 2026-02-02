@@ -1162,6 +1162,9 @@ export async function testNames(env: CrossChainEnvironment) {
   // Bridge bridge.eth from L2 to L1
   await bridgeName(env, "bridge.eth");
 
+  // Sync L2 state before reading via CCIP in showName
+  await env.sync();
+
   await showName(env, allNames);
 
   // Display gas report at the end
