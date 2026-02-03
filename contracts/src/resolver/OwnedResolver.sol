@@ -75,7 +75,7 @@ contract OwnedResolver {
             matchName = A[NameCoder.namehash(fromName, offset)];
             if (matchName.length > 0) {
                 if (offset > 0) {
-                    // rewrite prefix: [x.y].{fromName[:offset]} => [x.y].{matchName}
+                    // rewrite prefix: [x.y].{fromName[offset:]} => [x.y].{matchName}
                     toName = new bytes(offset + matchName.length);
                     assembly {
                         mcopy(add(toName, 32), add(fromName, 32), offset) // copy prefix
