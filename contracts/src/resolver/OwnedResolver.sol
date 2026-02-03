@@ -30,6 +30,7 @@ contract OwnedResolver {
     ////////////////////////////////////////////////////////////////////////
 
     /// @notice Create an alias from `fromName` to `toName`.
+    ///
     /// @param fromName The source DNS-encoded name.
     /// @param toName The destination DNS-encoded name.
     function setAlias(bytes calldata fromName, bytes calldata toName) external {
@@ -38,7 +39,9 @@ contract OwnedResolver {
     }
 
     /// @notice Determine which name is queried when `fromName` is resolved.
+    ///
     /// @param fromName The source DNS-encoded name.
+    ///
     /// @return toName The destination DNS-encoded name or empty if not aliased.
     function getAlias(bytes memory fromName) public view returns (bytes memory toName) {
         bytes32 prev;
@@ -57,40 +60,33 @@ contract OwnedResolver {
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
 
-    /// @dev Apply one round of aliasing.
+    /// @dev Apply one round of longest match aliasing.
+    ///
     /// @param fromName The source DNS-encoded name.
+    ///
     /// @return matchName The alias that matched.
     /// @return toName The destination DNS-encoded name or empty if no match.
     function _resolveAlias(
         bytes memory fromName
     ) internal view returns (bytes memory matchName, bytes memory toName) {
+        mapping(bytes32 => bytes) storage A = _storage().aliases;
         uint256 offset;
-        (matchName, offset, ) = _findAlias(fromName, 0);
-        if (offset > 0) {
-            toName = new bytes(offset + matchName.length);
-            assembly {
-                mcopy(add(toName, 32), add(fromName, 32), offset) // copy prefix
-                mcopy(add(toName, add(32, offset)), add(matchName, 32), mload(matchName)) // copy suffix
+        while (offset < fromName.length) {
+            matchName = A[NameCoder.namehash(fromName, offset)];
+            if (matchName.length > 0) {
+                if (offset > 0) {
+                    // rewrite prefix: [x.y].{matchName} => [x.y].{toName}
+                    toName = new bytes(offset + matchName.length);
+                    assembly {
+                        mcopy(add(toName, 32), add(fromName, 32), offset) // copy prefix
+                        mcopy(add(toName, add(32, offset)), add(matchName, 32), mload(matchName)) // copy suffix
+                    }
+                } else {
+                    toName = matchName;
+                }
+                break;
             }
-        } else {
-            toName = matchName;
-        }
-    }
-
-    /// @dev Recursive algorithm for efficient alias matching.
-    function _findAlias(
-        bytes memory fromName,
-        uint256 offset
-    ) internal view returns (bytes memory matchName, uint256 matchedOffset, bytes32 node) {
-        if (offset + 1 != fromName.length) {
-            (bytes32 labelhash, uint256 next) = NameCoder.readLabel(fromName, offset);
-            (matchName, matchedOffset, node) = _findAlias(fromName, next);
-            node = NameCoder.namehash(node, labelhash);
-        }
-        bytes memory v = _storage().aliases[node];
-        if (v.length > 0) {
-            matchName = v; // suffix
-            matchedOffset = offset; // prefix
+            (, offset) = NameCoder.nextLabel(fromName, offset);
         }
     }
 
