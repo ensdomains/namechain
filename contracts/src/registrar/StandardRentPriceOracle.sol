@@ -241,10 +241,12 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
     ///
     /// @return The base rate or 0 if not valid, in base units.
     function baseRate(string memory label) public view returns (uint256) {
+        uint256 len = bytes(label).length;
+        if (len == 0 || len > 255) return 0; // too long or too short
+        uint256 nbr = _baseRatePerCp.length;
+        if (nbr == 0) return 0; // no base rates
         uint256 ncp = StringUtils.strlen(label);
-        uint256 len = _baseRatePerCp.length;
-        if (ncp == 0 || len == 0) return 0;
-        return _baseRatePerCp[(ncp > len ? len : ncp) - 1];
+        return _baseRatePerCp[(ncp > nbr ? nbr : ncp) - 1];
     }
 
     /// @notice Compute integral of discount function for `duration`.

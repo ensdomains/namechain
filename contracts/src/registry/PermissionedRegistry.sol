@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
@@ -253,6 +254,7 @@ contract PermissionedRegistry is
         uint256 roleBitmap,
         uint64 expires
     ) internal virtual returns (uint256 tokenId) {
+        NameCoder.assertLabelSize(label);
         tokenId = LibLabel.labelToCanonicalId(label);
         IRegistryDatastore.Entry memory entry = getEntry(tokenId);
         if (!_isExpired(entry.expiry)) {

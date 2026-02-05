@@ -186,8 +186,11 @@ contract StandardRentPriceOracleTest is Test, ERC1155Holder {
     function test_rentPrice_5() external {
         _testRentPrice(5, StandardPricing.RATE_5CP);
     }
-    function test_rentPrice_long() external {
+    function test_rentPrice_255() external {
         _testRentPrice(255, StandardPricing.RATE_5CP);
+    }
+    function test_rentPrice_256() external {
+        _testRentPrice(256, 0);
     }
 
     function test_rentPrice_paymentTokenNotSupported() external {

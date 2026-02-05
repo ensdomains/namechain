@@ -3,9 +3,9 @@ pragma solidity >=0.8.13;
 
 // solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
 
-import {Test} from "forge-std/Test.sol";
-import {Vm} from "forge-std/Vm.sol";
+import {Vm, Test} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
@@ -365,6 +365,17 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
                 user1
             )
         );
+    }
+
+    function test_Revert_register_tooShort() external {
+        vm.expectRevert(abi.encodeWithSelector(NameCoder.LabelIsEmpty.selector));
+        registry.register("", user1, registry, address(0), DEFAULT_ROLE_BITMAP, _after(86400));
+    }
+
+    function test_Revert_register_tooLong() external {
+        string memory label = new string(256);
+        vm.expectRevert(abi.encodeWithSelector(NameCoder.LabelIsTooLong.selector, label));
+        registry.register(label, user1, registry, address(0), DEFAULT_ROLE_BITMAP, _after(86400));
     }
 
     function test_Revert_cannot_mint_duplicates() public {
@@ -1298,8 +1309,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
 
         // Query for multiple roles where only SET_RESOLVER has assignees
-        uint256 queryBitmap = RegistryRolesLib.ROLE_SET_RESOLVER |
-            RegistryRolesLib.ROLE_RENEW;
+        uint256 queryBitmap = RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_RENEW;
         (uint256 counts, ) = registry.getAssigneeCount(tokenId, queryBitmap);
 
         // Only SET_RESOLVER should have 1 assignee
