@@ -158,6 +158,7 @@ contract OwnedResolver is
     ////////////////////////////////////////////////////////////////////////
 
     /// @notice Initialize the contract.
+    ///
     /// @param admin The resolver owner.
     /// @param roleBitmap The roles granted to `admin`.
     function initialize(address admin, uint256 roleBitmap) external initializer {
@@ -169,6 +170,7 @@ contract OwnedResolver is
     }
 
     /// @notice Clear all records for `node`.
+    ///
     /// @param node The node to update.
     function clearRecords(
         bytes32 node
@@ -178,6 +180,7 @@ contract OwnedResolver is
     }
 
     /// @notice Create an alias from `fromName` to `toName`.
+    ///
     /// @param fromName The source DNS-encoded name.
     /// @param toName The destination DNS-encoded name.
     function setAlias(
@@ -189,6 +192,7 @@ contract OwnedResolver is
     }
 
     /// @notice Set ABI data of the associated ENS node.
+    ///
     /// @param node The node to update.
     /// @param contentType The content type of the ABI.
     /// @param data The ABI data.
@@ -206,6 +210,7 @@ contract OwnedResolver is
 
     /// @notice Set Ethereum mainnet address of the associated ENS node.
     ///         `address(0)` is stored as `new bytes(20)`.
+    ///
     /// @param node The node to update.
     /// @param addr_ The mainnet address.
     function setAddr(bytes32 node, address addr_) external {
@@ -213,6 +218,7 @@ contract OwnedResolver is
     }
 
     /// @notice Set the contenthash of the associated ENS node.
+    ///
     /// @param node The node to update.
     /// @param hash The contenthash to set.
     function setContenthash(
@@ -224,6 +230,7 @@ contract OwnedResolver is
     }
 
     /// @notice Set an interface of the associated ENS node.
+    ///
     /// @param node The node to update.
     /// @param interfaceId The EIP-165 interface ID.
     /// @param implementer The address of the contract that implements this interface for this node.
@@ -237,6 +244,7 @@ contract OwnedResolver is
     }
 
     /// @notice Set the SECP256k1 public key associated with an ENS node.
+    ///
     /// @param node The node to update.
     /// @param x The x coordinate of the public key.
     /// @param y The y coordinate of the public key.
@@ -250,6 +258,7 @@ contract OwnedResolver is
     }
 
     /// @notice Set the name of the associated ENS node.
+    ///
     /// @param node The node to update.
     /// @param primary The primary name.
     function setName(
@@ -261,6 +270,7 @@ contract OwnedResolver is
     }
 
     /// @notice Set the text for `key` of the associated ENS node.
+    ///
     /// @param node The node to update.
     /// @param key The text key.
     /// @param value The text value.
@@ -323,6 +333,7 @@ contract OwnedResolver is
     }
 
     /// @notice Get the current version.
+    ///
     /// @param node The node to check.
     function recordVersions(bytes32 node) external view returns (uint64) {
         return _storage().versions[node];
@@ -402,6 +413,7 @@ contract OwnedResolver is
 
     /// @notice Set the address for `coinType` of the associated ENS node.
     ///         Reverts `InvalidEVMAddress` if coin type is EVM and not 0 or 20 bytes.
+    ///
     /// @param node The node to update.
     /// @param coinType The coin type.
     /// @param addressBytes The encoded address.
@@ -440,7 +452,9 @@ contract OwnedResolver is
     }
 
     /// @notice Determine which name is queried when `fromName` is resolved.
+    ///
     /// @param fromName The source DNS-encoded name.
+    ///
     /// @return toName The destination DNS-encoded name or empty if not aliased.
     function getAlias(bytes memory fromName) public view returns (bytes memory toName) {
         bytes32 prev;
@@ -497,39 +511,32 @@ contract OwnedResolver is
     }
 
     /// @dev Apply one round of aliasing.
+    ///
     /// @param fromName The source DNS-encoded name.
+    ///
     /// @return matchName The alias that matched.
     /// @return toName The destination DNS-encoded name or empty if no match.
     function _resolveAlias(
         bytes memory fromName
     ) internal view returns (bytes memory matchName, bytes memory toName) {
+        mapping(bytes32 => bytes) storage A = _storage().aliases;
         uint256 offset;
-        (matchName, offset, ) = _findAlias(fromName, 0);
-        if (offset > 0) {
-            toName = new bytes(offset + matchName.length);
-            assembly {
-                mcopy(add(toName, 32), add(fromName, 32), offset) // copy prefix
-                mcopy(add(toName, add(32, offset)), add(matchName, 32), mload(matchName)) // copy suffix
+        while (offset < fromName.length) {
+            matchName = A[NameCoder.namehash(fromName, offset)];
+            if (matchName.length > 0) {
+                if (offset > 0) {
+                    // rewrite prefix: [x.y].{fromName[offset:]} => [x.y].{matchName}
+                    toName = new bytes(offset + matchName.length);
+                    assembly {
+                        mcopy(add(toName, 32), add(fromName, 32), offset) // copy prefix
+                        mcopy(add(toName, add(32, offset)), add(matchName, 32), mload(matchName)) // copy suffix
+                    }
+                } else {
+                    toName = matchName;
+                }
+                break;
             }
-        } else {
-            toName = matchName;
-        }
-    }
-
-    /// @dev Recursive algorithm for efficient alias matching.
-    function _findAlias(
-        bytes memory fromName,
-        uint256 offset
-    ) internal view returns (bytes memory matchName, uint256 matchedOffset, bytes32 node) {
-        if (offset + 1 != fromName.length) {
-            (bytes32 labelhash, uint256 next) = NameCoder.readLabel(fromName, offset);
-            (matchName, matchedOffset, node) = _findAlias(fromName, next);
-            node = NameCoder.namehash(node, labelhash);
-        }
-        bytes memory v = _storage().aliases[node];
-        if (v.length > 0) {
-            matchName = v; // suffix
-            matchedOffset = offset; // prefix
+            (, offset) = NameCoder.nextLabel(fromName, offset);
         }
     }
 
