@@ -1,5 +1,5 @@
 import { describe, it } from "bun:test";
-import { type Address, getAddress, zeroAddress } from "viem";
+import { type Address, getAddress, namehash, zeroAddress } from "viem";
 
 import { MAX_EXPIRY } from "../../script/deploy-constants.js";
 import { expectVar } from "../utils/expectVar.js";
@@ -82,10 +82,14 @@ describe("Resolve", () => {
         const { deployer, owner: account } = env.namedAccounts;
 
         // setup addr(default)
-        const resolver = await env.deployment.deployDedicatedResolver({
+        const resolver = await env.deployment.deployOwnedResolver({
           account,
         });
-        await resolver.write.setAddr([COIN_TYPE_ETH, account.address]);
+        await resolver.write.setAddr([
+          namehash(name),
+          COIN_TYPE_ETH,
+          account.address,
+        ]);
         // hack: create name
         await env.deployment.contracts.ETHRegistry.write.register(
           [
@@ -126,10 +130,14 @@ describe("Resolve", () => {
         const { deployer, owner: account } = env.namedAccounts;
 
         // setup addr(default)
-        const resolver = await env.deployment.deployDedicatedResolver({
+        const resolver = await env.deployment.deployOwnedResolver({
           account,
         });
-        await resolver.write.setAddr([COIN_TYPE_DEFAULT, account.address]);
+        await resolver.write.setAddr([
+          namehash(name),
+          COIN_TYPE_DEFAULT,
+          account.address,
+        ]);
         // hack: create name
         await env.deployment.contracts.ETHRegistry.write.register(
           [

@@ -2,12 +2,11 @@ import { artifacts, execute } from "@rocketh";
 
 export default execute(
   async ({ deploy, namedAccounts: { deployer } }) => {
-    await deploy("VerifiableFactory", {
+    await deploy("RegistryDatastore", {
       account: deployer,
-      artifact: artifacts.VerifiableFactory,
+      artifact: artifacts.RegistryDatastore,
+      args: [],
     });
   },
-  {
-    tags: ["VerifiableFactory", "shared"],
-  },
+  { tags: ["RegistryDatastore", "l1"] },
 );

@@ -1,6 +1,9 @@
 import type { NetworkConnection } from "hardhat/types/network";
 import { type Address, getAddress, labelhash, zeroAddress } from "viem";
-import { LOCAL_BATCH_GATEWAY_URL, ROLES } from "../../../script/deploy-constants.js";
+import {
+  LOCAL_BATCH_GATEWAY_URL,
+  ROLES,
+} from "../../../script/deploy-constants.js";
 import { splitName } from "../../utils/utils.js";
 import { deployVerifiableProxy } from "./deployVerifiableProxy.js";
 
@@ -55,8 +58,8 @@ export async function deployV2Fixture(
   ]);
   const verifiableFactory =
     await network.viem.deployContract("VerifiableFactory");
-  const dedicatedResolver = await network.viem.deployContract(
-    "DedicatedResolver",
+  const ownedResolver = await network.viem.deployContract(
+    "src/resolver/OwnedResolver.sol:OwnedResolver",
     [hcaFactory.address],
   );
   return {
@@ -69,10 +72,10 @@ export async function deployV2Fixture(
     ethRegistry,
     batchGatewayProvider,
     universalResolver,
-    deployDedicatedResolver,
+    deployOwnedResolver,
     setupName,
   };
-  async function deployDedicatedResolver({
+  async function deployOwnedResolver({
     owner = walletClient.account.address,
     roles = ROLES.ALL,
     salt = BigInt(labelhash(new Date().toISOString())),
@@ -84,8 +87,8 @@ export async function deployV2Fixture(
     return deployVerifiableProxy({
       walletClient: await network.viem.getWalletClient(owner),
       factoryAddress: verifiableFactory.address,
-      implAddress: dedicatedResolver.address,
-      abi: dedicatedResolver.abi,
+      implAddress: ownedResolver.address,
+      abi: ownedResolver.abi,
       functionName: "initialize",
       args: [walletClient.account.address, roles],
       salt,
@@ -94,10 +97,7 @@ export async function deployV2Fixture(
   // creates registries up to the parent name
   // if exact, exactRegistry is setup
   // if no resolverAddress, dedicatedResolver is deployed
-  async function setupName<
-    exact_ extends boolean = false,
-    resolver_ extends false | Address = false,
-  >({
+  async function setupName<exact_ extends boolean = false>({
     name,
     owner = walletClient.account.address,
     expiry = MAX_EXPIRY,
@@ -110,18 +110,12 @@ export async function deployV2Fixture(
     owner?: Address;
     expiry?: bigint;
     roles?: bigint;
-    resolverAddress?: resolver_ | Address;
+    resolverAddress?: Address;
     metadataAddress?: Address;
     exact?: exact_;
   }) {
     const labels = splitName(name);
     if (!labels.length) throw new Error("expected name");
-    const dedicatedResolver = resolverAddress
-      ? undefined
-      : await deployDedicatedResolver({ owner });
-    if (!resolverAddress) {
-      resolverAddress = dedicatedResolver?.address ?? zeroAddress;
-    }
     const registries = [rootRegistry];
     while (true) {
       const parentRegistry = registries[0];
@@ -168,13 +162,13 @@ export async function deployV2Fixture(
           label,
           owner,
           registryAddress,
-          leaf ? resolverAddress : zeroAddress,
+          (leaf && resolverAddress) || zeroAddress,
           roles,
           expiry,
         ]);
       } else if (leaf) {
         const currentResolver = await parentRegistry.read.getResolver([label]);
-        if (currentResolver !== resolverAddress) {
+        if (resolverAddress && currentResolver !== resolverAddress) {
           // leaf node exists but resolver is different, set it
           await parentRegistry.write.setResolver([tokenId, resolverAddress]);
         }
@@ -185,7 +179,6 @@ export async function deployV2Fixture(
         //  registries.length == labels.length
         //     exactRegistry? == registries[0]
         //     parentRegistry == registries[1]
-        // dedicatedResolver? == !resolverAddress
         return {
           name,
           labels,
@@ -201,10 +194,6 @@ export async function deployV2Fixture(
             : [undefined, ...registries]) as exact_ extends true
             ? typeof registries
             : [undefined, ...typeof registries],
-          dedicatedResolver: dedicatedResolver as resolver_ extends false
-            ? NonNullable<typeof dedicatedResolver>
-            : undefined,
-          resolverAddress: getAddress(resolverAddress),
         };
       }
     }

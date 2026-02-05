@@ -30,21 +30,14 @@ function expectRegistries(
 describe("deployV2Fixture", () => {
   it("setupName()", async () => {
     const F = await loadFixture();
-    const {
-      labels,
-      tokenId,
-      parentRegistry,
-      exactRegistry,
-      registries,
-      dedicatedResolver,
-    } = await F.setupName({
-      name: "test.eth",
-    });
+    const { labels, tokenId, parentRegistry, exactRegistry, registries } =
+      await F.setupName({
+        name: "test.eth",
+      });
     expectVar({ labels }).toStrictEqual(["test", "eth"]);
     expectVar({ tokenId }).toEqual(labelToCanonicalId("test"));
     expectVar({ parentRegistry }).toEqual(registries[1]);
     expectVar({ exactRegistry }).toBeUndefined();
-    expectVar({ dedicatedResolver }).toBeDefined();
     expectRegistries(registries, [undefined, F.ethRegistry, F.rootRegistry]);
   });
 
@@ -66,22 +59,26 @@ describe("deployV2Fixture", () => {
     ]);
   });
 
+  it("deployOwnedResolver", async () => {
+    const F = await loadFixture();
+    const ownedResolver = await F.deployOwnedResolver();
+  });
+
   it("setupName() w/resolver", async () => {
     const F = await loadFixture();
-    const { dedicatedResolver } = await F.setupName({
+    const ownedResolver = await F.deployOwnedResolver();
+    const { parentRegistry, tokenId } = await F.setupName({
       name: "test.eth",
-      resolverAddress: zeroAddress,
+      resolverAddress: ownedResolver.address,
     });
-    expectVar({ dedicatedResolver }).toBeUndefined();
+    const { resolver } = await parentRegistry.read.getEntry([tokenId]);
+    expectVar({ resolver }).toEqualAddress(ownedResolver.address);
   });
 
   it("setupName() matches findRegistries()", async () => {
     const F = await loadFixture();
     const name = "a.b.c.d";
-    const { registries } = await F.setupName({
-      name,
-      resolverAddress: zeroAddress,
-    });
+    const { registries } = await F.setupName({ name });
     const regs1 = registries.map((x) =>
       x ? getAddress(x.address) : zeroAddress,
     );

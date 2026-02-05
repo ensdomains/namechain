@@ -23,7 +23,7 @@ export default execute(
     });
   },
   {
-    tags: ["UserRegistry", "shared"],
+    tags: ["UserRegistry", "l1"],
     dependencies: ["RegistryDatastore", "HCAFactory", "RegistryMetadata"],
   },
 );

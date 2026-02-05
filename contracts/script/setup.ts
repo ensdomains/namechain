@@ -12,6 +12,7 @@ import {
   type GetContractReturnType,
   type Hash,
   type Hex,
+  namehash,
   publicActions,
   testActions,
   type Transport,
@@ -32,7 +33,6 @@ import {
 } from "../test/integration/fixtures/deployVerifiableProxy.js";
 import { waitForSuccessfulTransactionReceipt } from "../test/utils/waitForSuccessfulTransactionReceipt.ts";
 import { patchArtifactsV1 } from "./patchArtifactsV1.js";
-import type { RockethArguments } from "./types.js";
 
 /**
  * Default chain ID for devnet environment
@@ -53,7 +53,8 @@ const contracts = {
   SimpleRegistryMetadata: artifacts.SimpleRegistryMetadata.abi,
   HCAFactory: artifacts.MockHCAFactoryBasic.abi,
   VerifiableFactory: artifacts.VerifiableFactory.abi,
-  DedicatedResolver: artifacts.DedicatedResolver.abi,
+  OwnedResolverV2:
+    artifacts["src/resolver/OwnedResolver.sol/OwnedResolver"].abi,
   UserRegistry: artifacts.UserRegistry.abi,
   ETHRegistry: artifacts.PermissionedRegistry.abi,
   // v1
@@ -196,7 +197,7 @@ export class DeploymentInstance<
       client: walletClient,
     });
   }
-  async deployDedicatedResolver({
+  async deployOwnedResolver({
     account,
     admin = account.address,
     roles = ROLES.ALL,
@@ -210,8 +211,8 @@ export class DeploymentInstance<
     return deployVerifiableProxy({
       walletClient: createClient(this.transport, this.client.chain, account),
       factoryAddress: this.contracts.VerifiableFactory.address,
-      implAddress: this.contracts.DedicatedResolver.address,
-      abi: this.contracts.DedicatedResolver.abi,
+      implAddress: this.contracts.OwnedResolverV2.address,
+      abi: this.contracts.OwnedResolverV2.abi,
       functionName: "initialize",
       args: [admin, roles],
       salt,
@@ -370,55 +371,41 @@ export async function setupDevnet({
 
     const client = createClient(transport, chain, deployer);
 
-    async function deploy(args?: RockethArguments) {
-      const name = "devnet-local";
-      if (saveDeployments) {
-        await rm(new URL(`../deployments/${name}`, import.meta.url), {
-          recursive: true,
-          force: true,
-        });
-      }
-      process.env.BATCH_GATEWAY_URLS = JSON.stringify([
-        LOCAL_BATCH_GATEWAY_URL,
-      ]);
-      const tags = ["l1", "local"];
-      const scripts = [
-        "lib/ens-contracts/deploy",
-        "deploy",
-        "deploy/shared",
-      ];
-      tags.push("use_root"); // deploy root contracts
-      tags.push("allow_unsafe"); // state hacks
-      tags.push("legacy"); // legacy registry
-      return executeDeployScripts(
-        resolveConfig({
-          network: {
-            nodeUrl: chain.rpcUrls.default.http[0],
-            name,
-            tags,
-            fork: false,
-            scripts,
-            publicInfo: {
-              name,
-              nativeCurrency: chain.nativeCurrency,
-              rpcUrls: { default: { http: [...chain.rpcUrls.default.http] } },
-            },
-            pollingInterval: 0.001, // cannot be zero
-          },
-          askBeforeProceeding: false,
-          saveDeployments,
-          accounts: Object.fromEntries(
-            accounts.map((x) => [x.name, x.address]),
-          ),
-        }),
-        args,
-      );
-    }
-
     console.log("Deploying contracts");
-    const deployResult = await deploy({
-      verifierAddress: zeroAddress,
-    });
+    const name = "devnet-local";
+    if (saveDeployments) {
+      await rm(new URL(`../deployments/${name}`, import.meta.url), {
+        recursive: true,
+        force: true,
+      });
+    }
+    process.env.BATCH_GATEWAY_URLS = JSON.stringify([LOCAL_BATCH_GATEWAY_URL]);
+    const deployResult = await executeDeployScripts(
+      resolveConfig({
+        network: {
+          nodeUrl: chain.rpcUrls.default.http[0],
+          name,
+          tags: [
+            "l1",
+            "local",
+            "use_root", // deploy root contracts
+            "allow_unsafe", // state hacks
+            "legacy", // legacy registry
+          ],
+          fork: false,
+          scripts: ["lib/ens-contracts/deploy", "deploy"],
+          publicInfo: {
+            name,
+            nativeCurrency: chain.nativeCurrency,
+            rpcUrls: { default: { http: [...chain.rpcUrls.default.http] } },
+          },
+          pollingInterval: 0.001, // cannot be zero
+        },
+        askBeforeProceeding: false,
+        saveDeployments,
+        accounts: Object.fromEntries(accounts.map((x) => [x.name, x.address])),
+      }),
+    );
 
     const deployment = new DeploymentInstance(
       anvilInstance,
@@ -481,7 +468,10 @@ export async function setupDevnet({
       } else {
         timestamp += warpSec;
       }
-      await client.mine({ blocks, interval: timestamp - Number(block.timestamp) });
+      await client.mine({
+        blocks,
+        interval: timestamp - Number(block.timestamp),
+      });
       return BigInt(timestamp);
     }
   } catch (err) {
@@ -494,16 +484,19 @@ export async function setupDevnet({
 
 async function setupEnsDotEth(deployment: Deployment, account: Account) {
   // create registry for "ens.eth"
-  const ens_ethRegistry = await deployment.deployPermissionedRegistry({
-    account,
-  });
+  // const ens_ethRegistry = await deployment.deployPermissionedRegistry({
+  //   account,
+  // });
+
+  // created owned resolver for "ens.eth"
+  const resolver = await deployment.deployOwnedResolver({ account });
 
   // create "ens.eth"
   await deployment.contracts.ETHRegistry.write.register([
     "ens",
     account.address,
-    ens_ethRegistry.address,
-    zeroAddress,
+    zeroAddress, //ens_ethRegistry.address,
+    resolver.address,
     0n,
     MAX_EXPIRY,
   ]);
@@ -533,15 +526,14 @@ async function setupEnsDotEth(deployment: Deployment, account: Account) {
   );
 
   async function setupNamedResolver(label: string, address: Address) {
-    const resolver = await deployment.deployDedicatedResolver({ account });
-    await resolver.write.setAddr([60n, address]);
-    await ens_ethRegistry.write.register([
-      label,
-      account.address,
-      zeroAddress,
-      resolver.address,
-      0n,
-      MAX_EXPIRY,
-    ]);
+    await resolver.write.setAddr([namehash(`${label}.ens.eth`), 60n, address]);
+    // await ens_ethRegistry.write.register([
+    //   label,
+    //   account.address,
+    //   zeroAddress,
+    //   resolver.address,
+    //   0n,
+    //   MAX_EXPIRY,
+    // ]);
   }
 }

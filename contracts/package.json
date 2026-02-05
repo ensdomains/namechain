@@ -2,7 +2,6 @@
   "name": "contracts",
   "dependencies": {
     "@ensdomains/hardhat-chai-matchers-viem": "^0.1.14",
-    "@namestone/ezccip": "^0.1.0",
     "@nomicfoundation/hardhat-network-helpers": "3.0.0",
     "@nomicfoundation/hardhat-viem": "3.0.0",
     "@rocketh/deploy": "0.14.0",

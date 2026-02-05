@@ -47,7 +47,7 @@ describe("Devnet", () => {
   it(`computeVerifiableProxyAddress`, async () => {
     const account = env.namedAccounts.deployer;
     const salt = 1234n;
-    const contract = await env.deployment.deployDedicatedResolver({
+    const contract = await env.deployment.deployOwnedResolver({
       account,
       salt,
     });
