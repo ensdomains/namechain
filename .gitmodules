@@ -13,15 +13,15 @@
 [submodule "contracts/lib/openzeppelin-contracts"]
 	path = contracts/lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
-[submodule "contracts/lib/ens-contracts"]
-	path = contracts/lib/ens-contracts
-	url = https://github.com/ensdomains/ens-contracts
-[submodule "contracts/lib/unruggable-gateways"]
-	path = contracts/lib/unruggable-gateways
-	url = https://github.com/unruggable-labs/unruggable-gateways
 [submodule "contracts/lib/openzeppelin-contracts-v4"]
 	path = contracts/lib/openzeppelin-contracts-v4
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 [submodule "contracts/lib/solsha1"]
 	path = contracts/lib/solsha1
 	url = https://github.com/ensdomains/solsha1
+[submodule "contracts/lib/ens-contracts"]
+	path = contracts/lib/ens-contracts
+	url = https://github.com/ensdomains/ens-contracts
+[submodule "contracts/lib/unruggable-gateways"]
+	path = contracts/lib/unruggable-gateways
+	url = https://github.com/unruggable-labs/unruggable-gateways

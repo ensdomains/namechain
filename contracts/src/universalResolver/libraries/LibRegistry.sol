@@ -3,7 +3,7 @@ pragma solidity >=0.8.24;
 
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
-import {IRegistry} from "../../common/registry/interfaces/IRegistry.sol";
+import {IRegistry} from "../../registry/interfaces/IRegistry.sol";
 
 library LibRegistry {
     /// @dev Find the resolver address for `name[offset:]`.

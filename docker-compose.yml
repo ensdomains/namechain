@@ -6,13 +6,9 @@ services:
       dockerfile: Dockerfile
     profiles: ["default"]
     ports:
-      - "8545:8545" # L1 chain
-      - "8546:8546" # L2 chain
-      - "8547:8547" # Urg
+      - "8545:8545"
     expose:
       - 8545
-      - 8546
-      - 8547
     environment:
       ANVIL_IP_ADDR: "0.0.0.0"
     healthcheck:
@@ -21,7 +17,7 @@ services:
       timeout: 5s
       retries: 5
 
-  contract-deployer-l1:
+  contract-deployer:
     image: ghcr.io/mdtanrikulu/mock-contract-deployer:main
     profiles: ["default"]
     environment:
@@ -29,17 +25,8 @@ services:
     depends_on:
       devnet:
         condition: service_healthy
-  
-  contract-deployer-l2:
-    image: ghcr.io/mdtanrikulu/mock-contract-deployer:main
-    profiles: ["default"]
-    environment:
-      - ANVIL_RPC=http://devnet:8546
-    depends_on:
-      devnet:
-        condition: service_healthy
-  
-  alto-l1:
+
+  alto:
     image: ghcr.io/pimlicolabs/alto:latest
     profiles: ["default"]
     ports: [ "4337:4337" ]
@@ -47,103 +34,49 @@ services:
     depends_on:
       devnet:
         condition: service_healthy
-      contract-deployer-l1:
+      contract-deployer:
         condition: service_completed_successfully
     volumes:
-      - ./alto/alto-config-l1.json:/app/alto-config.json
-  
-  alto-l2:
-    image: ghcr.io/pimlicolabs/alto:latest
-    profiles: ["default"]
-    ports: [ "4338:4338" ]
-    entrypoint: ["node", "src/lib/cli/alto.js", "run", "--config", "/app/alto-config.json"]
-    depends_on:
-      devnet:
-        condition: service_healthy
-      contract-deployer-l2:
-        condition: service_completed_successfully
-    volumes:
-      - ./alto/alto-config-l2.json:/app/alto-config.json
+      - ./alto/alto-config.json:/app/alto-config.json
 
-  mock-paymaster-l1:
+  mock-paymaster:
     image: ghcr.io/mdtanrikulu/mock-verifying-paymaster:main
     profiles: ["default"]
     ports: [ "3000:3000" ]
     environment:
-      - ALTO_RPC=http://alto-l1:4337
+      - ALTO_RPC=http://alto:4337
       - ANVIL_RPC=http://devnet:8545
     depends_on:
       devnet:
         condition: service_healthy
-      contract-deployer-l1:
-        condition: service_completed_successfully
-
-  mock-paymaster-l2:
-    image: ghcr.io/mdtanrikulu/mock-verifying-paymaster:main
-    profiles: ["default"]
-    ports: [ "3001:3000" ]
-    environment:
-      - ALTO_RPC=http://alto-l2:4338
-      - ANVIL_RPC=http://devnet:8546
-    depends_on:
-      devnet:
-        condition: service_healthy
-      contract-deployer-l2:
+      contract-deployer:
         condition: service_completed_successfully
 
   # Local profile services - these run when using local devnet
-  contract-deployer-l1-local:
+  contract-deployer-local:
     image: ghcr.io/mdtanrikulu/mock-contract-deployer:main
     profiles: ["local"]
     environment:
       - ANVIL_RPC=http://host.docker.internal:8545
-  
-  contract-deployer-l2-local:
-    image: ghcr.io/mdtanrikulu/mock-contract-deployer:main
-    profiles: ["local"]
-    environment:
-      - ANVIL_RPC=http://host.docker.internal:8546
-  
-  alto-l1-local:
+
+  alto-local:
     image: ghcr.io/pimlicolabs/alto:latest
     profiles: ["local"]
     ports: [ "4337:4337" ]
     entrypoint: ["node", "src/lib/cli/alto.js", "run", "--config", "/app/alto-config.json"]
     depends_on:
-      contract-deployer-l1-local:
+      contract-deployer-local:
         condition: service_completed_successfully
     volumes:
-      - ./alto/alto-config-l1-local.json:/app/alto-config.json
-  
-  alto-l2-local:
-    image: ghcr.io/pimlicolabs/alto:latest
-    profiles: ["local"]
-    ports: [ "4338:4338" ]
-    entrypoint: ["node", "src/lib/cli/alto.js", "run", "--config", "/app/alto-config.json"]
-    depends_on:
-      contract-deployer-l2-local:
-        condition: service_completed_successfully
-    volumes:
-      - ./alto/alto-config-l2-local.json:/app/alto-config.json
-  
-  mock-paymaster-l1-local:
+      - ./alto/alto-config-local.json:/app/alto-config.json
+
+  mock-paymaster-local:
     image: ghcr.io/mdtanrikulu/mock-verifying-paymaster:main
     profiles: ["local"]
     ports: [ "3000:3000" ]
     environment:
-      - ALTO_RPC=http://alto-l1-local:4337
+      - ALTO_RPC=http://alto-local:4337
       - ANVIL_RPC=http://host.docker.internal:8545
     depends_on:
-      contract-deployer-l1-local:
-        condition: service_completed_successfully
-  
-  mock-paymaster-l2-local:
-    image: ghcr.io/mdtanrikulu/mock-verifying-paymaster:main
-    profiles: ["local"]
-    ports: [ "3001:3000" ]
-    environment:
-      - ALTO_RPC=http://alto-l2-local:4338
-      - ANVIL_RPC=http://host.docker.internal:8546
-    depends_on:
-      contract-deployer-l2-local:
+      contract-deployer-local:
         condition: service_completed_successfully

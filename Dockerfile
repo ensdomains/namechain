@@ -68,10 +68,8 @@ RUN cd /app && bun install --production
 # Clean up other unnecessary files
 RUN rm -rf /app/.git /app/contracts/.git 2>/dev/null || true
 
-# Expose ports for L1 and L2
+# Expose port for devnet
 EXPOSE 8545
-EXPOSE 8546
-EXPOSE 8547
 
 # Run devnet
 WORKDIR /app/contracts

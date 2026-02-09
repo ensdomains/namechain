@@ -1,20 +1,18 @@
 // Global test setup
 import { afterAll, beforeAll, beforeEach } from "bun:test";
-import { type MockRelay, setupMockRelay } from "../../script/mockRelay.js";
 import {
-  type CrossChainEnvironment,
-  type CrossChainSnapshot,
-  setupCrossChainEnvironment,
+  type DevnetEnvironment,
+  type StateSnapshot,
+  setupDevnet,
 } from "../../script/setup.js";
 
 declare global {
-  // Add CrossChainEnvironment type to NodeJS.ProcessEnv for type safety
+  // Add DevnetEnvironment type to NodeJS.ProcessEnv for type safety
   namespace NodeJS {
     interface ProcessEnv {
       TEST_GLOBALS?: {
-        env: CrossChainEnvironment;
-        relay: MockRelay;
-        resetInitialState: CrossChainSnapshot;
+        env: DevnetEnvironment;
+        resetInitialState: StateSnapshot;
         setupEnv(options: {
           resetOnEach: boolean;
           initialize?: () => Promise<unknown>;
@@ -26,8 +24,7 @@ declare global {
 
 const t0 = Date.now();
 
-const env = await setupCrossChainEnvironment();
-const relay = await setupMockRelay(env);
+const env = await setupDevnet();
 
 // save the initial state
 const resetInitialState = await env.saveState();
@@ -35,12 +32,11 @@ const resetInitialState = await env.saveState();
 console.log(new Date(), `Ready! <${Date.now() - t0}ms>`);
 
 // the state that gets reset on each
-let resetEachState: CrossChainSnapshot | undefined = resetInitialState; // default to full reset
+let resetEachState: StateSnapshot | undefined = resetInitialState; // default to full reset
 
 // the environment is shared between all tests
 process.env.TEST_GLOBALS = {
   env,
-  relay,
   resetInitialState,
   setupEnv({ resetOnEach, initialize }) {
     beforeAll(async () => {
@@ -69,6 +65,5 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  relay.removeListeners();
   await env.shutdown();
 });

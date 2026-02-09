@@ -7,13 +7,13 @@ import {Test} from "forge-std/Test.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import {EACBaseRolesLib} from "~src/common/access-control/EnhancedAccessControl.sol";
-import {IHCAFactoryBasic} from "~src/common/hca/interfaces/IHCAFactoryBasic.sol";
+import {EACBaseRolesLib} from "~src/access-control/EnhancedAccessControl.sol";
+import {IHCAFactoryBasic} from "~src/hca/interfaces/IHCAFactoryBasic.sol";
 import {
     PermissionedRegistry,
     IRegistryMetadata
-} from "~src/common/registry/PermissionedRegistry.sol";
-import {RegistryDatastore} from "~src/common/registry/RegistryDatastore.sol";
+} from "~src/registry/PermissionedRegistry.sol";
+import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {LibRegistry, IRegistry, NameCoder} from "~src/universalResolver/libraries/LibRegistry.sol";
 
 contract LibRegistryTest is Test, ERC1155Holder {
