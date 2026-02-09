@@ -1,2 +1,3 @@
 [test]
 preload = ["./test/e2e/test-setup.ts"]
+timeout = 30000

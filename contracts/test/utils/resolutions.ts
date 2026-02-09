@@ -50,16 +50,6 @@ export const PROFILE_ABI = parseAbi([
   "function setInterface(bytes32, bytes4 interfaceID, address implementer) external",
 ]);
 
-export const DEDICATED_ABI = parseAbi([
-  "function setAddr(uint256 coinType, bytes value) external",
-  "function setText(string key, string value) external",
-  "function setContenthash(bytes value) external",
-  "function setPubkey(bytes32 x, bytes32 y) external",
-  "function setName(string name) external",
-  "function setABI(uint256 contentType, bytes data) external",
-  "function setInterface(bytes4 interfaceID, address implementer) external",
-]);
-
 type StringRecord = { value: string };
 type BytesRecord = { value: Hex };
 export type HasAddressRecord = { coinType: bigint; exists: boolean };
@@ -98,7 +88,6 @@ type Expected = {
   answer: Hex;
   expect(data: Hex): void;
   write: Hex;
-  writeDedicated: Hex;
 };
 
 export type KnownResolution = Expected & {
@@ -142,12 +131,6 @@ export function bundleCalls(resolutions: KnownResolution[]): KnownBundle {
       abi: MULTICALL_ABI,
       args: [resolutions.map((x) => x.write).filter((x) => x.length > 2)],
     }),
-    writeDedicated: encodeFunctionData({
-      abi: MULTICALL_ABI,
-      args: [
-        resolutions.map((x) => x.writeDedicated).filter((x) => x.length > 2),
-      ],
-    }),
   };
 }
 
@@ -172,11 +155,6 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
             functionName: "setAddr",
             args: [node, value],
           }),
-          writeDedicated: encodeFunctionData({
-            abi: DEDICATED_ABI,
-            functionName: "setAddr",
-            args: [COIN_TYPE_ETH, value],
-          }),
         });
       } else {
         const abi = PROFILE_ABI;
@@ -196,11 +174,6 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
             abi,
             functionName: "setAddr",
             args: [node, coinType, value],
-          }),
-          writeDedicated: encodeFunctionData({
-            abi: DEDICATED_ABI,
-            functionName: "setAddr",
-            args: [coinType, value],
           }),
         });
       }
@@ -223,7 +196,6 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
           expect(actual, this.desc).toStrictEqual(exists);
         },
         write: "0x",
-        writeDedicated: "0x",
       });
     }
   }
@@ -243,11 +215,6 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
           abi,
           functionName: "setText",
           args: [node, key, value],
-        }),
-        writeDedicated: encodeFunctionData({
-          abi: DEDICATED_ABI,
-          functionName: "setText",
-          args: [key, value],
         }),
       });
     }
@@ -269,11 +236,6 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
         functionName: "setContenthash",
         args: [node, value],
       }),
-      writeDedicated: encodeFunctionData({
-        abi: DEDICATED_ABI,
-        functionName: "setContenthash",
-        args: [value],
-      }),
     });
   }
   if (p.pubkey) {
@@ -293,11 +255,6 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
         functionName: "setPubkey",
         args: [node, x, y],
       }),
-      writeDedicated: encodeFunctionData({
-        abi: DEDICATED_ABI,
-        functionName: "setPubkey",
-        args: [x, y],
-      }),
     });
   }
   if (p.primary) {
@@ -316,11 +273,6 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
         abi,
         functionName: "setName",
         args: [node, value],
-      }),
-      writeDedicated: encodeFunctionData({
-        abi: DEDICATED_ABI,
-        functionName: "setName",
-        args: [value],
       }),
     });
   }
@@ -349,11 +301,6 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
           functionName: "setABI",
           args: [node, contentType, value],
         }),
-        writeDedicated: encodeFunctionData({
-          abi: DEDICATED_ABI,
-          functionName: "setABI",
-          args: [contentType, value],
-        }),
       });
     }
   }
@@ -374,11 +321,6 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
           functionName: "setInterface",
           args: [node, selector, value],
         }),
-        writeDedicated: encodeFunctionData({
-          abi: DEDICATED_ABI,
-          functionName: "setInterface",
-          args: [selector, value],
-        }),
       });
     }
   }
@@ -392,7 +334,6 @@ export function makeResolutions(p: KnownProfile): KnownResolution[] {
           expect(data, this.desc).toStrictEqual(this.answer);
         },
         write: "0x",
-        writeDedicated: "0x",
       });
     }
   }

@@ -5,6 +5,7 @@ import {
   concat,
   encodeErrorResult,
   getAddress,
+  namehash,
   stringToHex,
   zeroAddress,
 } from "viem";
@@ -57,6 +58,7 @@ async function fixture() {
     "GatewayProvider",
     [mainnetV2.walletClient.account.address, [dnsOracleGateway]],
   );
+  const ownedResolver = await mainnetV2.deployOwnedResolver();
   const dnsTLDResolver = await network.viem.deployContract("DNSTLDResolver", [
     mainnetV1.ensRegistry.address,
     dnsTLDResolverV1.address,
@@ -96,6 +98,7 @@ async function fixture() {
     mockDNSSEC,
     dnsTLDResolverV1,
     oracleGatewayProvider,
+    ownedResolver,
     dnsTLDResolver,
     dnsTXTResolver,
     dnsAliasResolver,
@@ -136,12 +139,15 @@ async function fixture() {
     ).resolves.toStrictEqual([getAddress(resolverAddress), gasless]);
   }
   async function setupNamedResolver(name: string, resolver: Address) {
-    const res = await mainnetV2.deployDedicatedResolver();
     await mainnetV2.setupName({
       name,
-      resolverAddress: res.address,
+      resolverAddress: ownedResolver.address,
     });
-    await res.write.setAddr([COIN_TYPE_ETH, resolver]);
+    await ownedResolver.write.setAddr([
+      namehash(name),
+      COIN_TYPE_ETH,
+      resolver,
+    ]);
   }
 }
 
@@ -281,14 +287,17 @@ describe("DNSTLDResolver", () => {
   it("imported on V2", async () => {
     const F = await network.networkHelpers.loadFixture(fixture);
     const bundle = bundleCalls(makeResolutions(basicProfile));
-    const { dedicatedResolver } = await F.mainnetV2.setupName(basicProfile);
-    await dedicatedResolver.write.multicall([
-      bundle.resolutions.map((x) => x.writeDedicated),
+    await F.mainnetV2.setupName({
+      name: basicProfile.name,
+      resolverAddress: F.ownedResolver.address,
+    });
+    await F.ownedResolver.write.multicall([
+      bundle.resolutions.map((x) => x.write),
     ]);
     const [answer, resolver] = await F.mainnetV2.universalResolver.read.resolve(
       [dnsEncodeName(basicProfile.name), bundle.call],
     );
-    expectVar({ resolver }).toEqualAddress(dedicatedResolver.address);
+    expectVar({ resolver }).toEqualAddress(F.ownedResolver.address);
     bundle.expect(answer);
   });
 
@@ -341,14 +350,13 @@ describe("DNSTLDResolver", () => {
     describe("via address", () => {
       testProfiles("onchain immediate", (kp) => async () => {
         const F = await network.networkHelpers.loadFixture(fixture);
-        const dedicatedResolver = await F.mainnetV2.deployDedicatedResolver();
         await F.mockDNSSEC.write.setResponse([
-          encodeRRs([makeTXT(kp.name, `ENS1 ${dedicatedResolver.address}`)]),
+          encodeRRs([makeTXT(kp.name, `ENS1 ${F.ownedResolver.address}`)]),
         ]);
-        await dedicatedResolver.write.multicall([
-          makeResolutions(kp).map((x) => x.writeDedicated),
+        await F.ownedResolver.write.multicall([
+          makeResolutions(kp).map((x) => x.write),
         ]);
-        await F.expectGasless(kp, dedicatedResolver.address);
+        await F.expectGasless(kp, F.ownedResolver.address);
       });
     });
 

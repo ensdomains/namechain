@@ -1,9 +1,7 @@
 import { createServer } from "node:http";
 import { parseArgs } from "node:util";
 import { getAddress, toHex } from "viem";
-import { setupMockRelay } from "./mockRelay.js";
-import { setupCrossChainEnvironment } from "./setup.js";
-import { testNames } from "./testNames.js";
+import { setupDevnet } from "./setup.js";
 
 const t0 = Date.now();
 
@@ -13,19 +11,14 @@ const args = parseArgs({
     procLog: {
       type: "boolean",
     },
-    testNames: {
-      type: "boolean",
-    },
   },
 });
 
-const env = await setupCrossChainEnvironment({
-  l1Port: 8545,
-  l2Port: 8546,
-  urgPort: 8547,
+const env = await setupDevnet({
+  port: 8545,
   saveDeployments: true,
   procLog: args.values.procLog,
-  extraTime: args.values.testNames ? 86_401 : 60,
+  extraTime: 60,
 });
 
 // handler for shell
@@ -45,37 +38,23 @@ process.once("uncaughtException", async (err) => {
   throw err;
 });
 
-setupMockRelay(env);
-
 console.log();
 console.log("Available Named Accounts:");
 console.table(env.accounts.map((x) => ({ Name: x.name, Address: x.address })));
 
+console.table({
+  [env.deployment.client.chain.name]: {
+    Chain: `${env.deployment.client.chain.id} (${toHex(env.deployment.client.chain.id)})`,
+    Endpoint: `{http,ws}://${env.deployment.hostPort}`,
+  },
+});
+
 console.table(
-  Object.fromEntries(
-    [env.l1, env.l2].map((x) => [
-      x.client.chain.name,
-      {
-        Chain: `${x.client.chain.id} (${toHex(x.client.chain.id)})`,
-        Endpoint: `{http,ws}://${x.hostPort}`,
-      },
-    ]),
-  ),
+  Object.entries(env.deployment.env.deployments).map(([name, { address }]) => ({
+    [env.deployment.client.chain.name]: name,
+    "Contract Address": getAddress(address),
+  })),
 );
-console.log("Unruggable Gateway:", (({ gateway, ...a }) => a)(env.urg));
-
-for (const lx of [env.l1, env.l2]) {
-  console.table(
-    Object.entries(lx.env.deployments).map(([name, { address }]) => ({
-      [lx.client.chain.name]: name,
-      "Contract Address": getAddress(address),
-    })),
-  );
-}
-
-if (args.values.testNames) {
-  await testNames(env);
-}
 
 await env.sync({ warpSec: "local" });
 

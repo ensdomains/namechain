@@ -8,7 +8,7 @@ import {
   zeroAddress,
 } from "viem";
 import { splitName } from "../../utils/utils.js";
-import { LOCAL_BATCH_GATEWAY_URL } from "../../../deploy/constants.js";
+import { LOCAL_BATCH_GATEWAY_URL } from "../../../script/deploy-constants.js";
 
 export async function deployV1Fixture(
   network: NetworkConnection,
