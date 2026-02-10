@@ -1,4 +1,4 @@
-# v2
+# contracts-v2
 
 ## Monorepo for ENSv2 contracts + chain
 

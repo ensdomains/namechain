@@ -1,5 +1,5 @@
-![Build status](https://github.com/ensdomains/v2/actions/workflows/main.yml/badge.svg?branch=main)
-[![Coverage Status](https://coveralls.io/repos/github/ensdomains/v2/badge.svg?branch=main)](https://coveralls.io/github/ensdomains/v2?branch=main)
+![Build status](https://github.com/ensdomains/contracts-v2/actions/workflows/main.yml/badge.svg?branch=main)
+[![Coverage Status](https://coveralls.io/repos/github/ensdomains/contracts-v2/badge.svg?branch=main)](https://coveralls.io/github/ensdomains/contracts-v2?branch=main)
 
 # ENSv2 Contracts
 
@@ -353,7 +353,7 @@ This will start a local chain at http://localhost:8545 (Chain ID: 31337)
    docker compose up -d
 
    # Or using pre-built image from GitHub Container Registry
-   docker pull ghcr.io/ensdomains/v2:latest
+   docker pull ghcr.io/ensdomains/contracts-v2:latest
    docker compose up -d
    ```
 
@@ -362,7 +362,7 @@ This will start a local chain at http://localhost:8545 (Chain ID: 31337)
 To view logs:
 
 ```bash
-docker logs -f v2-devnet-1
+docker logs -f contracts-v2-devnet-1
 ```
 
 To stop the devnet:
