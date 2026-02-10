@@ -1,5 +1,5 @@
 {
-  "name": "solhint-plugin-namechain",
+  "name": "solhint-plugin-v2",
   "type": "commonjs",
   "main": "index.js"
 }

@@ -1,6 +1,6 @@
 services:
   devnet:
-    image: ghcr.io/ensdomains/namechain:latest
+    image: ghcr.io/ensdomains/v2:latest
     build:
       context: .
       dockerfile: Dockerfile

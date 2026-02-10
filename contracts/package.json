@@ -28,7 +28,7 @@
     "prettier": "^3.5.3",
     "prettier-plugin-solidity": "2.0.0",
     "solhint": "6.0.0",
-    "solhint-plugin-namechain": "workspace:*",
+    "solhint-plugin-v2": "workspace:*",
     "solhint-plugin-prettier": "^0.1.0",
     "ts-node": "^10.9.2",
     "vite-tsconfig-paths": "^5.1.4",
