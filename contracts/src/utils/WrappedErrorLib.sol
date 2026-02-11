@@ -4,7 +4,7 @@ pragma solidity >=0.8.24;
 import {HexUtils} from "@ens/contracts/utils/HexUtils.sol";
 
 /// @dev Library to wrap and unwrap typed error data inside of `Error(string)`.
-///      Uses hex to embed arbitrary and avoid invalid unicode.
+///      Uses hex to embed arbitrary data and avoid invalid unicode.
 library WrappedErrorLib {
     /// @dev Error selector for `Error(string)`.
     bytes4 public constant ERROR_STRING_SELECTOR = 0x08c379a0;
