@@ -185,7 +185,7 @@ contract PermissionedRegistry is
     function getNameState(string calldata label) public view returns (NameState) {
         (uint256 tokenId, IRegistryDatastore.Entry memory entry) = getNameData(label);
         if (_isExpired(entry.expiry)) {
-            return NameState.UNREGISTERED;
+            return NameState.AVAILABLE;
         } else if (super.ownerOf(tokenId) == address(0)) {
             return NameState.RESERVED;
         } else {
@@ -281,7 +281,7 @@ contract PermissionedRegistry is
         address resolver,
         uint256 roleBitmap,
         uint64 expiry,
-        address by
+        address sender
     ) internal virtual returns (uint256 tokenId) {
         NameCoder.assertLabelSize(label);
         if (_isExpired(expiry)) {
@@ -295,8 +295,10 @@ contract PermissionedRegistry is
         if (!_isExpired(entry.expiry)) {
             if (prevOwner != address(0)) {
                 revert NameAlreadyRegistered(label);
-            } else if (owner == address(0) || !hasRootRoles(RegistryRolesLib.ROLE_RESERVE, by)) {
+            } else if (owner == address(0)) {
                 revert NameReserved();
+            } else {
+                _checkRoles(ROOT_RESOURCE, RegistryRolesLib.ROLE_RESERVE, sender);
             }
         }
         if (prevOwner != address(0)) {
@@ -310,7 +312,7 @@ contract PermissionedRegistry is
         entry.resolver = resolver;
         DATASTORE.setEntry(tokenId, entry);
         // emit NameRegistered before mint so we can determine this is a registry (in an indexer)
-        emit NameRegistered(tokenId, labelHash, label, owner, expiry, by);
+        emit NameRegistered(tokenId, labelHash, label, owner, expiry, sender);
         if (owner != address(0)) {
             _mint(owner, tokenId, 1, "");
             uint256 resource = _constructResource(tokenId, entry);
@@ -318,10 +320,10 @@ contract PermissionedRegistry is
             _grantRoles(resource, roleBitmap, owner, false);
         }
         if (address(registry) != address(0)) {
-            emit SubregistryUpdated(tokenId, registry, by);
+            emit SubregistryUpdated(tokenId, registry, sender);
         }
         if (address(resolver) != address(0)) {
-            emit ResolverUpdated(tokenId, resolver, by);
+            emit ResolverUpdated(tokenId, resolver, sender);
         }
     }
 

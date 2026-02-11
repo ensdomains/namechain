@@ -264,7 +264,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         assertEq(
             uint256(registry.getNameState(testLabel)),
-            uint256(IPermissionedRegistry.NameState.UNREGISTERED),
+            uint256(IPermissionedRegistry.NameState.AVAILABLE),
             "state:before-reserve"
         );
 
@@ -309,7 +309,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         assertEq(registry.getResolver(testLabel), address(0), "afterResolver");
         assertEq(
             uint256(registry.getNameState(testLabel)),
-            uint256(IPermissionedRegistry.NameState.UNREGISTERED),
+            uint256(IPermissionedRegistry.NameState.AVAILABLE),
             "state:after-expiry"
         );
 
@@ -338,7 +338,12 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         // cant register a reservation without ROLE_RESERVE
         vm.expectRevert(
-            abi.encodeWithSelector(IPermissionedRegistry.NameReserved.selector, testLabel)
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                registry.ROOT_RESOURCE(),
+                RegistryRolesLib.ROLE_RESERVE,
+                registrar
+            )
         );
         vm.prank(registrar);
         registry.register(
@@ -350,9 +355,9 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             _after(86400)
         );
 
-        // retry with role
         registry.grantRootRoles(RegistryRolesLib.ROLE_RESERVE, registrar);
 
+        // retry with role
         vm.prank(registrar);
         registry.register(
             testLabel,

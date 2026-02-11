@@ -17,18 +17,21 @@ interface IRegistry is IERC1155Singleton {
         string label,
         address owner,
         uint64 expiry,
-        address indexed by
+        address indexed sender
     );
 
     /// @notice Expiry was changed.
-    /// @dev Error selector: `0x`
-    event ExpiryUpdated(uint256 indexed tokenId, uint64 newExpiry, address indexed by);
+    event ExpiryUpdated(uint256 indexed tokenId, uint64 newExpiry, address indexed sender);
 
     /// @notice Subregistry was changed.
-    event SubregistryUpdated(uint256 indexed tokenId, IRegistry subregistry, address indexed by);
+    event SubregistryUpdated(
+        uint256 indexed tokenId,
+        IRegistry subregistry,
+        address indexed sender
+    );
 
     /// @notice Resolver was changed.
-    event ResolverUpdated(uint256 indexed tokenId, address resolver, address indexed by);
+    event ResolverUpdated(uint256 indexed tokenId, address resolver, address indexed sender);
 
     /// @notice Token was regenerated with a new token ID.
     ///         This occurs when roles are granted or revoked to maintain ERC1155 compliance.
