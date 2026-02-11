@@ -11,11 +11,7 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 
 import {EACBaseRolesLib} from "~src/access-control/EnhancedAccessControl.sol";
 import {IHCAFactoryBasic} from "~src/hca/interfaces/IHCAFactoryBasic.sol";
-import {
-    PermissionedRegistry,
-    IRegistryMetadata
-} from "~src/registry/PermissionedRegistry.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
+import {PermissionedRegistry, IRegistryMetadata} from "~src/registry/PermissionedRegistry.sol";
 import {DNSTLDResolver, ENS, IRegistry, DNSSEC, HexUtils} from "~src/dns/DNSTLDResolver.sol";
 
 // coverage:ignore-next-line
@@ -51,14 +47,11 @@ contract MockDNS is DNSTLDResolver {
 }
 
 contract DNSTLDResolverTest is Test, ERC1155Holder, IAddrResolver {
-    RegistryDatastore datastore;
     PermissionedRegistry rootRegistry;
     MockDNS dns;
 
     function setUp() external {
-        datastore = new RegistryDatastore();
         rootRegistry = new PermissionedRegistry(
-            datastore,
             IHCAFactoryBasic(address(0)),
             IRegistryMetadata(address(0)),
             address(this),

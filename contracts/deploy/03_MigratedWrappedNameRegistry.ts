@@ -8,9 +8,6 @@ export default execute(
     const ethRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("ETHRegistry");
 
-    const registryDatastore =
-      get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
-
     const hcaFactory =
       get<(typeof artifacts.MockHCAFactoryBasic)["abi"]>("HCAFactory");
 
@@ -31,7 +28,6 @@ export default execute(
         nameWrapperV1.address,
         ethRegistry.address,
         verifiableFactory.address,
-        registryDatastore.address,
         hcaFactory.address,
         registryMetadata.address,
         ensV1Resolver.address,
