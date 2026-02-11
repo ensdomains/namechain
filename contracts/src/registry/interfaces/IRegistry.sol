@@ -10,31 +10,31 @@ interface IRegistry is IERC1155Singleton {
     // Events
     ////////////////////////////////////////////////////////////////////////
 
-    /// @dev SHOULD be emitted when a new label is registered
+    /// @dev A subdomain was registered.
     event NameRegistered(
         uint256 indexed tokenId,
+        bytes32 indexed labelHash,
         string label,
         uint64 expiry,
-        address registeredBy
+        address indexed by
     );
+
+    /// @dev A subdomain was reserved.
+    event NameReserved(bytes32 indexed labelHash, string label, uint64 expiry, address indexed by);
 
     /// @notice Expiry was changed.
     /// @dev Error selector: `0x`
-    event ExpiryUpdated(uint256 indexed tokenId, uint64 newExpiry, address changedBy);
+    event ExpiryUpdated(uint256 indexed tokenId, uint64 newExpiry, address indexed by);
 
     /// @notice Subregistry was changed.
-    event SubregistryUpdated(uint256 indexed tokenId, IRegistry subregistry);
+    event SubregistryUpdated(uint256 indexed tokenId, IRegistry subregistry, address indexed by);
 
     /// @notice Resolver was changed.
-    event ResolverUpdated(uint256 indexed tokenId, address resolver);
+    event ResolverUpdated(uint256 indexed tokenId, address resolver, address indexed by);
 
     /// @notice Token was regenerated with a new token ID.
     ///         This occurs when roles are granted or revoked to maintain ERC1155 compliance.
-    event TokenRegenerated(
-        uint256 indexed oldTokenId,
-        uint256 indexed newTokenId,
-        uint256 resource
-    );
+    event TokenRegenerated(uint256 indexed oldTokenId, uint256 indexed newTokenId);
 
     ////////////////////////////////////////////////////////////////////////
     // Functions

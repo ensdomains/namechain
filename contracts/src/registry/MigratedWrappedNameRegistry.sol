@@ -235,7 +235,8 @@ contract MigratedWrappedNameRegistry is
                 IRegistry(subregistry),
                 migrationDataArray[i].transferData.resolver,
                 tokenRoles,
-                migrationDataArray[i].transferData.expires
+                migrationDataArray[i].transferData.expires,
+                _msgSender()
             );
 
             // Finalize migration by freezing the name
@@ -249,7 +250,8 @@ contract MigratedWrappedNameRegistry is
         IRegistry registry,
         address resolver,
         uint256 roleBitmap,
-        uint64 expires
+        uint64 expires,
+        address by
     ) internal virtual override returns (uint256 tokenId) {
         // Check if the label has an emancipated NFT in the old system
         // For .eth 2LDs, NameWrapper uses keccak256(label) as the token ID
@@ -265,7 +267,7 @@ contract MigratedWrappedNameRegistry is
         }
 
         // Proceed with registration
-        return super._register(label, owner, registry, resolver, roleBitmap, expires);
+        return super._register(label, owner, registry, resolver, roleBitmap, expires, by);
     }
 
     function _validateHierarchy(

@@ -5,7 +5,7 @@ pragma solidity >=0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
-import {IERC20Errors, IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {SafeERC20, IERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 
@@ -20,6 +20,7 @@ import {PermissionedRegistry} from "~src/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/registry/SimpleRegistryMetadata.sol";
 import {LibLabel} from "~src/utils/LibLabel.sol";
+import {InvalidOwner} from "~src/CommonErrors.sol";
 import {
     ETHRegistrar,
     IETHRegistrar,
@@ -488,9 +489,7 @@ contract ETHRegistrarTest is Test {
     function test_Revert_register_nullOwner() external {
         RegisterArgs memory args = _defaultRegisterArgs();
         args.owner = address(0);
-        vm.expectRevert(
-            abi.encodeWithSelector(IERC1155Errors.ERC1155InvalidReceiver.selector, args.owner)
-        );
+        vm.expectRevert(abi.encodeWithSelector(InvalidOwner.selector, args.owner));
         this._register(args);
     }
 

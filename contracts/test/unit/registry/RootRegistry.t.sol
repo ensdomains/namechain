@@ -5,15 +5,17 @@ pragma solidity >=0.8.13;
 
 import {Test, Vm} from "forge-std/Test.sol";
 
+import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import {EACBaseRolesLib} from "~src/access-control/EnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "~src/access-control/interfaces/IEnhancedAccessControl.sol";
 import {
-    IEnhancedAccessControl
-} from "~src/access-control/interfaces/IEnhancedAccessControl.sol";
-import {IRegistry} from "~src/registry/interfaces/IRegistry.sol";
-import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
-import {PermissionedRegistry} from "~src/registry/PermissionedRegistry.sol";
+    PermissionedRegistry,
+    IRegistry,
+    RegistryRolesLib,
+    LibLabel
+} from "~src/registry/PermissionedRegistry.sol";
 import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/registry/SimpleRegistryMetadata.sol";
 import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
@@ -252,10 +254,17 @@ contract RootRegistryTest is Test, ERC1155Holder {
         // Setup test data
         string memory label = "testmint";
 
-        // Start recording logs
-        vm.recordLogs();
+        uint256 expectedTokenId = LibLabel.labelToCanonicalId(label);
 
-        // Call register function
+        vm.expectEmit(true, true, true, true);
+        emit IRegistry.NameRegistered(
+            expectedTokenId,
+            keccak256(bytes(label)),
+            label,
+            MAX_EXPIRY,
+            address(this)
+        );
+        emit IERC1155.TransferSingle(address(this), address(0), owner, expectedTokenId, 1);
         uint256 tokenId = registry.register(
             label,
             owner,
@@ -264,9 +273,6 @@ contract RootRegistryTest is Test, ERC1155Holder {
             DEFAULT_ROLE_BITMAP,
             MAX_EXPIRY
         );
-
-        // Get recorded logs
-        Vm.Log[] memory logs = vm.getRecordedLogs();
 
         // Verify ownership
         vm.assertEq(registry.ownerOf(tokenId), owner);
@@ -290,46 +296,6 @@ contract RootRegistryTest is Test, ERC1155Holder {
 
         // Verify subregistry was set
         vm.assertEq(address(registry.getSubregistry(label)), address(registry));
-
-        // Verify events - check each log
-        bool foundTransferEvent = false;
-        bool foundNameRegisteredEvent = false;
-
-        for (uint256 i = 0; i < logs.length; i++) {
-            bytes32 topic0 = logs[i].topics[0];
-
-            // TransferSingle event
-            if (topic0 == keccak256("TransferSingle(address,address,address,uint256,uint256)")) {
-                foundTransferEvent = true;
-                address operator = address(uint160(uint256(logs[i].topics[1])));
-                address from = address(uint160(uint256(logs[i].topics[2])));
-                address to = address(uint160(uint256(logs[i].topics[3])));
-
-                // The operator is the caller of the register function, which is this test contract
-                assertEq(operator, address(this));
-                assertEq(from, address(0));
-                assertEq(to, owner);
-
-                (uint256 id, uint256 value) = abi.decode(logs[i].data, (uint256, uint256));
-                assertEq(id, tokenId);
-                assertEq(value, 1);
-            }
-            // NameRegistered event
-            else if (topic0 == keccak256("NameRegistered(uint256,string,uint64,address)")) {
-                foundNameRegisteredEvent = true;
-                assertEq(logs[i].topics.length, 2);
-                assertEq(uint256(logs[i].topics[1]), tokenId);
-
-                (string memory labelValue, uint64 expirationValue, address registeredByValue) = abi
-                    .decode(logs[i].data, (string, uint64, address));
-                assertEq(keccak256(bytes(labelValue)), keccak256(bytes(label)));
-                assertEq(expirationValue, MAX_EXPIRY);
-                assertEq(registeredByValue, address(this));
-            }
-        }
-
-        assertTrue(foundTransferEvent, "No TransferSingle event found");
-        assertTrue(foundNameRegisteredEvent, "No NameRegistered event found");
     }
 
     function test_Revert_register_without_permission() public {
