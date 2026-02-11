@@ -10,17 +10,15 @@ interface IRegistry is IERC1155Singleton {
     // Events
     ////////////////////////////////////////////////////////////////////////
 
-    /// @dev A subdomain was registered.
+    /// @dev A subdomain was registered or reserved (if owner is null).
     event NameRegistered(
         uint256 indexed tokenId,
         bytes32 indexed labelHash,
         string label,
+        address owner,
         uint64 expiry,
         address indexed by
     );
-
-    /// @dev A subdomain was reserved.
-    event NameReserved(bytes32 indexed labelHash, string label, uint64 expiry, address indexed by);
 
     /// @notice Expiry was changed.
     /// @dev Error selector: `0x`

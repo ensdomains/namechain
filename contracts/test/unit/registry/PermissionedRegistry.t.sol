@@ -269,9 +269,11 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
 
         vm.expectEmit();
-        emit IRegistry.NameReserved(
+        emit IRegistry.NameRegistered(
+            LibLabel.labelToCanonicalId(testLabel),
             LibLabel.labelhash(testLabel),
             testLabel,
+            address(0),
             expiry,
             address(this)
         );
@@ -290,13 +292,16 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         // cant reserve again
         vm.expectRevert(
-            abi.encodeWithSelector(IPermissionedRegistry.NameIsReserved.selector, testLabel)
+            abi.encodeWithSelector(IPermissionedRegistry.NameReserved.selector, testLabel)
         );
         registry.reserve(testLabel, testResolver, expiry);
 
         // cant renew
-        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameIsReserved.selector));
+        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameReserved.selector));
         registry.renew(tokenId, expiry + expiry);
+
+        // ROOT can change resolver
+        registry.setResolver(tokenId, testResolver);
 
         vm.warp(expiry);
 
@@ -333,7 +338,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         // cant register a reservation without ROLE_RESERVE
         vm.expectRevert(
-            abi.encodeWithSelector(IPermissionedRegistry.NameIsReserved.selector, testLabel)
+            abi.encodeWithSelector(IPermissionedRegistry.NameReserved.selector, testLabel)
         );
         vm.prank(registrar);
         registry.register(
@@ -395,6 +400,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             expectedTokenId,
             LibLabel.labelhash(testLabel),
             testLabel,
+            user1,
             expiry,
             address(this)
         );
@@ -457,7 +463,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.register(
             testLabel,
             user1,
-            IRegistry(address(0)),
+            IRegistry(address(0)), // null
             testResolver,
             DEFAULT_ROLE_BITMAP,
             _after(86400)
