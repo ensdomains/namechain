@@ -277,12 +277,6 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
         registry.reserve(testLabel, testResolver, expiry);
 
-        // cant reserve again
-        vm.expectRevert(
-            abi.encodeWithSelector(IStandardRegistry.NameAlreadyRegistered.selector, testLabel)
-        );
-        registry.reserve(testLabel, testResolver, expiry);
-
         // check reservation state
         (uint256 tokenId, ) = registry.getNameData(testLabel);
         assertEq(registry.ownerOf(tokenId), address(0), "owner");
@@ -293,6 +287,16 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             uint256(IPermissionedRegistry.NameState.RESERVED),
             "state:after-reserve"
         );
+
+        // cant reserve again
+        vm.expectRevert(
+            abi.encodeWithSelector(IPermissionedRegistry.NameIsReserved.selector, testLabel)
+        );
+        registry.reserve(testLabel, testResolver, expiry);
+
+        // cant renew
+        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameIsReserved.selector));
+        registry.renew(tokenId, expiry + expiry);
 
         vm.warp(expiry);
 
@@ -329,7 +333,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         // cant register a reservation without ROLE_RESERVE
         vm.expectRevert(
-            abi.encodeWithSelector(IStandardRegistry.NameAlreadyRegistered.selector, testLabel)
+            abi.encodeWithSelector(IPermissionedRegistry.NameIsReserved.selector, testLabel)
         );
         vm.prank(registrar);
         registry.register(

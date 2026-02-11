@@ -111,6 +111,9 @@ contract PermissionedRegistry is
             anyId,
             RegistryRolesLib.ROLE_RENEW
         );
+        if (super.ownerOf(tokenId) == address(0)) {
+            revert NameIsReserved();
+        }
         if (newExpiry < entry.expiry) {
             revert CannotReduceExpiration(entry.expiry, newExpiry);
         }
@@ -289,13 +292,12 @@ contract PermissionedRegistry is
         IRegistryDatastore.Entry memory entry = getEntry(tokenId);
         tokenId = _constructTokenId(tokenId, entry);
         address prevOwner = super.ownerOf(tokenId);
-        if (
-            !_isExpired(entry.expiry) &&
-            (/* already reserved */ owner == address(0) ||
-                /* already registered */ prevOwner != address(0) ||
-                /* cant register a reservation */ !hasRootRoles(RegistryRolesLib.ROLE_RESERVE, by))
-        ) {
-            revert NameAlreadyRegistered(label);
+        if (!_isExpired(entry.expiry)) {
+            if (prevOwner != address(0)) {
+                revert NameAlreadyRegistered(label);
+            } else if (owner == address(0) || !hasRootRoles(RegistryRolesLib.ROLE_RESERVE, by)) {
+                revert NameIsReserved();
+            }
         }
         if (prevOwner != address(0)) {
             _burn(prevOwner, tokenId, 1);
