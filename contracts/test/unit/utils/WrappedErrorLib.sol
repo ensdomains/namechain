@@ -38,17 +38,22 @@ contract MigrationErrorsTest is Test {
         bytes memory err = abi.encodeWithSignature("Error(string)", "abc");
         assertEq(WrappedErrorLib.wrap(err), err, "f(x)");
         assertEq(WrappedErrorLib.wrap(WrappedErrorLib.wrap(err)), err, "f(f(x))");
+        assertEq(WrappedErrorLib.unwrap(err), WrappedErrorLib.unwrap(WrappedErrorLib.unwrap(err)));
     }
 
     function test_idempotent_typedError() external pure {
         bytes memory err = abi.encodeWithSelector(TypedError.selector, 123, "abc");
         assertEq(WrappedErrorLib.wrap(WrappedErrorLib.wrap(err)), WrappedErrorLib.wrap(err));
+        assertEq(
+            WrappedErrorLib.unwrap(WrappedErrorLib.wrap(err)),
+            WrappedErrorLib.unwrap(WrappedErrorLib.unwrap(err))
+        );
     }
 
     function test_wrapAndRevert_alreadyError() external {
         bytes memory err = abi.encodeWithSignature("Error(string)", "abc");
         try this.wrapAndRevert(err) {} catch (bytes memory v) {
-            assertEq(v, err);
+            assertEq(WrappedErrorLib.unwrap(v), err);
         }
         vm.expectRevert(err);
         this.wrapAndRevert(err);
