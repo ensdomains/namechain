@@ -37,7 +37,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
 
     /// @notice Mapping of addresses to their inception timestamp for replay protection.
     /// @dev Only signatures with a signedAt timestamp greater than the stored inception can be used.
-    mapping(address addr => uint256 inception) private _inceptions;
+    mapping(address addr => uint256 inception) public inceptionOf;
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
@@ -154,11 +154,6 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         _setName(claim.addr, claim.name);
     }
 
-    /// @inheritdoc IL2ReverseRegistrar
-    function inceptionOf(address addr) external view returns (uint256) {
-        return _inceptions[addr];
-    }
-
     ////////////////////////////////////////////////////////////////////////
     // Internal Functions
     ////////////////////////////////////////////////////////////////////////
@@ -187,7 +182,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     /// @param addr The address to validate and update inception for.
     /// @param signedAt The signedAt timestamp from the signature.
     function _validateAndUpdateInception(address addr, uint256 signedAt) internal {
-        uint256 currentInception = _inceptions[addr];
+        uint256 currentInception = inceptionOf[addr];
 
         // signedAt must be strictly greater than the current inception
         if (signedAt <= currentInception) revert StaleSignature(signedAt, currentInception);
@@ -196,7 +191,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         if (signedAt > block.timestamp) revert SignatureNotValidYet(signedAt, block.timestamp);
 
         // Update the inception to the new signedAt
-        _inceptions[addr] = signedAt;
+        inceptionOf[addr] = signedAt;
     }
 
     /// @notice Checks if the provided address owns the contract via the Ownable interface.
