@@ -12,7 +12,7 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     ////////////////////////////////////////////////////////////////////////
 
     enum NameState {
-        UNREGISTERED,
+        AVAILABLE,
         RESERVED,
         REGISTERED
     }
@@ -34,7 +34,7 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     // Functions
     ////////////////////////////////////////////////////////////////////////
 
-    /// @notice Prevent subdomain registration until expiry or registrant has `ROLE_RESERVE`.
+    /// @notice Prevent subdomain registration until expiry unless caller has `ROLE_RESERVE`.
     /// @param label The subdomain to reserve.
     /// @param expiry The time when the subdomain can be registered again.
     /// @param resolver The resolver while in reserve.
