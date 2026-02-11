@@ -1,6 +1,6 @@
 {
   "extends": "solhint:recommended",
-  "plugins": ["prettier", "namechain"],
+  "plugins": ["prettier", "contracts-v2"],
   "rules": {
     "prettier/prettier": "error",
     "compiler-version": ["error", ">=0.8.13"],
@@ -59,8 +59,8 @@
     "imports-order": "off",
     "import-path-check": "off",
     "visibility-modifier-order": "error",
-    "namechain/ordering": "error",
-    "namechain/import-order-separation": [
+    "contracts-v2/ordering": "error",
+    "contracts-v2/import-order-separation": [
       "error",
       {
         "importOrder": ["^forge-std/", "^@?\\w", "^\\.\\./", "^\\./"]
