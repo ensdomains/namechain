@@ -112,7 +112,7 @@ contract PermissionedRegistry is
             RegistryRolesLib.ROLE_RENEW
         );
         if (super.ownerOf(tokenId) == address(0)) {
-            revert NameReserved();
+            revert NameIsReserved();
         }
         if (newExpiry < entry.expiry) {
             revert CannotReduceExpiration(entry.expiry, newExpiry);
@@ -294,12 +294,11 @@ contract PermissionedRegistry is
         address prevOwner = super.ownerOf(tokenId);
         if (!_isExpired(entry.expiry)) {
             if (prevOwner != address(0)) {
-                revert NameAlreadyRegistered(label);
+                revert NameAlreadyRegistered(label); // cannot overwrite a registration
             } else if (owner == address(0)) {
-                revert NameReserved();
-            } else {
-                _checkRoles(ROOT_RESOURCE, RegistryRolesLib.ROLE_RESERVE, sender);
+                revert NameIsReserved(); // cannot reserve a reservation
             }
+            _checkRoles(ROOT_RESOURCE, RegistryRolesLib.ROLE_RESERVE, sender); // role required to convert reservation to registration
         }
         if (prevOwner != address(0)) {
             _burn(prevOwner, tokenId, 1);
@@ -312,8 +311,10 @@ contract PermissionedRegistry is
         entry.resolver = resolver;
         DATASTORE.setEntry(tokenId, entry);
         // emit NameRegistered before mint so we can determine this is a registry (in an indexer)
-        emit NameRegistered(tokenId, labelHash, label, owner, expiry, sender);
-        if (owner != address(0)) {
+        if (owner == address(0)) {
+            emit NameReserved(tokenId, labelHash, label, expiry, sender);
+        } else {
+            emit NameRegistered(tokenId, labelHash, label, owner, expiry, sender);
             _mint(owner, tokenId, 1, "");
             uint256 resource = _constructResource(tokenId, entry);
             emit TokenResource(tokenId, resource);

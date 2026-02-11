@@ -269,11 +269,10 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
 
         vm.expectEmit();
-        emit IRegistry.NameRegistered(
+        emit IRegistry.NameReserved(
             LibLabel.labelToCanonicalId(testLabel),
             LibLabel.labelhash(testLabel),
             testLabel,
-            address(0),
             expiry,
             address(this)
         );
@@ -292,12 +291,12 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         // cant reserve again
         vm.expectRevert(
-            abi.encodeWithSelector(IPermissionedRegistry.NameReserved.selector, testLabel)
+            abi.encodeWithSelector(IPermissionedRegistry.NameIsReserved.selector, testLabel)
         );
         registry.reserve(testLabel, testResolver, expiry);
 
         // cant renew
-        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameReserved.selector));
+        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameIsReserved.selector));
         registry.renew(tokenId, expiry + expiry);
 
         // ROOT can change resolver
