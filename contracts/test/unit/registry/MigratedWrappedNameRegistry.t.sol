@@ -26,11 +26,9 @@ import {TransferData, MigrationData} from "~src/migration/types/MigrationTypes.s
 import {UnauthorizedCaller} from "~src/CommonErrors.sol";
 import {IPermissionedRegistry} from "~src/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "~src/registry/interfaces/IRegistry.sol";
-import {IRegistryDatastore} from "~src/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
 import {IStandardRegistry} from "~src/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {LibLabel} from "~src/utils/LibLabel.sol";
 import {LockedNamesLib} from "~src/migration/libraries/LockedNamesLib.sol";
 import {ParentNotMigrated, LabelNotMigrated} from "~src/migration/MigrationErrors.sol";
@@ -134,7 +132,6 @@ contract MockNameWrapper {
 contract MigratedWrappedNameRegistryTest is Test {
     MigratedWrappedNameRegistry implementation;
     MigratedWrappedNameRegistry registry;
-    RegistryDatastore datastore;
     MockHCAFactoryBasic hcaFactory;
     MockRegistryMetadata metadata;
     MockENS ensRegistry;
@@ -151,7 +148,6 @@ contract MigratedWrappedNameRegistryTest is Test {
     uint256 testLabelId;
 
     function setUp() public {
-        datastore = new RegistryDatastore();
         hcaFactory = new MockHCAFactoryBasic();
         metadata = new MockRegistryMetadata();
         ensRegistry = new MockENS();
@@ -163,7 +159,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             INameWrapper(address(nameWrapper)), // mock nameWrapper
             IPermissionedRegistry(address(0)), // mock ethRegistry
             factory,
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -320,7 +315,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                             expires: expiry
                         }),
-                        
                         salt: uint256(keccak256(abi.encodePacked("test_salt")))
                     })
                 )
@@ -372,7 +366,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                         roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                         expires: uint64(block.timestamp + 86400)
                     }),
-                    
                     salt: uint256(keccak256(abi.encodePacked("test_salt")))
                 })
             )
@@ -407,7 +400,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                         roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                         expires: uint64(block.timestamp + 86400)
                     }),
-                    
                     salt: uint256(keccak256(abi.encodePacked("test_salt")))
                 })
             )
@@ -488,7 +480,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(0)),
             realFactory,
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -516,7 +507,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -592,7 +582,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                             expires: expiry
                         }),
-                        
                         salt: uint256(keccak256(abi.encodePacked("test_resolver_clear")))
                     })
                 )
@@ -667,7 +656,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                             expires: expiry
                         }),
-                        
                         salt: uint256(keccak256(abi.encodePacked("test_resolver_preserve")))
                     })
                 )
@@ -748,7 +736,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                         roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                         expires: expiry
                     }),
-                    
                     salt: uint256(keccak256(abi.encodePacked("test_already_registered")))
                 })
             )
@@ -804,7 +791,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                         roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                         expires: expiry
                     }),
-                    
                     salt: uint256(keccak256(abi.encodePacked("test_not_controlled")))
                 })
             )
@@ -885,7 +871,9 @@ contract MigratedWrappedNameRegistryTest is Test {
         );
 
         // Verify re-registration succeeded with new owner
-        (uint256 newTokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        (uint256 newTokenId, IPermissionedRegistry.Entry memory entry) = registry.getNameData(
+            label
+        );
         uint64 expires = entry.expiry;
         assertGt(expires, block.timestamp);
         assertEq(registry.ownerOf(newTokenId), address(0x5678));
@@ -908,7 +896,7 @@ contract MigratedWrappedNameRegistryTest is Test {
         registry.register(label, user, registry, mockResolver, 0, uint64(block.timestamp + 86400));
 
         // Verify registration succeeded
-        (, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        (, IPermissionedRegistry.Entry memory entry) = registry.getNameData(label);
         uint64 expires = entry.expiry;
         assertGt(expires, block.timestamp);
     }
@@ -981,7 +969,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                             expires: expiry
                         }),
-                        
                         salt: uint256(keccak256(abi.encodePacked("test_locked_migration")))
                     })
                 )
@@ -1021,7 +1008,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)
             }),
-            
             salt: uint256(keccak256(abi.encodePacked("batch_test_simple")))
         });
 
@@ -1069,7 +1055,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)
             }),
-            
             salt: uint256(keccak256(abi.encodePacked("batch_test_1")))
         });
         migrationDataArray[1] = MigrationData({
@@ -1081,7 +1066,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)
             }),
-            
             salt: uint256(keccak256(abi.encodePacked("batch_test_2")))
         });
 
@@ -1177,7 +1161,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)
             }),
-            
             salt: uint256(keccak256(abi.encodePacked("unauthorized_test")))
         });
 
@@ -1196,7 +1179,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)
             }),
-            
             salt: uint256(keccak256(abi.encodePacked("zero_address_test")))
         });
 
@@ -1216,7 +1198,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                 expires: uint64(block.timestamp + 86400)
             }),
-            
             salt: uint256(keccak256(abi.encodePacked("random_contract_test")))
         });
 
@@ -1233,7 +1214,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -1261,7 +1241,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -1284,7 +1263,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -1319,7 +1297,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -1387,7 +1364,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -1410,7 +1386,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -1444,7 +1419,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -1478,7 +1452,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(0)),
             VerifiableFactory(address(0)),
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -1522,7 +1495,6 @@ contract MigratedWrappedNameRegistryTest is Test {
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(mockEthRegistry)),
             VerifiableFactory(address(0)),
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -1568,7 +1540,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                         roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                         expires: uint64(block.timestamp + 86400)
                     }),
-                    
                     salt: uint256(keccak256(abi.encodePacked("existing_test")))
                 })
             )
@@ -1641,7 +1612,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                             expires: expiry
                         }),
-                        
                         salt: uint256(keccak256(abi.encodePacked("deep_4ld_test")))
                     })
                 )
@@ -1697,7 +1667,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                         roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                         expires: expiry
                     }),
-                    
                     salt: uint256(keccak256(abi.encodePacked("mixed_test")))
                 })
             )
@@ -1759,7 +1728,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                             expires: uint64(block.timestamp + 86400)
                         }),
-                        
                         salt: uint256(keccak256(abi.encodePacked("com_test")))
                     })
                 )
@@ -1817,7 +1785,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                             expires: expiry
                         }),
-                        
                         salt: uint256(keccak256(abi.encodePacked("emancipated_only_test")))
                     })
                 )
@@ -1876,7 +1843,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                             expires: expiry
                         }),
-                        
                         salt: uint256(keccak256(abi.encodePacked("locked_not_emancipated_test")))
                     })
                 )
@@ -1939,7 +1905,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                         roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER, // Only regular role, no admin role
                         expires: expiry
                     }),
-                    
                     salt: uint256(keccak256(abi.encodePacked("frozen_test")))
                 })
             )
@@ -1996,7 +1961,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                             expires: expiry
                         }),
-                        
                         salt: uint256(keccak256(abi.encodePacked("restrictive_test")))
                     })
                 )
@@ -2059,7 +2023,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                             expires: expiry
                         }),
-                        
                         salt: uint256(keccak256(abi.encodePacked("extendable_test")))
                     })
                 )
@@ -2122,7 +2085,6 @@ contract MigratedWrappedNameRegistryTest is Test {
                             roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                             expires: expiry
                         }),
-                        
                         salt: uint256(keccak256(abi.encodePacked("nosub_test")))
                     })
                 )

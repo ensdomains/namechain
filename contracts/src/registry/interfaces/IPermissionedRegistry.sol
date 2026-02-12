@@ -3,8 +3,7 @@ pragma solidity >=0.8.13;
 
 import {IEnhancedAccessControl} from "../../access-control/interfaces/IEnhancedAccessControl.sol";
 
-import {IRegistryDatastore} from "./IRegistryDatastore.sol";
-import {IStandardRegistry} from "./IStandardRegistry.sol";
+import {IStandardRegistry, IRegistry} from "./IStandardRegistry.sol";
 
 interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     ////////////////////////////////////////////////////////////////////////
@@ -15,6 +14,14 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
         AVAILABLE,
         RESERVED,
         REGISTERED
+    }
+
+    struct Entry {
+        uint32 eacVersionId;
+        uint32 tokenVersionId;
+        IRegistry subregistry;
+        uint64 expiry;
+        address resolver;
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -59,12 +66,12 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
      */
     function getNameData(
         string calldata label
-    ) external view returns (uint256 tokenId, IRegistryDatastore.Entry memory entry);
+    ) external view returns (uint256 tokenId, Entry memory entry);
 
     /// @notice Get datastore `Entry` from `anyId`.
     /// @param anyId The labelhash, token ID, or resource.
     /// @return The datastore entry.
-    function getEntry(uint256 anyId) external view returns (IRegistryDatastore.Entry memory);
+    function getEntry(uint256 anyId) external view returns (Entry memory);
 
     /// @notice Get `resource` from `anyId`.
     /// @param anyId The labelhash, token ID, or resource.

@@ -19,7 +19,6 @@ import {MigrationData} from "../migration/types/MigrationTypes.sol";
 import {IMigratedWrappedNameRegistry} from "./interfaces/IMigratedWrappedNameRegistry.sol";
 import {IPermissionedRegistry} from "./interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "./interfaces/IRegistry.sol";
-import {IRegistryDatastore} from "./interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "./interfaces/IRegistryMetadata.sol";
 import {IStandardRegistry} from "./interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "./libraries/RegistryRolesLib.sol";
@@ -74,11 +73,10 @@ contract MigratedWrappedNameRegistry is
         INameWrapper nameWrapper,
         IPermissionedRegistry ethRegistry,
         VerifiableFactory factory,
-        IRegistryDatastore datastore,
         IHCAFactoryBasic hcaFactory,
         IRegistryMetadata metadataProvider,
         address fallbackResolver
-    ) PermissionedRegistry(datastore, hcaFactory, metadataProvider, _msgSender(), 0) {
+    ) PermissionedRegistry(hcaFactory, metadataProvider, _msgSender(), 0) {
         NAME_WRAPPER = nameWrapper;
         ETH_REGISTRY = ethRegistry;
         FACTORY = factory;

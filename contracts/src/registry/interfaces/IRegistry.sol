@@ -3,8 +3,6 @@ pragma solidity >=0.8.13;
 
 import {IERC1155Singleton} from "../../erc1155/interfaces/IERC1155Singleton.sol";
 
-import {IRegistry} from "./IRegistry.sol";
-
 interface IRegistry is IERC1155Singleton {
     ////////////////////////////////////////////////////////////////////////
     // Events
