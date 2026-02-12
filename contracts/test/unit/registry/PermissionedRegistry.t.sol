@@ -50,6 +50,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     address user1 = makeAddr("user1");
     address user2 = makeAddr("user2");
     address user3 = makeAddr("user3");
+    address registrar = makeAddr("registrar");
 
     string testLabel = "test";
     address testResolver = makeAddr("resolver");
@@ -223,10 +224,8 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     }
 
     function test_registrar_can_register() public {
-        address registrar2 = makeAddr("registrar");
-        registry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, registrar2);
-
-        vm.prank(registrar2);
+        registry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, registrar);
+        vm.prank(registrar);
         uint256 tokenId = registry.register(
             "test2",
             address(this),
@@ -259,6 +258,40 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         assertEq(expiry, newExpiry);
     }
 
+    function test_unregister() external {
+        uint256 tokenId = registry.register(
+            testLabel,
+            user1,
+            testRegistry,
+            testResolver,
+            DEFAULT_ROLE_BITMAP,
+            _after(86400)
+        );
+        vm.expectEmit();
+        emit IRegistry.NameUnregistered(tokenId, address(this));
+        vm.expectEmit();
+        emit IERC1155.TransferSingle(address(this), user1, address(0), tokenId, 1);
+        registry.unregister(tokenId);
+
+        // check unregistered state
+        assertEq(registry.ownerOf(tokenId), address(0), "owner");
+        assertEq(registry.getExpiry(tokenId), block.timestamp, "expiry");
+        assertEq(registry.getResolver(testLabel), address(0), "resolver");
+        assertEq(address(registry.getSubregistry(testLabel)), address(0), "subregistry");
+    }
+
+    function test_unregister_available() external {
+        uint256 tokenId = 1 << 32;
+        vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameExpired.selector, tokenId));
+        registry.unregister(tokenId);
+    }
+
+    function test_unregister_reserved() external {
+        registry.reserve(testLabel, testResolver, _after(86400));
+        vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameIsReserved.selector));
+        registry.unregister(uint256(keccak256(bytes(testLabel))));
+    }
+
     function test_reserve() external {
         uint64 expiry = _after(86400);
 
@@ -289,10 +322,17 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             "state:after-reserve"
         );
 
+        // create restricted registrar
+        registry.grantRootRoles(
+            RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_RESERVE,
+            registrar
+        );
+
         // cant reserve again
         vm.expectRevert(
             abi.encodeWithSelector(IPermissionedRegistry.NameIsReserved.selector, testLabel)
         );
+        vm.prank(registrar);
         registry.reserve(testLabel, testResolver, expiry);
 
         // cant renew
@@ -301,6 +341,9 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
         // ROOT can change resolver
         registry.setResolver(tokenId, testResolver);
+
+        // ROOT can change subregistry
+        registry.setSubregistry(tokenId, testRegistry);
 
         vm.warp(expiry);
 
@@ -312,7 +355,8 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             "state:after-expiry"
         );
 
-        // check can be registered
+        // can be registered after expiry
+        vm.prank(registrar);
         registry.register(
             testLabel,
             user1,
@@ -329,13 +373,11 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
     }
 
-    function test_reserve_with_register() external {
+    function test_reserve_then_register() external {
         registry.reserve(testLabel, testResolver, _after(86400));
 
-        address registrar = makeAddr("registrar");
+        // cant register a reservation w/o ROLE_RESERVE
         registry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, registrar);
-
-        // cant register a reservation without ROLE_RESERVE
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
@@ -354,9 +396,8 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             _after(86400)
         );
 
+        // grant and retry
         registry.grantRootRoles(RegistryRolesLib.ROLE_RESERVE, registrar);
-
-        // retry with role
         vm.prank(registrar);
         registry.register(
             testLabel,
@@ -368,6 +409,32 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
     }
 
+    function test_register_then_reserve() external {
+        uint256 tokenId = registry.register(
+            testLabel,
+            user1,
+            testRegistry,
+            testResolver,
+            DEFAULT_ROLE_BITMAP,
+            _after(86400)
+        );
+
+        // cant reserve a registration w/o ROLE_UNREGISTER
+        registry.grantRootRoles(RegistryRolesLib.ROLE_RESERVE, registrar);
+        vm.expectRevert(
+            abi.encodeWithSelector(IStandardRegistry.NameAlreadyRegistered.selector, testLabel)
+        );
+        vm.prank(registrar);
+        registry.reserve(testLabel, testResolver, _after(86400));
+
+        // grant and retry
+        registry.grantRootRoles(RegistryRolesLib.ROLE_UNREGISTER, registrar);
+        vm.expectEmit();
+        emit IRegistry.NameUnregistered(tokenId, registrar);
+        vm.prank(registrar);
+        registry.reserve(testLabel, testResolver, _after(86400));
+    }
+
     function test_reserve_alreadyRegistered() external {
         registry.register(
             testLabel,
@@ -377,9 +444,11 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             DEFAULT_ROLE_BITMAP,
             _after(86400)
         );
+        registry.grantRootRoles(RegistryRolesLib.ROLE_RESERVE, registrar);
         vm.expectRevert(
             abi.encodeWithSelector(IStandardRegistry.NameAlreadyRegistered.selector, testLabel)
         );
+        vm.prank(registrar);
         registry.reserve(testLabel, testResolver, _after(86400));
     }
 
@@ -486,24 +555,41 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.register(label, user1, registry, address(0), DEFAULT_ROLE_BITMAP, _after(86400));
     }
 
-    function test_Revert_cannot_mint_duplicates() public {
-        registry.register(
-            "test2",
-            address(this),
-            registry,
-            address(0),
+    function test_reregister() external {
+        registry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, registrar);
+        uint256 tokenId = registry.register(
+            testLabel,
+            user1,
+            testRegistry,
+            testResolver,
             DEFAULT_ROLE_BITMAP,
             _after(86400)
         );
 
+        // cant unregister + register w/o ROLE_UNREGISTER
         vm.expectRevert(
-            abi.encodeWithSelector(IStandardRegistry.NameAlreadyRegistered.selector, "test2")
+            abi.encodeWithSelector(IStandardRegistry.NameAlreadyRegistered.selector, testLabel)
         );
+        vm.prank(registrar);
         registry.register(
-            "test2",
-            address(this),
-            registry,
-            address(0),
+            testLabel,
+            user1,
+            testRegistry,
+            testResolver,
+            DEFAULT_ROLE_BITMAP,
+            _after(86400)
+        );
+
+        // grant and retry
+        registry.grantRootRoles(RegistryRolesLib.ROLE_UNREGISTER, registrar);
+        vm.expectEmit();
+        emit IRegistry.NameUnregistered(tokenId, registrar);
+        vm.prank(registrar);
+        registry.register(
+            testLabel,
+            user1,
+            testRegistry,
+            testResolver,
             DEFAULT_ROLE_BITMAP,
             _after(86400)
         );

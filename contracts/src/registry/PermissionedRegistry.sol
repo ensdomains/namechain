@@ -96,6 +96,26 @@ contract PermissionedRegistry is
         return _register(label, owner, registry, resolver, roleBitmap, expiry, _msgSender());
     }
 
+    /// @inheritdoc IStandardRegistry
+    function unregister(uint256 anyId) public virtual {
+        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = _checkExpiryAndTokenRoles(
+            anyId,
+            RegistryRolesLib.ROLE_UNREGISTER
+        );
+        if (super.ownerOf(tokenId) == address(0)) {
+            revert NameIsReserved();
+        }
+        entry.expiry = uint64(block.timestamp);
+        emit NameUnregistered(tokenId, _msgSender());
+        address owner = super.ownerOf(tokenId);
+        if (owner != address(0)) {
+            _burn(owner, tokenId, 1);
+            ++entry.eacVersionId;
+            ++entry.tokenVersionId;
+        }
+        DATASTORE.setEntry(tokenId, entry);
+    }
+
     /// @inheritdoc IPermissionedRegistry
     function reserve(
         string calldata label,
@@ -284,23 +304,33 @@ contract PermissionedRegistry is
         address sender
     ) internal virtual returns (uint256 tokenId) {
         NameCoder.assertLabelSize(label);
-        if (_isExpired(expiry)) {
+        bytes32 labelHash = LibLabel.labelhash(label);
+        IRegistryDatastore.Entry memory entry = getEntry(uint256(labelHash));
+        tokenId = _constructTokenId(uint256(labelHash), entry);
+        address prevOwner = super.ownerOf(tokenId);
+        bool wasReg = !_isExpired(entry.expiry);
+        if (wasReg) {
+            if (!hasRootRoles(RegistryRolesLib.ROLE_UNREGISTER, sender)) {
+                if (prevOwner != address(0)) {
+                    revert NameAlreadyRegistered(label); // cannot modify a registration
+                } else if (owner == address(0)) {
+                    revert NameIsReserved(); // cannot modify a reservation
+                }
+            }
+            if (prevOwner == address(0)) {
+                _checkRoles(ROOT_RESOURCE, RegistryRolesLib.ROLE_RESERVE, sender); // required to convert reservation to registration
+            }
+        }
+        // permission checks complete
+        if (expiry == 0 && owner == address(0)) {
+            expiry = uint64(block.timestamp); // convenience for unreserve() = reserve(label, 0)
+        } else if (_isExpired(expiry)) {
             revert CannotSetPastExpiration(expiry);
         }
-        bytes32 labelHash = LibLabel.labelhash(label);
-        tokenId = LibLabel.getCanonicalId(uint256(labelHash));
-        IRegistryDatastore.Entry memory entry = getEntry(tokenId);
-        tokenId = _constructTokenId(tokenId, entry);
-        address prevOwner = super.ownerOf(tokenId);
-        if (!_isExpired(entry.expiry)) {
-            if (prevOwner != address(0)) {
-                revert NameAlreadyRegistered(label); // cannot overwrite a registration
-            } else if (owner == address(0)) {
-                revert NameIsReserved(); // cannot reserve a reservation
-            }
-            _checkRoles(ROOT_RESOURCE, RegistryRolesLib.ROLE_RESERVE, sender); // role required to convert reservation to registration
-        }
         if (prevOwner != address(0)) {
+            if (wasReg) {
+                emit NameUnregistered(tokenId, sender);
+            }
             _burn(prevOwner, tokenId, 1);
             ++entry.eacVersionId;
             ++entry.tokenVersionId;
