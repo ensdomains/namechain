@@ -10,6 +10,8 @@ import {LibISO8601} from "../utils/LibISO8601.sol";
 import {LibString} from "../utils/LibString.sol";
 
 import {IL2ReverseRegistrar} from "./interfaces/IL2ReverseRegistrar.sol";
+import {ChainIdsBuilderLib} from "./libraries/ChainIdsBuilderLib.sol";
+import {StandaloneReverseRegistrar} from "./StandaloneReverseRegistrar.sol";
 
 /// @title L2 Reverse Registrar
 /// @notice A reverse registrar for L2 chains that allows users to set their ENS primary name.
@@ -124,7 +126,10 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         NameClaim calldata claim,
         bytes calldata signature
     ) external {
-        string memory chainIdsString = _validateChainIds(claim.chainIds);
+        string memory chainIdsString = ChainIdsBuilderLib.validateAndBuild(
+            claim.chainIds,
+            CHAIN_ID
+        );
 
         bytes32 message = _createNameForAddrWithSignatureMessageHash(claim, chainIdsString);
         _validateSignature(signature, claim.addr, message);
@@ -139,7 +144,10 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         address owner,
         bytes calldata signature
     ) external {
-        string memory chainIdsString = _validateChainIds(claim.chainIds);
+        string memory chainIdsString = ChainIdsBuilderLib.validateAndBuild(
+            claim.chainIds,
+            CHAIN_ID
+        );
 
         if (!_ownsContract(claim.addr, owner)) revert NotOwnerOfContract();
 
@@ -206,38 +214,6 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         } catch {
             return false;
         }
-    }
-
-    /// @notice Validates that the chain ID array is strictly ascending and contains the current chain ID.
-    /// @dev Reverts if chain IDs are not in ascending order or if current chain ID is not found.
-    /// @param chainIds The array of chain IDs to validate (must be in strictly ascending order).
-    /// @return chainIdsString The chain IDs formatted as a comma-separated string.
-    function _validateChainIds(
-        uint256[] calldata chainIds
-    ) internal view returns (string memory chainIdsString) {
-        uint256 length = chainIds.length;
-        if (length == 0) revert CurrentChainNotFound(CHAIN_ID);
-
-        // Handle first element
-        uint256 prev = chainIds[0];
-        bool containsCurrentChain = prev == CHAIN_ID;
-        chainIdsString = LibString.toString(prev);
-
-        // Process remaining elements (starting from index 1)
-        for (uint256 i = 1; i < length; ++i) {
-            uint256 current = chainIds[i];
-
-            // Verify strictly ascending order
-            if (current <= prev) revert ChainIdsNotAscending();
-            prev = current;
-
-            if (current == CHAIN_ID) containsCurrentChain = true;
-            chainIdsString = string.concat(chainIdsString, ", ", LibString.toString(current));
-        }
-
-        if (!containsCurrentChain) revert CurrentChainNotFound(CHAIN_ID);
-
-        return chainIdsString;
     }
 
     /// @notice Creates the EIP-191 message hash for setNameForAddrWithSignature.

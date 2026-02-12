@@ -653,6 +653,50 @@ describe('L2ReverseRegistrar', () => {
       ).resolves.toStrictEqual(name)
     })
 
+    it('allows large chain ID array with approx. linear gas scaling', async () => {
+      const { l2ReverseRegistrar, name, signedAt, accounts, walletClient } =
+        await connection.networkHelpers.loadFixture(
+          setNameForAddrWithSignatureFixture,
+        )
+
+      const getClaimAndSig = async (length: number) => {
+        const chainIds = Array.from({ length }, (_, i) => BigInt(i) + 1n)
+        if (length === 1)
+          chainIds[0] = OPTIMISM_CHAIN_ID
+
+        const message = createNameForAddrMessage({
+          name,
+          address: accounts[0].address,
+          chainIds,
+          signedAt,
+        })
+  
+        const signature = await walletClient.signMessage({
+          message,
+        })
+  
+        const claim = {
+          name,
+          addr: accounts[0].address,
+          chainIds,
+          signedAt,
+        }
+
+        return [claim, signature] as const
+      }
+
+      const amounts = [1, 25, 50, 100, 200, 400, 800, 1600]
+      const gasUseds = await Promise.all(amounts.map(async (length) => {
+        const [claim, signature] = await getClaimAndSig(length)
+        const gas = await l2ReverseRegistrar.estimateGas.setNameForAddrWithSignature([claim, signature], { account: accounts[1] })
+        return { gas, gasPerEach: Number((gas - 99_650n) / BigInt(length)) }
+      }))
+
+      for (let i = 1; i < gasUseds.length; i++) {
+        expect(gasUseds[i].gasPerEach).toBeLessThan(gasUseds[i - 1].gasPerEach * 1.15)
+      }
+    })
+
     it('reverts if chain IDs are not in ascending order', async () => {
       const { l2ReverseRegistrar, name, signedAt, accounts, walletClient } =
         await connection.networkHelpers.loadFixture(
@@ -1386,6 +1430,57 @@ describe('L2ReverseRegistrar', () => {
       await expect(
         getNameForAddr(mockOwnableEoa.address),
       ).resolves.toStrictEqual(name)
+    })
+
+    it('allows large chain ID array with approx. linear gas scaling', async () => {
+      const {
+        l2ReverseRegistrar,
+        name,
+        signedAt,
+        accounts,
+        mockOwnableEoa,
+        walletClient,
+      } = await connection.networkHelpers.loadFixture(
+        setNameForOwnableWithSignatureFixture,
+      )
+
+      const getClaimAndSig = async (length: number) => {
+        const chainIds = Array.from({ length }, (_, i) => BigInt(i) + 1n)
+        if (length === 1)
+          chainIds[0] = OPTIMISM_CHAIN_ID
+
+        const message = createNameForOwnableMessage({
+          name,
+          contractAddress: mockOwnableEoa.address,
+          owner: accounts[0].address,
+          chainIds,
+          signedAt,
+        })
+  
+        const signature = await walletClient.signMessage({
+          message,
+        })
+  
+        const claim = {
+          name,
+          addr: mockOwnableEoa.address,
+          chainIds,
+          signedAt,
+        }
+
+        return [claim, signature] as const
+      }
+
+      const amounts = [1, 25, 50, 100, 200, 400, 800, 1600]
+      const gasUseds = await Promise.all(amounts.map(async (length) => {
+        const [claim, signature] = await getClaimAndSig(length)
+        const gas = await l2ReverseRegistrar.estimateGas.setNameForOwnableWithSignature([claim, accounts[0].address, signature], { account: accounts[9] })
+        return { gas, gasPerEach: Number((gas - 114_300n) / BigInt(length)) }
+      }))
+
+      for (let i = 1; i < gasUseds.length; i++) {
+        expect(gasUseds[i].gasPerEach).toBeLessThan(gasUseds[i - 1].gasPerEach * 1.15)
+      }
     })
 
     it('reverts if chain IDs are not in ascending order', async () => {

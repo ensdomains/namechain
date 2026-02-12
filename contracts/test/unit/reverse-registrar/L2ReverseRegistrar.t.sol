@@ -213,6 +213,14 @@ contract L2ReverseRegistrarTest is Test {
         return new uint256[](0);
     }
 
+    function _largeChainIdArray(uint256 length) internal pure returns (uint256[] memory) {
+        uint256[] memory chainIds = new uint256[](length);
+        for (uint256 i = 1; i < length; i++) {
+            chainIds[i] = i;
+        }
+        return chainIds;
+    }
+
     ////////////////////////////////////////////////////////////////////////
     // Constructor / Immutables Tests
     ////////////////////////////////////////////////////////////////////////
@@ -624,6 +632,98 @@ contract L2ReverseRegistrarTest is Test {
 
         bytes32 node = _getNode(user1);
         assertEq(registrar.name(node), name_, "Name should be set with multiple chain IDs");
+    }
+
+    function test_setNameForAddrWithSignature_allowsLargeChainIdArray_25() public {
+        string memory name_ = "myname.eth";
+        uint256 signedAt = block.timestamp;
+        uint256[] memory chainIds = _largeChainIdArray(25);
+
+        bytes32 message = _createNameForAddrMessage(name_, user1, chainIds, signedAt);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(user1Pk, message);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        IL2ReverseRegistrar.NameClaim memory claim = IL2ReverseRegistrar.NameClaim({
+            name: name_,
+            addr: user1,
+            chainIds: chainIds,
+            signedAt: signedAt
+        });
+
+        vm.prank(relayer);
+        registrar.setNameForAddrWithSignature(claim, signature);
+
+        bytes32 node = _getNode(user1);
+        assertEq(registrar.name(node), name_, "Name should be set with large chain ID array");
+    }
+
+    function test_setNameForAddrWithSignature_allowsLargeChainIdArray_50() public {
+        string memory name_ = "myname.eth";
+        uint256 signedAt = block.timestamp;
+        uint256[] memory chainIds = _largeChainIdArray(50);
+
+        bytes32 message = _createNameForAddrMessage(name_, user1, chainIds, signedAt);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(user1Pk, message);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        IL2ReverseRegistrar.NameClaim memory claim = IL2ReverseRegistrar.NameClaim({
+            name: name_,
+            addr: user1,
+            chainIds: chainIds,
+            signedAt: signedAt
+        });
+
+        vm.prank(relayer);
+        registrar.setNameForAddrWithSignature(claim, signature);
+
+        bytes32 node = _getNode(user1);
+        assertEq(registrar.name(node), name_, "Name should be set with large chain ID array");
+    }
+
+    function test_setNameForAddrWithSignature_allowsLargeChainIdArray_100() public {
+        string memory name_ = "myname.eth";
+        uint256 signedAt = block.timestamp;
+        uint256[] memory chainIds = _largeChainIdArray(100);
+
+        bytes32 message = _createNameForAddrMessage(name_, user1, chainIds, signedAt);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(user1Pk, message);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        IL2ReverseRegistrar.NameClaim memory claim = IL2ReverseRegistrar.NameClaim({
+            name: name_,
+            addr: user1,
+            chainIds: chainIds,
+            signedAt: signedAt
+        });
+
+        vm.prank(relayer);
+        registrar.setNameForAddrWithSignature(claim, signature);
+
+        bytes32 node = _getNode(user1);
+        assertEq(registrar.name(node), name_, "Name should be set with large chain ID array");
+    }
+
+    function test_setNameForAddrWithSignature_allowsLargeChainIdArray_200() public {
+        string memory name_ = "myname.eth";
+        uint256 signedAt = block.timestamp;
+        uint256[] memory chainIds = _largeChainIdArray(200);
+
+        bytes32 message = _createNameForAddrMessage(name_, user1, chainIds, signedAt);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(user1Pk, message);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        IL2ReverseRegistrar.NameClaim memory claim = IL2ReverseRegistrar.NameClaim({
+            name: name_,
+            addr: user1,
+            chainIds: chainIds,
+            signedAt: signedAt
+        });
+
+        vm.prank(relayer);
+        registrar.setNameForAddrWithSignature(claim, signature);
+
+        bytes32 node = _getNode(user1);
+        assertEq(registrar.name(node), name_, "Name should be set with large chain ID array");
     }
 
     function test_setNameForAddrWithSignature_revert_currentChainIdNotInArray() public {
@@ -1170,6 +1270,35 @@ contract L2ReverseRegistrarTest is Test {
 
         bytes32 node = _getNode(address(mockOwnableEoa));
         assertEq(registrar.name(node), name_, "Name should be set with multiple chain IDs");
+    }
+
+    function test_setNameForOwnableWithSignature_allowsLargeChainIdArray() public {
+        string memory name_ = "ownable.eth";
+        uint256 signedAt = block.timestamp;
+        uint256[] memory chainIds = _largeChainIdArray(50);
+
+        bytes32 message = _createNameForOwnableMessage(
+            name_,
+            address(mockOwnableEoa),
+            user1,
+            chainIds,
+            signedAt
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(user1Pk, message);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        IL2ReverseRegistrar.NameClaim memory claim = IL2ReverseRegistrar.NameClaim({
+            name: name_,
+            addr: address(mockOwnableEoa),
+            chainIds: chainIds,
+            signedAt: signedAt
+        });
+
+        vm.prank(relayer);
+        registrar.setNameForOwnableWithSignature(claim, user1, signature);
+
+        bytes32 node = _getNode(address(mockOwnableEoa));
+        assertEq(registrar.name(node), name_, "Name should be set with large chain ID array");
     }
 
     function test_setNameForOwnableWithSignature_revert_currentChainIdNotInArray() public {
