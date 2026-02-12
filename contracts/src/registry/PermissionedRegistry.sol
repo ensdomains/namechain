@@ -106,17 +106,15 @@ contract PermissionedRegistry is
             anyId,
             RegistryRolesLib.ROLE_UNREGISTER
         );
-        if (super.ownerOf(tokenId) == address(0)) {
+        address owner = super.ownerOf(tokenId);
+        if (owner == address(0)) {
             revert NameIsReserved();
         }
-        entry.expiry = uint64(block.timestamp);
         emit NameUnregistered(tokenId, _msgSender());
-        address owner = super.ownerOf(tokenId);
-        if (owner != address(0)) {
-            _burn(owner, tokenId, 1);
-            ++entry.eacVersionId;
-            ++entry.tokenVersionId;
-        }
+        _burn(owner, tokenId, 1);
+        ++entry.eacVersionId;
+        ++entry.tokenVersionId;
+        entry.expiry = uint64(block.timestamp);
         DATASTORE.setEntry(tokenId, entry);
     }
 
