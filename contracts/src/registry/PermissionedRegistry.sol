@@ -76,6 +76,9 @@ contract PermissionedRegistry is
     }
 
     /// @inheritdoc IStandardRegistry
+    /// @dev Requires `ROLE_REGISTRAR` on root.
+    ///      An active reservation requires `ROLE_RESERVED` on root.
+    ///      An active registration requires `ROLE_UNREGISTER` on root.
     function register(
         string calldata label,
         address owner,
@@ -97,6 +100,7 @@ contract PermissionedRegistry is
     }
 
     /// @inheritdoc IStandardRegistry
+    /// @dev Requires an active registration and `ROLE_UNREGISTER`.
     function unregister(uint256 anyId) public virtual {
         (uint256 tokenId, IRegistryDatastore.Entry memory entry) = _checkExpiryAndTokenRoles(
             anyId,
@@ -117,6 +121,9 @@ contract PermissionedRegistry is
     }
 
     /// @inheritdoc IPermissionedRegistry
+    /// @dev Requires `ROLE_RESERVE` on root.
+    ///      An active reservation or registration requires `ROLE_UNREGISTER` on root.
+    ///      `expiry = 0` is interpreted as now.
     function reserve(
         string calldata label,
         address resolver,
@@ -126,6 +133,7 @@ contract PermissionedRegistry is
     }
 
     /// @inheritdoc IStandardRegistry
+    /// @dev Requires an active registration and `ROLE_RENEW`.
     function renew(uint256 anyId, uint64 newExpiry) public override {
         (uint256 tokenId, IRegistryDatastore.Entry memory entry) = _checkExpiryAndTokenRoles(
             anyId,
