@@ -17,7 +17,6 @@ import {
 } from "~src/access-control/EnhancedAccessControl.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/registry/PermissionedRegistry.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/registry/SimpleRegistryMetadata.sol";
 import {LibLabel} from "~src/utils/LibLabel.sol";
 import {
@@ -60,7 +59,6 @@ contract ETHRegistrarTest is Test {
     function setUp() external {
         hcaFactory = new MockHCAFactoryBasic();
         ethRegistry = new PermissionedRegistry(
-            new RegistryDatastore(),
             hcaFactory,
             new SimpleRegistryMetadata(hcaFactory),
             address(this),
