@@ -16,10 +16,10 @@ library LibISO8601 {
             mstore(result, 20)
 
             // Variable reuse strategy to avoid stack-too-deep:
-            // a: totalDays -> z -> doe -> doy -> month
+            // a: totalDays -> qday -> qjul -> yday -> bump -> month
             // b: secs -> second
-            // c: era -> year
-            // d: yoe -> mp -> hour
+            // c: cent -> year
+            // d: N -> M -> hour
             // day: keeps day value
             // minute: keeps minute value
             // e: digit extraction helper
@@ -28,17 +28,20 @@ library LibISO8601 {
             let a := div(ts, 86400)
             let b := sub(ts, mul(a, 86400))
 
-            // Howard Hinnant date algorithm
+            // Howard Hinnant date algorithm / Ben Joffe fast date algorithm
+            // https://howardhinnant.github.io/date_algorithms.html / https://www.benjoffe.com/fast-date
             a := add(a, 719468)
+            a := add(shl(2, a), 3)
             let c := div(a, 146097)
-            a := sub(a, mul(c, 146097))
-            let d := div(sub(sub(add(a, div(a, 36524)), div(a, 1460)), div(a, 146096)), 365)
-            c := add(d, mul(c, 400))
-            a := sub(a, sub(add(mul(365, d), div(d, 4)), div(d, 100)))
-            d := div(add(mul(5, a), 2), 153)
-            let day := add(sub(a, div(add(mul(153, d), 2), 5)), 1)
-            a := sub(add(d, 3), mul(gt(d, 9), 12))
-            c := add(c, lt(a, 3))
+            a := add(sub(a, and(c, not(3))), shl(2, c))
+            c := div(a, 1461)
+            a := shr(2, mod(a, 1461))
+            let d := add(mul(a, 2141), 197913)
+            let day := add(div(and(d, 0xffff), 2141), 1)
+            d := shr(16, d)
+            a := gt(a, 305)
+            c := add(c, a)
+            a := sub(d, mul(a, 12))
 
             // Time
             d := div(b, 3600)
