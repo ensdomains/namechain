@@ -31,6 +31,7 @@ contract MigrationErrorsTest is Test {
     }
 
     function test_wrap(bytes calldata v) external pure {
+        vm.assume(bytes4(v) != WrappedErrorLib.ERROR_STRING_SELECTOR); // avoid incorrectly encoded Error(...)
         assertEq(WrappedErrorLib.unwrap(WrappedErrorLib.wrap(v)), v);
     }
 
