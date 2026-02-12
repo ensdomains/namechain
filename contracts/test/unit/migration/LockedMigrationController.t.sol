@@ -28,7 +28,6 @@ import {IRegistry} from "~src/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/registry/PermissionedRegistry.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {LockedMigrationController} from "~src/migration/LockedMigrationController.sol";
 import {TransferData, MigrationData} from "~src/migration/types/MigrationTypes.sol";
 import {LockedNamesLib} from "~src/migration/libraries/LockedNamesLib.sol";
@@ -81,7 +80,6 @@ contract MockRegistryMetadata is IRegistryMetadata {
 contract LockedMigrationControllerTest is Test, ERC1155Holder {
     LockedMigrationController controller;
     MockNameWrapper nameWrapper;
-    RegistryDatastore datastore;
     MockRegistryMetadata metadata;
     PermissionedRegistry registry;
     VerifiableFactory factory;
@@ -97,7 +95,6 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
 
     function setUp() public {
         nameWrapper = new MockNameWrapper();
-        datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
         hcaFactory = new MockHCAFactoryBasic();
 
@@ -105,19 +102,12 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
         factory = new VerifiableFactory();
 
         // Setup eth registry
-        registry = new PermissionedRegistry(
-            datastore,
-            hcaFactory,
-            metadata,
-            owner,
-            EACBaseRolesLib.ALL_ROLES
-        );
+        registry = new PermissionedRegistry(hcaFactory, metadata, owner, EACBaseRolesLib.ALL_ROLES);
 
         implementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(registry)),
             factory,
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -131,10 +121,7 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
         );
 
         // Grant controller permission to register names
-        registry.grantRootRoles(
-            RegistryRolesLib.ROLE_REGISTRAR,
-            address(controller)
-        );
+        registry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, address(controller));
 
         testTokenId = uint256(keccak256(bytes(testLabel)));
     }
@@ -385,7 +372,7 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
                     roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                     expires: uint64(block.timestamp + 86400 * (i + 1))
                 }),
-                    salt: uint256(keccak256(abi.encodePacked(labels[i], block.timestamp, i)))
+                salt: uint256(keccak256(abi.encodePacked(labels[i], block.timestamp, i)))
             });
         }
 
