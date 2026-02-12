@@ -35,7 +35,7 @@ function timestampToISO8601(timestamp: bigint): string {
 
 /**
  * Creates the plaintext message for setNameForAddrWithSignature
- * This must match the format in L2ReverseRegistrar._createNameForAddrWithSignatureMessageHash
+ * This must match the format in L2ReverseRegistrar._createClaimMessageHash (owner == address(0))
  */
 function createNameForAddrMessage({
   name,
@@ -61,7 +61,7 @@ Signed At: ${signedAtString}`
 
 /**
  * Creates the plaintext message for setNameForOwnableWithSignature
- * This must match the format in L2ReverseRegistrar._createNameForOwnableWithSignatureMessageHash
+ * This must match the format in L2ReverseRegistrar._createClaimMessageHash (owner != address(0))
  */
 function createNameForOwnableMessage({
   name,

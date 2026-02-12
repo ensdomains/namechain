@@ -131,7 +131,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             CHAIN_ID
         );
 
-        bytes32 message = _createNameForAddrWithSignatureMessageHash(claim, chainIdsString);
+        bytes32 message = _createClaimMessageHash(claim, chainIdsString, address(0));
         _validateSignature(signature, claim.addr, message);
         _validateAndUpdateInception(claim.addr, claim.signedAt);
 
@@ -151,11 +151,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
 
         if (!_ownsContract(claim.addr, owner)) revert NotOwnerOfContract();
 
-        bytes32 message = _createNameForOwnableWithSignatureMessageHash(
-            claim,
-            owner,
-            chainIdsString
-        );
+        bytes32 message = _createClaimMessageHash(claim, chainIdsString, owner);
         _validateSignature(signature, owner, message);
         _validateAndUpdateInception(claim.addr, claim.signedAt);
 
@@ -216,9 +212,9 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
         }
     }
 
-    /// @notice Creates the EIP-191 message hash for setNameForAddrWithSignature.
+    /// @notice Creates the EIP-191 message hash for signature-based name claims.
     ///
-    ///         Message format:
+    ///         For address claims (owner == address(0)):
     ///         ```
     ///         You are setting your ENS primary name to:
     ///         {name}
@@ -228,83 +224,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     ///         Signed At: {signedAt}
     ///         ```
     ///
-    /// @param claim The name claim data.
-    /// @param chainIdsString The pre-validated chain IDs as a display string.
-    /// @return digest The EIP-191 signed message hash.
-    function _createNameForAddrWithSignatureMessageHash(
-        NameClaim calldata claim,
-        string memory chainIdsString
-    ) internal pure returns (bytes32 digest) {
-        string memory name = claim.name;
-        string memory addrString = LibString.toChecksumHexString(claim.addr);
-        string memory signedAtString = LibISO8601.toISO8601(claim.signedAt);
-
-        // Build message in memory as bytes
-        bytes memory message;
-        assembly {
-            // Paris-compatible memory copy helper (replaces mcopy from Cancun)
-            // Copies in 32-byte chunks; safe here since subsequent writes overwrite any overshoot
-            function _memcpy(dest, src, len) {
-                for {
-                    let i := 0
-                } lt(i, len) {
-                    i := add(i, 32)
-                } {
-                    mstore(add(dest, i), mload(add(src, i)))
-                }
-            }
-
-            // Get free memory pointer - reserve space for length, then build message
-            message := mload(0x40)
-            let ptr := add(message, 32) // Start writing after length slot
-
-            // "You are setting your ENS primary" (32 bytes)
-            mstore(ptr, 0x596f75206172652073657474696e6720796f757220454e53207072696d617279)
-            // " name to:\n" (10 bytes)
-            mstore(add(ptr, 32), 0x206e616d6520746f3a0a00000000000000000000000000000000000000000000)
-            ptr := add(ptr, 42)
-
-            // Copy name (variable length)
-            let nameLen := mload(name)
-            _memcpy(ptr, add(name, 32), nameLen)
-            ptr := add(ptr, nameLen)
-
-            // "\n\nAddress: " (11 bytes)
-            mstore(ptr, 0x0a0a416464726573733a20000000000000000000000000000000000000000000)
-            ptr := add(ptr, 11)
-
-            // Copy addrString (42 bytes)
-            _memcpy(ptr, add(addrString, 32), 42)
-            ptr := add(ptr, 42)
-
-            // "\nChains: " (9 bytes)
-            mstore(ptr, 0x0a436861696e733a200000000000000000000000000000000000000000000000)
-            ptr := add(ptr, 9)
-
-            // Copy chainIdsString (variable length)
-            let chainLen := mload(chainIdsString)
-            _memcpy(ptr, add(chainIdsString, 32), chainLen)
-            ptr := add(ptr, chainLen)
-
-            // "\nSigned At: " (12 bytes)
-            mstore(ptr, 0x0a5369676e65642041743a200000000000000000000000000000000000000000)
-            ptr := add(ptr, 12)
-
-            // Copy signedAtString (20 bytes fixed - ISO8601 format)
-            _memcpy(ptr, add(signedAtString, 32), 20)
-            ptr := add(ptr, 20)
-
-            // Store final message length and update free memory pointer
-            mstore(message, sub(ptr, add(message, 32)))
-            mstore(0x40, ptr)
-        }
-
-        return _toEthSignedMessageHash(message);
-    }
-
-    /// @notice Creates the EIP-191 message hash for setNameForOwnableWithSignature.
-    ///
-    ///         Message format:
+    ///         For ownable contract claims (owner != address(0)):
     ///         ```
     ///         You are setting the ENS primary name for a contract you own to:
     ///         {name}
@@ -316,18 +236,23 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
     ///         ```
     ///
     /// @param claim The name claim data.
-    /// @param owner The owner address of the contract.
     /// @param chainIdsString The pre-validated chain IDs as a display string.
+    /// @param owner The owner address for ownable claims, or address(0) for address claims.
     /// @return digest The EIP-191 signed message hash.
-    function _createNameForOwnableWithSignatureMessageHash(
+    function _createClaimMessageHash(
         NameClaim calldata claim,
-        address owner,
-        string memory chainIdsString
+        string memory chainIdsString,
+        address owner
     ) internal pure returns (bytes32 digest) {
         string memory name = claim.name;
         string memory addrString = LibString.toChecksumHexString(claim.addr);
-        string memory ownerString = LibString.toChecksumHexString(owner);
         string memory signedAtString = LibISO8601.toISO8601(claim.signedAt);
+
+        bool isOwnable = owner != address(0);
+        string memory ownerString;
+        if (isOwnable) {
+            ownerString = LibString.toChecksumHexString(owner);
+        }
 
         // Build message in memory as bytes
         bytes memory message;
@@ -348,32 +273,59 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             message := mload(0x40)
             let ptr := add(message, 32) // Start writing after length slot
 
-            // "You are setting the ENS primary " (32 bytes)
-            mstore(ptr, 0x596f75206172652073657474696e672074686520454e53207072696d61727920)
-            // "name for a contract you own to:\n" (32 bytes)
-            mstore(add(ptr, 32), 0x6e616d6520666f72206120636f6e747261637420796f75206f776e20746f3a0a)
-            ptr := add(ptr, 64)
-
+            // Header differs based on claim type
+            switch isOwnable
+            case 0 {
+                // "You are setting your ENS primary" (32 bytes)
+                mstore(ptr, 0x596f75206172652073657474696e6720796f757220454e53207072696d617279)
+                // " name to:\n" (10 bytes)
+                mstore(
+                    add(ptr, 32),
+                    0x206e616d6520746f3a0a00000000000000000000000000000000000000000000
+                )
+                ptr := add(ptr, 42)
+            }
+            default {
+                // "You are setting the ENS primary " (32 bytes)
+                mstore(ptr, 0x596f75206172652073657474696e672074686520454e53207072696d61727920)
+                // "name for a contract you own to:\n" (32 bytes)
+                mstore(
+                    add(ptr, 32),
+                    0x6e616d6520666f72206120636f6e747261637420796f75206f776e20746f3a0a
+                )
+                ptr := add(ptr, 64)
+            }
             // Copy name (variable length)
             let nameLen := mload(name)
             _memcpy(ptr, add(name, 32), nameLen)
             ptr := add(ptr, nameLen)
 
-            // "\n\nContract Address: " (20 bytes)
-            mstore(ptr, 0x0a0a436f6e747261637420416464726573733a20000000000000000000000000)
-            ptr := add(ptr, 20)
-
+            // Address label differs based on claim type
+            switch isOwnable
+            case 0 {
+                // "\n\nAddress: " (11 bytes)
+                mstore(ptr, 0x0a0a416464726573733a20000000000000000000000000000000000000000000)
+                ptr := add(ptr, 11)
+            }
+            default {
+                // "\n\nContract Address: " (20 bytes)
+                mstore(ptr, 0x0a0a436f6e747261637420416464726573733a20000000000000000000000000)
+                ptr := add(ptr, 20)
+            }
             // Copy addrString (42 bytes)
             _memcpy(ptr, add(addrString, 32), 42)
             ptr := add(ptr, 42)
 
-            // "\nOwner: " (8 bytes)
-            mstore(ptr, 0x0a4f776e65723a20000000000000000000000000000000000000000000000000)
-            ptr := add(ptr, 8)
+            // Owner section (only for ownable claims)
+            if isOwnable {
+                // "\nOwner: " (8 bytes)
+                mstore(ptr, 0x0a4f776e65723a20000000000000000000000000000000000000000000000000)
+                ptr := add(ptr, 8)
 
-            // Copy ownerString (42 bytes)
-            _memcpy(ptr, add(ownerString, 32), 42)
-            ptr := add(ptr, 42)
+                // Copy ownerString (42 bytes)
+                _memcpy(ptr, add(ownerString, 32), 42)
+                ptr := add(ptr, 42)
+            }
 
             // "\nChains: " (9 bytes)
             mstore(ptr, 0x0a436861696e733a200000000000000000000000000000000000000000000000)
@@ -397,18 +349,9 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             mstore(0x40, ptr)
         }
 
-        return _toEthSignedMessageHash(message);
-    }
-
-    /// @notice Computes the EIP-191 signed message hash.
-    /// @dev Equivalent to keccak256("\x19Ethereum Signed Message:\n" + len(message) + message).
-    /// @param message The message bytes to hash.
-    /// @return digest The EIP-191 signed message hash.
-    function _toEthSignedMessageHash(bytes memory message) internal pure returns (bytes32 digest) {
+        // Compute EIP-191 signed message hash: keccak256("\x19Ethereum Signed Message:\n" || len || message)
         string memory lenString = LibString.toString(message.length);
         assembly {
-            // Paris-compatible memory copy helper (replaces mcopy from Cancun)
-            // Copies in 32-byte chunks; safe here since we hash immediately after
             function _memcpy(dest, src, len) {
                 for {
                     let i := 0
@@ -422,8 +365,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             let messageLen := mload(message)
             let lenStringLen := mload(lenString)
 
-            // Build prefixed message at free memory pointer.
-            // We don't update the free memory pointer since this buffer is only used for hashing.
+            // Build prefixed message at free memory pointer (not updated since only used for hashing)
             let ptr := mload(0x40)
 
             // "\x19Ethereum Signed Message:\n" (26 bytes)
@@ -436,7 +378,7 @@ contract L2ReverseRegistrar is IL2ReverseRegistrar, ERC165, StandaloneReverseReg
             let messageStart := add(add(ptr, 26), lenStringLen)
             _memcpy(messageStart, add(message, 32), messageLen)
 
-            // Compute the final EIP-191 hash: keccak256(prefix || lenString || message)
+            // Compute the final EIP-191 hash
             digest := keccak256(ptr, add(add(26, lenStringLen), messageLen))
         }
     }
