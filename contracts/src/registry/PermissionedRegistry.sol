@@ -117,7 +117,7 @@ contract PermissionedRegistry is
         emit NameUnregistered(tokenId, _msgSender());
         address owner = super.ownerOf(tokenId);
         if (owner != address(0)) {
-            _burn(super.ownerOf(tokenId), tokenId, 1);
+            _burn(owner, tokenId, 1);
             ++entry.eacVersionId;
             ++entry.tokenVersionId;
         }
