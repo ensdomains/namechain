@@ -336,49 +336,56 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             registrar
         );
 
-        // // cant reserve again
-        // vm.expectRevert(
-        //     abi.encodeWithSelector(IPermissionedRegistry.NameIsReserved.selector, testLabel)
-        // );
-        // vm.prank(registrar);
-        // registry.reserve(testLabel, testResolver, expiry);
+        // cant reserve again
+        vm.expectRevert(
+            abi.encodeWithSelector(IPermissionedRegistry.NameAlreadyReserved.selector, testLabel)
+        );
+        vm.prank(registrar);
+        registry.reserve(testLabel, testResolver, expiry);
 
-        // // cant renew
-        // vm.expectRevert(abi.encodeWithSelector(IPermissionedRegistry.NameIsReserved.selector));
-        // registry.renew(tokenId, expiry + expiry);
+        // ROOT can renew
+        expiry += expiry;
+        registry.renew(tokenId, expiry);
 
-        // // ROOT can change resolver
-        // registry.setResolver(tokenId, testResolver);
+        // ROOT can change resolver
+        registry.setResolver(tokenId, testResolver);
 
-        // // ROOT can change subregistry
-        // registry.setSubregistry(tokenId, testRegistry);
+        // ROOT can change subregistry
+        registry.setSubregistry(tokenId, testRegistry);
 
-        // vm.warp(expiry);
+        vm.warp(expiry);
 
-        // // check expired state
-        // assertEq(registry.getResolver(testLabel), address(0), "afterResolver");
-        // assertEq(
-        //     uint256(registry.getNameState(testLabel)),
-        //     uint256(IPermissionedRegistry.NameState.AVAILABLE),
-        //     "state:after-expiry"
-        // );
+        // check expired state
+        assertEq(registry.getResolver(testLabel), address(0), "afterResolver");
+        assertEq(
+            uint256(registry.getNameState(testLabel)),
+            uint256(IPermissionedRegistry.NameState.AVAILABLE),
+            "state:after-expiry"
+        );
 
-        // // can be registered after expiry
-        // vm.prank(registrar);
-        // registry.register(
-        //     testLabel,
-        //     user1,
-        //     testRegistry,
-        //     testResolver,
-        //     DEFAULT_ROLE_BITMAP,
-        //     _after(86400)
-        // );
+        // can be registered after expiry
+        vm.prank(registrar);
+        registry.register(
+            testLabel,
+            user1,
+            testRegistry,
+            testResolver,
+            DEFAULT_ROLE_BITMAP,
+            _after(86400)
+        );
 
-        // assertEq(
-        //     uint256(registry.getNameState(testLabel)),
-        //     uint256(IPermissionedRegistry.NameState.REGISTERED),
-        //     "state:after-register"
-        // );
+        assertEq(
+            uint256(registry.getNameState(testLabel)),
+            uint256(IPermissionedRegistry.NameState.REGISTERED),
+            "state:after-register"
+        );
+    }
+
+    function test_reserve_then_renew() external {
+        uint256 tokenId = registry.reserve(testLabel, testResolver, _after(100));
+        uint64 newExpiry = _after(200);
+        registry.renew(tokenId, newExpiry);
+        assertEq(registry.getExpiry(tokenId), newExpiry);
     }
 
     function test_reserve_then_register() external {
