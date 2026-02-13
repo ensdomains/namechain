@@ -270,6 +270,19 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         assertEq(address(registry.getSubregistry(testLabel)), address(0), "subregistry");
     }
 
+    function test_unregister_self() external {
+        uint256 tokenId = registry.register(
+            testLabel,
+            user1,
+            testRegistry,
+            testResolver,
+            RegistryRolesLib.ROLE_UNREGISTER, // self unregister
+            _after(86400)
+        );
+        vm.prank(user1);
+        registry.unregister(tokenId);
+    }
+
     function test_unregister_available() external {
         uint256 tokenId = 1 << 32;
         vm.expectRevert(abi.encodeWithSelector(IStandardRegistry.NameExpired.selector, tokenId));

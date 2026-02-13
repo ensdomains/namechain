@@ -21,6 +21,31 @@ import {IStandardRegistry} from "./interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "./libraries/RegistryRolesLib.sol";
 import {MetadataMixin} from "./MetadataMixin.sol";
 
+/// @notice A tokenized registry with permissions that apply to every subdomain or a specific subdomain.
+///
+/// State diagram:
+///
+///                    register()
+///                 +ROLE_REGISTRAR
+///       +------------------------------------------+
+///       |                                          |
+///       |                renew()                   |    renew()
+///       |              +ROLE_RENEW                 |  +ROLE_RENEW
+///       |               +------+                   |   +------+
+///       |               |      |                   |   |      |
+///       ʌ               ʌ      v                   v   v      |
+///   AVAILABLE --------> RESERVED -------------> REGISTERED >--+
+///     ʌ   ʌ    reserve()   v       register()        v
+///     |   |  +ROLE_RESERVE |     +ROLE_REGISTRAR     |
+///     |   |                |     +ROLE_RESERVE       |
+///     |   +----------------+                         |
+///     |       unregister()                           |
+///     |    +ROLE_UNREGISTER                          |
+///     |                                              |
+///     +----------------------------------------------+
+///                     unregister()
+///                   +ROLE_UNREGISTER
+///
 contract PermissionedRegistry is
     IRegistry,
     ERC1155Singleton,
