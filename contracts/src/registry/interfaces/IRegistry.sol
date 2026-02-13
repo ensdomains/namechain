@@ -3,8 +3,6 @@ pragma solidity >=0.8.13;
 
 import {IERC1155Singleton} from "../../erc1155/interfaces/IERC1155Singleton.sol";
 
-import {IRegistry} from "./IRegistry.sol";
-
 interface IRegistry is IERC1155Singleton {
     ////////////////////////////////////////////////////////////////////////
     // Events
@@ -29,6 +27,7 @@ interface IRegistry is IERC1155Singleton {
         address indexed sender
     );
 
+    /// @dev A subdomain was unregistered.
     event NameUnregistered(uint256 indexed tokenId, address indexed sender);
 
     /// @notice Expiry was changed.

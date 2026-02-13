@@ -7,7 +7,7 @@ import {
 import { splitName } from "../../utils/utils.js";
 import { deployVerifiableProxy } from "./deployVerifiableProxy.js";
 
-export const MAX_EXPIRY = (1n << 64n) - 1n; // see: DatastoreUtils.sol
+export const MAX_EXPIRY = (1n << 64n) - 1n;
 
 export async function deployV2Fixture(
   network: NetworkConnection,
@@ -17,27 +17,14 @@ export async function deployV2Fixture(
     ccipRead: enableCcipRead ? undefined : false,
   });
   const [walletClient] = await network.viem.getWalletClients();
-  const datastore = await network.viem.deployContract("RegistryDatastore");
   const hcaFactory = await network.viem.deployContract("MockHCAFactoryBasic");
   const rootRegistry = await network.viem.deployContract(
     "PermissionedRegistry",
-    [
-      datastore.address,
-      hcaFactory.address,
-      zeroAddress,
-      walletClient.account.address,
-      ROLES.ALL,
-    ],
+    [hcaFactory.address, zeroAddress, walletClient.account.address, ROLES.ALL],
   );
   const ethRegistry = await network.viem.deployContract(
     "PermissionedRegistry",
-    [
-      datastore.address,
-      hcaFactory.address,
-      zeroAddress,
-      walletClient.account.address,
-      ROLES.ALL,
-    ],
+    [hcaFactory.address, zeroAddress, walletClient.account.address, ROLES.ALL],
   );
   const batchGatewayProvider = await network.viem.deployContract(
     "GatewayProvider",
@@ -66,7 +53,6 @@ export async function deployV2Fixture(
     network,
     publicClient,
     walletClient,
-    datastore,
     hcaFactory,
     rootRegistry,
     ethRegistry,
@@ -131,7 +117,6 @@ export async function deployV2Fixture(
           const registry = await network.viem.deployContract(
             "PermissionedRegistry",
             [
-              datastore.address,
               hcaFactory.address,
               metadataAddress,
               walletClient.account.address,
