@@ -32,7 +32,6 @@ import {IResolverAuthority} from "./interfaces/IResolverAuthority.sol";
 import {ISubdomainResolver} from "./interfaces/ISubdomainResolver.sol";
 import {AuthorizedResolverLib} from "./libraries/AuthorizedResolverLib.sol";
 
-///
 bytes32 constant NAMED_SLOT = keccak256("eth.ens.storage.AuthorizedResolver");
 
 contract AuthorizedResolver is
@@ -50,16 +49,19 @@ contract AuthorizedResolver is
 
     struct Record {
         bytes contentHash;
+        string name;
         mapping(uint256 coinType => bytes addressBytes) addresses;
         mapping(string key => string value) texts;
     }
 
     struct Storage {
-        uint64 resourceIndex;
-        IResolverAuthority authority;
-        mapping(string label => uint64) resources;
+        uint256 resourceIndex;
+        address authority;
+        mapping(string label => uint256) resources;
         mapping(string label => uint256) versions;
         mapping(string label => mapping(uint256 version => Record)) records;
+        mapping(bytes32 part => mapping(address => bool)) every;
+        mapping(uint256 resource => mapping(bytes32 part => mapping(address => bool))) one;
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -67,16 +69,18 @@ contract AuthorizedResolver is
     ////////////////////////////////////////////////////////////////////////
 
     event NewVersion(string indexed labelHash, uint256 version);
-    event ResourceChanged(string indexed labelHash, uint64 oldResource, uint64 newResource);
+    event ResourceChanged(string indexed labelHash, uint256 oldResource, uint256 newResource);
     event AddressChanged(string indexed labelHash, uint256 indexed coinType, bytes addressBytes);
     event ContentHashChanged(string indexed labelHash, bytes contentHash);
     event TextChanged(string indexed labelHash, string indexed keyHash, string key, string value);
+    event NameChanged(string indexed labelHash, string name);
 
     ////////////////////////////////////////////////////////////////////////
     // Errors
     ////////////////////////////////////////////////////////////////////////
 
     error NotAuthority();
+    error InvalidResource();
 
     /// @notice The resolver profile cannot be answered.
     /// @dev Error selector: `0x7b1c461b`
@@ -94,17 +98,15 @@ contract AuthorizedResolver is
     // Modifiers
     ////////////////////////////////////////////////////////////////////////
 
-    modifier onlyAuthorizedPart(bytes24 part, string memory label, uint256 rolesBitmap) {
+    modifier onlyPartiallyAuthorized(bytes32 part, string memory label, uint256 rolesBitmap) {
         address sender = _msgSender();
         if (!isAuthority(label, sender)) {
-            uint64 resource = _storage().resources[label];
-            if (
-                // part of any label
-                !hasRoles(AuthorizedResolverLib.eac(0, part), rolesBitmap, sender) &&
-                // part of label
-                !hasRoles(AuthorizedResolverLib.eac(resource, part), rolesBitmap, sender)
-            ) {
-                _checkRoles(AuthorizedResolverLib.eac(resource, 0), rolesBitmap, sender); // label
+            Storage storage S = _storage();
+            if (!S.every[part][sender]) {
+                uint256 resource = S.resources[label];
+                if (!S.one[resource][part][sender]) {
+                    _checkRoles(resource, rolesBitmap, sender);
+                }
             }
         }
         _;
@@ -157,38 +159,64 @@ contract AuthorizedResolver is
 
     /// @notice Initialize the contract.
     ///
-    /// @param admin The resolver admin.
-    /// @param roleBitmap The roles granted to `admin`.
-    /// @param authority The (optional) subdomain authority.
-    function initialize(
-        address admin,
-        uint256 roleBitmap,
-        IResolverAuthority authority
-    ) external initializer {
+    /// @param account The account to give authority.
+    /// @param roleBitmap The roles granted to `admin` or 0 if account is an `IResolverAuthority`.
+    function initialize(address account, uint256 roleBitmap) external initializer {
         __UUPSUpgradeable_init();
-        if (admin != address(0)) {
-            _grantRoles(ROOT_RESOURCE, roleBitmap, admin, false);
+        if (roleBitmap == 0) {
+            _storage().authority = account;
+        } else {
+            _grantRoles(ROOT_RESOURCE, roleBitmap, account, false);
         }
-        _storage().authority = authority;
     }
 
-    function claim(
+    /// @notice Create a new EAC resource for `label` and assign roles.
+    ///         If `enable = false`, forget existing resource.
+    function authorize(
         string calldata label,
-        uint256 rolesBitmap
-    ) external onlyAuthority(label) returns (uint64 newResource) {
+        address account,
+        uint256 rolesBitmap,
+        bool enable
+    ) external onlyAuthority(label) returns (uint256 newResource) {
         Storage storage S = _storage();
-        uint64 oldResource = S.resources[label];
-        newResource = ++S.resourceIndex;
+        uint256 oldResource = S.resources[label];
+        if (enable) {
+            newResource = ++S.resourceIndex;
+        } else if (oldResource == 0) {
+            revert InvalidResource();
+        }
         S.resources[label] = newResource;
-        _grantRoles(newResource, rolesBitmap, _msgSender(), false);
         emit ResourceChanged(label, oldResource, newResource);
+        if (enable) {
+            _grantRoles(newResource, rolesBitmap, account, false);
+        }
     }
 
-    function revoke(string calldata label) external onlyAuthority(label) {
+    /// @notice Authorize `account` to modify `coinType` for any label.
+    ///         If `enable = false`, remove authorization.
+    function authorizeEveryAddr(
+        address account,
+        uint256 coinType,
+        bool enable
+    ) external onlyRootRoles(AuthorizedResolverLib.ROLE_AUTHORITY) {
+        _storage().every[AuthorizedResolverLib.addr(coinType)][account] = enable;
+    }
+
+    /// @notice Authorize `account` to modify `coinType` for one label.
+    ///         If `enable = false`, remove authorization.
+    function authorizeAddr(
+        string calldata label,
+        address account,
+        uint256 coinType,
+        bool enable
+    ) external onlyAuthority(label) {
         Storage storage S = _storage();
-        uint64 oldResource = S.resources[label];
-        delete S.resources[label];
-        emit ResourceChanged(label, oldResource, 0);
+        bytes32 part = AuthorizedResolverLib.addr(coinType);
+        uint256 resource = S.resources[label];
+        if (resource == 0) {
+            revert InvalidResource();
+        }
+        S.one[resource][part][account] = enable;
     }
 
     function clearRecords(
@@ -204,7 +232,7 @@ contract AuthorizedResolver is
         bytes calldata addressBytes
     )
         external
-        onlyAuthorizedPart(
+        onlyPartiallyAuthorized(
             AuthorizedResolverLib.addr(coinType),
             label,
             AuthorizedResolverLib.ROLE_SET_ADDR
@@ -225,7 +253,7 @@ contract AuthorizedResolver is
         string calldata value
     )
         external
-        onlyAuthorizedPart(
+        onlyPartiallyAuthorized(
             AuthorizedResolverLib.text(key),
             label,
             AuthorizedResolverLib.ROLE_SET_TEXT
@@ -241,6 +269,14 @@ contract AuthorizedResolver is
     ) external onlyAuthorized(label, AuthorizedResolverLib.ROLE_SET_CONTENTHASH) {
         _record(label).contentHash = contentHash;
         emit ContentHashChanged(label, contentHash);
+    }
+
+    function setName(
+        string calldata label,
+        string calldata name
+    ) external onlyAuthorized(label, AuthorizedResolverLib.ROLE_SET_NAME) {
+        _record(label).name = name;
+        emit NameChanged(label, name);
     }
 
     /// @notice Same as `multicall()`.
@@ -266,6 +302,8 @@ contract AuthorizedResolver is
             return abi.encode(R.texts[key]);
         } else if (bytes4(data) == IContentHashResolver.contenthash.selector) {
             return abi.encode(R.contentHash);
+        } else if (bytes4(data) == INameResolver.name.selector) {
+            return abi.encode(R.name);
         } else if (bytes4(data) == IHasAddressResolver.hasAddr.selector) {
             (, uint256 coinType) = abi.decode(data[4:], (bytes32, uint256));
             return abi.encode(R.addresses[coinType].length > 0);
@@ -278,18 +316,18 @@ contract AuthorizedResolver is
     }
 
     /// @notice Get the EAC resource for `label`.
-    function getResource(string calldata label) external view returns (uint64) {
+    function getResource(string calldata label) external view returns (uint256) {
         return _storage().resources[label];
     }
 
     /// @notice Get the maximum EAC resource.
-    function getResourceMax() external view returns (uint64) {
+    function getResourceMax() external view returns (uint256) {
         return _storage().resourceIndex;
     }
 
     /// @notice Get the resolver authority.
     function getAuthority() external view returns (IResolverAuthority) {
-        return _storage().authority;
+        return IResolverAuthority(_storage().authority);
     }
 
     /// @inheritdoc IExtendedResolver
@@ -332,11 +370,12 @@ contract AuthorizedResolver is
 
     /// @notice Determine if `operator` is an authority of `label`.
     function isAuthority(string memory label, address operator) public view returns (bool) {
-        IResolverAuthority authority = _storage().authority;
+        NameCoder.assertLabelSize(label);
+        address authority = _storage().authority;
         return
-            address(authority) == address(0)
+            authority == address(0)
                 ? hasRootRoles(AuthorizedResolverLib.ROLE_AUTHORITY, operator)
-                : authority.isAuthorized(label, operator);
+                : IResolverAuthority(authority).isAuthorized(label, operator);
     }
 
     ////////////////////////////////////////////////////////////////////////

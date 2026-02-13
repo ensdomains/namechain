@@ -29,6 +29,7 @@ contract AuthorizedResolverTest is Test {
     AuthorizedResolver AR;
 
     address user = makeAddr("user");
+    address friend = makeAddr("friend");
 
     string testLabel = "test";
     address testAddr = makeAddr("test");
@@ -41,16 +42,13 @@ contract AuthorizedResolverTest is Test {
         {
             bytes memory v = abi.encodeCall(
                 AuthorizedResolver.initialize,
-                (address(this), EACBaseRolesLib.ALL_ROLES, IResolverAuthority(address(0)))
+                (address(this), EACBaseRolesLib.ALL_ROLES)
             );
             OR = AuthorizedResolver(factory.deployProxy(address(impl), uint256(keccak256(v)), v));
         }
         authority = new MockAuthority();
         {
-            bytes memory v = abi.encodeCall(
-                AuthorizedResolver.initialize,
-                (address(this), 0, authority)
-            );
+            bytes memory v = abi.encodeCall(AuthorizedResolver.initialize, (address(authority), 0));
             AR = AuthorizedResolver(factory.deployProxy(address(impl), uint256(keccak256(v)), v));
         }
     }
@@ -60,29 +58,26 @@ contract AuthorizedResolverTest is Test {
         assertEq(address(OR.getAuthority()), address(0), "authority");
     }
 
-    function test_OR_claim() external {
+    function test_OR_authorize() external {
         vm.expectEmit();
         emit AuthorizedResolver.ResourceChanged(testLabel, 0, 1);
-        uint64 resource = OR.claim(testLabel, 0);
-        assertEq(resource, 1);
-
+        uint256 resource = OR.authorize(testLabel, user, EACBaseRolesLib.ALL_ROLES, true);
+        assertEq(resource, 1, "first");
         assertEq(OR.getResource(testLabel), resource, "get");
         assertEq(OR.getResourceMax(), resource, "max");
-
-        emit AuthorizedResolver.ResourceChanged(testLabel, 1, 0);
-        OR.revoke(testLabel);
+        assertTrue(OR.hasRoles(resource, EACBaseRolesLib.ALL_ROLES, user), "roles");
     }
 
-    function test_AR_claim() external {
+    function test_AR_authorize() external {
         assertFalse(AR.isAuthority(testLabel, user));
+        vm.expectRevert();
+        vm.prank(user);
+        AR.authorize(testLabel, user, EACBaseRolesLib.ALL_ROLES, true);
+
         authority.set(testLabel, user);
         assertTrue(AR.isAuthority(testLabel, user));
-
-        vm.expectRevert();
-        AR.claim(testLabel, EACBaseRolesLib.ALL_ROLES);
-
         vm.prank(user);
-        uint64 resource = AR.claim(testLabel, EACBaseRolesLib.ALL_ROLES);
+        uint256 resource = AR.authorize(testLabel, user, EACBaseRolesLib.ALL_ROLES, true);
 
         assertTrue(AR.hasRoles(resource, EACBaseRolesLib.ALL_ROLES, user));
     }
@@ -183,50 +178,76 @@ contract AuthorizedResolverTest is Test {
     function test_setAddr_anyLabel_onePart() external {
         uint256 coinType = 1;
 
+        // user cannot edit
         vm.expectRevert();
         vm.prank(user);
         OR.setAddr(testLabel, coinType, testAddress);
 
-        OR.grantRoles(
-            AuthorizedResolverLib.eac(0, AuthorizedResolverLib.addr(coinType)),
-            AuthorizedResolverLib.ROLE_SET_ADDR,
-            user
-        );
+        // add control
+        OR.authorizeEveryAddr(user, coinType, true);
 
+        // user can edit
         vm.prank(user);
         OR.setAddr(testLabel, coinType, testAddress);
 
+        // user can edit other labels
+        vm.prank(user);
+        OR.setAddr("abc", coinType, testAddress);
+
+        // user cannot edit other addresses
         vm.expectRevert();
         vm.prank(user);
         OR.setAddr(testLabel, ~coinType, testAddress);
+
+        // remove control
+        OR.authorizeEveryAddr(user, coinType, false);
+
+        // user cannot edit again
+        vm.expectRevert();
+        vm.prank(user);
+        OR.setAddr(testLabel, coinType, testAddress);
     }
 
     function test_setAddr_oneLabel_onePart() external {
         string memory label = "abc";
         uint256 coinType = 1;
 
-        uint64 resource = OR.claim(label, 0);
+        // authorize user
+        authority.set(label, user);
+        vm.prank(user);
+        AR.authorize(label, user, EACBaseRolesLib.ALL_ROLES, true);
 
+        // friend cannot edit
         vm.expectRevert();
+        vm.prank(friend);
+        AR.setAddr(testLabel, coinType, testAddress);
+
+        // add control
         vm.prank(user);
-        OR.setAddr(testLabel, coinType, testAddress);
+        AR.authorizeAddr(label, friend, coinType, true);
 
-        OR.grantRoles(
-            AuthorizedResolverLib.eac(resource, AuthorizedResolverLib.addr(coinType)),
-            AuthorizedResolverLib.ROLE_SET_ADDR,
-            user
-        );
+        // friend can edit
+        vm.prank(friend);
+        AR.setAddr(label, coinType, testAddress);
 
-        vm.prank(user);
-        OR.setAddr(label, coinType, testAddress);
-
+        // friend cannot edit other addresses
         vm.expectRevert();
-        vm.prank(user);
-        OR.setAddr(label, ~coinType, testAddress);
+        vm.prank(friend);
+        AR.setAddr(label, ~coinType, testAddress);
 
+        // friend cannot edit other labels
         vm.expectRevert();
+        vm.prank(friend);
+        AR.setAddr(testLabel, coinType, testAddress);
+
+        // remove control
         vm.prank(user);
-        OR.setAddr(testLabel, coinType, testAddress);
+        AR.authorizeAddr(label, friend, coinType, false);
+
+        // friend cannot edit again
+        vm.expectRevert();
+        vm.prank(friend);
+        AR.setAddr(label, coinType, testAddress);
     }
 
     function test_setAddr_invalidEVM_tooShort() external {

@@ -33,15 +33,7 @@ library AuthorizedResolverLib {
     uint256 internal constant ROLE_UPGRADE = 1 << 124;
     uint256 internal constant ROLE_UPGRADE_ADMIN = ROLE_UPGRADE << 128;
 
-    ///             +-----------+-----------+
-    ///    EAC      |   PART    |  RESOURCE |
-    ///  Resource = | (256, 64] |  (64, 0]  |
-    ///             +-----------+-----------+
-    function eac(uint64 resource, bytes24 part) internal pure returns (uint256) {
-        return uint256(bytes32(part)) | resource;
-    }
-
-    function addr(uint256 coinType) internal pure returns (bytes24 part) {
+    function addr(uint256 coinType) internal pure returns (bytes32 part) {
         assembly {
             mstore8(0, 1)
             mstore(1, coinType)
@@ -49,7 +41,7 @@ library AuthorizedResolverLib {
         }
     }
 
-    function text(string memory key) internal pure returns (bytes24 part) {
+    function text(string memory key) internal pure returns (bytes32 part) {
         assembly {
             mstore8(0, 2)
             mstore(1, keccak256(add(key, 32), mload(key)))
