@@ -21,13 +21,16 @@ import {
 import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactory.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import {EACBaseRolesLib} from "~src/access-control/EnhancedAccessControl.sol";
 import {UnauthorizedCaller} from "~src/CommonErrors.sol";
-import {IPermissionedRegistry} from "~src/registry/interfaces/IPermissionedRegistry.sol";
-import {IRegistry} from "~src/registry/interfaces/IRegistry.sol";
-import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
-import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
-import {PermissionedRegistry} from "~src/registry/PermissionedRegistry.sol";
+import {
+    PermissionedRegistry,
+    IPermissionedRegistry,
+    IRegistryMetadata,
+    IRegistry,
+    RegistryRolesLib,
+    EACBaseRolesLib,
+    LibLabel
+} from "~src/registry/PermissionedRegistry.sol";
 import {LockedMigrationController} from "~src/migration/LockedMigrationController.sol";
 import {TransferData, MigrationData} from "~src/migration/types/MigrationTypes.sol";
 import {LockedNamesLib} from "~src/migration/libraries/LockedNamesLib.sol";
@@ -345,7 +348,7 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
         MigrationData[] memory migrationDataArray = new MigrationData[](3);
 
         for (uint256 i = 0; i < 3; i++) {
-            tokenIds[i] = uint256(keccak256(bytes(labels[i])));
+            tokenIds[i] = LibLabel.id(labels[i]);
 
             // Setup locked name (CANNOT_BURN_FUSES not set)
             uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;

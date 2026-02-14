@@ -8,6 +8,7 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IPermissionedRegistry} from "../registry/interfaces/IPermissionedRegistry.sol";
+import {LibLabel} from "../utils/LibLabel.sol";
 
 import {IRentPriceOracle} from "./interfaces/IRentPriceOracle.sol";
 import {LibHalving} from "./libraries/LibHalving.sol";
@@ -307,9 +308,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
         if (baseUnits == 0) {
             revert NotValid(label);
         }
-        IPermissionedRegistry.State memory state = REGISTRY.getState(
-            uint256(keccak256(bytes(label)))
-        );
+        IPermissionedRegistry.State memory state = REGISTRY.getState(LibLabel.id(label));
         uint64 t = state.expiry > block.timestamp ? state.expiry - uint64(block.timestamp) : 0;
         baseUnits -= Math.mulDiv(
             baseUnits,
