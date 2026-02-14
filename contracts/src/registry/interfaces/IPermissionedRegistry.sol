@@ -3,25 +3,25 @@ pragma solidity >=0.8.13;
 
 import {IEnhancedAccessControl} from "../../access-control/interfaces/IEnhancedAccessControl.sol";
 
-import {IStandardRegistry, IRegistry} from "./IStandardRegistry.sol";
+import {IStandardRegistry} from "./IStandardRegistry.sol";
 
 interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     ////////////////////////////////////////////////////////////////////////
     // Types
     ////////////////////////////////////////////////////////////////////////
 
-    enum NameState {
+    enum Status {
         AVAILABLE,
         RESERVED,
         REGISTERED
     }
 
-    struct Entry {
-        uint32 eacVersionId;
-        uint32 tokenVersionId;
-        IRegistry subregistry;
+    struct State {
+        Status status;
         uint64 expiry;
-        address resolver;
+        address owner;
+        uint256 tokenId;
+        uint256 resource;
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -57,25 +57,10 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     /// @return The latest owner address.
     function latestOwnerOf(uint256 tokenId) external view returns (address);
 
-    /// @notice Determine subdomain registration state.
-    /// @param label The subdomain to check.
-    /// @return The registration state.
-    function getNameState(string calldata label) external view returns (NameState);
-
-    /**
-     * @dev Fetches the name data for a label.
-     * @param label The label to fetch the name data for.
-     * @return tokenId The token ID of the name.
-     * @return entry The entry data for the name.
-     */
-    function getNameData(
-        string calldata label
-    ) external view returns (uint256 tokenId, Entry memory entry);
-
-    /// @notice Get datastore `Entry` from `anyId`.
+    /// @notice Get the state of a subdomain.
     /// @param anyId The labelhash, token ID, or resource.
-    /// @return The datastore entry.
-    function getEntry(uint256 anyId) external view returns (Entry memory);
+    /// @return The state of the subdomain.
+    function getState(uint256 anyId) external view returns (State memory);
 
     /// @notice Get `resource` from `anyId`.
     /// @param anyId The labelhash, token ID, or resource.

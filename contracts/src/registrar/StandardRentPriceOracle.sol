@@ -307,20 +307,18 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
         if (baseUnits == 0) {
             revert NotValid(label);
         }
-        (uint256 tokenId, IPermissionedRegistry.Entry memory entry) = REGISTRY.getNameData(label);
-        uint64 oldExpiry = entry.expiry;
-        uint64 t = oldExpiry > block.timestamp ? oldExpiry - uint64(block.timestamp) : 0;
+        IPermissionedRegistry.State memory state = REGISTRY.getState(
+            uint256(keccak256(bytes(label)))
+        );
+        uint64 t = state.expiry > block.timestamp ? state.expiry - uint64(block.timestamp) : 0;
         baseUnits -= Math.mulDiv(
             baseUnits,
             integratedDiscount(t + duration) - integratedDiscount(t),
             uint256(type(uint128).max) * duration
         );
         uint256 premiumUnits;
-        if (owner != address(0)) {
-            // prior owner pays no premium
-            if (owner != REGISTRY.latestOwnerOf(tokenId)) {
-                premiumUnits = premiumPrice(oldExpiry);
-            }
+        if (owner != address(0) && owner != state.owner) {
+            premiumUnits = premiumPrice(state.expiry); // prior owner pays no premium
         }
         // reverts on overflow
         premium = Math.mulDiv(premiumUnits, ratio.numer, ratio.denom);

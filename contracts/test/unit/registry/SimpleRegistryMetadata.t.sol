@@ -56,9 +56,8 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     }
 
     function test_registry_metadata_unauthorized() public {
-        (uint256 tokenId, ) = registry.getNameData("test");
+        uint256 tokenId = registry.getTokenId(uint256(keccak256("dne")));
         string memory expectedUri = "ipfs://test";
-
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,

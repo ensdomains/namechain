@@ -121,13 +121,14 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IERC20 paymentToken,
         bytes32 referrer
     ) external returns (uint256 tokenId) {
-        (, IPermissionedRegistry.Entry memory entry) = REGISTRY.getNameData(label);
-        uint64 oldExpiry = entry.expiry;
-        if (!_isAvailable(oldExpiry)) {
-            revert NameAlreadyRegistered(label);
-        }
         if (duration < MIN_REGISTER_DURATION) {
             revert DurationTooShort(duration, MIN_REGISTER_DURATION);
+        }
+        IPermissionedRegistry.State memory state = REGISTRY.getState(
+            uint256(keccak256(bytes(label)))
+        );
+        if (state.status != IPermissionedRegistry.Status.AVAILABLE) {
+            revert NameNotAvailable(label);
         }
         _consumeCommitment(
             makeCommitment(label, owner, secret, subregistry, resolver, duration, referrer)
@@ -163,21 +164,17 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IERC20 paymentToken,
         bytes32 referrer
     ) external {
-        (uint256 tokenId, IPermissionedRegistry.Entry memory entry) = REGISTRY.getNameData(label);
-        uint64 oldExpiry = entry.expiry;
-        if (_isAvailable(oldExpiry)) {
+        IPermissionedRegistry.State memory state = REGISTRY.getState(
+            uint256(keccak256(bytes(label)))
+        );
+        if (state.status != IPermissionedRegistry.Status.REGISTERED) {
             revert NameNotRegistered(label);
         }
-        uint64 expiry = oldExpiry + duration;
-        (uint256 base, ) = rentPrice(
-            label,
-            REGISTRY.latestOwnerOf(tokenId),
-            duration,
-            paymentToken
-        ); // reverts if !isValid or !isPaymentToken or duration is 0
+        uint64 expiry = state.expiry + duration;
+        (uint256 base, ) = rentPrice(label, state.owner, duration, paymentToken); // reverts if !isValid or !isPaymentToken or duration is 0
         SafeERC20.safeTransferFrom(paymentToken, _msgSender(), BENEFICIARY, base); // reverts if payment failed
-        REGISTRY.renew(tokenId, expiry);
-        emit NameRenewed(tokenId, label, duration, expiry, paymentToken, referrer, base);
+        REGISTRY.renew(state.tokenId, expiry);
+        emit NameRenewed(state.tokenId, label, duration, expiry, paymentToken, referrer, base);
     }
 
     /// @inheritdoc IRentPriceOracle
@@ -193,9 +190,9 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     /// @inheritdoc IETHRegistrar
     /// @dev Does not check if normalized or valid.
     function isAvailable(string calldata label) external view returns (bool) {
-        (, IPermissionedRegistry.Entry memory entry) = REGISTRY.getNameData(label);
-        uint64 expiry = entry.expiry;
-        return _isAvailable(expiry);
+        return
+            REGISTRY.getState(uint256(keccak256(bytes(label)))).status ==
+            IPermissionedRegistry.Status.AVAILABLE;
     }
 
     /// @inheritdoc IRentPriceOracle
@@ -239,10 +236,5 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
             revert CommitmentTooOld(commitment, tMax, t);
         }
         delete commitmentAt[commitment];
-    }
-
-    /// @dev Internal logic for registration availability.
-    function _isAvailable(uint256 expiry) internal view returns (bool) {
-        return block.timestamp >= expiry;
     }
 }

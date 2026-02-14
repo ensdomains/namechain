@@ -192,9 +192,7 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Get the registered name and check roles
-        (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.getResource(registeredTokenId);
-        uint256 userRoles = registry.roles(resource, user);
+        uint256 userRoles = registry.roles(uint256(keccak256(bytes(testLabel))), user);
 
         // Confirm roles derived from name configuration
         // Since CANNOT_SET_RESOLVER is not burnt, user should have resolver roles
@@ -476,9 +474,7 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Get the registered name and check roles
-        (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.getResource(registeredTokenId);
-        uint256 userRoles = registry.roles(resource, user);
+        uint256 userRoles = registry.roles(uint256(keccak256(bytes(testLabel))), user);
 
         // 2LDs should NOT have renewal roles even when no additional fuses are burnt (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs)
         assertTrue(
@@ -540,9 +536,7 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Get the registered name and check roles
-        (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.getResource(registeredTokenId);
-        uint256 userRoles = registry.roles(resource, user);
+        uint256 userRoles = registry.roles(uint256(keccak256(bytes(testLabel))), user);
 
         // Should NOT have renewal roles since CAN_EXTEND_EXPIRY is not set
         assertTrue(
@@ -590,9 +584,7 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Get the registered name and check roles
-        (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.getResource(registeredTokenId);
-        uint256 userRoles = registry.roles(resource, user);
+        uint256 userRoles = registry.roles(uint256(keccak256(bytes(testLabel))), user);
 
         // 2LDs should NOT have renewal roles even when CANNOT_CREATE_SUBDOMAIN is not burnt (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs)
         assertTrue(
@@ -653,9 +645,7 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
         controller.onERC1155Received(owner, owner, testTokenId, 1, data);
 
         // Get the registered name and check roles
-        (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        uint256 resource = registry.getResource(registeredTokenId);
-        uint256 userRoles = registry.roles(resource, user);
+        uint256 userRoles = registry.roles(uint256(keccak256(bytes(testLabel))), user);
 
         // 2LDs should NOT have renewal roles (CAN_EXTEND_EXPIRY is masked out to prevent automatic renewal for 2LDs) but should have resolver roles
         assertTrue(
@@ -743,8 +733,11 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
         );
 
         // Verify name was successfully migrated despite all fuses being burnt after
-        (uint256 registeredTokenId, ) = registry.getNameData(testLabel);
-        assertTrue(registeredTokenId != 0, "Name should be successfully registered");
+        assertEq(
+            uint256(registry.getState(uint256(keccak256(bytes(testLabel)))).status),
+            uint256(IPermissionedRegistry.Status.REGISTERED),
+            "Name should be successfully registered"
+        );
     }
 
     function test_Revert_invalid_non_eth_name() public {

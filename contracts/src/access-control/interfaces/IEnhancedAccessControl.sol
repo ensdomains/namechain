@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
+uint256 constant INVALID_RESOURCE = type(uint256).max;
+
 /**
  * @dev Interface for Enhanced Access Control system that allows for:
  * - Resource-based roles

@@ -54,6 +54,18 @@ contract PermissionedRegistry is
     MetadataMixin
 {
     ////////////////////////////////////////////////////////////////////////
+    // Types
+    ////////////////////////////////////////////////////////////////////////
+
+    struct Entry {
+        uint32 eacVersionId;
+        uint32 tokenVersionId;
+        IRegistry subregistry;
+        uint64 expiry;
+        address resolver;
+    }
+
+    ////////////////////////////////////////////////////////////////////////
     // Storage
     ////////////////////////////////////////////////////////////////////////
 
@@ -200,24 +212,19 @@ contract PermissionedRegistry is
 
     /// @inheritdoc IRegistry
     function getSubregistry(string calldata label) public view virtual returns (IRegistry) {
-        Entry storage entry = _entry(LibLabel.labelToCanonicalId(label));
+        Entry storage entry = _entry(LibLabel.labelId(label));
         return _isExpired(entry.expiry) ? IRegistry(address(0)) : entry.subregistry;
     }
 
     /// @inheritdoc IRegistry
     function getResolver(string calldata label) public view virtual returns (address) {
-        Entry storage entry = _entry(LibLabel.labelToCanonicalId(label));
+        Entry storage entry = _entry(LibLabel.labelId(label));
         return _isExpired(entry.expiry) ? address(0) : entry.resolver;
     }
 
     /// @inheritdoc ERC1155Singleton
     function uri(uint256 tokenId) public view override returns (string memory) {
         return _tokenURI(tokenId);
-    }
-
-    /// @inheritdoc IPermissionedRegistry
-    function getEntry(uint256 anyId) public view returns (Entry memory) {
-        return _entry(anyId);
     }
 
     /// @inheritdoc IStandardRegistry
@@ -236,25 +243,22 @@ contract PermissionedRegistry is
     }
 
     /// @inheritdoc IPermissionedRegistry
-    function getNameState(string calldata label) public view returns (NameState) {
-        bytes32 labelHash = LibLabel.labelhash(label);
-        Entry storage entry = _entry(uint256(labelHash));
-        if (_isExpired(entry.expiry)) {
-            return NameState.AVAILABLE;
-        } else if (super.ownerOf(_constructTokenId(uint256(labelHash), entry)) == address(0)) {
-            return NameState.RESERVED;
+    function getState(uint256 anyId) public view returns (State memory state) {
+        Entry storage entry = _entry(anyId);
+        uint64 expiry = entry.expiry;
+        state.expiry = expiry;
+        uint256 tokenId = _constructTokenId(anyId, entry);
+        state.tokenId = tokenId;
+        state.resource = _constructResource(anyId, entry);
+        address owner = super.ownerOf(tokenId);
+        state.owner = owner;
+        if (_isExpired(expiry)) {
+            state.status = Status.AVAILABLE;
+        } else if (owner == address(0)) {
+            state.status = Status.RESERVED;
         } else {
-            return NameState.REGISTERED;
+            state.status = Status.REGISTERED;
         }
-    }
-
-    /// @inheritdoc IPermissionedRegistry
-    function getNameData(
-        string memory label
-    ) public view returns (uint256 tokenId, Entry memory entry) {
-        uint256 anyId = LibLabel.labelToCanonicalId(label);
-        Entry storage e = _entry(anyId);
-        return (_constructTokenId(anyId, e), e);
     }
 
     /// @inheritdoc IPermissionedRegistry
@@ -342,9 +346,9 @@ contract PermissionedRegistry is
         if (_isExpired(expiry)) {
             revert CannotSetPastExpiration(expiry);
         }
-        bytes32 labelHash = LibLabel.labelhash(label);
-        Entry storage entry = _entry(uint256(labelHash));
-        tokenId = _constructTokenId(uint256(labelHash), entry);
+        uint256 labelId = LibLabel.labelId(label);
+        Entry storage entry = _entry(labelId);
+        tokenId = _constructTokenId(labelId, entry);
         address prevOwner = super.ownerOf(tokenId);
         if (!_isExpired(entry.expiry)) {
             if (prevOwner != address(0)) {
@@ -367,9 +371,9 @@ contract PermissionedRegistry is
         entry.resolver = resolver;
         // emit NameRegistered before mint so we can determine this is a registry (in an indexer)
         if (owner == address(0)) {
-            emit NameReserved(tokenId, labelHash, label, expiry, sender);
+            emit NameReserved(tokenId, bytes32(labelId), label, expiry, sender);
         } else {
-            emit NameRegistered(tokenId, labelHash, label, owner, expiry, sender);
+            emit NameRegistered(tokenId, bytes32(labelId), label, owner, expiry, sender);
             _mint(owner, tokenId, 1, "");
             uint256 resource = _constructResource(tokenId, entry);
             emit TokenResource(tokenId, resource);
@@ -474,7 +478,7 @@ contract PermissionedRegistry is
     }
 
     function _entry(uint256 anyId) internal view returns (Entry storage) {
-        return _entries[LibLabel.getCanonicalId(anyId)];
+        return _entries[_canonicalId(anyId)];
     }
 
     /// @dev Assert token is not expired and caller has necessary roles.
@@ -502,13 +506,16 @@ contract PermissionedRegistry is
         uint256 anyId,
         Entry storage entry
     ) internal view returns (uint256) {
-        return
-            LibLabel.getCanonicalId(anyId) |
-            (_isExpired(entry.expiry) ? entry.eacVersionId + 1 : entry.eacVersionId);
+        return (_canonicalId(anyId) | entry.eacVersionId) + (_isExpired(entry.expiry) ? 1 : 0);
     }
 
     /// @dev Create `tokenId` from parts.
     function _constructTokenId(uint256 anyId, Entry storage entry) internal view returns (uint256) {
-        return LibLabel.getCanonicalId(anyId) | entry.tokenVersionId;
+        return _canonicalId(anyId) | entry.tokenVersionId;
+    }
+
+    /// @dev Clear lower 32-bits.
+    function _canonicalId(uint256 anyId) internal pure returns (uint256) {
+        return anyId ^ uint32(anyId);
     }
 }

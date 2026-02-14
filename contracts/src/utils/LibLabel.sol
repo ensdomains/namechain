@@ -3,8 +3,8 @@ pragma solidity >=0.8.13;
 
 library LibLabel {
     /// @dev Convert a label to a labelhash.
-    function labelhash(string memory label) internal pure returns (bytes32) {
-        return keccak256(bytes(label));
+    function labelId(string memory label) internal pure returns (uint256) {
+        return uint256(keccak256(bytes(label)));
     }
 
     /// @dev Convert a label to canonical id.
@@ -13,7 +13,7 @@ library LibLabel {
     ///
     /// @return The canonical id corresponding to this label.
     function labelToCanonicalId(string memory label) internal pure returns (uint256) {
-        return getCanonicalId(uint256(labelhash(label)));
+        return getCanonicalId(labelId(label));
     }
 
     /// @dev Get the canonical id of a token id or canonical id.
