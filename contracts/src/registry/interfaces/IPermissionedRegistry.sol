@@ -10,18 +10,20 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     // Types
     ////////////////////////////////////////////////////////////////////////
 
+    /// @notice The registration status of a subdomain.
     enum Status {
         AVAILABLE,
         RESERVED,
         REGISTERED
     }
 
+    /// @notice The registration state of a subdomain.
     struct State {
-        Status status;
-        uint64 expiry;
-        address owner;
-        uint256 tokenId;
-        uint256 resource;
+        Status status; // getStatus()
+        uint64 expiry; // getExpiry()
+        address latestOwner; // latestOwnerOf()
+        uint256 tokenId; // getTokenId()
+        uint256 resource; // getResource()
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -61,6 +63,11 @@ interface IPermissionedRegistry is IStandardRegistry, IEnhancedAccessControl {
     /// @param anyId The labelhash, token ID, or resource.
     /// @return The state of the subdomain.
     function getState(uint256 anyId) external view returns (State memory);
+
+    /// @notice Get `Status` from `anyId`.
+    /// @param anyId The labelhash, token ID, or resource.
+    /// @return The status of the subdomain.
+    function getStatus(uint256 anyId) external view returns (Status);
 
     /// @notice Get `resource` from `anyId`.
     /// @param anyId The labelhash, token ID, or resource.

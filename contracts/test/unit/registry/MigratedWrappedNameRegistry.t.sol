@@ -29,7 +29,6 @@ import {IRegistry} from "~src/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
 import {IStandardRegistry} from "~src/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
-import {LibLabel} from "~src/utils/LibLabel.sol";
 import {LockedNamesLib} from "~src/migration/libraries/LockedNamesLib.sol";
 import {ParentNotMigrated, LabelNotMigrated} from "~src/migration/MigrationErrors.sol";
 import {MigratedWrappedNameRegistry} from "~src/registry/MigratedWrappedNameRegistry.sol";
@@ -175,8 +174,6 @@ contract MigratedWrappedNameRegistryTest is Test {
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         registry = MigratedWrappedNameRegistry(address(proxy));
-
-        testLabelId = LibLabel.labelToCanonicalId(testLabel);
 
         // Setup v1 resolver in ENS registry
         bytes memory dnsEncodedName = NameCoder.ethName(testLabel);

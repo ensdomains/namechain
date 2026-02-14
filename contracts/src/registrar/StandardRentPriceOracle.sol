@@ -317,8 +317,10 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
             uint256(type(uint128).max) * duration
         );
         uint256 premiumUnits;
-        if (owner != address(0) && owner != state.owner) {
-            premiumUnits = premiumPrice(state.expiry); // prior owner pays no premium
+        // prior owner pays no premium
+        // use null owner to exclude premium for estimation
+        if (owner != address(0) && owner != state.latestOwner) {
+            premiumUnits = premiumPrice(state.expiry);
         }
         // reverts on overflow
         premium = Math.mulDiv(premiumUnits, ratio.numer, ratio.denom);

@@ -10,6 +10,7 @@ import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 import {IPermissionedRegistry} from "../registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../registry/interfaces/IRegistry.sol";
 import {RegistryRolesLib} from "../registry/libraries/RegistryRolesLib.sol";
+import {LibLabel} from "../utils/LibLabel.sol";
 
 import {IETHRegistrar} from "./interfaces/IETHRegistrar.sol";
 import {IRentPriceOracle} from "./interfaces/IRentPriceOracle.sol";
@@ -124,15 +125,12 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         if (duration < MIN_REGISTER_DURATION) {
             revert DurationTooShort(duration, MIN_REGISTER_DURATION);
         }
-        IPermissionedRegistry.State memory state = REGISTRY.getState(
-            uint256(keccak256(bytes(label)))
-        );
-        if (state.status != IPermissionedRegistry.Status.AVAILABLE) {
+        if (!isAvailable(label)) {
             revert NameNotAvailable(label);
         }
         _consumeCommitment(
             makeCommitment(label, owner, secret, subregistry, resolver, duration, referrer)
-        );
+        ); // reverts if no commitment
         (uint256 base, uint256 premium) = rentPrice(label, owner, duration, paymentToken); // reverts if !isValid or !isPaymentToken
         SafeERC20.safeTransferFrom(paymentToken, _msgSender(), BENEFICIARY, base + premium); // reverts if payment failed
         tokenId = REGISTRY.register(
@@ -164,14 +162,12 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IERC20 paymentToken,
         bytes32 referrer
     ) external {
-        IPermissionedRegistry.State memory state = REGISTRY.getState(
-            uint256(keccak256(bytes(label)))
-        );
+        IPermissionedRegistry.State memory state = REGISTRY.getState(LibLabel.id(label));
         if (state.status != IPermissionedRegistry.Status.REGISTERED) {
             revert NameNotRegistered(label);
         }
         uint64 expiry = state.expiry + duration;
-        (uint256 base, ) = rentPrice(label, state.owner, duration, paymentToken); // reverts if !isValid or !isPaymentToken or duration is 0
+        (uint256 base, ) = rentPrice(label, state.latestOwner, duration, paymentToken); // reverts if !isValid or !isPaymentToken or duration is 0
         SafeERC20.safeTransferFrom(paymentToken, _msgSender(), BENEFICIARY, base); // reverts if payment failed
         REGISTRY.renew(state.tokenId, expiry);
         emit NameRenewed(state.tokenId, label, duration, expiry, paymentToken, referrer, base);
@@ -189,10 +185,8 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
 
     /// @inheritdoc IETHRegistrar
     /// @dev Does not check if normalized or valid.
-    function isAvailable(string calldata label) external view returns (bool) {
-        return
-            REGISTRY.getState(uint256(keccak256(bytes(label)))).status ==
-            IPermissionedRegistry.Status.AVAILABLE;
+    function isAvailable(string memory label) public view returns (bool) {
+        return REGISTRY.getStatus(LibLabel.id(label)) == IPermissionedRegistry.Status.AVAILABLE;
     }
 
     /// @inheritdoc IRentPriceOracle

@@ -84,6 +84,7 @@ contract PermissionedRegistry is
         _grantRoles(ROOT_RESOURCE, ownerRoles, ownerAddress, false);
     }
 
+    /// @inheritdoc IERC165
     function supportsInterface(
         bytes4 interfaceId
     )
@@ -103,6 +104,7 @@ contract PermissionedRegistry is
     // Implementation
     ////////////////////////////////////////////////////////////////////////
 
+    /// @inheritdoc IStandardRegistry
     function setSubregistry(uint256 anyId, IRegistry registry) public override {
         (uint256 tokenId, Entry storage entry) = _checkExpiryAndTokenRoles(
             anyId,
@@ -112,6 +114,7 @@ contract PermissionedRegistry is
         emit SubregistryUpdated(tokenId, registry, _msgSender());
     }
 
+    /// @inheritdoc IStandardRegistry
     function setResolver(uint256 anyId, address resolver) public override {
         (uint256 tokenId, Entry storage entry) = _checkExpiryAndTokenRoles(
             anyId,
@@ -131,13 +134,7 @@ contract PermissionedRegistry is
         address resolver,
         uint256 roleBitmap,
         uint64 expiry
-    )
-        public
-        virtual
-        override
-        onlyRootRoles(RegistryRolesLib.ROLE_REGISTRAR)
-        returns (uint256 tokenId)
-    {
+    ) public virtual onlyRootRoles(RegistryRolesLib.ROLE_REGISTRAR) returns (uint256 tokenId) {
         if (owner == address(0)) {
             revert InvalidOwner();
         }
@@ -212,13 +209,13 @@ contract PermissionedRegistry is
 
     /// @inheritdoc IRegistry
     function getSubregistry(string calldata label) public view virtual returns (IRegistry) {
-        Entry storage entry = _entry(LibLabel.labelId(label));
+        Entry storage entry = _entry(LibLabel.id(label));
         return _isExpired(entry.expiry) ? IRegistry(address(0)) : entry.subregistry;
     }
 
     /// @inheritdoc IRegistry
     function getResolver(string calldata label) public view virtual returns (address) {
-        Entry storage entry = _entry(LibLabel.labelId(label));
+        Entry storage entry = _entry(LibLabel.id(label));
         return _isExpired(entry.expiry) ? address(0) : entry.resolver;
     }
 
@@ -243,6 +240,12 @@ contract PermissionedRegistry is
     }
 
     /// @inheritdoc IPermissionedRegistry
+    function getStatus(uint256 anyId) public view returns (Status) {
+        Entry storage entry = _entry(anyId);
+        return _constructStatus(entry.expiry, super.ownerOf(_constructTokenId(anyId, entry)));
+    }
+
+    /// @inheritdoc IPermissionedRegistry
     function getState(uint256 anyId) public view returns (State memory state) {
         Entry storage entry = _entry(anyId);
         uint64 expiry = entry.expiry;
@@ -251,14 +254,8 @@ contract PermissionedRegistry is
         state.tokenId = tokenId;
         state.resource = _constructResource(anyId, entry);
         address owner = super.ownerOf(tokenId);
-        state.owner = owner;
-        if (_isExpired(expiry)) {
-            state.status = Status.AVAILABLE;
-        } else if (owner == address(0)) {
-            state.status = Status.RESERVED;
-        } else {
-            state.status = Status.REGISTERED;
-        }
+        state.latestOwner = owner;
+        state.status = _constructStatus(expiry, owner);
     }
 
     /// @inheritdoc IPermissionedRegistry
@@ -346,7 +343,7 @@ contract PermissionedRegistry is
         if (_isExpired(expiry)) {
             revert CannotSetPastExpiration(expiry);
         }
-        uint256 labelId = LibLabel.labelId(label);
+        uint256 labelId = LibLabel.id(label);
         Entry storage entry = _entry(labelId);
         tokenId = _constructTokenId(labelId, entry);
         address prevOwner = super.ownerOf(tokenId);
@@ -478,7 +475,7 @@ contract PermissionedRegistry is
     }
 
     function _entry(uint256 anyId) internal view returns (Entry storage) {
-        return _entries[_canonicalId(anyId)];
+        return _entries[LibLabel.canonicalId(anyId)];
     }
 
     /// @dev Assert token is not expired and caller has necessary roles.
@@ -501,21 +498,28 @@ contract PermissionedRegistry is
     }
 
     /// @dev Create `resource` from parts.
-    ///      Returns next resource if token is expired.
+    ///      Returns next resource if expired.
     function _constructResource(
         uint256 anyId,
         Entry storage entry
     ) internal view returns (uint256) {
-        return (_canonicalId(anyId) | entry.eacVersionId) + (_isExpired(entry.expiry) ? 1 : 0);
+        return
+            (LibLabel.canonicalId(anyId) | entry.eacVersionId) + (_isExpired(entry.expiry) ? 1 : 0);
     }
 
     /// @dev Create `tokenId` from parts.
     function _constructTokenId(uint256 anyId, Entry storage entry) internal view returns (uint256) {
-        return _canonicalId(anyId) | entry.tokenVersionId;
+        return LibLabel.canonicalId(anyId) | entry.tokenVersionId;
     }
 
-    /// @dev Clear lower 32-bits.
-    function _canonicalId(uint256 anyId) internal pure returns (uint256) {
-        return anyId ^ uint32(anyId);
+    /// @dev Create `Status` from parts.
+    function _constructStatus(uint64 expiry, address owner) internal view returns (Status) {
+        if (_isExpired(expiry)) {
+            return Status.AVAILABLE;
+        } else if (owner == address(0)) {
+            return Status.RESERVED;
+        } else {
+            return Status.REGISTERED;
+        }
     }
 }
