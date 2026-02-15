@@ -12,8 +12,12 @@ contract LibLabelTest is Test {
         uint256 id = LibLabel.id("abc");
         assertEq(id, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45);
         assertEq(
-            LibLabel.canonicalId(id),
+            LibLabel.constructId(id, 0),
             0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58f00000000
+        );
+        assertEq(
+            LibLabel.constructId(id, 0xffffffff),
+            0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fffffffff
         );
     }
 
@@ -21,19 +25,16 @@ contract LibLabelTest is Test {
         assertEq(LibLabel.id(label), uint256(keccak256(bytes(label))));
     }
 
-    function test_canonicalId(uint256 id) external pure {
-        uint256 canonicalId = LibLabel.canonicalId(id);
-        assertEq(canonicalId, id ^ uint32(id), "xor");
-        assertEq(canonicalId, id - uint32(id), "sub");
-        assertEq(canonicalId, id & ~uint256(0xffffffff), "and");
-        assertEq(canonicalId, (id >> 32) << 32, "shift");
+    function test_constructId(uint256 id, uint32 version) external pure {
+        assertEq(LibLabel.constructId(id, version) >> 32, id >> 32, "id");
+        assertEq(uint32(LibLabel.constructId(id, version)), version, "version");
     }
 
-    function test_collisions(string memory A, string memory B) external pure {
-        uint256 a = LibLabel.id(A);
-        uint256 b = LibLabel.id(B);
-        if (a != b && LibLabel.canonicalId(a) == LibLabel.canonicalId(b)) {
-            assertEq(A, B);
+    function test_collisions(string memory a, string memory b) external pure {
+        uint256 x = LibLabel.id(a);
+        uint256 y = LibLabel.id(b);
+        if (x != y && LibLabel.constructId(x, 0) == LibLabel.constructId(y, 0)) {
+            assertEq(a, b);
         }
     }
 }

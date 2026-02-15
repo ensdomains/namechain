@@ -7,10 +7,11 @@ library LibLabel {
         return uint256(keccak256(bytes(label)));
     }
 
-    /// @notice Clear the lower 32-bits of `anyId`.
+    /// @notice Replace the lower 32-bits of `anyId` with `versionId`.
     /// @param anyId The labelhash, token ID, or resource.
-    /// @return The canonical ID.
-    function canonicalId(uint256 anyId) internal pure returns (uint256) {
-        return anyId ^ uint32(anyId);
+    /// @param versionId The version ID.
+    /// @return The constructed ID.
+    function constructId(uint256 anyId, uint32 versionId) internal pure returns (uint256) {
+        return anyId ^ uint32(anyId) ^ versionId;
     }
 }
