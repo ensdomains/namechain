@@ -750,15 +750,15 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         testRoles = RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN | _expandRoles(compactRoles);
         uint256 tokenId = this._register();
         IPermissionedRegistry.State memory s0 = registry.getState(tokenId);
+        assertEq(s0.latestOwner, user1, "before:owner");
         assertTrue(registry.hasRoles(tokenId, testRoles, user1), "before:user1");
         assertFalse(registry.hasRoles(tokenId, testRoles, user2), "before:user2");
         vm.prank(user1);
         registry.safeTransferFrom(user1, user2, tokenId, 1, "");
+        IPermissionedRegistry.State memory s1 = registry.getState(tokenId);
+        assertEq(s1.latestOwner, user2, "after:owner");
         assertFalse(registry.hasRoles(tokenId, testRoles, user1), "after:user1");
         assertTrue(registry.hasRoles(tokenId, testRoles, user2), "after:user2");
-        IPermissionedRegistry.State memory s1 = registry.getState(tokenId);
-        assertEq(s0.latestOwner, user1, "before:owner");
-        assertEq(s1.latestOwner, user2, "after:owner");
         assertEq(s0.tokenId, s1.tokenId, "token"); // unchanged
         assertEq(s0.resource, s1.resource, "resource"); // unchanged
     }
@@ -790,7 +790,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN |
             RegistryRolesLib.ROLE_SET_RESOLVER_ADMIN;
         uint256 tokenId = this._register();
-        // make token available for sale on exchange
+        // make token available for sale
         vm.prank(user1);
         registry.setApprovalForAll(actor, true);
         // step #1: user2 buys token
@@ -801,7 +801,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         // token has now regenerated
         uint256 newTokenId = registry.getTokenId(tokenId);
         assertNotEq(tokenId, newTokenId, "regen");
-        // step #3: safeTransferFrom() executes and fails => no step #3
+        // step #3: safeTransferFrom() executes and fails
         vm.expectRevert(
             abi.encodeWithSelector(
                 IERC1155Errors.ERC1155InsufficientBalance.selector,

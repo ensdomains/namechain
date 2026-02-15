@@ -12,17 +12,17 @@ contract LibLabelTest is Test {
         uint256 id = LibLabel.id("abc");
         assertEq(id, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45);
         assertEq(
-            LibLabel.constructId(id, 0),
+            LibLabel.constructId(id, 0), //                           ________
             0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58f00000000
         );
         assertEq(
-            LibLabel.constructId(id, 0xffffffff),
-            0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fffffffff
+            LibLabel.constructId(id, 0xaaaaaaaa), //                  ________
+            0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58faaaaaaaa
         );
     }
 
     function test_id(string memory label) external pure {
-        assertEq(LibLabel.id(label), uint256(keccak256(bytes(label))));
+        assertEq(LibLabel.id(label), uint256(keccak256(bytes(label)))); // labelhash()
     }
 
     function test_constructId(uint256 id, uint32 version) external pure {
