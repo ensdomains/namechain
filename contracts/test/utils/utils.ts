@@ -2,14 +2,12 @@ import { labelhash } from "viem";
 
 export { dnsEncodeName } from "../../lib/ens-contracts/test/fixtures/dnsEncodeName.js";
 
-// see: NameUtils.labelToCanonicalId()
-export function labelToCanonicalId(label: string) {
-  return getCanonicalId(BigInt(labelhash(label)));
+export function labelId(label: string): bigint {
+  return BigInt(labelhash(label));
 }
 
-// see: NameUtils.getCanonicalId
-export function getCanonicalId(id: bigint) {
-  return id ^ BigInt.asUintN(32, id);
+export function constructId(id: bigint, version = 0) {
+  return id ^ BigInt.asUintN(32, id ^ BigInt(version));
 }
 
 //      "" => []
