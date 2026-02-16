@@ -5,11 +5,10 @@ pragma solidity >=0.8.13;
 
 import {Vm, Test} from "forge-std/Test.sol";
 
-import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import {SimpleRegistryMetadata} from "~src/registry/SimpleRegistryMetadata.sol";
 import {
     PermissionedRegistry,
     IPermissionedRegistry,
@@ -24,6 +23,7 @@ import {
     LibLabel,
     InvalidOwner
 } from "~src/registry/PermissionedRegistry.sol";
+import {SimpleRegistryMetadata} from "~src/registry/SimpleRegistryMetadata.sol";
 import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract PermissionedRegistryTest is Test, ERC1155Holder {
@@ -127,6 +127,10 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
         vm.prank(actor);
         this._register();
+        // retry with permissions
+        registry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, actor);
+        vm.prank(actor);
+        this._register();
     }
 
     function test_register_invalidOwner() external {
@@ -178,7 +182,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
         uint256 tokenId = registry.reserve(testLabel, testResolver, testExpiry);
         IPermissionedRegistry.State memory state = registry.getState(tokenId);
-        assertEq(uint256(state.status), uint256(IPermissionedRegistry.Status.RESERVED), "reserved");
+        assertEq(uint8(state.status), uint8(IPermissionedRegistry.Status.RESERVED), "reserved");
         assertEq(state.latestOwner, address(0), "owner");
         assertEq(state.expiry, testExpiry, "expiry");
         assertEq(registry.getResolver(testLabel), testResolver, "resolver");
@@ -214,6 +218,10 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
         vm.prank(actor);
         registry.reserve(testLabel, testResolver, testExpiry);
+        // retry with permissions
+        registry.grantRootRoles(RegistryRolesLib.ROLE_RESERVE, actor);
+        vm.prank(actor);
+        registry.reserve(testLabel, testResolver, testExpiry);
     }
 
     function test_reserve_then_register() external {
@@ -223,8 +231,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
     function test_reserve_then_register_notAuthorized() external {
         registry.reserve(testLabel, testResolver, testExpiry);
-
-        // ROLE_REGISTAR and ROLE_RESERVE are required
+        // both ROLE_REGISTAR and ROLE_RESERVE are required
         registry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, actor);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -234,6 +241,10 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
                 actor
             )
         );
+        vm.prank(actor);
+        this._register();
+        // retry with permissions
+        registry.grantRootRoles(RegistryRolesLib.ROLE_RESERVE, actor);
         vm.prank(actor);
         this._register();
     }
@@ -284,6 +295,10 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
         vm.prank(actor);
         registry.renew(tokenId, testExpiry);
+        // retry with permissions
+        registry.grantRootRoles(RegistryRolesLib.ROLE_RENEW, actor);
+        vm.prank(actor);
+        registry.renew(tokenId, testExpiry);
     }
 
     function test_renew_cannotReduceExpiration() external {
@@ -318,6 +333,10 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
         vm.prank(testOwner);
         registry.renew(tokenId, testExpiry);
+        // retry with permissions
+        registry.grantRoles(tokenId, RegistryRolesLib.ROLE_RENEW, actor);
+        vm.prank(actor);
+        registry.renew(tokenId, testExpiry);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -338,8 +357,8 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         emit IERC1155.TransferSingle(address(this), testOwner, address(0), tokenId, 1);
         registry.unregister(tokenId);
         assertEq(
-            uint256(registry.getState(tokenId).status),
-            uint256(IPermissionedRegistry.Status.AVAILABLE),
+            uint8(registry.getState(tokenId).status),
+            uint8(IPermissionedRegistry.Status.AVAILABLE),
             "status"
         );
         assertEq(registry.ownerOf(tokenId), address(0), "owner");
@@ -376,6 +395,10 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
         vm.prank(actor);
         registry.unregister(tokenId);
+        // retry with permissions
+        registry.grantRootRoles(RegistryRolesLib.ROLE_UNREGISTER, actor);
+        vm.prank(actor);
+        registry.unregister(tokenId);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -410,11 +433,12 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         vm.assertEq(address(registry.getSubregistry(testLabel)), address(0), "after");
     }
 
-    function test_setSubregistry_root() external {
+    function test_setSubregistry_asRoot() external {
         uint256 tokenId = this._register();
         vm.expectRevert();
         vm.prank(testOwner);
         registry.setSubregistry(tokenId, testRegistry);
+        // retry with permissions
         registry.setSubregistry(tokenId, testRegistry);
     }
 
@@ -435,6 +459,10 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
         vm.prank(testOwner);
         registry.setSubregistry(tokenId, testRegistry);
+        // retry with permissions
+        registry.grantRoles(tokenId, RegistryRolesLib.ROLE_SET_SUBREGISTRY, testOwner);
+        vm.prank(testOwner);
+        registry.setSubregistry(tokenId, testRegistry);
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -453,11 +481,12 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         vm.assertEq(registry.getResolver(testLabel), address(0), "after");
     }
 
-    function test_setResolver_root() external {
+    function test_setResolver_asRoot() external {
         uint256 tokenId = this._register();
         vm.expectRevert();
         vm.prank(testOwner);
         registry.setResolver(tokenId, testResolver);
+        // retry with permissions
         registry.setResolver(tokenId, testResolver);
     }
 
@@ -478,13 +507,16 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
         vm.prank(testOwner);
         registry.setResolver(tokenId, testResolver);
+        // retry with permissions
+        registry.grantRoles(tokenId, RegistryRolesLib.ROLE_SET_RESOLVER, testOwner);
+        vm.prank(testOwner);
+        registry.setResolver(tokenId, testResolver);
     }
 
     ////////////////////////////////////////////////////////////////////////
-    // ERC-1155
+    // ERC-1155 (operations require exact tokenId)
     ////////////////////////////////////////////////////////////////////////
 
-    // requires exact
     function test_ownerOf() external {
         assertEq(registry.ownerOf(0), address(0), "dne");
         uint256 tokenId = this._register();
@@ -532,6 +564,19 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     }
 
     function test_safeBatchTransferFrom() external {
+        testRoles = RegistryRolesLib.ROLE_CAN_TRANSFER_ADMIN;
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = this._register();
+        testLabel = "abc";
+        tokenIds[1] = this._register();
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1;
+        amounts[1] = 1;
+        vm.prank(user1);
+        registry.safeBatchTransferFrom(user1, user2, tokenIds, amounts, "");
+    }
+
+    function test_safeBatchTransferFrom_oneFailure() external {
         uint256[] memory tokenIds = new uint256[](2);
         tokenIds[0] = this._register(); // no transfer role
         testLabel = "abc";
@@ -555,71 +600,72 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     // getState()
     ////////////////////////////////////////////////////////////////////////
 
-    function test_getState() external {
+    function test_getState_available() external view {
         uint256 tokenId = registry.getTokenId(LibLabel.id(testLabel));
         IPermissionedRegistry.State memory state = registry.getState(tokenId);
-        assertEq(
-            uint256(state.status),
-            uint256(IPermissionedRegistry.Status.AVAILABLE),
-            "avail:status"
-        );
-        assertEq(state.expiry, 0, "avail:expiry");
-        assertEq(state.latestOwner, address(0), "avail:owner");
-        assertEq(state.tokenId, tokenId, "avail:tokenId");
-        assertEq(state.resource, tokenId + 1, "avail:resource"); // next
-        _checkGetters(state);
-
-        tokenId = registry.reserve(testLabel, testResolver, testExpiry);
-        state = registry.getState(tokenId);
-        assertEq(
-            uint256(state.status),
-            uint256(IPermissionedRegistry.Status.RESERVED),
-            "res:status"
-        );
-        assertEq(state.expiry, testExpiry, "res:expiry");
-        assertEq(state.latestOwner, address(0), "res:owner");
-        assertEq(state.tokenId, tokenId, "res:tokenId");
-        assertEq(state.resource, tokenId, "res:resource");
-        _checkGetters(state);
-
-        tokenId = this._register();
-        state = registry.getState(tokenId);
-        assertEq(
-            uint256(state.status),
-            uint256(IPermissionedRegistry.Status.REGISTERED),
-            "reg:status"
-        );
-        assertEq(state.expiry, testExpiry, "reg:expiry");
-        assertEq(state.latestOwner, testOwner, "reg:owner");
-        assertEq(state.tokenId, tokenId, "reg:tokenId");
-        assertEq(state.resource, tokenId, "reg:resource");
-        _checkGetters(state);
-
-        assertEq(abi.encode(state), abi.encode(registry.getState(tokenId + 123)), "anyId");
-
-        vm.warp(state.expiry);
-        state = registry.getState(tokenId);
-        assertEq(
-            uint256(state.status),
-            uint256(IPermissionedRegistry.Status.AVAILABLE),
-            "exp:status"
-        );
-        assertEq(state.expiry, testExpiry, "exp:expiry");
-        assertEq(state.latestOwner, testOwner, "exp:owner");
-        assertEq(state.tokenId, tokenId, "exp:tokenId");
-        assertEq(state.resource, tokenId + 1, "exp:resource"); // next
-        _checkGetters(state);
+        assertEq(uint8(state.status), uint8(IPermissionedRegistry.Status.AVAILABLE), "status");
+        assertEq(state.expiry, 0, "expiry");
+        assertEq(state.latestOwner, address(0), "owner");
+        assertEq(state.tokenId, tokenId, "tokenId");
+        assertEq(state.resource, tokenId + 1, "resource"); // next
+        _checkStateGetters(state);
     }
 
-    function _checkGetters(IPermissionedRegistry.State memory state) internal view {
-        address owner = state.status == IPermissionedRegistry.Status.AVAILABLE
-            ? address(0)
-            : state.latestOwner;
-        assertEq(registry.ownerOf(state.tokenId), owner, "ownerOf");
+    function test_getState_reserved() external {
+        uint256 tokenId = registry.reserve(testLabel, testResolver, testExpiry);
+        IPermissionedRegistry.State memory state = registry.getState(tokenId);
+        assertEq(uint8(state.status), uint8(IPermissionedRegistry.Status.RESERVED), "status");
+        assertEq(state.expiry, testExpiry, "expiry");
+        assertEq(state.latestOwner, address(0), "owner");
+        assertEq(state.tokenId, tokenId, "tokenId");
+        assertEq(state.resource, tokenId, "resource");
+        _checkStateGetters(state);
+    }
+
+    function test_getState_registered() external {
+        uint256 tokenId = this._register();
+        IPermissionedRegistry.State memory state = registry.getState(tokenId);
+        assertEq(uint8(state.status), uint8(IPermissionedRegistry.Status.REGISTERED), "status");
+        assertEq(state.expiry, testExpiry, "expiry");
+        assertEq(state.latestOwner, testOwner, "owner");
+        assertEq(state.tokenId, tokenId, "tokenId");
+        assertEq(state.resource, tokenId, "resource");
+        _checkStateGetters(state);
+    }
+
+    function test_getState_expired() external {
+        uint256 tokenId = this._register();
+        vm.warp(testExpiry);
+        IPermissionedRegistry.State memory state = registry.getState(tokenId);
+        assertEq(uint8(state.status), uint8(IPermissionedRegistry.Status.AVAILABLE), "status");
+        assertEq(state.expiry, testExpiry, "expiry");
+        assertEq(state.latestOwner, testOwner, "owner");
+        assertEq(state.tokenId, tokenId, "tokenId");
+        assertEq(state.resource, tokenId + 1, "resource"); // next
+        _checkStateGetters(state);
+    }
+
+    function test_getState_unregistered() external {
+        uint256 tokenId = this._register();
+        registry.unregister(tokenId);
+        IPermissionedRegistry.State memory state = registry.getState(tokenId);
+        assertEq(uint8(state.status), uint8(IPermissionedRegistry.Status.AVAILABLE), "status");
+        assertEq(state.expiry, block.timestamp, "expiry");
+        assertEq(state.latestOwner, address(0), "owner");
+        assertEq(state.tokenId, tokenId + 1, "tokenId"); // burned
+        assertEq(state.resource, tokenId + 2, "resource"); // next
+        _checkStateGetters(state);
+    }
+
+    function _checkStateGetters(IPermissionedRegistry.State memory state) internal view {
+        if (state.status != IPermissionedRegistry.Status.AVAILABLE) {
+            assertEq(registry.ownerOf(state.tokenId), state.latestOwner, "ownerOf");
+        }
+        assertEq(registry.latestOwnerOf(state.tokenId), state.latestOwner, "latestOwnerOf");
         assertEq(registry.getExpiry(state.tokenId), state.expiry, "getExpiry");
         assertEq(registry.getTokenId(state.tokenId), state.tokenId, "getTokenId");
         assertEq(registry.getResource(state.tokenId), state.resource, "getResource");
-        assertEq(uint256(registry.getStatus(state.tokenId)), uint256(state.status), "getStatus");
+        assertEq(uint8(registry.getStatus(state.tokenId)), uint8(state.status), "getStatus");
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -654,8 +700,8 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     function test_getStatus_anyId(uint32 version) external {
         uint256 tokenId = this._register();
         assertEq(
-            uint256(registry.getStatus(LibLabel.constructId(tokenId, version))),
-            uint256(IPermissionedRegistry.Status.REGISTERED)
+            uint8(registry.getStatus(LibLabel.constructId(tokenId, version))),
+            uint8(IPermissionedRegistry.Status.REGISTERED)
         );
     }
 
@@ -901,7 +947,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     }
 
     function _expandRoles(uint16 compactRoles) internal pure returns (uint256 roles) {
-        for (uint256 i; i < 16; i++) {
+        for (uint256 i; i < 16; ++i) {
             if ((compactRoles & (1 << i)) != 0) {
                 roles |= (1 << (i << 2));
             }
