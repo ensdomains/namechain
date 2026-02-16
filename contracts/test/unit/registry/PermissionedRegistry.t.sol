@@ -417,6 +417,12 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         this._register(); // #2
     }
 
+    function test_reserve_withReducedExpiry() external {
+        uint256 tokenId = registry.reserve(testLabel, testResolver, testExpiry);
+        registry.unregister(tokenId); // #1
+        registry.reserve(testLabel, testResolver, testExpiry >> 1); // #2
+    }
+
     ////////////////////////////////////////////////////////////////////////
     // setSubregistry() and getSubregistry()
     ////////////////////////////////////////////////////////////////////////
@@ -576,7 +582,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         registry.safeBatchTransferFrom(user1, user2, tokenIds, amounts, "");
     }
 
-    function test_safeBatchTransferFrom_oneFailure() external {
+    function test_safeBatchTransferFrom_oneError() external {
         uint256[] memory tokenIds = new uint256[](2);
         tokenIds[0] = this._register(); // no transfer role
         testLabel = "abc";
