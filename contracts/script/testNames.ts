@@ -247,6 +247,9 @@ async function traverseRegistry(
     }
 
     // Move to the subregistry
+    if (!entry.subregistry || entry.subregistry === zeroAddress) {
+      return null;
+    }
     currentRegistry = getRegistryContract(env, entry.subregistry) as any;
   }
 
@@ -886,6 +889,25 @@ export async function testNames(env: DevnetEnvironment) {
   await trackGas("setAlias(alias→test)", aliasTx.receipt);
   console.log("✓ alias.eth → test.eth alias created");
 
+  // Set records for sub.test.eth on test.eth's resolver so sub.alias.eth resolves via alias
+  console.log("\nSetting records for sub.test.eth (for sub.alias.eth alias resolution)");
+  const subTestNode = namehash("sub.test.eth");
+  const setSubAddrTx = await env.waitFor(
+    testResolver.write.setAddr(
+      [subTestNode, 60n, env.namedAccounts.owner.address],
+      { account: env.namedAccounts.owner },
+    ),
+  );
+  await trackGas("setAddr(sub.test.eth)", setSubAddrTx.receipt);
+  const setSubTextTx = await env.waitFor(
+    testResolver.write.setText(
+      [subTestNode, "description", "sub.test.eth (via alias)"],
+      { account: env.namedAccounts.owner },
+    ),
+  );
+  await trackGas("setText(sub.test.eth)", setSubTextTx.receipt);
+  console.log("✓ sub.test.eth records set — sub.alias.eth should resolve via alias");
+
   // Create subnames
   const createdSubnames = await createSubname(
     env,
@@ -925,6 +947,7 @@ export async function testNames(env: DevnetEnvironment) {
     "parent.eth",
     "changerole.eth",
     "alias.eth",
+    "sub.alias.eth",
     ...createdSubnames,
   ];
 
@@ -944,7 +967,32 @@ async function verifyNames(env: DevnetEnvironment, names: string[]) {
 
   const errors: string[] = [];
 
+  // Names that resolve only via alias (not directly registered in registry)
+  const aliasOnlyNames = new Set(["sub.alias.eth"]);
+
   for (const name of names) {
+    if (aliasOnlyNames.has(name)) {
+      // Verify alias resolution via UniversalResolver
+      try {
+        const addrCall = encodeFunctionData({
+          abi: OwnedResolverAbi,
+          functionName: "addr",
+          args: [namehash(name)],
+        });
+        const [result] =
+          await env.deployment.contracts.UniversalResolverV2.read.resolve([
+            dnsEncodeName(name),
+            addrCall,
+          ]);
+        if (!result || result === "0x") {
+          errors.push(`${name}: alias resolution returned empty result`);
+        }
+      } catch (e) {
+        errors.push(`${name}: alias resolution failed — ${e}`);
+      }
+      continue;
+    }
+
     const data = await traverseRegistry(env, name);
 
     if (!data || !data.owner || data.owner === zeroAddress) {
