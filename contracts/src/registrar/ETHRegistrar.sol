@@ -9,7 +9,6 @@ import {HCAEquivalence} from "../hca/HCAEquivalence.sol";
 import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 import {IPermissionedRegistry} from "../registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../registry/interfaces/IRegistry.sol";
-import {IRegistryDatastore} from "../registry/interfaces/IRegistryDatastore.sol";
 import {RegistryRolesLib} from "../registry/libraries/RegistryRolesLib.sol";
 
 import {IETHRegistrar} from "./interfaces/IETHRegistrar.sol";
@@ -122,7 +121,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IERC20 paymentToken,
         bytes32 referrer
     ) external returns (uint256 tokenId) {
-        (, IRegistryDatastore.Entry memory entry) = REGISTRY.getNameData(label);
+        (, IPermissionedRegistry.Entry memory entry) = REGISTRY.getNameData(label);
         uint64 oldExpiry = entry.expiry;
         if (!_isAvailable(oldExpiry)) {
             revert NameAlreadyRegistered(label);
@@ -164,7 +163,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
         IERC20 paymentToken,
         bytes32 referrer
     ) external {
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = REGISTRY.getNameData(label);
+        (uint256 tokenId, IPermissionedRegistry.Entry memory entry) = REGISTRY.getNameData(label);
         uint64 oldExpiry = entry.expiry;
         if (_isAvailable(oldExpiry)) {
             revert NameNotRegistered(label);
@@ -194,7 +193,7 @@ contract ETHRegistrar is IETHRegistrar, EnhancedAccessControl {
     /// @inheritdoc IETHRegistrar
     /// @dev Does not check if normalized or valid.
     function isAvailable(string calldata label) external view returns (bool) {
-        (, IRegistryDatastore.Entry memory entry) = REGISTRY.getNameData(label);
+        (, IPermissionedRegistry.Entry memory entry) = REGISTRY.getNameData(label);
         uint64 expiry = entry.expiry;
         return _isAvailable(expiry);
     }

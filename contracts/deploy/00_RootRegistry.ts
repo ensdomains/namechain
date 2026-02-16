@@ -3,9 +3,6 @@ import { ROLES } from "../script/deploy-constants.js";
 
 export default execute(
   async ({ deploy, get, namedAccounts: { deployer } }) => {
-    const registryDatastore =
-      get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
-
     const hcaFactory =
       get<(typeof artifacts.MockHCAFactoryBasic)["abi"]>("HCAFactory");
 
@@ -16,17 +13,11 @@ export default execute(
     await deploy("RootRegistry", {
       account: deployer,
       artifact: artifacts.PermissionedRegistry,
-      args: [
-        registryDatastore.address,
-        hcaFactory.address,
-        registryMetadata.address,
-        deployer,
-        ROLES.ALL,
-      ],
+      args: [hcaFactory.address, registryMetadata.address, deployer, ROLES.ALL],
     });
   },
   {
     tags: ["RootRegistry", "l1"],
-    dependencies: ["RegistryDatastore", "HCAFactory", "RegistryMetadata"],
+    dependencies: ["HCAFactory", "RegistryMetadata"],
   },
 );
