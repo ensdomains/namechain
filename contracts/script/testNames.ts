@@ -849,6 +849,43 @@ export async function testNames(env: DevnetEnvironment) {
   ));
   await trackGas("renew(renew)", renewTx.receipt);
 
+  // Register alias.eth pointing to test.eth's resolver, then set alias
+  console.log("\nCreating alias: alias.eth → test.eth");
+  const testNameData = await traverseRegistry(env, "test.eth");
+  if (!testNameData?.resolver || testNameData.resolver === zeroAddress) {
+    throw new Error("test.eth has no resolver set");
+  }
+  const currentTimestamp = await env.deployment.client.getBlock().then((b) => b.timestamp);
+  const aliasExpiry = currentTimestamp + BigInt(ONE_DAY_SECONDS);
+  const aliasRegisterTx = await env.waitFor(
+    env.deployment.contracts.ETHRegistry.write.register(
+      [
+        "alias",
+        env.namedAccounts.owner.address,
+        zeroAddress,
+        testNameData.resolver,
+        ROLES.ALL,
+        aliasExpiry,
+      ],
+      { account: env.namedAccounts.deployer },
+    ),
+  );
+  await trackGas("register(alias)", aliasRegisterTx.receipt);
+
+  const testResolver = getContract({
+    address: testNameData.resolver,
+    abi: OwnedResolverAbi,
+    client: env.deployment.client,
+  });
+  const aliasTx = await env.waitFor(
+    testResolver.write.setAlias(
+      [dnsEncodeName("alias.eth"), dnsEncodeName("test.eth")],
+      { account: env.namedAccounts.owner },
+    ),
+  );
+  await trackGas("setAlias(alias→test)", aliasTx.receipt);
+  console.log("✓ alias.eth → test.eth alias created");
+
   // Create subnames
   const createdSubnames = await createSubname(
     env,
@@ -887,6 +924,7 @@ export async function testNames(env: DevnetEnvironment) {
     "reregister.eth",
     "parent.eth",
     "changerole.eth",
+    "alias.eth",
     ...createdSubnames,
   ];
 
