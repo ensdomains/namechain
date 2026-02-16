@@ -2,11 +2,12 @@
 pragma solidity >=0.8.13;
 
 import {EnhancedAccessControl} from "../access-control/EnhancedAccessControl.sol";
+import {InvalidOwner} from "../CommonErrors.sol";
 import {HCAEquivalence} from "../hca/HCAEquivalence.sol";
 import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 
-uint256 constant ROLE_SET_NAME = 1 << 0;
-uint256 constant ROLE_SET_NAME_ADMIN = ROLE_SET_NAME << 128;
+uint256 constant ROLE_SET = 1 << 0;
+uint256 constant ROLE_SET_ADMIN = ROLE_SET << 128;
 
 contract AddrRegistrar is EnhancedAccessControl {
     ////////////////////////////////////////////////////////////////////////
@@ -14,8 +15,9 @@ contract AddrRegistrar is EnhancedAccessControl {
     ////////////////////////////////////////////////////////////////////////
 
     struct Entry {
-        string name;
         uint256 resource;
+        address resolver;
+        string name;
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -31,9 +33,8 @@ contract AddrRegistrar is EnhancedAccessControl {
     // Events
     ////////////////////////////////////////////////////////////////////////
 
-    event ResourceChanged(address indexed addr, uint256 oldResource, uint256 newResource);
-    event NameChanged(address indexed addr, string name, address sender);
-    //event NameChanged(address indexed addr, bytes32 indexed node, string name, address sender);
+    event ResourceReplaced(address indexed addr, uint256 oldResource, uint256 newResource);
+    event AddrUpdated(address indexed addr, string name, address resolver, address sender);
 
     ////////////////////////////////////////////////////////////////////////
     // Initialization
@@ -41,56 +42,83 @@ contract AddrRegistrar is EnhancedAccessControl {
 
     constructor(IHCAFactoryBasic hcaFactory) HCAEquivalence(hcaFactory) {}
 
+    ////////////////////////////////////////////////////////////////////////
+    // Implementation
+    ////////////////////////////////////////////////////////////////////////
+
     function reclaim(string calldata name) external {
         address self = _msgSender();
-        _register(self, name, self);
+        _register(self, name, address(0), self);
     }
 
-    function reclaimWithAdmin(string calldata name, address to) external {
-        _register(_msgSender(), name, to);
+    function reclaim(address resolver) external {
+        address self = _msgSender();
+        _register(self, "", resolver, self);
+    }
+
+    function reclaimTo(address to, string calldata name) external {
+        _register(_msgSender(), name, address(0), to);
+    }
+
+    function reclaimTo(address to, address resolver) external {
+        _register(_msgSender(), "", resolver, to);
     }
 
     function setName(address addr, string calldata name) external {
         Entry storage entry = _entries[addr];
-        _checkRoles(entry.resource, ROLE_SET_NAME, _msgSender());
+        address sender = _msgSender();
+        _checkRoles(entry.resource, ROLE_SET, sender);
+        delete entry.resolver;
         entry.name = name;
-        _emitChange(addr, name);
+        emit AddrUpdated(addr, name, address(0), sender);
     }
 
-    function authorize(address addr, address to, bool on) external {
+    function setResolver(address addr, address resolver) external {
         Entry storage entry = _entries[addr];
-        _checkRoles(entry.resource, ROLE_SET_NAME, _msgSender());
-        if (on) {
-            _grantRoles(entry.resource, ROLE_SET_NAME, to, false);
-        } else {
-            _revokeRoles(entry.resource, ROLE_SET_NAME, to, false);
-        }
+        address sender = _msgSender();
+        _checkRoles(entry.resource, ROLE_SET, sender);
+        entry.resolver = resolver;
+        delete entry.name;
+        emit AddrUpdated(addr, "", resolver, sender);
+    }
+
+    function authorize(address addr, address to, bool on) external returns (bool) {
+        Entry storage entry = _entries[addr];
+        _checkRoles(entry.resource, ROLE_SET, _msgSender());
+        return
+            on
+                ? _grantRoles(entry.resource, ROLE_SET, to, false)
+                : _revokeRoles(entry.resource, ROLE_SET, to, false);
     }
 
     function getName(address addr) external view returns (string memory) {
         return _entries[addr].name;
     }
 
+    function getResolver(address addr) external view returns (address) {
+        return _entries[addr].resolver;
+    }
+
     function getResource(address addr) external view returns (uint256) {
         return _entries[addr].resource;
     }
 
-    function _register(address addr, string calldata name, address to) internal {
+    ////////////////////////////////////////////////////////////////////////
+    // Internal Functions
+    ////////////////////////////////////////////////////////////////////////
+
+    function _register(address addr, string memory name, address resolver, address to) internal {
+        if (to == address(0)) {
+            revert InvalidOwner();
+        }
         Entry storage entry = _entries[addr];
         uint256 oldResource = entry.resource;
         uint256 newResource = ++getResourceMax;
-        entry.name = name;
         entry.resource = newResource;
-        emit ResourceChanged(addr, oldResource, newResource);
-        if (bytes(name).length > 0) {
-            _emitChange(addr, name);
-        }
-        _grantRoles(newResource, ROLE_SET_NAME_ADMIN | ROLE_SET_NAME, to, false);
-    }
-
-    function _emitChange(address addr, string memory name) internal {
-        // bytes32 node = NameCoder.namehash(NameCoder.encode(name), 0);
-        // emit NameChanged(addr, node, name, _msgSender());
-        emit NameChanged(addr, name, _msgSender());
+        entry.resolver = resolver;
+        entry.name = name;
+        emit ResourceReplaced(addr, oldResource, newResource);
+        emit AddrUpdated(addr, name, resolver, addr);
+        _grantRoles(newResource, ROLE_SET_ADMIN | ROLE_SET, to, false);
     }
 }
