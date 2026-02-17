@@ -172,14 +172,20 @@ async function deployResolverWithRecords(
 
   // Set ETH address (coin type 60)
   if (records.address) {
-    await resolver.write.setAddr([node, 60n, records.address], { account });
+    const { receipt } = await env.waitFor(
+      resolver.write.setAddr([node, 60n, records.address], { account }),
+    );
+    if (shouldTrackGas) await trackGas(`setAddr(${name})`, receipt);
   }
 
   // Set description text record
   if (records.description) {
-    await resolver.write.setText([node, "description", records.description], {
-      account,
-    });
+    const { receipt } = await env.waitFor(
+      resolver.write.setText([node, "description", records.description], {
+        account,
+      }),
+    );
+    if (shouldTrackGas) await trackGas(`setText(${name})`, receipt);
   }
 
   return resolver;
@@ -496,6 +502,113 @@ export async function createSubname(
   return createdNames;
 }
 
+/**
+ * Link a name to appear under a different parent by pointing to the same subregistry.
+ * This creates multiple "entry points" into the same child namespace.
+ *
+ * @param sourceName - The existing name whose subregistry we want to link (e.g., "sub1.sub2.parent.eth")
+ * @param targetParentName - The parent under which we want to create a linked entry (e.g., "parent.eth")
+ * @param linkLabel - The label for the linked name
+ *
+ * Example:
+ *   linkName(env, "sub1.sub2.parent.eth", "parent.eth", "linked")
+ *   Creates "linked.parent.eth" that shares children with "sub1.sub2.parent.eth"
+ */
+export async function linkName(
+  env: DevnetEnvironment,
+  sourceName: string,
+  targetParentName: string,
+  linkLabel: string,
+  account = env.namedAccounts.owner,
+) {
+  console.log(`\nLinking name: ${sourceName} to parent: ${targetParentName}`);
+
+  // Parse and validate source name
+  const {
+    label: sourceLabel,
+    parentName: sourceParentName,
+    isSecondLevel,
+  } = parseName(sourceName);
+
+  if (isSecondLevel) {
+    throw new Error(
+      `Cannot link second-level names directly. Source must be a subname.`,
+    );
+  }
+
+  // Get source name data
+  const sourceData = await traverseRegistry(env, sourceName);
+  if (!sourceData || sourceData.owner === zeroAddress) {
+    throw new Error(`Source name ${sourceName} does not exist or has no owner`);
+  }
+
+  // Get source parent registry and validate
+  const { registry: sourceRegistry } = await getParentWithSubregistry(
+    env,
+    sourceParentName,
+  );
+  const [, sourceEntry] = await sourceRegistry.read.getNameData([sourceLabel]);
+
+  if (sourceEntry.subregistry === zeroAddress) {
+    throw new Error(`Source name ${sourceName} has no subregistry to link`);
+  }
+
+  console.log(`Source subregistry: ${sourceEntry.subregistry}`);
+
+  // Get target parent registry and validate
+  const { registry: targetRegistry } = await getParentWithSubregistry(
+    env,
+    targetParentName,
+  );
+  const linkedName = `${linkLabel}.${targetParentName}`;
+
+  console.log(`Creating linked name: ${linkedName}`);
+
+  // Check if the label already exists in the target registry
+  const [existingTokenId] = await targetRegistry.read.getNameData([linkLabel]);
+  const existingOwner = await targetRegistry.read.ownerOf([existingTokenId]);
+
+  if (existingOwner !== zeroAddress) {
+    console.log(
+      `Warning: ${linkedName} already exists. Updating its subregistry...`,
+    );
+    await targetRegistry.write.setSubregistry(
+      [existingTokenId, sourceEntry.subregistry],
+      { account },
+    );
+    console.log(`✓ Updated ${linkedName} to point to shared subregistry`);
+  } else {
+    console.log(`Deploying resolver for ${linkedName}...`);
+    const resolver = await deployResolverWithRecords(env, account, linkedName, {
+      description: `Linked to ${sourceName}`,
+      address: account.address,
+    });
+    console.log(`✓ Resolver deployed at ${resolver.address}`);
+
+    await targetRegistry.write.register(
+      [
+        linkLabel,
+        account.address,
+        sourceEntry.subregistry,
+        resolver.address,
+        ROLES.ALL,
+        MAX_EXPIRY,
+      ],
+      { account },
+    );
+
+    console.log(`✓ Registered ${linkedName} with shared subregistry`);
+  }
+
+  console.log(`\n✓ Link complete!`);
+  console.log(
+    `Children of ${sourceName} and ${linkedName} now resolve to the same place.`,
+  );
+  console.log(
+    `Example: wallet.${sourceName} and wallet.${linkedName} are the same token.`,
+  );
+}
+
 // Renew a name
 export async function renewName(
   env: DevnetEnvironment,
@@ -505,7 +618,7 @@ export async function renewName(
 ) {
   const { label } = parseName(name);
 
-  const [tokenId, entry] = await env.deployment.contracts.ETHRegistry.read.getNameData([
+  const [, entry] = await env.deployment.contracts.ETHRegistry.read.getNameData([
     label,
   ]);
 
@@ -520,7 +633,7 @@ export async function renewName(
   }
   console.log(`Extending by: ${durationInDays} days`);
 
-  const duration = BigInt(durationInDays * 24 * 60 * 60);
+  const duration = BigInt(durationInDays * ONE_DAY_SECONDS);
   const paymentToken = env.deployment.contracts.MockUSDC.address;
   const referrer =
     "0x0000000000000000000000000000000000000000000000000000000000000000";
@@ -553,9 +666,11 @@ export async function renewName(
     { account },
   );
 
-  await env.deployment.contracts.ETHRegistrar.write.renew(
-    [label, duration, paymentToken, referrer],
-    { account },
+  const { receipt } = await env.waitFor(
+    env.deployment.contracts.ETHRegistrar.write.renew(
+      [label, duration, paymentToken, referrer],
+      { account },
+    ),
   );
 
   const [, newEntry] = await env.deployment.contracts.ETHRegistry.read.getNameData([
@@ -564,6 +679,8 @@ export async function renewName(
   const newExpiry = Number(newEntry.expiry);
   console.log(`New expiry: ${new Date(newExpiry * 1000).toISOString()}`);
   console.log(`✓ Renewal completed`);
+
+  return receipt;
 }
 
 // Transfer a name to a new owner
@@ -584,12 +701,16 @@ export async function transferName(
   console.log(`From: ${account.address}`);
   console.log(`To: ${newOwner}`);
 
-  await env.deployment.contracts.ETHRegistry.write.safeTransferFrom(
-    [account.address, newOwner, tokenId, 1n, "0x"],
-    { account },
+  const { receipt } = await env.waitFor(
+    env.deployment.contracts.ETHRegistry.write.safeTransferFrom(
+      [account.address, newOwner, tokenId, 1n, "0x"],
+      { account },
+    ),
   );
 
   console.log(`✓ Transfer completed`);
+
+  return receipt;
 }
 
 // Change roles for a name
@@ -611,35 +732,35 @@ export async function changeRole(
     `\nChanging roles for ${name} (TokenId: ${tokenId}, Target: ${targetAccount}, Grant: ${rolesToGrant}, Revoke: ${rolesToRevoke})`,
   );
 
-  const currentRoles = await env.deployment.contracts.ETHRegistry.read.roles([
-    tokenId,
-    targetAccount,
-  ]);
+  const receipts: TransactionReceipt[] = [];
 
   if (rolesToGrant > 0n) {
-    await env.deployment.contracts.ETHRegistry.write.grantRoles(
-      [tokenId, rolesToGrant, targetAccount],
-      { account },
+    const { receipt } = await env.waitFor(
+      env.deployment.contracts.ETHRegistry.write.grantRoles(
+        [tokenId, rolesToGrant, targetAccount],
+        { account },
+      ),
     );
+    receipts.push(receipt);
   }
 
   if (rolesToRevoke > 0n) {
-    await env.deployment.contracts.ETHRegistry.write.revokeRoles(
-      [tokenId, rolesToRevoke, targetAccount],
-      { account },
+    const { receipt } = await env.waitFor(
+      env.deployment.contracts.ETHRegistry.write.revokeRoles(
+        [tokenId, rolesToRevoke, targetAccount],
+        { account },
+      ),
     );
+    receipts.push(receipt);
   }
 
   const [newTokenId] = await env.deployment.contracts.ETHRegistry.read.getNameData([
     label,
   ]);
 
-  const newRoles = await env.deployment.contracts.ETHRegistry.read.roles([
-    newTokenId,
-    targetAccount,
-  ]);
-
   console.log(`TokenId changed from ${tokenId} to ${newTokenId}`);
+
+  return receipts;
 }
 
 // Register default test names
@@ -805,52 +926,16 @@ export async function testNames(env: DevnetEnvironment) {
   );
 
   // Transfer newowner.eth to user
-  const transferTx = await env.waitFor(
-    await env.deployment.contracts.ETHRegistry.write.safeTransferFrom(
-      [
-        env.namedAccounts.owner.address,
-        env.namedAccounts.user.address,
-        (await env.deployment.contracts.ETHRegistry.read.getNameData(["newowner"]))[0],
-        1n,
-        "0x",
-      ],
-      { account: env.namedAccounts.owner },
-    ));
-  await trackGas("transfer(newowner)", transferTx.receipt);
+  const transferReceipt = await transferName(
+    env,
+    "newowner.eth",
+    env.namedAccounts.user.address,
+  );
+  await trackGas("transfer(newowner)", transferReceipt);
 
   // Renew renew.eth for 365 days
-  const { label } = parseName("renew.eth");
-  const duration = BigInt(365 * 24 * 60 * 60);
-  const paymentToken = env.deployment.contracts.MockUSDC.address;
-  const referrer =
-    "0x0000000000000000000000000000000000000000000000000000000000000000";
-  const [price] = await env.deployment.contracts.ETHRegistrar.read.rentPrice([
-    label,
-    env.namedAccounts.owner.address,
-    duration,
-    paymentToken,
-  ]);
-
-  const balance = await env.deployment.contracts.MockUSDC.read.balanceOf([
-    env.namedAccounts.owner.address,
-  ]);
-  if (balance < price) {
-    await env.deployment.contracts.MockUSDC.write.mint(
-      [env.namedAccounts.owner.address, price - balance + 1000000n],
-      { account: env.namedAccounts.owner },
-    );
-  }
-
-  await env.deployment.contracts.MockUSDC.write.approve(
-    [env.deployment.contracts.ETHRegistrar.address, price],
-    { account: env.namedAccounts.owner },
-  );
-
-  const renewTx = await env.waitFor(env.deployment.contracts.ETHRegistrar.write.renew(
-    [label, duration, paymentToken, referrer],
-    { account: env.namedAccounts.owner },
-  ));
-  await trackGas("renew(renew)", renewTx.receipt);
+  const renewReceipt = await renewName(env, "renew.eth", 365);
+  await trackGas("renew(renew)", renewReceipt);
 
   // Register alias.eth pointing to test.eth's resolver, then set alias
   console.log("\nCreating alias: alias.eth → test.eth");
@@ -914,28 +999,37 @@ export async function testNames(env: DevnetEnvironment) {
     "wallet.sub1.sub2.parent.eth",
   );
 
-  // Change roles on changerole.eth
-  const [changeRoleTokenId] =
-    await env.deployment.contracts.ETHRegistry.read.getNameData(["changerole"]);
-  const grantTx = await env.waitFor(env.deployment.contracts.ETHRegistry.write.grantRoles(
-    [
-      changeRoleTokenId,
-      ROLES.OWNER.EAC.SET_RESOLVER,
-      env.namedAccounts.user.address,
-    ],
-    { account: env.namedAccounts.owner },
-  ));
-  await trackGas("grantRoles(changerole)", grantTx.receipt);
+  // Link sub1.sub2.parent.eth to parent.eth with different label (creates linked.parent.eth with shared children)
+  // Now wallet.linked.parent.eth and wallet.sub1.sub2.parent.eth will be the same token
+  await linkName(env, "sub1.sub2.parent.eth", "parent.eth", "linked");
 
-  const revokeTx = await env.waitFor(env.deployment.contracts.ETHRegistry.write.revokeRoles(
-    [
-      changeRoleTokenId,
-      ROLES.OWNER.EAC.SET_TOKEN_OBSERVER,
-      env.namedAccounts.user.address,
-    ],
-    { account: env.namedAccounts.owner },
-  ));
-  await trackGas("revokeRoles(changerole)", revokeTx.receipt);
+  // With OwnedResolver (node-keyed), children of linked names need an alias so
+  // that wallet.linked.parent.eth resolves to the same records as wallet.sub1.sub2.parent.eth
+  const walletData = await traverseRegistry(env, "wallet.sub1.sub2.parent.eth");
+  if (walletData?.resolver && walletData.resolver !== zeroAddress) {
+    const walletResolver = getContract({
+      address: walletData.resolver,
+      abi: OwnedResolverAbi,
+      client: env.deployment.client,
+    });
+    await walletResolver.write.setAlias(
+      [dnsEncodeName("linked.parent.eth"), dnsEncodeName("sub1.sub2.parent.eth")],
+      { account: env.namedAccounts.owner },
+    );
+    console.log("✓ Set alias on wallet resolver: linked.parent.eth → sub1.sub2.parent.eth");
+  }
+
+  // Change roles on changerole.eth
+  const roleReceipts = await changeRole(
+    env,
+    "changerole.eth",
+    env.namedAccounts.user.address,
+    ROLES.OWNER.EAC.SET_RESOLVER,
+    ROLES.OWNER.EAC.SET_TOKEN_OBSERVER,
+  );
+  for (const receipt of roleReceipts) {
+    await trackGas("changeRole(changerole)", receipt);
+  }
 
   const allNames = [
     "test.eth",
@@ -949,6 +1043,8 @@ export async function testNames(env: DevnetEnvironment) {
     "alias.eth",
     "sub.alias.eth",
     ...createdSubnames,
+    "linked.parent.eth",
+    "wallet.linked.parent.eth",
   ];
 
   await showName(env, allNames);
