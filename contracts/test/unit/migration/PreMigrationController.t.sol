@@ -84,7 +84,7 @@ contract PreMigrationControllerTest is Test, ERC1155Holder {
             label,
             address(controller),
             IRegistry(address(0)),
-            address(0),
+            address(1),
             EACBaseRolesLib.ALL_ROLES,
             expires
         );
@@ -165,8 +165,8 @@ contract PreMigrationControllerTest is Test, ERC1155Holder {
             address(0)
         );
 
-        // Verify resolver is still zero
-        assertEq(registry.getResolver(testLabel), address(0), "Resolver should remain zero");
+        // Verify resolver was overwritten to zero
+        assertEq(registry.getResolver(testLabel), address(0), "Resolver should be overwritten to zero");
     }
 
     function test_Revert_not_migration_controller() public {

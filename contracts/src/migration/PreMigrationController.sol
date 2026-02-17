@@ -101,10 +101,7 @@ contract PreMigrationController is
             ETH_REGISTRY.setSubregistry(tokenId, subregistry);
         }
 
-        // Set resolver if provided
-        if (resolver != address(0)) {
-            ETH_REGISTRY.setResolver(tokenId, resolver);
-        }
+        ETH_REGISTRY.setResolver(tokenId, resolver);
 
         // Transfer ownership to the new owner - all roles transfer with the token
         ETH_REGISTRY.safeTransferFrom(address(this), owner, tokenId, 1, "");
