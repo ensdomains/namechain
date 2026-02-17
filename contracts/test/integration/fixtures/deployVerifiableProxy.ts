@@ -23,7 +23,9 @@ const verifiableFactoryAbi = parseAbi([
   "event ProxyDeployed(address indexed sender, address indexed proxyAddress, uint256 salt, address implementation)",
 ]);
 
-export async function deployVerifiableProxy<const abi extends Abi | readonly unknown[]>({
+export async function deployVerifiableProxy<
+  const abi extends Abi | readonly unknown[],
+>({
   walletClient,
   factoryAddress,
   implAddress,
@@ -54,8 +56,9 @@ export async function deployVerifiableProxy<const abi extends Abi | readonly unk
       } as Parameters<typeof encodeFunctionData>[0]),
     ],
   });
-
-  const receipt = await waitForSuccessfulTransactionReceipt(walletClient, { hash });
+  const receipt = await waitForSuccessfulTransactionReceipt(walletClient, {
+    hash,
+  });
   const [log] = parseEventLogs({
     abi: verifiableFactoryAbi,
     eventName: "ProxyDeployed",
@@ -66,7 +69,6 @@ export async function deployVerifiableProxy<const abi extends Abi | readonly unk
     address: log.args.proxyAddress,
     client: walletClient,
   });
-
   return Object.assign(contract, {
     deploymentHash: hash,
     deploymentReceipt: receipt,

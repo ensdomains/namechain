@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, contracts-v2/ordering, one-contract-per-file
 
 import {Test, Vm} from "forge-std/Test.sol";
 
@@ -21,7 +21,6 @@ import {IRegistry} from "~src/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/registry/PermissionedRegistry.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {UnlockedMigrationController} from "~src/migration/UnlockedMigrationController.sol";
 import {PreMigrationController} from "~src/migration/PreMigrationController.sol";
 import {IPreMigrationController} from "~src/migration/interfaces/IPreMigrationController.sol";
@@ -108,7 +107,6 @@ contract UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder {
     PreMigrationController preMigrationController;
 
     // Real components for testing
-    RegistryDatastore datastore;
     PermissionedRegistry registry;
     MockRegistryMetadata registryMetadata;
     MockHCAFactoryBasic hcaFactory;
@@ -161,13 +159,11 @@ contract UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder {
 
     function setUp() public {
         // Set up real registry infrastructure
-        datastore = new RegistryDatastore();
         hcaFactory = new MockHCAFactoryBasic();
         registryMetadata = new MockRegistryMetadata();
 
         // Deploy the real registry
         registry = new PermissionedRegistry(
-            datastore,
             hcaFactory,
             registryMetadata,
             address(this),

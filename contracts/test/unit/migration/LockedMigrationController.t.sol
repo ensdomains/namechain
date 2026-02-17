@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, contracts-v2/ordering, one-contract-per-file
 
 import {Test} from "forge-std/Test.sol";
 
@@ -28,7 +28,6 @@ import {IRegistry} from "~src/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/registry/PermissionedRegistry.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {LockedMigrationController} from "~src/migration/LockedMigrationController.sol";
 import {TransferData, MigrationData} from "~src/migration/types/MigrationTypes.sol";
 import {LockedNamesLib} from "~src/migration/libraries/LockedNamesLib.sol";
@@ -81,7 +80,6 @@ contract MockRegistryMetadata is IRegistryMetadata {
 contract LockedMigrationControllerTest is Test, ERC1155Holder {
     LockedMigrationController controller;
     MockNameWrapper nameWrapper;
-    RegistryDatastore datastore;
     MockRegistryMetadata metadata;
     PermissionedRegistry registry;
     VerifiableFactory factory;
@@ -97,7 +95,6 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
 
     function setUp() public {
         nameWrapper = new MockNameWrapper();
-        datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
         hcaFactory = new MockHCAFactoryBasic();
 
@@ -105,19 +102,12 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
         factory = new VerifiableFactory();
 
         // Setup eth registry
-        registry = new PermissionedRegistry(
-            datastore,
-            hcaFactory,
-            metadata,
-            owner,
-            EACBaseRolesLib.ALL_ROLES
-        );
+        registry = new PermissionedRegistry(hcaFactory, metadata, owner, EACBaseRolesLib.ALL_ROLES);
 
         implementation = new MigratedWrappedNameRegistry(
             INameWrapper(address(nameWrapper)),
             IPermissionedRegistry(address(registry)),
             factory,
-            datastore,
             hcaFactory,
             metadata,
             fallbackResolver
@@ -130,21 +120,16 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
             address(implementation)
         );
 
-        // Grant REGISTRAR role to the LockedMigrationController so it can register names directly
-        registry.grantRootRoles(
-            RegistryRolesLib.ROLE_REGISTRAR,
-            address(controller)
-        );
+        // Grant controller permission to register names
+        registry.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, address(controller));
 
         testTokenId = uint256(keccak256(bytes(testLabel)));
     }
 
     function test_onERC1155Received_locked_name() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Configure name for locked migration
         uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
-        nameWrapper.setFuseData(testTokenId, lockedFuses, expires);
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
 
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
@@ -155,7 +140,7 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
                 resolver: address(0xABCD),
                 roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER |
                     RegistryRolesLib.ROLE_SET_SUBREGISTRY,
-                expires: expires
+                expires: uint64(block.timestamp + 86400)
             }),
             salt: uint256(keccak256(abi.encodePacked(testLabel, block.timestamp)))
         });
@@ -183,11 +168,9 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
     }
 
     function test_onERC1155Received_roles_based_on_fuses_not_input() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Configure name with resolver permissions retained
         uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
-        nameWrapper.setFuseData(testTokenId, lockedFuses, expires);
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
 
         // Prepare migration data - the roleBitmap should be ignored completely
         MigrationData memory migrationData = MigrationData({
@@ -277,11 +260,9 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
     }
 
     function test_name_with_cannot_burn_fuses_can_migrate() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Configure name with fuses that are permanently frozen - this should now be allowed to migrate
         uint32 fuses = CANNOT_UNWRAP | CANNOT_BURN_FUSES | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
-        nameWrapper.setFuseData(testTokenId, fuses, expires);
+        nameWrapper.setFuseData(testTokenId, fuses, uint64(block.timestamp + 86400));
 
         MigrationData memory migrationData = MigrationData({
             transferData: TransferData({
@@ -356,8 +337,6 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
     }
 
     function test_onERC1155BatchReceived() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Setup multiple locked names
         string[] memory labels = new string[](3);
         labels[0] = "test1";
@@ -372,7 +351,7 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
 
             // Setup locked name (CANNOT_BURN_FUSES not set)
             uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
-            nameWrapper.setFuseData(tokenIds[i], lockedFuses, expires);
+            nameWrapper.setFuseData(tokenIds[i], lockedFuses, uint64(block.timestamp + 86400));
 
             // DNS encode each label as .eth domain
             bytes memory dnsEncodedName;
@@ -393,7 +372,7 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
                     roleBitmap: RegistryRolesLib.ROLE_SET_RESOLVER,
                     expires: uint64(block.timestamp + 86400 * (i + 1))
                 }),
-                    salt: uint256(keccak256(abi.encodePacked(labels[i], block.timestamp, i)))
+                salt: uint256(keccak256(abi.encodePacked(labels[i], block.timestamp, i)))
             });
         }
 
@@ -430,11 +409,9 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
     }
 
     function test_subregistry_creation() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Setup locked name (CANNOT_BURN_FUSES not set)
         uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
-        nameWrapper.setFuseData(testTokenId, lockedFuses, expires);
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
 
         // Prepare migration data with unique salt
         uint256 saltData = uint256(keccak256(abi.encodePacked(testLabel, uint256(999))));
@@ -475,11 +452,9 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
     // Comprehensive fuse→role mapping tests
 
     function test_fuse_role_mapping_no_fuses_burnt() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Setup locked name with only CANNOT_UNWRAP (no other fuses burnt)
         uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
-        nameWrapper.setFuseData(testTokenId, lockedFuses, expires);
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
 
         // Prepare migration data - incoming roleBitmap should be ignored
         MigrationData memory migrationData = MigrationData({
@@ -541,11 +516,9 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
     }
 
     function test_fuse_role_mapping_no_extend_expiry_fuse() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Setup locked name WITHOUT CAN_EXTEND_EXPIRY fuse
         uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
-        nameWrapper.setFuseData(testTokenId, lockedFuses, expires);
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
 
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
@@ -592,11 +565,9 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
     }
 
     function test_fuse_role_mapping_resolver_fuse_burnt() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Setup locked name with CANNOT_SET_RESOLVER already burnt
         uint32 lockedFuses = CANNOT_UNWRAP | CANNOT_SET_RESOLVER | IS_DOT_ETH | CAN_EXTEND_EXPIRY;
-        nameWrapper.setFuseData(testTokenId, lockedFuses, expires);
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
 
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
@@ -655,14 +626,12 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
     }
 
     function test_fuse_role_mapping_cannot_create_subdomain_burnt() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Setup locked name with CANNOT_CREATE_SUBDOMAIN burnt
         uint32 lockedFuses = CANNOT_UNWRAP |
             CANNOT_CREATE_SUBDOMAIN |
             IS_DOT_ETH |
             CAN_EXTEND_EXPIRY;
-        nameWrapper.setFuseData(testTokenId, lockedFuses, expires);
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
 
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
@@ -724,11 +693,9 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
     }
 
     function test_fuses_burnt_after_migration_completes() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Setup locked name (CANNOT_BURN_FUSES not set so migration can proceed)
         uint32 initialFuses = CANNOT_UNWRAP | IS_DOT_ETH;
-        nameWrapper.setFuseData(testTokenId, initialFuses, expires);
+        nameWrapper.setFuseData(testTokenId, initialFuses, uint64(block.timestamp + 86400));
 
         // Prepare migration data
         MigrationData memory migrationData = MigrationData({
@@ -807,11 +774,9 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
     }
 
     function test_subregistry_owner_roles() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Setup locked name
         uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
-        nameWrapper.setFuseData(testTokenId, lockedFuses, expires);
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
 
         // Prepare migration data with user as owner
         MigrationData memory migrationData = MigrationData({
@@ -850,11 +815,9 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
     }
 
     function test_freezeName_clears_resolver_when_fuse_not_set() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Setup locked name with CANNOT_SET_RESOLVER fuse NOT set
         uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH;
-        nameWrapper.setFuseData(testTokenId, lockedFuses, expires);
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
 
         // Set an initial resolver on the name
         address initialResolver = address(0x9999);
@@ -902,11 +865,9 @@ contract LockedMigrationControllerTest is Test, ERC1155Holder {
     }
 
     function test_freezeName_preserves_resolver_when_fuse_already_set() public {
-        uint64 expires = uint64(block.timestamp + 86400);
-
         // Setup locked name with CANNOT_SET_RESOLVER fuse already set
         uint32 lockedFuses = CANNOT_UNWRAP | IS_DOT_ETH | CANNOT_SET_RESOLVER;
-        nameWrapper.setFuseData(testTokenId, lockedFuses, expires);
+        nameWrapper.setFuseData(testTokenId, lockedFuses, uint64(block.timestamp + 86400));
 
         // Set an initial resolver on the name
         address initialResolver = address(0x8888);

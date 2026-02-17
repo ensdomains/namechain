@@ -5,14 +5,11 @@ export default execute(
     const hcaFactory =
       get<(typeof artifacts.MockHCAFactoryBasic)["abi"]>("HCAFactory");
 
-    await deploy("DedicatedResolver", {
+    await deploy("SimpleRegistryMetadata", {
       account: deployer,
-      artifact: artifacts.DedicatedResolver,
+      artifact: artifacts.SimpleRegistryMetadata,
       args: [hcaFactory.address],
     });
   },
-  {
-    tags: ["DedicatedResolver", "shared"],
-    dependencies: ["HCAFactory"],
-  },
+  { tags: ["RegistryMetadata", "l1"], dependencies: ["HCAFactory"] },
 );

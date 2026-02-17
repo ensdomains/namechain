@@ -72,9 +72,8 @@ export type Environment = Environment_<typeof config.accounts> &
 
 const enhanced = setup<typeof functions, typeof config.accounts>(functions);
 
-import type { RockethArguments } from "./script/types.ts";
+// import type { RockethArguments } from "./script/types.ts";
 
-export const execute = enhanced.deployScript<RockethArguments>;
+export const execute = enhanced.deployScript; //<RockethArguments>;
 
-export const loadAndExecuteDeployments =
-  enhanced.loadAndExecuteDeployments<RockethArguments>;
+export const loadAndExecuteDeployments = enhanced.loadAndExecuteDeployments; //<RockethArguments>;

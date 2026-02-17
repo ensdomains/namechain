@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, contracts-v2/ordering, one-contract-per-file
 
 import {Test} from "forge-std/Test.sol";
 
@@ -9,15 +9,11 @@ import {VerifiableFactory} from "@ensdomains/verifiable-factory/VerifiableFactor
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import {EACBaseRolesLib} from "~src/access-control/EnhancedAccessControl.sol";
-import {
-    IEnhancedAccessControl
-} from "~src/access-control/interfaces/IEnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "~src/access-control/interfaces/IEnhancedAccessControl.sol";
 import {IHCAFactoryBasic} from "~src/hca/interfaces/IHCAFactoryBasic.sol";
 import {IRegistry} from "~src/registry/interfaces/IRegistry.sol";
-import {IRegistryDatastore} from "~src/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/registry/SimpleRegistryMetadata.sol";
 import {UserRegistry} from "~src/registry/UserRegistry.sol";
 import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
@@ -32,7 +28,6 @@ contract UserRegistryTest is Test, ERC1155Holder {
 
     // Contracts
     VerifiableFactory factory;
-    RegistryDatastore datastore;
     MockHCAFactoryBasic hcaFactory;
     SimpleRegistryMetadata metadata;
     UserRegistry implementation;
@@ -47,9 +42,6 @@ contract UserRegistryTest is Test, ERC1155Holder {
         // Deploy the factory
         factory = new VerifiableFactory();
 
-        // Deploy the datastore
-        datastore = new RegistryDatastore();
-
         // Deploy the HCA factory
         hcaFactory = new MockHCAFactoryBasic();
 
@@ -57,7 +49,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
         metadata = new SimpleRegistryMetadata(hcaFactory);
 
         // Deploy the implementation
-        implementation = new UserRegistry(datastore, hcaFactory, metadata);
+        implementation = new UserRegistry(hcaFactory, metadata);
 
         // Create initialization data
         bytes memory initData = abi.encodeCall(
@@ -94,9 +86,6 @@ contract UserRegistryTest is Test, ERC1155Holder {
             proxy.hasRootRoles(RegistryRolesLib.ROLE_REGISTRAR, user1),
             "User1 should not have registrar role"
         );
-
-        // Verify proxy returns the correct registry datastore
-        assertEq(address(proxy.DATASTORE()), address(datastore), "Datastore should match");
 
         // Verify proxy supports required interfaces
         assertTrue(
@@ -263,11 +252,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
     // Test for contract upgradeability
     function test_upgrade() public {
         // Deploy a new implementation
-        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(
-            datastore,
-            hcaFactory,
-            metadata
-        );
+        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(hcaFactory, metadata);
 
         // Upgrade the proxy
         vm.prank(admin);
@@ -280,11 +265,7 @@ contract UserRegistryTest is Test, ERC1155Holder {
 
     function test_Revert_unauthorized_upgrade() public {
         // Deploy a new implementation
-        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(
-            datastore,
-            hcaFactory,
-            metadata
-        );
+        UserRegistryV2Mock newImplementation = new UserRegistryV2Mock(hcaFactory, metadata);
 
         // User1 tries to upgrade without permission
         vm.expectRevert(
@@ -344,10 +325,9 @@ contract UserRegistryTest is Test, ERC1155Holder {
 // Mock V2 contract for testing upgrades
 contract UserRegistryV2Mock is UserRegistry {
     constructor(
-        IRegistryDatastore _datastore,
         IHCAFactoryBasic _hcaFactory,
         IRegistryMetadata _metadataProvider
-    ) UserRegistry(_datastore, _hcaFactory, _metadataProvider) {}
+    ) UserRegistry(_hcaFactory, _metadataProvider) {}
     function version() public pure returns (uint256) {
         return 2;
     }

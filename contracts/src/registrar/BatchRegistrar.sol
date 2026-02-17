@@ -3,7 +3,6 @@ pragma solidity >=0.8.13;
 
 import {IPermissionedRegistry} from "../registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../registry/interfaces/IRegistry.sol";
-import {IRegistryDatastore} from "../registry/interfaces/IRegistryDatastore.sol";
 
 struct BatchRegistrarName {
     string label;
@@ -33,7 +32,7 @@ contract BatchRegistrar {
         for (uint256 i = 0; i < names.length; i++) {
             BatchRegistrarName calldata name = names[i];
 
-            (, IRegistryDatastore.Entry memory entry) = ETH_REGISTRY.getNameData(name.label);
+            (, IPermissionedRegistry.Entry memory entry) = ETH_REGISTRY.getNameData(name.label);
 
             if (entry.expiry == 0 || entry.expiry <= block.timestamp) {
                 ETH_REGISTRY.register(

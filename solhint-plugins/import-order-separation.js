@@ -89,7 +89,7 @@ class ImportOrderSeparationRule {
   constructor(reporter, config) {
     this.reporter = reporter;
     this.importOrder =
-      config && config.getObject(`namechain/${this.ruleId}`, {}).importOrder;
+      config && config.getObject(`contracts-v2/${this.ruleId}`, {}).importOrder;
   }
 
   /**

@@ -14,7 +14,6 @@ import {IRegistry} from "~src/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/registry/PermissionedRegistry.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {PreMigrationController} from "~src/migration/PreMigrationController.sol";
 import {IPreMigrationController} from "~src/migration/interfaces/IPreMigrationController.sol";
 import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
@@ -27,7 +26,6 @@ contract MockRegistryMetadata is IRegistryMetadata {
 
 contract PreMigrationControllerTest is Test, ERC1155Holder {
     PreMigrationController controller;
-    RegistryDatastore datastore;
     MockRegistryMetadata metadata;
     PermissionedRegistry registry;
     MockHCAFactoryBasic hcaFactory;
@@ -41,12 +39,10 @@ contract PreMigrationControllerTest is Test, ERC1155Holder {
     uint256 testTokenId;
 
     function setUp() public {
-        datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
         hcaFactory = new MockHCAFactoryBasic();
 
         registry = new PermissionedRegistry(
-            datastore,
             hcaFactory,
             metadata,
             owner,

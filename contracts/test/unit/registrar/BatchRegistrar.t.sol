@@ -11,10 +11,8 @@ import {EACBaseRolesLib} from "~src/access-control/EnhancedAccessControl.sol";
 import {IPermissionedRegistry} from "~src/registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "~src/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
-import {IRegistryDatastore} from "~src/registry/interfaces/IRegistryDatastore.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/registry/PermissionedRegistry.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {BatchRegistrar, BatchRegistrarName} from "~src/registrar/BatchRegistrar.sol";
 import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
@@ -26,7 +24,6 @@ contract MockRegistryMetadata is IRegistryMetadata {
 
 contract BatchRegistrarTest is Test, ERC1155Holder {
     BatchRegistrar batchRegistrar;
-    RegistryDatastore datastore;
     MockRegistryMetadata metadata;
     PermissionedRegistry registry;
     MockHCAFactoryBasic hcaFactory;
@@ -36,12 +33,10 @@ contract BatchRegistrarTest is Test, ERC1155Holder {
     address resolver = address(0xABCD);
 
     function setUp() public {
-        datastore = new RegistryDatastore();
         metadata = new MockRegistryMetadata();
         hcaFactory = new MockHCAFactoryBasic();
 
         registry = new PermissionedRegistry(
-            datastore,
             hcaFactory,
             metadata,
             owner,
@@ -91,7 +86,7 @@ contract BatchRegistrarTest is Test, ERC1155Holder {
 
         // Verify all names were registered
         for (uint256 i = 0; i < names.length; i++) {
-            (uint256 tokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(names[i].label);
+            (uint256 tokenId, IPermissionedRegistry.Entry memory entry) = registry.getNameData(names[i].label);
             assertEq(registry.ownerOf(tokenId), preMigrationController, "Owner should be preMigrationController");
             assertEq(entry.expiry, names[i].expires, "Expiry should match");
             assertEq(registry.getResolver(names[i].label), resolver, "Resolver should match");
@@ -113,7 +108,7 @@ contract BatchRegistrarTest is Test, ERC1155Holder {
         batchRegistrar.batchRegister(initialNames);
 
         // Verify initial registration
-        (, IRegistryDatastore.Entry memory entry) = registry.getNameData("test");
+        (, IPermissionedRegistry.Entry memory entry) = registry.getNameData("test");
         assertEq(entry.expiry, originalExpiry, "Initial expiry should match");
 
         // Now try to "register" again with a later expiry
@@ -149,7 +144,7 @@ contract BatchRegistrarTest is Test, ERC1155Holder {
         batchRegistrar.batchRegister(initialNames);
 
         // Verify initial registration
-        (, IRegistryDatastore.Entry memory entry) = registry.getNameData("test");
+        (, IPermissionedRegistry.Entry memory entry) = registry.getNameData("test");
         assertEq(entry.expiry, originalExpiry, "Initial expiry should match");
 
         // Now try to "register" again with an earlier expiry (should be skipped)
@@ -218,16 +213,16 @@ contract BatchRegistrarTest is Test, ERC1155Holder {
         batchRegistrar.batchRegister(mixedNames);
 
         // Verify new names were registered
-        (uint256 tokenId1, IRegistryDatastore.Entry memory entry1) = registry.getNameData("new1");
+        (uint256 tokenId1, IPermissionedRegistry.Entry memory entry1) = registry.getNameData("new1");
         assertEq(registry.ownerOf(tokenId1), preMigrationController, "new1 owner should be preMigrationController");
         assertEq(entry1.expiry, newExpiry, "new1 expiry should match");
 
-        (uint256 tokenId2, IRegistryDatastore.Entry memory entry2) = registry.getNameData("new2");
+        (uint256 tokenId2, IPermissionedRegistry.Entry memory entry2) = registry.getNameData("new2");
         assertEq(registry.ownerOf(tokenId2), preMigrationController, "new2 owner should be preMigrationController");
         assertEq(entry2.expiry, newExpiry, "new2 expiry should match");
 
         // Verify existing name was renewed
-        (, IRegistryDatastore.Entry memory existingEntry) = registry.getNameData("existing");
+        (, IPermissionedRegistry.Entry memory existingEntry) = registry.getNameData("existing");
         assertEq(existingEntry.expiry, newExpiry, "existing expiry should be renewed");
     }
 
@@ -263,7 +258,7 @@ contract BatchRegistrarTest is Test, ERC1155Holder {
         batchRegistrar.batchRegister(reregisterNames);
 
         // Verify name was re-registered with new owner
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData("expiring");
+        (uint256 tokenId, IPermissionedRegistry.Entry memory entry) = registry.getNameData("expiring");
         assertEq(registry.ownerOf(tokenId), newOwner, "Owner should be newOwner");
         assertEq(entry.expiry, newExpiry, "Expiry should match new expiry");
     }
@@ -288,7 +283,7 @@ contract BatchRegistrarTest is Test, ERC1155Holder {
 
         batchRegistrar.batchRegister(singleName);
 
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData("single");
+        (uint256 tokenId, IPermissionedRegistry.Entry memory entry) = registry.getNameData("single");
         assertEq(registry.ownerOf(tokenId), preMigrationController, "Owner should be preMigrationController");
         assertEq(entry.expiry, singleName[0].expires, "Expiry should match");
     }

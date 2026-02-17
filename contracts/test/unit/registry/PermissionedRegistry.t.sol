@@ -1,29 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, contracts-v2/ordering, one-contract-per-file
 
-import {Test} from "forge-std/Test.sol";
-import {Vm} from "forge-std/Vm.sol";
+import {Vm, Test} from "forge-std/Test.sol";
 
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import {EACBaseRolesLib} from "~src/access-control/EnhancedAccessControl.sol";
-import {IRegistryDatastore} from "~src/registry/interfaces/IRegistryDatastore.sol";
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/registry/SimpleRegistryMetadata.sol";
 import {LibLabel} from "~src/utils/LibLabel.sol";
 import {
+    PermissionedRegistry,
     IPermissionedRegistry,
     IEnhancedAccessControl,
     IRegistry,
     IStandardRegistry
 } from "~src/registry/PermissionedRegistry.sol";
 import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
-import {MockPermissionedRegistry} from "~test/mocks/MockPermissionedRegistry.sol";
 
 contract PermissionedRegistryTest is Test, ERC1155Holder {
     event TransferSingle(
@@ -34,8 +32,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         uint256 value
     );
 
-    RegistryDatastore datastore;
-    MockPermissionedRegistry registry;
+    PermissionedRegistry registry;
     MockHCAFactoryBasic hcaFactory;
     IRegistryMetadata metadata;
 
@@ -58,16 +55,9 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     uint256 deployerRoles = EACBaseRolesLib.ALL_ROLES;
 
     function setUp() public {
-        datastore = new RegistryDatastore();
         hcaFactory = new MockHCAFactoryBasic();
         metadata = new SimpleRegistryMetadata(hcaFactory);
-        registry = new MockPermissionedRegistry(
-            datastore,
-            hcaFactory,
-            metadata,
-            address(this),
-            deployerRoles
-        );
+        registry = new PermissionedRegistry(hcaFactory, metadata, address(this), deployerRoles);
     }
 
     function test_constructor_sets_roles() public view {
@@ -365,6 +355,17 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
                 user1
             )
         );
+    }
+
+    function test_Revert_register_tooShort() external {
+        vm.expectRevert(abi.encodeWithSelector(NameCoder.LabelIsEmpty.selector));
+        registry.register("", user1, registry, address(0), DEFAULT_ROLE_BITMAP, _after(86400));
+    }
+
+    function test_Revert_register_tooLong() external {
+        string memory label = new string(256);
+        vm.expectRevert(abi.encodeWithSelector(NameCoder.LabelIsTooLong.selector, label));
+        registry.register(label, user1, registry, address(0), DEFAULT_ROLE_BITMAP, _after(86400));
     }
 
     function test_Revert_cannot_mint_duplicates() public {
@@ -816,7 +817,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         address owner = makeAddr("owner");
 
         // Verify name has never been registered (entry.expiry should be 0)
-        (, IRegistryDatastore.Entry memory entry) = registry.getNameData(label);
+        (, IPermissionedRegistry.Entry memory entry) = registry.getNameData(label);
         assertEq(entry.expiry, 0, "Name should never have been registered before");
         assertEq(entry.eacVersionId, 0, "Initial eacVersionId should be 0");
 
@@ -1298,8 +1299,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
 
         // Query for multiple roles where only SET_RESOLVER has assignees
-        uint256 queryBitmap = RegistryRolesLib.ROLE_SET_RESOLVER |
-            RegistryRolesLib.ROLE_RENEW;
+        uint256 queryBitmap = RegistryRolesLib.ROLE_SET_RESOLVER | RegistryRolesLib.ROLE_RENEW;
         (uint256 counts, ) = registry.getAssigneeCount(tokenId, queryBitmap);
 
         // Only SET_RESOLVER should have 1 assignee
@@ -1510,72 +1510,6 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
     }
 
     // Token ID Generation Tests
-
-    function test_constructTokenId_basic() public view {
-        uint256 canonicalId = 0x123456789ABCDEF000000000000000000000000000000000;
-        uint32 tokenVersionId = 42;
-
-        uint256 tokenId = registry.constructTokenId(canonicalId, tokenVersionId);
-
-        // Verify the token ID contains the correct components
-        uint256 extractedCanonicalId = LibLabel.getCanonicalId(tokenId);
-        uint32 extractedTokenVersionId = _tokenVersionId(tokenId);
-
-        assertEq(extractedCanonicalId, canonicalId, "Canonical ID should be preserved");
-        assertEq(extractedTokenVersionId, tokenVersionId, "Token version ID should be preserved");
-    }
-
-    function test_constructTokenId_with_max_values() public view {
-        uint256 canonicalId = uint256(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF) << 32; // Upper bits set
-        uint32 tokenVersionId = type(uint32).max;
-
-        uint256 tokenId = registry.constructTokenId(canonicalId, tokenVersionId);
-
-        // Verify all components are preserved even at max values
-        uint256 extractedCanonicalId = LibLabel.getCanonicalId(tokenId);
-        uint32 extractedTokenVersionId = _tokenVersionId(tokenId);
-
-        assertEq(extractedCanonicalId, canonicalId, "Max canonical ID should be preserved");
-        assertEq(
-            extractedTokenVersionId,
-            tokenVersionId,
-            "Max token version ID should be preserved"
-        );
-    }
-
-    function test_constructTokenId_with_zero_values() public view {
-        uint256 canonicalId = 0x123456789ABCDEF000000000000000000000000000000000;
-        uint32 tokenVersionId = 0;
-
-        uint256 tokenId = registry.constructTokenId(canonicalId, tokenVersionId);
-
-        // Verify zero values are handled correctly
-        uint256 extractedCanonicalId = LibLabel.getCanonicalId(tokenId);
-        uint32 extractedTokenVersionId = _tokenVersionId(tokenId);
-
-        assertEq(
-            extractedCanonicalId,
-            canonicalId,
-            "Canonical ID should be preserved with zero versions"
-        );
-        assertEq(extractedTokenVersionId, 0, "Zero token version ID should be preserved");
-    }
-
-    function test_tokenId_bit_layout() public view {
-        uint256 canonicalId = 0x123456789ABCDEF000000000000000000000000000000000;
-        uint32 tokenVersionId = 0x12345678;
-
-        uint256 tokenId = registry.constructTokenId(canonicalId, tokenVersionId);
-
-        // Verify bit layout manually
-        // Lower 32 bits should be tokenVersionId
-        uint256 lowerBits = tokenId & 0xFFFFFFFF;
-        assertEq(lowerBits, uint256(tokenVersionId), "Lower 32 bits should be token version ID");
-
-        // Upper bits should match canonical ID (everything except lower 32 bits)
-        uint256 upperBits = tokenId & ~uint256(0xFFFFFFFF);
-        assertEq(upperBits, canonicalId, "Upper bits should match canonical ID");
-    }
 
     function test_registration_generates_correct_tokenId() public {
         string memory label = "tokentest";
@@ -1807,31 +1741,6 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
     }
 
-    function test_tokenId_edge_case_max_uint32_versions() public view {
-        // This test verifies the system can handle maximum version values
-        // We'll use the test helper to construct a token ID with max versions
-        uint256 canonicalId = LibLabel.labelToCanonicalId("maxtest");
-        uint32 maxTokenVersionId = type(uint32).max;
-
-        uint256 tokenId = registry.constructTokenId(canonicalId, maxTokenVersionId);
-
-        // Verify extraction works correctly even at max values
-        assertEq(
-            LibLabel.getCanonicalId(tokenId),
-            canonicalId,
-            "Canonical ID should be extracted correctly"
-        );
-        assertEq(
-            _tokenVersionId(tokenId),
-            maxTokenVersionId,
-            "Max token version should be extracted correctly"
-        );
-
-        // Verify no bit overlap or corruption
-        uint256 reconstructed = registry.constructTokenId(canonicalId, _tokenVersionId(tokenId));
-        assertEq(tokenId, reconstructed, "Reconstructed token ID should match original");
-    }
-
     function test_tokenId_uniqueness_across_labels() public {
         // Register multiple tokens and ensure they have unique IDs
         string[] memory labels = new string[](5);
@@ -1863,49 +1772,6 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
                 assertNotEq(canonicalIds[i], canonicalIds[j], "Canonical IDs should be unique");
             }
         }
-    }
-
-    function test_tokenId_different_versions() public view {
-        // Test that changes to token version ID create different token IDs
-        uint256 canonicalId = LibLabel.labelToCanonicalId("isolationtest");
-
-        // Start with specific values
-        uint32 tokenVersionId1 = 0x12345678;
-        uint256 tokenId1 = registry.constructTokenId(canonicalId, tokenVersionId1);
-
-        // Change token version ID
-        uint32 tokenVersionId2 = 0x87654321;
-        uint256 tokenId2 = registry.constructTokenId(canonicalId, tokenVersionId2);
-
-        // Verify canonical ID is same, versions are different
-        assertEq(LibLabel.getCanonicalId(tokenId1), canonicalId, "Canonical ID 1 should match");
-        assertEq(LibLabel.getCanonicalId(tokenId2), canonicalId, "Canonical ID 2 should match");
-
-        assertEq(_tokenVersionId(tokenId1), tokenVersionId1, "Token version 1 should match");
-        assertEq(_tokenVersionId(tokenId2), tokenVersionId2, "Token version 2 should be different");
-
-        // Token IDs should be different
-        assertNotEq(tokenId1, tokenId2, "Token IDs should be different");
-    }
-
-    function test_tokenId_zero_canonical_id_edge_case() public view {
-        // Test edge case where canonical ID might be zero (though unlikely in practice)
-        uint256 zeroCanonicalId = 0;
-        uint32 tokenVersionId = 42;
-
-        uint256 tokenId = registry.constructTokenId(zeroCanonicalId, tokenVersionId);
-
-        // Verify extraction works with zero canonical ID
-        assertEq(
-            LibLabel.getCanonicalId(tokenId),
-            zeroCanonicalId,
-            "Zero canonical ID should be preserved"
-        );
-        assertEq(_tokenVersionId(tokenId), tokenVersionId, "Token version should be preserved");
-
-        // Token ID should just be the version ID
-        uint256 expectedTokenId = uint256(tokenVersionId);
-        assertEq(tokenId, expectedTokenId, "Token ID should match expected value");
     }
 
     function test_resource_token_roundtrip() public {
@@ -1953,7 +1819,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         uint256 currentTokenId = registry.getTokenId(resourceId);
 
         // Use getNameData to retrieve token ID
-        (uint256 retrievedTokenId, IRegistryDatastore.Entry memory entry) = registry.getNameData(
+        (uint256 retrievedTokenId, IPermissionedRegistry.Entry memory entry) = registry.getNameData(
             label
         );
 
@@ -1966,7 +1832,7 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
 
         // Verify entry data matches
-        IRegistryDatastore.Entry memory currentEntry = registry.getEntry(currentTokenId);
+        IPermissionedRegistry.Entry memory currentEntry = registry.getEntry(currentTokenId);
         assertEq(
             entry.tokenVersionId,
             currentEntry.tokenVersionId,

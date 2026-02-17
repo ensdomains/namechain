@@ -2,9 +2,6 @@ import { artifacts, execute } from "@rocketh";
 
 export default execute(
   async ({ deploy, get, namedAccounts: { deployer } }) => {
-    const registryDatastore =
-      get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
-
     const hcaFactory =
       get<(typeof artifacts.MockHCAFactoryBasic)["abi"]>("HCAFactory");
 
@@ -15,15 +12,11 @@ export default execute(
     await deploy("UserRegistry", {
       account: deployer,
       artifact: artifacts.UserRegistry,
-      args: [
-        registryDatastore.address,
-        hcaFactory.address,
-        registryMetadata.address,
-      ],
+      args: [hcaFactory.address, registryMetadata.address],
     });
   },
   {
-    tags: ["UserRegistry", "shared"],
-    dependencies: ["RegistryDatastore", "HCAFactory", "RegistryMetadata"],
+    tags: ["UserRegistry", "l1"],
+    dependencies: ["HCAFactory", "RegistryMetadata"],
   },
 );

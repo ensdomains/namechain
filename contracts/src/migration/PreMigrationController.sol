@@ -9,7 +9,6 @@ import {HCAEquivalence} from "../hca/HCAEquivalence.sol";
 import {IHCAFactoryBasic} from "../hca/interfaces/IHCAFactoryBasic.sol";
 import {IPermissionedRegistry} from "../registry/interfaces/IPermissionedRegistry.sol";
 import {IRegistry} from "../registry/interfaces/IRegistry.sol";
-import {IRegistryDatastore} from "../registry/interfaces/IRegistryDatastore.sol";
 
 import {IPreMigrationController} from "./interfaces/IPreMigrationController.sol";
 
@@ -84,7 +83,9 @@ contract PreMigrationController is
         IRegistry subregistry,
         address resolver
     ) external onlyRootRoles(ROLE_MIGRATION_CONTROLLER) {
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = ETH_REGISTRY.getNameData(label);
+        (uint256 tokenId, IPermissionedRegistry.Entry memory entry) = ETH_REGISTRY.getNameData(
+            label
+        );
 
         if (entry.expiry == 0 || entry.expiry <= block.timestamp) {
             revert NameExpired(label);

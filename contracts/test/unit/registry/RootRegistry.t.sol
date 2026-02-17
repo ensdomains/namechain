@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, contracts-v2/ordering, one-contract-per-file
 
 import {Test, Vm} from "forge-std/Test.sol";
 
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
 import {EACBaseRolesLib} from "~src/access-control/EnhancedAccessControl.sol";
-import {
-    IEnhancedAccessControl
-} from "~src/access-control/interfaces/IEnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "~src/access-control/interfaces/IEnhancedAccessControl.sol";
 import {IRegistry} from "~src/registry/interfaces/IRegistry.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/registry/PermissionedRegistry.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/registry/SimpleRegistryMetadata.sol";
 import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
@@ -34,7 +31,6 @@ contract RootRegistryTest is Test, ERC1155Holder {
         address registeredBy
     );
 
-    RegistryDatastore datastore;
     PermissionedRegistry registry;
     MockHCAFactoryBasic hcaFactory;
     SimpleRegistryMetadata metadata;
@@ -55,18 +51,11 @@ contract RootRegistryTest is Test, ERC1155Holder {
     address owner = makeAddr("owner");
 
     function setUp() public {
-        datastore = new RegistryDatastore();
         hcaFactory = new MockHCAFactoryBasic();
         metadata = new SimpleRegistryMetadata(hcaFactory);
         // Use the valid ALL_ROLES value for deployer roles
         uint256 deployerRoles = EACBaseRolesLib.ALL_ROLES;
-        registry = new PermissionedRegistry(
-            datastore,
-            hcaFactory,
-            metadata,
-            address(this),
-            deployerRoles
-        );
+        registry = new PermissionedRegistry(hcaFactory, metadata, address(this), deployerRoles);
         metadata.grantRootRoles(RegistryRolesLib.ROLE_REGISTRAR, address(registry));
     }
 
