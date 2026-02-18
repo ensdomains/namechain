@@ -27,6 +27,9 @@ interface IRegistry is IERC1155Singleton {
         address indexed sender
     );
 
+    /// @dev A subdomain was unregistered.
+    event NameUnregistered(uint256 indexed tokenId, address indexed sender);
+
     /// @notice Expiry was changed.
     event ExpiryUpdated(uint256 indexed tokenId, uint64 newExpiry, address indexed sender);
 
