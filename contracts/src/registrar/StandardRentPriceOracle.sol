@@ -8,7 +8,6 @@ import {ERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IPermissionedRegistry} from "../registry/interfaces/IPermissionedRegistry.sol";
-import {IRegistryDatastore} from "../registry/interfaces/IRegistryDatastore.sol";
 
 import {IRentPriceOracle} from "./interfaces/IRentPriceOracle.sol";
 import {LibHalving} from "./libraries/LibHalving.sol";
@@ -95,28 +94,28 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
 
     constructor(
         address owner_,
-        IPermissionedRegistry registry_,
-        uint256[] memory baseRatePerCp_,
-        DiscountPoint[] memory discountPoints_,
+        IPermissionedRegistry registry,
+        uint256[] memory baseRatePerCp,
+        DiscountPoint[] memory discountPoints,
         uint256 premiumPriceInitial_,
         uint64 premiumHalvingPeriod_,
         uint64 premiumPeriod_,
-        PaymentRatio[] memory paymentRatios_
+        PaymentRatio[] memory paymentRatios
     ) Ownable(owner_) {
-        REGISTRY = registry_;
+        REGISTRY = registry;
 
-        _baseRatePerCp = baseRatePerCp_;
-        emit BaseRatesChanged(baseRatePerCp_);
+        _baseRatePerCp = baseRatePerCp;
+        emit BaseRatesChanged(baseRatePerCp);
 
-        _setDiscountPoints(discountPoints_);
+        _setDiscountPoints(discountPoints);
 
         premiumPriceInitial = premiumPriceInitial_;
         premiumHalvingPeriod = premiumHalvingPeriod_;
         premiumPeriod = premiumPeriod_;
         emit PremiumPricingChanged(premiumPriceInitial_, premiumHalvingPeriod_, premiumPeriod_);
 
-        for (uint256 i; i < paymentRatios_.length; ++i) {
-            PaymentRatio memory x = paymentRatios_[i];
+        for (uint256 i; i < paymentRatios.length; ++i) {
+            PaymentRatio memory x = paymentRatios[i];
             if (x.numer == 0 || x.denom == 0) {
                 revert InvalidRatio();
             }
@@ -308,7 +307,7 @@ contract StandardRentPriceOracle is ERC165, Ownable, IRentPriceOracle {
         if (baseUnits == 0) {
             revert NotValid(label);
         }
-        (uint256 tokenId, IRegistryDatastore.Entry memory entry) = REGISTRY.getNameData(label);
+        (uint256 tokenId, IPermissionedRegistry.Entry memory entry) = REGISTRY.getNameData(label);
         uint64 oldExpiry = entry.expiry;
         uint64 t = oldExpiry > block.timestamp ? oldExpiry - uint64(block.timestamp) : 0;
         baseUnits -= Math.mulDiv(

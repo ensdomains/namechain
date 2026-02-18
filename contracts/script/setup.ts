@@ -49,7 +49,6 @@ const renames: Record<string, string> = {
 };
 
 const contracts = {
-  RegistryDatastore: artifacts.RegistryDatastore.abi,
   SimpleRegistryMetadata: artifacts.SimpleRegistryMetadata.abi,
   HCAFactory: artifacts.MockHCAFactoryBasic.abi,
   VerifiableFactory: artifacts.VerifiableFactory.abi,
@@ -181,7 +180,6 @@ export class DeploymentInstance<
       abi,
       bytecode,
       args: [
-        this.contracts.RegistryDatastore.address,
         this.contracts.HCAFactory.address,
         this.contracts.SimpleRegistryMetadata.address,
         account.address,

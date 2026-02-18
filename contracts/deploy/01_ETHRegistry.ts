@@ -8,9 +8,6 @@ export default execute(
     const rootRegistry =
       get<(typeof artifacts.PermissionedRegistry)["abi"]>("RootRegistry");
 
-    const registryDatastore =
-      get<(typeof artifacts.RegistryDatastore)["abi"]>("RegistryDatastore");
-
     const hcaFactory =
       get<(typeof artifacts.MockHCAFactoryBasic)["abi"]>("HCAFactory");
 
@@ -22,7 +19,6 @@ export default execute(
       account: deployer,
       artifact: artifacts.PermissionedRegistry,
       args: [
-        registryDatastore.address,
         hcaFactory.address,
         registryMetadata.address,
         deployer,
@@ -47,7 +43,6 @@ export default execute(
     tags: ["ETHRegistry", "l1"],
     dependencies: [
       "RootRegistry",
-      "RegistryDatastore",
       "HCAFactory",
       "RegistryMetadata",
     ],

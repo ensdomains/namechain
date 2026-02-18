@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, contracts-v2/ordering, one-contract-per-file
 
 import {Test, Vm} from "forge-std/Test.sol";
 
@@ -20,7 +20,6 @@ import {IPermissionedRegistry} from "~src/registry/interfaces/IPermissionedRegis
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/registry/PermissionedRegistry.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {UnlockedMigrationController} from "~src/migration/UnlockedMigrationController.sol";
 import {TransferData, MigrationData} from "~src/migration/types/MigrationTypes.sol";
 import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
@@ -104,7 +103,6 @@ contract UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder {
     UnlockedMigrationController migrationController;
 
     // Real components for testing
-    RegistryDatastore datastore;
     PermissionedRegistry registry;
     MockRegistryMetadata registryMetadata;
     MockHCAFactoryBasic hcaFactory;
@@ -157,13 +155,11 @@ contract UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder {
 
     function setUp() public {
         // Set up real registry infrastructure
-        datastore = new RegistryDatastore();
         hcaFactory = new MockHCAFactoryBasic();
         registryMetadata = new MockRegistryMetadata();
 
         // Deploy the real registry
         registry = new PermissionedRegistry(
-            datastore,
             hcaFactory,
             registryMetadata,
             address(this),
@@ -183,8 +179,7 @@ contract UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder {
 
         // Grant necessary roles to the migration controller
         registry.grantRootRoles(
-            RegistryRolesLib.ROLE_REGISTRAR |
-                RegistryRolesLib.ROLE_RENEW,
+            RegistryRolesLib.ROLE_REGISTRAR | RegistryRolesLib.ROLE_RENEW,
             address(migrationController)
         );
 
@@ -193,10 +188,7 @@ contract UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder {
 
     function test_constructor() public view {
         assertEq(address(migrationController.NAME_WRAPPER()), address(nameWrapper));
-        assertEq(
-            address(migrationController.ETH_REGISTRY()),
-            address(registry)
-        );
+        assertEq(address(migrationController.ETH_REGISTRY()), address(registry));
     }
 
     function test_migrateUnwrappedEthName() public {
@@ -531,7 +523,7 @@ contract UnlockedMigrationControllerTest is Test, ERC1155Holder, ERC721Holder {
         amounts[0] = 1;
         amounts[1] = 1;
 
-        // Create migration data with one wrong label  
+        // Create migration data with one wrong label
         MigrationData[] memory migrationDataArray = new MigrationData[](2);
         migrationDataArray[0] = _createMigrationDataWithExpiry(label1);
         migrationDataArray[0].transferData.owner = user;

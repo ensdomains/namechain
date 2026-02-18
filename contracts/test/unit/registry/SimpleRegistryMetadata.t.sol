@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, contracts-v2/ordering, one-contract-per-file
 
 import {Test} from "forge-std/Test.sol";
 
@@ -9,18 +9,14 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import {EACBaseRolesLib} from "~src/access-control/EnhancedAccessControl.sol";
-import {
-    IEnhancedAccessControl
-} from "~src/access-control/interfaces/IEnhancedAccessControl.sol";
+import {IEnhancedAccessControl} from "~src/access-control/interfaces/IEnhancedAccessControl.sol";
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
 import {PermissionedRegistry} from "~src/registry/PermissionedRegistry.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
 import {SimpleRegistryMetadata} from "~src/registry/SimpleRegistryMetadata.sol";
 import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
 contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
-    RegistryDatastore datastore;
     MockHCAFactoryBasic hcaFactory;
     PermissionedRegistry registry;
     SimpleRegistryMetadata metadata;
@@ -34,18 +30,11 @@ contract SimpleRegistryMetadataTest is Test, ERC1155Holder {
     uint256 constant ROOT_RESOURCE = 0;
 
     function setUp() public {
-        datastore = new RegistryDatastore();
         hcaFactory = new MockHCAFactoryBasic();
         metadata = new SimpleRegistryMetadata(hcaFactory);
         // Use the valid ALL_ROLES value for deployer roles
         uint256 deployerRoles = EACBaseRolesLib.ALL_ROLES;
-        registry = new PermissionedRegistry(
-            datastore,
-            hcaFactory,
-            metadata,
-            address(this),
-            deployerRoles
-        );
+        registry = new PermissionedRegistry(hcaFactory, metadata, address(this), deployerRoles);
     }
 
     function test_registry_metadata_token_uri() public {

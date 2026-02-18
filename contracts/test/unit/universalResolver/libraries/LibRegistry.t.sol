@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.13;
 
-// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, namechain/ordering, one-contract-per-file
+// solhint-disable no-console, private-vars-leading-underscore, state-visibility, func-name-mixedcase, contracts-v2/ordering, one-contract-per-file
 
 import {Test} from "forge-std/Test.sol";
 
@@ -9,22 +9,16 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 
 import {EACBaseRolesLib} from "~src/access-control/EnhancedAccessControl.sol";
 import {IHCAFactoryBasic} from "~src/hca/interfaces/IHCAFactoryBasic.sol";
-import {
-    PermissionedRegistry,
-    IRegistryMetadata
-} from "~src/registry/PermissionedRegistry.sol";
-import {RegistryDatastore} from "~src/registry/RegistryDatastore.sol";
+import {PermissionedRegistry, IRegistryMetadata} from "~src/registry/PermissionedRegistry.sol";
 import {LibRegistry, IRegistry, NameCoder} from "~src/universalResolver/libraries/LibRegistry.sol";
 
 contract LibRegistryTest is Test, ERC1155Holder {
-    RegistryDatastore datastore;
     PermissionedRegistry rootRegistry;
     address resolverAddress = makeAddr("resolver");
 
     function _createRegistry() internal returns (PermissionedRegistry) {
         return
             new PermissionedRegistry(
-                datastore,
                 IHCAFactoryBasic(address(0)),
                 IRegistryMetadata(address(0)),
                 address(this),
@@ -48,7 +42,6 @@ contract LibRegistryTest is Test, ERC1155Holder {
     }
 
     function setUp() external {
-        datastore = new RegistryDatastore();
         rootRegistry = _createRegistry();
     }
 
