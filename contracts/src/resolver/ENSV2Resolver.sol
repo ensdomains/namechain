@@ -15,7 +15,7 @@ import {LibRegistry} from "../universalResolver/libraries/LibRegistry.sol";
 
 /// @notice Resolver that performs resolutions using ENSv2.
 ///
-/// Basically an UniversalResolverV2 (ResolverCaller + LibRegistry) that implements ICompositeResolver.
+/// An UniversalResolverV2 (ResolverCaller + LibRegistry) that implements ICompositeResolver.
 ///
 contract ENSV2Resolver is ICompositeResolver, IERC7996, ResolverCaller, ERC165 {
     ////////////////////////////////////////////////////////////////////////
