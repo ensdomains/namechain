@@ -11,7 +11,6 @@ import {
   getContract,
   type GetContractReturnType,
   type Hash,
-  type Hex,
   namehash,
   publicActions,
   testActions,
@@ -40,8 +39,6 @@ import { patchArtifactsV1 } from "./patchArtifactsV1.js";
 export const DEFAULT_CHAIN_ID = 0xeeeeed;
 
 type DeployedArtifacts = Record<string, Abi>;
-
-type Future<T> = T | Promise<T>;
 
 // typescript key (see below) mapped to rocketh deploy name
 const renames: Record<string, string> = {
@@ -427,19 +424,11 @@ export async function setupDevnet({
       namedAccounts,
       deployment,
       sync,
-      waitFor,
       getBlock,
       saveState,
       shutdown,
     };
 
-    async function waitFor(hash: Future<Hex>) {
-      hash = await hash;
-      const receipt = await waitForSuccessfulTransactionReceipt(client, {
-        hash,
-      });
-      return { receipt, deployment };
-    }
     function getBlock() {
       return client.getBlock();
     }
