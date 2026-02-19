@@ -76,11 +76,12 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
         );
     }
 
-    function test_setParent() external {
-        registry.setParent(IRegistry(address(1)), "abc");
-        (IRegistry parent, string memory label) = registry.getParent();
-        assertEq(address(parent), address(1), "parent");
-        assertEq(label, "abc", "label");
+    function test_setCanonicalName() external {
+        bytes memory name = NameCoder.encode("test.eth");
+        vm.expectEmit();
+        emit IRegistry.CanonicalNameUpdated(name, address(this));
+        registry.setCanonicalName(name);
+        assertEq(registry.getCanonicalName(), name);
     }
 
     function test_setParent_notAuthorized() external {
@@ -88,12 +89,12 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
             abi.encodeWithSelector(
                 IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
                 registry.ROOT_RESOURCE(),
-                RegistryRolesLib.ROLE_SET_PARENT,
+                RegistryRolesLib.ROLE_SET_CANONICAL_NAME,
                 user1
             )
         );
         vm.prank(user1);
-        registry.setParent(IRegistry(address(1)), "abc");
+        registry.setCanonicalName("");
     }
 
     function test_Revert_register_without_registrar_role() public {

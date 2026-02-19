@@ -36,8 +36,8 @@ interface IRegistry is IERC1155Singleton {
         uint256 resource
     );
 
-    /// @notice Parent was changed.
-    event ParentUpdated(IRegistry indexed parent, string label);
+    /// @notice Canonical name was changed.
+    event CanonicalNameUpdated(bytes name, address sender);
 
     ////////////////////////////////////////////////////////////////////////
     // Functions
@@ -57,9 +57,8 @@ interface IRegistry is IERC1155Singleton {
      */
     function getResolver(string calldata label) external view returns (address);
 
-    /// @notice Get canonical "location" of this registry.
+    /// @notice Get canonical name of this registry.
     ///
-    /// @return parent The canonical parent of this registry.
-    /// @return label The canonical subdomain of this registry.
-    function getParent() external view returns (IRegistry parent, string memory label);
+    /// @return name The DNS-encoded name.
+    function getCanonicalName() external view returns (bytes memory name);
 }

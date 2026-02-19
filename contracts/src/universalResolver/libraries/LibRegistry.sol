@@ -88,49 +88,46 @@ library LibRegistry {
         }
     }
 
-    /// @notice Construct the canonical name for `registry`.
+    /// @notice Verify the canonical name of `registry`.
     ///
     /// @param rootRegistry The root ENS registry.
-    /// @param registry The registry to name.
+    /// @param name The DNS-encoded name to verify.
+    /// @param offset The offset into `name` to start verification.
     ///
-    /// @return name The canonical name or empty if not canonical.
-    function findCanonicalName(
+    /// @return registry The canonical registry or null if not canonical.
+    function findCanonicalRegistry(
         IRegistry rootRegistry,
-        IRegistry registry
-    ) internal view returns (bytes memory name) {
-        if (address(registry) == address(0)) {
-            return "";
-        }
-        for (;;) {
-            if (address(registry) == address(rootRegistry)) {
-                return abi.encodePacked(name, uint8(0)); // add terminator
-            }
-            (IRegistry parent, string memory label) = registry.getParent();
-            if (address(parent) == address(0)) {
-                return ""; // no canonical parent
-            }
-            IRegistry child = parent.getSubregistry(label);
-            if (address(child) != address(registry)) {
-                return ""; // wrong canonical child
-            }
-            name = abi.encodePacked(name, NameCoder.assertLabelSize(label), label); // reverts if invalid label
-            registry = parent;
+        bytes memory name,
+        uint256 offset
+    ) internal view returns (IRegistry registry) {
+        if (name.length > offset) {
+            registry = _verifyCanonicalName(rootRegistry, name, offset);
         }
     }
 
-    /// @notice Determine if `name` is the canonical name.
-    ///
-    /// @param rootRegistry The root ENS registry.
-    /// @param name The DNS-encoded name to check.
-    ///
-    /// @return True if the canonical name is `name`.
-    function isCanonicalName(
+    /// @dev Recursive function for verifying the canonical name of a registry.
+    function _verifyCanonicalName(
         IRegistry rootRegistry,
-        bytes memory name
-    ) internal view returns (bool) {
-        return
-            keccak256(findCanonicalName(rootRegistry, findExactRegistry(rootRegistry, name, 0))) ==
-            keccak256(name);
+        bytes memory name,
+        uint256 offset
+    ) internal view returns (IRegistry parentRegistry) {
+        (string memory label, uint256 next) = NameCoder.extractLabel(name, offset);
+        if (bytes(label).length == 0) {
+            return rootRegistry;
+        }
+        IRegistry parent = _verifyCanonicalName(rootRegistry, name, next);
+        if (address(parent) != address(0)) {
+            IRegistry child = parent.getSubregistry(label);
+            if (address(child) != address(0)) {
+                bytes memory childName = child.getCanonicalName();
+                if (
+                    childName.length > 0 &&
+                    NameCoder.namehash(childName, 0) == NameCoder.namehash(name, offset)
+                ) {
+                    parentRegistry = child;
+                }
+            }
+        }
     }
 
     /// @dev Find the exact registry for `name[offset:]`.

@@ -31,8 +31,7 @@ contract PermissionedRegistry is
     // Storage
     ////////////////////////////////////////////////////////////////////////
 
-    IRegistry internal _parent;
-    string internal _childLabel;
+    bytes internal _canonicalName;
     mapping(uint256 canonicalId => Entry entry) internal _entries;
 
     ////////////////////////////////////////////////////////////////////////
@@ -89,13 +88,11 @@ contract PermissionedRegistry is
     }
 
     /// @inheritdoc IStandardRegistry
-    function setParent(
-        IRegistry parent,
-        string memory label
-    ) public virtual onlyRootRoles(RegistryRolesLib.ROLE_SET_PARENT) {
-        _parent = parent;
-        _childLabel = label;
-        emit ParentUpdated(parent, label);
+    function setCanonicalName(
+        bytes memory name
+    ) public virtual onlyRootRoles(RegistryRolesLib.ROLE_SET_CANONICAL_NAME) {
+        _canonicalName = name;
+        emit CanonicalNameUpdated(name, _msgSender());
     }
 
     /// @inheritdoc IStandardRegistry
@@ -160,8 +157,8 @@ contract PermissionedRegistry is
     }
 
     /// @inheritdoc IRegistry
-    function getParent() public view virtual returns (IRegistry parent, string memory label) {
-        return (_parent, _childLabel);
+    function getCanonicalName() public view virtual returns (bytes memory) {
+        return _canonicalName;
     }
 
     /// @inheritdoc ERC1155Singleton
