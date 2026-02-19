@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.24;
 
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
+import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 
 import {IRegistry} from "../../registry/interfaces/IRegistry.sol";
 
