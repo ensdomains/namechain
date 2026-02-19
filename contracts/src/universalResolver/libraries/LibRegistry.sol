@@ -2,6 +2,7 @@
 pragma solidity >=0.8.24;
 
 import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
+import {BytesUtils} from "@ens/contracts/utils/BytesUtils.sol";
 
 import {IRegistry} from "../../registry/interfaces/IRegistry.sol";
 
@@ -88,7 +89,7 @@ library LibRegistry {
         }
     }
 
-    /// @notice Verify the canonical name of `registry`.
+    /// @notice Find the canonical registry for `name`.
     ///
     /// @param rootRegistry The root ENS registry.
     /// @param name The DNS-encoded name to verify.
@@ -100,31 +101,24 @@ library LibRegistry {
         bytes memory name,
         uint256 offset
     ) internal view returns (IRegistry registry) {
-        if (name.length > offset) {
-            registry = _verifyCanonicalName(rootRegistry, name, offset);
+        if (offset > name.length) {
+            return IRegistry(address(0));
         }
-    }
-
-    /// @dev Recursive function for verifying the canonical name of a registry.
-    function _verifyCanonicalName(
-        IRegistry rootRegistry,
-        bytes memory name,
-        uint256 offset
-    ) internal view returns (IRegistry parentRegistry) {
         (string memory label, uint256 next) = NameCoder.extractLabel(name, offset);
         if (bytes(label).length == 0) {
             return rootRegistry;
         }
-        IRegistry parent = _verifyCanonicalName(rootRegistry, name, next);
+        IRegistry parent = findCanonicalRegistry(rootRegistry, name, next);
         if (address(parent) != address(0)) {
             IRegistry child = parent.getSubregistry(label);
             if (address(child) != address(0)) {
                 bytes memory childName = child.getCanonicalName();
                 if (
                     childName.length > 0 &&
-                    NameCoder.namehash(childName, 0) == NameCoder.namehash(name, offset)
+                    //NameCoder.namehash(childName, 0) == NameCoder.namehash(name, offset)
+                    keccak256(childName) == BytesUtils.keccak(name, offset, name.length - offset)
                 ) {
-                    parentRegistry = child;
+                    return child;
                 }
             }
         }
