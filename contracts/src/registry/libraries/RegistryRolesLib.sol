@@ -15,4 +15,7 @@ library RegistryRolesLib {
     uint256 internal constant ROLE_SET_RESOLVER_ADMIN = ROLE_SET_RESOLVER << 128;
 
     uint256 internal constant ROLE_CAN_TRANSFER_ADMIN = (1 << 16) << 128;
+
+    uint256 internal constant ROLE_SET_CANONICAL_NAME = 1 << 16;
+    uint256 internal constant ROLE_SET_CANONICAL_NAME_ADMIN = ROLE_SET_CANONICAL_NAME << 128;
 }

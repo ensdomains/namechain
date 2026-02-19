@@ -74,6 +74,11 @@ interface IStandardRegistry is IRegistry {
     /// @param resolver The new resolver.
     function setResolver(uint256 anyId, address resolver) external;
 
+    /// @notice Change canonical name for this registry.
+    /// @dev Should emit `CanonicalNameUpdated`.
+    /// @param name The DNS-encoded canonical name.
+    function setCanonicalName(bytes memory name) external;
+
     /// @notice Get expiry of name.
     /// @param anyId The labelhash, token ID, or resource.
     /// @return The expiry for name.

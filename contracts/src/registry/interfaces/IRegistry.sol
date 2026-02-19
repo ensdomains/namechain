@@ -36,6 +36,9 @@ interface IRegistry is IERC1155Singleton {
         uint256 resource
     );
 
+    /// @notice Canonical name was changed.
+    event CanonicalNameUpdated(bytes name, address sender);
+
     ////////////////////////////////////////////////////////////////////////
     // Functions
     ////////////////////////////////////////////////////////////////////////
@@ -53,4 +56,9 @@ interface IRegistry is IERC1155Singleton {
      * @return resolver The address of a resolver responsible for this name, or `address(0)` if none exists.
      */
     function getResolver(string calldata label) external view returns (address);
+
+    /// @notice Get canonical name of this registry.
+    ///
+    /// @return name The DNS-encoded name.
+    function getCanonicalName() external view returns (bytes memory name);
 }
