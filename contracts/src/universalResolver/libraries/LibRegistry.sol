@@ -88,6 +88,51 @@ library LibRegistry {
         }
     }
 
+    /// @notice Construct the canonical name for `registry`.
+    ///
+    /// @param rootRegistry The root ENS registry.
+    /// @param registry The registry to name.
+    ///
+    /// @return name The canonical name or empty if not canonical.
+    function findCanonicalName(
+        IRegistry rootRegistry,
+        IRegistry registry
+    ) internal view returns (bytes memory name) {
+        if (address(registry) == address(0)) {
+            return "";
+        }
+        for (;;) {
+            if (address(registry) == address(rootRegistry)) {
+                return abi.encodePacked(name, uint8(0)); // add terminator
+            }
+            (IRegistry parent, string memory label) = registry.getParent();
+            if (address(parent) == address(0)) {
+                return ""; // no canonical parent
+            }
+            IRegistry child = parent.getSubregistry(label);
+            if (address(child) != address(registry)) {
+                return ""; // wrong canonical child
+            }
+            name = abi.encodePacked(name, NameCoder.assertLabelSize(label), label); // reverts if invalid label
+            registry = parent;
+        }
+    }
+
+    /// @notice Determine if `name` is the canonical name.
+    ///
+    /// @param rootRegistry The root ENS registry.
+    /// @param name The DNS-encoded name to check.
+    ///
+    /// @return True if the canonical name is `name`.
+    function isCanonicalName(
+        IRegistry rootRegistry,
+        bytes memory name
+    ) internal view returns (bool) {
+        return
+            keccak256(findCanonicalName(rootRegistry, findExactRegistry(rootRegistry, name, 0))) ==
+            keccak256(name);
+    }
+
     /// @dev Find the exact registry for `name[offset:]`.
     ///
     /// @param rootRegistry The root ENS registry.

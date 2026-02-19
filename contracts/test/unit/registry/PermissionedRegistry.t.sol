@@ -5,13 +5,10 @@ pragma solidity >=0.8.13;
 
 import {Vm, Test} from "forge-std/Test.sol";
 
-import {NameCoder} from "@ens/contracts/utils/NameCoder.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-import {EACBaseRolesLib} from "~src/access-control/EnhancedAccessControl.sol";
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
-import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
 import {SimpleRegistryMetadata} from "~src/registry/SimpleRegistryMetadata.sol";
 import {LibLabel} from "~src/utils/LibLabel.sol";
 import {
@@ -19,7 +16,10 @@ import {
     IPermissionedRegistry,
     IEnhancedAccessControl,
     IRegistry,
-    IStandardRegistry
+    IStandardRegistry,
+    EACBaseRolesLib,
+    RegistryRolesLib,
+    NameCoder
 } from "~src/registry/PermissionedRegistry.sol";
 import {MockHCAFactoryBasic} from "~test/mocks/MockHCAFactoryBasic.sol";
 
@@ -62,6 +62,38 @@ contract PermissionedRegistryTest is Test, ERC1155Holder {
 
     function test_constructor_sets_roles() public view {
         assertTrue(registry.hasRootRoles(deployerRoles, address(this)));
+    }
+
+    function test_supportsInterface() external view {
+        assertTrue(registry.supportsInterface(type(IRegistry).interfaceId), "IRegistry");
+        assertTrue(
+            registry.supportsInterface(type(IStandardRegistry).interfaceId),
+            "IStandardRegistry"
+        );
+        assertTrue(
+            registry.supportsInterface(type(IPermissionedRegistry).interfaceId),
+            "IPermissionedRegistry"
+        );
+    }
+
+    function test_setParent() external {
+        registry.setParent(IRegistry(address(1)), "abc");
+        (IRegistry parent, string memory label) = registry.getParent();
+        assertEq(address(parent), address(1), "parent");
+        assertEq(label, "abc", "label");
+    }
+
+    function test_setParent_notAuthorized() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEnhancedAccessControl.EACUnauthorizedAccountRoles.selector,
+                registry.ROOT_RESOURCE(),
+                RegistryRolesLib.ROLE_SET_PARENT,
+                user1
+            )
+        );
+        vm.prank(user1);
+        registry.setParent(IRegistry(address(1)), "abc");
     }
 
     function test_Revert_register_without_registrar_role() public {

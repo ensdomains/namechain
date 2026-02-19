@@ -74,6 +74,12 @@ interface IStandardRegistry is IRegistry {
     /// @param resolver The new resolver.
     function setResolver(uint256 anyId, address resolver) external;
 
+    /// @notice Change canonical "location".
+    /// @dev Should emit `ParentUpdated`.
+    /// @param parent The canonical parent of this registry.
+    /// @param label The canonical subdomain of this registry.
+    function setParent(IRegistry parent, string calldata label) external;
+
     /// @notice Get expiry of name.
     /// @param anyId The labelhash, token ID, or resource.
     /// @return The expiry for name.
