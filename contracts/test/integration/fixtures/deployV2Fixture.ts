@@ -4,7 +4,7 @@ import {
   LOCAL_BATCH_GATEWAY_URL,
   ROLES,
 } from "../../../script/deploy-constants.js";
-import { splitName, labelId } from "../../utils/utils.js";
+import { splitName, idFromLabel } from "../../utils/utils.js";
 import { deployVerifiableProxy } from "./deployVerifiableProxy.js";
 
 export const MAX_EXPIRY = (1n << 64n) - 1n;
@@ -64,7 +64,7 @@ export async function deployV2Fixture(
   async function deployOwnedResolver({
     owner = walletClient.account.address,
     roles = ROLES.ALL,
-    salt = labelId(new Date().toISOString()),
+    salt = idFromLabel(new Date().toISOString()),
   }: {
     owner?: Address;
     roles?: bigint;
@@ -106,7 +106,7 @@ export async function deployV2Fixture(
     while (true) {
       const parentRegistry = registries[0];
       const label = labels[labels.length - registries.length];
-      const state = await parentRegistry.read.getState([labelId(label)]);
+      const state = await parentRegistry.read.getState([idFromLabel(label)]);
       const exists = state.latestOwner !== zeroAddress;
       const leaf = registries.length == labels.length;
       let registryAddress = await parentRegistry.read.getSubregistry([label]);

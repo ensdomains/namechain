@@ -6,8 +6,8 @@ import { expectVar } from "../../utils/expectVar.js";
 import {
   dnsEncodeName,
   getLabelAt,
-  labelId,
-  constructId,
+  idFromLabel,
+  idWithVersion,
 } from "../../utils/utils.js";
 import { deployV2Fixture } from "./deployV2Fixture.js";
 import { ROLES } from "../../../script/deploy-constants.js";
@@ -40,7 +40,7 @@ describe("deployV2Fixture", () => {
         name: "test.eth",
       });
     expectVar({ labels }).toStrictEqual(["test", "eth"]);
-    expectVar({ tokenId }).toEqual(constructId(labelId("test"), 0));
+    expectVar({ tokenId }).toEqual(idWithVersion(idFromLabel("test")));
     expectVar({ parentRegistry }).toEqual(registries[1]);
     expectVar({ exactRegistry }).toBeUndefined();
     expectRegistries(registries, [undefined, F.ethRegistry, F.rootRegistry]);
@@ -54,7 +54,7 @@ describe("deployV2Fixture", () => {
         exact: true,
       });
     expectVar({ labels }).toStrictEqual(["test", "eth"]);
-    expectVar({ tokenId }).toEqual(constructId(labelId("test"), 0));
+    expectVar({ tokenId }).toEqual(idWithVersion(idFromLabel("test")));
     expectVar({ parentRegistry }).toEqual(registries[1]);
     expectVar({ exactRegistry }).toBeDefined();
     expectRegistries(registries, [

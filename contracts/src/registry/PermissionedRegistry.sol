@@ -475,7 +475,7 @@ contract PermissionedRegistry is
     }
 
     function _entry(uint256 anyId) internal view returns (Entry storage) {
-        return _entries[LibLabel.constructId(anyId, 0)];
+        return _entries[LibLabel.version(anyId, 0)];
     }
 
     /// @dev Assert token is not expired and caller has necessary roles.
@@ -504,7 +504,7 @@ contract PermissionedRegistry is
         Entry storage entry
     ) internal view returns (uint256) {
         return
-            LibLabel.constructId(
+            LibLabel.version(
                 anyId,
                 _isExpired(entry.expiry) ? entry.eacVersionId + 1 : entry.eacVersionId
             );
@@ -512,7 +512,7 @@ contract PermissionedRegistry is
 
     /// @dev Create `tokenId` from parts.
     function _constructTokenId(uint256 anyId, Entry storage entry) internal view returns (uint256) {
-        return LibLabel.constructId(anyId, entry.tokenVersionId);
+        return LibLabel.version(anyId, entry.tokenVersionId);
     }
 
     /// @dev Create `Status` from parts.
