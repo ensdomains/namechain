@@ -29,7 +29,6 @@ import {IRegistry} from "~src/registry/interfaces/IRegistry.sol";
 import {IRegistryMetadata} from "~src/registry/interfaces/IRegistryMetadata.sol";
 import {IStandardRegistry} from "~src/registry/interfaces/IStandardRegistry.sol";
 import {RegistryRolesLib} from "~src/registry/libraries/RegistryRolesLib.sol";
-import {LibLabel} from "~src/utils/LibLabel.sol";
 import {LockedNamesLib} from "~src/migration/libraries/LockedNamesLib.sol";
 import {ParentNotMigrated, LabelNotMigrated} from "~src/migration/MigrationErrors.sol";
 import {MigratedWrappedNameRegistry} from "~src/registry/MigratedWrappedNameRegistry.sol";
@@ -175,8 +174,6 @@ contract MigratedWrappedNameRegistryTest is Test {
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
         registry = MigratedWrappedNameRegistry(address(proxy));
-
-        testLabelId = LibLabel.labelToCanonicalId(testLabel);
 
         // Setup v1 resolver in ENS registry
         bytes memory dnsEncodedName = NameCoder.ethName(testLabel);
@@ -861,7 +858,7 @@ contract MigratedWrappedNameRegistryTest is Test {
 
         // Verify re-register succeed
         vm.prank(address(nameWrapper));
-        registry.register(
+        tokenId = registry.register(
             label,
             address(0x5678), // New owner
             registry,
@@ -871,12 +868,8 @@ contract MigratedWrappedNameRegistryTest is Test {
         );
 
         // Verify re-registration succeeded with new owner
-        (uint256 newTokenId, IPermissionedRegistry.Entry memory entry) = registry.getNameData(
-            label
-        );
-        uint64 expires = entry.expiry;
-        assertGt(expires, block.timestamp);
-        assertEq(registry.ownerOf(newTokenId), address(0x5678));
+        assertGt(registry.getExpiry(tokenId), block.timestamp);
+        assertEq(registry.ownerOf(tokenId), address(0x5678));
     }
 
     function test_register_non_emancipated_name() public {
@@ -893,12 +886,17 @@ contract MigratedWrappedNameRegistryTest is Test {
 
         // Should succeed - no check needed
         vm.prank(address(nameWrapper));
-        registry.register(label, user, registry, mockResolver, 0, uint64(block.timestamp + 86400));
+        tokenId = registry.register(
+            label,
+            user,
+            registry,
+            mockResolver,
+            0,
+            uint64(block.timestamp + 86400)
+        );
 
         // Verify registration succeeded
-        (, IPermissionedRegistry.Entry memory entry) = registry.getNameData(label);
-        uint64 expires = entry.expiry;
-        assertGt(expires, block.timestamp);
+        assertGt(registry.getExpiry(tokenId), block.timestamp);
     }
 
     function test_register_emancipated_with_other_fuses_not_locked() public {
